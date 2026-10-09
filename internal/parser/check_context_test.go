@@ -124,12 +124,19 @@ func TestCheckQualificationConsumerBoundaries(t *testing.T) {
 	for _, query := range []string{
 		"CREATE TABLE t(a INT DEFAULT public.t.a)",
 		"SELECT public.t.a",
-		"UPDATE t SET a=public.t.a",
 		"DELETE FROM t WHERE public.t.a=1",
 	} {
 		statements, err := Parse(query)
 		if err == nil || statements != nil {
 			t.Fatal("CHECK widened ordinary qualification boundary", query, statements, err)
 		}
+	}
+	statements, err := Parse("UPDATE t SET a=public.t.a")
+	if err != nil || len(statements) != 1 {
+		t.Fatal("UPDATE namespace lost schema qualification", statements, err)
+	}
+	column, ok := statements[0].(*Update).Assignments[0].Value.(ColumnExpr)
+	if !ok || len(column.Name.Parts) != 3 || column.Name.Parts[0].Text != "public" || column.Name.Parts[1].Text != "t" || column.Name.Parts[2].Text != "a" {
+		t.Fatal("UPDATE qualification AST", column)
 	}
 }

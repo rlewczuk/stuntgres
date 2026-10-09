@@ -104,7 +104,18 @@ return one occurrence; no matches retain full metadata. Query owns eager values,
 and Exec still evaluates outputs before reporting its count. Output errors roll
 back staged mutations, not sequence draws, under existing transaction/savepoint
 rules. See [UPDATE RETURNING](docs/QUERIES.md#update-returning--change-note).
-Feature smokes: `make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
+Feature smokes: `make test PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`; pinned mode: `make reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`.
+
+UPDATE also accepts AS/bare target aliases and the supported inner/outer `FROM` trees using
+the existing query namespace. Source-qualified SET/WHERE/RETURNING expressions
+read one coherent captured source view; ordinary target outputs read NEW.
+Multiple eligible source pairs may evaluate SET, but each physical target is
+replaced/counts/returns once with its winning source pair, without a promised
+winner or traversal order. After a row wait only that target predecessor and
+predicate are refreshed; source rows and candidate identities stay frozen.
+See [UPDATE FROM](docs/QUERIES.md#update-from--change-note).
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateFromSmoke$' VERBOSE=0`.
+Pinned PostgreSQL witnesses: `make reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
 
 Schema search paths are physical-session settings: missing/inaccessible entries
 are ignored, `$user` follows the current role, qualification ignores the path,

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -29,7 +27,7 @@ func TestReferenceUpdateReturningDiagnostics(t *testing.T) {
 			name = "populated"
 		}
 		t.Run(name, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE t(id INT,v TEXT)", 0))
 			if populated {
 				p.step(t, referenceExec("INSERT INTO t VALUES(2,'unchanged')", 1))
@@ -43,9 +41,17 @@ func TestReferenceUpdateReturningDiagnostics(t *testing.T) {
 						d.Position = strconv.Itoa(n + 6)
 					}
 					p.step(t, referenceImplicitError(prefix+tc.q, d, 2))
+					queryError := referenceImplicitError(prefix+tc.q, d, 2)
+					queryError.selectRows = true
+					p.step(t, queryError)
 					p.step(t, referencePrepared(referenceImplicitError(prefix+tc.q, d, 2)))
 				}
 			}
+			want := [][]any{}
+			if populated {
+				want = [][]any{{int64(2), "unchanged"}}
+			}
+			p.step(t, referenceSelect("SELECT id,v FROM t", []string{"id", "v"}, []string{"INT4", "TEXT"}, want))
 		})
 	}
 }

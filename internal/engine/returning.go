@@ -63,6 +63,13 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 		if option.Alias.Text == visible {
 			return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 		}
+		if b.queryNamespace != nil {
+			for _, qualifier := range b.queryNamespace.qualifiers {
+				if qualifier.name == option.Alias.Text {
+					return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
+				}
+			}
+		}
 		if option.New {
 			aliases.new = option.Alias.Text
 		} else {
@@ -80,6 +87,17 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 			aliases.old = ""
 		}
 	}
+	// Actual target/FROM relation qualifiers mask only implicit pseudo names.
+	if b.queryNamespace != nil {
+		for _, qualifier := range b.queryNamespace.qualifiers {
+			if !seenOld && qualifier.name == aliases.old {
+				aliases.old = ""
+			}
+			if !seenNew && qualifier.name == aliases.new {
+				aliases.new = ""
+			}
+		}
+	}
 	previous, clause := b.returningAliases, b.aggregateClause
 	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
 	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
@@ -88,7 +106,11 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 		descriptor := ColumnDescriptor{Name: name, Usage: expr.ResultUsage()}
 		switch column := expr.(type) {
 		case columnExpression:
-			descriptor = b.relation.columns[column.slot]
+			if b.queryNamespace != nil {
+				descriptor = b.queryNamespace.frame[column.slot]
+			} else {
+				descriptor = b.relation.columns[column.slot]
+			}
 		case updateOldExpression:
 			descriptor = b.relation.columns[column.slot]
 		case deleteNewExpression:
@@ -110,6 +132,26 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 			return nil, err
 		}
 		if star, ok := expression.(parser.StarExpr); ok {
+			if b.queryNamespace != nil {
+				if newValues, pseudo := b.returningPseudo(star.Qualifier); pseudo {
+					for slot, column := range b.relation.columns {
+						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
+					}
+				} else {
+					columns := b.queryNamespace.columns
+					if len(star.Qualifier.Parts) != 0 {
+						qualifier, err := b.queryQualifier(star.Qualifier, star.Pos)
+						if err != nil {
+							return nil, err
+						}
+						columns = qualifier.columns
+					}
+					for _, column := range columns {
+						appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+					}
+				}
+				continue
+			}
 			newValues, err := b.returningQualifier(star.Qualifier, star.Pos)
 			if err != nil {
 				return nil, err
@@ -192,10 +234,29 @@ func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newV
 	return column
 }
 
+func (b *expressionBinder) returningPseudo(name parser.ObjectName) (newValues, pseudo bool) {
+	if len(name.Parts) != 1 {
+		return false, false
+	}
+	label := name.Parts[0].Text
+	if b.returningAliases.old != "" && label == b.returningAliases.old {
+		return false, true
+	}
+	if b.returningAliases.new != "" && label == b.returningAliases.new {
+		return true, true
+	}
+	return false, false
+}
+
 func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, error) {
 	parts := raw.Name.Parts
 	if len(parts) == 0 || len(parts) > 3 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
+	}
+	if b.queryNamespace != nil {
+		if _, pseudo := b.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
+			return b.queryColumn(raw)
+		}
 	}
 	newValues, err := b.returningQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
 	if err != nil {

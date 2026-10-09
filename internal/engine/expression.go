@@ -835,11 +835,11 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 			return nil, expressionError("42P10", `system column "`+name+`" reference in check constraint is invalid`, raw.Pos)
 		}
 	}
-	if b.queryNamespace != nil {
-		return b.queryColumn(raw)
-	}
 	if b.returningAliases != nil {
 		return b.returningColumn(raw)
+	}
+	if b.queryNamespace != nil {
+		return b.queryColumn(raw)
 	}
 	if len(raw.Name.Parts) == 2 && !b.deleteTarget {
 		return nil, expressionError("0A000", "qualified column references are unsupported", raw.Pos)

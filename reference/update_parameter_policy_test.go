@@ -52,6 +52,17 @@ func TestReferenceUpdateCoreSuffixBoundaries(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					run(referenceExec("UPDATE t SET a=1", 1))
 					a := int64(1)
+					if i == 0 {
+						want := controlsReferenceDiagnostic("42712", `table name "t" specified more than once`)
+						step := referenceErrorDiagnostic(q, want)
+						if prepared {
+							step = referencePrepared(step)
+							step.errorStage = "prepare"
+						}
+						run(step)
+						run(referenceSelect("SELECT a,n FROM t", []string{"a", "n"}, []string{"INT4", "INT2"}, [][]any{{int64(1), int64(1)}}))
+						continue
+					}
 					if !backend.pg {
 						if _, err := backend.db.ExecContext(p.ctx, q); err == nil {
 							t.Fatal("excluded suffix executed", q)

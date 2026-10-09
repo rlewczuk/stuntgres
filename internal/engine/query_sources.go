@@ -136,42 +136,10 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	if len(leaves) > 1 {
 		refs = make([]ObjectRef, 0, len(leaves))
 	}
-	catalog := scope.commentCatalog
-	var visited map[ObjectRef]bool
-	var collect func(ObjectRef) error
-	collect = func(ref ObjectRef) error {
-		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
-		if !ok || ref.owner != e.owner || ref.Epoch != catalog.Epoch() {
-			return ErrCatalogReplaced
-		}
-		if relation.view != nil {
-			if visited[ref] {
-				return nil
-			}
-			if visited == nil {
-				visited = make(map[ObjectRef]bool)
-			}
-			visited[ref] = true
-			for _, child := range relation.view.sources {
-				if err := collect(child.ref); err != nil {
-					return err
-				}
-			}
-		}
-		if relation.relationKind == tableRelation {
-			for _, prior := range refs {
-				if prior == ref {
-					return nil
-				}
-			}
-			refs = append(refs, ref)
-		}
-		return nil
-	}
-	for _, leaf := range leaves {
-		if err := collect(leaf.ref); err != nil {
-			return nil, err
-		}
+	var collectErr error
+	refs, collectErr = e.queryTableRefsLocked(scope.commentCatalog, leaves, refs)
+	if collectErr != nil {
+		return nil, collectErr
 	}
 	var view *VisibilityView
 	var err error

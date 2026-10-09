@@ -13,6 +13,8 @@ import (
 type boundUpdate struct {
 	assignments []BoundExpr
 	predicate   BoundExpr
+	from        LogicalNode
+	sourceWidth int
 }
 
 // Reuse the shared coercion traversal; only changed execution branches are
@@ -50,13 +52,27 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 			result.predicate = folded
 		}
 	}
+	if original.from != nil {
+		folded, err := preflightQuery(c, original.from)
+		if err != nil {
+			return nil, err
+		}
+		if folded != original.from {
+			if result == original {
+				private := *original
+				result = &private
+			}
+			result.from = folded
+		}
+	}
 	return result, nil
 }
 
-// Transform WHERE, RETURNING (including output fallback), then RHS/destinations.
+// Transform FROM, WHERE, RETURNING (output fallback), then RHS/destinations.
 func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	binder.relation, binder.ref = b.relation, b.ref
 	binder.targetName = b.relation.name
+	binder.targetAlias = s.Alias.Text
 	binder.updateParameters = true
 	defer func() {
 		binder.updateParameters = false
@@ -64,6 +80,22 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	}()
 	u := &boundUpdate{assignments: make([]BoundExpr, len(s.Assignments))}
 	var err error
+	target := binder.updateTargetNamespace()
+	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+	if s.From != nil {
+		var sources queryNamespace
+		u.from, sources, err = binder.bindFrom(s.From)
+		if err != nil {
+			return err
+		}
+		u.sourceWidth = len(sources.frame)
+		target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.columns)))
+		if err != nil {
+			return err
+		}
+	}
+	binder.queryNamespace = &target
+	binder.aggregateClause = "UPDATE"
 	if s.Where != nil {
 		u.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
 		if err != nil {
@@ -106,7 +138,18 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			case "ctid", "tableoid", "xmin", "xmax", "cmin", "cmax":
 				return expressionError("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
 			}
-			return expressionError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.name), a.Target.Pos)
+			diagnostic := expressionError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.name), a.Target.Pos).(*sqlstate.Error)
+			visible := binder.targetName
+			if binder.targetAlias != "" {
+				visible = binder.targetAlias
+			}
+			if len(a.Indirection) != 0 && a.Target.Text == visible {
+				diagnostic.Hint = "SET target columns cannot be qualified with the relation name."
+			}
+			return diagnostic
+		}
+		if len(a.Indirection) != 0 {
+			return expressionError("0A000", "field assignments are unsupported", a.Target.Pos)
 		}
 		if seen[slot] {
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
@@ -174,7 +217,8 @@ func (s *StatementScope) acquireUpdateRow(ref ObjectRef, row RowID) error {
 
 type updateCandidate struct {
 	rowVersion
-	slot int
+	slot        int
+	sourceIndex int
 }
 
 func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
@@ -206,9 +250,39 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 	return row, liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address]), nil
 }
 
-func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source *querySource, parameters []sqltype.Value, schema string) (Result, error) {
+func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
 	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
+	var stage indexedStage
+	var frame, assigned []sqltype.Value
+	var updated map[RowID]bool
+	sourceCount := 1
+	if from != nil {
+		defer from.close()
+		if err := selectQuerySources(ctx, from); err != nil {
+			return Result{}, err
+		}
+		state := queryState{source: from, parameters: parameters, input: s.input, output: s.output, locking: from.locks != nil}
+		var err error
+		stage, err = openQueryNode(ctx, &state, b.update.from)
+		if err != nil {
+			return Result{}, err
+		}
+		stage, err = settlePendingQueryMarks(ctx, &state, b.update.from, stage)
+		if err != nil {
+			return Result{}, err
+		}
+		defer stage.Close()
+		if err := stage.drain(ctx); err != nil {
+			return Result{}, err
+		}
+		sourceCount = stage.count()
+		if sourceCount != 0 {
+			frame = make([]sqltype.Value, len(b.relation.columns)+b.update.sourceWidth)
+			assigned = make([]sqltype.Value, len(b.targets))
+			updated = make(map[RowID]bool)
+		}
+	}
 	var output *finalRows
 	keep := false
 	if b.returning != nil {
@@ -225,17 +299,28 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var candidates []updateCandidate
 	for i := range source.count() {
 		old := source.versionAt(source.rawIndex(i))
-		eval.Row = old.values
-		matches, err := updateMatches(&eval, b.update.predicate)
-		if err != nil {
-			return Result{}, err
-		}
-		if matches {
-			candidates = append(candidates, updateCandidate{rowVersion: old, slot: source.rawIndex(i)})
+		for j := range sourceCount {
+			if err := ctx.Err(); err != nil {
+				return Result{}, err
+			}
+			eval.Row = old.values
+			if from != nil {
+				copy(frame, old.values)
+				copy(frame[len(old.values):], stage.source.row(stage.index(j)))
+				eval.Row = frame
+			}
+			matches, err := updateMatches(&eval, b.update.predicate)
+			if err != nil {
+				return Result{}, err
+			}
+			if matches {
+				candidates = append(candidates, updateCandidate{rowVersion: old, slot: source.rawIndex(i), sourceIndex: j})
+			}
 		}
 	}
-	oldRows := make([]rowVersion, 0, len(candidates))
-	rows := make([][]sqltype.Value, 0, len(candidates))
+	uniqueCapacity := min(len(candidates), source.count())
+	oldRows := make([]rowVersion, 0, uniqueCapacity)
+	rows := make([][]sqltype.Value, 0, uniqueCapacity)
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
@@ -252,6 +337,11 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		eval.Row = old.values
 		eval.OldRow = nil
+		if from != nil {
+			copy(frame, old.values)
+			copy(frame[len(old.values):], stage.source.row(stage.index(candidate.sourceIndex)))
+			eval.Row = frame
+		}
 		if old.version != candidate.version {
 			matches, err := updateMatches(&eval, b.update.predicate)
 			if err != nil {
@@ -261,14 +351,32 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				continue
 			}
 		}
+		if from != nil {
+			// PostgreSQL projects SET for losing duplicate pairs too. Suppress
+			// only replacement/count/RETURNING, never eligible scalar demand.
+			for i, expr := range b.update.assignments {
+				value, err := expr.Eval(&eval)
+				if err != nil {
+					return Result{}, err
+				}
+				assigned[i] = value
+			}
+			if updated[candidate.row] {
+				continue
+			}
+		}
 		row := make([]sqltype.Value, len(old.values))
 		copy(row, old.values)
 		for i, expr := range b.update.assignments {
-			value, err := expr.Eval(&eval)
-			if err != nil {
-				return Result{}, err
+			if from != nil {
+				row[b.targets[i]] = assigned[i]
+			} else {
+				value, err := expr.Eval(&eval)
+				if err != nil {
+					return Result{}, err
+				}
+				row[b.targets[i]] = value
 			}
-			row[b.targets[i]] = value
 		}
 		for i, column := range b.relation.columns {
 			if !column.Nullable && row[i].IsNull() {
@@ -286,6 +394,10 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		if output != nil {
 			eval.Row, eval.OldRow = row, old.values
+			if from != nil {
+				copy(frame, row)
+				eval.Row = frame
+			}
 			for i, expr := range b.returning.expressions {
 				value, err := expr.Eval(&eval)
 				if err != nil {
@@ -300,6 +412,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		oldRows = append(oldRows, old)
 		rows = append(rows, row)
+		if from != nil {
+			updated[candidate.row] = true
+		}
 	}
 	if output != nil && b.returning.regclassOutput && output.count != 0 {
 		if err := e.captureRegclassOutput(s.op, output); err != nil {

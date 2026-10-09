@@ -364,8 +364,8 @@ ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 ORDER expressions resolve the complete joined namespace.
 LATERAL joins, derived SELECT queries, CTEs and FROM functions remain excluded;
-parenthesized VALUES is a supported non-lateral source. UPDATE FROM and DELETE
-USING are not enabled by query joins.
+parenthesized VALUES is a supported non-lateral source. DELETE USING is not enabled
+by query joins. UPDATE FROM uses the same bounded join tree and is described below.
 
 An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
 these malformed joined queries report positioned `42601` at ON. Other excluded
@@ -1126,8 +1126,8 @@ rescan discovers newly matching rows.
 Options may be reversed/quoted. Each alias hides its corresponding default name;
 cross-kind explicit aliases mask conflicting implicit names. Visible target names
 take precedence: a table named old makes old.a mean NEW, so use OLD AS o for its
-predecessor. Labels name outputs, not sibling inputs. This does not enable UPDATE
-target aliases or qualifications in SET/WHERE.
+predecessor. Labels name outputs, not sibling inputs. Target aliases hide the
+original target; SET RHS/WHERE admit visible qualified target and source columns.
 
 Outputs use incumbent scalar providers, casts, conditional expressions, parameters
 and sequences. Names follow SELECT conventions; explicit labels override them.
@@ -1164,18 +1164,85 @@ rows/catalog/sequence state, never private replacement/history/cursors; Restore'
 mutation whitelist is unchanged and rejects UPDATE RETURNING scripts atomically.
 Native exact ACL controls remain internal, not a new SQL GRANT API.
 
-Triggers, scalar subqueries, whole-row records/parenthesized expansion, FROM joins,
+Triggers, scalar subqueries, whole-row records/parenthesized expansion,
 view writes/rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
 transformation/suppression and whole-row controls, not native successful no-ops.
-INSERT RETURNING, target aliases, DEFAULT/row assignments/CURRENT OF/CTE/inheritance
+INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE/inheritance
 remain excluded; no new evaluator, durability or retry path is introduced.
 
 Feature commands:
-`make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERBOSE=0`,
-`make test PACKAGES=. RUN='^TestUpdateReturning' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`,
 `make test PACKAGES=./internal/engine RUN='^TestUpdateReturning' VERBOSE=0`,
 `make reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`.
+
+## UPDATE FROM — change note
+
+`UPDATE t AS dst SET a=src.v FROM s AS src WHERE dst.id=src.id
+RETURNING old.a,new.a,src.v` combines a target namespace with the existing
+table/view inner/cross/outer FROM namespace. Aliases hide originals; source aliases,
+positional column aliases, ON, USING, NATURAL and parenthesized join aliases retain
+query semantics. SET destinations remain bare target columns, never aliases or
+source columns. Ordinary `*` expands target NEW then exposed source columns;
+qualified source stars preserve query metadata and merged-column origins.
+OLD/NEW pseudo aliases are output-only and cover only the target. Real visible
+target/source qualifiers named old/new mask implicit defaults, not explicit aliases.
+
+Parenthesized non-lateral VALUES sources share this UPDATE namespace, including
+fresh held parameters, source/OLD/NEW outputs and mixed physical-source joins.
+The UPDATE target is prohibited inside a VALUES source, not merely awaiting a
+LATERAL qualifier. `UPDATE t x SET v=q.n FROM (VALUES (x.id,7)) q(k,n)` reports
+42P01 with the inaccessible-entry Detail and character Position, without a
+LATERAL Hint (direct and semantic Prepare, including empty targets). Ordinary
+preceding FROM-source table/column references retain their existing LATERAL
+suggestions; no correlation or LATERAL syntax is enabled.
+
+Stored source views use the shared current-identity read-graph validation during
+binding, including recursive rewrite detection. At Execute, UPDATE validates its
+preflighted FROM root and stored-view descendants through the existing query join
+legality checks, before staging any target replacements or RETURNING output.
+Semantic Prepare does not reject a FULL non-equijoin condition; Execute reports
+0A000, `FULL JOIN is only supported with merge-joinable or hash-joinable join
+conditions`, with no partial result or target effects. Outer-source NULL extension
+preserves outward nullable descriptors without weakening physical target
+constraints or mutating source catalog declarations.
+
+One coherent selected view captures the target and all expanded sources, including
+private writes. Candidate descriptors retain stable target RowID and source-row
+identity, without copying every product row. WHERE rejects FALSE/NULL. Each eligible
+pair evaluates simultaneous SET against the captured predecessor/source; later
+successful pairs for the same RowID do not validate, replace, count or return again.
+There is no promised source winner, pair order or output order. Equal-valued targets
+remain distinct physical occurrences. A self source never reads this statement's
+staged replacements. RETURNING combines constrained NEW, actual predecessor OLD
+and the same winning source, not an arbitrary later source match.
+
+READ COMMITTED freezes source/candidate membership before target row waits. A
+changed target is refreshed and rechecked against that same frozen source; rejected
+or deleted targets are skipped without searching newly matching rows. REPEATABLE
+READ uses existing concurrent-update/delete serialization failures. Relation
+admission captures data only after every required relation lock; retained views
+cannot widen. Native package-function queue companions prove the exact wait/frozen
+source boundary; public callbacks assert no capture ordering without a real barrier.
+PostgreSQL queue controls use its actual blocking relation/row state.
+
+Target UPDATE and actual target/source SELECT dependencies are separate; every
+source is checked even with no matches. Prepared execution rebinds relation
+identities, privileges, parameters and result signatures before mutation. Destination
+casts, source ON, WHERE, SET and RETURNING share existing eager immutable preflight.
+PostgreSQL may prune immutable demand or stream early Query rows before a terminal
+error; native eager preflight and no-partial-output are deliberate boundaries.
+Both backends preserve statement mutation atomicity; sequence draws are nonrollback.
+Retained native output survives rollback and Reset/Restore. Persistence includes
+committed live heads/catalog/sequence state, never source captures or output history.
+
+LATERAL/derived SELECT/CTE/function FROM, row/subquery assignments, DEFAULT,
+CURRENT OF, whole-row records, INSERT RETURNING and DELETE USING remain excluded.
+No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateFromSmoke$' VERBOSE=0`.
+Quick: `make test PACKAGES=./reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
+Independent pinned PostgreSQL: `make reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
 
 ## Scalar UPDATE
 
@@ -1188,8 +1255,8 @@ the same binder and provider, preserving its operand/type boundaries, NULL
 propagation and division/overflow errors; UPDATE adds no arithmetic provider.
 DATE and BYTEA participate through existing destination/contextual input rules,
 including typed NULL; this does not add explicit DATE/BYTEA casts or arithmetic,
-UPDATE FROM, target aliases, row/subquery assignment, CURRENT OF, DEFAULT
-or new casts/functions. RETURNING has the shared output surface described above.
+row/subquery assignment, CURRENT OF, DEFAULT or new casts/functions.
+Target aliases/FROM and RETURNING have the shared surfaces described above.
 
 All RHS expressions read the same old row: `SET a=b,b=a` swaps values.
 Assignment conversions use the destination type and typmod; the completed row
@@ -1283,7 +1350,7 @@ control/import behavior and identity exhaustion. Native internal waits observe
 the actual manager; PostgreSQL waits observe transaction-ID locks and the exact
 blocker. Public native effect/deadline tests do not claim queue-observation proof.
 
-Feature smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=0`.
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreMigratedSmoke' VERBOSE=0`.
 Docker-free and independently pinned PostgreSQL witnesses:
 `make test PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`
 and `make reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`.

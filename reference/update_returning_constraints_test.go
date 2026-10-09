@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceUpdateReturningConstraintDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL CONSTRAINT positive CHECK(id>0),v TEXT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,'a'),(2,'b')", 2))
 	for _, prepared := range []bool{false, true} {

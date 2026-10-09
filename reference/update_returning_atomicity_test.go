@@ -1,17 +1,15 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceUpdateReturningOutputAtomicity(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		t.Run(backend.name, func(t *testing.T) {
+			r := backend.recorder
 			referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT)", 0)
 			referenceLockExec(t, p.ctx, db, "INSERT INTO t VALUES(1),(0),(2)", 3)
 			for _, prepared := range []bool{false, true} {
@@ -61,11 +59,12 @@ func TestReferenceUpdateReturningOutputAtomicity(t *testing.T) {
 }
 
 func TestReferenceUpdateReturningSequenceDemand(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		t.Run(backend.name, func(t *testing.T) {
 			a, _ := referenceLockConnections(t, p.ctx, db)
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+			r := backend.recorder
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT)", 0)
 			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1),(2),(3)", 3)
 			referenceLockExec(t, p.ctx, a, "CREATE SEQUENCE s START 101 CACHE 1", 0)

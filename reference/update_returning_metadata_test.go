@@ -1,18 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceUpdateReturningPreparedMetadata(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		t.Run(backend.name, func(t *testing.T) {
 			a, _ := referenceLockConnections(t, p.ctx, db)
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+			r := backend.recorder
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT NOT NULL,n NUMERIC(8,2),b BYTEA,f BOOL,ts TIMESTAMP(3))", 0)
 			query := "UPDATE t SET id=id WHERE id=$1 RETURNING old.id,new.id,n,new.n,b,new.b,f,new.f,ts,new.ts,$2 AS label"
 			held, err := a.PrepareContext(p.ctx, query)
@@ -38,7 +36,7 @@ func TestReferenceUpdateReturningPreparedMetadata(t *testing.T) {
 				if p, s, ok := meta[2].DecimalSize(); !ok || p != 8 || s != 2 {
 					t.Fatal(p, s, ok)
 				}
-				if i == 0 {
+				if !backend.pg {
 					if n, k := meta[1].Nullable(); !k || n {
 						t.Fatal(n, k)
 					}

@@ -170,7 +170,7 @@ package parser
 %type <collation> column_collation
 %type <expr> alter_using
 %type <stmt> delete
-%type <tok> delete_alias from_alias
+%type <tok> delete_alias update_alias from_alias
 %type <returning> returning
 %type <returningAliases> returning_aliases returning_options
 %type <returningAlias> returning_option
@@ -187,7 +187,7 @@ package parser
 %type <viewOption> view_option
 %type <tok> view_option_value
 %type <expr> delete_where delete_operand delete_base delete_lower delete_between delete_between_predicate delete_comparison delete_target delete_not delete_and delete_or
-%type <expr> update_where scalar_projection
+%type <expr> scalar_projection
 %type <valuesQuery> query_values parenthesized_values
 %type <rows> query_rows
 %type <row> query_row query_cells
@@ -227,7 +227,7 @@ package parser
 %type <typ> qualified_call_head
 %type <targets> insert_targets
 %type <objectName> relation_name
-%type <fromItem> from_list joined_table from_atom from_base
+%type <fromItem> from_list joined_table from_atom from_base update_from
 %type <identifiers> alias_columns using_columns
 %type <identifier> using_alias
 %type <joinKind> inner_join
@@ -692,20 +692,18 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-update: UPDATE relation_name SET update_assignments update_where returning { $$=&Update{Name:$2,Assignments:$4,Where:$5,Returning:$6,Pos:$1.pos} }
- | UPDATE relation_name SET update_assignments update_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
- | UPDATE relation_name SET update_assignments update_where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
- | UPDATE relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$3.pos.Offset);return 1 }
- | UPDATE relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$4.pos.Offset);return 1 }
- | UPDATE relation_name SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$4.pos.Offset);return 1 } ;
+update: UPDATE relation_name update_alias SET update_assignments update_from where returning { $$=&Update{Name:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7,Returning:$8,Pos:$1.pos} }
+ | UPDATE relation_name update_alias SET update_assignments update_from where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
+ | UPDATE relation_name update_alias SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$5.pos.Offset);return 1 } ;
+update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
+update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
 update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
-update_assignment: name '=' scalar_projection { if token,unsupported:=nonqueryQualification($3,true);token!=nil {if unsupported {sqllex.(*lexer).failAt("0A000","qualified column references are unsupported",token.pos.Offset)} else {sqllex.(*lexer).syntax(*token)};return 1}; $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
- | name '=' scalar_projection '.' { sqllex.(*lexer).failAt("0A000","qualified column references are unsupported",$4.pos.Offset);return 1 }
+update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
+ | name '.' name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Indirection:[]Identifier{{Text:$3.text,Pos:$3.pos}},Value:$5} }
  | name '=' scalar_projection '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 } ;
-update_where: where { if token,_:=nonqueryQualification($1,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=$1 } ;
 insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1.pos) }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
  | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }

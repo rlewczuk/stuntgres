@@ -77,10 +77,6 @@ func TestQueryJoinsKeywordTokens(t *testing.T) {
 func TestQueryJoinsRetainsMutationGrammar(t *testing.T) {
 	for _, tc := range []struct{ q, code, message, pos string }{
 		{"DELETE FROM t WHERE t.i+1=8", "42601", `syntax error at or near "+"`, "24"},
-		{"UPDATE t SET a=t.b", "0A000", "qualified column references are unsupported", "17"},
-		{"UPDATE t SET a=t.b::INT", "0A000", "qualified column references are unsupported", "17"},
-		{"UPDATE t SET a=1 WHERE t.b=1", "42601", `syntax error at or near "."`, "25"},
-		{"UPDATE t SET a=CAST(t.b AS INT)", "42601", `syntax error at or near "."`, "22"},
 	} {
 		keywordDiagnostic(t, tc.q, tc.code, tc.message, tc.pos)
 	}
@@ -89,9 +85,8 @@ func TestQueryJoinsRetainsMutationGrammar(t *testing.T) {
 			t.Fatal("invalid mutation assignment admitted", q, statements, err)
 		}
 	}
-	for _, q := range []string{"UPDATE t SET a=COALESCE(t.b,1)", "UPDATE t SET a=CAST(COALESCE(t.b,1) AS INT)"} {
-		// Existing conditional qualification reaches the nonquery binder's
-		// semantic guard; query admission must not blanket-reject it earlier.
+	for _, q := range []string{"UPDATE t SET a=t.b", "UPDATE t SET a=t.b::INT", "UPDATE t SET a=1 WHERE t.b=1", "UPDATE t SET a=CAST(t.b AS INT)", "UPDATE t SET a=COALESCE(t.b,1)", "UPDATE t SET a=CAST(COALESCE(t.b,1) AS INT)"} {
+		// UPDATE qualifications now reach the shared target/source namespace.
 		if statements, err := Parse(q); err != nil || len(statements) != 1 {
 			t.Fatal(q, statements, err)
 		}

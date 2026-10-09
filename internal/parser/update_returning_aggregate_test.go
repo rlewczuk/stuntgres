@@ -18,10 +18,33 @@ func TestUpdateReturningAggregateSyntax(t *testing.T) {
 	if _, ok := aggregate.Args[0].(ConditionalExpr); !ok {
 		t.Fatal("aggregate argument discarded", aggregate.Args[0])
 	}
-	for _, q := range []string{"UPDATE t SET id=sum(old.id)", "UPDATE t SET id=1 WHERE sum(old.id)=1", "INSERT INTO t(id) VALUES(sum(t.id))", "INSERT INTO t(id) VALUES(sum(id))"} {
+	for _, q := range []string{"INSERT INTO t(id) VALUES(sum(t.id))", "INSERT INTO t(id) VALUES(sum(id))"} {
 		statements, err := Parse(q)
 		if err == nil || statements != nil {
 			t.Fatal("aggregate child bypassed scalar qualification/input guard", q, statements, err)
+		}
+	}
+	for _, q := range []string{"UPDATE t SET id=sum(old.id)", "UPDATE t SET id=1 WHERE sum(old.id)=1"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("UPDATE aggregate must reach semantic analysis", q, statements, err)
+		}
+		update := statements[0].(*Update)
+		var expression Expr = update.Assignments[0].Value
+		if update.Where != nil {
+			comparison, ok := update.Where.(OperatorExpr)
+			if !ok || len(comparison.Args) != 2 {
+				t.Fatal("WHERE aggregate comparison AST", update.Where)
+			}
+			expression = comparison.Args[0]
+		}
+		aggregate, ok := expression.(AggregateExpr)
+		if !ok || aggregate.Name != "sum" || len(aggregate.Args) != 1 {
+			t.Fatal("UPDATE aggregate AST", expression)
+		}
+		column, ok := aggregate.Args[0].(ColumnExpr)
+		if !ok || len(column.Name.Parts) != 2 || column.Name.Parts[0].Text != "old" || column.Name.Parts[1].Text != "id" {
+			t.Fatal("UPDATE aggregate qualification AST", aggregate.Args)
 		}
 	}
 }

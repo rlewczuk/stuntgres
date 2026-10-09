@@ -1,65 +1,111 @@
-//go:build reference
-
 package reference_test
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
 
-func TestReferenceLikeOracleUpdate(t *testing.T) { likeReferenceUpdate(t, true) }
-func TestReferenceLikeUpdate(t *testing.T)       { likeReferenceUpdate(t, false) }
-func likeReferenceUpdate(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
-	run := func(s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
-	}
-	run(referenceExec("CREATE TABLE t(id INT,v TEXT,p TEXT,e TEXT,mark INT)", 0))
-	run(referenceExec("INSERT INTO t VALUES(1,'a%b','a!%b','!',0),(2,'Ab','a%','!',0),(3,NULL,NULL,NULL,0)", 3))
-	for _, tc := range []struct {
-		predicate string
-		args      []any
-		count     int64
-		marks     [][]any
-	}{
-		{"v LIKE 'a%'", nil, 1, [][]any{{int64(1)}, {int64(0)}, {int64(0)}}},
-		{"v ILIKE $1", []any{"a%"}, 2, [][]any{{int64(1)}, {int64(1)}, {int64(0)}}},
-		{"v NOT LIKE 'a%'", nil, 1, [][]any{{int64(0)}, {int64(1)}, {int64(0)}}},
-		{"v NOT ILIKE 'a%'", nil, 0, [][]any{{int64(0)}, {int64(0)}, {int64(0)}}},
-		{"v LIKE p ESCAPE e", nil, 1, [][]any{{int64(1)}, {int64(0)}, {int64(0)}}},
-		{"v ILIKE p ESCAPE e", nil, 2, [][]any{{int64(1)}, {int64(1)}, {int64(0)}}},
-	} {
-		t.Run(tc.predicate, func(t *testing.T) {
-			for _, prepared := range []bool{false, true} {
-				run(referenceExec("UPDATE t SET mark=0", 3))
-				s := referenceExec("UPDATE t SET mark=1 WHERE "+tc.predicate, tc.count, tc.args...)
-				if prepared {
-					s = referencePrepared(s)
+func TestReferenceLikeUpdate(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db := backend.db
+			execute := func(q string) {
+				if _, err := db.ExecContext(p.ctx, q); err != nil {
+					t.Fatal(err)
 				}
-				run(s)
-				run(referenceSelect("SELECT mark FROM t ORDER BY id", []string{"mark"}, []string{"INT4"}, tc.marks))
-				selected := referenceSelect("SELECT id FROM t WHERE "+tc.predicate, []string{"id"}, []string{"INT4"}, nil, tc.args...)
-				for i, row := range tc.marks {
-					if row[0] == int64(1) {
-						selected.rows = append(selected.rows, []any{int64(i + 1)})
-					}
-				}
-				selected.query += " ORDER BY id"
-				run(selected)
-				run(referencePrepared(selected))
 			}
+			check := func(rows *sql.Rows, err error, name string, want [][]any) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				updateCoreRetained(t, backend.pg, rows, []string{name}, []string{"INT4"}, want, false)
+			}
+
+			execute("CREATE TABLE t(id INT,v TEXT,p TEXT,e TEXT,mark INT)")
+			execute("INSERT INTO t VALUES(1,'a%b','a!%b','!',0),(2,'Ab','a%','!',0),(3,NULL,NULL,NULL,0)")
+			for _, tc := range []struct {
+				predicate string
+				args      []any
+				count     int64
+				marks     [][]any
+			}{
+				{"v LIKE 'a%'", nil, 1, [][]any{{int64(1)}, {int64(0)}, {int64(0)}}},
+				{"v ILIKE $1", []any{"a%"}, 2, [][]any{{int64(1)}, {int64(1)}, {int64(0)}}},
+				{"v NOT LIKE 'a%'", nil, 1, [][]any{{int64(0)}, {int64(1)}, {int64(0)}}},
+				{"v NOT ILIKE 'a%'", nil, 0, [][]any{{int64(0)}, {int64(0)}, {int64(0)}}},
+				{"v LIKE p ESCAPE e", nil, 1, [][]any{{int64(1)}, {int64(0)}, {int64(0)}}},
+				{"v ILIKE p ESCAPE e", nil, 2, [][]any{{int64(1)}, {int64(1)}, {int64(0)}}},
+			} {
+				t.Run(tc.predicate, func(t *testing.T) {
+					q := "UPDATE t SET mark=1 WHERE " + tc.predicate
+					stmt, err := db.Prepare(q)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer stmt.Close()
+					for _, prepared := range []bool{false, true} {
+						execute("UPDATE t SET mark=0")
+						var count int64
+						if prepared {
+							r, err := stmt.Exec(tc.args...)
+							if err != nil {
+								t.Fatal(err)
+							}
+							count, err = r.RowsAffected()
+							if err != nil {
+								t.Fatal(err)
+							}
+						} else {
+							r, err := db.Exec(q, tc.args...)
+							if err != nil {
+								t.Fatal(err)
+							}
+							count, err = r.RowsAffected()
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						if count != tc.count {
+							t.Fatal(count, tc.count)
+						}
+						rows, err := db.Query("SELECT mark FROM t ORDER BY id")
+						check(rows, err, "mark", tc.marks)
+					}
+					selected := make([][]any, 0)
+					for i, row := range tc.marks {
+						if row[0] == int64(1) {
+							selected = append(selected, []any{int64(i + 1)})
+						}
+					}
+					query := "SELECT id FROM t WHERE " + tc.predicate + " ORDER BY id"
+					rows, err := db.Query(query, tc.args...)
+					check(rows, err, "id", selected)
+					held, err := db.Prepare(query)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer held.Close()
+					rows, err = held.Query(tc.args...)
+					check(rows, err, "id", selected)
+				})
+			}
+			execute("UPDATE t SET mark=0")
+			execute("UPDATE t SET e='ab' WHERE id=2")
+			query := "UPDATE t SET mark=1 WHERE v ILIKE p ESCAPE e"
+			stmt, err := db.Prepare(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			_, err = db.Exec(query)
+			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22025", Message: "invalid escape string", Hint: "Escape string must be empty or one character."})
+			rows, err := db.Query("SELECT mark FROM t ORDER BY id")
+			check(rows, err, "mark", [][]any{{int64(0)}, {int64(0)}, {int64(0)}})
+			_, err = stmt.Exec()
+			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22025", Message: "invalid escape string", Hint: "Escape string must be empty or one character."})
+			rows, err = db.Query("SELECT mark FROM t ORDER BY id")
+			check(rows, err, "mark", [][]any{{int64(0)}, {int64(0)}, {int64(0)}})
 		})
-	}
-	run(referenceExec("UPDATE t SET mark=0", 3))
-	run(referenceExec("UPDATE t SET e='ab' WHERE id=2", 1))
-	for _, prepared := range []bool{false, true} {
-		s := referenceImplicitError("UPDATE t SET mark=1 WHERE v ILIKE p ESCAPE e", referenceDiagnostic{Code: "22025", Message: "invalid escape string", Hint: "Escape string must be empty or one character."})
-		s.errorStage = "execute"
-		if prepared {
-			s = referencePrepared(s)
-		}
-		run(s)
-		run(referenceSelect("SELECT mark FROM t ORDER BY id", []string{"mark"}, []string{"INT4"}, [][]any{{int64(0)}, {int64(0)}, {int64(0)}}))
 	}
 }

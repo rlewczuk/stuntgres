@@ -663,9 +663,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.storage == nil {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
+		binder.queryAuth = &auth
 		if err = e.bindUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
+		b.querySources = binder.querySources
 	case *parser.Select:
 		var err error
 		if s.Values == nil && s.From == nil && !s.IsSingleton() {
@@ -690,7 +692,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if err != nil {
 		return b, err
 	}
-	if b.query != nil && view == nil {
+	if b.query != nil && view == nil || b.update != nil && b.update.from != nil {
 		if _, err := validateViewReadGraph(auth.catalog, b.querySources); err != nil {
 			return b, err
 		}

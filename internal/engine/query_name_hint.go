@@ -54,6 +54,7 @@ func boundedNameDistance(name string, key, left, right []int, limit int) int {
 func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos parser.Position, nonLateral bool) (detail, hint string, err error) {
 	longest := 0
 	var exactRelation string
+	exactLateralForbidden := false
 	exactCount := 0
 	for _, q := range entries {
 		if q.excludeColumnDiagnostics {
@@ -73,6 +74,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 		if exactAttributes == 1 && (qualifier == "" || qualifier == q.name) {
 			if exactCount == 0 {
 				exactRelation = q.name
+				exactLateralForbidden = q.lateralForbidden
 			}
 			exactCount = min(2, exactCount+1)
 		}
@@ -86,7 +88,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 		return detail, hint, nil
 	}
 	if exactCount == 1 {
-		if nonLateral {
+		if nonLateral && !exactLateralForbidden {
 			hint = "To reference that column, you must mark this subquery with LATERAL."
 		}
 		return fmt.Sprintf(`There is a column named "%s" in table "%s", but it cannot be referenced from this part of the query.`, name, exactRelation), hint, nil

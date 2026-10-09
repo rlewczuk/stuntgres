@@ -7,6 +7,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// A target column shares the UPDATE frame, but never source SELECT authority.
+const queryTargetLeaf = -2
+
 type queryColumn struct {
 	descriptor     ColumnDescriptor
 	slot           int
@@ -17,6 +20,7 @@ type queryQualifier struct {
 	ref                           ObjectRef
 	columns                       []queryColumn
 	excludeColumnDiagnostics      bool // Whole-join and USING aliases are not error RTE candidates.
+	lateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.
 }
 type queryNamespace struct {
 	columns                   []queryColumn
@@ -58,7 +62,9 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 
 func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) BoundExpr {
 	var origin ObjectRef
-	if c.leaf >= 0 {
+	if c.leaf == queryTargetLeaf {
+		origin = b.useColumn(c.physical)
+	} else if c.leaf >= 0 {
 		leaf := &b.querySources[c.leaf]
 		origin = leaf.ref
 		origin.Address.SubID = leaf.relation.attributes[c.physical]
@@ -114,7 +120,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, q.alias)
 		} else {
 			err.Detail = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
-			if b.queryNonLateral && !q.excludeColumnDiagnostics {
+			if b.queryNonLateral && !q.excludeColumnDiagnostics && !q.lateralForbidden {
 				err.Hint = "To reference that table, you must mark this subquery with LATERAL."
 			}
 		}

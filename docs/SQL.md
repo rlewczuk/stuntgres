@@ -194,10 +194,10 @@ than comma lists and associate left; parentheses preserve boundaries. ON sees
 only its operands. Aliases hide original qualifiers; a whole-join alias hides
 operand qualifiers. A special USING AS alias exposes only merged keys without
 hiding operands and admits no column-alias list. Query qualification applies to
-SELECT/INSERT SELECT consumers. DELETE and UPDATE RETURNING use their
-target/OLD/NEW namespaces, including qualified supported cast children; DELETE
-WHERE and UPDATE SET/WHERE cast/qualification guards are not widened. Raw guards
-remain at DEFAULT, VALUES and settings-call scalar entry points. Previously
+SELECT/INSERT SELECT and UPDATE FROM consumers. DELETE and UPDATE RETURNING
+retain target/OLD/NEW namespaces; UPDATE additionally exposes its FROM sources.
+UPDATE SET RHS/WHERE use query qualification; DELETE WHERE's guard is unchanged.
+Raw guards remain at DEFAULT, VALUES and settings-call scalar entry points. Previously
 admitted conditional arguments
 retain their consumer diagnostics, including metadata-only utility Prepare
 followed by DEFAULT validation at execution. ORDER keys use the shared
@@ -737,6 +737,14 @@ UPDATE admits `RETURNING [WITH (OLD AS o, NEW AS n)] output [, ...]` using
 incumbent scalar expressions and mixed stars. Ordinary/target-qualified outputs
 read NEW; OLD reads the actual predecessor. Explicit aliases hide corresponding
 defaults and do not enter SET/WHERE. Both versions retain declared column metadata.
+UPDATE accepts AS/bare target aliases and the supported inner/outer FROM trees with the
+existing table/view alias and join forms. Bare SET destinations name physical
+target columns; RHS/WHERE/RETURNING can qualify visible target and sources.
+RETURNING `*` expands target NEW then exposed source columns. Multiple matches
+evaluate eligible SET pairs but only one successful pair replaces/counts/returns
+each physical target, using the same source row in RETURNING. Target row waits
+refresh/recheck that predecessor, never source/candidate membership.
+See [UPDATE FROM](QUERIES.md#update-from--change-note).
 Query returns eagerly owned values even after rollback/native replacement;
 Exec evaluates/discards outputs and returns the actual update count.
 RETURNING aggregate calls remain errors, not output aggregate providers. COUNT
@@ -753,7 +761,7 @@ LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,
-UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
+UPDATE row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
 INSERT RETURNING, whole-row RETURNING records/scalar subqueries,
 general COLLATE, two-phase commit, transactional table DDL outside selected
 TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,

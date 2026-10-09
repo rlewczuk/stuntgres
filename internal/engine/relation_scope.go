@@ -43,6 +43,12 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 		return s.acquireQueryRelations(insert.Source.Select, insert.Source.Select, execute)
 	}
+	if update, ok := stmt.(*parser.Update); ok && update.From != nil {
+		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
+			return err
+		}
+		return s.acquireQueryRelations(&parser.Select{From: update.From}, stmt, execute)
+	}
 	return s.acquireRelationTarget(stmt, stmt, execute, false)
 }
 

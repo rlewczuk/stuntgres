@@ -504,6 +504,9 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		}
 		state := referenceState(t, err, s.state)
 		if err != nil {
+			if result != nil {
+				t.Fatal("failed Exec exposed a result")
+			}
 			stage := "execute"
 			diag := referenceCheckDiagnostic(t, err, s, stage)
 			return referenceObserved{state: state, diagnostic: diag, errorStage: stage}

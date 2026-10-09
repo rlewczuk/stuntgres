@@ -650,10 +650,12 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		if err := v.checkColumns(b, UpdatePrivilege, b.targets); err != nil {
 			return err
 		}
-		if len(b.usedColumns) == 0 {
-			return nil
+		if len(b.usedColumns) != 0 {
+			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
+				return err
+			}
 		}
-		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
+		return v.checkSelectSources(b.querySources, &parser.Select{})
 	default:
 		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
 	}

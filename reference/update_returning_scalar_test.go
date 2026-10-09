@@ -1,18 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 	"time"
 )
 
 func TestReferenceUpdateReturningScalarProviders(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		t.Run(backend.name, func(t *testing.T) {
+			r := backend.recorder
 			referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT,v TEXT,f BOOL,n NUMERIC(8,2),ts TIMESTAMP(3))", 0)
 			referenceLockExec(t, p.ctx, db, "COMMENT ON COLUMN t.v IS 'payload'", 0)
 			referenceLockExec(t, p.ctx, db, "COMMENT ON TABLE t IS 'returning target'", 0)

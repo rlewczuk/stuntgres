@@ -1,16 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceUpdateReturningFreshHeldParameters(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		r := backend.recorder
 		referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT,a INT)", 0)
 		referenceLockExec(t, p.ctx, db, "INSERT INTO t VALUES(1,10),(2,20)", 2)
 		q := "UPDATE t SET a=$1 WHERE id=$2 RETURNING old.a,new.a,$3 AS label"

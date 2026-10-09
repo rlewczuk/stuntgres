@@ -27,7 +27,7 @@ func TestUpdateCoreSyntax(t *testing.T) {
 }
 
 func TestUpdateCoreExcludedAndMalformed(t *testing.T) {
-	for _, q := range []string{"UPDATE t SET a=1 FROM u", "UPDATE t SET a=DEFAULT", "UPDATE t SET (a,b)=(1,2)", "UPDATE t SET a=(SELECT b FROM u)", "UPDATE t SET a=1 WHERE CURRENT OF c", "UPDATE t x SET a=1", "UPDATE t SET a=1 WHERE", "UPDATE t SET a=1 garbage", "UPDATE t SET a=1; garbage", "UPDATE t SET a=t.b"} {
+	for _, q := range []string{"UPDATE t SET a=DEFAULT", "UPDATE t SET (a,b)=(1,2)", "UPDATE t SET a=(SELECT b FROM u)", "UPDATE t SET a=1 WHERE CURRENT OF c", "UPDATE t SET a=1 WHERE", "UPDATE t SET a=1 garbage", "UPDATE t SET a=1; garbage"} {
 		statements, err := Parse(q)
 		if err == nil || len(statements) != 0 {
 			t.Fatalf("executed excluded/malformed input %s: %v %v", q, statements, err)

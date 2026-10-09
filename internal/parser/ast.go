@@ -410,14 +410,17 @@ type ReturningAlias struct {
 
 type Update struct {
 	Name        ObjectName
+	Alias       Identifier
+	From        FromItem
 	Assignments []UpdateAssignment
 	Where       Expr
 	Returning   *Returning
 	Pos         Position
 }
 type UpdateAssignment struct {
-	Target Identifier
-	Value  Expr
+	Target      Identifier
+	Indirection []Identifier
+	Value       Expr
 }
 
 func (*Update) statement() {}

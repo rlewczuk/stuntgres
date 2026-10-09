@@ -164,7 +164,7 @@ func TestUpdateCoreDeleteCandidateIdentity(t *testing.T) {
 			if len(store.versions) != 3 || store.versions[2].row != row || store.generation <= oldGeneration || store.ends == oldEnds {
 				t.Fatal("DELETE compacted or failed to advance guard")
 			}
-			result, err := e.executeUpdate(op.ctx, scope, b, source, nil, "public")
+			result, err := e.executeUpdate(op.ctx, scope, b, source, nil, nil, "public")
 			if err != nil || result.Count != 1 {
 				t.Fatal(result, err)
 			}
@@ -439,7 +439,7 @@ func TestUpdateCoreDeletePrivateCandidateIdentity(t *testing.T) {
 	if source.count() != 2 || source.rawIndex(1) != len(source.committed) || source.versionAt(source.rawIndex(1)).born != 0 {
 		t.Fatal("private head not canonical substituted raw occurrence")
 	}
-	result, err := e.executeUpdate(op.ctx, scope, b, source, nil, "public")
+	result, err := e.executeUpdate(op.ctx, scope, b, source, nil, nil, "public")
 	if err != nil || result.Count != 1 {
 		t.Fatal(result, err)
 	}

@@ -28,13 +28,17 @@ func TestReferenceConditionalQualifiedConsumerBoundary(t *testing.T) {
 	scalarStep(t, p, referenceExec("CREATE TABLE t(id INT,v INT,b BOOL)", 0))
 	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(2,20,FALSE),(3,30,NULL)", 2))
 	for _, backend := range p.backends() {
-		for _, q := range []string{"UPDATE t SET v=COALESCE(t.v,1)", "DELETE FROM t WHERE CAST(COALESCE(t.v,1) AS int4)=1"} {
+		for _, prepared := range []bool{false, true} {
+			step := referenceExec("UPDATE t SET v=COALESCE(t.v,1)", 2)
+			if prepared {
+				step = referencePrepared(step)
+			}
+			scalarRunStep(t, p.ctx, backend.db, backend.recorder, step)
+			scalarRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(20)}, {int64(30)}}))
+		}
+		for _, q := range []string{"DELETE FROM t WHERE CAST(COALESCE(t.v,1) AS int4)=1"} {
 			if backend.pg {
-				count := int64(2)
-				if q[0] == 'D' {
-					count = 0
-				}
-				scalarRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec(q, count))
+				scalarRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec(q, 0))
 			} else {
 				_, err := backend.db.ExecContext(p.ctx, q)
 				var d *stuntgres.Error

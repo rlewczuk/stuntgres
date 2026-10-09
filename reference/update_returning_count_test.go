@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceUpdateReturningCountCoexistence(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1),(NULL),(2)", 3))
 	counts := referenceSelect("SELECT count(*),count(id),count(NULL) FROM t", []string{"count", "count", "count"}, []string{"INT8", "INT8", "INT8"}, [][]any{{int64(3), int64(2), int64(0)}})
@@ -42,6 +40,9 @@ func TestReferenceUpdateReturningCountCoexistence(t *testing.T) {
 				}
 				d.Position = strconv.Itoa(position)
 				p.step(t, referenceImplicitError(q, d))
+				queryError := referenceImplicitError(q, d)
+				queryError.selectRows = true
+				p.step(t, queryError)
 				p.step(t, referencePrepared(referenceImplicitError(q, d)))
 			}
 		}

@@ -448,18 +448,18 @@ UPDATE RETURNING shares scalar projection/alias binding and eager result ownersh
 with DELETE RETURNING. OLD is the actual predecessor used by simultaneous SET;
 NEW, unqualified and target-qualified outputs read the constrained replacement.
 Both real versions preserve declared source metadata and SELECT dependencies.
-Output aliases are visible only in RETURNING; target aliases and SET/WHERE
-qualifications remain excluded. Same-value matches return/count once, duplicates
-survive and no matches retain metadata. WHERE analysis precedes RETURNING output
+Output aliases are visible only in RETURNING. Target aliases and ordinary
+qualifications in SET/WHERE use the shared UPDATE namespace. Same-value matches
+return/count once; duplicates survive and no matches retain metadata. WHERE analysis precedes RETURNING output
 fallback, which precedes SET; prepared execution freshly checks ACLs and result
 signature. Output/constraint/cancellation failure publishes no partial replacement
 or output, following existing abort/savepoint rules; sequence draws are not undone.
 Dump/Restore persists committed live data/catalog/sequence state, not output/history;
 its script whitelist is unchanged. Triggers, whole-row records/record expansion,
-scalar subqueries, FROM/view rewrites/rules/partition movement and physical/C/wire
+scalar subqueries, view writes/rewrites/rules/partition movement and physical/C/wire
 tuple metadata are genuine PostgreSQL-only mechanisms, not native no-ops.
 See [UPDATE output details](QUERIES.md#update-returning--change-note).
-Feature smoke: `make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`; pinned mode: `make reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`.
 
 
 
@@ -696,13 +696,13 @@ ASYMMETRIC remains excluded. Feature smoke:
 `make reference RUN='^TestReferenceBetween' VERBOSE=0`.
 
 
-UPDATE supports schema-qualified/quoted target relations, ordered scalar SET
-assignments and optional Boolean WHERE. RHS literals/parameters/old unqualified
-columns/comparisons/logical operators/grouping/selected null-count roots and
-existing INTEGER/BIGINT arithmetic use the same expression binder; aliases,
-FROM, row/subquery assignment, CURRENT OF, DEFAULT, RETURNING and general
-casts/functions remain excluded. Arithmetic retains its existing operand/type
-boundaries, NULL propagation and division/overflow errors, with no new provider.
+UPDATE supports schema-qualified/quoted target relations, AS/bare target aliases,
+ordered scalar SET assignments, supported inner/outer FROM trees and optional Boolean WHERE.
+SET destinations remain bare physical target columns; qualification applies to
+RHS/WHERE and RETURNING. FROM reuses table/view aliases, ON/USING/NATURAL and joins.
+Row/subquery assignment, CURRENT OF and DEFAULT remain excluded. Existing scalar
+casts/functions and RETURNING are admitted through the same expression binder.
+Arithmetic retains its operand/type boundaries, NULL propagation and division/overflow errors, with no new provider.
 Assignments are simultaneous against one old row, preserve unassigned fields,
 apply destination type/typmod and then enforce whole-row NOT NULL. Counts include
 unchanged matches and duplicate occurrences once each; no match is zero.
@@ -760,9 +760,18 @@ and storage identity, not descriptor-pointer equality; current authorization sti
 applies. Dump/ALTER see live committed heads and retained results keep old values.
 UPDATE privilege on assigned targets and SELECT on actual RHS/WHERE reads are
 checked independently; retained protected columns do not imply SELECT.
-Smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=0`;
+Smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreMigratedSmoke' VERBOSE=0`;
 quick: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`;
 reference: `make reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`.
+UPDATE FROM includes target and every expanded source in one coherent statement
+view. Stable RowIDs, not values or target/source pair ordinals, suppress successful
+duplicate replacements; eligible losing pairs still evaluate SET. RETURNING uses
+the same winning source row with actual OLD and constrained NEW. Source-only reads
+do not require target SELECT; target/source column dependencies are authorized
+under their existing principals. Prepared execution refreshes every source and
+result signature. Native eager preflight/atomic-output boundaries are preserved.
+Smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateFromSmoke$' VERBOSE=0`;
+reference: `make reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
 Coexistence witnesses: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`;
 `make reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`.
 The feature smoke includes private UPDATE/self INSERT SELECT/DELETE count2,

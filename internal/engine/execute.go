@@ -334,6 +334,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if b.update != nil {
 			b.update, err = preflightUpdate(&evaluation, b.update)
+			if err == nil && b.update.from != nil {
+				err = validateQueryJoinExecution(&evaluation, b.update.from, auth.catalog, 0)
+			}
 		} else if b.query != nil {
 			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
 			if err == nil {
@@ -420,6 +423,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+	} else if b.update != nil && b.update.from != nil {
+		if err = e.initializeQueryLocksLocked(scope, b.update.from, b.querySources); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 	}
 	scope.visibilityDemand = scope.visibilityDemand || b.visibilitySnapshot
 	if b.query != nil {
@@ -455,7 +463,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		view, err := scope.acquireDataViewLocked(e, b.ref)
+		var view *VisibilityView
+		if b.update.from != nil {
+			refs, collectErr := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
+			if collectErr != nil {
+				e.mu.Unlock()
+				return Result{}, collectErr
+			}
+			view, err = scope.acquireDataViewsLocked(e, refs)
+		} else {
+			view, err = scope.acquireDataViewLocked(e, b.ref)
+		}
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -465,9 +483,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+		var from *querySource
+		if b.update.from != nil {
+			from, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
+			if err != nil {
+				source.close()
+				e.mu.Unlock()
+				return Result{}, err
+			}
+		}
 		schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 		e.mu.Unlock()
-		return e.executeUpdate(ctx, scope, b, source, canonical, schema)
+		return e.executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
 		if err := e.captureCheckCommentSnapshotLocked(scope, b.relation); err != nil {
 			e.mu.Unlock()
