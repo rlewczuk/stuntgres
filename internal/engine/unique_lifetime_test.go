@@ -344,17 +344,29 @@ func TestUniqueKeyChangeTwoUpgradersEvaluateOnce(t *testing.T) {
 	first, _ := uniqueAsyncUnit(t, a, "UPDATE t SET k=2,v=nextval('draws') WHERE k=1")
 	lockPending(t, e, 1)
 	second, _ := uniqueAsyncUnit(t, b, "UPDATE t SET k=2,v=nextval('draws') WHERE k=1")
-	var victim deleteOutcome
-	var survivor <-chan deleteOutcome
-	draws := int64(1)
-	select {
-	case victim = <-first:
-		survivor = second
-		draws = 2
-	case victim = <-second:
-		survivor = first
-	case <-time.After(5 * time.Second):
-		t.Fatal("key-change conversion cycle did not terminate")
+	// Victim cleanup wakes the survivor before its worker sends the error.
+	// Arrival order therefore cannot identify which conversion was rejected.
+	var firstResult, secondResult deleteOutcome
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for first != nil || second != nil {
+		select {
+		case firstResult = <-first:
+			first = nil
+		case secondResult = <-second:
+			second = nil
+		case <-deadline.C:
+			t.Fatal("key-change conversion workers did not terminate")
+		}
+	}
+	if (firstResult.err == nil) == (secondResult.err == nil) {
+		t.Fatal("want exactly one deadlock victim and one successful updater", firstResult, secondResult)
+	}
+	victim, survivor := firstResult, secondResult
+	draws := int64(2)
+	if firstResult.err == nil {
+		victim, survivor = secondResult, firstResult
+		draws = 1
 	}
 	var diagnostic *sqlstate.Error
 	if !errors.As(victim.err, &diagnostic) {
@@ -367,7 +379,9 @@ func TestUniqueKeyChangeTwoUpgradersEvaluateOnce(t *testing.T) {
 	if victim.result.Count != 0 || victim.result.Rows != nil {
 		t.Fatal(victim.result)
 	}
-	deleteAwait(t, survivor, 1, nil)
+	if survivor.err != nil || survivor.result.Count != 1 || survivor.result.Rows != nil {
+		t.Fatal("successful updater", survivor)
+	}
 	transactionEnd(t, a, ar, false)
 	transactionEnd(t, b, br, false)
 	sequenceScalar(t, observer, "SELECT last_value FROM draws", draws)

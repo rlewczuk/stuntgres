@@ -36,6 +36,10 @@ This is the authoritative test-placement and implementation workflow.
   same completed test definitions and a `RUN` selector covering all affected tests.
   Repeat both selective runs after changes to those tests or their implementation.
   Fullcheck does not replace this pre-review requirement.
+- Concurrency tests MUST identify a deadlock victim from its error outcome, not
+  worker completion order. Victim cleanup can wake a successful survivor before
+  the victim reports its result. Join both workers under a bounded deadline and
+  retain the exact victim, survivor and side-effect assertions.
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control
