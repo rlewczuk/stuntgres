@@ -210,8 +210,14 @@ string are nonnull empty BYTEA. Other SQL destinations retain textual byte
 binds. Valuer executes once outside engine locks. Input buffers and each
 exported result are detached; mutating returned bytes cannot alter storage or
 retained cursors. BYTEA DatabaseTypeName/ScanType are BYTEA/[]byte even for
-empty/NULL-only results and after EOF/Close. Native Length/DecimalSize are
-unavailable; pinned pq reports Length MaxInt64 and unknown nullability.
+empty/NULL-only results and after EOF/Close. Native physical-column Nullable
+reflects the declaration; computed BYTEA nullability is unknown. Native
+Length/DecimalSize are unavailable; pinned pq reports Length MaxInt64 and
+unknown nullability. Native empty BYTEA exports nonnil []byte; pq's escape
+decoder exports typed nil []byte for empty, while its hex decoder exports
+nonnil empty. Both differ from SQL NULL's nil interface. Raw BYTEA binds admit
+NUL and invalid UTF8 octets; SQL string decoding still rejects lexical
+NUL/invalid UTF8 before BYTEA input processing.
 Bytewise unsigned lexicographic comparison places shorter prefixes first.
 
 `bytea_output` defaults to `hex`; `escape` doubles backslashes and octal-escapes
@@ -224,10 +230,11 @@ default-on strings, preserves live settings and retained snapshots, and
 publishes no replacement on input/read/cancellation failure. BYTEA typed
 literals, modifiers, casts, arrays and wire serving are not added.
 
-Feature smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`.
-Native witnesses: `make test PACKAGES=. RUN='^TestBytea.*$' VERBOSE=1`;
-codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=1`.
-Pinned reference: `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
+Feature smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=0`.
+Dual-mode native witnesses: `make test PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
+local adapter ownership: `make test PACKAGES=. RUN='^TestByteaAdapterOwnership$' VERBOSE=0`;
+codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=0`.
+Pinned reference: `make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
 
 Raw binary scalar signatures include `||(bytea,bytea)`, `length(bytea)`,
 `octet_length(bytea)`, `bit_length(bytea)`, `btrim/ltrim/rtrim(bytea,bytea)`,

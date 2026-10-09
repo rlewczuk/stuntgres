@@ -1178,8 +1178,10 @@ continuation words retain their qualified-name and projection-label legality.
 SQL-special spelling is display provenance, not a semantic distinction in
 GROUP BY/HAVING or duplicate-label ORDER BY. POSITION searches in constant
 space with linear progress and bounded preprocessing/comparison checkpoints.
-Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`; pinned independent reference:
-`make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
+Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=0`;
+Docker-free native witnesses: `make test PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
+pinned independent reference of the same definitions:
+`make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
 
 Integral bitwise operators `& | # ~ << >>` now use a separate SMALLINT/
 INTEGER/BIGINT provider in existing general scalar consumers: queries,

@@ -51,9 +51,16 @@ make reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0
 ```
 
 The original query projection/bags/metadata and ORDER BY position pilots are
-included in the query-read family. The BYTEA and short-INSERT pilots,
-`TestReferenceByteaInputBindsMetadata` and
-`TestReferenceInsertImplicitShortDiagnostics`, remain available alongside it.
+included in the query-read family. The short-INSERT pilot,
+`TestReferenceInsertImplicitShortDiagnostics`, remains available alongside it.
+Seven original root BYTEA SQL-interaction tests are merged with the complete
+legacy reference and pilot assertions in 17 untagged `TestReferenceBytea*`
+definitions. Select every BYTEA definition in either mode:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0
+make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0
+```
 
 It also discovers the migrated INSERT SELECT, UPDATE and DELETE/RETURNING
 families. Their 61 former root interaction tests are merged with existing
@@ -157,11 +164,19 @@ copy promise. Native unwrapped Dump/Reset/Restore phases retain snapshots and
 pristine restored sequence state; actual PostgreSQL identities/waiters prove
 the PG-only lock/refill complements. No unsupported native success is invented.
 
-The BYTEA/short-INSERT pilots retain their independent unnamed-portal parameter
-Context and failed-INSERT sentinel checks. BYTEA also checks raw ScanType,
-known/unknown Length/Nullable metadata, NULL versus nonnil empty values and owned
-recorded arguments/consumed buffers before normalization; the focused byte-copy
-regression and existing row comparator continue to exercise those helper seams.
+The short-INSERT pilot retains its independently specified unnamed-portal
+parameter Context and failed-INSERT sentinel checks. BYTEA checks complete
+literal and inference diagnostics (the inference error has no Context), raw
+ScanType, physical/computed Nullable and known/unknown Length metadata, NULL
+versus nonnull empty values, and owned recorded arguments/consumed buffers
+before normalization. Literal lexical NUL/invalid-UTF8 errors are distinct from
+permitted raw BYTEA octet binds. Native Dump/Reset/Restore, retained snapshots
+and deterministic cancellation have explicit unwrapped native phases. The same
+public raw connection survives successful catalog replacement, retained-row
+mutation and failed restores, then opens a new cursor before synchronous
+cancel-before-Next. Selected native and PostgreSQL backends independently check
+the ordinary SQL consumers.
+The focused byte-copy regression and existing row comparator remain unchanged.
 
 For a single migrated lifecycle definition, use the same exact name in both modes:
 

@@ -1,105 +1,52 @@
-//go:build reference
-
 package reference_test
 
-import (
-	"database/sql"
-	"math"
-	"reflect"
-	"testing"
-)
+import "testing"
 
 func TestReferenceByteaNullAndEmptyMetadata(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db *sql.DB
-		pg bool
-	}{{p.memory, false}, {p.postgres, true}} {
-		for _, tc := range []struct {
-			name, decl string
-			nullable   bool
-			nullRow    bool
-		}{
-			{"empty", "BYTEA", true, false}, {"nulls", "BYTEA", true, true}, {"required", "BYTEA NOT NULL", false, false},
-		} {
-			if _, err := backend.db.ExecContext(p.ctx, "CREATE TABLE "+tc.name+"(v "+tc.decl+")"); err != nil {
-				t.Fatal(err)
-			}
-			if tc.nullRow {
-				if _, err := backend.db.ExecContext(p.ctx, "INSERT INTO "+tc.name+" VALUES(NULL)"); err != nil {
-					t.Fatal(err)
-				}
-			}
-			for _, prepared := range []bool{false, true} {
-				q := "SELECT v FROM " + tc.name
-				var rows *sql.Rows
-				var err error
-				if prepared {
-					s, e := backend.db.PrepareContext(p.ctx, q)
-					if e != nil {
-						t.Fatal(e)
-					}
-					rows, err = s.QueryContext(p.ctx)
-					s.Close()
-				} else {
-					rows, err = backend.db.QueryContext(p.ctx, q)
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				types, err := rows.ColumnTypes()
-				if err != nil {
-					t.Fatal(err)
-				}
-				check := func() {
-					t.Helper()
-					c := types[0]
-					if c.Name() != "v" || c.DatabaseTypeName() != "BYTEA" || c.ScanType() != reflect.TypeFor[[]byte]() {
-						t.Fatal(c)
-					}
-					n, k := c.Nullable()
-					if backend.pg {
-						if k {
-							t.Fatal(n, k)
-						}
-					} else if !k || n != tc.nullable {
-						t.Fatal(n, k)
-					}
-					l, k := c.Length()
-					if backend.pg {
-						if !k || l != math.MaxInt64 {
-							t.Fatal(l, k)
-						}
-					} else if k {
-						t.Fatal(l, k)
-					}
-					if _, _, k := c.DecimalSize(); k {
-						t.Fatal("decimal")
-					}
-				}
-				check()
-				n := 0
-				for rows.Next() {
-					var v any
-					if err := rows.Scan(&v); err != nil || v != nil {
-						t.Fatal(v, err)
-					}
-					n++
-				}
-				if err := rows.Err(); err != nil {
-					t.Fatal(err)
-				}
-				check()
-				rows.Close()
-				check()
-				want := 0
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
+		t.Run(b.name, func(t *testing.T) {
+			for _, tc := range []struct {
+				name, decl string
+				nullable   int
+				nullRow    bool
+			}{
+				{"empty", "BYTEA", 1, false}, {"nulls", "BYTEA", 1, true}, {"required", "BYTEA NOT NULL", 0, false},
+			} {
+				referenceByteaExec(t, p.ctx, b.db, b, referenceExec("CREATE TABLE "+tc.name+"(v "+tc.decl+")", 0))
+				var want [][]any
 				if tc.nullRow {
-					want = 1
+					referenceByteaExec(t, p.ctx, b.db, b, referenceExec("INSERT INTO "+tc.name+" VALUES(NULL)", 1))
+					want = [][]any{{nil}}
 				}
-				if n != want {
-					t.Fatal(n, want)
+				for _, prepared := range []bool{false, true} {
+					referenceByteaRaw(t, p.ctx, b.db, b, "SELECT v FROM "+tc.name, prepared, []string{"v"}, []int{tc.nullable}, want, false)
 				}
 			}
-		}
+		})
+	}
+}
+
+func TestReferenceByteaComputedMetadata(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
+		t.Run(b.name, func(t *testing.T) {
+			referenceByteaExec(t, p.ctx, b.db, b, referenceExec("CREATE TABLE t(id INT,v BYTEA,r BYTEA NOT NULL)", 0))
+			referenceByteaExec(t, p.ctx, b.db, b, referenceExec(`INSERT INTO t VALUES(1,'',''),(2,NULL,'\x41'),(3,'\x0080ff','\xff')`, 3))
+			want := [][]any{{[]byte{}, []byte{}, []byte{}}, {nil, []byte{65}, nil}, {[]byte{0, 128, 255}, []byte{255}, []byte{0, 128, 255, 0, 128, 255}}}
+			for _, prepared := range []bool{false, true} {
+				for _, empty := range []bool{false, true} {
+					q := "SELECT v,r,v||v AS doubled FROM t"
+					rows := want
+					if empty {
+						q += " WHERE v=NULL"
+						rows = nil
+					}
+					q += " ORDER BY id"
+					referenceByteaRaw(t, p.ctx, b.db, b, q, prepared, []string{"v", "r", "doubled"}, []int{1, 0, -1}, rows, true)
+				}
+			}
+			referenceByteaRaw(t, p.ctx, b.db, b, "SELECT v,r,v||v AS doubled FROM t ORDER BY id", false, []string{"v", "r", "doubled"}, []int{1, 0, -1}, want, false)
+		})
 	}
 }
