@@ -65,3 +65,23 @@ func lockModesSavepointWake(t *testing.T, pair *referencePair, backend reference
 	lockModesExec(t, ctx, b, "ROLLBACK")
 	lockModesExec(t, ctx, a, "ROLLBACK")
 }
+
+func TestReferenceLockModesOrderWait(t *testing.T) {
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		if !backend.pg {
+			continue // Actual pending-resource observation requires pg_locks.
+		}
+		t.Run(backend.name, func(t *testing.T) { lockModesOrderWait(t, pair, backend) })
+	}
+}
+
+func TestReferenceLockModesSavepointWake(t *testing.T) {
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		if !backend.pg {
+			continue // Actual waiter observation requires pg_locks.
+		}
+		t.Run(backend.name, func(t *testing.T) { lockModesSavepointWake(t, pair, backend) })
+	}
+}

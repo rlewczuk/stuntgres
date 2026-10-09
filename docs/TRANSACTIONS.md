@@ -270,7 +270,9 @@ missing schemas use `3F000`. Denials use `42501`, `permission denied for table t
 or `permission denied for view v`. Direct sequences fail `42809`, `cannot lock
 relation "s"`, Detail `This operation is not supported for sequences.`, before ACL.
 Utility diagnostics have no Position or synthetic Schema/Table fields.
-Feature smokes: `make smoke VERBOSE=0 RUN='^TestLockModesSmoke(Matrix|OrderViews|Savepoints)$$'`.
+Command feature checks: `make test VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'`
+and `make reference VERBOSE=0 RUN='^TestReferenceLockModes'`. See the
+[command change note](#lock-table-command--change-note) for discovery and coverage.
 Advisory locking and lock introspection
 remain unsupported. DELETE's row UPDATE and UPDATE's
 NO KEY UPDATE holds are distinct mutually conflicting modes on the same logical
@@ -482,6 +484,31 @@ remains pinned PostgreSQL **18.0 UTF8/C**; current official `/docs/18/` manuals
 identify **18.6**, and local **20devel** sources are research only. See
 [READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED)
 and [transactions](https://www.postgresql.org/docs/18/tutorial-transactions.html).
+
+## LOCK TABLE command — change note
+
+Public `LOCK TABLE` witnesses are consolidated into untagged, dual-mode
+`reference/` tests, replacing the command's root/native-only smoke copies.
+Ordinary Docker-free discovery and pinned PostgreSQL runs share the complete
+SQL assertion bodies, including the eight-mode conflict matrix, direct/prepared
+diagnostics, SQL and driver transaction routes, ordered targets, recursive
+views, savepoint contributions and commit/publication versus rollback/discard.
+
+Strengthened witnesses show that healthy active Prepare neither waits for a
+conflicting peer nor acquires a table hold. Retained statements check the current
+block, catalog and executing ordinary role at Execute; distinct ordinary-role
+table/view denials and both sources of an owner-created nested join view are
+checked independently. Supported syntax and native boundaries are unchanged:
+standalone ONLY/star targets are supported, but native inheritance, SQL GRANT
+and lock introspection are not added. PostgreSQL-only ACL, hierarchy and actual
+pending-resource observer phases remain explicitly separate capabilities.
+
+```sh
+# Docker-free command contract, including held preparation and ordinary roles
+make test VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'
+# Same completed consumers plus PostgreSQL-only capability controls
+make reference VERBOSE=0 RUN='^TestReferenceLockModes'
+```
 
 ## Row locks — change note
 

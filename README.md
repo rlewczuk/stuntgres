@@ -410,7 +410,10 @@ privileges and recursive view locking. Native tables remain standalone; no
 inheritance or SQL GRANT is introduced. Prepare is metadata-only; Execute
 requires an explicit block and affects zero rows. Savepoint rollback restores
 earlier held modes, including incomparable modes, without replacing the ticket.
-Feature smokes: `make smoke VERBOSE=0 RUN='^TestLockModesSmoke(Matrix|OrderViews|Savepoints)$$'`.
+Feature checks use the same untagged reference definitions in both modes:
+`make test VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'` (Docker-free)
+and `make reference VERBOSE=0 RUN='^TestReferenceLockModes'` (native and pinned PostgreSQL).
+See the [LOCK TABLE command change note](docs/TRANSACTIONS.md#lock-table-command--change-note).
 
 Selected mathematical functions include `random()`, inclusive INTEGER/BIGINT/
 NUMERIC bounded `random(lower,upper)`, `random_normal([mean[,stddev]])` and

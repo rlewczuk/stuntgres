@@ -6,14 +6,28 @@ import (
 	"testing"
 )
 
-func lockModesBackends(t *testing.T, run func(*testing.T, context.Context, *sql.Conn, *sql.Conn)) {
+func lockModesScenarioBackends(t *testing.T, run func(*testing.T, context.Context, referenceBackend, *sql.Conn, *sql.Conn)) {
+	t.Helper()
 	pair := newReferenceScenario(t)
 	for _, backend := range pair.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, b := referenceLockConnections(t, pair.ctx, backend.db)
-			run(t, pair.ctx, a, b)
+			t.Cleanup(func() {
+				a.ExecContext(pair.ctx, "ROLLBACK")
+				b.ExecContext(pair.ctx, "ROLLBACK")
+				a.ExecContext(pair.ctx, "RESET SESSION AUTHORIZATION")
+				b.ExecContext(pair.ctx, "RESET SESSION AUTHORIZATION")
+			})
+			run(t, pair.ctx, backend, a, b)
 		})
 	}
+}
+
+func lockModesBackends(t *testing.T, run func(*testing.T, context.Context, *sql.Conn, *sql.Conn)) {
+	t.Helper()
+	lockModesScenarioBackends(t, func(t *testing.T, ctx context.Context, _ referenceBackend, a, b *sql.Conn) {
+		run(t, ctx, a, b)
+	})
 }
 func lockModesDiagnostic(t *testing.T, err error, code, message, detail string) {
 	t.Helper()
@@ -112,6 +126,8 @@ func TestReferenceLockModesSyntaxAndPrepare(t *testing.T) {
 		lockModesExec(t, ctx, a, "CREATE TABLE t(v INT)")
 		lockModesExec(t, ctx, a, "CREATE SEQUENCE seq")
 		for _, q := range []string{"LOCK t", "LOCK missing", "LOCK seq", "LOCK ONLY(t) IN SHARE MODE NOWAIT"} {
+			_, directErr := a.ExecContext(ctx, q)
+			lockModesDiagnostic(t, directErr, "25P01", "LOCK TABLE can only be used in transaction blocks", "")
 			stmt, err := a.PrepareContext(ctx, q)
 			if err != nil {
 				t.Fatal("metadata preparation", q, err)
@@ -151,6 +167,16 @@ func TestReferenceLockModesSyntaxAndPrepare(t *testing.T) {
 		if e != nil || n != 0 {
 			t.Fatal(n, e)
 		}
+		// Preserve the ordinary driver block above and exercise its read-only route.
+		if err := tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		readOnly, err := a.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer readOnly.Rollback()
+		referenceLockExec(t, ctx, readOnly, "LOCK t IN ROW SHARE MODE", 0)
 	})
 }
 func TestReferenceLockModesDiagnostics(t *testing.T) {
@@ -214,6 +240,9 @@ func TestReferenceLockModesStandaloneMarkers(t *testing.T) {
 			lockModesExec(t, ctx, a, "BEGIN")
 			lockModesExec(t, ctx, a, "LOCK "+target+" IN SHARE MODE")
 			lockModesProbe(t, ctx, b, `LOCK "Mixed" IN ROW EXCLUSIVE MODE NOWAIT`, "55P03", `could not obtain lock on relation "Mixed"`)
+			if target == `ONLY public."Mixed", b *, ONLY(b)` {
+				lockModesProbe(t, ctx, b, "LOCK b IN ROW EXCLUSIVE MODE NOWAIT", "55P03", `could not obtain lock on relation "b"`)
+			}
 			lockModesExec(t, ctx, a, "ROLLBACK")
 		}
 	})
