@@ -79,10 +79,11 @@ func TestReferenceVisibilityInquiryShadowingSourceConsumerRoutes(t *testing.T) {
 					}
 				}
 			})
-			for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE a.t(id INT)", "CREATE TABLE b.t(id INT)", "CREATE SEQUENCE a.shared", "CREATE VIEW b.shared AS SELECT id FROM b.t", "CREATE SEQUENCE public.temp_s", "CREATE TEMP SEQUENCE temp_s"} {
+			// The catalog bag includes every namespace; avoid unrelated cases' common "t".
+			for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE a.visibility_source_shadow(id INT)", "CREATE TABLE b.visibility_source_shadow(id INT)", "CREATE SEQUENCE a.shared", "CREATE VIEW b.shared AS SELECT id FROM b.visibility_source_shadow", "CREATE SEQUENCE public.temp_s", "CREATE TEMP SEQUENCE temp_s"} {
 				run(referenceExec(q, 0))
 			}
-			a, b := visibilitySourceCandidatePair(t, db, "t", "a,b", "b,a")
+			a, b := visibilitySourceCandidatePair(t, db, "visibility_source_shadow", "a,b", "b,a")
 			held, err := db.Prepare("SELECT pg_table_is_visible($1)")
 			if err != nil {
 				t.Fatal(err)
@@ -113,7 +114,7 @@ func TestReferenceVisibilityInquiryShadowingSourceConsumerRoutes(t *testing.T) {
 				run(referenceSelect(tc.query, []string{"pg_table_is_visible", "pg_table_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{tc.a, tc.b}}))
 			}
 			run(referenceExec("SET search_path=a,b", 0))
-			run(referenceExec("ALTER TABLE a.t RENAME TO renamed", 0))
+			run(referenceExec("ALTER TABLE a.visibility_source_shadow RENAME TO renamed", 0))
 			check(b, true)
 			run(referenceExec("ALTER TABLE a.renamed SET SCHEMA public", 0))
 			check(a, false)
@@ -121,8 +122,8 @@ func TestReferenceVisibilityInquiryShadowingSourceConsumerRoutes(t *testing.T) {
 			check(a, true)
 			run(referenceExec("DROP TABLE public.renamed", 0))
 			check(a, nil)
-			run(referenceExec("CREATE TABLE a.t(id INT)", 0))
-			recreated, live := visibilitySourceCandidatePair(t, db, "t", "a,b", "b,a")
+			run(referenceExec("CREATE TABLE a.visibility_source_shadow(id INT)", 0))
+			recreated, live := visibilitySourceCandidatePair(t, db, "visibility_source_shadow", "a,b", "b,a")
 			if recreated == a || recreated == b || live != b {
 				t.Fatal("recreation identity relationship", recreated, live, a, b)
 			}

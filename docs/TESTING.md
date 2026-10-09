@@ -133,6 +133,11 @@ and native replay cases must register that schema too, even when they drop every
 view they created. Registering before the scenario lets fixture handles close
 before schema teardown.
 
+Queries of `pg_class` are database-wide across namespaces, not limited to the fixture's `public` reset.
+Use case-specific relation names or constrain the intended namespaces when
+asserting a complete candidate bag; common names such as `t` can match unrelated
+objects outside the case even when its own schema cleanup is correct.
+
 `p.step(t, step)` executes one description on native and, when enabled,
 PostgreSQL. Each backend must match the supplied expectations independently;
 complete observed records are then compared for parity. SELECT checks include
