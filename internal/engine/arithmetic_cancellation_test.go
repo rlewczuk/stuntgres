@@ -10,11 +10,11 @@ import (
 )
 
 func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT (v+1)*2 FROM t WHERE id=1")
+	_, query, source := queryCoreFixture(t, "SELECT (v::smallint+1::smallint)*2::smallint FROM t WHERE id=1")
 	project := query.Root.(*projectNode)
 	real := project.expressions[0]
 	schema := project.Schema()[0]
-	if schema.Name != "?column?" || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
+	if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int2 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
 		t.Fatal(schema)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -44,11 +44,11 @@ func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
 // running Restore call; it proves cancellation after real arithmetic staging.
 func TestExpressionArithmeticCanceledRestoreInstallationFence(t *testing.T) {
 	source, target := New(), New()
-	run(t, source, "CREATE TABLE t(i INT,b BIGINT)")
-	run(t, source, "INSERT INTO t VALUES((7+1)*2,-7%2),(NULL,NULL)")
-	run(t, target, "CREATE TABLE t(i INT,b BIGINT)")
+	run(t, source, "CREATE TABLE t(i SMALLINT,b BIGINT)")
+	run(t, source, "INSERT INTO t VALUES((7::smallint+1::smallint)*2::smallint,-7::smallint%2::bigint),(NULL,NULL)")
+	run(t, target, "CREATE TABLE t(i SMALLINT,b BIGINT)")
 	run(t, target, "INSERT INTO t VALUES(99,99)")
-	held := run(t, target, "SELECT i+1,b*2 FROM t").Rows
+	held := run(t, target, "SELECT i+1::smallint,b*2::smallint FROM t").Rows
 	defer held.Close()
 	before := target.CatalogRead()
 	staged := run(t, source, "SELECT i,b FROM t ORDER BY i")
@@ -75,7 +75,7 @@ func TestExpressionArithmeticCanceledRestoreInstallationFence(t *testing.T) {
 
 func TestExpressionArithmeticCanceledInsertFinish(t *testing.T) {
 	e := New()
-	run(t, e, "CREATE TABLE t(i INT,b BIGINT)")
+	run(t, e, "CREATE TABLE t(i SMALLINT,b BIGINT)")
 	run(t, e, "INSERT INTO t VALUES(99,99)")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -88,7 +88,7 @@ func TestExpressionArithmeticCanceledInsertFinish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := scope.Execute(statement(t, "INSERT INTO t VALUES((7+1)*2,-7%2)"), 0, nil)
+	result, err := scope.Execute(statement(t, "INSERT INTO t VALUES((7::smallint+1::smallint)*2::smallint,-7::smallint%2::bigint)"), 0, nil)
 	if err != nil || result.Count != 1 {
 		_ = scope.Finish(err)
 		t.Fatal(result, err)
@@ -108,10 +108,10 @@ func TestExpressionArithmeticCanceledInsertFinish(t *testing.T) {
 }
 
 func TestExpressionArithmeticNullAndEmptyOrigins(t *testing.T) {
-	for _, q := range []string{"SELECT v+1 FROM t WHERE id=2", "SELECT v+1 FROM t WHERE FALSE"} {
+	for _, q := range []string{"SELECT v::smallint+1::smallint FROM t WHERE id=2", "SELECT v::smallint+1::smallint FROM t WHERE FALSE"} {
 		_, query, source := queryCoreFixture(t, q)
 		schema := query.Root.Schema()[0]
-		if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int4 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
+		if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int2 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
 			t.Fatal(q, schema)
 		}
 		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
@@ -120,7 +120,7 @@ func TestExpressionArithmeticNullAndEmptyOrigins(t *testing.T) {
 		}
 		rows.Close()
 		expected := 1
-		if q == "SELECT v+1 FROM t WHERE FALSE" {
+		if q == "SELECT v::smallint+1::smallint FROM t WHERE FALSE" {
 			expected = 0
 		}
 		if count != expected {

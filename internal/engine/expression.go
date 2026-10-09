@@ -2013,18 +2013,8 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, operatorExpressionError(err, lt, rt, raw)
 	}
 	typ := b.typ(signature.Result)
-	if signature.Result == sqltype.Numeric || signature.Result == sqltype.Int2 {
+	if signature.Result == sqltype.Numeric {
 		return nil, expressionError("0A000", fmt.Sprintf("arithmetic for %s operands is unsupported", typ.DiagnosticName()), raw.Pos)
-	}
-	if signature.Result != sqltype.Float4 && signature.Result != sqltype.Float8 {
-		for _, source := range [...]*sqltype.Descriptor{lt, rt} {
-			if source != nil && source.ID() == sqltype.Int2 {
-				return nil, expressionError("0A000", "arithmetic for smallint operands is unsupported", raw.Pos)
-			}
-		}
-		// Existing integer providers evaluate mixed widths at their result width.
-		signature.Left = signature.Result
-		signature.Right = signature.Result
 	}
 	leftType := b.typ(signature.Left)
 	var rightType *sqltype.Descriptor

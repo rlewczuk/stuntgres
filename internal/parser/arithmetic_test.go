@@ -6,7 +6,7 @@ func TestArithmeticGrammar(t *testing.T) {
 	for _, tc := range []struct {
 		q, outer, inner string
 		side            int
-	}{{"SELECT 2+3*4 FROM t", "+", "*", 1}, {"SELECT (2+3)*4 FROM t", "*", "+", 0}, {"SELECT 20-3-2 FROM t", "-", "-", 0}, {"SELECT - -i FROM t", "-", "-", 0}} {
+	}{{"SELECT 2+3*4 FROM t", "+", "*", 1}, {"SELECT (2+3)*4 FROM t", "*", "+", 0}, {"SELECT 20-3-2 FROM t", "-", "-", 0}, {"SELECT - -i FROM t", "-", "-", 0}, {"SELECT s+h*h FROM t", "+", "*", 1}, {"SELECT (s+h)*h FROM t", "*", "+", 0}, {"SELECT s%(-h) FROM t", "%", "-", 1}, {"SELECT s/*a*/+h/*b*/*h FROM t", "+", "*", 1}} {
 		statements, err := Parse(tc.q)
 		if err != nil {
 			t.Fatal(tc.q, err)

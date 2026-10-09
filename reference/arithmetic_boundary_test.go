@@ -13,7 +13,7 @@ func TestReferenceArithmeticBoundaries(t *testing.T) {
 				expr, typ, diagnostic, pos string
 				value                      any
 			}{
-				{"s+s2", "INT2", "smallint", "9", int64(9)}, {"s/s2", "INT2", "smallint", "9", int64(3)}, {"s%s2", "INT2", "smallint", "9", int64(1)}, {"s+2", "INT4", "smallint", "9", int64(9)}, {"+s", "INT2", "smallint", "8", int64(7)}, {"-s", "INT2", "smallint", "8", int64(-7)},
+				{"s+s2", "INT2", "", "9", int64(9)}, {"s/s2", "INT2", "", "9", int64(3)}, {"s%s2", "INT2", "", "9", int64(1)}, {"s+2", "INT4", "", "9", int64(9)}, {"+s", "INT2", "", "8", int64(7)}, {"-s", "INT2", "", "8", int64(-7)},
 				{"n+n2", "NUMERIC", "numeric", "9", "9"}, {"n*n2", "NUMERIC", "numeric", "9", "14"}, {"n%n2", "NUMERIC", "numeric", "9", "1"},
 				{"r/r2", "FLOAT4", "", "9", float64(3.5)}, {"d/d2", "FLOAT8", "", "9", float64(3.5)}, {"+r", "FLOAT4", "", "8", float64(7)}, {"-d", "FLOAT8", "", "8", float64(-7)},
 			} {
@@ -37,7 +37,7 @@ func TestReferenceArithmeticBoundaries(t *testing.T) {
 			for _, tc := range []struct {
 				expr, typ, diagnostic, pos string
 				value                      any
-			}{{"s+1", "INT4", "smallint", "9", int64(8)}, {"+n", "NUMERIC", "numeric", "8", "1.5"}, {"r/2", "FLOAT8", "", "9", float64(3.5)}, {"d*2", "FLOAT8", "", "9", float64(14)}} {
+			}{{"s+1", "INT4", "", "9", int64(8)}, {"+n", "NUMERIC", "numeric", "8", "1.5"}, {"r/2", "FLOAT8", "", "9", float64(3.5)}, {"d*2", "FLOAT8", "", "9", float64(14)}} {
 				q := "SELECT " + tc.expr + " FROM t"
 				s := referenceSelect(q, []string{"?column?"}, []string{tc.typ}, [][]any{{tc.value}})
 				if !backend.pg && tc.diagnostic != "" {

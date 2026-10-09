@@ -688,10 +688,16 @@ this does not add NUMERIC operators or general casts.
 
 Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
 settings' quoted numeric codecs retain their separate units/prefix behavior.
-No serial, NUMERIC/SMALLINT arithmetic, general functions/operator syntax or
+No serial, NUMERIC arithmetic, general functions/operator syntax or
 SELECT-without-FROM expansion is introduced. Standard/postfix annotations reuse
 same-type scalar usages and existing directional numeric coercion edges;
 known-TEXT input conversion and function-cast boundaries remain unchanged.
+Integer arithmetic includes SMALLINT: typed `32767::smallint+1::smallint`
+fails with22003 `smallint out of range`, whereas `32767::smallint+1`
+selects INT4 and returns32768. Unary signs retain width; mixed integer
+`+ - * /` return the wider width and mixed `%` promotes to its homogeneous
+signature. Cast operands before evaluation to widen; a BIGINT destination or
+outer result cast cannot rescue a narrower overflowing operation.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestNumericSmoke$' VERBOSE=0`.
 The same smoke includes signed integer carry failures beside successful extrema,

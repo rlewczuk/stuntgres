@@ -1674,30 +1674,34 @@ operator positions. See [width/count behavior](TYPES.md#integral-bitwise-operato
 Catalog-qualified OPERATOR(pg_catalog.symbol) forms retain these same bitwise
 providers and ordinary bounded cast rules; wrong namespaces do not bypass lookup, and
 canonical defaults/views preserve explicit qualification.
-No BIT/VARBIT provider, ordinary SMALLINT arithmetic or no-FROM widening is added.
+No BIT/VARBIT provider or no-FROM widening is added.
 Standard SMALLINT CAST/`::` now uses the ordinary existing directional numeric
 coercion edges, including standalone and conditional occurrences. Known TEXT
 input conversions and `int2()` function-style casts remain excluded.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 
-INT4/INT8 arithmetic uses the common expression binder in table SELECT,
-comparison operands, unqualified DELETE predicates and column-free INSERT VALUES. Operators `+ - * / %`,
-unary signs and parentheses follow ordinary arithmetic precedence. Same-width
-INT4 stays INT4; mixed width widens to INT8 before evaluation, not according to
-the destination or result magnitude. Division truncates toward zero; remainder
-follows the dividend sign. Overflow is checked (`22003`), zero division/remainder
-is `22012`; runtime diagnostics have no invented source position. NULL results
-retain result width. Signed numeric literals fold under minus, including grouping.
+INT2/INT4/INT8 arithmetic uses the common expression binder in existing scalar
+consumers. Operators `+ - * / %`, unary signs and parentheses follow ordinary
+arithmetic precedence. Unary and same-width binary operations retain width;
+mixed `+ - * /` select the wider integer result while retaining each input's
+declared width. Mixed `%` widens to the wider homogeneous modulo signature.
+Width is never selected from destination, result magnitude or Go argument kind.
+Division truncates toward zero; remainder follows the dividend sign, and minimum
+integer remainder -1 is zero. Overflow is checked (`22003`: `smallint out of
+range`, `integer out of range`, or `bigint out of range`); zero division/remainder
+is `22012` (`division by zero`). Runtime diagnostics have no invented position.
+NULL results retain result width. Signed numeric literals fold under minus, including grouping.
 `i% -1` and `i%(-1)` are remainder with a negative divisor; adjacent `%-`
 is a combined symbolic operator and fails typed `42883`, not a successful
 remainder. Arithmetic punctuation maximal munch preserves comment boundaries
 and PostgreSQL trailing-sign stripping. Contextual errors use the expression
 start/resolved type, while missing-operator errors point at the operator.
-Computed results expose `?column?` and INT4/INT8 metadata, including empty results.
+Computed results expose `?column?` and INT2/INT4/INT8 metadata, including empty
+and NULL results, with native int64 ScanType and no physical origin.
 Parameter widths follow SQL signature resolution, never Go argument kinds.
 Unary unknown plus and unknown power select FLOAT8; unknown-only binary +/-
-and unary minus are ambiguous (`42725`). SMALLINT-only and exact NUMERIC-only
-arithmetic remain native capability exclusions; floating `%` is missing (`42883`).
+and unary minus are ambiguous (`42725`). Exact NUMERIC-only arithmetic remains
+a native capability exclusion; floating `%` is missing (`42883`).
 Existing baseline scalar casts compose with arithmetic without adding cast
 families. Postfix `::` binds before unary signs; operand casts can widen arithmetic,
 but result casts cannot prevent narrower overflow. Frame-only cast conversions
@@ -1715,6 +1719,11 @@ Dump emits canonical stored values, and failed/canceled replacement preserves
 old state and retained computed cursors. No external pg_dump, physical storage
 or wire-protocol parity is implied. Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedSmoke$' VERBOSE=0`;
 reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArithmetic' VERBOSE=0`.
+Smallint feature smoke: `make quickcheck PACKAGES=./reference RUN='^(TestReferenceSmallintArithmeticSmoke|TestReferenceSmallintMigratedSmoke)$' VERBOSE=0`;
+run the same definitions with `REFERENCE=1` for the pinned PostgreSQL oracle.
+Owned defaults/views preserve literal widths across native replay, including
+unused overflowing INT2 defaults. Cancellation seam tests prove evaluation/
+staging-to-publication fences, not interruption of an in-flight public Restore.
 
 DELETE arithmetic keeps existing actual-used-column SELECT authorization,
 affected-row counts and atomic deletion staging. Qualified arithmetic remains

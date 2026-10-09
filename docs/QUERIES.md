@@ -1795,14 +1795,14 @@ computed arithmetic arguments into the bounded null-count functions. Cast
 families and BYTEA capabilities remain unchanged.
 Composition smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedCastSmoke$' VERBOSE=0`.
 
-SMALLINT-only, exact NUMERIC-only and other nonnumeric arithmetic remain
+Exact NUMERIC-only and other nonnumeric arithmetic remain
 unsupported. Floating operators use fixed REAL/DOUBLE widths and PostgreSQL
 mixed numeric resolution; see [floating arithmetic](DIALECT.md#floating-arithmetic--change-note).
 Previously supported signed NUMERIC literal input, such as `+1.5`, remains a
 literal identity operation, not a NUMERIC arithmetic provider.
 Selected mathematical `mod` functions separately support SMALLINT, INTEGER,
 BIGINT and exact NUMERIC remainders through the existing expression consumers;
-this does not admit SMALLINT/NUMERIC arithmetic operators. Selected round/scale/
+this does not admit NUMERIC arithmetic operators. Selected round/scale/
 trunc/sign calls compose with existing projections, grouping by projection
 ordinal, UPDATE and INSERT SELECT. They may wrap existing CASE scalar arms and
 count-star aggregates, but do not add selected function CASE result leaves or
@@ -2103,12 +2103,13 @@ All conversions precede statement publication; a bad later tuple publishes no
 rows. Dump emits canonical SMALLINT/INTEGER/BIGINT declarations and decimal
 values, and staged Restore preserves widths and retained cursor snapshots.
 
-`make quickcheck PACKAGES=./smoke RUN='^TestSmallintSmoke$' VERBOSE=1` exercises the public direct and
-genuinely prepared smallint path, bounds/English diagnostics, INT2 metadata,
-NULL, atomicity/cancellation, mixed-width controls and authorization. Independent
-focused witnesses are `make quickcheck RUN='^TestSmallint' PACKAGES='./internal/sqltype ./internal/parser ./internal/engine .' VERBOSE=1`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSmallint' VERBOSE=1` against the pinned
-PostgreSQL 18.0 oracle. These commands require execution to establish results.
+`make quickcheck PACKAGES=./reference RUN='^(TestReferenceSmallintArithmeticSmoke|TestReferenceSmallintMigratedSmoke)$' VERBOSE=0`
+exercises shared direct and genuinely held prepared smallint arithmetic,
+independent width/bound/error contracts, metadata, NULL and migrated baseline
+routes. The broader selector `^(TestReferenceSmallint.*|TestReferenceArithmeticBoundaries)$`
+covers atomicity/cancellation, persistent defaults/views and native controls,
+retained raw cursors, and authorization. Run both selectors with `REFERENCE=1`
+as well for the pinned PostgreSQL18.0 oracle; execution establishes results.
 
 `go test -count=1 -run '^TestTypeCoreSmoke$' ./smoke` exercises public
 direct/prepared inference, codecs, exact diagnostics and phases, metadata, byte

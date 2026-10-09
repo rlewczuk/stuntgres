@@ -37,8 +37,18 @@ func BindArithmetic(operator ArithmeticOperator, left, right *Descriptor) (Arith
 				result = right
 			}
 		}
-	} else if (left.id != Int4 && left.id != Int8) || right != nil && (right != left || operator == ArithmeticPower) {
-		return Arithmetic{}, fmt.Errorf("invalid integer arithmetic signature")
+	} else {
+		if left.id != Int2 && left.id != Int4 && left.id != Int8 {
+			return Arithmetic{}, fmt.Errorf("invalid integer arithmetic signature")
+		}
+		if right != nil {
+			if (right.id != Int2 && right.id != Int4 && right.id != Int8) || operator == ArithmeticPower || operator == ArithmeticRemainder && right != left {
+				return Arithmetic{}, fmt.Errorf("invalid integer arithmetic signature")
+			}
+			if right.id == Int8 || right.id == Int4 && left.id == Int2 {
+				result = right
+			}
+		}
 	}
 	return Arithmetic{operator, left, right, result}, nil
 }
