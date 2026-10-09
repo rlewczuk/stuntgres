@@ -5,6 +5,7 @@ import (
 )
 
 func TestReferenceViewReplacePreparedTargetLifecycle(t *testing.T) {
+	schemaReferenceCleanup(t, "s")
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		db := backend.db
