@@ -137,6 +137,10 @@ Queries of `pg_class` are database-wide across namespaces, not limited to the fi
 Use case-specific relation names or constrain the intended namespaces when
 asserting a complete candidate bag; common names such as `t` can match unrelated
 objects outside the case even when its own schema cleanup is correct.
+Preserve exact multiplicities and visibility assertions rather than ignoring
+extra identities. The visibility source-route scenario keeps the complete
+unfiltered two-peer bag and creates an unrelated `public.t` to exercise
+isolation from the old generic basename.
 
 `p.step(t, step)` executes one description on native and, when enabled,
 PostgreSQL. Each backend must match the supplied expectations independently;

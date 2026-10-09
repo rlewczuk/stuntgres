@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-// Discover the whole unordered candidate bag using the original DB.Query route.
+// Discover the whole unordered candidate bag for the fixture-owned relation name
+// using the original DB.Query route; other tests may retain non-public relations.
 func visibilitySourceCandidatePair(t *testing.T, db *sql.DB, name, first, second string) (int64, int64) {
 	t.Helper()
 	var bag map[int64]bool
@@ -80,7 +81,7 @@ func TestReferenceVisibilityInquiryShadowingSourceConsumerRoutes(t *testing.T) {
 				}
 			})
 			// The catalog bag includes every namespace; avoid unrelated cases' common "t".
-			for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE a.visibility_source_shadow(id INT)", "CREATE TABLE b.visibility_source_shadow(id INT)", "CREATE SEQUENCE a.shared", "CREATE VIEW b.shared AS SELECT id FROM b.visibility_source_shadow", "CREATE SEQUENCE public.temp_s", "CREATE TEMP SEQUENCE temp_s"} {
+			for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE a.visibility_source_shadow(id INT)", "CREATE TABLE b.visibility_source_shadow(id INT)", "CREATE TABLE public.t(id INT)", "CREATE SEQUENCE a.shared", "CREATE VIEW b.shared AS SELECT id FROM b.visibility_source_shadow", "CREATE SEQUENCE public.temp_s", "CREATE TEMP SEQUENCE temp_s"} {
 				run(referenceExec(q, 0))
 			}
 			a, b := visibilitySourceCandidatePair(t, db, "visibility_source_shadow", "a,b", "b,a")
