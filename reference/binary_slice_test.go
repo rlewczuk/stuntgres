@@ -16,9 +16,10 @@ func TestReferenceBinarySliceBehavior(t *testing.T) {
 				s.nonContext = nonContext
 				referenceRunStep(t, ctx, x, r, s)
 			}
-			apply(t, referenceExec("CREATE TABLE t(v BYTEA,s BYTEA)", 0))
-			apply(t, referenceExec(`INSERT INTO t VALUES('\x00c3a9ff00414200','\xa9ff')`, 1))
+			apply(t, referenceExec("CREATE TABLE t(v BYTEA,s BYTEA,i INTEGER,n INTEGER)", 0))
+			apply(t, referenceExec(`INSERT INTO t VALUES('\x00c3a9ff00414200','\xa9ff',2,1)`, 1))
 			for _, step := range []referenceStep{
+				referenceSelect(`SELECT substring(v FROM i FOR n),substr(v,3,1),position(s IN v),pg_catalog.position(v,''),pg_catalog.position(v,'zz') FROM t`, []string{"substring", "substr", "position", "position", "position"}, []string{"BYTEA", "BYTEA", "INT4", "INT4", "INT4"}, [][]any{{"\xc3", "\xa9", int64(3), int64(1), int64(0)}}),
 				referenceSelect(`SELECT substring(v,2,1) AS a,substr(v,3,1) AS b,pg_catalog.position(v,s) AS p FROM t`, []string{"a", "b", "p"}, []string{"BYTEA", "BYTEA", "INT4"}, [][]any{{"\xc3", "\xa9", int64(3)}}),
 				referenceSelect(`SELECT substring(v FROM 2 FOR 1) AS a,substring(v FOR 1 FROM 3) AS b,position(s IN v) AS p FROM t`, []string{"a", "b", "p"}, []string{"BYTEA", "BYTEA", "INT4"}, [][]any{{"\xc3", "\xa9", int64(3)}}),
 				referenceSelect(`SELECT overlay('abcdef'::bytea,'XY'::bytea,3,-2) AS a,overlay('abcdef'::bytea PLACING 'XY'::bytea FROM 3) AS b,substring('abcdef'::bytea FOR 3) AS c`, []string{"a", "b", "c"}, []string{"BYTEA", "BYTEA", "BYTEA"}, [][]any{{"abXYabcdef", "abXYef", "abc"}}),

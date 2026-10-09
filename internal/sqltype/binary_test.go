@@ -124,7 +124,7 @@ func TestBinaryBasicInvariantsOverflowAndAllocations(t *testing.T) {
 		count int64
 		fail  bool
 	}{{268435455, false}, {268435456, true}} {
-		v, err := binaryLength(integer, tc.count, true)
+		v, err := integerLength(integer, tc.count, true)
 		if tc.fail {
 			var se *sqlstate.Error
 			if !errors.As(err, &se) || se.Code != "22003" || se.Message != "integer out of range" {

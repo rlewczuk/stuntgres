@@ -969,6 +969,55 @@ The same definitions preserve per-backend reseed/range/lattice/demand witnesses;
 native controls and PostgreSQL adapter boundaries are explicit phases, not
 cross-backend stream parity or a widened DEFAULT/VOID storage surface.
 
+### String length and search — change note
+
+`length(text)`, `char_length(text)` and `character_length(text)` count Unicode
+codepoints, including combining marks separately. They do not measure graphemes,
+display width or normalized text. `octet_length(text)` measures UTF8 bytes and
+`bit_length(text)` is eight times that byte count. All return INT4, typmod-1,
+without result collation. Overflow fails22003 `integer out of range`.
+Empty strings measure zero; successful signatures are strict, so NULL measures
+NULL without suppressing invalid argument, signature or authorization errors.
+
+VARCHAR preserves trailing spaces. `length`, both character-count aliases and
+`octet_length` have exact BPCHAR overloads: character counts ignore trailing ASCII
+spaces, but octet counts include physically stored padding. For CHAR(4) `'é🙂'`,
+character counts are2, octet count8 and bit count48. Bit counts have no BPCHAR
+overload and use its existing TEXT conversion, removing only trailing U+0020.
+These operations never mutate stored CHAR values. Unknown strings and parameters
+prefer TEXT; existing known BYTEA counts/search retain raw byte semantics.
+No `char_length(bytea)` or `strpos(bytea,bytea)` alias is added.
+
+`strpos(source,needle)` and ordinary quoted/qualified `position(source,needle)`
+return the first one-based codepoint position, zero when absent. SQL
+`POSITION(needle IN source)` reverses those operands. An empty needle returns1,
+even in an empty source; either NULL input returns NULL. Matching is exact and
+does not normalize or case-fold. Both BPCHAR operands convert to TEXT, while
+TEXT/VARCHAR preserve spaces. Bare comma-form POSITION remains a syntax error.
+Matching scalar `VARIADIC` spellings use the same fixed TEXT signatures, not array
+arguments or a variadic execution plan; existing BYTEA admission is unchanged.
+
+Search demands a determined **input** collation despite its noncollatable INT4
+result. Conflicting explicit collations fail42P21 during analysis. Undetermined
+implicit input collation fails42P22 with the COLLATE hint on nonNULL execution,
+before empty-input shortcuts; strict NULL bypasses that runtime demand. An
+explicit input collation resolves implicit conflict, including inherited wrapper
+conflict. Count functions do not demand input collation.
+
+Selected TEXT/BPCHAR functions use the existing query/write/RETURNING, grouping,
+ordering, DEFAULT, CHECK and view infrastructure. Compact/pretty stored SQL and
+native replay retain exact BPCHAR formal arguments and special POSITION syntax;
+ordinary calls display existing implicit TEXT conversions where needed.
+Typed structural carriers use `String <provider>` nodes, not PostgreSQL physical
+node serialization. Parameter-free Restore INSERTs admit the selected family
+through the existing staged, failure-atomic control path.
+Codepoint, padding and match-prefix scans check cancellation at bounded work
+intervals; search reuses the constant-space raw matcher without rune arrays,
+normalization or payload-sized scratch allocation. BYTEA DEFAULT, encoding-aware
+length, bit types and adjacent TEXT/regex slicing remain excluded.
+Independent scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReference(StringLength|BinaryBasic|BinarySlice)' VERBOSE=0`;
+pinned counterpart adds `REFERENCE=1` to that same command.
+
 ### Core string functions — change note
 
 `btrim(text[,set])`, `ltrim(text[,set])` and `rtrim(text[,set])` remove endpoint
@@ -1371,8 +1420,9 @@ TRIM has no overload. All providers are strict after successful input analysis;
 empty results remain nonnull empty. Known BYTEA operands contextualize unknown
 byte arguments, with INT4 index/count slots and raw Go binds. Results retain
 BYTEA/INT4 metadata even on empty rowsets. Scalar query/write/view/CHECK consumers
-and native replay share the providers; DEFAULT functions remain excluded.
-TEXT/regex slicing and count siblings and encoding-aware length remain truthful0A000 boundaries.
+and native replay share the providers; BYTEA DEFAULT functions remain excluded.
+TEXT/regex slicing and encoding-aware length remain truthful0A000 boundaries;
+selected TEXT/BPCHAR length and search siblings are supported as documented above.
 The excluded `length(bytea,name)` candidate also recognizes unknown source/encoding
 arguments and existing implicit TEXT/VARCHAR/BPCHAR-to-NAME encoding conversions.
 It is not executed; genuinely absent signatures such as `length(bytea,integer)`
@@ -1386,7 +1436,7 @@ Special BYTEA TRIM nodes also record `syntax TRIM`; ordinary Binary tags are unc
 No new typed BYTEA literals, casts, direct byteacat, byteapos alias, binary
 functions beyond the selected raw-byte families, arrays or wire server are
 added; existing cast admission is unchanged. Binary slicing smoke:
-`make quickcheck PACKAGES=./smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`; pinned independent reference:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`; pinned independent reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 Selected slicing/search fixed scalar signatures accept matching `VARIADIC`
 call spelling without adding variadic execution or arrays. Reserved TRIM/OVERLAY

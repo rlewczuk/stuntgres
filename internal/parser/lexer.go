@@ -736,7 +736,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.lexeme.keyword != nil {
 			token.code = PLACING
 		}
-	case "bit_length", "octet_length", "length", "substr", "like_escape":
+	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "substr", "like_escape":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
@@ -1072,11 +1072,11 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 	return false
 }
 
-// Raw-octet calls and LIKE escape normalization use the existing scalar-call
-// production; unrelated selected projection functions retain their boundary.
+// Selected string/raw-octet calls and LIKE escape normalization use the existing
+// scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape":
+	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape":
 		return true
 	}
 	return binaryHashFunction(name)

@@ -244,7 +244,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", err
 			}
 			set := ""
-			if n.syntax == parser.TrimStringSyntax && len(n.args) == 2 {
+			if (n.syntax == parser.TrimStringSyntax || n.syntax == parser.PositionStringSyntax) && len(n.args) == 2 {
 				set, err = r.stringArgumentSQL(ctx, view, n.args[1])
 				if err != nil {
 					return "", err

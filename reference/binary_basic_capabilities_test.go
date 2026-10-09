@@ -26,7 +26,7 @@ func TestReferenceBinaryBasicTruthfulCapabilityBoundaries(t *testing.T) {
 					{"SELECT bit_length($1)", "INT4", int64(8)},
 					{"SELECT length(v,'UTF8') FROM t", "INT4", nil},
 				} {
-					if backend.pg {
+					if tc.q != "SELECT length(v,'UTF8') FROM t" || backend.pg {
 						q := tc.q
 						name := "length"
 						if q == "SELECT octet_length('é')" {
@@ -98,12 +98,12 @@ func TestReferenceBinaryBasicExcludedSyntaxAndOccurrenceTyping(t *testing.T) {
 			}
 			apply(t, referenceSelect("SELECT v FROM dst", []string{"v"}, []string{"BYTEA"}, nil))
 			for _, backend := range p.backends() {
+				run(t, p.ctx, backend.db, backend.recorder, referenceImplicitError("CREATE TABLE bad(v BYTEA DEFAULT length(NULL))", referenceDiagnostic{Code: "42804", Message: `column "v" is of type bytea but default expression is of type integer`, Hint: "You will need to rewrite or cast the expression."}))
 				if backend.pg {
 					run(t, p.ctx, backend.db, backend.recorder, referenceExec("SELECT byteacat(v,v) FROM t", 1))
 					run(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT byteacat(v,v) FROM t", []string{"byteacat"}, []string{"BYTEA"}, [][]any{{"\x00\xff\x80\x00\xff\x80"}}))
-					run(t, p.ctx, backend.db, backend.recorder, referenceImplicitError("CREATE TABLE bad(v BYTEA DEFAULT length(NULL))", referenceDiagnostic{Code: "42804", Message: `column "v" is of type bytea but default expression is of type integer`, Hint: "You will need to rewrite or cast the expression."}))
 				} else {
-					for _, q := range []string{"SELECT byteacat(v,v) FROM t", "CREATE TABLE bad(v BYTEA DEFAULT length(NULL))"} {
+					for _, q := range []string{"SELECT byteacat(v,v) FROM t"} {
 						var err error
 						if nonContext {
 							_, err = backend.db.Exec(q)

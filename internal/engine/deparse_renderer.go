@@ -490,6 +490,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			name := n.plan.Name()
 			if name == "normalize" {
 				name = `"normalize"`
+			} else if name == "position" {
+				name = pgIdentifier(name)
 			}
 			parts := make([]string, len(n.args))
 			for i, arg := range n.args {
@@ -499,16 +501,16 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 				if err != nil {
 					return "", err
 				}
-				// These resolved TEXT conversions belong to the provider, not
-				// bound coercion children. Present them without evaluating or
-				// adding a second runtime conversion.
-				if n.textual[i] && arg.ResultUsage().Type != n.plan.TextUsage().Type {
+				// Present the provider's resolved formal conversion without
+				// evaluating or adding a second runtime conversion.
+				target := n.plan.ArgumentUsage(i)
+				if n.textual[i] && arg.ResultUsage().Type != target.Type {
 					simple := false
 					switch arg.(type) {
 					case columnExpression, literalExpression, coercionExpression:
 						simple = true
 					}
-					text, err = r.cast(text, n.plan.TextUsage(), simple)
+					text, err = r.cast(text, target, simple)
 					if err != nil {
 						return "", err
 					}
@@ -524,7 +526,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		set := ""
-		if n.syntax == parser.TrimStringSyntax && len(n.args) == 2 {
+		if (n.syntax == parser.TrimStringSyntax || n.syntax == parser.PositionStringSyntax) && len(n.args) == 2 {
 			set, err = argRenderer.sql(ctx, n.args[1], pgRenderParent{})
 			if err != nil {
 				return "", err

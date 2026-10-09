@@ -55,6 +55,7 @@ type StringPlan struct {
 	result      Usage
 	text        Usage
 	args        [2]Usage
+	formal      [2]Usage
 	count       uint8
 	textual     [2]bool
 	conversions [2]CoercionPlan
@@ -62,13 +63,14 @@ type StringPlan struct {
 	caseOp      unicode16.CaseOperation
 }
 
-func (p StringPlan) Name() string                 { return p.name }
-func (p StringPlan) Result() Usage                { return p.result }
-func (p StringPlan) TextUsage() Usage             { return p.text }
-func (p StringPlan) CollationIndeterminate() bool { return p.conflict }
+func (p StringPlan) Name() string                  { return p.name }
+func (p StringPlan) Result() Usage                 { return p.result }
+func (p StringPlan) TextUsage() Usage              { return p.text }
+func (p StringPlan) ArgumentUsage(index int) Usage { return p.formal[index] }
+func (p StringPlan) CollationIndeterminate() bool  { return p.conflict }
 
-// Bool-result predicates also receive the generation's TEXT owner, avoiding
-// global descriptor lookup or per-evaluation descriptor allocation.
+// Non-TEXT results also receive the generation's TEXT owner, avoiding global
+// descriptor lookup or per-evaluation descriptor allocation.
 func BindString(name string, result, text Usage, args []Usage, textual [2]bool, conflict bool) (StringPlan, error) {
 	p := StringPlan{name: name, result: result, text: text, count: uint8(len(args)), textual: textual, conflict: conflict}
 	if !result.Valid() || !text.Valid() || text.Type.ID() != Text || len(args) < 1 || len(args) > 2 {
@@ -101,6 +103,14 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 		if result.Type.ID() != Bool || !textual[0] || len(args) == 2 && !textual[1] {
 			return p, fmt.Errorf("invalid normalized predicate signature")
 		}
+	case "length", "char_length", "character_length", "octet_length", "bit_length":
+		if len(args) != 1 || result != result.Type.Usage() || result.Type.ID() != Int4 || !textual[0] {
+			return p, fmt.Errorf("invalid string count signature")
+		}
+	case "position", "strpos":
+		if len(args) != 2 || result != result.Type.Usage() || result.Type.ID() != Int4 || !textual[0] || !textual[1] {
+			return p, fmt.Errorf("invalid string search signature")
+		}
 	default:
 		return p, fmt.Errorf("invalid string provider name")
 	}
@@ -109,13 +119,21 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 			return p, fmt.Errorf("invalid string input usage")
 		}
 		p.args[i] = u
+		target := text
+		if (name == "length" || name == "char_length" || name == "character_length" || name == "octet_length") && u.Type.BaseType().ID() == BPChar {
+			target = u.Type.BaseType().Usage()
+		}
+		p.formal[i] = target
+		if result.Type.ID() == Int4 && u.Type.BaseType().ID() == Text && u.Type.BaseType() != text.Type {
+			return p, fmt.Errorf("foreign string text owner")
+		}
 		if textual[i] {
 			if !StringTextInput(u.Type.BaseType().ID()) {
 				return p, fmt.Errorf("invalid string text input")
 			}
 			if u.Type.ID() != Char {
 				var err error
-				p.conversions[i], err = PlanCoercion(u, text, Implicit)
+				p.conversions[i], err = PlanCoercion(u, target, Implicit)
 				if err != nil {
 					return p, err
 				}
@@ -144,6 +162,14 @@ func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEn
 	for i := range int(p.count) {
 		v := values[i]
 		var err error
+		// Selected BPCHAR-to-TEXT conversion uses the same type-owned edge,
+		// but bounds its potentially long ASCII-padding scan before Apply.
+		if p.result.Type.ID() == Int4 && v.Type().BaseType().ID() == BPChar && p.formal[i].Type.ID() == Text {
+			v.text, err = trimStringPadding(ctx, v.text)
+			if err != nil {
+				return Value{}, err
+			}
+		}
 		if p.textual[i] && v.Type().ID() != Char {
 			v, err = p.conversions[i].Apply(ctx, v, input, output)
 			if err != nil {
@@ -156,6 +182,9 @@ func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEn
 		if err != nil {
 			return Value{}, err
 		}
+	}
+	if p.result.Type.ID() == Int4 {
+		return p.evaluateLength(ctx, texts)
 	}
 	if p.caseOp != 0 {
 		if p.conflict {

@@ -25,7 +25,7 @@ func TestReferenceBinarySliceCapabilityBoundaries(t *testing.T) {
 					{"SELECT position('cd' IN 'abcdef') AS v", "position", "INT4", int64(3)},
 					{"SELECT trim(' abc ') AS v", "btrim", "TEXT", "abc"},
 				} {
-					if backend.pg || tc.name == "btrim" {
+					if backend.pg || tc.name == "btrim" || tc.name == "position" {
 						step := referenceSelect(tc.q, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}})
 						run(t, p.ctx, backend.db, backend.recorder, step)
 						run(t, p.ctx, backend.db, backend.recorder, referencePrepared(step))

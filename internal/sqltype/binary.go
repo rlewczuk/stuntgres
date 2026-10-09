@@ -67,7 +67,7 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 func (p BinaryPlan) Name() string       { return p.name }
 func (p BinaryPlan) ResultUsage() Usage { return p.result }
 
-func binaryLength(d *Descriptor, count int64, bits bool) (Value, error) {
+func integerLength(d *Descriptor, count int64, bits bool) (Value, error) {
 	if bits {
 		if count > math.MaxInt32/8 {
 			return Value{}, failure("22003", "integer out of range")
@@ -147,7 +147,7 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return binaryDigest(ctx, p.name, p.result.Type, a.text)
 	}
 	if p.arity == 1 {
-		return binaryLength(p.result.Type, int64(len(a.text)), p.name == "bit_length")
+		return integerLength(p.result.Type, int64(len(a.text)), p.name == "bit_length")
 	}
 	b := values[1]
 	if p.name == "||" {

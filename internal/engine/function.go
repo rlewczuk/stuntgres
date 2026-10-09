@@ -69,13 +69,13 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	switch name {
 	case "pg_get_constraintdef", "pg_get_expr":
 		return b.bindDeparse(raw, visible)
-	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap":
+	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos":
 		return b.bindStringFunction(raw, visible && name != "trim")
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "like_escape":
 		return b.bindLikeEscape(raw, visible)
-	case "bit_length", "octet_length", "length", "overlay", "position", "substring", "substr", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
+	case "overlay", "substring", "substr", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
 		return b.bindBinaryFunction(raw, visible)
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		return b.bindMath(raw, visible)

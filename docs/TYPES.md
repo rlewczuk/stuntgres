@@ -393,9 +393,11 @@ byte arguments and INT4 index/count slots; SMALLINT slots coerce implicitly,
 but BIGINT/NUMERIC/TEXT/BOOL do not. FOR-only SUBSTRING uses the existing explicit
 INT4 cast admission. Inferred Go byte binds stay raw, not byteain text.
 Results retain BYTEA/INT4 metadata without samples and ignore output settings.
-TEXT/regex slicing and count siblings and encoding-aware length remain unsupported0A000.
-Functions retain the DEFAULT exclusion; query/write/CHECK/view consumers share
-the provider and native replay. No byteapos alias or new cast edges are added.
+TEXT/regex slicing and encoding-aware length remain unsupported0A000; selected
+TEXT/BPCHAR count/search siblings are documented in
+[String length and search](DIALECT.md#string-length-and-search--change-note).
+BYTEA functions retain the DEFAULT exclusion; query/write/CHECK/view consumers
+share the provider and native replay. No byteapos alias or new cast edges are added.
 CHECK compact/pretty SQL deparsing retains SQL-origin special-form spelling and
 ordinary callee quoting. Native structural PG_NODE_TREE records `Binary <name>`
 with typed recursive children, never provider evaluation or PostgreSQL physical
@@ -412,7 +414,7 @@ Encoding-aware length exclusion recognizes its real BYTEA/NAME signature with
 unknown operands or implicit TEXT/VARCHAR/BPCHAR encoding-name inputs; it returns
 positioned 0A000 without adding encoding-aware evaluation. An integer encoding
 argument still has no such signature and returns the independent 42883 diagnostic.
-Binary slicing smoke: `make quickcheck PACKAGES=./smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`;
+Binary slicing smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`;
 independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 
 

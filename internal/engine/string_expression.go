@@ -53,11 +53,20 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 		p.ParameterDependent = p.ParameterDependent || child.ParameterDependent
 		p.StageDependent = p.StageDependent || child.StageDependent
 	}
-	info, err := collatedInfo(b.info(result, pos, p), args...)
+	info := b.info(result, pos, p)
+	inputInfo := info
+	if name == "position" || name == "strpos" {
+		// Search demands its input collation even though INT4 is noncollatable.
+		inputInfo = b.info(b.typ(sqltype.Text).Usage(), pos, p)
+	}
+	inputInfo, err := collatedInfo(inputInfo, args...)
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.BindString(name, info.usage, b.typ(sqltype.Text).Usage(), usages[:len(args)], textual, info.collationConflict)
+	if result.Collation.ID != 0 {
+		info = inputInfo
+	}
+	plan, err := sqltype.BindString(name, info.usage, b.typ(sqltype.Text).Usage(), usages[:len(args)], textual, inputInfo.collationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +113,30 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	// Shared trim spellings have TEXT(1/2) and BYTEA(2) candidates. Select
-	// from these already-analyzed operands, never by retrying a raw binder.
-	binary := visible && !raw.Variadic && len(operands) == 2 &&
-		(name == "btrim" || name == "ltrim" || name == "rtrim")
+	count := name == "length" || name == "char_length" || name == "character_length" || name == "octet_length" || name == "bit_length"
+	search := name == "position" || name == "strpos"
+	// The real bytea/name overload remains an explicit capability boundary.
+	if visible && name == "length" && len(operands) == 2 {
+		source, encoding := operands[0].descriptor(), operands[1].descriptor()
+		if source == nil || source.BaseType().ID() == sqltype.Bytea {
+			var conversionErr error
+			if encoding != nil {
+				_, conversionErr = sqltype.PlanCoercion(operands[1].node.ResultUsage(), b.typ(sqltype.Name).Usage(), sqltype.Implicit)
+			}
+			if conversionErr == nil {
+				if b.defaultConsumer {
+					return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+				}
+				return nil, expressionError("0A000", "encoding-aware length is unsupported", raw.Pos)
+			}
+		}
+	}
+	// Shared TEXT/BYTEA names select from already-analyzed operands, never
+	// by retrying a raw binder. All-unknown operands prefer TEXT.
+	binary := visible && ((!raw.Variadic && len(operands) == 2 &&
+		(name == "btrim" || name == "ltrim" || name == "rtrim")) ||
+		(!raw.Variadic && len(operands) == 1 && (name == "length" || name == "octet_length" || name == "bit_length")) ||
+		(len(operands) == 2 && name == "position"))
 	knownBinary := false
 	for _, o := range operands {
 		if d := o.descriptor(); d != nil {
@@ -119,15 +148,17 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		if b.defaultConsumer {
 			return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 		}
-		syntax := parser.OrdinaryFunctionSyntax
+		syntax := raw.Syntax
 		if raw.StringSyntax == parser.TrimStringSyntax {
 			syntax = parser.SQLFunctionSyntax
 		}
 		return b.finishBinary(name, raw.Pos, operands, syntax)
 	}
-	valid := visible && !raw.Variadic && len(operands) >= 1 && len(operands) <= 2
-	if name == "lower" || name == "upper" || name == "casefold" || name == "initcap" {
+	valid := visible && (!raw.Variadic || count || search) && len(operands) >= 1 && len(operands) <= 2
+	if count || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" {
 		valid = valid && len(operands) == 1
+	} else if search {
+		valid = valid && len(operands) == 2
 	}
 	for _, o := range operands {
 		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
@@ -155,6 +186,12 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	result := b.typ(sqltype.Text).Usage()
 	if name == "is_normalized" {
 		result = b.typ(sqltype.Bool).Usage()
+	}
+	if count || search {
+		result = b.typ(sqltype.Int4).Usage()
+	}
+	if name == "position" && raw.Syntax == parser.SQLFunctionSyntax {
+		raw.StringSyntax = parser.PositionStringSyntax
 	}
 	return b.stringNode(name, result, raw.Pos, args, [2]bool{true, true}, raw.StringSyntax)
 }
@@ -293,6 +330,11 @@ func (n stringExpression) specialSQL(source, set string) (string, error) {
 	switch n.syntax {
 	case parser.TrimStringSyntax:
 		return trimSyntaxSQL(n.plan.Name(), source, set, len(n.args))
+	case parser.PositionStringSyntax:
+		if n.plan.Name() != "position" || len(n.args) != 2 {
+			return "", fmt.Errorf("stuntgres: invalid POSITION syntax provider")
+		}
+		return renderBinaryCall(n.plan.Name(), parser.SQLFunctionSyntax, []string{source, set}, n.plan.Name(), func(s string) (string, error) { return s, nil })
 	case parser.NormalizeStringSyntax:
 		if form != "" {
 			source += ", " + form

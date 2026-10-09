@@ -158,11 +158,18 @@ Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
 Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
 octets. Selected functions share query/write/CHECK/view consumers and native
 replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
-TEXT/regex slicing and count siblings, encoding-aware length, DEFAULT functions
-and direct byteacat remain excluded; no new cast edges or byteapos alias are added.
+TEXT/regex slicing, encoding-aware length, BYTEA DEFAULT functions and direct
+byteacat remain excluded; no new cast edges or byteapos alias are added.
 Core strings provide TEXT trim/concatenation siblings through the shared dispatch.
+`length`, `char_length`/`character_length`, `octet_length` and `bit_length`
+also measure strings; `strpos(source,needle)` and SQL POSITION search them.
+Character counts and search positions count Unicode codepoints, not UTF8 bytes.
+Exact CHAR octet counts include padding; its bit counts and search operands use
+the trimmed TEXT conversion. Results are strict INT4, with zero for not found and
+one for an empty needle. Selected string functions compose in DEFAULT/CHECK/views
+and native replay. See [String length and search](docs/DIALECT.md#string-length-and-search--change-note).
 See [BYTEA](docs/TYPES.md#bytea). Feature smoke:
-`make quickcheck PACKAGES=./smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`; independent pinned reference:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`; independent pinned reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 
 BYTEA checksums and hashes operate on the raw octets, including NUL and high

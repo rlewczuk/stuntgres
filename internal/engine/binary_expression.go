@@ -114,14 +114,12 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	}
 	// PostgreSQL accepts VARIADIC spelling for these fixed scalar signatures;
 	// it does not introduce an array argument or a variadic execution plan.
-	selectedSlice := name == "overlay" || name == "position" || name == "substring" || name == "substr"
+	selectedSlice := name == "overlay" || name == "substring" || name == "substr"
 	if !visible || (raw.Variadic && !selectedSlice) {
 		return missing()
 	}
 	arity := 2
 	switch name {
-	case "length", "octet_length", "bit_length":
-		arity = 1
 	case "overlay":
 		arity = 3
 		if len(operands) == 4 {
@@ -130,20 +128,6 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	case "substring", "substr":
 		if len(operands) == 3 {
 			arity = 3
-		}
-	}
-	if name == "length" && len(operands) == 2 {
-		source, encoding := operands[0].descriptor(), operands[1].descriptor()
-		if source == nil || source.BaseType().ID() == sqltype.Bytea {
-			// Recognize only the real excluded bytea/name candidate, including
-			// unknown inputs and the existing implicit character-to-NAME edges.
-			var conversionErr error
-			if encoding != nil {
-				_, conversionErr = sqltype.PlanCoercion(operands[1].node.ResultUsage(), b.typ(sqltype.Name).Usage(), sqltype.Implicit)
-			}
-			if conversionErr == nil {
-				return nil, expressionError("0A000", "encoding-aware length is unsupported", raw.Pos)
-			}
 		}
 	}
 	text := len(operands) == arity
