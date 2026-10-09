@@ -253,6 +253,8 @@ type referenceStep struct {
 	errorStage         string
 	columns, types     []string
 	rows               [][]any
+	// checkScan rescans the current row into specialized destinations, never SQL.
+	checkScan func(t *testing.T, rows *sql.Rows, rowIndex int)
 }
 
 // Each stream must independently match the expected occurrences. Bag results
@@ -404,7 +406,7 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 	case "TEXT", "CHAR", "BPCHAR", "VARCHAR":
 		// pq textDecode returns BPCHAR as string despite its any ScanType.
 		want = reflect.TypeFor[string]()
-	case "NUMERIC", "UUID", "NAME", "INTERVAL":
+	case "NUMERIC", "UUID", "NAME", "INTERVAL", "REGCLASS", "VOID":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[[]byte]()
@@ -431,11 +433,6 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 			}
 		}
 	case "BYTEA":
-		want = reflect.TypeFor[[]byte]()
-	case "REGCLASS":
-		if !postgres {
-			t.Fatal("non-NULL native REGCLASS is not an independently specified raw observation")
-		}
 		want = reflect.TypeFor[[]byte]()
 	default:
 		t.Fatalf("unspecified raw representation for SQL type %s", sqlType)
@@ -572,6 +569,11 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 			if recorder.rawBackend != referenceRawLegacy {
 				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, s.types[i], v)
 			}
+		}
+		if s.checkScan != nil {
+			s.checkScan(t, rows, len(values))
+		}
+		for i, v := range row {
 			row[i] = referenceNormalize(v)
 		}
 		values = append(values, row)

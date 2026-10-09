@@ -1,24 +1,18 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceSequencePreparedNamespaceCallback(t *testing.T) {
 	for _, event := range []string{"Create", "Rename", "ACL"} {
 		t.Run(event, func(t *testing.T) {
-			p := newReferencePair(t)
-			backends := []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}}
-			if event == "ACL" {
-				backends = backends[1:] // Native ACL witness uses the real internal SetObjectACL seam.
-			}
+			p := newReferenceScenario(t)
+			backends := p.backends()
 			for _, backend := range backends {
+				if event == "ACL" && !backend.pg {
+					continue
+				} // O: actual GRANT event.
 				t.Run(backend.name, func(t *testing.T) {
 					c, err := backend.db.Conn(p.ctx)
 					if err != nil {
@@ -44,10 +38,7 @@ func TestReferenceSequencePreparedNamespaceCallback(t *testing.T) {
 					defer held.Close()
 					value := func(want int64) {
 						t.Helper()
-						var got int64
-						if err := held.QueryRowContext(p.ctx).Scan(&got); err != nil || got != want {
-							t.Fatal("held sequence identity", got, want, err)
-						}
+						referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: c, statement: held, query: "SELECT nextval('s')"}, backend.recorder, sequenceInt64Step(referenceStep{query: "SELECT nextval('s')", selectRows: true, columns: []string{"nextval"}, types: []string{"INT8"}, rows: [][]any{{want}}}))
 					}
 					value(10)
 					exec("CREATE SEQUENCE a.s START 100 CACHE 1")

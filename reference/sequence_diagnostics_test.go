@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 // Constants are independent release records captured by root's pinned PG18.0

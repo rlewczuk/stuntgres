@@ -391,6 +391,62 @@ Untagged migrated definitions use the mode-aware fixture; host Dump/Reset/Restor
 and raw native cursor phases use its unwrapped native pool, with independently
 specified SQL consumer phases on PostgreSQL.
 
+### Dual-mode sequences and random
+
+The sequence/random migration carries all 58 former root interaction definitions
+and the prepared helper matrices into 132 untagged external definitions, merging
+the complete root and reference assertion unions. Root `sequenceConn`,
+`sequenceExec`, `sequenceValue`, `randomConnection`, `randomSeed` and `randomOne`
+remain only for callers in unmigrated families. Select the whole migrated family
+and its retained tagged oracle complements with the same anchored expression:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReference(Sequence[A-Za-z0-9_]*|Random[A-Za-z0-9_]*)$' VERBOSE=0
+make reference RUN='^TestReference(Sequence[A-Za-z0-9_]*|Random[A-Za-z0-9_]*)$' VERBOSE=0
+```
+
+Each selected backend independently checks rows, metadata, complete logical
+diagnostics, direct/held-prepared routes and consumed middleware recordings.
+Random values are checked against that backend's own reseed, range, lattice and
+demand witnesses, never against the other backend's stream. Native unread
+cursors and Dump/Reset/Restore use the fixture's unwrapped control pool; PostgreSQL
+uses valid consume-first or peer-session phases and unchanged owner-bearing replay.
+Native sequence `log_cnt=0` and PostgreSQL physical cache fields are distinct
+expectations. The enormous-cache case executes native constant-space allocation;
+PostgreSQL checks the huge declared cache and allocates only a bounded cache.
+Server-only authority, actual namespace and lock-queue witnesses are guarded
+PostgreSQL phases, not fabricated native success. The older SRX restart queue
+complement remains tagged.
+
+Arithmetic rows retain their original `sql.NullInt64` destinations, and frozen
+REGCLASS cursors retain string/integer scans on the same current row: these
+checks never re-execute volatile SQL. Restart scalars and generic sequence state
+retain raw cells, metadata, exhaustion and recorded closure. Owner forms preserve
+both the authority value `14` and a fresh uncalled sequence's first `1` across the full
+transfer/link/no-op/denied-transfer chain, without a post-operation restart.
+Random rows also retain the original string, float64 and int64 Scan destinations
+alongside raw cells and recorded closure. Endpoint, grouped, transaction, frozen
+control and sampled-numeric checks rescan the same current row without advancing
+the cursor, consuming another draw or replacing backend-local seed witnesses.
+
+Sequence scalars, actual held parameters and TEMP pairs/triples also retain
+their int64 destinations. Complete state rows rescan int64/int64/bool, preserving
+independent value/called expectations and backend-specific physical log checks.
+Frozen movement rows retain int64/bool destinations on the original cursor.
+Query versus Exec diagnostics, explicit prepared failures and direct transaction
+observations stay on their original operations; no volatile statement is replayed
+to inspect metadata or add a specialized Scan.
+
+Raw REGCLASS and VOID cells are native strings versus pq byte slices; VOID's
+nonnull empty result is not SQL NULL. BPCHAR cells are strings on both backends,
+while native ScanType is string and pq ScanType is interface{}. Zero-argument
+pq execution of parameterized SQL and cancellation on an already borrowed pq
+connection differ from native analysis/cancellation: diagnostics use independent
+backend expectations, and the PostgreSQL pre-canceled seed witness uses the
+`database/sql` pool-borrow boundary. Native retains the original borrowed-Conn
+cancellation and unchanged-stream assertion.
+
+
 For example, these tagged legacy join diagnostics explicitly own a real pair
 even with the migrated runtime mode disabled. This command requires Docker:
 
@@ -460,8 +516,8 @@ Some researched cases cannot be forced into identical static row snapshots:
 | PostgreSQL-only `INHERITS` | Outside the bounded native dialect; retain the real server assertion without inventing native success. |
 
 These are concrete boundaries of static snapshot comparison, not blanket
-exceptions to future shared scenarios. No extra migration or engine/oracle
-surface change is implied.
+exceptions. The sequence/random definitions use the explicit backend phases above
+without changing the SQL surface or the pinned release oracle.
 
 
 The shared fixture provisions native bootstrap owner `postgres` as a separate

@@ -662,16 +662,17 @@ the shared cast routing alongside the bounded int4/int8/text/bool and character
 explicit-cast matrix. Unsupported type pairs retain their documented positioned
 diagnostics; sequence support does not widen that matrix.
 
-Feature commands: `make smoke RUN='^TestSequenceSmoke$' VERBOSE=1`,
-`make test RUN='^TestSequence' VERBOSE=1`, and
-`make reference RUN='^TestReferenceSequence' VERBOSE=1`.
+Feature commands: `make smoke RUN='^TestSequenceSmoke$' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`,
+and `make reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`.
 The sequence families include an exact concurrent CACHE1 bag, CACHE7
 distinctness, CHAIN/failed-commit/physical-end/replacement cleanup, the full
 USAGE/SELECT/UPDATE matrix, operation-specific wrong-kind records, and
 control failure atomicity. The public smoke exercises physical-end TEMP
 cleanup as well as normal SQL and native-control round trips.
-Prepared regression commands: `make test RUN='^TestSequencePrepared' VERBOSE=1`
-and `make reference RUN='^TestReferenceSequencePrepared' VERBOSE=1`.
+Prepared regression commands:
+`make test PACKAGES=./reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`
+and `make reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`.
 These distinguish analyzed SQL from retained identity and exercise rename,
 schema/path/shadow/ACL/options, numeric drop/recreation, rollback and queued
 authority, coherent multi-literal groups and native temp-only replacement.

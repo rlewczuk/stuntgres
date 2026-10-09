@@ -1,15 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"database/sql"
+	"math"
 	"testing"
 )
 
 func TestReferenceRandomFailuresPreserveState(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE signatures(f DOUBLE PRECISION,s SMALLINT)", 0))
+	p := newReferenceScenario(t)
+
 	cases := []struct{ q, message string }{
 		{"SELECT setseed(1.23456789)", "setseed parameter 1.23457 is out of allowed range [-1,1]"},
 		{"SELECT setseed(1e20)", "setseed parameter 1e+20 is out of allowed range [-1,1]"},
@@ -18,6 +17,7 @@ func TestReferenceRandomFailuresPreserveState(t *testing.T) {
 		{"SELECT setseed('NaN')", "setseed parameter NaN is out of allowed range [-1,1]"},
 		{"SELECT setseed('Infinity')", "setseed parameter Infinity is out of allowed range [-1,1]"},
 		{"SELECT setseed('-Infinity')", "setseed parameter -Infinity is out of allowed range [-1,1]"},
+		{"SELECT random('NaN',1.0)", "lower bound cannot be NaN"},
 		{"SELECT random(2,1)", "lower bound must be less than or equal to upper bound"},
 		{"SELECT random(2147483649,2147483648)", "lower bound must be less than or equal to upper bound"},
 		{"SELECT random(2.0,1.0)", "lower bound must be less than or equal to upper bound"},
@@ -28,50 +28,45 @@ func TestReferenceRandomFailuresPreserveState(t *testing.T) {
 		{"SELECT random(0.0,'Infinity')", "upper bound cannot be infinity"},
 		{"SELECT random(0.0,'-Infinity')", "upper bound cannot be infinity"},
 	}
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			c, e := backend.db.Conn(p.ctx)
 			if e != nil {
 				t.Fatal(e)
 			}
 			defer c.Close()
-			seed := func() {
-				t.Helper()
-				if _, e := c.ExecContext(p.ctx, "SELECT setseed(0.25)"); e != nil {
-					t.Fatal(e)
-				}
-			}
 			draw := func() float64 {
-				t.Helper()
-				var n float64
-				if e := c.QueryRowContext(p.ctx, "SELECT random()").Scan(&n); e != nil {
-					t.Fatal(e)
+				var value float64
+				values := randomRead(t, p.ctx, c, backend, "SELECT random()", []string{"random"}, []string{"FLOAT8"}, func(t *testing.T, rows *sql.Rows, rowIndex int) {
+					if err := rows.Scan(&value); err != nil {
+						t.Fatal("diagnostic continuation float64 scan", err)
+					}
+					if rowIndex != 0 {
+						t.Fatal("diagnostic continuation extra row", rowIndex)
+					}
+				})
+				if len(values) != 1 || values[0][0] != value {
+					t.Fatal("diagnostic continuation typed/raw mismatch", values, value)
 				}
-				return n
+				if math.IsNaN(value) || value < 0 || value >= 1 {
+					t.Fatal("diagnostic continuation range", value)
+				}
+				return value
 			}
-			seed()
+			randomReseed(t, p, c, backend, .25)
 			expected := draw()
 			for _, tc := range cases {
 				for _, prepared := range []bool{false, true} {
-					seed()
-					var e error
-					if prepared {
-						s, err := c.PrepareContext(p.ctx, tc.q)
-						if err != nil {
-							t.Fatal("runtime validation during prepare", err)
+					for _, query := range []bool{false, true} {
+						randomReseed(t, p, c, backend, .25)
+						step := referenceImplicitError(tc.q, referenceDiagnostic{Code: "22023", Message: tc.message})
+						step.prepared = prepared
+						step.selectRows = query
+						step.errorStage = "execute"
+						referenceRunStep(t, p.ctx, c, backend.recorder, step)
+						if draw() != expected {
+							t.Fatal("invalid call consumed state", tc.q)
 						}
-						_, e = s.ExecContext(p.ctx)
-						s.Close()
-					} else {
-						_, e = c.ExecContext(p.ctx, tc.q)
-					}
-					want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: tc.message}
-					referenceAssertDiagnostic(t, e, &want)
-					if draw() != expected {
-						t.Fatal("invalid call consumed or reseeded state", tc.q)
 					}
 				}
 			}
@@ -84,16 +79,6 @@ func TestReferenceRandomFailuresPreserveState(t *testing.T) {
 			s.types = []string{"FLOAT8"}
 		}
 		p.step(t, s)
-		p.step(t, referencePrepared(s))
-	}
-	for _, q := range []string{"SELECT random(s,s) FROM signatures", "SELECT random($1,$2)"} {
-		message := "function random(smallint, smallint) is not unique"
-		if q == "SELECT random($1,$2)" {
-			message = "function random(unknown, unknown) is not unique"
-		}
-		s := referenceImplicitError(q, referenceDiagnostic{Code: "42725", Message: message, Position: "8", Hint: "Could not choose a best candidate function. You might need to add explicit type casts."})
-		s.selectRows = true
-		s.errorStage = "prepare"
 		p.step(t, referencePrepared(s))
 	}
 }

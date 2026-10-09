@@ -1,85 +1,88 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"database/sql"
+	"math"
 	"testing"
 )
 
 func TestReferenceRandomFailedInsertRetainsDraw(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE random_fail_source(id INT)", 0))
-	p.step(t, referenceExec("INSERT INTO random_fail_source VALUES(1)", 1))
-	p.step(t, referenceExec("CREATE TABLE random_fail_sink(id INT)", 0))
-	p.step(t, referenceExec("INSERT INTO random_fail_sink VALUES(99)", 1))
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
-		t.Run(backend.name, func(t *testing.T) {
-			c, e := backend.db.Conn(p.ctx)
+	p := newReferenceScenario(t)
+	for _, s := range []referenceStep{referenceExec("CREATE TABLE random_fail_source(id INT)", 0), referenceExec("INSERT INTO random_fail_source VALUES(1)", 1), referenceExec("CREATE TABLE random_fail_sink(id INT)", 0), referenceExec("INSERT INTO random_fail_sink VALUES(99)", 1)} {
+		p.step(t, s)
+	}
+	for _, b := range p.backends() {
+		t.Run(b.name, func(t *testing.T) {
+			c, e := b.db.Conn(p.ctx)
 			if e != nil {
 				t.Fatal(e)
 			}
 			defer c.Close()
-			seed := func() {
-				t.Helper()
-				if _, e := c.ExecContext(p.ctx, "SELECT setseed(0.25)"); e != nil {
-					t.Fatal(e)
-				}
-			}
 			draw := func() float64 {
-				t.Helper()
-				var n float64
-				if e := c.QueryRowContext(p.ctx, "SELECT random()").Scan(&n); e != nil {
-					t.Fatal(e)
+				var value float64
+				values := randomRead(t, p.ctx, c, b, "SELECT random()", []string{"random"}, []string{"FLOAT8"}, func(t *testing.T, rows *sql.Rows, rowIndex int) {
+					if err := rows.Scan(&value); err != nil {
+						t.Fatal("failure continuation float64 scan", err)
+					}
+					if rowIndex != 0 {
+						t.Fatal("failure continuation extra row", rowIndex)
+					}
+				})
+				if len(values) != 1 || values[0][0] != value {
+					t.Fatal("failure continuation typed/raw mismatch", values, value)
 				}
-				return n
+				if math.IsNaN(value) || value < 0 || value >= 1 {
+					t.Fatal("failure continuation range", value)
+				}
+				return value
 			}
-			seed()
+			randomReseed(t, p, c, b, .25)
 			var inner int64
-			if e := c.QueryRowContext(p.ctx, "SELECT random(2,3)").Scan(&inner); e != nil || inner < 2 || inner > 3 {
-				t.Fatal("independent inner range", inner, e)
+			values := randomRead(t, p.ctx, c, b, "SELECT random(2,3)", []string{"random"}, []string{"INT4"}, func(t *testing.T, rows *sql.Rows, rowIndex int) {
+				if err := rows.Scan(&inner); err != nil {
+					t.Fatal("inner int64 scan", err)
+				}
+				if rowIndex != 0 {
+					t.Fatal("inner extra row", rowIndex)
+				}
+			})
+			if len(values) != 1 || values[0][0] != inner {
+				t.Fatal("inner typed/raw mismatch", values, inner)
+			}
+			if inner < 2 || inner > 3 {
+				t.Fatal(inner)
 			}
 			expected := draw()
-			// Exactly one source row and a nested argument dependency force the
-			// inner draw before the outer reversed-bound error, without relying
-			// on row/projection order or PostgreSQL planner implementation.
 			q := "INSERT INTO random_fail_sink SELECT random(random(2,3),1) FROM random_fail_source"
-			s, e := c.PrepareContext(p.ctx, q)
+			stmt, e := c.PrepareContext(p.ctx, q)
 			if e != nil {
 				t.Fatal("prepare invoked provider", e)
 			}
-			defer s.Close()
+			defer stmt.Close()
+			held := referenceHeldStatement{referenceExecutor: c, statement: stmt, query: q}
 			for _, prepared := range []bool{false, true} {
-				seed()
-				var e error
+				randomReseed(t, p, c, b, .25)
+				var executor referenceExecutor = c
 				if prepared {
-					_, e = s.ExecContext(p.ctx)
-				} else {
-					_, e = c.ExecContext(p.ctx, q)
+					executor = held
 				}
-				want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "lower bound must be less than or equal to upper bound"}
-				referenceAssertDiagnostic(t, e, &want)
+				step := referenceImplicitError(q, referenceDiagnostic{Code: "22023", Message: "lower bound must be less than or equal to upper bound"})
+				step.errorStage = "execute"
+				referenceRunStep(t, p.ctx, executor, b.recorder, step)
 				if draw() != expected {
-					t.Fatal("failed INSERT rewound inner draw")
+					t.Fatal("failed INSERT rewound inner")
 				}
-				rows, e := c.QueryContext(p.ctx, "SELECT id FROM random_fail_sink ORDER BY id")
-				if e != nil {
-					t.Fatal(e)
+				sentinel := referenceSelect("SELECT id FROM random_fail_sink ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}})
+				sentinel.checkScan = func(t *testing.T, rows *sql.Rows, rowIndex int) {
+					var id int64
+					if err := rows.Scan(&id); err != nil {
+						t.Fatal("sentinel int64 scan", err)
+					}
+					if rowIndex != 0 || id != 99 {
+						t.Fatal("sentinel typed value", rowIndex, id)
+					}
 				}
-				if !rows.Next() {
-					t.Fatal("sentinel missing", rows.Err())
-				}
-				var id int64
-				if e = rows.Scan(&id); e != nil || id != 99 {
-					t.Fatal("sentinel changed", id, e)
-				}
-				if rows.Next() || rows.Err() != nil {
-					t.Fatal("failed INSERT published a row", rows.Err())
-				}
-				rows.Close()
+				referenceRunStep(t, p.ctx, c, b.recorder, sentinel)
 			}
 		})
 	}

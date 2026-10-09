@@ -64,8 +64,8 @@ func TestReferenceAlterSchemaPostgresAuthorization(t *testing.T) {
 				schema = tc.destination
 			}
 			referenceRunStep(t, p.ctx, c, r, referenceSelect("SELECT id FROM "+schema+".t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
-			referenceGenericRenameState(t, p, c, schema+".q1", 1, false)
-			referenceGenericRenameState(t, p, c, schema+".q2", 1, false)
+			referenceGenericRenameState(t, p, c, schema+".q1", 1, false, true)
+			referenceGenericRenameState(t, p, c, schema+".q2", 1, false, true)
 			if tc.name == "destination_create_only" {
 				run("SET SESSION AUTHORIZATION move_owner", 0)
 				s := referenceImplicitError("SELECT id FROM s2.t", referenceDiagnostic{Code: "42501", Message: "permission denied for schema s2", Position: "16"})

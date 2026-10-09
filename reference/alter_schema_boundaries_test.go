@@ -68,8 +68,8 @@ func TestReferenceAlterSchemaPostgresLaterCollisions(t *testing.T) {
 				referenceRunStep(t, p.ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM s1.t ORDER BY id"))
 				referenceRunStep(t, p.ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM public.v ORDER BY id"))
 				referenceRunStep(t, p.ctx, c, r, referenceSelect("SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='s1' ORDER BY c.relname", []string{"relname"}, []string{"NAME"}, [][]any{{"free"}, {"ix"}, {"q1"}, {"q2"}, {"t"}}))
-				referenceGenericRenameState(t, p, c, "s1.q1", 10, false)
-				referenceGenericRenameState(t, p, c, "s1.q2", 100, false)
+				referenceGenericRenameState(t, p, c, "s1.q1", 10, false, true)
+				referenceGenericRenameState(t, p, c, "s1.q2", 100, false, true)
 			}
 		})
 	}
@@ -96,6 +96,6 @@ func TestReferenceAlterSchemaPostgresTransactionRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	referenceRunStep(t, p.ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM s1.t ORDER BY id"))
-	referenceGenericRenameState(t, p, c, "s1.q1", 10, false)
-	referenceGenericRenameState(t, p, c, "s1.q2", 100, false)
+	referenceGenericRenameState(t, p, c, "s1.q1", 10, false, true)
+	referenceGenericRenameState(t, p, c, "s1.q2", 100, false, true)
 }

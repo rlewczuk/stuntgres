@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,11 +9,8 @@ import (
 )
 
 func TestReferenceSequencePreparedPeerTemporaryNamespace(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"native", p.memory}, {"postgres", p.postgres}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -88,10 +83,7 @@ func TestReferenceSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			defer held.Close()
 			value := func(want int64) {
 				t.Helper()
-				var got int64
-				if err := held.QueryRowContext(p.ctx).Scan(&got); err != nil || got != want {
-					t.Fatal("peer namespace identity", got, want, err)
-				}
+				referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: a, statement: held, query: "SELECT nextval('s')"}, backend.recorder, sequenceInt64Step(referenceStep{query: "SELECT nextval('s')", selectRows: true, columns: []string{"nextval"}, types: []string{"INT8"}, rows: [][]any{{want}}}))
 			}
 			value(10)
 			exec(a, "CREATE SEQUENCE peer_temp_a.s START 100 CACHE 1")
@@ -101,7 +93,7 @@ func TestReferenceSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				for _, q := range []string{"BEGIN", "CREATE TEMP SEQUENCE unrelated_temp", "COMMIT"} {
 					exec(b, q)
 				}
-				if backend.name == "native" {
+				if !backend.pg {
 					inserted = true
 					break
 				}
@@ -139,11 +131,8 @@ func TestReferenceSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 func TestReferenceSequencePreparedTemporaryNoninvalidation(t *testing.T) {
 	for _, scenario := range []string{"ExistingNamespace", "PhysicalEnd"} {
 		t.Run(scenario, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					a, err := backend.db.Conn(p.ctx)
 					if err != nil {
@@ -184,10 +173,7 @@ func TestReferenceSequencePreparedTemporaryNoninvalidation(t *testing.T) {
 					defer held.Close()
 					value := func(want int64) {
 						t.Helper()
-						var got int64
-						if err := held.QueryRowContext(p.ctx).Scan(&got); err != nil || got != want {
-							t.Fatal("noninvalidating peer event", got, want, err)
-						}
+						referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: a, statement: held, query: "SELECT nextval('s')"}, backend.recorder, sequenceInt64Step(referenceStep{query: "SELECT nextval('s')", selectRows: true, columns: []string{"nextval"}, types: []string{"INT8"}, rows: [][]any{{want}}}))
 					}
 					value(10)
 					exec(a, "CREATE SEQUENCE temp_stable_a.s START 100 CACHE 1")

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceRandomArgumentLimit(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE limits(id INT)", 0))
 	arguments := make([]string, 101)
 	for i := range arguments {
@@ -32,6 +30,10 @@ func TestReferenceRandomArgumentLimit(t *testing.T) {
 				s.errorStage = "prepare"
 			}
 			p.step(t, s)
+			if !prepared {
+				s.selectRows = false
+				p.step(t, s)
+			}
 		}
 		for _, prefix := range []string{"SELECT ", "/*é*/ SELECT "} {
 			q := prefix + name + "(" + strings.Join(arguments, ",") + ")"
@@ -48,6 +50,10 @@ func TestReferenceRandomArgumentLimit(t *testing.T) {
 					s.errorStage = "prepare"
 				}
 				p.step(t, s)
+				if !prepared {
+					s.selectRows = false
+					p.step(t, s)
+				}
 			}
 		}
 	}
@@ -62,5 +68,9 @@ func TestReferenceRandomArgumentLimit(t *testing.T) {
 			s.errorStage = "prepare"
 		}
 		p.step(t, s)
+		if !prepared {
+			s.selectRows = false
+			p.step(t, s)
+		}
 	}
 }

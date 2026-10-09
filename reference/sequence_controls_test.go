@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,22 +9,23 @@ import (
 )
 
 func TestReferenceSequenceNativeDumpPostgresRestore(t *testing.T) {
-	p := newReferencePair(t)
-	a, err := p.native.Conn(p.ctx)
+	p := newReferenceScenario(t)
+	a, err := p.memory.Conn(p.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer a.Close()
-	pg, err := p.postgres.Conn(p.ctx)
-	if err != nil {
-		t.Fatal(err)
+	connections := []*sql.Conn{a}
+	for _, backend := range p.backends() {
+		if !backend.pg {
+			continue
+		}
+		pg := sequenceCoreConn(t, p.ctx, backend.db)
+		connections = append(connections, pg)
+		// Interpret unchanged owner-bearing bytes as stuntgres, not postgres.
+		sequenceProbeExec(t, p.ctx, pg, "CREATE ROLE sequence_dump_owner")
+		defer sequenceProbeExec(t, p.ctx, pg, "RESET SESSION AUTHORIZATION; DROP OWNED BY postgres CASCADE; DROP OWNED BY sequence_dump_owner CASCADE; DROP ROLE sequence_dump_owner")
 	}
-	defer pg.Close()
-	// The PostgreSQL interpreter is authenticated as stuntgres, not the native
-	// bootstrap owner postgres. Do not switch it before interpreting the dump:
-	// the stream must establish every relation's owner itself.
-	sequenceProbeExec(t, p.ctx, pg, "CREATE ROLE sequence_dump_owner")
-	defer sequenceProbeExec(t, p.ctx, pg, "RESET SESSION AUTHORIZATION; DROP OWNED BY postgres CASCADE; DROP OWNED BY sequence_dump_owner CASCADE; DROP ROLE sequence_dump_owner")
 	for _, q := range []string{
 		"CREATE ROLE sequence_dump_owner",
 		"CREATE TABLE target(v INT)",
@@ -62,45 +61,56 @@ func TestReferenceSequenceNativeDumpPostgresRestore(t *testing.T) {
 	if !bytes.Equal(dump.Bytes(), redump.Bytes()) {
 		t.Fatal("noncanonical sequence dump")
 	}
-	if _, err = pg.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal("PostgreSQL rejected native sequence dump", err)
-	}
-	sequenceProbeExec(t, p.ctx, pg, "RESET SESSION AUTHORIZATION")
-	for _, object := range []struct{ schema, name, owner string }{
-		{"public", "target", "postgres"},
-		{"public", "s", "postgres"},
-		{"public", "uncalled", "postgres"},
-		{"sequence_dump_owned", "z_target", "sequence_dump_owner"},
-		{"sequence_dump_owned", "a_seq", "sequence_dump_owner"},
-	} {
-		var owner string
-		if err = pg.QueryRowContext(p.ctx, "SELECT pg_get_userbyid(c.relowner) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2", object.schema, object.name).Scan(&owner); err != nil || owner != object.owner {
-			t.Fatalf("restored owner of %s.%s = %q, want %q: %v", object.schema, object.name, owner, object.owner, err)
+	if len(connections) == 2 {
+		pg := connections[1]
+		if _, err = pg.ExecContext(p.ctx, dump.String()); err != nil {
+			t.Fatal("PostgreSQL rejected native sequence dump", err)
+		}
+		sequenceProbeExec(t, p.ctx, pg, "RESET SESSION AUTHORIZATION")
+		for _, object := range []struct{ schema, name, owner string }{
+			{"public", "target", "postgres"},
+			{"public", "s", "postgres"},
+			{"public", "uncalled", "postgres"},
+			{"sequence_dump_owned", "z_target", "sequence_dump_owner"},
+			{"sequence_dump_owned", "a_seq", "sequence_dump_owner"},
+		} {
+			var owner string
+			if err = pg.QueryRowContext(p.ctx, "SELECT pg_get_userbyid(c.relowner) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2", object.schema, object.name).Scan(&owner); err != nil || owner != object.owner {
+				t.Fatalf("restored owner of %s.%s = %q, want %q: %v", object.schema, object.name, owner, object.owner, err)
+			}
 		}
 	}
-	for _, db := range []*sql.Conn{a, pg} {
+	for _, db := range connections {
 		for _, state := range []struct {
 			name   string
 			last   int64
 			called bool
 		}{{"s", 8, true}, {"uncalled", 7, false}, {"sequence_dump_owned.a_seq", -8, true}} {
-			var last int64
-			var called bool
-			if err = db.QueryRowContext(p.ctx, "SELECT last_value,is_called FROM "+state.name).Scan(&last, &called); err != nil || last != state.last || called != state.called {
-				t.Fatalf("restored %s state = (%d,%t), want (%d,%t): %v", state.name, last, called, state.last, state.called, err)
+			recorder := p.memoryRecord
+			if db != a {
+				recorder = p.postgresRecord
 			}
+			step := referenceStep{query: "SELECT last_value,is_called FROM " + state.name, selectRows: true, columns: []string{"last_value", "is_called"}, types: []string{"INT8", "BOOL"}, rows: [][]any{{state.last, state.called}}}
+			step.checkScan = func(t *testing.T, rows *sql.Rows, rowIndex int) {
+				var last int64
+				var called bool
+				if err := rows.Scan(&last, &called); err != nil || rowIndex != 0 || last != state.last || called != state.called {
+					t.Fatal(state.name, rowIndex, last, called, err)
+				}
+			}
+			referenceRunStep(t, p.ctx, db, recorder, step)
 		}
 	}
-	sequenceProbeValue(t, p.ctx, a, "SELECT nextval('s')", 10)
-	sequenceProbeValue(t, p.ctx, pg, "SELECT nextval('s')", 10)
-	sequenceProbeValue(t, p.ctx, a, "SELECT nextval('uncalled')", 7)
-	sequenceProbeValue(t, p.ctx, pg, "SELECT nextval('uncalled')", 7)
+	for _, db := range connections {
+		sequenceProbeValue(t, p.ctx, db, "SELECT nextval('s')", 10)
+		sequenceProbeValue(t, p.ctx, db, "SELECT nextval('uncalled')", 7)
+	}
 	sequenceProbeValue(t, p.ctx, a, "SELECT nextval('local_seq')", 51)
 	if err = stuntgres.Restore(p.ctx, p.native, bytes.NewBufferString("CREATE SEQUENCE replacement; SELECT setval('replacement',0,true);")); err == nil {
 		t.Fatal("invalid replacement accepted")
 	}
 	sequenceProbeValue(t, p.ctx, a, "SELECT currval('s')", 10)
-	for _, db := range []*sql.Conn{a, pg} {
+	for _, db := range connections {
 		sequenceProbeValue(t, p.ctx, db, "SELECT nextval('sequence_dump_owned.a_seq')", -10)
 		for _, q := range []string{"DROP TABLE target RESTRICT", "DROP TABLE sequence_dump_owned.z_target RESTRICT"} {
 			sequenceProbeExec(t, p.ctx, db, q)

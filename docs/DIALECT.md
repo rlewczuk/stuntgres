@@ -806,7 +806,12 @@ at the ORDER reference on empty or populated input, before reseeding or evaluati
 any unrelated visible sequence output.
 
 Feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
-Independent pinned reference: `make reference RUN='^TestReferenceRandom' VERBOSE=0`.
+Dual-mode independent regressions:
+`make test PACKAGES=./reference RUN='^TestReferenceRandom[A-Za-z0-9_]*$' VERBOSE=0`
+and `make reference RUN='^TestReferenceRandom[A-Za-z0-9_]*$' VERBOSE=0`.
+The same definitions preserve per-backend reseed/range/lattice/demand witnesses;
+native controls and PostgreSQL adapter boundaries are explicit phases, not
+cross-backend stream parity or a widened DEFAULT/VOID storage surface.
 
 ### Core string functions — change note
 
@@ -1997,6 +2002,13 @@ Feature smoke: `make smoke RUN='^TestSerialSmoke$' VERBOSE=0`.
 ## Sequences
 
 Sequence objects support the PostgreSQL18 CREATE/ALTER/DROP option and administrative forms documented in the [SQL reference](SQL.md#sequences), including TEMP/UNLOGGED, optional BY/WITH, CREATE/ALTER RESTART, NO MINVALUE/MAXVALUE/CYCLE, OWNED BY, IF [NOT] EXISTS and grouped DROP. RESTART sets the current uncalled value, not configured START: CREATE START 5 RESTART 9 returns 9 first, and a later bare ALTER RESTART returns 5. Numeric options are integral and bounded by the declared smallint/integer/bigint type; function results always use INT8. Constant-space reservation arithmetic handles large CACHE and int64 extremes without allocating cached arrays. CYCLE wraps on reservation boundaries and can repeat values; it is not a uniqueness constraint.
+
+Sequence SQL interactions now use the untagged mode-aware external reference
+definitions. Select `^TestReferenceSequence[A-Za-z0-9_]*$` with
+`make test PACKAGES=./reference` for native and `make reference` for native plus
+the pinned PostgreSQL18.0 oracle. Native snapshots/control replacement and server
+cache/namespace/queue witnesses have independently specified backend phases;
+the migration changes neither sequence semantics nor native exclusions.
 
 CREATE accepts bare `RESTART`, `RESTART n` and `RESTART WITH n` through the
 same option validation as ALTER, including START/restart bounds and duplicate

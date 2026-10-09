@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,14 +7,11 @@ import (
 	"time"
 )
 
-func referenceSequencePreparedDemand(t *testing.T) {
+func TestReferenceSequencePreparedDemand(t *testing.T) {
 	for _, query := range []string{"SELECT nextval('s') FROM anchor", "SELECT nextval('s') FROM anchor WHERE v=2", "SELECT nextval(NULL)", "SELECT setval('s',NULL)", "SELECT setval('s',42,NULL)", "SELECT setval('s',nextval('t'),NULL)", "SELECT setval('s',nextval('t'),flag) FROM runtime_null"} {
 		t.Run("Undemanded/"+query, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					a, b := referenceLockConnections(t, p.ctx, backend.db)
 					for _, q := range []string{"CREATE TABLE anchor(v INT)", "CREATE TABLE runtime_null(flag BOOL)", "CREATE SEQUENCE s START 10", "CREATE SEQUENCE t START 20"} {
@@ -41,9 +36,23 @@ func referenceSequencePreparedDemand(t *testing.T) {
 							b.ExecContext(p.ctx, "ROLLBACK")
 						}
 					}()
-					rows, err := held.QueryContext(p.ctx)
+					rows, err := held.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder))
 					if err != nil {
 						t.Fatal(err)
+					}
+					label := "setval"
+					expected := [][]any{{nil}}
+					if query == "SELECT nextval('s') FROM anchor" || query == "SELECT nextval('s') FROM anchor WHERE v=2" {
+						label = "nextval"
+						expected = [][]any{}
+					}
+					if query == "SELECT nextval(NULL)" {
+						label = "nextval"
+					}
+					columns, columnErr := rows.Columns()
+					if columnErr != nil || len(columns) != 1 || columns[0] != label {
+						rows.Close()
+						t.Fatal(columns, columnErr)
 					}
 					types, err := rows.ColumnTypes()
 					if err != nil {
@@ -78,7 +87,10 @@ func referenceSequencePreparedDemand(t *testing.T) {
 						rows.Close()
 						t.Fatal(err)
 					}
-					rows.Close()
+					if err := rows.Close(); err != nil {
+						t.Fatal(err)
+					}
+					sequencePreparedRecorded(t, backend, referenceStep{query: query, columns: []string{label}, types: []string{"INT8"}, rows: expected})
 					// Keep the statement's explicit transaction alive: a sequence RX
 					// would make this independent peer ALTER fail its bounded context.
 					ctx, cancel := context.WithTimeout(p.ctx, time.Second)
@@ -106,9 +118,12 @@ func referenceSequencePreparedDemand(t *testing.T) {
 	}
 }
 
-func referenceSequencePreparedQueuedArguments(t *testing.T) {
+func TestReferenceSequencePreparedQueuedArguments(t *testing.T) {
 	t.Run("QueuedArguments", func(t *testing.T) {
-		p := newReferencePair(t)
+		p := newReferenceScenario(t)
+		if p.postgres == nil {
+			return
+		} // O: real queue, PID and original OID.
 		a, b := referenceLockConnections(t, p.ctx, p.postgres)
 		sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE s START 10")
 		sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE t START 20")
@@ -121,7 +136,7 @@ func referenceSequencePreparedQueuedArguments(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer held.Close()
-		ap, bp := referenceLockPID(t, p.ctx, a), referenceLockPID(t, p.ctx, b)
+		ap, bp := sequencePreparedPID(t, p, a), sequencePreparedPID(t, p, b)
 		tx, err := a.BeginTx(p.ctx, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -129,7 +144,7 @@ func referenceSequencePreparedQueuedArguments(t *testing.T) {
 		defer tx.Rollback()
 		referenceLockExec(t, p.ctx, tx, "ALTER SEQUENCE s RENAME TO identity", 0)
 		await := referenceLockOperation(t, p.ctx, func(ctx context.Context) relationOutcome {
-			rows, err := held.QueryContext(ctx)
+			rows, err := held.QueryContext(context.WithValue(ctx, referenceRecorderKey{}, p.postgresRecord))
 			return relationOutcome{rows: rows, err: err}
 		})
 		referenceSequenceWaitBehind(t, p.ctx, bp, ap, oid)
@@ -141,6 +156,7 @@ func referenceSequencePreparedQueuedArguments(t *testing.T) {
 			t.Fatal(outcome.err)
 		}
 		referenceSequenceRows(t, outcome.rows, "setval", 20)
+		sequencePreparedRecorded(t, referenceBackend{recorder: p.postgresRecord, pg: true}, referenceStep{query: "SELECT setval('s',nextval('t'))", columns: []string{"setval"}, types: []string{"INT8"}, rows: [][]any{{int64(20)}}})
 		sequenceProbeValue(t, p.ctx, b, "SELECT currval('t')", 20)
 		sequenceProbeValue(t, p.ctx, b, "SELECT lastval()", 20)
 		var value int64

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -38,6 +36,15 @@ func ownedTableReferenceOID(t *testing.T, ctx context.Context, c *sql.Conn, name
 	return oid
 }
 
+func sequenceOwnedLockPID(t *testing.T, ctx context.Context, c *sql.Conn) int {
+	t.Helper()
+	var pid int
+	if err := c.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil || pid <= 0 {
+		t.Fatal(pid, err)
+	}
+	return pid
+}
+
 func ownedTableReferenceMissing(t *testing.T, ctx context.Context, c *sql.Conn, name string) {
 	t.Helper()
 	var n int64
@@ -71,10 +78,11 @@ func TestReferenceSequenceOwnedTableLock(t *testing.T) {
 		for _, alter := range []bool{false, true} {
 			for _, failure := range []string{"Release", "Cancel", "LockTimeout"} {
 				t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared]+map[bool]string{false: "/Create", true: "/Alter"}[alter]+"/"+failure, func(t *testing.T) {
-					p := newReferencePair(t)
-					// Native has independent positive timeout/public retention
-					// witnesses in root tests. Here cancellation follows a real PG
-					// queue observation, which has no native SQL equivalent.
+					p := newReferenceScenario(t)
+					if p.postgres == nil {
+						return
+					}
+					// Server cancellation retains this actual PG session for held-handle recovery.
 					a, b := referenceLockConnections(t, p.ctx, p.postgres)
 					referenceLockExec(t, p.ctx, a, "CREATE TABLE t(c INT)", 0)
 					q := "CREATE SEQUENCE s START 17 OWNED BY t.c"
@@ -83,7 +91,7 @@ func TestReferenceSequenceOwnedTableLock(t *testing.T) {
 						q = "ALTER SEQUENCE s OWNED BY t.c"
 					}
 					execute := ownedTableReferenceExec(t, p.ctx, b, q, prepared)
-					ap, bp := referenceLockPID(t, p.ctx, a), referenceLockPID(t, p.ctx, b)
+					ap, bp := sequenceOwnedLockPID(t, p.ctx, a), sequenceOwnedLockPID(t, p.ctx, b)
 					oid := ownedTableReferenceOID(t, p.ctx, a, "t")
 					holder, err := a.BeginTx(p.ctx, nil)
 					if err != nil {
@@ -138,6 +146,14 @@ func TestReferenceSequenceOwnedTableLock(t *testing.T) {
 					} else {
 						ownedTableReferenceMissing(t, p.ctx, b, "s")
 					}
+					referenceLockExec(t, p.ctx, a, "CREATE TABLE t(other INT)", 0)
+					o = execute(p.ctx)
+					if o.result != nil {
+						t.Fatal("missing-column retry exposed a result")
+					}
+					want = controlsReferenceDiagnostic("42703", `column "c" of relation "t" does not exist`)
+					referenceAssertDiagnostic(t, o.err, &want)
+					referenceLockExec(t, p.ctx, a, "DROP TABLE t", 0)
 					referenceLockExec(t, p.ctx, a, "CREATE TABLE t(c INT)", 0)
 					o = execute(p.ctx)
 					if o.err != nil {
@@ -152,12 +168,15 @@ func TestReferenceSequenceOwnedTableLock(t *testing.T) {
 	}
 }
 
-func TestReferenceSequenceOwnedTableLockRetention(t *testing.T) {
+func TestReferenceSequenceOwnedTableLockRetentionOracle(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, alter := range []bool{false, true} {
 			for _, commit := range []bool{false, true} {
 				t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared]+map[bool]string{false: "/Create", true: "/Alter"}[alter]+map[bool]string{false: "/Rollback", true: "/Commit"}[commit], func(t *testing.T) {
-					p := newReferencePair(t)
+					p := newReferenceScenario(t)
+					if p.postgres == nil {
+						return
+					}
 					a, b := referenceLockConnections(t, p.ctx, p.postgres)
 					referenceLockExec(t, p.ctx, a, "CREATE TABLE t(c INT)", 0)
 					q := "CREATE SEQUENCE s OWNED BY t.c"
@@ -165,7 +184,7 @@ func TestReferenceSequenceOwnedTableLockRetention(t *testing.T) {
 						referenceLockExec(t, p.ctx, a, "CREATE SEQUENCE s", 0)
 						q = "ALTER SEQUENCE s OWNED BY t.c"
 					}
-					ap, bp := referenceLockPID(t, p.ctx, a), referenceLockPID(t, p.ctx, b)
+					ap, bp := sequenceOwnedLockPID(t, p.ctx, a), sequenceOwnedLockPID(t, p.ctx, b)
 					oid := ownedTableReferenceOID(t, p.ctx, a, "t")
 					tx, err := a.BeginTx(p.ctx, nil)
 					if err != nil {
@@ -207,7 +226,10 @@ func TestReferenceSequenceOwnedTableLockDropClosure(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, alter := range []bool{false, true} {
 			t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared]+map[bool]string{false: "/Create", true: "/Alter"}[alter], func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
+				if p.postgres == nil {
+					return
+				}
 				a, b := referenceLockConnections(t, p.ctx, p.postgres)
 				c, err := p.postgres.Conn(p.ctx)
 				if err != nil {
@@ -223,7 +245,7 @@ func TestReferenceSequenceOwnedTableLockDropClosure(t *testing.T) {
 					q = "ALTER SEQUENCE late OWNED BY t.c"
 				}
 				execute := ownedTableReferenceExec(t, p.ctx, c, q, prepared)
-				ap, bp, cp := referenceLockPID(t, p.ctx, a), referenceLockPID(t, p.ctx, b), referenceLockPID(t, p.ctx, c)
+				ap, bp, cp := sequenceOwnedLockPID(t, p.ctx, a), sequenceOwnedLockPID(t, p.ctx, b), sequenceOwnedLockPID(t, p.ctx, c)
 				tableOID, sequenceOID := ownedTableReferenceOID(t, p.ctx, a, "t"), ownedTableReferenceOID(t, p.ctx, a, "blocker")
 				holder, err := b.BeginTx(p.ctx, nil)
 				if err != nil {
@@ -292,7 +314,7 @@ func TestReferenceSequenceOwnedTableLockNative(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, alter := range []bool{false, true} {
 			t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared]+map[bool]string{false: "/Create", true: "/Alter"}[alter], func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				a, b := referenceLockConnections(t, p.ctx, p.memory)
 				referenceLockExec(t, p.ctx, a, "CREATE TABLE t(c INT, survivor INT)", 0)
 				referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(7,9)", 1)
@@ -319,22 +341,14 @@ func TestReferenceSequenceOwnedTableLockNative(t *testing.T) {
 					t.Fatal(err)
 				}
 				referenceLockExec(t, p.ctx, b, "RESET lock_timeout", 0)
-				// Deferred at user request. Uncomment this native DROP COLUMN/
-				// missing-column retry case when that capability is enabled
-				// for this coverage.
-				// referenceLockExec(t, p.ctx, a, "ALTER TABLE t DROP COLUMN c", 0)
-				// o = execute(p.ctx)
-				// want = controlsReferenceDiagnostic("42703", `column "c" of relation "t" does not exist`)
-				// referenceAssertDiagnostic(t, o.err, &want)
-				// if o.result != nil {
-				// 	t.Fatal("missing native column returned result")
-				// }
-				// rows, err := b.QueryContext(p.ctx, "SELECT survivor FROM t")
-				// if err != nil {
-				// 	t.Fatal(err)
-				// }
-				// transactionRowValues(t, rows, 9)
-				// rows.Close()
+				referenceLockExec(t, p.ctx, a, "ALTER TABLE t DROP COLUMN c", 0)
+				o = execute(p.ctx)
+				want = controlsReferenceDiagnostic("42703", `column "c" of relation "t" does not exist`)
+				referenceAssertDiagnostic(t, o.err, &want)
+				if o.result != nil {
+					t.Fatal("missing native column returned result")
+				}
+				referenceRunStep(t, p.ctx, b, p.memoryRecord, referenceStep{query: "SELECT survivor FROM t", selectRows: true, columns: []string{"survivor"}, types: []string{"INT4"}, rows: [][]any{{int64(9)}}})
 				referenceLockExec(t, p.ctx, a, "DROP TABLE t", 0)
 				if alter {
 					sequenceProbeValue(t, p.ctx, b, "SELECT nextval('late')", 31)

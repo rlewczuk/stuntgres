@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,11 +7,8 @@ import (
 )
 
 func TestReferenceSequenceConcurrentBagAndLifecycle(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"native", p.memory}, {"postgres", p.postgres}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -62,6 +57,7 @@ func TestReferenceSequenceConcurrentBagAndLifecycle(t *testing.T) {
 					t.Fatal("bag multiplicity", v, seen[v])
 				}
 			}
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceStep{query: "SELECT last_value FROM bag", selectRows: true, columns: []string{"last_value"}, types: []string{"INT8"}, rows: [][]any{{int64(64)}}})
 			sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE life")
 			sequenceProbeValue(t, p.ctx, a, "SELECT nextval('life')", 1)
 			for _, tc := range []struct {
