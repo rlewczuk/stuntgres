@@ -24,6 +24,16 @@ func referenceTableDDLColumnTypes(t *testing.T, postgres bool, columns []*sql.Co
 			if postgres && types[i] == "INT4" {
 				scan = reflect.TypeFor[int32]()
 			}
+		case "OID":
+			scan = reflect.TypeFor[int64]()
+			if postgres {
+				scan = reflect.TypeFor[any]()
+			}
+		case "PG_NODE_TREE":
+			scan = reflect.TypeFor[string]()
+			if postgres {
+				scan = reflect.TypeFor[any]()
+			}
 		case "BOOL":
 			scan = reflect.TypeFor[bool]()
 		case "BYTEA":

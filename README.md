@@ -198,6 +198,16 @@ Native tree output is not PostgreSQL's physical node serialization; non-NULL
 external tree input is rejected. See [deparsing](docs/QUERIES.md#constraint-and-expression-deparsing).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseConstraints' VERBOSE=0`.
 
+Change note: `pg_catalog.pg_attrdef` exposes `oid OID`, `adrelid OID`,
+`adnum INT2`, and `adbin PG_NODE_TREE`. All four native descriptors are known
+NOT NULL even for an empty result. Supported ordinary defaults and stored
+generation expressions carry real definition/owner identities and stable
+attribute numbers across rename/drop; identity columns have no default row.
+Domain-coerced NULL pruning remains a native DDL/storage limitation, not a
+catalog projection fix. Dedicated lifecycle/control smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceAttrdefControlsSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAttrdefControlsSmoke$' VERBOSE=0`.
+
 Time-zone-aware `TIMESTAMPTZ` and `TIMETZ` values support per-physical-session
 TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
 `AT TIME ZONE` / `AT LOCAL`. Timestamptz stores an instant; timetz retains

@@ -33,11 +33,14 @@ INSERT and UPDATE, not merely unchanged row counts. CHECK is not retroactively
 revalidated when comments, search paths or session TimeZone change; subsequent
 DML observes current provider/session state through held prepared handles.
 
-CREATE DEFAULT NULL and transparent casts of literal NULL create no pg_attrdef
-definition; ALTER SET DEFAULT NULL removes one. This narrow producer normalization
-never evaluates CASE, COALESCE, functions or arbitrary expressions to infer NULL.
-Nontrivial NULL-producing definitions remain stored. Explicit INSERT NULL and
-NOT NULL/CHECK enforcement continue to use the ordinary typed executor.
+CREATE DEFAULT NULL and transparent built-in casts such as NULL::integer create
+no pg_attrdef definition; ALTER SET DEFAULT NULL removes one. This narrow producer
+normalization never evaluates CASE, COALESCE, functions or arbitrary expressions
+to infer NULL. Nontrivial NULL-producing definitions remain stored; generated
+NULL expressions also remain stored. Native normalization currently strips domain
+coercions too, so domain-coerced NULL defaults can be pruned where PostgreSQL
+retains them. That DDL/storage limitation is not fixed by pg_attrdef projection.
+Explicit INSERT NULL and NOT NULL/CHECK enforcement use the ordinary typed executor.
 
 
 ## Object comments
@@ -179,7 +182,8 @@ defaults are evaluated once at ADD, even when no old rows exist; fixed-nextval
 volatile defaults draw once per effective live row (never ended/deleted/replaced
 predecessors). Future INSERT omission/DEFAULT evaluates the retained original
 expression. A later standalone SET DEFAULT changes only future requests.
-Structural DEFAULT NULL creates no pg_attrdef definition.
+Structural DEFAULT NULL creates no pg_attrdef definition, subject to the
+domain-coercion NULL pruning limitation described above.
 
 New NOT NULL and CHECK constraints validate completed rows; CHECK NULL passes.
 ALTER errors use contains-null / violated-by-some-row diagnostics, without INSERT's

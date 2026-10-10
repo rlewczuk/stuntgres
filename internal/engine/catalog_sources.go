@@ -50,6 +50,9 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if spec.oid == 2604 {
+				d.columns[i].Nullable = false
+			}
 			if spec.oid == 2609 {
 				d.columns[i].Nullable = false
 				if column.typ == sqltype.Text {

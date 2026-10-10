@@ -2,6 +2,47 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Column-default catalog — change note
+
+`pg_catalog.pg_attrdef` is readable through direct and prepared SELECT, including
+empty results. Its complete projection is `oid OID`, `adrelid OID`, `adnum INT2`,
+`adbin PG_NODE_TREE`; native nullability is known NOT NULL for every field.
+The PostgreSQL pq adapter does not expose known nullability. Native OID/INT2 raw
+cells are int64 and tree cells are strings; pq OID/tree cells are byte payloads
+and INT2 scans as int64 despite its int16 ScanType.
+
+Rows identify the stored definition, actual owning relation, and stable owning
+attribute number, not a compacted column position. Supported ordinary defaults
+and stored generated expressions appear; bare NULL and NULL::integer ordinary
+defaults and identity columns do not. Generated NULL expressions remain stored.
+Domain-coerced NULL defaults are a documented native producer limitation (see
+[tables](TABLES.md)), not repaired by this projection.
+
+Introspection does not evaluate a default, including a dormant narrowing error.
+Rename preserves definition identities; SET/re-add DEFAULT assigns fresh ones,
+and DROP DEFAULT/column/table removes the corresponding rows. Held prepared
+catalog queries see current definitions; already-open native eager cursors retain
+their captured rows and schema across native Reset/Restore. Logical Restore may
+remint relation/definition identities and attribute numbers: use current owner
+relationships, not equality to a prior allocator sequence.
+
+Native PG_NODE_TREE is an immutable nonphysical structural carrier, not SQL TEXT
+or PostgreSQL nodeToString interchange. Use `pg_get_expr(adbin,adrelid)` for SQL.
+Catalog resolution errors retain SQLSTATE, English diagnostics and character
+positions through direct Query and prepared Prepare failures.
+
+Dedicated acceptance:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceAttrdef' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAttrdef' VERBOSE=0`.
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceAttrdefControlsSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAttrdefControlsSmoke$' VERBOSE=0`.
+The smoke exercises actual default/generated data, typed catalog identities,
+failed/canceled Restore preservation, Reset emptiness, retained raw catalog
+cursors, Restore and future defaults; PostgreSQL executes the actual native
+Dump SQL and independently checks its catalog/data effects. Native controls are
+host mechanisms, not PostgreSQL APIs or physical pg_dump/durability emulation.
+
 ## Constraint and expression deparsing
 
 `pg_get_constraintdef(oid)` and `pg_get_constraintdef(oid, boolean)` return the
