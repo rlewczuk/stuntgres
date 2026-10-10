@@ -15,7 +15,6 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 				name, query, message, position, index string
 				execute                               bool
 			}{
-				{"concurrent", "CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14", "i", false},
 				{"partial", "CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24", "i", false},
 				{"storage", "CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24", "i", true},
 				{"tablespace", "CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24", "i", false},

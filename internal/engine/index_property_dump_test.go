@@ -13,7 +13,7 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	consumer := ObjectAddress{ClassID: RelationClassID, ObjectID: 100002}
 	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	parent := &relationDescriptor{address: parentAddress, namespace: namespace, relationKind: tableRelation}
-	index := &relationDescriptor{address: indexAddress, namespace: namespace, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress}}
+	index := &relationDescriptor{address: indexAddress, namespace: namespace, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress, ready: true, valid: true, live: true}}
 	view.state.descriptors[parentAddress] = parent
 	view.state.descriptors[indexAddress] = index
 	got, err := dumpPredecessor(view, indexAddress, consumer)

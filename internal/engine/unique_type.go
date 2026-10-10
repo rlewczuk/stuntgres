@@ -85,9 +85,34 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 	return next, nil
 }
 
-// TYPE must fail at Execute, including private writes. Merge overlay successors
-// before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation) (map[string]*logicalIndexRoot, error) {
+// TYPE rebuilds keys and INCLUDE payload only when their actual stable
+// attributes/dependencies participate in the transformation.
+func uniqueIndexTypeAffected(definition *indexDefinition, transformations []columnTransformation) bool {
+	for _, change := range transformations {
+		if slices.Contains(definition.include, change.attribute) {
+			return true
+		}
+		for _, key := range definition.keys {
+			if key.derived == nil {
+				if key.attribute == change.attribute {
+					return true
+				}
+				continue
+			}
+			for _, dependency := range key.derived.dependencies {
+				if dependency.Address.ClassID == definition.parent.ClassID && dependency.Address.ObjectID == definition.parent.ObjectID && dependency.Address.SubID == change.attribute {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// TYPE must fail at Execute, including private writes. Use the staged rebound
+// expression when present, then the same evolution and tuple providers as
+// publication. Only an actual affected TYPE action may repair lifecycle flags.
+func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, stage *CatalogStage) (map[string]*logicalIndexRoot, error) {
 	indexes := uniqueIndexes(auth.catalog, parent.address)
 	affected := false
 	for _, index := range indexes {
@@ -124,6 +149,25 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *r
 		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			continue
 		}
+		if index.sqlIndex.constraint != nil {
+			for _, attachment := range parent.uniqueConstraints {
+				if attachment.Name == index.name {
+					if staged, ok := stage.descriptors[attachment.Index].(*relationDescriptor); ok {
+						index = staged
+					}
+					break
+				}
+			}
+		}
+		// Prefer actual rebound/reminted staged definitions. Their existing
+		// catalog owner supplies private baseline and diagnostic identity.
+		if staged, ok := stage.descriptors[index.address].(*relationDescriptor); ok {
+			index = staged
+		} else if index.sqlIndex.constraint == nil {
+			if _, removed := stage.removals[index.address]; removed {
+				continue
+			}
+		}
 		next, err := evolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
@@ -145,24 +189,17 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *r
 	return baselines, nil
 }
 
-func uniqueIndexTypeAffected(definition *indexDefinition, transformations []columnTransformation) bool {
-	for _, key := range definition.keys {
-		for _, change := range transformations {
-			if key.attribute == change.attribute {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // Both reminted attachments and evolved standalone indexes use the existing
 // private catalog owner. Roots exclude own successors, which DML checks in its
 // overlay; validated roots are reusable only when there was no own overlay.
 func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, parent *relationDescriptor, baseline *relationStorage, validated map[string]*logicalIndexRoot) error {
 	for address, descriptor := range changes.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !index.sqlIndex.unique || index.sqlIndex.parent != parent.address {
+		if !ok || index.sqlIndex == nil || !index.sqlIndex.unique || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live {
+			continue
+		}
+		if !index.sqlIndex.valid {
+			// Generic parent evolution cannot rebuild a failed ready index.
 			continue
 		}
 		if original := changes.originals[address]; original == descriptor {

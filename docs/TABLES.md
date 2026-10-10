@@ -631,14 +631,17 @@ It supports simple/composite keys and trailing NULLS DISTINCT/NOT DISTINCT:
 all key components must compare equal, and DISTINCT bypasses conflicts whenever
 any component is NULL. Directions/NULL ordering do not change equality; INCLUDE
 is payload only. Failed builds, multirow writes and TYPE conversion are atomic.
-Unique expressions and BPCHAR classes on TEXT/VARCHAR remain explicit0A000,
-while ordinary index support is unchanged. Standalone rename preserves identity,
+Ordinary unique expressions and BPCHAR classes on TEXT/VARCHAR remain explicit0A000,
+while concurrent UNIQUE admits them through the same tuple authority.
+Ordinary nonunique support is unchanged. Standalone rename preserves identity,
 DROP frees enforcement, and Dump/Restore emits/rebuilds the actual index once
 after parent data. Duplicate-build key disclosure uses the same current SELECT
 authority as TYPE/runtime failures, including owners with revoked SELECT.
 UNIQUE does not enable index-planner or physical PostgreSQL storage claims.
 The existing native CREATE TABLE exclusion in explicit transactions is unchanged;
 the corresponding PostgreSQL transaction/rollback control is independent.
+Concurrent standalone UNIQUE indexes are independently admitted without a parent
+constraint or fabricated constraint identity; see [concurrent creation](design/PG18-INDEX-CONCURRENT.md).
 See [the design](design/PG18-DDL-UNIQUE.md) and
 [transaction locking](TRANSACTIONS.md#row-locks--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueFeatureSmoke$'`.
@@ -720,8 +723,9 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-Primary/foreign keys, unowned access methods, partial/concurrent indexes and
+Primary/foreign keys, unowned access methods, partial indexes and
 unrelated ALTER actions remain excluded engine capabilities.
+Concurrent creation inherits the supported B-tree and nonunique hash methods.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
 transactions. PostgreSQL pass order is DROP, TYPE, original SET, transformed
@@ -1032,7 +1036,11 @@ rows: a late failing batch fails at Execute, not COMMIT. Savepoint rollback can
 recover the transaction without retaining any rows from the failed statement.
 Failed evaluation leaves predecessor roots and parent rows intact. Query matching
 expressions still use ordinary snapshots, not current-only index membership.
-UNIQUE indexes, whether standalone or attached, retain simple-slot enforcing keys.
+Real constraint-backed UNIQUE indexes retain simple-slot enforcing keys.
+Ordinary standalone UNIQUE/NND creation keeps its bounded simple-key/provider
+admission policy. Standalone indexes created concurrently, or reconstructed by
+authenticated Restore, may enforce computed/provider-aware tuples through the
+same shared extraction, comparison and claim paths; INCLUDE is never an enforcing key.
 
 Renames preserve stable key/included attributes and expression dependencies.
 Dependent TYPE reconstructs the whole definition using old parent defaults:

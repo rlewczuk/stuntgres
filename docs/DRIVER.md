@@ -208,7 +208,41 @@ A bad late included column/expression/provider leaves destination rows and
 definitions unchanged. TYPE reconstruction rebinds old-default classes and
 revalidates retained nondefaults rather than freezing obsolete explicit defaults.
 These controls require the unwrapped native DB, not a foreign or sqlmw-wrapped pool.
+`InspectIndex(ctx, db, schema, name)` returns detached `IndexState` flags
+(`Ready`, `Valid`, `Live`) from the current index descriptor. Names are exact
+decoded identifiers, not SQL expressions; lookup never uses session search_path.
+`WaitingForOlderSnapshots` is a separate live coordinator observation: its older
+cohort and xmin boundary have been captured and the builder's validation XID and
+snapshot dropped. It is not persisted history or a waiter count, and clears on
+phase exit, cancellation and epoch replacement. Ready alone does not prove this
+admission boundary.
+`WaitingForWriters` uses the same exact owner/kind coordinator record after the
+granted writer cohort is frozen. Combine it with Ready to distinguish first
+(`false`) from second (`true`) writer admission. Descriptor publication alone
+does not prove capture. The two cohort Booleans are mutually exclusive and
+false after successful completion or cancellation.
+Missing schemas, missing indexes and non-index relations return ordinary control
+errors, respectively `stuntgres: index schema "schema" does not exist`,
+`stuntgres: index "schema"."name" does not exist`, and
+`stuntgres: relation "schema"."name" is not an index` (identifiers are quoted).
+Nil databases, canceled contexts and foreign/wrapped pools retain the same
+native-control boundaries as Reset. Existing completed ordinary/backing indexes
+report all three flags true. This API does not introduce a SQL catalog or promise
+an index-specific query plan.
+Concurrent builds expose false/false/true initially and true/false/true after
+readiness, retaining that last committed phase on failure/cancellation.
+Persistent invalid indexes make Dump fail with
+`stuntgres: dump cannot serialize invalid index "schema"."name"` before its first
+writer call. Ordinary public standalone UNIQUE/NND retains its bounded
+simple-key/provider surface. Valid standalone UNIQUE SQL replays through existing
+authenticated isolated Restore destination authority, which bypasses only ordinary
+provider-admission policy and still performs substantive shared tuple/root validation.
+This preserves computed concurrent definitions without widening public ordinary
+provider boundaries or enabling concurrent maintenance.
+Native replacement fences old completion/snapshot owners without resurrection.
+See [concurrent index authority](design/PG18-INDEX-CONCURRENT.md).
 The same emitted SQL can be replayed against PostgreSQL.
-Writable explicit CREATE INDEX transactions remain a native 0A000 boundary,
+Writable explicit ordinary CREATE INDEX transactions remain a native 0A000 boundary;
+concurrent creation instead reports25001 in explicit blocks,
 independently of read-only 25006 utility rejection.
 

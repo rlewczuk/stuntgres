@@ -105,6 +105,9 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 		}
 		return s.view, nil
 	}
+	if _, err := e.visibilitySnapshotLocked(s.txRef, false); err != nil {
+		return nil, err
+	}
 	frontier := e.commitSeq
 	if stableIsolation(s.owner.isolation) {
 		frontier = s.owner.frontier

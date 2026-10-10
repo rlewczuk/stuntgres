@@ -152,12 +152,16 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 			detail.WriteByte('\n')
 		}
 		r, blocker := edge.request, edge.blocker
-		fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.id, r.ticket.ref.session.id, r.ticket.ref.epoch, deadlockMode(r.mode), r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
-		if r.ref.row != 0 {
-			fmt.Fprintf(&detail, " row %d", r.ref.row)
-		}
-		if r.ref.key != nil {
-			detail.WriteString(" unique key")
+		if r.ref.completion != nil {
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.id, r.ticket.ref.session.id, r.ticket.ref.epoch)
+		} else {
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.id, r.ticket.ref.session.id, r.ticket.ref.epoch, deadlockMode(r.mode), r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
+			if r.ref.row != 0 {
+				fmt.Fprintf(&detail, " row %d", r.ref.row)
+			}
+			if r.ref.key != nil {
+				detail.WriteString(" unique key")
+			}
 		}
 		fmt.Fprintf(&detail, "; blocked by transaction %d (session %d, epoch %d).", blocker.ref.id, blocker.ref.session.id, blocker.ref.epoch)
 	}
@@ -243,6 +247,9 @@ func (s *deadlockSearch) findCycle() bool {
 				}
 			}
 			for earlier, blocker := range q.requests {
+				if r.ref.completion != nil {
+					continue
+				}
 				if blocker.ticket == r.ticket || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !lockConflict(r.mode, blocker.mode) {
 					continue
 				}

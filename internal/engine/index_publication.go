@@ -95,6 +95,7 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 			next.keys = append([]indexKey(nil), definition.keys...)
 			definition = &next
 		}
+		definition.ready, definition.valid, definition.live = true, true, true
 		for i, key := range definition.keys {
 			var oldUsage, newUsage sqltype.Usage
 			if key.derived != nil {
@@ -108,11 +109,6 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 	}
 	if err := bindIndexProvider(parent, definition); err != nil {
 		return nil, err
-	}
-	if definition.unique {
-		if err := validateUniqueProviders(parent, definition, nil); err != nil {
-			return nil, err
-		}
 	}
 	changed := definition != index.sqlIndex || index.namespace != parent.namespace || index.owner != parent.owner
 	for i, key := range definition.keys {
@@ -246,9 +242,27 @@ func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalog
 
 func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView) (map[ObjectAddress]*logicalIndexRoot, error) {
 	var result map[ObjectAddress]*logicalIndexRoot
-	for a, d := range next.descriptors {
-		index, ok := d.(*relationDescriptor)
+	catalog := CatalogRead{owner: e, state: next}
+	if auth == nil {
+		// Trusted replacement has catalog identity but no SQL principal.
+		auth = &AuthorizationView{catalog: catalog}
+	} else {
+		disclosure := *auth
+		disclosure.catalog = catalog
+		auth = &disclosure
+	}
+	for a, descriptor := range next.descriptors {
+		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
+			continue
+		}
+		intent := rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil
+		if !index.sqlIndex.ready && rebuildIndexes[a] == nil {
+			if current.descriptors[a] != index {
+				if err := validateIndexDefinition(catalog, index); err != nil {
+					return nil, err
+				}
+			}
 			continue
 		}
 		if materialize && result == nil {
@@ -257,11 +271,27 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 		root := roots[a]
 		old, _ := current.descriptors[a].(*relationDescriptor)
 		parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		if roots != nil && root == nil && old != nil && old.sqlIndex.ready && !intent {
+			return nil, fmt.Errorf("stuntgres: ready index root is missing")
+		}
+		rebuild := root == nil || old == nil || intent || !sameIndexKeySemantics(old, index)
+		// Generic parent shape changes cannot heal invalid indexes. Supplied
+		// phase roots and ready-invalid maintenance still use the same core.
+		if old != nil && !index.sqlIndex.valid && rebuildIndexes[a] == nil {
+			if root == nil {
+				return nil, fmt.Errorf("stuntgres: ready index root is missing")
+			}
+			if old != index {
+				if err := validateIndexDefinition(catalog, index); err != nil {
+					return nil, err
+				}
+			}
+			rebuild = false
+		}
 		var entries []logicalIndexEntry
 		if root != nil {
 			entries = root.entries
 		}
-		rebuild := root == nil || old == nil || rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil || !sameIndexKeySemantics(old, index)
 		if index.sqlIndex.method == hashMethod {
 			var err error
 			if rebuild {
@@ -277,7 +307,8 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				if publications[i].address != parent.address {
 					continue
 				}
-				root, err = mergeHashIndexRoot(ctx, parent, index.sqlIndex, root, &publications[i], materialize)
+				reconstruct := rebuildParents[parent.address] && index.sqlIndex.valid
+				root, err = mergeHashIndexRoot(ctx, parent, index, root, &publications[i], reconstruct, materialize)
 				if err != nil {
 					return nil, err
 				}
@@ -289,11 +320,11 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			continue
 		}
 		if rebuild {
-			if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
+			if err := validateIndexDefinition(catalog, index); err != nil {
 				return nil, err
 			}
-			// Sorting/evaluating keys is required validation scratch, not an
-			// installation root. A validation-only call returns no root map.
+			// Required ordering/uniqueness scratch is not an installation
+			// root. PREPARE returns neither a root wrapper nor a root map.
 			var err error
 			entries, err = buildIndexEntries(ctx, parent, index.sqlIndex, storage[parent.address])
 			if err != nil {
@@ -305,8 +336,6 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				// key construction. Replacement also accepts reduced validated
 				// parent/index catalogues for nonunique roots.
 				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
-				// The rebuilt predecessor must satisfy its own uniqueness before
-				// the staged delta is checked, matching ordinary publication.
 				ordering, err := bindIndexOrdering(parent, index.sqlIndex)
 				if err != nil {
 					return nil, err
@@ -320,19 +349,22 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			if publications[i].address != parent.address {
 				continue
 			}
-			var err error
 			schema := ""
 			if index.sqlIndex.unique {
 				schema = next.descriptors[parent.namespace].(*namespaceDescriptor).name
 			}
-			root, err = mergeIndexRoot(ctx, parent, index, entries, &publications[i], materialize, schema, output, auth)
+			reconstruct := rebuildParents[parent.address] && index.sqlIndex.valid
+			merged, err := mergeIndexRoot(ctx, parent, index, entries, &publications[i], reconstruct, materialize, schema, output, auth)
 			if err != nil {
 				return nil, err
+			}
+			if merged != nil {
+				root = merged
 			}
 			break
 		}
 		if materialize {
-			if rebuild && root == nil {
+			if root == nil {
 				root = &logicalIndexRoot{entries: entries}
 			}
 			result[a] = root
@@ -386,7 +418,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1}
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
 			continue
 		}
 		rows := s.stage.rows[index.sqlIndex.parent]
@@ -398,6 +430,9 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 				continue
 			}
 			for _, row := range rows {
+				if !rowMaintainsIndex(row, index) {
+					continue
+				}
 				if !liveVersion(row, CommitSeq(^uint64(0)), nil, deletes[index.sqlIndex.parent]) {
 					continue
 				}

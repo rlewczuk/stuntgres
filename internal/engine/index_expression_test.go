@@ -18,7 +18,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := stringExpression{expressionInfo: column.expressionInfo, plan: plan, args: []BoundExpr{column}, textual: [4]bool{true}}
-	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}}
+	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}, ready: true, valid: true, live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}
 	for i, v := range values {
@@ -33,7 +33,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(got, want)
 	}
 	publication := &rowPublication{writes: []rowVersion{{row: 6, version: 6, values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := mergeIndexRoot(context.Background(), parent, &relationDescriptor{sqlIndex: d}, root.entries, publication, true, "", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(context.Background(), parent, &relationDescriptor{sqlIndex: d}, root.entries, publication, false, true, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	parent := &relationDescriptor{attributes: []int32{7, 9}, columns: []ColumnDescriptor{{Usage: typ.Usage()}, {Usage: typ.Usage()}}}
-	d := &indexDefinition{keys: []indexKey{{attribute: 9}, {attribute: 7}}, unique: true}
+	d := &indexDefinition{keys: []indexKey{{attribute: 9}, {attribute: 7}}, unique: true, ready: true, valid: true, live: true}
 	ordering, err := bindIndexOrdering(parent, d)
 	if err != nil || !reflect.DeepEqual(ordering.slots, []int{1, 0}) || ordering.derived != nil {
 		t.Fatal(ordering, err)

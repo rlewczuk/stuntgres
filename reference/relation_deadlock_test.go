@@ -138,6 +138,17 @@ func deadlockPublicError(t *testing.T, err error, position string) *stuntgres.Er
 	if len(lines) != 2 {
 		t.Fatalf("two-edge detail: %q", d.Detail)
 	}
+	completion := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for transaction completion; blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
+	relation := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for AccessExclusiveLock on relation ([1-9][0-9]*) \(class 1259, sub-ID 0, epoch ([1-9][0-9]*)\); blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
+	for i, line := range lines {
+		if c := completion.FindStringSubmatch(line); c != nil {
+			r := relation.FindStringSubmatch(lines[1-i])
+			if r == nil || c[1] != r[6] || c[2] != r[7] || c[3] != r[8] || c[4] != r[1] || c[5] != r[2] || c[6] != r[3] || r[5] != r[3] || c[2] == c[5] {
+				t.Fatalf("complete completion/relation cycle identity: %q", d.Detail)
+			}
+			return d
+		}
+	}
 	pattern := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for (AccessShareLock|RowShareLock|RowExclusiveLock|ShareUpdateExclusiveLock|ShareRowExclusiveLock|AccessExclusiveLock|Update|NoKeyUpdate|Share|KeyShare) on relation ([1-9][0-9]*) \(class ([1-9][0-9]*), sub-ID 0, epoch ([1-9][0-9]*)\)( row ([1-9][0-9]*))?; blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
 	a := pattern.FindStringSubmatch(lines[0])
 	b := pattern.FindStringSubmatch(lines[1])
@@ -445,7 +456,7 @@ func referenceDeadlockPhysical(t *testing.T, err error, pids []int, relations ma
 	if len(lines) != 2 {
 		t.Fatalf("two cycle edges: %q", d.Detail)
 	}
-	pattern := regexp.MustCompile(`^Process ([1-9][0-9]*) waits for (AccessExclusiveLock|ShareLock) on (relation ([1-9][0-9]*) of database ([1-9][0-9]*)|transaction ([1-9][0-9]*)); blocked by process ([1-9][0-9]*)\.$`)
+	pattern := regexp.MustCompile(`^Process ([1-9][0-9]*) waits for (AccessExclusiveLock|ShareLock) on (relation ([1-9][0-9]*) of database ([1-9][0-9]*)|(?:virtual )?transaction ([1-9][0-9]*(?:/[1-9][0-9]*)?|0/[1-9][0-9]*)); blocked by process ([1-9][0-9]*)\.$`)
 	edges := map[int]int{}
 	relationEdges, rowEdges := 0, 0
 	for _, line := range lines {
@@ -481,7 +492,7 @@ func referenceDeadlockPhysical(t *testing.T, err error, pids []int, relations ma
 		if relationEdges != 2 || d.Context != "" {
 			t.Fatalf("table diagnostic %#v", d)
 		}
-	case "mixed":
+	case "mixed", "completion":
 		if relationEdges != 1 || rowEdges != 1 {
 			t.Fatalf("mixed edge kinds: %q", d.Detail)
 		}

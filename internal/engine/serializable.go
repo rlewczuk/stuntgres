@@ -234,6 +234,12 @@ func (e *Engine) endSerializable(ref TxRef, committed bool) {
 	e.endSerializableLocked(ref, committed)
 }
 func (e *Engine) endSerializableLocked(ref TxRef, committed bool) {
+	delete(e.visibility, ref)
+	for index, wait := range e.indexBuildWaits {
+		if wait.owner == ref {
+			delete(e.indexBuildWaits, index)
+		}
+	}
 	node := e.serializable.nodes[ref]
 	if node == nil || node.ended {
 		return
@@ -259,6 +265,8 @@ func (e *Engine) endSerializableLocked(ref TxRef, committed bool) {
 // Epoch replacement wakes every unresolved acquisition. Operation/ref epoch
 // validation supplies the ordinary fence error, not a serialization diagnostic.
 func (e *Engine) fenceSerializableLocked() {
+	clear(e.visibility)
+	clear(e.indexBuildWaits)
 	for _, node := range e.serializable.nodes {
 		node.aborted = true
 		if node.ready != nil && !node.resolved {

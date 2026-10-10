@@ -24,7 +24,7 @@ func indexClausesFixture(t *testing.T) (*relationDescriptor, *relationDescriptor
 	types := indexClausesTypes()
 	parent := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20, 30}, attributeHighWater: 30, columns: []ColumnDescriptor{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	def := &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: c}, {attribute: 20, class: c, desc: true, nullsFirst: true}}, include: []int32{30}}
+	def := &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: c}, {attribute: 20, class: c, desc: true, nullsFirst: true}}, include: []int32{30}, ready: true, valid: true, live: true}
 	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "cover", revision: 1, relationKind: indexRelation, sqlIndex: def, columns: append([]ColumnDescriptor(nil), parent.columns...), attributes: []int32{1, 2, 3}, attributeHighWater: 3, index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	catalog := &catalogState{descriptors: map[ObjectAddress]Descriptor{parent.address: parent, index.address: index}}
 	if err := validateIndexDefinition(CatalogRead{state: catalog}, index); err != nil {
@@ -71,7 +71,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	successor.base = 1
 	successor.version = 4
 	successor.values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(ctx, parent, index, root.entries, &rowPublication{writes: []rowVersion{successor}}, true, "", sqltype.OutputEnvironment{}, nil)
+	merged, err := mergeIndexRoot(ctx, parent, index, root.entries, &rowPublication{writes: []rowVersion{successor}}, false, true, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	parent, index, catalog, types := indexClausesFixture(t)
 	ctx := context.Background()
 	oid, _ := sqltype.LookupIndexClass("oid_ops")
-	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: oid, explicitClass: true}}, include: []int32{30}}
+	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: oid, explicitClass: true}}, include: []int32{30}, ready: true, valid: true, live: true}
 	index.columns = []ColumnDescriptor{parent.columns[0], parent.columns[2]}
 	index.attributes = []int32{1, 2}
 	index.attributeHighWater = 2
@@ -125,7 +125,7 @@ func TestIndexClausesClassRoots(t *testing.T) {
 		t.Fatal("oid_ops did not choose unsigned provider", root)
 	}
 	bpchar, _ := sqltype.LookupIndexClass("bpchar_ops")
-	def := &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 30, class: bpchar, explicitClass: true, collation: 950}}}
+	def := &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 30, class: bpchar, explicitClass: true, collation: 950}}, ready: true, valid: true, live: true}
 	ordering, err := bindIndexOrdering(parent, def)
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	c := uniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.address}
 	parent.uniqueConstraints = []uniqueConstraint{c}
 	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: class}}, include: []int32{30}, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: &c}
+	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: class}}, include: []int32{30}, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: &c, ready: true, valid: true, live: true}
 	index.columns = []ColumnDescriptor{parent.columns[0], parent.columns[2]}
 	index.attributes = []int32{1, 2}
 	index.attributeHighWater = 2
@@ -384,7 +384,7 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 	}
 	node := stringExpression{expressionInfo: column.expressionInfo, plan: plan, args: []BoundExpr{column}, textual: [4]bool{true}}
 	class, _ := sqltype.LookupIndexClass("bpchar_ops")
-	definition := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node, attributes: parent.attributes}, class: class, explicitClass: true, collation: 950}}, include: []int32{10}}
+	definition := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node, attributes: parent.attributes}, class: class, explicitClass: true, collation: 950}}, include: []int32{10}, ready: true, valid: true, live: true}
 	store := &relationStorage{}
 	for i, text := range []string{"Alpha ", "ALPHA"} {
 		payload, err := sqltype.Integer(types[sqltype.Int4], int64(i+1))

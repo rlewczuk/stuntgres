@@ -160,7 +160,7 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, keys: make([]indexKey, len(c.Attributes))}
+		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, keys: make([]indexKey, len(c.Attributes)), ready: true, valid: true, live: true}
 		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition, columns: make([]ColumnDescriptor, len(c.Attributes)), attributes: make([]int32, len(c.Attributes)), index: make(map[string]int, len(c.Attributes))}
 		index.attributeHighWater = int32(len(index.attributes))
 		labels := make(map[string]bool)
@@ -217,9 +217,23 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexK
 	if rights&SelectPrivilege != 0 {
 		return true, nil
 	}
+	descriptor, ok := auth.catalog.Descriptor(ref.Address)
+	parent, relation := descriptor.(*relationDescriptor)
+	if !ok || !relation {
+		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
+	}
 	for _, key := range keys {
+		attribute, expression, err := indexCatalogKey(parent, key)
+		if err != nil {
+			return false, err
+		}
+		// Column privileges do not authorize disclosure of an actual
+		// expression, even when every dependency is readable.
+		if expression != nil {
+			return false, nil
+		}
 		column := ref
-		column.Address.SubID = key.attribute
+		column.Address.SubID = attribute
 		rights, err := auth.Effective(column, false)
 		if err != nil {
 			return false, err
@@ -232,7 +246,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexK
 }
 
 // Formatting uses typed provider output, never SQL literals or Go formatting.
-func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool) error {
+func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog CatalogRead) error {
 	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.name)
 	if building {
 		message = fmt.Sprintf(`could not create unique index "%s"`, index.name)
@@ -242,8 +256,18 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 		labels := make([]string, len(key))
 		values := make([]string, len(key))
 		for i, value := range key {
-			slot := slices.Index(parent.attributes, index.sqlIndex.keys[i].attribute)
-			labels[i] = pgIdentifier(parent.columns[slot].Name)
+			attribute, node, err := indexCatalogKey(parent, index.sqlIndex.keys[i])
+			if err != nil {
+				return err
+			}
+			if node != nil {
+				labels[i], err = (pgRenderer{view: catalog, relation: parent, output: output}).sql(ctx, node, pgRenderParent{})
+			} else {
+				labels[i], err = deparseAttribute(parent, attribute)
+			}
+			if err != nil {
+				return err
+			}
 			if value.IsNull() {
 				values[i] = "null"
 			} else {
@@ -296,15 +320,25 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 		return err
 	}
 	if cmp == 0 {
-		allowed := auth == nil // Trusted package-level publication has no SQL principal.
-		if auth != nil {
+		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
+		if auth != nil && auth.engine != nil {
 			ref := ObjectRef{owner: auth.catalog.owner.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
 			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.keys)
 			if err != nil {
 				return err
 			}
 		}
-		return uniqueDiagnostic(ctx, parent, index, current.keys, schema, output, allowed, building)
+		key := current.keys
+		if building {
+			// Report an actual earlier comparator tuple for builds, not a
+			// normalized equality value. Validation reports the candidate.
+			key = previous.keys
+		}
+		var catalog CatalogRead
+		if auth != nil {
+			catalog = auth.catalog
+		}
+		return uniqueDiagnostic(ctx, parent, index, key, schema, output, allowed, building, catalog)
 	}
 	return nil
 }

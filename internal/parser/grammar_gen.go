@@ -7030,20 +7030,17 @@ sqldefault:
 	case 366:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[3].tok, "concurrent indexes are unsupported")
-			sqlVAL.createIndex = &CreateIndex{Table: sqlDollar[5].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.createIndex = &CreateIndex{Table: sqlDollar[5].objectName, Concurrent: sqlDollar[3].tok.pos, Pos: sqlDollar[1].tok.pos}
 		}
 	case 367:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[3].tok, "concurrent indexes are unsupported")
-			sqlVAL.createIndex = &CreateIndex{Table: sqlDollar[6].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.createIndex = &CreateIndex{Name: Identifier{Text: sqlDollar[4].tok.text, Pos: sqlDollar[4].tok.pos}, Table: sqlDollar[6].objectName, Concurrent: sqlDollar[3].tok.pos, Pos: sqlDollar[1].tok.pos}
 		}
 	case 368:
 		sqlDollar = sqlS[sqlpt-9 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[3].tok, "concurrent indexes are unsupported")
-			sqlVAL.createIndex = &CreateIndex{Table: sqlDollar[9].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.createIndex = &CreateIndex{Name: Identifier{Text: sqlDollar[7].tok.text, Pos: sqlDollar[7].tok.pos}, Table: sqlDollar[9].objectName, IfNotExists: true, Concurrent: sqlDollar[3].tok.pos, Pos: sqlDollar[1].tok.pos}
 		}
 	case 369:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
@@ -7063,20 +7060,17 @@ sqldefault:
 	case 372:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[4].tok, "concurrent indexes are unsupported")
-			sqlVAL.createIndex = &CreateIndex{Unique: true, UniquePos: sqlDollar[2].tok.pos, Table: sqlDollar[6].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.createIndex = &CreateIndex{Unique: true, UniquePos: sqlDollar[2].tok.pos, Table: sqlDollar[6].objectName, Concurrent: sqlDollar[4].tok.pos, Pos: sqlDollar[1].tok.pos}
 		}
 	case 373:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[4].tok, "concurrent indexes are unsupported")
-			sqlVAL.createIndex = &CreateIndex{Unique: true, UniquePos: sqlDollar[2].tok.pos, Name: Identifier{Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}, Table: sqlDollar[7].objectName, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.createIndex = &CreateIndex{Unique: true, UniquePos: sqlDollar[2].tok.pos, Name: Identifier{Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}, Table: sqlDollar[7].objectName, Concurrent: sqlDollar[4].tok.pos, Pos: sqlDollar[1].tok.pos}
 		}
 	case 374:
 		sqlDollar = sqlS[sqlpt-10 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[4].tok, "concurrent indexes are unsupported")
-			sqlVAL.createIndex = &CreateIndex{Unique: true, UniquePos: sqlDollar[2].tok.pos, Name: Identifier{Text: sqlDollar[8].tok.text, Pos: sqlDollar[8].tok.pos}, Table: sqlDollar[10].objectName, IfNotExists: true, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.createIndex = &CreateIndex{Unique: true, UniquePos: sqlDollar[2].tok.pos, Name: Identifier{Text: sqlDollar[8].tok.text, Pos: sqlDollar[8].tok.pos}, Table: sqlDollar[10].objectName, IfNotExists: true, Concurrent: sqlDollar[4].tok.pos, Pos: sqlDollar[1].tok.pos}
 		}
 	case 375:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

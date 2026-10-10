@@ -125,6 +125,30 @@ and [query consumer phases](docs/QUERIES.md#query-created-table-consumers).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryTableCreateFeatureSmoke' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryTableCreateFeatureSmoke' VERBOSE=0`.
 
+Native `InspectIndex(ctx, db, schema, name)` observes detached `Ready`, `Valid`
+and `Live` flags using exact decoded names and an unwrapped native pool.
+`WaitingForOlderSnapshots` additionally reports a live builder's actual admitted
+older-snapshot cohort, after validation snapshot ownership is dropped.
+`WaitingForWriters` reports a frozen granted-writer cohort: `Ready=false`
+identifies the first capture and `Ready=true` the second. Both observations
+clear on phase exit; neither promises individual waiter registration.
+It shares existing descriptor metadata authority; it does not add SQL index
+catalogs or a query-plan promise. See [driver controls](docs/DRIVER.md#b-tree-utility-preparation-and-controls).
+
+Change note: `CREATE [UNIQUE] INDEX CONCURRENTLY` now publishes real logical
+B-tree roots through nonready, ready-invalid and valid descriptor phases.
+Captured writer cohorts and database-wide endangered snapshot owners use the
+existing lock/deadlock authority; later ordinary writers remain admissible.
+Ready unique indexes enforce full computed/provider-aware tuples before Valid.
+Failed/canceled builds retain their last phase; ordinary REINDEX repairs only
+on successful atomic rebuild. Dump refuses persistent invalid indexes before
+writing, and valid standalone UNIQUE definitions replay through the normal parser
+and existing isolated Restore authority, including NULLS NOT DISTINCT.
+Explicit concurrent blocks fail25001; ordinary public standalone UNIQUE remains
+supported. Partial indexes and concurrent DROP/REINDEX remain excluded.
+See [concurrent index design](docs/design/PG18-INDEX-CONCURRENT.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceConcurrentIndexFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceConcurrentIndexFeatureSmoke$' VERBOSE=0`.
 
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
@@ -634,8 +658,10 @@ or physical index-only promise; unordered SELECT has no new ordering guarantee.
 Dump/Restore serializes actual current definitions and rebuilds entries. TYPE
 reconstruction, including same-type key/payload TYPE with or without USING,
 reselects old-default classes and revalidates retained nondefaults.
-Native CREATE INDEX remains excluded in explicit transactions; partial and
-concurrent indexes remain excluded. Standalone UNIQUE simple keys are supported.
+Native ordinary CREATE INDEX remains excluded in explicit transactions; partial
+indexes remain excluded. Ordinary standalone UNIQUE simple keys are supported.
+Concurrent creation additionally admits computed/provider-aware UNIQUE tuples,
+including NULLS NOT DISTINCT, but not concurrent maintenance.
 See [clause design](docs/design/PG18-INDEX-CLAUSES.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0`;
 use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL oracle.

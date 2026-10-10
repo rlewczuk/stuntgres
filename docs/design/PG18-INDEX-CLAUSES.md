@@ -211,15 +211,19 @@ function shape; raw INCLUDE expressions still reject before any binding.
 Standalone CREATE UNIQUE INDEX admits simple/composite keys with existing
 directions, NULL ordering, compatible owned providers and INCLUDE. Policy is
 independent of optional real constraint attachment; INCLUDE is never an equality,
-claim, key-lock-strength or Detail-disclosure attribute. Unique expressions and
-BPCHAR classes on TEXT/VARCHAR reject complete input with0A000, while ordinary
-support is unchanged. Existing grouping uses each actual index key collation;
+claim, key-lock-strength or Detail-disclosure attribute. Ordinary unique
+expressions and BPCHAR classes on TEXT/VARCHAR reject complete input with0A000,
+while concurrent UNIQUE admits full tuples through the same comparison authority.
+Ordinary nonunique support is unchanged. Grouping uses actual key collation;
 no second hash/comparison provider or spelling-only comparator is introduced.
 Shared standalone/table-UNIQUE consumer assertions and unique-INCLUDE controls
 exercise the same substantive root equality and write authority.
-Physical planner/index-only scans, new inquiry catalogs, partial/concurrent
-indexes, arbitrary locales/classes, storage parameters/tablespaces and DROP/ALTER
-INDEX remain outside scope. Existing expression keys compose their result Usage
+Physical planner/index-only scans, new inquiry catalogs, partial indexes,
+arbitrary locales/classes and storage parameters/tablespaces remain outside scope.
+Concurrent creation and ordinary DROP/ALTER/REINDEX supersede earlier boundaries;
+see [concurrent publication](PG18-INDEX-CONCURRENT.md) and
+[maintenance](PG18-INDEX-MAINTENANCE.md).
+Existing expression keys compose their result Usage
 with the selected class/collation through the same IndexComparison; no default
 comparator fallback bypasses explicit providers. Unordered queries are bags,
 never promised index traversal; query sorting retains its selected-view authority.

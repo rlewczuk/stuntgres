@@ -111,7 +111,7 @@ engine mutex. A permanent zero-allocation evolution witness covers this path.
 
 ## Exclusions and evidence
 
-PK/FK, partial/concurrent indexes, unowned methods/providers,
+PK/FK, partial indexes and unowned methods/providers,
 storage parameters/tablespaces, physical index-only scans and broad
 pg_index/pg_indexes catalogs remain excluded. Existing pg_get_indexdef is supported.
 PG18-INDEX-UNIQUE admits standalone simple-key uniqueness through the existing
@@ -122,6 +122,9 @@ non-btree-method exclusion; see [PG18-INDEX-HASH](PG18-INDEX-HASH.md).
 Ordinary DROP/rename/REINDEX are owned by
 [PG18-INDEX-MAINTENANCE](PG18-INDEX-MAINTENANCE.md), not excluded utilities.
 [PG18-INDEX-CLAUSES](PG18-INDEX-CLAUSES.md)
+Concurrent creation and ordinary DROP/ALTER/REINDEX supersede their historical
+exclusions; see [concurrent publication](PG18-INDEX-CONCURRENT.md) and
+[maintenance](PG18-INDEX-MAINTENANCE.md). The clause design above
 supersedes this part's historical COLLATE/class/INCLUDE exclusions: owned providers
 and simple INCLUDE payload are now admitted, with the 32 limit counting both roles.
 Expression support supersedes the original expression exclusion: the shared
@@ -180,8 +183,11 @@ Ordinary nonunique indexes accept parenthesized shared scalar expressions and
 bare supported function calls alongside simple columns. Binding exposes only
 the parent relation, with existing authorization, scalar providers and result
 usage/orderability checks. Aggregates and subqueries fail semantically at Execute;
-syntax-only utility Prepare remains quiet. UNIQUE backing keys remain valid
-simple slots; expression sentinels never enter UNIQUE grouping or claim paths.
+syntax-only utility Prepare remains quiet. Real constraint-backed UNIQUE keys
+remain valid simple slots, and ordinary standalone UNIQUE/NND creation preserves
+its bounded simple-key/provider policy. Computed standalone indexes created
+concurrently or reconstructed by authenticated Restore use the same substantive
+tuple grouping and claim paths; expression keys are not constraint attachments.
 
 Each derived key retains its original analyzed definition and dependencies plus
 the shared simplified execution tree. Immutability is checked after simplification,

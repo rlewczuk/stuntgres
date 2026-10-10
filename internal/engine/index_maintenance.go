@@ -62,6 +62,21 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		stage.indexRebuilds = make(map[ObjectAddress]*relationDescriptor, len(g.indexes))
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
+			original := g.descriptors[ref.Address]
+			if !original.sqlIndex.ready || !original.sqlIndex.valid || !original.sqlIndex.live {
+				next, definition := *original, *original.sqlIndex
+				definition.ready, definition.valid, definition.live = true, true, true
+				next.sqlIndex = &definition
+				if next.revision == DefinitionRevision(^uint64(0)) {
+					e.mu.Unlock()
+					return Result{}, fmt.Errorf("stuntgres: index revision exhausted")
+				}
+				next.revision++
+				if err := stage.Replace(&next); err != nil {
+					e.mu.Unlock()
+					return Result{}, err
+				}
+			}
 		}
 	}
 	e.mu.Unlock()

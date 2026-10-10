@@ -393,7 +393,9 @@ as a supported Query/empty-utility witness, then checks DROP, effect-free Prepar
 missing-type42704/Position12 before SAME held Execute/count0 and typed7/true
 INT4/BOOL readback. Existing other DDL/default-function exclusions remain.
 This changes the historical boundary expectation under incoming domain support,
-not the bounded domain contract above or the supported simple-key UNIQUE-index contract.
+not the bounded domain contract above or the supported ordinary simple-key
+UNIQUE-index contract. Concurrent computed standalone UNIQUE uses the shared
+tuple provider and enforcement without widening ordinary provider admission.
 
 
 

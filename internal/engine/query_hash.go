@@ -33,6 +33,11 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		if !ok || index.sqlIndex == nil || index.sqlIndex.method != hashMethod || index.sqlIndex.parent != a || carrier == nil || carrier.hash == nil {
 			continue
 		}
+		// Readiness permits maintenance, not complete query coverage. A
+		// grandfathered commit may legitimately be absent from an invalid root.
+		if !index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live {
+			continue
+		}
 		live, ok := e.state.descriptors[address].(*relationDescriptor)
 		if !ok || !sameIndexKeySemantics(index, live) {
 			continue

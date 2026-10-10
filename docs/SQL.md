@@ -1190,10 +1190,14 @@ returns25006 first. Standalone CREATE UNIQUE INDEX supports simple/composite key
 and trailing NULLS DISTINCT/NULLS NOT DISTINCT, existing-data validation and the
 same immediate write/transaction-key enforcement as table UNIQUE. Directions,
 NULL ordering, compatible classes/collations and INCLUDE retain their meaning.
-Unique expressions and BPCHAR classes on TEXT/VARCHAR fail explicit0A000;
-ordinary support is unchanged. Partial/concurrent indexes, unowned methods,
-unowned providers, class parameters, storage parameters/tablespaces remain excluded.
-Hash equality indexes are described below.
+Ordinary unique expressions and BPCHAR classes on TEXT/VARCHAR fail explicit0A000;
+ordinary support is unchanged. Partial indexes, unowned methods and providers,
+class parameters and tablespaces remain excluded.
+Concurrent creation inherits the supported nonunique hash surface and additionally
+supports full computed/provider-aware B-tree UNIQUE tuples and NULLS NOT DISTINCT
+through the same enforcement; see
+[concurrent index publication](design/PG18-INDEX-CONCURRENT.md).
+Hash equality indexes and ordinary maintenance are described below.
 No unique-index attachment, planner, physical index-only scan or physical tree
 claim is made. Admitted collations are default, C, POSIX, pg_c_utf8 and
 pg_unicode_fast; class/provider inventory and directional binary compatibility

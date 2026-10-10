@@ -46,10 +46,51 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 		return b, nil
 	}
 	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.state}
-	indexes := uniqueIndexes(view, parent.address)
-	if len(indexes) != 0 {
-		b.keys = make([]uniqueBoundKey, len(indexes))
+	var indexes []*relationDescriptor
+	for _, descriptor := range view.state.descriptors {
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.live || !index.sqlIndex.unique {
+			continue
+		}
+		// REL18 row-key eligibility is independent of readiness/validity.
+		// An expression anywhere excludes the whole index; INCLUDE is payload.
+		var slots [32]int
+		if len(index.sqlIndex.keys) > len(slots) {
+			return nil, errors.New("stuntgres: invalid unique index key count")
+		}
+		simple := true
+		for at, key := range index.sqlIndex.keys {
+			attribute, node, err := indexCatalogKey(parent, key)
+			if err != nil {
+				return nil, err
+			}
+			if node != nil {
+				simple = false
+				break
+			}
+			slots[at] = slices.Index(parent.attributes, attribute)
+		}
+		if simple {
+			for _, slot := range slots[:len(index.sqlIndex.keys)] {
+				if !slices.Contains(b.keySlots, slot) {
+					b.keySlots = append(b.keySlots, slot)
+				}
+			}
+		}
+		if index.sqlIndex.ready {
+			indexes = append(indexes, index)
+		}
 	}
+	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
+		if a.address.ObjectID < b.address.ObjectID {
+			return -1
+		}
+		if a.address.ObjectID > b.address.ObjectID {
+			return 1
+		}
+		return 0
+	})
+	b.keys = make([]uniqueBoundKey, len(indexes))
 	for i, index := range indexes {
 		bound := &b.keys[i]
 		bound.index = index
@@ -57,16 +98,15 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 		if err != nil {
 			return nil, err
 		}
-		bound.grouping = make([]sqltype.Grouping, len(index.sqlIndex.keys))
-		bound.key = make([]sqltype.Value, len(index.sqlIndex.keys))
-		bound.scratch = make([]sqltype.Value, len(index.sqlIndex.keys))
-		for _, slot := range bound.ordering.slots {
-			if !slices.Contains(b.keySlots, slot) {
-				b.keySlots = append(b.keySlots, slot)
+		n := len(index.sqlIndex.keys)
+		bound.grouping = make([]sqltype.Grouping, n)
+		bound.key, bound.scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
+		for j, key := range index.sqlIndex.keys {
+			usage, usageErr := indexKeyUsage(parent, key)
+			if usageErr != nil {
+				return nil, usageErr
 			}
-		}
-		for j, slot := range bound.ordering.slots {
-			bound.grouping[j], err = sqltype.BindGrouping(indexKeyCollation(parent.columns[slot].Usage, index.sqlIndex.keys[j]))
+			bound.grouping[j], err = sqltype.BindGrouping(usage)
 			if err != nil {
 				return nil, err
 			}
@@ -76,11 +116,9 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 	return b, nil
 }
 
-func (b *uniqueBoundKey) load(row []sqltype.Value) []sqltype.Value {
-	for i, slot := range b.ordering.slots {
-		b.key[i] = row[slot]
-	}
-	return b.key
+func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *EvalContext) ([]sqltype.Value, error) {
+	err := b.ordering.fillKeys(row, b.key, evaluation)
+	return b.key, err
 }
 
 func (s *StatementScope) claimUniqueRow(ref ObjectRef, row []sqltype.Value) error {
@@ -91,7 +129,10 @@ func (s *StatementScope) claimUniqueRow(ref ObjectRef, row []sqltype.Value) erro
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
-		key := bound.load(row)
+		key, err := bound.load(row, &EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1})
+		if err != nil {
+			return err
+		}
 		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
@@ -126,6 +167,7 @@ func uniqueRowDeleted(id RowID, roots ...*privateDeletionRoot) bool {
 // Exclusions contain only ended accepted-prefix predecessors and the current
 // predecessor, never future UPDATE candidates. Prefix rows remain conflicting.
 func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excluded []rowVersion, prefix [][]sqltype.Value) error {
+retry:
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return err
@@ -140,7 +182,10 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 		bound := &binding.keys[i]
 		index := bound.index
 		ordering := bound.ordering
-		key := bound.load(row)
+		key, err := bound.load(row, &EvalContext{Context: ctx, Scope: 1, Frame: 1})
+		if err != nil {
+			return err
+		}
 		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
@@ -155,6 +200,11 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 			return ErrCatalogReplaced
 		}
 		current := e.privateCatalogLocked(s.owner.catalog)
+		if current.state != binding.catalog {
+			e.mu.Unlock()
+			s.uniqueBinding = nil
+			goto retry
+		}
 		currentParent, parentOK := current.state.descriptors[ref.Address].(*relationDescriptor)
 		currentIndex, indexOK := current.state.descriptors[index.address].(*relationDescriptor)
 		// ACL publication replaces immutable descriptors without changing their
@@ -182,11 +232,11 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 			return ErrCatalogReplaced
 		}
 		if root == nil {
-			return errors.New("stuntgres: unique backing root is missing")
+			return errors.New("stuntgres: ready unique index root is missing")
 		}
 		matches := func(values []sqltype.Value) (bool, error) {
-			for j, slot := range ordering.slots {
-				bound.scratch[j] = values[slot]
+			if err := ordering.fillKeys(values, bound.scratch, &EvalContext{Context: ctx, Scope: 1, Frame: 1}); err != nil {
+				return false, err
 			}
 			cmp, err := ordering.compareKeys(ctx, logicalIndexEntry{keys: key}, logicalIndexEntry{keys: bound.scratch})
 			return cmp == 0, err
@@ -273,7 +323,7 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 			if err != nil {
 				return err
 			}
-			return uniqueDiagnostic(ctx, parent, index, key, namespace.name, s.output, allowed, false)
+			return uniqueDiagnostic(ctx, parent, index, key, namespace.name, s.output, allowed, false, current)
 		}
 	}
 	return nil

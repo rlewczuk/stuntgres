@@ -43,9 +43,17 @@ func (m *relationLockManager) retireUniqueKey(key *uniqueLockKey) {
 func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lockResource, func(), error) {
 	hash := uint64(14695981039346656037)
 	for i, value := range values {
-		h, err := grouping[i].Hash(ctx, value)
-		if err != nil {
-			return lockResource{}, nil, err
+		var h uint64
+		class := ordering.keys[i].class
+		defaultClass, _ := sqltype.DefaultIndexClass(value.Type())
+		// Nondefault equality can be coarser than the type's grouping hash
+		// (TEXT bpchar_ops ignores trailing spaces). Compare within one bucket.
+		if class.Name == "" || class.Name == defaultClass.Name {
+			var err error
+			h, err = grouping[i].Hash(ctx, value)
+			if err != nil {
+				return lockResource{}, nil, err
+			}
 		}
 		hash = (hash ^ h) * 1099511628211
 	}

@@ -86,12 +86,24 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	preparedUnitStatement(t, e, origin, &parser.Update{Name: name, Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "v"}, Value: preparedBoundaryInteger(3)}}, Where: parser.OperatorExpr{Name: preparedBoundaryName("="), Args: []parser.Expr{parser.ColumnExpr{Name: preparedBoundaryName("v")}, preparedBoundaryInteger(1)}}})
 	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(7)}}})
 	preparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: preparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
+	e.mu.Lock()
+	beforeVisibility := e.visibility[origin.transactions.ref]
+	e.mu.Unlock()
+	if !beforeVisibility.snapshot || beforeVisibility.xid == 0 {
+		t.Fatal("real modifying Serializable owner did not advertise visibility")
+	}
 	if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "boundary"); err != nil {
 		t.Fatal(err)
 	}
 	entry := e.prepared["boundary"]
 	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.serializable.nodes[entry.ref] == nil || len(entry.ticket.resources) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
+	}
+	e.mu.Lock()
+	preparedVisibility, retainedVisibility := e.visibility[entry.ref]
+	e.mu.Unlock()
+	if !retainedVisibility || preparedVisibility.xid != beforeVisibility.xid || preparedVisibility.snapshot || preparedVisibility.xmin != 0 || preparedVisibility.safeBuilder {
+		t.Fatal("PREPARE must drop reader snapshot but retain detached writer visibility", preparedVisibility)
 	}
 	var parent ObjectAddress
 	for address := range entry.writes {

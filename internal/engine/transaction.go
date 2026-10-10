@@ -66,6 +66,8 @@ type rowVersion struct {
 	// base is the committed predecessor for a private replacement; zero is an insert.
 	base   VersionID
 	values []sqltype.Value
+	// Private admission captures index readiness; committed rows clear this pin.
+	indexAdmission *catalogState
 }
 
 type transactionOwner struct {
@@ -456,14 +458,26 @@ func (w *WriteStage) applyValidated(ref ObjectRef, rows [][]sqltype.Value) error
 	if err := s.active(); err != nil {
 		return err
 	}
+retry:
 	s.owner.mu.Lock()
+	e := s.op.session.Engine()
+	e.mu.Lock()
+	admission := e.privateCatalogLocked(s.owner.catalog).state
+	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
+		e.mu.Unlock()
+		s.owner.mu.Unlock()
+		for i, row := range rows {
+			if err := s.checkUniqueRow(ref, row, nil, rows[:i]); err != nil {
+				return err
+			}
+		}
+		goto retry
+	}
 	defer s.owner.mu.Unlock()
+	defer e.mu.Unlock()
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
-	e := s.op.session.Engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	if ref.owner != e.owner {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
@@ -485,7 +499,7 @@ func (w *WriteStage) applyValidated(ref ObjectRef, rows [][]sqltype.Value) error
 	if len(rows) == 0 {
 		return nil
 	}
-	versions, err := e.allocateRowVersionsLocked(rows)
+	versions, err := e.allocateRowVersionsLocked(rows, admission)
 	if err != nil {
 		return err
 	}
@@ -597,12 +611,24 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
+	if modifyingTag(stmt) != "" {
+		index, concurrent := stmt.(*parser.CreateIndex)
+		if !concurrent || index.Concurrent.Character == 0 {
+			e := s.op.session.Engine()
+			e.mu.Lock()
+			err := e.visibilityWriteLocked(s.txRef)
+			e.mu.Unlock()
+			if err != nil {
+				return Result{}, err
+			}
+		}
+	}
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
 }
 
 // Both ordinary writes and initial catalog data reserve globally nonreused
 // identities. Engine.mu protects both checked counters; failed work may leave gaps.
-func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value) ([]rowVersion, error) {
+func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalogState) ([]rowVersion, error) {
 	n := uint64(len(rows))
 	if n > ^uint64(0)-e.nextRow {
 		return nil, errors.New("stuntgres: row identity exhausted")
@@ -614,7 +640,7 @@ func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value) ([]rowVersion
 	for i, row := range rows {
 		e.nextRow++
 		e.nextVersion++
-		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
+		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row, indexAdmission: admission}
 	}
 	return versions, nil
 }
@@ -766,6 +792,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.ticket = nil
 		}
 	}
+	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))
 	if s.view != nil {
 		s.view.Release()
 		s.view = nil

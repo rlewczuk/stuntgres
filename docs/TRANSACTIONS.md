@@ -716,6 +716,9 @@ constraint backing indexes share this classification, immediate normalized key
 claims, wait/outcome recapture and savepoint lifetime in the existing lock graph.
 SameDatum transitions, including NUMERIC scale and signed zero, feed retained RR
 key history: changed-then-restored keys are not mistaken for payload-only updates.
+LIVE simple-only UNIQUE indexes supply this bitmap even when nonready/invalid.
+Expression or mixed-expression indexes are excluded as a whole; their Ready
+unique tuple enforcement remains independent. INCLUDE never supplies key bits.
 Current uniqueness ignores a stale RR SELECT frontier and sees committed peers.
 Ordinary nonunique indexes do not strengthen UPDATE's mode. Other rows and
 ordinary MVCC SELECT are not blocked by row locks, including reads of a peer's
@@ -849,6 +852,27 @@ Waits reuse the existing timeout/cancellation/deadlock authority and diagnostics
 native context cancellation remains an ordinary Go error. PostgreSQL physical
 tuple wait Context is independently checked only by reference controls, never
 fabricated from native logical RowIDs.
+
+## Concurrent index completion and xmin — change note
+
+Concurrent creation retains parent SUE rather than acquiring parent Share.
+Captured granted writer cohorts wait for exact top-level outcomes in the existing
+hard relation/row/unique deadlock graph. Savepoint contribution release is not
+completion; grant follows final committed install or rollback/abort/close.
+Later compatible writers cannot extend a captured cohort or queue behind a
+fictional parent Share request.
+
+Visibility XIDs are engine-global and first-write/catalog assigned, distinct from
+CommitSeq and per-session TxID. Actual root capture advertises snapshot xmin in
+the same engine critical section. RR/Serializable snapshots remain owned after
+eager rows close; RC Finish releases snapshot ownership even if eager rows remain
+open. Endangered unrelated readers and late-acquired xmin at or below the saved
+validation boundary delay Valid. Bare BEGIN/idle RC/genuinely newer xmin do not.
+Only simple concurrent builders, not expression builders or ordinary readers,
+receive the safe-builder exemption. The builder drops its own snapshots before
+waiting. Cancellation/deadlines and replacement use the existing exact request
+cleanup and epoch authority. See [concurrent design](design/PG18-INDEX-CONCURRENT.md).
+
 
 Feature checks: `make quickcheck PACKAGES=./internal/engine RUN='^Test(QueryLock|RowLock)' VERBOSE=0`,
 `make quickcheck PACKAGES=./reference RUN='^TestReference(QueryLock|RowLock|QueryLimit|QueryOuterJoins)' VERBOSE=0`,

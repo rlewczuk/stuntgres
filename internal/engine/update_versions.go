@@ -61,10 +61,22 @@ func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.V
 	if err := s.active(); err != nil {
 		return err
 	}
+retry:
 	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
 	e := s.op.session.Engine()
 	e.mu.Lock()
+	admission := e.privateCatalogLocked(s.owner.catalog).state
+	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
+		e.mu.Unlock()
+		s.owner.mu.Unlock()
+		for i, row := range rows {
+			if err := s.checkUniqueRow(ref, row, old[:i+1], rows[:i]); err != nil {
+				return err
+			}
+		}
+		goto retry
+	}
+	defer s.owner.mu.Unlock()
 	defer e.mu.Unlock()
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
@@ -98,7 +110,7 @@ func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.V
 			base = predecessor.version
 		}
 		e.nextVersion++
-		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange}
+		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
 	}
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		for i, row := range versions {

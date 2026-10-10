@@ -76,6 +76,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return nil
 		}
 		name, mode, ownerOnly = v.Table, relationShare, true
+		if v.Concurrent.Character != 0 {
+			mode = shareUpdateExclusive
+		}
 	case *parser.CreateView:
 		if !execute || !v.Replace {
 			return nil

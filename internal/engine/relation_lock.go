@@ -61,13 +61,15 @@ const (
 	relationShare
 	relationExclusive
 	uniqueClaim
+	transactionCompletion
 )
 
 // Row zero is the relation resource; logical rows use their stable RowID.
 type lockResource struct {
 	ObjectRef
-	row RowID
-	key *uniqueLockKey
+	row        RowID
+	key        *uniqueLockKey
+	completion *relationTicket
 }
 type relationTicket struct {
 	manager   *relationLockManager
@@ -124,6 +126,9 @@ func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	return t, nil
 }
 func lockConflict(a, b relationLockMode) bool {
+	if a&transactionCompletion != 0 || b&transactionCompletion != 0 {
+		return a&transactionCompletion != 0 && b&transactionCompletion != 0
+	}
 	if a&uniqueClaim != 0 || b&uniqueClaim != 0 {
 		return a&uniqueClaim != 0 && b&uniqueClaim != 0
 	}
@@ -162,6 +167,9 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 	}
 	held := make(relationLockCheckpoint, len(t.resources))
 	for ref := range t.resources {
+		if ref.completion != nil {
+			continue
+		}
 		if entry := m.entries[ref]; entry != nil && entry.holders[t] != 0 {
 			held[ref] = entry.holders[t]
 		}
@@ -176,6 +184,9 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 	m.mu.Lock()
 	if m.valid(t) {
 		for ref := range t.resources {
+			if ref.completion != nil {
+				continue
+			}
 			entry := m.entries[ref]
 			if entry == nil {
 				continue
@@ -200,7 +211,7 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
 	r.err = err
 	r.terminal = true
-	if err != nil && r.entry.holders[r.ticket] == 0 {
+	if (err != nil || r.ref.completion != nil) && r.entry.holders[r.ticket] == 0 {
 		pending := false
 		for _, other := range r.entry.pending {
 			if other != r && !other.terminal && other.ticket == r.ticket {
@@ -247,7 +258,7 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 		}
 		if !blocked {
 			for _, earlier := range remaining {
-				if earlier.ticket != r.ticket && lockConflict(r.mode, earlier.mode) {
+				if r.ref.completion == nil && earlier.ticket != r.ticket && lockConflict(r.mode, earlier.mode) {
 					blocked = true
 					break
 				}
@@ -261,7 +272,9 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 			terminalRequest(r, err, notify)
 			continue
 		}
-		e.holders[r.ticket] |= r.mode
+		if r.ref.completion == nil {
+			e.holders[r.ticket] |= r.mode
+		}
 		terminalRequest(r, nil, notify)
 	}
 	clear(e.pending[len(remaining):])
@@ -292,13 +305,27 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
+	if ref.completion != nil {
+		owner := ref.completion
+		if mode != transactionCompletion || owner == t || owner.manager != m || owner.ref.epoch != t.ref.epoch {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid transaction completion request")
+		}
+		if !m.valid(owner) {
+			m.mu.Unlock()
+			return nil, nil
+		}
+	} else if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}
 	e := m.entries[ref]
 	if e == nil {
 		e = &relationEntry{holders: make(map[*relationTicket]relationLockMode)}
+		if ref.completion != nil {
+			e.holders[ref.completion] = transactionCompletion
+			ref.completion.resources[ref] = struct{}{}
+		}
 		m.entries[ref] = e
 	}
 	if e.holders[t]&mode != 0 {
@@ -316,7 +343,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	// Self reentry bypasses requests blocked by this owner's existing hold.
 	if eligible && e.holders[t] == 0 {
 		for _, earlier := range e.pending {
-			if !earlier.terminal && earlier.ticket != t && lockConflict(mode, earlier.mode) {
+			if ref.completion == nil && !earlier.terminal && earlier.ticket != t && lockConflict(mode, earlier.mode) {
 				eligible = false
 				break
 			}
@@ -325,8 +352,10 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	if eligible {
 		err := relationWaitError(ctx, policy, time.Time{}, time.Now())
 		if err == nil {
-			e.holders[t] |= mode
-			t.resources[ref] = struct{}{}
+			if ref.completion == nil {
+				e.holders[t] |= mode
+				t.resources[ref] = struct{}{}
+			}
 		}
 		m.retire(ref, e)
 		m.mu.Unlock()
@@ -426,7 +455,7 @@ func (m *relationLockManager) fence(epoch CatalogEpoch) {
 			}
 		}
 		for ref, e := range m.entries {
-			if ref.Epoch < epoch {
+			if ref.Epoch < epoch && (ref.completion == nil || ref.completion.ref.epoch < epoch) {
 				for _, r := range e.pending {
 					if !r.terminal {
 						terminalRequest(r, ErrCatalogReplaced, &notify)

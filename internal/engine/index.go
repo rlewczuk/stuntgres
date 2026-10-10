@@ -23,14 +23,20 @@ type indexKey struct {
 	explicitClass    bool
 }
 type indexDefinition struct {
-	method           indexMethod
-	parent           ObjectAddress
-	keys             []indexKey
-	include          []int32
-	unique           bool
-	nullsNotDistinct bool
-	constraint       *uniqueConstraint
+	method             indexMethod
+	parent             ObjectAddress
+	keys               []indexKey
+	include            []int32
+	unique             bool
+	nullsNotDistinct   bool
+	constraint         *uniqueConstraint
+	ready, valid, live bool
 }
+
+func (d *indexDefinition) publicationState() (ready, valid, live bool) {
+	return d.ready, d.valid, d.live
+}
+
 type logicalIndexEntry struct {
 	keys    []sqltype.Value
 	row     RowID
@@ -63,8 +69,8 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.IndexComparison, len(definition.keys)), keys: definition.keys}
 	for i, key := range definition.keys {
 		if key.derived != nil {
-			if definition.unique {
-				return o, sqlError("0A000", "unique expression indexes are unsupported")
+			if definition.constraint != nil {
+				return o, fmt.Errorf("stuntgres: derived key in constraint backing index")
 			}
 			if key.derived.definition == nil || key.derived.execution == nil {
 				return o, fmt.Errorf("stuntgres: missing derived index expression")
@@ -126,6 +132,9 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	if d == nil || len(d.keys) == 0 || len(d.keys)+len(d.include) > 32 || len(index.columns) != len(d.keys)+len(d.include) || d.parent.SubID != 0 || index.sequence != nil || index.view != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
 	}
+	if d.valid && (!d.ready || !d.live) || d.ready && !d.live {
+		return fmt.Errorf("stuntgres: invalid index publication state")
+	}
 	parent, ok := view.state.descriptors[d.parent].(*relationDescriptor)
 	if !ok || parent.relationKind != tableRelation || parent.owner != index.owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
@@ -145,11 +154,6 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	err := bindIndexProvider(parent, d)
 	if err != nil {
 		return err
-	}
-	if d.unique {
-		if err := validateUniqueProviders(parent, d, nil); err != nil {
-			return err
-		}
 	}
 	for i, key := range d.keys {
 		if key.derived != nil {
@@ -224,18 +228,25 @@ func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int
 	}
 	return 0, nil
 }
-func (o indexOrdering) entry(row rowVersion, evaluation *EvalContext) (logicalIndexEntry, error) {
-	keys := make([]sqltype.Value, len(o.slots))
+func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *EvalContext) error {
 	for i, slot := range o.slots {
 		var expression BoundExpr
 		if slot < 0 {
 			expression = o.derived[i]
 		}
-		value, err := extractIndexKey(slot, expression, row, evaluation)
+		value, err := extractIndexKey(slot, expression, values, evaluation)
 		if err != nil {
-			return logicalIndexEntry{}, err
+			return err
 		}
 		keys[i] = value
+	}
+	return nil
+}
+
+func (o indexOrdering) entry(row rowVersion, evaluation *EvalContext) (logicalIndexEntry, error) {
+	keys := make([]sqltype.Value, len(o.slots))
+	if err := o.fillKeys(row.values, keys, evaluation); err != nil {
+		return logicalIndexEntry{}, err
 	}
 	return logicalIndexEntry{keys: keys, row: row.row, version: row.version}, nil
 }
@@ -319,14 +330,12 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 	}
 	return entries, nil
 }
-func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, materialize bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
+func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	d := index.sqlIndex
+	validate := d.unique && (d.constraint != nil || d.valid || reconstruct)
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return nil, err
-	}
-	if old == nil {
-		return nil, fmt.Errorf("stuntgres: index root is missing")
 	}
 	endedCount := len(p.writes)
 	if p.deletion != nil {
@@ -347,6 +356,9 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 				continue
 			}
 		}
+		if !reconstruct && !rowMaintainsIndex(row, index) {
+			continue
+		}
 		entry, err := o.entry(row, &evaluation)
 		if err != nil {
 			return nil, err
@@ -360,6 +372,15 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 			}
 		}
 	}
+	if len(added) == 0 && len(ended) == 0 {
+		if validate {
+			if err := validateUniqueEntries(ctx, parent, index, old, schema, output, auth, false, o); err != nil {
+				return nil, err
+			}
+		}
+		// No changed root to install; the publisher keeps its actual predecessor.
+		return nil, ctx.Err()
+	}
 	if err := o.sort(ctx, added); err != nil {
 		return nil, err
 	}
@@ -370,7 +391,7 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 	var previous logicalIndexEntry
 	havePrevious := false
 	accept := func(entry logicalIndexEntry) error {
-		if havePrevious {
+		if havePrevious && validate {
 			if err := validateUniquePair(ctx, parent, index, previous, entry, schema, output, auth, false, o); err != nil {
 				return err
 			}
@@ -420,6 +441,9 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	if scope.op.restoreTableDestination && s.Concurrent.Character != 0 {
+		return Result{}, fmt.Errorf("stuntgres: restore cannot execute concurrent index phases")
 	}
 	for {
 		e.mu.Lock()
@@ -510,7 +534,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 		}
 		definition.unique, definition.nullsNotDistinct = s.Unique, s.NullsNotDistinct
-		if s.Unique {
+		if s.Unique && s.Concurrent.Character == 0 && !scope.op.restoreTableDestination {
 			if err := validateUniqueProviders(parent, definition, s.Keys); err != nil {
 				return fail(err)
 			}
@@ -532,6 +556,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition}
 		d.attributeHighWater = int32(len(attributes))
+		if s.Concurrent.Character != 0 {
+			definition.ready, definition.valid = false, false
+			if err := e.visibilityWriteLocked(scope.txRef); err != nil {
+				return fail(err)
+			}
+		}
 		base := auth.catalog
 		stage := e.BeginCatalogStage(base)
 		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
@@ -578,6 +608,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				}
 			}
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+		}
+		if err == nil && s.Concurrent.Character != 0 {
+			e.mu.Lock()
+			delete(e.visibility, scope.txRef)
+			e.mu.Unlock()
+			return e.executeConcurrentIndex(scope, s, d)
 		}
 		if err == nil {
 			scope.completed = true

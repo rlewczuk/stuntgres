@@ -3779,7 +3779,7 @@ are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
 unlike newer development-source behavior. Binding precedes duplicate-name
 checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
 syntax diagnostics retain one-based character positions. Unowned access methods,
-partial/concurrent definitions and unowned providers are bounded
+partial definitions and unowned providers are bounded
 capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
 42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
 Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
@@ -3820,9 +3820,11 @@ Build and common row publication evaluate derived keys before atomic install;
 evaluation failures leave rows, descriptors and predecessor roots unchanged.
 Definitions retain original analyzed trees/dependencies for current-name
 rendering and TYPE rebinding; dump contents never serialize derived root history.
-Unique expression indexes remain an explicit0A000 boundary; standalone and
-constraint-backed uniqueness share the simple-slot contract, immediate checker
-and transaction-owned key claims. Ordinary expression support is unchanged.
+Ordinary unique expression indexes retain their explicit0A000 admission boundary.
+Concurrent standalone UNIQUE admits computed keys through the same immediate
+tuple checker and transaction-owned key claims, without changing the simple-slot
+contract of constraint backing indexes. Ordinary nonunique expression support
+is unchanged.
 
 Dump writes actual definitions/current names, canonical explicit provider identities
 and INCLUDE after parent data. Reset removes persistent indexes; Restore privately
@@ -3856,6 +3858,40 @@ build and runtime key Detail, including revoked owners. Native explicit writable
 utility0A000/read-only25006 boundaries remain unchanged.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueIndexFeatureSmoke$' VERBOSE=0`;
 repeat with `REFERENCE=1` for the pinned18.0 oracle.
+
+### Concurrent B-tree creation — change note
+
+`CREATE [UNIQUE] INDEX CONCURRENTLY [IF NOT EXISTS]` admits the same owned simple,
+immutable computed, COLLATE/class, direction/NULL-order and INCLUDE surface.
+Persistent SUE serializes same-table builds but permits ordinary readers/writers.
+Initial false/false/true descriptor publication precedes captured writer waits;
+a real first root and Ready publish atomically, then validation and database-wide
+endangered snapshot waits precede Valid. Completion waits share the existing
+hard deadlock graph and exact top-level ownership, not a queued parent Share.
+Pre-ready admitted writes may commit after Ready without retroactive enforcement;
+later Ready unique writes are enforced even while Valid is false.
+Failed/canceled phases persist until DROP or successful explicit rebuild.
+Unrelated catalog/row-shape work does not complete an invalid build.
+Explicit concurrent execution fails25001; read-only25006 precedes that gate.
+Dump rejects persistent invalid indexes before any output. Isolated Restore uses
+the normal public UNIQUE parser and retained import authority, including NULLS
+NOT DISTINCT; no UNIQUE-only parser option or execution gate exists.
+Partial indexes and concurrent DROP/REINDEX remain unsupported.
+See [authority and ownership](design/PG18-INDEX-CONCURRENT.md).
+
+
+Native `InspectIndex(ctx, db, schema, name)` is a read-only control, not a SQL
+catalog. Exact decoded names return detached descriptor `Ready`, `Valid`, `Live`
+flags; existing completed ordinary/backing indexes are healthy. Missing schema,
+missing index and wrong-kind errors remain ordinary Go control errors. An
+unwrapped native pool is required; this adds no optimizer/query-plan behavior.
+Its separate `WaitingForOlderSnapshots` Boolean observes actual live older-cohort
+admission after validation ownership drops; it is neither a persisted descriptor
+phase nor proof of a registered completion request.
+`WaitingForWriters` observes the same coordinator after its granted cohort is
+frozen, with Ready distinguishing first and second writer admission. Both live
+cohort observations clear between phases and on owner end/epoch replacement;
+descriptor flags alone are not proof that the writer cohort has been captured.
 
 
 ## LIKE and ILIKE — change note

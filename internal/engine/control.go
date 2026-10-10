@@ -65,6 +65,25 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return err
 	}
+	var invalid *relationDescriptor
+	var invalidSchema string
+	for _, descriptor := range e.state.descriptors {
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil {
+			continue
+		}
+		namespace := e.state.descriptors[index.namespace].(*namespaceDescriptor)
+		if namespace.temporary != (SessionToken{}) || index.sqlIndex.ready && index.sqlIndex.valid && index.sqlIndex.live {
+			continue
+		}
+		if invalid == nil || namespace.name < invalidSchema || namespace.name == invalidSchema && index.name < invalid.name {
+			invalid, invalidSchema = index, namespace.name
+		}
+	}
+	if invalid != nil {
+		e.mu.Unlock()
+		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", quoteIdentifier(invalidSchema), quoteIdentifier(invalid.name))
+	}
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
 	domainRoles := RoleRead{e, e.roles}

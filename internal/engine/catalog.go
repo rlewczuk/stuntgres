@@ -403,6 +403,7 @@ type CatalogStage struct {
 	removals             map[ObjectAddress]catalogRemoval
 	rowShapes            map[ObjectAddress]catalogRowShape
 	indexRebuilds        map[ObjectAddress]*relationDescriptor
+	indexCandidates      map[ObjectAddress]indexRootCandidate
 	indexParents         map[ObjectAddress]*relationDescriptor
 	indexSets            map[ObjectAddress]int
 	indexOutput          sqltype.OutputEnvironment
@@ -803,6 +804,13 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
+		for address, candidate := range s.indexCandidates {
+			index, ok := s.descriptors[address].(*relationDescriptor)
+			if !ok || index.sqlIndex == nil || !candidate.matches(currentStorage[index.sqlIndex.parent]) {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+		}
 		indexStores := captureIndexStores(currentStorage, current)
 		for _, d := range s.descriptors {
 			index, ok := d.(*relationDescriptor)
@@ -896,7 +904,17 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			buildStores[a] = storage[a]
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure)
+		sourceRoots := indexPredecessors
+		if len(s.indexCandidates) != 0 {
+			sourceRoots = make(map[ObjectAddress]*logicalIndexRoot, len(indexPredecessors)+len(s.indexCandidates))
+			for a, root := range indexPredecessors {
+				sourceRoots[a] = root
+			}
+			for a, candidate := range s.indexCandidates {
+				sourceRoots[a] = candidate.root
+			}
+		}
+		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, sourceRoots, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}

@@ -43,6 +43,31 @@ func withEngine(ctx context.Context, db *sql.DB, fn func(*engine.Engine) error) 
 	return fn(e)
 }
 
+// IndexState is a detached observation of an index's publication state.
+// Ready permits write maintenance; Valid permits query use; Live permits use at all.
+type IndexState struct {
+	Ready, Valid, Live bool
+	// WaitingForOlderSnapshots observes the live builder's admitted older
+	// snapshot cohort, not a persisted phase or a registered waiter count.
+	WaitingForOlderSnapshots bool
+	// WaitingForWriters observes a frozen granted-writer cohort. Ready=false
+	// identifies the first cohort; Ready=true identifies the second cohort.
+	WaitingForWriters bool
+}
+
+// InspectIndex observes the exact decoded schema and index name, without a
+// session search_path. Missing schemas, missing indexes and non-index relations
+// return ordinary control errors. Like Reset, it requires an unwrapped native pool.
+func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexState, error) {
+	var state IndexState
+	err := withEngine(ctx, db, func(e *engine.Engine) error {
+		ready, valid, live, older, writers, err := e.InspectIndex(ctx, schema, name)
+		state = IndexState{Ready: ready, Valid: valid, Live: live, WaitingForOlderSnapshots: older, WaitingForWriters: writers}
+		return err
+	})
+	return state, err
+}
+
 // Reset atomically clears persistent objects, retaining database identity,
 // roles, session settings and live session-private temporary sequences.
 // Prepared transactions prevent replacement without consuming their state.

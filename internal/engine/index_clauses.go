@@ -188,7 +188,7 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 
 func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, s *parser.CreateIndex) (*indexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	d := &indexDefinition{method: btreeMethod, parent: parent.address, keys: make([]indexKey, len(s.Keys)), include: make([]int32, len(s.Include))}
+	d := &indexDefinition{method: btreeMethod, parent: parent.address, keys: make([]indexKey, len(s.Keys)), include: make([]int32, len(s.Include)), ready: true, valid: true, live: true}
 	if s.Method == "hash" {
 		d.method = hashMethod
 	}

@@ -51,7 +51,8 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 	definition := index.sqlIndex
 	parent := catalog.state.descriptors[definition.parent].(*relationDescriptor)
 	n := len(definition.keys)
-	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: true, IndIsReady: true, IndIsLive: true, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]OID, n), IndCollation: make([]OID, n), IndOption: make([]int16, n)}
+	ready, valid, live := definition.publicationState()
+	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]OID, n), IndCollation: make([]OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.unique
 	m.IndNullsNotDistinct = definition.nullsNotDistinct
 	for i, key := range definition.keys {

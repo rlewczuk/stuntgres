@@ -53,7 +53,6 @@ func TestBtreeIndexSyntaxDiagnostics(t *testing.T) {
 }
 func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
-		{"CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14"},
 		{"CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24"},
 		{"CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24"},
 	} {

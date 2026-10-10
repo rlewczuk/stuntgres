@@ -33,6 +33,9 @@ type Engine struct {
 	nextVersion         uint64
 	commitSeq           CommitSeq
 	diagnosticTx        uint32
+	visibilityXID       uint64
+	visibility          map[TxRef]transactionVisibility
+	indexBuildWaits     map[ObjectAddress]indexBuildWait
 	serializable        serializableTracker
 	prepared            map[string]*preparedTransaction
 	roles               *roleCatalog

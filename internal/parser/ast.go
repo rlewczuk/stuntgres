@@ -190,6 +190,7 @@ type CreateIndex struct {
 	NullsPos         Position
 	Options          []IndexOption
 	WithPos          Position
+	Concurrent       Position
 	Pos              Position
 }
 

@@ -8,6 +8,8 @@ logical B-tree, not a catalog-only declaration or output-text uniqueness cache.
 ALTER ADD UNIQUE, deferrability, RENAME CONSTRAINT and PK/FK remain explicit
 capability boundaries. PG18-INDEX-UNIQUE admits standalone simple-key uniqueness
 through the same enforcement, not a synthetic constraint attachment.
+Concurrent computed/provider-aware standalone uniqueness is specified in
+[PG18-INDEX-CONCURRENT](PG18-INDEX-CONCURRENT.md) through the same tuple authority.
 
 ## Descriptor and publication closure
 

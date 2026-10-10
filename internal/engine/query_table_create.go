@@ -138,7 +138,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 		stage.initialTx = ref
 		return nil
 	}
-	versions, err := e.allocateRowVersionsLocked(rows)
+	versions, err := e.allocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
 	}

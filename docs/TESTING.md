@@ -343,6 +343,54 @@ also emits assignment ranges from the existing vendored Unicode16 data:
 go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go
 ```
 
+Concurrent index scenarios use `^TestReferenceConcurrentIndex` for the complete
+writer/snapshot/lifecycle/diagnostic/control family, and
+`^TestReferenceConcurrentIndexFeatureSmoke$` for the feature smoke.
+`^TestReferenceConcurrentIndex(TypeReconstruction|KeyLockEligibility)$` selects
+the added independent TYPE/private-prefix and row-key-lock consumer contracts
+for the root's real-first observation pass.
+`^TestReferenceConcurrentIndexHash$` selects inherited hash-method lifecycle,
+first/later writer admission, actual flags and equality results, unsupported
+hash UNIQUE full diagnostics, and emitted Dump/Restore/replay coverage. It is
+also included in the concurrent feature smoke. Preserve and run the integrated
+`^TestReferenceHashIndex` family alongside it; the hash merge cancellation
+calibration migrates to the actual descriptor/readiness authority without
+changing its expected results.
+`^TestReferenceConcurrentIndexHashInvalidQuery$` exercises a canceled ready-invalid
+hash build and a subsequent committed grandfathered row. Its independent INT4
+equality/heap results and REINDEX recovery close query-consumer eligibility.
+The supplemental `TestConcurrentIndexHashInvalidQueryCapture` uses actual
+incomplete buckets and matching storage identity to prove invalid capture is
+rejected, heap filtering returns the row, and healthy reconstruction is selected.
+Both regressions preserve pre-ready admission rather than repairing the fixture.
+Run each selector with both `make quickcheck PACKAGES=./reference RUN='...' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='...' VERBOSE=0`.
+Affected ordinary-route regression selectors additionally include
+`^TestReferenceBtreeIndex(OrdinaryShareBuild|ExcludedDefinitionsDiagnostics)$`
+and `^TestReferenceRelationDeadlock`.
+PostgreSQL queue/progress observations use actual lock/PID identities. Native
+ordinary pending-Share/later-writer queue ordering is proved by internal lock
+units: no public native queue catalog or worker-start timing is substituted.
+The discovery-only pg-only filter has been removed: every final shared backend
+loop discovers native and PostgreSQL scenarios according to the standard mode.
+Native U1–U7 use `make quickcheck PACKAGES=./internal/engine RUN='^TestConcurrentIndex' VERBOSE=0`;
+parser ordinary/concurrent heads use the same invocation with `PACKAGES=./internal/parser`.
+Each quickcheck invocation has one 900-second deadline. Root owns parser
+generation, formatting and verification after all implementation edits land;
+agents do not run mid-flight checks. Final post-merge fullcheck uses one
+1800-second deadline. These commands are required inputs, not reported passes.
+
+The current-tip ordinary UNIQUE/NND integration retains its independent shared
+`^TestReferenceUniqueIndex` family in both modes. The added
+`^TestReferenceConcurrentIndexNullsNotDistinct$` definition covers first-build
+NULL duplicates, real old-snapshot admission, Ready-before-Valid NULL enforcement,
+atomic INSERT/UPDATE, actual emitted Dump/native Restore/unchanged PostgreSQL
+replay and default/explicit DISTINCT controls. Run this exact selector real-first,
+then natively, each under `timeout 900s make quickcheck`; it is also in feature
+smoke. Public ordinary provider exclusions remain admission policy; isolated
+Restore reconstructs emitted computed definitions using existing authenticated
+destination authority, not a UNIQUE parser option.
+
 The index-clause feature smoke exercises mixed keys, an existing scalar expression
 key with explicit owned collation/class and INCLUDE, prepared uppercase projection,
 payload/derived-key maintenance, the total 32/33 boundary and native controls with

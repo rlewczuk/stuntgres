@@ -146,6 +146,10 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		definition := *copy.sqlIndex
 		definition.keys = append([]indexKey(nil), definition.keys...)
 		copy.sqlIndex = &definition
+		// This queue contains actual affected TYPE reconstructions, not generic
+		// descriptor evolution. Publish these flags only with the validated
+		// private candidate; later producers must enforce its rebuilt tuples.
+		definition.ready, definition.valid, definition.live = true, true, true
 		syntax, err := parser.ParseWithOptions(pending.sql, parser.Options{Context: scope.op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return err

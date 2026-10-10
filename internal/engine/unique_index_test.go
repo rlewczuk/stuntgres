@@ -28,7 +28,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			typ, _ := view.LookupType(c.typ)
 			class, _ := sqltype.LookupIndexClass(c.class)
 			parent := &relationDescriptor{attributes: []int32{1}, columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
-			definition := &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true}
+			definition := &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}
 			if err := validateUniqueProviders(parent, definition, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +67,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		for _, name := range []string{"bpchar_ops", "bpchar_pattern_ops"} {
 			class, _ := sqltype.LookupIndexClass(name)
 			parent := &relationDescriptor{attributes: []int32{1}, columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
-			if err := validateUniqueProviders(parent, &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true}, nil); err == nil {
+			if err := validateUniqueProviders(parent, &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}, nil); err == nil {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
 		}

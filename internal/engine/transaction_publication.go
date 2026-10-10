@@ -1,6 +1,8 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+)
 
 // Prepare immutable replacement heads/end roots outside final locks. Appends
 // retain geometric capacity; final installation follows one all-relations veto.
@@ -80,7 +82,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		}
 		current, frontier := e.state, e.commitSeq
 		var indexStores map[ObjectAddress]*relationStorage
-		if len(e.indexRoots) != 0 {
+		if len(e.indexRoots) != 0 || c != nil {
 			indexStores = captureIndexStores(e.storage, current)
 		}
 		indexPredecessors := e.indexRoots
@@ -188,7 +190,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			indexCatalog = current
 		}
 		var indexRoots map[ObjectAddress]*logicalIndexRoot
-		if len(indexPredecessors) != 0 {
+		if len(indexPredecessors) != 0 || c != nil {
 			buildStores := indexStores
 			var rebuildIndexes map[ObjectAddress]bool
 			if len(indexStores) > 0 && c != nil && len(c.storage) > 0 {
@@ -290,6 +292,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 					slot = p.singleSlot
 				}
 				row.born, row.base = e.commitSeq+1, 0
+				row.indexAdmission = nil
 				if row.pendingKeyChange {
 					row.keyChangedAt = row.born
 					row.pendingKeyChange = false

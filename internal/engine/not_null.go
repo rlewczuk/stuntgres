@@ -404,7 +404,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err != nil {
 			return Result{}, err
 		}
-		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations)
+		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, stage)
 		if err != nil {
 			return Result{}, err
 		}

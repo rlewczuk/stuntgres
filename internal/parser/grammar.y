@@ -677,15 +677,15 @@ reindex: REINDEX reindex_options reindex_kind maintenance_concurrent relation_na
 index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos} }
  | CREATE INDEX name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Pos:$1.pos} }
  | CREATE INDEX IF NOT EXISTS name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$6.text,Pos:$6.pos},Table:$8,IfNotExists:true,Pos:$1.pos} }
- | CREATE INDEX CONCURRENTLY ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$5,Pos:$1.pos} }
- | CREATE INDEX CONCURRENTLY name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$6,Pos:$1.pos} }
- | CREATE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$9,Pos:$1.pos} }
+ | CREATE INDEX CONCURRENTLY ON relation_name { $$=&CreateIndex{Table:$5,Concurrent:$3.pos,Pos:$1.pos} }
+ | CREATE INDEX CONCURRENTLY name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$4.text,Pos:$4.pos},Table:$6,Concurrent:$3.pos,Pos:$1.pos} }
+ | CREATE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$7.text,Pos:$7.pos},Table:$9,IfNotExists:true,Concurrent:$3.pos,Pos:$1.pos} }
  | CREATE UNIQUE INDEX ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Table:$5,Pos:$1.pos}}
  | CREATE UNIQUE INDEX name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$4.text,Pos:$4.pos},Table:$6,Pos:$1.pos}}
  | CREATE UNIQUE INDEX IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$7.text,Pos:$7.pos},Table:$9,IfNotExists:true,Pos:$1.pos}}
- | CREATE UNIQUE INDEX CONCURRENTLY ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Table:$6,Pos:$1.pos}}
- | CREATE UNIQUE INDEX CONCURRENTLY name ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,Pos:$1.pos}}
- | CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$8.text,Pos:$8.pos},Table:$10,IfNotExists:true,Pos:$1.pos}} ;
+ | CREATE UNIQUE INDEX CONCURRENTLY ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Table:$6,Concurrent:$4.pos,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX CONCURRENTLY name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,Concurrent:$4.pos,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$8.text,Pos:$8.pos},Table:$10,IfNotExists:true,Concurrent:$4.pos,Pos:$1.pos}} ;
 index_method: /* empty */ { sqllex.(*lexer).indexExpression=true; $$=lexeme{text:"btree"} } | USING name { sqllex.(*lexer).indexExpression=true; $$=$2 } ;
 index_definition: index_head index_method '(' index_keys ')' index_include {
  sqllex.(*lexer).indexExpression=false;$1.Method=$2.text;$1.Keys=$4;$1.Include=$6;$$=$1

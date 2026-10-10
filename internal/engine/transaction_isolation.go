@@ -226,6 +226,11 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	roots, frontier := t.roots, t.frontier
 	sequenceCatalog := t.sequenceCatalog
 	if !t.snapshotSet && stableIsolation(t.isolation) {
+		if _, err := e.visibilitySnapshotLocked(t.ref, false); err != nil {
+			session.mu.Unlock()
+			e.mu.Unlock()
+			return err
+		}
 		roots = make(map[ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
 			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
@@ -350,6 +355,9 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.state == TxActive {
+		if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 {
+			return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
+		}
 		return sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	return nil
