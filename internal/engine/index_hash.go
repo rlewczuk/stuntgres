@@ -153,6 +153,13 @@ func buildHashIndexRoot(ctx context.Context, parent *relationDescriptor, d *inde
 		if !liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
 			continue
 		}
+		matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
+			continue
+		}
 		key, err := extractIndexKey(binding.slot, binding.expression, row.values, &evaluation)
 		if err != nil {
 			return nil, err
@@ -232,6 +239,10 @@ func mergeHashIndexRoot(ctx context.Context, parent, index *relationDescriptor, 
 	}
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
 	end := func(row rowVersion) error {
+		matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
+		if err != nil || !matches {
+			return err
+		}
 		key, err := extractIndexKey(binding.slot, binding.expression, row.values, &evaluation)
 		if err != nil || key.IsNull() {
 			return err
@@ -267,6 +278,13 @@ func mergeHashIndexRoot(ctx context.Context, parent, index *relationDescriptor, 
 			}
 		}
 		if !reconstruct && !rowMaintainsIndex(row, index) {
+			continue
+		}
+		matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
 			continue
 		}
 		key, err := extractIndexKey(binding.slot, binding.expression, row.values, &evaluation)

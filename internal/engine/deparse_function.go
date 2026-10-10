@@ -299,6 +299,20 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 			}
+			for _, def := range relation.exclusionConstraints {
+				if def.OID != OID(id) {
+					continue
+				}
+				found = true
+				index, ok := view.state.descriptors[def.Index].(*relationDescriptor)
+				if !ok {
+					return sqltype.Value{}, fmt.Errorf("stuntgres: missing exclusion backing index")
+				}
+				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: c.liveScope().deparsePath, output: c.liveScope().output})
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+			}
 		}
 		if !found {
 			return sqltype.Null(e.usage.Type), nil

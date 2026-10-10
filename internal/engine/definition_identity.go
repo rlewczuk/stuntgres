@@ -94,6 +94,11 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 			return true
 		}
 	}
+	for _, c := range d.exclusionConstraints {
+		if c.OID == id {
+			return true
+		}
+	}
 	for _, c := range d.defaults {
 		if c.OID == id {
 			return true
@@ -144,6 +149,11 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				return err
 			}
 		}
+		for _, c := range d.exclusionConstraints {
+			if err := claim(c.OID); err != nil {
+				return err
+			}
+		}
 		for _, c := range d.defaults {
 			if err := claim(c.OID); err != nil {
 				return err
@@ -177,6 +187,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				reserved[c.OID] = true
 			}
 			for _, c := range d.uniqueConstraints {
+				reserved[c.OID] = true
+			}
+			for _, c := range d.exclusionConstraints {
 				reserved[c.OID] = true
 			}
 			for _, c := range d.defaults {
@@ -217,7 +230,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	for _, old := range relations {
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.defaults)+len(old.generations) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.defaults)+len(old.generations) == 0 {
 			continue
 		}
 		d := *old
@@ -271,7 +284,30 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			clone := *index
 			definition := *index.sqlIndex
 			constraint := d.uniqueConstraints[i]
-			definition.constraint = &constraint
+			definition.constraint = uniqueBacking(&constraint)
+			clone.sqlIndex = &definition
+			next.descriptors[clone.address] = &clone
+			changed = true
+		}
+		for i, def := range old.exclusionConstraints {
+			id, err := remint(def.OID)
+			if err != nil {
+				return err
+			}
+			if id == def.OID {
+				continue
+			}
+			if d.exclusionConstraints == nil || &d.exclusionConstraints[0] == &old.exclusionConstraints[0] {
+				d.exclusionConstraints = append([]exclusionConstraint(nil), old.exclusionConstraints...)
+			}
+			d.exclusionConstraints[i].OID = id
+			index, ok := next.descriptors[def.Index].(*relationDescriptor)
+			if !ok || index.sqlIndex == nil {
+				return fmt.Errorf("stuntgres: invalid imported exclusion index")
+			}
+			clone := *index
+			definition := *index.sqlIndex
+			definition.constraint = exclusionBacking(&d.exclusionConstraints[i])
 			clone.sqlIndex = &definition
 			next.descriptors[clone.address] = &clone
 			changed = true

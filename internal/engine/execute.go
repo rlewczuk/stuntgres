@@ -119,6 +119,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.alterDefaultLocked(scope, op, auth, s, count)
 	}
 	switch s := stmt.(type) {
+	case *parser.AlterTableRenameConstraint:
+		return e.renameExclusionLocked(scope, op, auth, s, count)
 	case *parser.AlterTableSetSchema:
 		return e.alterSchemaLocked(scope, op, auth, s, count)
 	case *parser.AlterTableRenameColumn:

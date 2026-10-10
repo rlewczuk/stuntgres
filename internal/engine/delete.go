@@ -188,6 +188,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 		w.deletes[candidate.ref.Address] = root
 	}
 	root.rows[candidate.row] = candidate
+	s.projectExclusionDeletionLocked(e, candidate)
 	return true, nil
 }
 

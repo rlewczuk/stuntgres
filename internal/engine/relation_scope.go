@@ -140,6 +140,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return nil
 		}
 		name, mode, ownerOnly = v.Name, accessExclusive, true
+	case *parser.AlterTableRenameConstraint:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
+		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableRenameColumn:
 		if !execute {
 			return nil

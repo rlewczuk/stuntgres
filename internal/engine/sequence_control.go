@@ -215,6 +215,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 						}
 					}
 				}
+				if len(r.exclusionConstraints) != 0 {
+					n.exclusionConstraints = append([]exclusionConstraint(nil), r.exclusionConstraints...)
+					for i := range n.exclusionConstraints {
+						if dest, ok := mapping[n.exclusionConstraints[i].Index]; ok {
+							n.exclusionConstraints[i].Index = dest
+						}
+					}
+				}
 				if r.sqlIndex != nil {
 					definition := *r.sqlIndex
 					if parent, remapped := mapping[definition.parent]; remapped {
@@ -279,6 +287,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	next.epoch = e.state.epoch + 1
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {
+		return err
+	}
+	if err := rebindImportedExclusions(next); err != nil {
 		return err
 	}
 	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp); err != nil {

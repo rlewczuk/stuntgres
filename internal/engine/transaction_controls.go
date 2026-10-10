@@ -169,7 +169,12 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	var err error
 	committed := false
 	if commit && t.state != TxAborted {
-		err = e.publishWrites(op, ref, t.writes, t.deletes)
+		t.mu.Unlock()
+		err = e.checkTransactionExclusions(op, t)
+		if err == nil {
+			err = e.publishWrites(op, ref, t.writes, t.deletes)
+		}
+		t.mu.Lock()
 		committed = err == nil
 	} else {
 		err = e.endPreflight(op)

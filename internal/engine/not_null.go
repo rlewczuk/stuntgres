@@ -35,7 +35,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		switch action.Action {
 		case parser.DropNotNull:
 			label = "ALTER COLUMN ... DROP NOT NULL"
-		case parser.AddNotNull:
+		case parser.AddNotNull, parser.AddExclusion:
 			label = "ADD CONSTRAINT"
 		case parser.DropConstraint:
 			label = "DROP CONSTRAINT"
@@ -93,7 +93,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	for pass := range 7 {
 		typeIndex := 0
 		for _, action := range s.Actions {
-			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetNotNull || pass == 4 && action.Action == parser.AddNotNull || pass == 5 && action.Action == parser.AddIdentity || pass == 6 && action.Action == parser.SetIdentity
+			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetNotNull || pass == 4 && (action.Action == parser.AddNotNull || action.Action == parser.AddExclusion) || pass == 5 && action.Action == parser.AddIdentity || pass == 6 && action.Action == parser.SetIdentity
 			if !selected {
 				continue
 			}
@@ -127,6 +127,16 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				if err == nil {
 					transformations = append(transformations, transformation)
 				}
+			} else if action.Action == parser.AddExclusion {
+				if stage == nil {
+					stage = e.BeginCatalogStage(auth.catalog)
+				}
+				copy := *next
+				copy.exclusionConstraints = slices.Clone(next.exclusionConstraints)
+				next = &copy
+				e.mu.Lock()
+				err = e.stageExclusion(op, scope.input, auth, stage, next, action.Exclusion)
+				e.mu.Unlock()
 			} else {
 				next, err = notNullCandidate(op, auth.catalog, next, action)
 			}
@@ -407,6 +417,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
 	if err == nil {
+		next, err = e.rebuildAlterExclusionsLocked(stage, next, transformations)
+	}
+	if err == nil {
 		err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
 	}
 	e.mu.Unlock()
@@ -431,6 +444,18 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations)
 		if err != nil {
 			return Result{}, err
+		}
+	}
+	addedBaselines, err := validateAddedExclusions(op.Context(), auth, e.stageRead(stage), old, next, replacement, projectedWrites, projectedDeletes, schema, scope.output)
+	if err != nil {
+		return Result{}, err
+	}
+	if addedBaselines != nil {
+		if uniqueBaselines == nil {
+			uniqueBaselines = make(map[string]*logicalIndexRoot)
+		}
+		for name, root := range addedBaselines {
+			uniqueBaselines[name] = root
 		}
 	}
 	var dependencyTargets []ObjectAddress
@@ -505,6 +530,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err := prepareAlterUniqueRoots(op.Context(), changes, next, replacement, uniqueBaselines); err != nil {
 		return Result{}, err
 	}
+	if err := scope.prepareExclusionShape(old, next, e.stageRead(stage), projectedWrites, projectedDeletes); err != nil {
+		return Result{}, err
+	}
 	// A shape statement replaces prior own roots only on the successful merge.
 	if replacement != store {
 		scope.stageProjectedColumnRoots(ref.Address, projectedWrites, projectedDeletes)
@@ -570,6 +598,15 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				next.uniqueConstraints = make([]uniqueConstraint, 0, len(old.uniqueConstraints)-1)
 				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[:i]...)
 				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[i+1:]...)
+				return &next, nil
+			}
+		}
+		for i, c := range old.exclusionConstraints {
+			if c.Name == a.Constraint.Text {
+				next := *old
+				next.exclusionConstraints = make([]exclusionConstraint, 0, len(old.exclusionConstraints)-1)
+				next.exclusionConstraints = append(next.exclusionConstraints, old.exclusionConstraints[:i]...)
+				next.exclusionConstraints = append(next.exclusionConstraints, old.exclusionConstraints[i+1:]...)
 				return &next, nil
 			}
 		}

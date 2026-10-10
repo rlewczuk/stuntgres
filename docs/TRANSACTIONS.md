@@ -14,7 +14,7 @@ SELECT, DELETE, settings and the single-target AX utility are supported, includi
 prepared execution. CREATE permanent tables before a block; owner-TEMP CREATE/
 DROP, sequence DDL, COMMENT ON
 SEQUENCE and selected ALTER TABLE ADD COLUMN/TYPE/nullability/named-NOT-NULL/
-DROP COLUMN/identity action lists are bounded transactional DDL exceptions. Successful private ALTER
+DROP COLUMN/identity/exclusion ADD/DROP action lists are bounded transactional DDL exceptions. Successful private ALTER
 definitions govern subsequent metadata and writes; savepoints restore catalog,
 projected row shapes and own writes together. Commit installs these and sequence
 changes atomically with DML. Successful statement authorization is retained
@@ -26,6 +26,18 @@ ADD COLUMN jointly restores schema, high-water identities, captured nonvolatile
 old-row fills and own writes on rollback/savepoint recovery. Supported nextval
 backfill draws remain nontransactional. Standalone SET/DROP DEFAULT and unsupported
 mixed DEFAULT lists do not gain transaction eligibility from this exception.
+
+Equality exclusion DEFERRABLE/INITIALLY modes and SET CONSTRAINTS are separate from
+transaction READ DEFERRABLE. Actual potentially conflicting row/version admissions
+enlist selective events; statement-final IMMEDIATE, SET IMMEDIATE, implicit finish,
+SQL/Go COMMIT and PREPARE force only due events. The first uncontested deferred
+insertion does not acquire a synthetic obligation because a later peer appears.
+Dirty membership is immutable metadata, not a grant owner or a query MVCC view.
+Existing key claims/completion resources own arbitration, waits and deadlock
+cleanup. Runtime providers and completion waits run outside engine/session/owner/
+manager metadata locks. Savepoints restore modes/events/dirty membership; prepared
+transfer retains the original ticket until completion. No transient modes/events
+are dumped. See [exclusion constraints](TABLES.md#exclusion-constraints--change-note).
 In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.

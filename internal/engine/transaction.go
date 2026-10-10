@@ -96,6 +96,7 @@ type transactionOwner struct {
 	catalog           *catalogChanges
 	savepoints        []savepointMark
 	accessedTemporary bool
+	exclusionModes    exclusionModes
 }
 
 func (t *transactionOwner) clear() {
@@ -116,6 +117,7 @@ func (t *transactionOwner) clear() {
 	clear(t.savepoints)
 	t.savepoints = nil
 	t.accessedTemporary = false
+	t.exclusionModes = exclusionModes{}
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
@@ -274,6 +276,9 @@ type StatementScope struct {
 	ownWrites             map[ObjectAddress][]rowVersion
 	ownDeletes            map[ObjectAddress]*privateDeletionRoot
 	uniqueBinding         *uniqueWriteBinding
+	exclusionModes        exclusionModes
+	exclusionStarted      bool
+	exclusionCandidates   map[ObjectAddress][]rowVersion
 	insertConflict        *boundInsertConflict
 	Expected              *StatementDescription
 	implicit              bool
@@ -545,7 +550,21 @@ retry:
 	if len(rows) == 0 {
 		return nil
 	}
-	versions, err := e.allocateRowVersionsLocked(rows, admission)
+	var versions []rowVersion
+	var err error
+	if len(s.exclusionCandidates[ref.Address]) != 0 {
+		versions = make([]rowVersion, len(rows))
+		for i, row := range rows {
+			reserved, ok := s.reservedExclusionRow(ref, row)
+			if !ok {
+				return errors.New("stuntgres: exclusion row lost its admission identity")
+			}
+			versions[i] = reserved
+			versions[i].indexAdmission = admission
+		}
+	} else {
+		versions, err = e.allocateRowVersionsLocked(rows, admission)
+	}
 	if err != nil {
 		return err
 	}
@@ -581,6 +600,12 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	if _, ok := stmt.(*parser.TransactionCharacteristics); ok {
+		return StatementDescription{}, nil
+	}
+	if _, ok := stmt.(*parser.SetConstraints); ok {
+		return StatementDescription{}, nil
+	}
+	if _, ok := stmt.(*parser.AlterTableRenameConstraint); ok {
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
@@ -645,6 +670,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	}
 	if characteristics, ok := stmt.(*parser.TransactionCharacteristics); ok {
 		return s.executeCharacteristics(characteristics, count)
+	}
+	if constraints, ok := stmt.(*parser.SetConstraints); ok {
+		return s.executeSetConstraints(constraints, count)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation {

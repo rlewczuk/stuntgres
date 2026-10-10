@@ -48,6 +48,31 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 				return nil
 			}
 		}
+		for _, definition := range b.relation.exclusionConstraints {
+			if definition.Name != c.constraint {
+				continue
+			}
+			c.namedIndex = definition.Index
+			index, ok := auth.catalog.state.descriptors[definition.Index].(*relationDescriptor)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing named exclusion index")
+			}
+			for _, key := range index.sqlIndex.keys {
+				if key.derived == nil {
+					c.reads = append(c.reads, slices.Index(b.relation.attributes, key.attribute))
+					continue
+				}
+				for _, dependency := range key.derived.dependencies {
+					if dependency.Address.ClassID == b.ref.Address.ClassID && dependency.Address.ObjectID == b.ref.Address.ObjectID && dependency.Address.SubID != 0 {
+						slot := slices.Index(b.relation.attributes, dependency.Address.SubID)
+						if !slices.Contains(c.reads, slot) {
+							c.reads = append(c.reads, slot)
+						}
+					}
+				}
+			}
+			return nil
+		}
 		for _, check := range b.relation.checkConstraints {
 			if check.Name == c.constraint {
 				return nil
@@ -151,7 +176,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			continue
 		}
 		def := index.sqlIndex
-		if def.parent != parent.address || !def.live || !def.ready || !def.unique {
+		if def.parent != parent.address || !def.live || !def.ready || (!def.unique && !def.isExclusion()) {
 			continue
 		}
 		if c.constraint != "" {
@@ -162,6 +187,9 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 		}
 		if len(c.keys) == 0 {
 			c.selected = append(c.selected, index.address)
+			continue
+		}
+		if !def.unique {
 			continue
 		}
 		if !def.valid {

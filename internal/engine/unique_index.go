@@ -8,11 +8,11 @@ import (
 
 // Membership and identity come from the existing immutable catalog. The caller
 // caches this enumeration by catalog identity, never by the parent alone.
-func uniqueIndexes(view CatalogRead, parent ObjectAddress) []*relationDescriptor {
+func enforcingIndexes(view CatalogRead, parent ObjectAddress) []*relationDescriptor {
 	var indexes []*relationDescriptor
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent && index.sqlIndex.unique {
+		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent && (index.sqlIndex.unique || index.sqlIndex.isExclusion()) {
 			indexes = append(indexes, index)
 		}
 	}

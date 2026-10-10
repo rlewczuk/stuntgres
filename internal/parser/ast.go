@@ -436,12 +436,13 @@ func (CollateExpr) expression()                {}
 func (e CollateExpr) SourcePosition() Position { return e.Pos }
 
 type TableElement struct {
-	Column  *Column
-	Like    *TableLike
-	NotNull *NotNullConstraint
-	Check   *CheckConstraint
-	Unique  *UniqueConstraint
-	Pos     Position
+	Column    *Column
+	Like      *TableLike
+	NotNull   *NotNullConstraint
+	Check     *CheckConstraint
+	Unique    *UniqueConstraint
+	Exclusion *ExclusionConstraint
+	Pos       Position
 }
 
 type TableLike struct {
@@ -514,6 +515,7 @@ const (
 	SetIdentity
 	AlterColumnType
 	AddColumn
+	AddExclusion
 )
 
 type AlterTableAction struct {
@@ -529,6 +531,7 @@ type AlterTableAction struct {
 	TypeName    TypeName
 	Collation   *ObjectName
 	Using       Expr
+	Exclusion   *ExclusionConstraint
 }
 
 type AlterTable struct {

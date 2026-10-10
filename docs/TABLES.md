@@ -659,10 +659,11 @@ sequence, initially uncalled at its configured START, not at source current stat
 or RESTART value. Fresh sequences follow destination namespace and persistence:
 permanent for permanent destinations, temporary for TEMP destinations, never a
 source token or persistence override.
-INDEXES copies live btree/hash/unique/expression/INCLUDE definitions,
-including admitted partial B-tree and partial UNIQUE predicates, classes,
-collations and ordering into freshly named ready/valid/live indexes with new
-roots and backing identities only where the source has a backing constraint.
+INDEXES copies live btree/hash/unique/primary-key/expression/INCLUDE definitions and admitted
+equality EXCLUDE attachments, including their definition-time deferrability,
+partial B-tree/UNIQUE and constraint-local HASH predicates, classes, collations
+and ordering into freshly named ready/valid/live indexes with new roots and
+backing identities only where the source has a backing constraint.
 Both analyzed and execution predicate trees use destination attributes; external
 REGCLASS/REGTYPE constants retain their original dependencies. Only TRUE rows
 enter a partial root, before derived-key evaluation. Live invalid source
@@ -672,9 +673,9 @@ or source authority. Index-comment SQL/control and constraint-comment providers
 remain absent; a generic descriptor comment field does not promise those APIs.
 
 Compression/storage/extended-statistics descriptors, virtual generation,
-PK/EXCLUDE and constraint-comment providers are not implemented. Partial HASH
+constraint-comment providers are not implemented. Standalone partial HASH
 and partial concurrent index creation retain their existing native exclusions;
-ordinary partial B-tree and partial UNIQUE definitions are not absent providers.
+ordinary partial B-tree/UNIQUE and equality EXCLUDE definitions are real providers.
 An option with no applicable admitted descriptor copies nothing, even under ALL;
 accepting its grammar does not add an absent provider.
 
@@ -857,6 +858,62 @@ Foreign keys and physical PostgreSQL index/WAL/server mechanisms remain external
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`;
 use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.0.
+
+## Exclusion constraints — change note
+
+Table elements and existing ALTER TABLE ADD CONSTRAINT accept
+`[CONSTRAINT name] EXCLUDE [USING btree|hash] (key WITH operator, ...)`,
+with the existing immutable index-key, class/collation and property grammar.
+Only commutative original-type equality operators belonging to the selected owned
+scalar family are admitted. Binary-compatible class input alone is not membership.
+B-tree supports composite keys, ordering and INCLUDE payload; HASH retains its
+existing single-key/no-INCLUDE limits. Optional `WHERE (predicate)` is TRUE-only
+and runs before keys, including for the constraint-local HASH exception. Ordinary
+HASH CREATE INDEX WHERE remains native0A000. Any NULL key makes a pair nonconflicting.
+INCLUDE never participates in the exclusion operator vector.
+
+Each definition owns a distinct constraint OID and real nonunique integrity index.
+Existing pg_constraint exposes contype x; pg_get_constraintdef renders the current
+symbolic keys/operators/properties. Internal index metadata sets IndIsExclusion,
+not IndIsUnique, and IndImmediate reflects definition-time deferrability. This
+does not add SQL pg_index or condeferrable/condeferred columns to native projections.
+Exclusion keys never strengthen KEY SHARE/NO KEY UPDATE row-lock eligibility.
+
+DEFERRABLE and INITIALLY IMMEDIATE/DEFERRED are supported independently of UNIQUE
+deferral and transaction READ DEFERRABLE. Immediate constraints check statement-final
+due events; deferred events run at SET CONSTRAINTS IMMEDIATE, implicit completion,
+SQL/Go COMMIT or PREPARE. Events are enlisted only by actual potential conflicts:
+an uncontested first insertion has no synthetic recheck obligation for a later peer.
+Savepoints restore immutable event/mode/projection snapshots; repair or removal of
+the actual row/version retires its obligation. Prepared owners retain the same
+dirty ticket until COMMIT/ROLLBACK PREPARED. Shared completion resources own waits,
+deadlocks and cancellation, while ordinary reads retain their MVCC view.
+
+Omitted/named ON CONFLICT DO NOTHING selects supported nondeferrable exclusions;
+unique column/expression inference does not infer them. Selected deferrable
+arbiters fail55000 only when a row is demanded; zero-row INSERT succeeds.
+Unselected conflicts still fail23P01 with no partial effects.
+Build errors use `could not create exclusion constraint`; runtime errors use
+`conflicting key value violates exclusion constraint`. Details disclose both keys
+only with table SELECT or SELECT on every simple key column; expression keys require
+table SELECT. Ownership does not bypass revoked SELECT. Unreadable runtime/build
+details are `Key conflicts with existing key.` / `Key conflicts exist.`.
+
+ALTER ADD validates populated/private final rows atomically. DROP CONSTRAINT
+retires its owned index; direct DROP INDEX retains the existing dependency error.
+Supported standalone constraint/backing-index renames preserve identity and update
+both names. Table/column rename and schema move retain the closure; affected TYPE
+remints and validates it, while key/include/predicate column removal retires it.
+Existing transactional CREATE/rename boundaries are not widened.
+Native Dump emits the constraint once, Restore validates isolated staging, and
+Reset/foreign/same-owner replacement reowns typed providers and remints actual roots
+without changing retained TEMP objects. Transient modes/events are not serialized.
+GiST/SP-GiST/range/extension providers, physical indexes/WAL and PostgreSQL server
+pg_dump remain outside this native capability.
+
+See [design](design/PG18-DDL-EXCLUSION.md). Shared feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`.
 
 ## UNIQUE constraints — change note
 

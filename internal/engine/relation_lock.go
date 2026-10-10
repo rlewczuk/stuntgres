@@ -548,6 +548,10 @@ func (m *relationLockManager) end(t *relationTicket) {
 	if t == nil {
 		return
 	}
+	// Retire dirty visibility before releasing the existing completion resource.
+	if t.ref.owner != nil {
+		t.ref.owner.removeExclusionOwner(t)
+	}
 	var notify *relationRequest
 	m.mu.Lock()
 	m.endLocked(t, errRelationOwnerEnded, &notify)

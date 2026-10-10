@@ -18,17 +18,8 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	if parent == nil {
 		return nil, nil
 	}
-	if index.sqlIndex.constraint != nil {
-		found := false
-		for _, c := range parent.uniqueConstraints {
-			if c.Index == index.address && c.OID == index.sqlIndex.constraint.OID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, nil
-		}
+	if index.sqlIndex.constraint != nil && !backingConstraintPresent(parent, index) {
+		return nil, nil
 	}
 	definition := index.sqlIndex
 	reconstruct := false
@@ -344,7 +335,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
 					return nil, err
 				}
-				root, err = buildHashIndexRoot(ctx, parent, index.sqlIndex, storage[parent.address], materialize)
+				root, err = buildHashIndexRoot(ctx, parent, index.sqlIndex, storage[parent.address], materialize || index.sqlIndex.isExclusion())
 				if err != nil {
 					return nil, err
 				}
@@ -354,11 +345,17 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 					continue
 				}
 				reconstruct := rebuildParents[parent.address] && index.sqlIndex.valid
-				root, err = mergeHashIndexRoot(ctx, parent, index, root, &publications[i], reconstruct, materialize)
+				root, err = mergeHashIndexRoot(ctx, parent, index, root, &publications[i], reconstruct, materialize || index.sqlIndex.isExclusion())
 				if err != nil {
 					return nil, err
 				}
 				break
+			}
+			if index.sqlIndex.isExclusion() {
+				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
+				if err := validateExclusionRoot(ctx, parent, index, root, namespace.name, output, auth, rebuild); err != nil {
+					return nil, err
+				}
 			}
 			if materialize {
 				result[a] = root
@@ -377,10 +374,10 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				return nil, err
 			}
 			root = nil
-			if index.sqlIndex.unique {
-				// Namespace metadata belongs to UNIQUE diagnostics, not ordinary
+			if index.sqlIndex.unique || index.sqlIndex.isExclusion() {
+				// Namespace metadata belongs to integrity diagnostics, not ordinary
 				// key construction. Replacement also accepts reduced validated
-				// parent/index catalogues for nonunique roots.
+				// parent/index catalogues for ordinary nonintegrity roots.
 				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
 				ordering, err := bindIndexOrdering(parent, index.sqlIndex)
 				if err != nil {
@@ -396,7 +393,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				continue
 			}
 			schema := ""
-			if index.sqlIndex.unique {
+			if index.sqlIndex.unique || index.sqlIndex.isExclusion() {
 				schema = next.descriptors[parent.namespace].(*namespaceDescriptor).name
 			}
 			reconstruct := rebuildParents[parent.address] && index.sqlIndex.valid

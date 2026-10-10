@@ -12,16 +12,18 @@ import (
 // Marks retain immutable logical roots and held lock contributions, not
 // generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
-	name       string
-	writes     map[ObjectAddress][]rowVersion
-	deletes    map[ObjectAddress]*privateDeletionRoot
-	catalog    *catalogChanges
-	settings   settingsMark
-	isolation  Isolation
-	readOnly   bool
-	deferrable bool
-	locks      relationLockCheckpoint
-	cursors    uint64
+	name                string
+	writes              map[ObjectAddress][]rowVersion
+	deletes             map[ObjectAddress]*privateDeletionRoot
+	catalog             *catalogChanges
+	settings            settingsMark
+	isolation           Isolation
+	readOnly            bool
+	deferrable          bool
+	locks               relationLockCheckpoint
+	cursors             uint64
+	exclusionModes      exclusionModes
+	exclusionProjection *exclusionProjection
 }
 
 type settingsMark struct {
@@ -60,7 +62,11 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: t.session.Engine().locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal}
+	e := t.session.Engine()
+	e.mu.Lock()
+	projection := e.exclusionPending[t.ticket]
+	e.mu.Unlock()
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
@@ -72,6 +78,16 @@ func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings setting
 	t.syncCharacteristics()
 	e := t.session.Engine()
 	e.mu.Lock()
+	t.exclusionModes = mark.exclusionModes
+	if mark.exclusionProjection == nil {
+		delete(e.exclusionPending, t.ticket)
+	} else {
+		if e.exclusionPending == nil {
+			e.exclusionPending = make(map[*relationTicket]*exclusionProjection)
+		}
+		e.exclusionPending[t.ticket] = mark.exclusionProjection
+	}
+	e.exclusionGeneration++
 	e.reconcileSerializableWritesLocked(t)
 	e.mu.Unlock()
 }
@@ -171,6 +187,13 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.session.settings.currentIsolation = isolationText(t.isolation)
 			t.session.settings.currentReadOnly = t.readOnly
 			t.session.settings.currentDeferrable = t.deferrable
+			t.exclusionModes = mark.exclusionModes
+			if mark.exclusionProjection == nil {
+				delete(e.exclusionPending, t.ticket)
+			} else {
+				e.exclusionPending[t.ticket] = mark.exclusionProjection
+			}
+			e.exclusionGeneration++
 			e.reconcileSerializableWritesLocked(t)
 			e.enrollSerializableLocked(t.ref, t.isolation)
 			t.truncateSavepoints(index + 1)

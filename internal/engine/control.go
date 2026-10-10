@@ -756,6 +756,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			line.WriteString(", CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 		}
+		for _, c := range t.descriptor.exclusionConstraints {
+			index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing exclusion dump index")
+			}
+			text, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{dump: true, exclusion: true})
+			if err != nil {
+				return err
+			}
+			line.WriteString(", CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
+		}
 		line.WriteString(");\n")
 		if err := emit(line.String()); err != nil {
 			return err
@@ -904,6 +915,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 				if element.Check != nil {
 					if err := restoreScalar(element.Check.Expression, true); err != nil {
+						return err
+					}
+				}
+				if element.Exclusion != nil {
+					for _, key := range element.Exclusion.Index.Keys {
+						if err := restoreScalar(key.Expression, true); err != nil {
+							return err
+						}
+					}
+					if err := restoreScalar(element.Exclusion.Index.Predicate, true); err != nil {
 						return err
 					}
 				}

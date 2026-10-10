@@ -84,34 +84,35 @@ func (d *namespaceDescriptor) Name() string                 { return d.name }
 func (*namespaceDescriptor) Kind() ObjectKind               { return NamespaceObject }
 
 type relationDescriptor struct {
-	address, namespace ObjectAddress
-	name               string
-	revision           DefinitionRevision
-	sequencePlanStamp  DefinitionRevision
-	columns            []ColumnDescriptor
-	index              map[string]int
-	attributes         []int32
-	attributeHighWater int32
-	owner              PrincipalRef
-	acl                ACLValue
-	columnACL          map[int32]ACLValue
-	comment            string
-	columnComments     map[int32]string
-	notNullConstraints []notNullConstraint
-	checkConstraints   []checkConstraint
-	uniqueConstraints  []uniqueConstraint
-	defaults           map[int32]columnDefault
-	generations        map[int32]columnGeneration
-	identities         map[int32]columnIdentity
-	relationKind       relationKind
-	hasIndexes         bool // Sticky publication history; removing an index does not clear it.
-	onCommit           parser.OnCommitAction
-	sequence           *sequenceOptions
-	view               *viewDefinition
-	populated          bool // Independent of stored row count, including populated-empty MVs.
-	virtualView        bool
-	sqlIndex           *indexDefinition
-	rowType            sqltype.ID
+	address, namespace   ObjectAddress
+	name                 string
+	revision             DefinitionRevision
+	sequencePlanStamp    DefinitionRevision
+	columns              []ColumnDescriptor
+	index                map[string]int
+	attributes           []int32
+	attributeHighWater   int32
+	owner                PrincipalRef
+	acl                  ACLValue
+	columnACL            map[int32]ACLValue
+	comment              string
+	columnComments       map[int32]string
+	notNullConstraints   []notNullConstraint
+	checkConstraints     []checkConstraint
+	uniqueConstraints    []uniqueConstraint
+	exclusionConstraints []exclusionConstraint
+	defaults             map[int32]columnDefault
+	generations          map[int32]columnGeneration
+	identities           map[int32]columnIdentity
+	relationKind         relationKind
+	hasIndexes           bool // Sticky publication history; removing an index does not clear it.
+	onCommit             parser.OnCommitAction
+	sequence             *sequenceOptions
+	view                 *viewDefinition
+	populated            bool // Independent of stored row count, including populated-empty MVs.
+	virtualView          bool
+	sqlIndex             *indexDefinition
+	rowType              sqltype.ID
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -246,7 +247,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 	}
 	if r.relationKind == compositeRelation {
-		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 {
+		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 || len(r.exclusionConstraints) != 0 {
 			return fmt.Errorf("stuntgres: composite backing relation has storage behavior")
 		}
 		for _, c := range r.columns {
@@ -313,6 +314,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return err
 	}
 	if err := validateUniques(v, r, names); err != nil {
+		return err
+	}
+	if err := validateExclusions(v, r, names); err != nil {
 		return err
 	}
 	for attribute, identity := range r.identities {
@@ -497,7 +501,9 @@ func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 // replacement. The original name remains in touched for publication validation.
 func (s *CatalogStage) lookupName(k NameKey) ObjectAddress {
 	if address := s.names[k]; address != (ObjectAddress{}) {
-		return address
+		if _, removed := s.removals[address]; !removed {
+			return address
+		}
 	}
 	address := s.base.state.names[k]
 	if _, removed := s.removals[address]; removed {
@@ -528,13 +534,12 @@ func (s *CatalogStage) Create(d Descriptor) error {
 		return CatalogConflict{}
 	}
 	k := NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()}
+	// One live-name check includes staged replacements and excludes removed
+	// generations, whose private name slots can be reused by a new identity.
 	if s.lookupName(k) != (ObjectAddress{}) {
 		return CatalogConflict{}
 	}
 	s.touched[k] = s.base.state.names[k]
-	if _, ok := s.names[k]; ok {
-		return CatalogConflict{}
-	}
 	s.descriptors[a] = d
 	s.names[k] = a
 	return nil
@@ -693,6 +698,16 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		s.removals = make(map[ObjectAddress]catalogRemoval)
 	}
 	s.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
+	// A removal retires any rebound private candidate as well as its base
+	// generation. Preserve the original removal/name observations, but do not
+	// resurrect or validate that candidate beside a same-named replacement.
+	if candidate := s.descriptors[ref.Address]; candidate != nil {
+		stagedKey := relationNameKey(candidate)
+		if s.names[stagedKey] == ref.Address {
+			delete(s.names, stagedKey)
+		}
+	}
+	delete(s.descriptors, ref.Address)
 	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
 		if backing, ok := s.base.state.descriptors[typ.owningRelation].(*relationDescriptor); ok && backing.relationKind == compositeRelation {
 			if err := s.removeObjectLocked(ObjectRef{owner: s.owner.owner, Epoch: s.base.Epoch(), Address: backing.address}, false); err != nil {
@@ -1377,6 +1392,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		next.epoch = e.state.epoch + 1
 		e.state = next
 		e.storage = storage
+		e.exclusionPending = nil
+		e.exclusionGeneration++
 		e.sequences = sequences
 		e.clearPersistentSequenceMemoryLocked()
 		e.nextRevision = nextRevision
@@ -1471,6 +1488,8 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	next.epoch = e.state.epoch + 1
 	e.state = next
 	e.storage = storage
+	e.exclusionPending = nil
+	e.exclusionGeneration++
 	e.sequences = sequences
 	e.clearPersistentSequenceMemoryLocked()
 	e.nextRevision = nextRevision

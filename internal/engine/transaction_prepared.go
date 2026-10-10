@@ -123,7 +123,12 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 				e.prepared = make(map[string]*preparedTransaction)
 			}
 			e.mu.Unlock()
-			err = e.publishRowsPrepared(s.op, ref, t.writes, t.deletes, t.catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t})
+			t.mu.Unlock()
+			err = e.checkTransactionExclusions(s.op, t)
+			if err == nil {
+				err = e.publishRowsPrepared(s.op, ref, t.writes, t.deletes, t.catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t})
+			}
+			t.mu.Lock()
 		}
 	}
 	if err != nil {

@@ -1121,8 +1121,9 @@ Exact immutable conjunction implication can supply a sequential-scan membership
 rejection mask; complete WHERE evaluation and sorting remain authoritative.
 Unresolved parameter atoms cannot prove a fixed predicate, while independent
 exact conjuncts can. Private/historical/stale views always fall back to scanning.
-Native HASH WHERE remains excluded, including syntactic WHERE TRUE, with
-Execute-time0A000 `partial indexes are unsupported`; ordinary HASH is unchanged.
+Standalone HASH WHERE remains excluded, including syntactic WHERE TRUE, with
+Execute-time0A000 `partial indexes are unsupported`; EXCLUDE's local HASH predicate
+is supported without widening ordinary CREATE INDEX.
 Partial CONCURRENTLY creation also remains excluded at Execute with unpositioned
 0A000 `partial concurrent indexes are unsupported`; ordinary concurrent support
 is unchanged, including its computed/provider-aware UNIQUE and nonunique HASH.
@@ -1170,9 +1171,31 @@ See [primary-key constraints](docs/TABLES.md#primary-key-constraints--change-not
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`.
 
+Change note: CREATE TABLE and existing ALTER TABLE ADD CONSTRAINT support
+`EXCLUDE [USING btree|hash] (... WITH =)` over owned scalar operator-family
+equality. Original-type operator resolution, commutativity and actual family
+membership govern admission; binary index compatibility alone is insufficient.
+Immutable expressions, supported classes/collations, B-tree decorations/INCLUDE,
+and optional TRUE-only predicates reuse the existing index definitions.
+HASH retains its existing single-key/no-INCLUDE shape, with constraint-local
+predicates. Any NULL key makes that pair nonconflicting.
+Immediate and deferred checks share typed key claims, actual dirty row/version
+projections and existing transaction-completion waits. DEFERRABLE,
+INITIALLY IMMEDIATE/DEFERRED and SET CONSTRAINTS affect selective recheck events,
+not transaction READ DEFERRABLE. Omitted/named ON CONFLICT DO NOTHING can select
+nondeferrable exclusions; unique inference cannot. Selected deferrable arbiters
+fail55000 only when a row is demanded. UNIQUE deferral remains unsupported.
+Native Dump/Reset/Restore preserves definitions and data, not transient modes or
+events. GiST/SP-GiST, range/extension providers, physical indexes/WAL and server
+pg_dump are not introduced. See [the contract](docs/TABLES.md#exclusion-constraints--change-note)
+and [design](docs/design/PG18-DDL-EXCLUSION.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`.
+
 Change note: INSERT supports `ON CONFLICT DO NOTHING`, with an omitted target,
 column/expression inference plus optional partial predicate, or named constraint.
-Every matching installed unique provider participates; selected collisions skip
+Every matching installed unique provider participates; omitted/named targets also
+select supported nondeferrable exclusion providers. Selected collisions skip
 individual proposals while unselected violations and earlier row validation
 still reject the whole statement. Typed equality, current privileges, held
 rebinding, cancellation, key claims and stable-snapshot visibility use their

@@ -30,9 +30,10 @@ type indexDefinition struct {
 	include            []int32
 	unique             bool
 	nullsNotDistinct   bool
-	constraint         *uniqueConstraint
+	constraint         *backingConstraint
 	ready, valid, live bool
 	predicate          *indexPredicate
+	exclusion          []sqltype.ExclusionOperator
 }
 
 func (d *indexDefinition) publicationState() (ready, valid, live bool) {
@@ -73,8 +74,8 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.IndexComparison, len(definition.keys)), keys: definition.keys}
 	for i, key := range definition.keys {
 		if key.derived != nil {
-			if definition.constraint != nil {
-				return o, fmt.Errorf("stuntgres: derived key in constraint backing index")
+			if definition.constraint != nil && definition.constraint.kind == uniqueBackingKind {
+				return o, fmt.Errorf("stuntgres: derived key in unique backing index")
 			}
 			if key.derived.definition == nil || key.derived.execution == nil {
 				return o, fmt.Errorf("stuntgres: missing derived index expression")
@@ -144,15 +145,8 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.constraint != nil {
-		found := false
-		for _, c := range parent.uniqueConstraints {
-			if c.Index == index.address && c.OID == d.constraint.OID && c.Primary == d.constraint.Primary {
-				found = true
-				break
-			}
-		}
-		if !found || !d.unique || d.nullsNotDistinct != d.constraint.NullsNotDistinct {
-			return fmt.Errorf("stuntgres: orphan unique backing index")
+		if !backingConstraintPresent(parent, index) || d.unique != (d.constraint.kind == uniqueBackingKind) {
+			return fmt.Errorf("stuntgres: orphan constraint backing index")
 		}
 	}
 	err := bindIndexProvider(parent, d)
@@ -352,7 +346,7 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 }
 func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	d := index.sqlIndex
-	validate := d.unique && (d.constraint != nil || d.valid || reconstruct)
+	validate := (d.unique || d.isExclusion()) && (d.constraint != nil || d.valid || reconstruct)
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return nil, err

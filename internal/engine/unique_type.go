@@ -59,7 +59,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		}
 		definition := *index.sqlIndex
 		definition.keys = slices.Clone(index.sqlIndex.keys)
-		definition.constraint = c
+		definition.constraint = uniqueBacking(c)
 		clone.sqlIndex = &definition
 		clone.columns = slices.Clone(index.columns)
 		for j, key := range definition.keys {
@@ -148,7 +148,7 @@ func uniqueIndexTypeAffected(definition *indexDefinition, transformations []colu
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
 func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation) (map[string]*logicalIndexRoot, error) {
-	indexes := uniqueIndexes(candidate, parent.address)
+	indexes := enforcingIndexes(candidate, parent.address)
 	affected := false
 	for _, index := range indexes {
 		if uniqueIndexTypeAffected(index.sqlIndex, transformations) {
@@ -208,7 +208,7 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate
 func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, parent *relationDescriptor, baseline *relationStorage, validated map[string]*logicalIndexRoot) error {
 	for address, descriptor := range changes.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !index.sqlIndex.unique || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live {
+		if !ok || index.sqlIndex == nil || (!index.sqlIndex.unique && !index.sqlIndex.isExclusion()) || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live {
 			continue
 		}
 		if !index.sqlIndex.valid {

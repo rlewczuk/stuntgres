@@ -2962,3 +2962,24 @@ retained nonempty results. Broader typed/window/volatile/ACL/cancellation witnes
 live in the complete family. Internal key/cache/collision/pin/manifest probes
 supplement these public scenarios; they are not substitute PostgreSQL evidence.
 
+## Transaction and ALTER smoke migrations
+
+The former public SQL smoke scenarios now live in untagged reference tests.
+Run both selectors before review, each under its own 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
+```
+
+These definitions preserve direct and prepared SQL, held statements, independent
+rows/types/counts and complete logical diagnostics. Native ScanType and known
+nullability assertions supplement PostgreSQL's public wire metadata without
+requiring lib/pq to report native-only descriptors. SQL transaction visibility,
+abort recovery, CHAIN, notices, ALTER atomicity, dropped-column dependencies,
+quoted names, owner authority, comments and zero-column multiplicity run against
+both backends. Dump/Reset/Restore, retained eager native rows, replacement
+incarnation errors and Restore reader cancellation remain explicit native control
+phases; PostgreSQL has no equivalent engine control API. No migration enables
+additional engine functionality or turns a native failure into an oracle golden.
+

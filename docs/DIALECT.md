@@ -865,7 +865,7 @@ column/expression inference with COLLATE/class and a partial inference predicate
 or `ON CONSTRAINT`. All matching installed unique providers participate, with
 typed/provider equality and NULLS DISTINCT/NOT DISTINCT semantics. Omitted
 proposals do not suppress defaults, identity, generated, NOT NULL or CHECK
-failures, and only selected unique collisions are suppressible.
+failures. Selected unique or supported nondeferrable exclusion collisions are suppressible.
 Partial inference preserves nested SQL three-valued values and follows released
 conservative proof rules, not every mathematical Boolean implication. For example,
 `active IS TRUE` does not infer an index whose predicate is bare `active`.
@@ -873,9 +873,36 @@ Stable-isolation selected collisions use checked immutable storage positions;
 ordinary enforcement and read-committed omissions do not scan for row identity.
 See [INSERT conflict omission](QUERIES.md#insert-conflict-omission--change-note).
 DO UPDATE and INSERT RETURNING retain positioned0A000 suffix boundaries.
-Native deferrable UNIQUE DDL remains0A000; exclusion DDL remains42601.
-No deferred/exclusion provider, conflict-bearing Restore input or generic-plan
-cache policy is introduced.
+Native deferrable UNIQUE DDL remains0A000. Supported equality exclusion constraints
+participate through omitted/named targets, but not unique inference. Selected
+deferrable exclusion arbiters fail55000 only for demanded proposals; zero-row
+INSERT succeeds. Conflict-bearing Restore input and generic-plan cache policy
+remain unchanged.
+
+### Exclusion constraints — change note
+
+CREATE TABLE and existing ALTER TABLE ADD CONSTRAINT support real equality
+exclusions over admitted B-tree/HASH scalar families. Original operand types,
+commutativity and family membership are checked independently of class input
+compatibility. Immutable key expressions and optional TRUE-only predicates reuse
+the installed index binder; FALSE/NULL predicates skip key evaluation and any
+NULL key prevents a conflict. Constraint-local HASH WHERE does not admit standalone
+partial HASH CREATE INDEX. HASH's existing one-key/no-INCLUDE limits remain.
+DEFERRABLE and initial modes use selective actual row/version recheck obligations.
+SET CONSTRAINTS forces only due events; transaction completion, savepoints and
+prepared transfer reuse existing owners and completion/deadlock/cancellation
+resources. READ DEFERRABLE is unrelated. Uncontested deferred admission does not
+invent an obligation for later peers. Ordinary query MVCC visibility is unchanged.
+Native metadata adds contype x and symbolic pg_get_constraintdef to existing
+projections, not SQL pg_index or new pg_constraint columns. Native process-local
+Dump/Reset/Restore preserves the real definition/index closure; physical/WAL,
+extension, GiST/SP-GiST/range and server pg_dump support is not implied.
+See [the full contract](TABLES.md#exclusion-constraints--change-note) and
+[design](design/PG18-DDL-EXCLUSION.md).
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`.
+
 
 ### JSON textual IO — change note
 

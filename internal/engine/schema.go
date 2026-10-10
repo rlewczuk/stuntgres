@@ -172,6 +172,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageCreateUniques(stage, d, b.createUniques); err != nil {
 		return err
 	}
+	if err := e.stageCreateExclusions(op, input, auth, stage, d, s); err != nil {
+		return err
+	}
 	return e.stageLikeIndexes(op, auth, stage, d, b.createLikes)
 }
 

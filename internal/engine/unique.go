@@ -34,7 +34,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 			primary = true
 		}
 		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.constraint.Index != c.Index || index.sqlIndex.constraint.Name != c.Name || index.sqlIndex.nullsNotDistinct != c.NullsNotDistinct || !slices.Equal(index.sqlIndex.constraint.Attributes, c.Attributes) || len(index.sqlIndex.keys) != len(c.Attributes) {
+		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.kind != uniqueBackingKind || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.constraint.Index != c.Index || index.sqlIndex.constraint.Name != c.Name || index.sqlIndex.nullsNotDistinct != c.NullsNotDistinct || len(index.sqlIndex.keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
 		}
 		if index.sqlIndex.constraint.Primary != c.Primary {
@@ -156,13 +156,13 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, ready: true, valid: true, live: true}
+		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: uniqueBacking(c), ready: true, valid: true, live: true}
 		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition}
 		if source := declarations[i].source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.sqlIndex
-			definition.parent, definition.constraint = d.address, c
+			definition.parent, definition.constraint = d.address, uniqueBacking(c)
 			definition.ready, definition.valid, definition.live = true, true, true
 			definition.keys = slices.Clone(source.sqlIndex.keys)
 			for j := range definition.keys {
@@ -310,6 +310,9 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 
 func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	d := index.sqlIndex
+	if d.isExclusion() {
+		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
+	}
 	if !d.unique {
 		return nil
 	}
@@ -331,6 +334,9 @@ func validateUniqueEntries(ctx context.Context, parent, index *relationDescripto
 
 func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	d := index.sqlIndex
+	if d.isExclusion() {
+		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
+	}
 	if !d.unique || !d.nullsNotDistinct && uniqueHasNull(current.keys) {
 		return nil
 	}

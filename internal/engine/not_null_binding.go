@@ -25,6 +25,9 @@ func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relat
 			for _, constraint := range relation.uniqueConstraints {
 				names[constraint.Name] = true
 			}
+			for _, constraint := range relation.exclusionConstraints {
+				names[constraint.Name] = true
+			}
 		}
 	}
 	return names

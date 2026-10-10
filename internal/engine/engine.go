@@ -36,6 +36,8 @@ type Engine struct {
 	visibilityXID       uint64
 	visibility          map[TxRef]transactionVisibility
 	indexBuildWaits     map[ObjectAddress]indexBuildWait
+	exclusionPending    map[*relationTicket]*exclusionProjection
+	exclusionGeneration uint64
 	serializable        serializableTracker
 	prepared            map[string]*preparedTransaction
 	roles               *roleCatalog
@@ -425,10 +427,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if element.Unique != nil {
 				kinds++
 			}
+			if element.Exclusion != nil {
+				kinds++
+			}
 			if kinds != 1 {
 				return b, fmt.Errorf("stuntgres: invalid table element")
 			}
-			if element.NotNull != nil || element.Check != nil || element.Unique != nil {
+			if element.NotNull != nil || element.Check != nil || element.Unique != nil || element.Exclusion != nil {
 				continue
 			}
 			if c := element.Column; c != nil {

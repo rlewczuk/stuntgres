@@ -28,7 +28,7 @@ func TestAlterRenameSyntax(t *testing.T) {
 	}
 	for _, tc := range []struct{ q, code string }{
 		{"ALTER TABLE t RENAME a TO s.b", "42601"}, {"ALTER TABLE t RENAME TO u junk", "42601"}, {"ALTER TABLE IF EXISTS missing RENAME TO )", "42601"},
-		{"ALTER TABLE t RENAME CONSTRAINT nn TO other", "0A000"}, {"ALTER TABLE t RENAME a TO b, DROP b", "0A000"},
+		{"ALTER TABLE t RENAME a TO b, DROP b", "0A000"},
 		{`ALTER TABLE "if" EXISTS t RENAME a TO b`, "42601"},
 	} {
 		statements, err := Parse("CREATE TABLE prefix(a INT);" + tc.q)

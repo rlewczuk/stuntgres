@@ -143,7 +143,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	c := uniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.address}
 	parent.uniqueConstraints = []uniqueConstraint{c}
 	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: class}}, include: []int32{30}, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: &c, ready: true, valid: true, live: true}
+	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: class}}, include: []int32{30}, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: uniqueBacking(&c), ready: true, valid: true, live: true}
 	index.columns = []ColumnDescriptor{parent.columns[0], parent.columns[2]}
 	index.attributes = []int32{1, 2}
 	index.attributeHighWater = 2

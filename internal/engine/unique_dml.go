@@ -50,7 +50,7 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 	var indexes []*relationDescriptor
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.live || !index.sqlIndex.unique {
+		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.live || (!index.sqlIndex.unique && !index.sqlIndex.isExclusion()) {
 			continue
 		}
 		// REL18 row-key eligibility is independent of readiness/validity.
@@ -71,7 +71,7 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 			}
 			slots[at] = slices.Index(parent.attributes, attribute)
 		}
-		if simple && index.sqlIndex.predicate == nil {
+		if index.sqlIndex.unique && simple && index.sqlIndex.predicate == nil {
 			for _, slot := range slots[:len(index.sqlIndex.keys)] {
 				if !slices.Contains(b.keySlots, slot) {
 					b.keySlots = append(b.keySlots, slot)
@@ -95,7 +95,11 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 	for i, index := range indexes {
 		bound := &b.keys[i]
 		bound.index = index
-		bound.ordering, err = bindIndexOrdering(parent, index.sqlIndex)
+		if index.sqlIndex.isExclusion() {
+			bound.ordering, err = bindExclusionOrdering(parent, index.sqlIndex)
+		} else {
+			bound.ordering, err = bindIndexOrdering(parent, index.sqlIndex)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -143,6 +147,15 @@ func (s *StatementScope) claimUniqueRow(ref ObjectRef, row []sqltype.Value) erro
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
+		if index.sqlIndex.isExclusion() {
+			c := exclusionDefinition(binding.parent, index)
+			if c == nil {
+				return ErrCatalogReplaced
+			}
+			if c.Deferrable {
+				continue
+			}
+		}
 		member, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row)
 		if err != nil {
 			return err
@@ -190,6 +203,7 @@ func uniqueRowDeleted(id RowID, roots ...*privateDeletionRoot) bool {
 type uniqueConflict struct {
 	parent, index *relationDescriptor
 	key           []sqltype.Value
+	existing      []sqltype.Value
 	auth          AuthorizationView
 	view          CatalogRead
 	schema        string
@@ -201,6 +215,9 @@ func (c *uniqueConflict) diagnostic(s *StatementScope, ref ObjectRef) error {
 	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.sqlIndex.keys)
 	if err != nil {
 		return err
+	}
+	if c.index.sqlIndex.isExclusion() {
+		return exclusionDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.existing, c.schema, s.output, allowed, false, c.view)
 	}
 	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
 }
@@ -233,9 +250,15 @@ retry:
 			return uniqueConflict{}, err
 		}
 	}
+	if conflict, err := s.probeExclusionRow(ref, row, excluded, action); err != nil || conflict.index != nil {
+		return conflict, err
+	}
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
+		if index.sqlIndex.isExclusion() {
+			continue
+		}
 		if action != nil && !slices.Contains(action.selected, index.address) {
 			continue
 		}

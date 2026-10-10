@@ -41,13 +41,20 @@ func (s *StatementScope) Finish(err error) error {
 		err = e.validateOperation(s.op)
 	}
 	if err == nil && s.worked {
+		t.mu.Unlock()
+		err = s.checkExclusionEvents(t.state == TxImplicit, nil)
+		t.mu.Lock()
+	}
+	if err == nil && s.worked {
 		catalog := t.catalog
 		if s.catalog != nil {
 			catalog = s.catalog
 		}
 		if t.state == TxImplicit {
 			if !s.completed {
+				t.mu.Unlock()
 				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority)
+				t.mu.Lock()
 			}
 		} else if !s.sessionCompleted {
 			var deletes map[ObjectAddress]*privateDeletionRoot
@@ -57,7 +64,9 @@ func (s *StatementScope) Finish(err error) error {
 			} else {
 				deletes = mergeDeletions(t.deletes, s.stage.deletes)
 			}
+			t.mu.Unlock()
 			err = s.validatePrivateIndexExpressions(catalog, deletes)
+			t.mu.Lock()
 			if err == nil {
 				if !s.projectedRoots {
 					writes = prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
@@ -84,6 +93,9 @@ func (s *StatementScope) Finish(err error) error {
 					t.writes = writes
 					t.deletes = deletes
 					t.catalog = catalog
+					if s.exclusionStarted {
+						t.exclusionModes = s.exclusionModes
+					}
 					e.reconcileSerializableWritesLocked(t)
 				}
 				session.mu.Unlock()

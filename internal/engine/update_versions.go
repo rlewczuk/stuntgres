@@ -105,6 +105,12 @@ retry:
 	versions := make([]rowVersion, len(rows))
 	for i, row := range rows {
 		predecessor := old[i]
+		if reserved, ok := s.reservedExclusionRow(ref, row); ok {
+			reserved.keyChangedAt, reserved.pendingKeyChange = predecessor.keyChangedAt, predecessor.pendingKeyChange
+			reserved.indexAdmission = admission
+			versions[i] = reserved
+			continue
+		}
 		base := predecessor.base
 		if predecessor.born != 0 {
 			base = predecessor.version

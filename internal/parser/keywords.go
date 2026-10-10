@@ -222,7 +222,7 @@ var keywords = [...]keyword{
 	{"escape", Unreserved, true, ESCAPE},
 	{"event", Unreserved, true, 0},
 	{"except", Reserved, false, EXCEPT},
-	{"exclude", Unreserved, true, 0},
+	{"exclude", Unreserved, true, EXCLUDE},
 	{"excluding", Unreserved, true, EXCLUDING},
 	{"exclusive", Unreserved, true, EXCLUSIVE},
 	{"execute", Unreserved, true, EXECUTE},

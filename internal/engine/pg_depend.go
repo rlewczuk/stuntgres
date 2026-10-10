@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"stuntgres/internal/sqltype"
 )
 
@@ -194,6 +195,44 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 						return nil, err
 					}
 					add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.address, sub), 'a')
+				}
+			}
+			for _, c := range d.exclusionConstraints {
+				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				if !ok || index.sqlIndex == nil {
+					return nil, fmt.Errorf("stuntgres: missing exclusion dependency index")
+				}
+				owner := ObjectAddress{ClassID: 2606, ObjectID: c.OID}
+				for _, key := range index.sqlIndex.keys {
+					if key.derived == nil {
+						add(owner, attribute(d.address, key.attribute), 'a')
+						continue
+					}
+					refs, err := pgDependExpressionRefs(ctx, catalog, key.derived.definition)
+					if err != nil {
+						return nil, err
+					}
+					for _, ref := range refs {
+						if ref.ClassID == RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
+							add(owner, ref, 'a')
+						}
+						add(owner, ref, 'n')
+					}
+				}
+				for _, sub := range index.sqlIndex.include {
+					add(owner, attribute(d.address, sub), 'a')
+				}
+				if predicate := index.sqlIndex.predicate; predicate != nil {
+					refs, err := pgDependExpressionRefs(ctx, catalog, predicate.definition)
+					if err != nil {
+						return nil, err
+					}
+					for _, ref := range refs {
+						if ref.ClassID == RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
+							add(owner, ref, 'a')
+						}
+						add(owner, ref, 'n')
+					}
 				}
 			}
 			for _, c := range d.checkConstraints {

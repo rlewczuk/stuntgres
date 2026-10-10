@@ -3523,9 +3523,9 @@ PostgreSQL can instead switch to a generic parameter plan after custom plans;
 that established backend difference is explicit in the reference family.
 
 Defaults, assignments, identity, generated columns, NOT NULL and CHECK run
-before conflict arbitration. Selected unique collisions omit only that proposal;
-unselected-only collisions remain ordinary23505. Accepted rows retain producer
-order and claims; skipped proposals retain no newly acquired unique claim.
+before conflict arbitration. Selected unique or supported nondeferrable exclusion
+collisions omit only that proposal; unselected violations remain23505/23P01.
+Accepted rows retain producer order and claims; skipped proposals retain no newly acquired key claim.
 A later error, cancellation or required cursor Close error vetoes all staged
 row effects, but already demanded sequence draws are not rolled back. Affected
 rows count accepted proposals, not consumed source occurrences.
@@ -3542,8 +3542,11 @@ inference requires a valid provider. Native Dump/Reset/Restore retain supported
 definitions and accepted data, but Restore input rejects conflict-bearing INSERTs.
 
 DO UPDATE and INSERT RETURNING remain positioned0A000 boundaries. Native
-deferred and exclusion arbiters are not installed providers: deferrable UNIQUE
-DDL retains its0A000 boundary and exclusion DDL its42601 syntax boundary.
+deferrable UNIQUE DDL retains its0A000 boundary. Omitted/named targets can select
+supported nondeferrable equality exclusions, while unique inference cannot.
+Selected deferrable exclusions report55000 with schema/table/constraint only
+when a proposal is demanded; zero-row INSERT succeeds. See
+[exclusion constraints](TABLES.md#exclusion-constraints--change-note).
 The complete public contract and smoke use the same
 `TestReferenceInsertConflict` definitions in native and pinned PostgreSQL modes.
 

@@ -38,7 +38,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				constraint.Primary = false
 			case "null_policy":
 				next.uniqueConstraints[0].NullsNotDistinct = true
-				definition.nullsNotDistinct, constraint.NullsNotDistinct = true, true
+				definition.nullsNotDistinct = true
 			case "second_primary":
 				second := next.uniqueConstraints[0]
 				second.OID, second.Name = second.OID+1000, "second"
@@ -47,7 +47,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				other.name = second.Name
 				second.Index = other.address
 				otherDefinition := definition
-				otherDefinition.constraint = &second
+				otherDefinition.constraint = uniqueBacking(&second)
 				other.sqlIndex = &otherDefinition
 				state.descriptors[other.address] = &other
 				next.uniqueConstraints = append(next.uniqueConstraints, second)

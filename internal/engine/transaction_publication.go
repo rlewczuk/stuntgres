@@ -88,7 +88,11 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		current, frontier := e.state, e.commitSeq
 		var indexStores map[ObjectAddress]*relationStorage
 		if len(e.indexRoots) != 0 || c != nil {
-			indexStores = captureIndexStores(e.storage, current)
+			captureCatalog := current
+			if nextCatalog != nil {
+				captureCatalog = nextCatalog
+			}
+			indexStores = captureIndexStores(e.storage, captureCatalog)
 		}
 		indexPredecessors := e.indexRoots
 		var nextSequences map[ObjectAddress]*sequenceGenerator

@@ -109,6 +109,9 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			var constraints map[string]bool
 			if old.constraint != nil {
 				label = "key"
+				if old.isExclusion() {
+					label = "excl"
+				}
 				constraints = constraintNames(read, destination.namespace, destination)
 			}
 			name := generatedRelationName(destination.name, strings.Join(labels, "_"), label, func(name string) bool {
@@ -123,20 +126,34 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				return err
 			}
 			address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-			if old.constraint != nil {
-				c := uniqueConstraint{Name: name, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.constraint.Attributes))}
+			if old.constraint != nil && old.constraint.kind == uniqueBackingKind {
+				c := uniqueConstraint{Name: name, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.keys))}
 				c.OID, err = e.allocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				for i, attribute := range old.constraint.Attributes {
-					c.Attributes[i], err = in.attribute(destination, attribute)
+				for i, key := range old.keys {
+					c.Attributes[i], err = in.attribute(destination, key.attribute)
 					if err != nil {
 						return err
 					}
 				}
 				destination.uniqueConstraints = append(destination.uniqueConstraints, c)
-				definition.constraint = &c
+				definition.constraint = uniqueBacking(&c)
+			}
+			if old.isExclusion() {
+				original := exclusionDefinition(in.source, source)
+				if original == nil {
+					return fmt.Errorf("stuntgres: missing inherited exclusion owner")
+				}
+				c := *original
+				c.Name, c.Index = name, address
+				c.OID, err = e.allocateOIDLocked()
+				if err != nil {
+					return err
+				}
+				destination.exclusionConstraints = append(destination.exclusionConstraints, c)
+				definition.constraint = exclusionBacking(&c)
 			}
 			columns := slices.Clone(source.columns)
 			lookup := make(map[string]int, len(columns))

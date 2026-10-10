@@ -79,12 +79,34 @@ func TestReferenceInsertConflictProviderBoundaries(t *testing.T) {
 			})
 		}
 	}
+	for _, method := range []string{"btree", "hash"} {
+		t.Run("supported_exclusion/"+method, func(t *testing.T) {
+			insertConflictScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
+				run(referenceExec("CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =))", 0))
+				run(referenceExec("INSERT INTO t VALUES(1)", 1))
+				run(referenceExec("INSERT INTO t VALUES(1),(2) ON CONFLICT DO NOTHING", 1))
+				run(referencePrepared(referenceExec("INSERT INTO t VALUES(1) ON CONFLICT ON CONSTRAINT ex DO NOTHING", 0)))
+				for _, prepared := range []bool{false, true} {
+					s := insertConflictNoMatch("INSERT INTO t VALUES(1) ON CONFLICT(k) DO NOTHING")
+					s.prepared, s.errorStage = prepared, "execute"
+					run(s)
+				}
+				run(referenceErrorDiagnostic("INSERT INTO t VALUES(1)", exclusionReferenceConflict("t", "ex", "k", "1", "1")))
+				run(referenceSelect("SELECT count(*) AS n FROM t", []string{"n"}, []string{"INT8"}, [][]any{{int64(2)}}))
+			})
+		})
+	}
 	t.Run("exclusion", func(t *testing.T) {
 		insertConflictScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 			q := "CREATE TABLE t(k INT4RANGE,CONSTRAINT ex EXCLUDE USING gist(k WITH &&))"
 			if !b.pg {
-				run(referenceImplicitError(q, referenceDiagnostic{Code: "42601", Message: "syntax error at or near \"EXCLUDE\"", Position: referencePosition(strings.Index(q, "EXCLUDE") + 1)}))
+				d := controlsReferenceDiagnostic("0A000", "unsupported column type")
+				d.Position = referencePosition(strings.Index(q, "INT4RANGE") + 1)
+				s := referenceErrorDiagnostic(q, d)
+				s.errorStage = "execute"
+				run(s)
 				run(referenceSelect("SELECT relname FROM pg_class WHERE relname='t'", []string{"relname"}, []string{"NAME"}, nil))
 				return
 			}

@@ -21,6 +21,9 @@ package parser
  notNull *NotNullConstraint
  check *CheckConstraint
  unique *UniqueConstraint
+ exclusion *ExclusionConstraint
+ exclusionElements []ExclusionElement
+ exclusionElement ExclusionElement
  alterTarget alterTarget
  lockTargets []LockTarget
  lockMode TableLockMode
@@ -201,6 +204,7 @@ package parser
 %token <tok> INDEX REINDEX
 %token <tok> CONCURRENTLY
 %token <tok> INCLUDE TABLESPACE
+%token <tok> EXCLUDE
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -239,6 +243,7 @@ package parser
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
 %nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION '.'
+%nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
 %nonassoc GENERATION_OVER
@@ -352,6 +357,11 @@ package parser
 %type <unique> unique_constraint column_unique primary_constraint column_primary
 %type <tok> primary_head primary_modifier
 %type <identifiers> primary_columns
+%type <exclusion> exclusion_head exclusion_definition exclusion_storage exclusion_tablespace exclusion_predicate exclusion_constraint
+%type <exclusionElements> exclusion_elements
+%type <exclusionElement> exclusion_element
+%type <objectName> exclusion_operator
+%type <stmt> set_constraints
 %type <desc> unique_nulls
 %type <likeOptions> like_options
 %type <likeOption> like_option
@@ -523,6 +533,7 @@ accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqll
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
+ | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql
  | alter_collation | drop_collation
@@ -688,6 +699,8 @@ lock_mode: ACCESS lock_share { $$=LockAccessShare }
 optional_lock_nowait: /* empty */ { $$=false } | lock_nowait { $$=true } ;
 lock_share: KW_U { if $1.text!="share" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_nowait: NOWAIT ;
+set_constraints: SET KW_U relation_names KW_U {if $2.text!="constraints" || ($4.text!="deferred" && $4.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};$$=&SetConstraints{Names:$3,Deferred:$4.text=="deferred",Pos:$1.pos}}
+ | SET KW_U ALL KW_U {if $2.text!="constraints" || ($4.text!="deferred" && $4.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};$$=&SetConstraints{All:true,Deferred:$4.text=="deferred",Pos:$1.pos}} ;
 set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier(),$4,$1.pos) }
  | SET set_name setting_assignment DEFAULT { $$=&Set{Name:$2.identifier(),Default:true,Pos:$1.pos} }
  | SET SESSION set_name setting_assignment setting_values { $$=parsedSet($3.identifier(),$5,$1.pos) }
@@ -958,7 +971,8 @@ element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
  | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
  | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} }
  | unique_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
- | primary_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} } ;
+ | primary_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
+ | exclusion_constraint { $$=TableElement{Exclusion:$1,Pos:$1.Pos} } ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
  | table_not_null NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
@@ -997,6 +1011,26 @@ primary_modifier: DEFERRABLE {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY d
  | INCLUDE '(' view_names ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
  | WITH '(' index_option_list ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
  | USING INDEX TABLESPACE name {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1} ;
+exclusion_head: EXCLUDE {$$=&ExclusionConstraint{Pos:$1.pos,Index:CreateIndex{Pos:$1.pos}}}
+ | CONSTRAINT name EXCLUDE {$$=&ExclusionConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,Index:CreateIndex{Pos:$3.pos}}} ;
+exclusion_definition: exclusion_head index_method '(' exclusion_elements ')' index_include {
+ $1.Index.Method=$2.text;$1.Index.Include=$6
+ for _,item:=range $4 {$1.Index.Keys=append($1.Index.Keys,item.Key);$1.Operators=append($1.Operators,item.Operator)}
+ $$=$1
+} ;
+exclusion_elements: exclusion_element {$$=[]ExclusionElement{$1}} | exclusion_elements ',' exclusion_element {$$=append($1,$3)} ;
+exclusion_element: index_key WITH exclusion_operator {$$=ExclusionElement{Key:$1,Operator:$3}} ;
+exclusion_operator: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}} | qualified_operator ;
+exclusion_storage: exclusion_definition {$$=$1}
+ | exclusion_definition WITH '(' maintenance_index_option_list ')' {$1.Index.Options=$4;$1.Index.WithPos=$2.pos;$$=$1} ;
+exclusion_tablespace: exclusion_storage {$$=$1}
+ | exclusion_storage TABLESPACE name {sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1} ;
+exclusion_predicate: exclusion_tablespace {$$=$1}
+ | exclusion_tablespace WHERE '(' scalar_projection ')' {$1.Index.Predicate=$4;$$=$1} ;
+exclusion_constraint: exclusion_predicate {sqllex.(*lexer).indexExpression=false;$$=$1}
+ | exclusion_constraint DEFERRABLE {if !exclusionProperty(sqllex.(*lexer),$1,$2,true,true){return 1};$$=$1}
+ | exclusion_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !exclusionProperty(sqllex.(*lexer),$1,$2,true,false){return 1};$$=$1}
+ | exclusion_constraint KW_R name {if $2.text!="initially" || $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};if !exclusionProperty(sqllex.(*lexer),$1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 like_options: /* empty */ { $$=nil } | like_options like_option { $$=append($1,$2) } ;
 like_option: INCLUDING like_option_name { $$=LikeOption{Name:$2.text,Including:true,Pos:$1.pos} }
  | EXCLUDING like_option_name { $$=LikeOption{Name:$2.text,Pos:$1.pos} } ;
@@ -1032,6 +1066,7 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTabl
  | ADD primary_constraint {sqllex.(*lexer).excludePrimaryAddition($1);$$=AlterTableAction{}}
  | ADD primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=AlterTableAction{}}
  | ADD CONSTRAINT name primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=AlterTableAction{}}
+ | ADD exclusion_constraint {$$=AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET KW_U TYPE { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
@@ -1042,7 +1077,7 @@ alter_default_single: ALTER TABLE alter_target ALTER optional_column name SET DE
  | ALTER TABLE alter_target ALTER optional_column name DROP DEFAULT { $$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:DropDefault,Pos:$1.pos} } ;
 alter_rename_single: ALTER TABLE rename_target RENAME TO name { $$=&AlterTableRenameTable{Name:$3.Name,NewName:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME optional_column name TO name { $$=&AlterTableRenameColumn{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos} }
- | ALTER TABLE rename_target RENAME CONSTRAINT name TO name { sqllex.(*lexer).deferUnsupported($5,"RENAME CONSTRAINT is unsupported"); $$=nil } ;
+ | ALTER TABLE rename_target RENAME CONSTRAINT name TO name { $$=&AlterTableRenameConstraint{Name:$3.Name,Constraint:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos,ConstraintPos:$5.pos} } ;
 alter_schema_single: ALTER TABLE rename_target SET SCHEMA name { $$=&AlterTableSetSchema{Name:$3.Name,Schema:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos} } ;
 rename_target: alter_target {$$=$1}
  | IF EXISTS alter_target {$$=$3;$$.IfExists=true} ;
@@ -1467,10 +1502,10 @@ frame_bound: FRAME_START FRAME_EDGE {kind:=FrameUnboundedPreceding;if $2.text=="
  | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=FrameBound{Kind:FrameCurrentRow,Pos:$1.pos}}
  | scalar_projection FRAME_EDGE {kind:=FrameOffsetPreceding;if $2.text=="following"{kind=FrameOffsetFollowing};$$=FrameBound{Kind:kind,Offset:$1,Pos:ExpressionStart($1)}} ;
 window_exclusion: /* empty */ {$$=lexeme{}}
- | KW_U KW_U {if $1.text!="exclude" || $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
- | KW_U GROUP {if $1.text!="exclude" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
- | KW_U KW_U ROW {if $1.text!="exclude" || $2.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
- | KW_U NO KW_U {if $1.text!="exclude" || $3.text!="others" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+ | EXCLUDE KW_U {if $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | EXCLUDE GROUP {$$=$1}
+ | EXCLUDE KW_U ROW {if $2.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | EXCLUDE NO KW_U {if $3.text!="others" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 window_parent: /* empty */ %prec NAME_LIST { $$=nil } | window_name { $$=&Identifier{Text:$1.text,Pos:$1.pos} } | BETWEEN { $$=&Identifier{Text:$1.text,Pos:$1.pos} } ;
 window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY row_fields { $$=$3 } ;
 window_order: /* empty */ %prec NAME_LIST { $$=nil } | ORDER BY order_keys { $$=$3 } ;
@@ -1729,6 +1764,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
+ | EXCLUDE
  | cursor_word
  | collation_name_word
  | OF | NOWAIT | SKIP | LOCKED
@@ -1764,6 +1800,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
  | SIMILAR
  | COLLATION
+ | EXCLUDE
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;
@@ -1771,6 +1808,7 @@ generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
+ | EXCLUDE
  | NAMES
  | COLLATION
  | collation_name_word

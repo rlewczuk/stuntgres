@@ -35,6 +35,14 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 			slot = i
 		}
 	}
+	for i, c := range parent.exclusionConstraints {
+		if err := collision(c.Name); err != nil {
+			return err
+		}
+		if c.OID == index.sqlIndex.constraint.OID && c.Index == index.address {
+			slot = i
+		}
+	}
 	if slot < 0 {
 		return ErrCatalogReplaced
 	}
@@ -43,8 +51,13 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	}
 	next := *parent
 	next.revision++
-	next.uniqueConstraints = append([]uniqueConstraint(nil), parent.uniqueConstraints...)
-	next.uniqueConstraints[slot].Name = index.name
+	if index.sqlIndex.isExclusion() {
+		next.exclusionConstraints = append([]exclusionConstraint(nil), parent.exclusionConstraints...)
+		next.exclusionConstraints[slot].Name = index.name
+	} else {
+		next.uniqueConstraints = append([]uniqueConstraint(nil), parent.uniqueConstraints...)
+		next.uniqueConstraints[slot].Name = index.name
+	}
 	definition := *index.sqlIndex
 	constraint := *definition.constraint
 	constraint.Name = index.name

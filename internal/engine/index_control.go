@@ -17,6 +17,7 @@ type indexPresentation struct {
 	// TYPE buffers retain original expression trees and old-Usage decoration.
 	reconstruct bool
 	output      sqltype.OutputEnvironment
+	exclusion   bool
 }
 
 func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relationDescriptor, presentation indexPresentation) (string, error) {
@@ -60,11 +61,15 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		parentName = relationDiagnosticNameAt(catalog, parent, presentation.path)
 	}
 	var sql strings.Builder
-	sql.WriteString("CREATE ")
-	if index.sqlIndex.unique {
-		sql.WriteString("UNIQUE ")
+	if presentation.exclusion {
+		sql.WriteString("EXCLUDE USING " + index.sqlIndex.method.String() + " (")
+	} else {
+		sql.WriteString("CREATE ")
+		if index.sqlIndex.unique {
+			sql.WriteString("UNIQUE ")
+		}
+		sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING " + index.sqlIndex.method.String() + " (")
 	}
-	sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING " + index.sqlIndex.method.String() + " (")
 	for i, key := range index.sqlIndex.keys {
 		if i > 0 {
 			sql.WriteString(", ")
@@ -127,20 +132,22 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 			sql.WriteString(identifier(presented.class.Name))
 		}
-		if index.sqlIndex.method == hashMethod {
-			continue
-		}
-		if key.desc {
-			sql.WriteString(" DESC")
-		} else if presentation.dump {
-			sql.WriteString(" ASC")
-		}
-		if presentation.dump || key.nullsFirst != key.desc {
-			if key.nullsFirst {
-				sql.WriteString(" NULLS FIRST")
-			} else {
-				sql.WriteString(" NULLS LAST")
+		if index.sqlIndex.method != hashMethod {
+			if key.desc {
+				sql.WriteString(" DESC")
+			} else if presentation.dump {
+				sql.WriteString(" ASC")
 			}
+			if presentation.dump || key.nullsFirst != key.desc {
+				if key.nullsFirst {
+					sql.WriteString(" NULLS FIRST")
+				} else {
+					sql.WriteString(" NULLS LAST")
+				}
+			}
+		}
+		if presentation.exclusion {
+			sql.WriteString(" WITH " + index.sqlIndex.exclusion[i].Name)
 		}
 	}
 	sql.WriteByte(')')
@@ -172,7 +179,24 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		if err != nil {
 			return "", err
 		}
-		sql.WriteString(" WHERE " + text)
+		if presentation.exclusion {
+			sql.WriteString(" WHERE (" + text + ")")
+		} else {
+			sql.WriteString(" WHERE " + text)
+		}
+	}
+	if presentation.exclusion {
+		c := exclusionDefinition(parent, index)
+		if c == nil {
+			return "", fmt.Errorf("stuntgres: missing exclusion renderer owner")
+		}
+		if c.Deferrable {
+			sql.WriteString(" DEFERRABLE")
+		}
+		if c.InitiallyDeferred {
+			sql.WriteString(" INITIALLY DEFERRED")
+		}
+		return sql.String(), nil
 	}
 	if presentation.dump {
 		sql.WriteString(";\n")

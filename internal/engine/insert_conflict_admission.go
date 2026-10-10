@@ -25,6 +25,7 @@ func (s *StatementScope) admitInsertRow(ref ObjectRef, row []sqltype.Value, pref
 				return false, err
 			}
 			manager.restoreUnique(s.ticket, action.checkpoint)
+			s.discardExclusionCandidate(ref, row)
 			return false, nil
 		}
 		other, err := s.probeUniqueRow(ref, row, nil, prefix, nil)

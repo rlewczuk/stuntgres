@@ -106,6 +106,20 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 			next.uniqueConstraints = append(next.uniqueConstraints, constraint)
 		}
 	}
+	next.exclusionConstraints = nil
+	for _, constraint := range old.exclusionConstraints {
+		descriptor := stage.descriptors[constraint.Index]
+		if descriptor == nil {
+			descriptor = stage.base.state.descriptors[constraint.Index]
+		}
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil {
+			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
+		}
+		if !uniqueIndexTypeAffected(index.sqlIndex, []columnTransformation{{attribute: old.attributes[slot]}}) {
+			next.exclusionConstraints = append(next.exclusionConstraints, constraint)
+		}
+	}
 	next.checkConstraints = nil
 	if len(old.checkConstraints) != 0 {
 		slots := make(map[int32]int, len(next.attributes))
