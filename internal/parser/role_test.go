@@ -36,7 +36,7 @@ func TestRoleGrammarAndIdentityProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	create := stmts[0].(*CreateRole)
-	if create.OptionCount != 2 || create.SecondOption.Character != 21 {
+	if len(create.Options) != 2 || create.Options[1].Pos.Character != 21 {
 		t.Fatal(create)
 	}
 	if !reflect.DeepEqual(stmts[1].(*DropRole).Names, []string{"a", "a"}) {

@@ -63,8 +63,8 @@ func (r RoleRead) Memberships() []Membership {
 	return append([]Membership(nil), r.state.edges...)
 }
 
-// View ownership follows INHERIT edges, independently of SET ROLE authority.
-// Validate endpoints before shortcuts and bound cycles by principal identity.
+// Ordinary privileges and ownership follow INHERIT paths, never SET authority.
+// Validate endpoints before shortcuts and bound reachability by principal identity.
 func (r RoleRead) inheritsRole(actor, target PrincipalRef) (bool, error) {
 	role, err := r.Descriptor(actor)
 	if err != nil {
@@ -134,31 +134,6 @@ func (e *Engine) initializeRoles() {
 	ref := PrincipalRef{e, 10}
 	e.nextPrincipal = 11
 	e.roles = &roleCatalog{revision: 1, roles: map[PrincipalRef]RoleDescriptor{ref: {Ref: ref, Name: "postgres", Login: true, Superuser: true}}, names: map[string]PrincipalRef{"postgres": ref}}
-}
-
-// AddMembership is the validated internal seam for membership command owners.
-// SET ROLE traverses only SET-authorized edges; SQL membership commands remain excluded.
-func (e *Engine) AddMembership(ctx context.Context, m Membership) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	r := RoleRead{e, e.roles}
-	for _, ref := range [...]PrincipalRef{m.Role, m.Member, m.Grantor} {
-		if _, err := r.Descriptor(ref); err != nil {
-			return err
-		}
-	}
-	if e.roles.revision == ^uint64(0) {
-		return fmt.Errorf("stuntgres: authorization revision exhausted")
-	}
-	n := advanceRoleRevision(e.roles)
-	n.edges = make([]Membership, len(e.roles.edges)+1)
-	copy(n.edges, e.roles.edges)
-	n.edges[len(e.roles.edges)] = m
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	e.roles = n
-	return nil
 }
 
 // SetRoleReferences publishes copied persistent dependencies owned by another
@@ -447,16 +422,27 @@ func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	}
 	return d, nil
 }
-func (v AuthorizationView) aclRights(acl ACLValue, owner PrincipalRef, mask Privileges, options bool) Privileges {
+func aclRights(acl ACLValue, owner PrincipalRef, principals []PrincipalRef, mask Privileges, options bool) Privileges {
 	if !acl.Explicit {
-		if v.state.CurrentUser == owner {
-			return mask
+		for _, ref := range principals {
+			if ref == owner {
+				return mask
+			}
 		}
 		return 0
 	}
 	var rights Privileges
 	for _, entry := range acl.Entries {
-		if entry.Grantee.Public || entry.Grantee.Role == v.state.CurrentUser {
+		allowed := entry.Grantee.Public
+		if !allowed {
+			for _, ref := range principals {
+				if ref == entry.Grantee.Role {
+					allowed = true
+					break
+				}
+			}
+		}
+		if allowed {
 			if options {
 				rights |= entry.GrantOptions
 			} else {
@@ -480,12 +466,23 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 	if ref.Address.SubID > 0 {
 		mask = SelectPrivilege | InsertPrivilege | UpdatePrivilege
 	}
-	if actor.Superuser || grantOptions && actor.Ref == owner {
+	if actor.Superuser {
 		return mask, nil
 	}
-	rights := v.aclRights(acl, owner, mask, grantOptions)
+	principals, err := v.roles.roleClosure(context.Background(), actor.Ref, true)
+	if err != nil {
+		return 0, err
+	}
+	if grantOptions {
+		for _, ref := range principals {
+			if ref == owner {
+				return mask, nil
+			}
+		}
+	}
+	rights := aclRights(acl, owner, principals, mask, grantOptions)
 	if ref.Address.SubID > 0 {
-		rights |= v.aclRights(columns[ref.Address.SubID], PrincipalRef{}, mask, grantOptions)
+		rights |= aclRights(columns[ref.Address.SubID], PrincipalRef{}, principals, mask, grantOptions)
 	}
 	return rights & mask, nil
 }
@@ -507,17 +504,12 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if req.Privileges != 0 {
 			return fmt.Errorf("stuntgres: owner check has ordinary mask")
 		}
-		if actor.Superuser || actor.Ref == owner {
-			return nil
+		allowed, err := v.roles.inheritsRole(actor.Ref, owner)
+		if err != nil {
+			return err
 		}
-		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation {
-			allowed, err := v.roles.inheritsRole(actor.Ref, owner)
-			if err != nil {
-				return err
-			}
-			if allowed {
-				return nil
-			}
+		if allowed {
+			return nil
 		}
 		kind := "table"
 		if t, ok := d.(*typeDescriptor); ok {

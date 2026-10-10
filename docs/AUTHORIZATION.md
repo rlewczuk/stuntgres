@@ -19,17 +19,17 @@ relation principal. Prepared executions recheck current grants and owners.
 Bound base reads do not repeat name lookup or source-schema USAGE checks; the
 initial named view lookup still requires its schema's USAGE. Relation-principal
 substitution never changes session identity or sequence/function authority.
-Native public SQL GRANT remains absent; tests use the central internal ACL seam.
+Native SQL object GRANT remains absent; object ACL tests use the central internal seam.
 The native prepared witness retains an allowed statement description across
 revocation and regrant: the same handle must deny42501 without rows after revoke
 and resume reads after regrant, including an owner view above an invoker view.
 
-Replacement and ALTER require view ownership; bounded native view-owner checks
-follow the existing membership graph's INHERIT edges transitively, with visited
-identities and stale-role validation. SET-only/disabled edges do not grant
-ownership. This is not general inherited ACL support or new SQL membership
-syntax. DROP VIEW also accepts the schema owner through the same bounded
-ownership traversal, without granting that actor ALTER or replacement rights.
+Replacement and ALTER require view ownership. All ordinary owner and ACL checks
+follow live INHERIT paths transitively, independently of SET authority and role
+attributes. Each hop needs a surviving INHERIT=true grant from some origin;
+SET-only/disabled edges do not grant ownership or object privileges. DROP VIEW
+also accepts the inherited schema owner without granting that actor ALTER or
+replacement rights.
 Replacement needs destination CREATE; relation rename needs containing-schema
 CREATE, while column rename does not. Schema moves need destination CREATE.
 Owner transfer separately follows SET-authorized edges to the target role and
@@ -49,6 +49,12 @@ rather than retaining bootstrap read authority.
 
 ```text
 CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]
+    [IN {ROLE | GROUP} names] [{ROLE | USER} names] [ADMIN names]
+GRANT roles TO members [WITH option {TRUE | FALSE | OPTION} [, ...]]
+    [GRANTED BY role]
+REVOKE [{ADMIN | INHERIT | SET} OPTION FOR] roles FROM members
+    [GRANTED BY role] [CASCADE | RESTRICT]
+ALTER GROUP role {ADD | DROP} USER members
 DROP {ROLE | USER | GROUP} name [, ...]
 SET [SESSION] AUTHORIZATION {name | 'exact role name' | DEFAULT}
 RESET SESSION AUTHORIZATION
@@ -61,11 +67,11 @@ SELECT current_catalog,current_database(),current_role,current_user,session_user
 ROLE/GROUP default NOLOGIN; USER defaults LOGIN. Duplicate options fail `42601`
 at execution, duplicate names `42710`, missing DROP targets `42704`. DROP is
 statement-atomic across its list, rejects owner/ACL/persistent dependencies
-(`2BP01`), and removes membership endpoints through the internal authority.
-SQL role membership, ALTER ROLE/GROUP, passwords, special role
-attributes and GRANT/REVOKE are not implemented; recognized adjacent syntax
-fails `0A000`, never successful no-ops. Role administration requires the
-effective superuser in this bounded foundation.
+(`2BP01`), and removes membership endpoints through the same immutable authority.
+CREATE/DROP remain superuser-only. New role inheritance defaults to true; role
+attributes, ALTER ROLE/USER, passwords, SQL object GRANT and role metadata catalogs
+remain excluded. Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority,
+with separate checks for SUPERUSER targets and explicit grantor provenance.
 Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:
 it fails positioned `0A000` at `IF` before any script statement executes,
 including when every target is absent. Ordinary unquoted or quoted role names
@@ -74,6 +80,61 @@ including when every target is absent. Ordinary unquoted or quoted role names
 Role names reuse PostgreSQL's ordinary column-name keyword categories;
 nonreserved `local`, `session` and `role` remain names. Reserved `WITH` is
 only an optional option introducer, not a role name or a repeated option.
+
+### Membership options and provenance
+
+Membership identity is `(role, member, grantor)`: independent origins survive
+revocation of another origin. New edges default ADMIN=false, INHERIT=true,
+SET=true. Updating an existing origin preserves every omitted option; OPTION
+means true and repeated GRANT options use the last value. Identical GRANT emits
+NOTICE00000; missing attributed REVOKE emits WARNING01000. Utilities affect zero
+rows and protocol Prepare neither resolves roles nor changes authority.
+
+IN ROLE makes the new role a member of each listed role; ROLE/USER makes each
+listed role a member of the new role; ADMIN adds those members with ADMIN=true.
+Distinct CREATE clause categories coexist; repeated categories fail42601 at
+execution. The new role and every initial edge publish atomically.
+
+Ordinary ADMIN holders can delegate without inheriting object privileges or
+being able to SET the granted role. Inferred grantors use the nearest eligible
+INHERIT-reachable direct ADMIN source; actual superusers record bootstrap
+provenance. Explicit GRANT requires actor privileges of the grantor and that
+grantor's direct ADMIN; explicit REVOKE can clean up its grants after ADMIN loss.
+Role/member cycles ignore options. Separate ADMIN support cycles reject
+backgrants without independent support (0LP01); PUBLIC is never a member.
+
+REVOKE INHERIT/SET OPTION only clears that flag. Loss of the last direct ADMIN
+source rejects dependent grants under default RESTRICT (2BP01, CASCADE hint);
+CASCADE removes only recursively unsupported origins. ADMIN-only CASCADE keeps
+the source edge with ADMIN=false. GRANT ADMIN FALSE is an option update, not a
+dependent-revoke request. ALTER GROUP preserves its own authorization diagnostics.
+
+GRANT targets use the current private candidate for authority and grantor
+selection, including preceding targets' option changes. REVOKE instead uses
+statement-entry authority and original rows across the entire target list:
+PostgreSQL's AddRoleMems increments the command counter; DelRoleMems does not.
+The next separate statement sees committed removals. Both operations publish
+their private mutations only once, and failure publishes none.
+For each GRANT target, all recipients' role/member cycles are checked before
+ADMIN support and before same-target notices. REVOKE plans recursive dependencies
+per recipient against immutable original rows with fresh actions per target:
+RESTRICT stops immediately, duplicate members still match, and an unreached
+recipient emits no warning. A later target that updates or deletes an original
+tuple already changed by an earlier target fails XX000, `tuple already updated
+by self`; repeated target names alone do not fail. Missing rows still warn,
+and already-false ADMIN revocation is a quiet no-op. INHERIT/SET revocation
+plans an update even when that flag is already false, matching PostgreSQL.
+Notices legitimately emitted by an earlier completed target or reached recipient
+remain delivered when a later error rolls back the graph.
+
+Inherited owners retain ownership and implicit grant options, but explicitly
+empty object ACLs deny ordinary use. Prepared reads check fresh memberships;
+already returned rows retain their values and metadata. Membership utilities
+remain autocommit-only natively: explicit transactions reject0A000, with
+read-only execution25006 taking precedence. PostgreSQL supports rollback/commit.
+Reset/Restore retain cluster roles/memberships; Dump never serializes them and
+Restore does not import membership DDL.
+
 
 SET/RESET SESSION AUTHORIZATION change session_user and current_user together. Only the **originally
 authenticated** superuser may select another principal (including NOLOGIN);
@@ -86,7 +147,7 @@ role and authorization commands affect zero rows.
 
 SET ROLE changes only effective current_user/current_role/user. Eligibility is
 checked against session_user: self, a session superuser, or an all-SET path through
-existing internal membership edges. ADMIN/INHERIT alone confer no SET authority.
+live membership edges. ADMIN/INHERIT alone confer no SET authority.
 NONE selects session_user; RESET (and TO/= DEFAULT) selects the configured startup
 role, or session_user when none is configured. Bare SET ROLE DEFAULT is syntax
 error; quoted/string `default` is a role name. Role selection is autocommit-only:

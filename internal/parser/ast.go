@@ -1175,11 +1175,40 @@ type Show struct {
 func (*Show) statement() {}
 
 type CreateRole struct {
-	Name         Identifier
-	Login        bool
-	OptionCount  int
-	SecondOption Position
+	Name    Identifier
+	Login   bool
+	Options []CreateRoleOption
 }
+
+type CreateRoleOption struct {
+	Kind    string
+	Pos     Position
+	Members []RoleSpec
+}
+
+type RoleSpec struct {
+	Name     string
+	Identity string
+	Pos      Position
+}
+
+type MembershipOption struct {
+	Name  string
+	Value bool
+	Pos   Position
+}
+
+type RoleMembership struct {
+	Targets, Members []RoleSpec
+	Options          []MembershipOption
+	Grantor          *RoleSpec
+	Revoke           bool
+	RevokeOption     string
+	Cascade          bool
+	Alias            bool
+}
+
+func (*RoleMembership) statement() {}
 
 func (*CreateRole) statement() {}
 
@@ -1204,19 +1233,20 @@ type RoleSelection struct {
 func (*RoleSelection) statement() {}
 
 type roleOptionState struct {
-	count  int
-	login  bool
-	second Position
+	options  []CreateRoleOption
+	login    bool
+	hasLogin bool
 }
 
 func (s roleOptionState) add(tok lexeme, login bool) roleOptionState {
-	s.count++
-	if s.count == 1 {
-		s.login = login
-	}
-	if s.count == 2 {
-		s.second = tok.pos
-	}
+	s.options = append(s.options, CreateRoleOption{Kind: "login", Pos: tok.pos})
+	s.login = login
+	s.hasLogin = true
+	return s
+}
+
+func (s roleOptionState) members(kind string, tok lexeme, members []RoleSpec) roleOptionState {
+	s.options = append(s.options, CreateRoleOption{Kind: kind, Pos: tok.pos, Members: members})
 	return s
 }
 

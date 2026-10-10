@@ -252,7 +252,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			}
 			lookup := func(name string) PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
 			edge := Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("postgres"), Inherit: true, Set: true}
-			if err := e.AddMembership(context.Background(), edge); err != nil {
+			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)
 			}
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
@@ -498,7 +498,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 		publishWinner: func(Descriptor) {
 			close(entered)
 			<-release
-			if err := e.AddMembership(context.Background(), Membership{Role: publisher.Ref, Member: member.Ref, Grantor: publisher.Ref}); err != nil {
+			if err := grantMembership(t, e, Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.names["postgres"]}); err != nil {
 				t.Error(err)
 			}
 		},

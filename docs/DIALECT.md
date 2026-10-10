@@ -4399,7 +4399,19 @@ is a real role name. Bare DEFAULT is a syntax error, TO/= DEFAULT resets, and
 quoted/string `default` is a real name. SET LOCAL ROLE and explicit-transaction
 selection/reset fail native `0A000` without mutation, unlike PostgreSQL.
 SET SESSION AUTHORIZATION still uses the original authenticator and resets both
-mutable identities. SQL membership administration/authentication remains excluded.
+mutable identities. SQL membership administration is supported; authentication remains host-asserted.
+GRANT/REVOKE role memberships support ADMIN, INHERIT and SET, omitted-option
+preservation, grantor-specific origins, cycle prevention and dependent
+CASCADE/RESTRICT. CREATE ROLE/USER/GROUP initial IN ROLE/ROLE/ADMIN clauses and
+ALTER GROUP ADD/DROP USER share the same atomic authority. New INHERIT/SET
+defaults are true and ADMIN false; role-level attributes remain excluded.
+INHERIT paths supply ordinary object ACL and owner rights; special attributes
+are never inherited. See [membership contracts](AUTHORIZATION.md#membership-options-and-provenance).
+Membership utilities Prepare without lookup or permission caching, affect zero
+rows and reject explicit native transactions0A000. Read-only Execute uses
+GRANT ROLE/REVOKE ROLE/ALTER ROLE tags and25006 before lookup. SQL object grants,
+membership catalogs and transactional cluster-role publication remain excluded.
+
 
 Feature smoke: `go test -count=1 -run '^TestSessionIdentitySmoke$' ./smoke`.
 Pinned reference: `go test -tags reference -count=1 -run '^TestReferenceSessionIdentity.*$' ./reference`.

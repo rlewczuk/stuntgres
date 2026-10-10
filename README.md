@@ -527,6 +527,21 @@ transactions remain native exclusions. The exact opaque DSN is the database key;
 its NAME display silently clips to a complete UTF8 prefix of at most 63 bytes,
 without URL parsing, trimming or merging distinct keys. See
 [authorization](docs/AUTHORIZATION.md) for forms and authority boundaries.
+Change note: role membership GRANT/REVOKE supports ADMIN/INHERIT/SET options,
+independent grantor origins, source-aware CASCADE/RESTRICT and cycle prevention.
+CREATE initial IN ROLE/ROLE/ADMIN and ALTER GROUP ADD/DROP USER publish atomically.
+INHERIT paths supply real object privileges and owner authority, including fresh
+prepared reads after revocation. CREATE stays superuser-only with default role
+inheritance true; attributes, object-GRANT SQL and role metadata remain excluded.
+Membership utilities remain autocommit-only natively; Reset/Restore preserve
+membership while Dump omits cluster-role DDL.
+Ordered GRANT targets use preceding private changes for authority; REVOKE uses
+statement-entry authority and rows, then publishes once. Repeated REVOKE targets
+that change the same original tuple fail XX000 and roll back the statement;
+missing rows warn and already-false ADMIN option revocation remains a no-op.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembershipFeatureSmoke$' VERBOSE=0`
+and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
+
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSessionIdentitySmoke$'`.
 
 CREATE TABLE supports named and unnamed column/table CHECK constraints, including

@@ -1632,3 +1632,82 @@ scales/NULLs, domain/zero/format-overflow diagnostics and unchanged destinations
 after late failures. Its native phase additionally checks deterministic
 Dump/Reset/Restore, preserved cursors and symbolic DEFAULT/view/CHECK grouping.
 
+## Role membership oracle-first definitions
+
+The shared `TestReferenceRoleMembership` family includes the migrated dependency
+orders, option defaults and omission updates, inherited owner access, grantor
+provenance, ADMIN delegation and support cycles, initial memberships, aliases,
+dependent revocation, diagnostics and notices, prepared permission freshness,
+transaction boundaries and native host-control phases. PostgreSQL catalog
+inspection supplements shared SQL witnesses; it does not replace them.
+
+Initial PostgreSQL18.0 oracle discovery passed before production changes.
+The temporary discovery selector is removed; completed quick and real-mode
+checks execute the same shared scenario bodies. Discovery observations do not
+replace native behavioral-red or final dual-mode validation.
+
+Run every invocation under its own 900-second deadline:
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleMembership' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembership' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembershipFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleMembershipFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^Test(Membership|Role|Authorization|SessionIdentity|ViewReplace)' VERBOSE=0
+```
+
+The feature smoke requires inherited owner row7 with INT4 metadata versus
+42501 denial, ADMIN delegation versus denial, atomic RESTRICT and recursive
+CASCADE, combined initial clauses, ALTER GROUP add/drop, disabled-option cycle
+rejection and PUBLIC lookup rejection. Explicit native transaction/control
+phases document actual API boundaries rather than skipping shared SQL behavior.
+
+Inherited schema ownership is established by shared privileged
+`CREATE SCHEMA ... AUTHORIZATION owner`, not a native database-GRANT API.
+Functional failure paths remove the nonpublic fixture schema before roles.
+`SchemaOwnerSequenceDrop` additionally distinguishes inherited schema DROP
+authority over another role's sequence from sequence-owner-only ALTER rights.
+Type ownership uses supported DROP DOMAIN; excluded DROP/ALTER TYPE is not
+enabled merely to provide a membership witness.
+Keyword-promotion regression checks retain the existing CHECK/NOT NULL
+`NO INHERIT` consumers and failure-only unsupported CREATE ROLE attributes.
+Class-mask units stage immutable type ACL descriptors through catalog validation,
+as existing domain fixtures do, without extending the production ACL setter;
+they include invalid-mask nonpublication and explicit-empty inherited-owner
+grant-option assertions.
+Internal planner units supplement public SQL with immutable edge copies,
+exact option flags, selected-origin CASCADE, invalid identity/revision guards,
+cancelled candidates, concurrent cycle publication, inherited class masks,
+explicit-empty owner use versus implicit options and exact column ACL unions.
+The shared `Batch` regressions additionally cover GRANT current-candidate
+grantor freshness and rollback, all-recipient GRANT sanity before ADMIN/notices,
+and forward/reverse RESTRICT warning order. REVOKE authority uses statement-entry
+visibility: its successful batch removes p, warns for q's missing attributed row,
+then a separate q revoke denies ADMIN authority. Repeated REVOKE targets that
+change the same original tuple fail XX000 `tuple already updated by self`,
+emit no missing-row warning, and preserve the original membership and owner row7;
+a later single-target revoke succeeds. These corrected contracts were observed
+on pinned PostgreSQL18.0 before the native remedy; final remedy verification
+remains root-owned and is not implied by those discovery passes.
+Positive post-failure delegation, normal notices and CASCADE witnesses ensure
+errors neither suppress legitimate messages nor alter the original graph.
+Internal ordered-candidate units check GRANT grantor selection, nonpublication
+and immutable reads. Entry-authority units check the real explicit-grantor
+REVOKE row, one publication and next-statement denial. Indexed-action units
+cover recursively deleted later recipients, within-target duplicate matches,
+cross-target tuple-action overlap, quiet ADMIN FALSE no-ops, repeated absent
+warnings and independent origins. INHERIT/SET actions remain updates even when
+already false; do not incorrectly treat them as ADMIN-style no-ops.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembershipBatch' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleMembershipBatch' VERBOSE=0
+```
+The full-role consumer selector must also run in both reference modes:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(Role|SessionIdentity|ViewReplace)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Role|SessionIdentity|ViewReplace)' VERBOSE=0
+```
+
+

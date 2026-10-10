@@ -54,6 +54,11 @@ package parser
  settingValues settingList
  settingValue settingAtom
  roleOptions roleOptionState
+ roleSpec RoleSpec
+ roleSpecs []RoleSpec
+ membershipOptions []MembershipOption
+ membershipOption MembershipOption
+ grantor *RoleSpec
  settingName settingName
  tables []*CreateTable
  table *CreateTable
@@ -138,6 +143,7 @@ package parser
 %token <tok> IF EXISTS
 %token <tok> ANY SOME ROW
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
+%token <tok> GRANT REVOKE ADMIN INHERIT OPTION GRANTED
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
 %token <tok> CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
@@ -194,7 +200,9 @@ package parser
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
 /* REINDEX previously used KW_U: keep that same type-tail shift when promoting
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX '.'
+/* These membership tokens were IDENT before promotion. Preserve IDENT's
+ * existing type-tail decision, exactly as for REINDEX above. */
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX ADMIN INHERIT OPTION GRANTED REVOKE '.'
 %nonassoc FRAME_EDGE FRAME_START
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -305,7 +313,7 @@ package parser
 %type <notNull> table_not_null
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
-%type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
+%type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
 %type <tok> predicate_suffix where_predicate_suffix
 %type <tok> excluded_role_target excluded_role_assignment
 %type <tok> cast_function
@@ -408,6 +416,15 @@ package parser
 %type <expr> merge_condition
 %type <tok> merge_target_class
 %type <tok> merge_excluded_action
+%type <stmt> role_membership
+%type <roleSpec> membership_role_spec membership_role_name
+%type <roleSpecs> membership_role_specs membership_role_names
+%type <membershipOptions> membership_options membership_option_list
+%type <membershipOption> membership_option
+%type <grantor> membership_grantor
+%type <tok> membership_revoke_option
+%type <tok> membership_keyword
+%type <desc> membership_option_value
 %type <typ> standalone_type
 %%
 script: separators optional_statements
@@ -424,7 +441,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -432,7 +449,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER ROLE { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER USER { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | ALTER GROUP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
+ ;
 sequence_persistence: /* empty */ { $$="logged" } | TEMP { $$="temporary" } | UNLOGGED { $$="unlogged" } ;
 sequence_create_head: CREATE sequence_persistence SEQUENCE relation_name { $$=&CreateSequence{Name:$4,Persistence:$2,Pos:$1.pos} }
  | CREATE sequence_persistence SEQUENCE IF NOT EXISTS relation_name { $$=&CreateSequence{Name:$7,Persistence:$2,IfNotExists:true,Pos:$1.pos} } ;
@@ -947,7 +964,7 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | CONSTRAINT name generation_definition { $$=ColumnConstraint{Generation:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.Pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
-nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+nn_inherit: INHERIT { $$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
 update: UPDATE relation_name update_alias SET update_assignments update_from where returning { $$=&Update{Name:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7,Returning:$8,Pos:$1.pos} }
  | UPDATE relation_name update_alias SET update_assignments update_from where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
@@ -1490,6 +1507,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE | FILTER
+ | membership_keyword
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
@@ -1507,17 +1525,18 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING
  | NAMES
+ | membership_keyword
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
-generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | NAMES
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
+ | membership_keyword
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
@@ -1536,7 +1555,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {sqllex.(
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
- | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO ;
+ | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO | GRANT ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;
 where_predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | CONSTRAINT ;
@@ -1544,6 +1563,55 @@ relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.p
  | name '.' col_label %prec NAME_LIST { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }
  | name '.' col_label '.' col_label { sqllex.(*lexer).fail("0A000","three-part relation names are unsupported"); return 1 } ;
+membership_role_name: name { $$=RoleSpec{Name:$1.text,Pos:$1.pos} } ;
+membership_keyword: ADMIN | INHERIT | OPTION | GRANTED | REVOKE ;
+membership_role_names: membership_role_name { $$=[]RoleSpec{$1} }
+ | membership_role_names ',' membership_role_name { $$=append($1,$3) } ;
+membership_role_spec: membership_role_name {
+ if $1.Name=="none" {sqllex.(*lexer).failAt("42939","role name \"none\" is reserved",$1.Pos.Offset);return 1};$$=$1
+ }
+ | CURRENT_USER { $$=RoleSpec{Identity:"current",Pos:$1.pos} }
+ | CURRENT_ROLE { $$=RoleSpec{Identity:"current",Pos:$1.pos} }
+ | SESSION_USER { $$=RoleSpec{Identity:"session",Pos:$1.pos} } ;
+membership_role_specs: membership_role_spec { $$=[]RoleSpec{$1} }
+ | membership_role_specs ',' membership_role_spec { $$=append($1,$3) } ;
+membership_options: /* empty */ { $$=nil } | WITH membership_option_list { $$=$2 } ;
+membership_option_list: membership_option { $$=[]MembershipOption{$1} }
+ | membership_option_list ',' membership_option { $$=append($1,$3) } ;
+membership_option: col_label membership_option_value { $$=MembershipOption{Name:$1.text,Value:$2,Pos:$1.pos} } ;
+membership_option_value: TRUE { $$=true } | FALSE { $$=false } | OPTION { $$=true } ;
+membership_grantor: /* empty */ { $$=nil }
+ | GRANTED BY membership_role_spec { spec:=$3;$$=&spec } ;
+membership_revoke_option: ADMIN OPTION FOR { $$=$1 }
+ | INHERIT OPTION FOR { $$=$1 }
+ | SET OPTION FOR { $$=$1 } ;
+role_membership: GRANT membership_role_names TO membership_role_specs membership_options membership_grantor {
+ $$=&RoleMembership{Targets:$2,Members:$4,Options:$5,Grantor:$6}
+ }
+ | REVOKE membership_role_names FROM membership_role_specs membership_grantor drop_behavior {
+ $$=&RoleMembership{Targets:$2,Members:$4,Grantor:$5,Revoke:true,Cascade:$6}
+ }
+ | REVOKE membership_revoke_option membership_role_names FROM membership_role_specs membership_grantor drop_behavior {
+ $$=&RoleMembership{Targets:$3,Members:$5,Grantor:$6,Revoke:true,RevokeOption:$2.text,Cascade:$7}
+ }
+ | ALTER GROUP membership_role_spec ADD USER membership_role_specs {
+ $$=&RoleMembership{Targets:[]RoleSpec{$3},Members:$6,Alias:true}
+ }
+ | ALTER GROUP membership_role_spec DROP USER membership_role_specs {
+ $$=&RoleMembership{Targets:[]RoleSpec{$3},Members:$6,Alias:true,Revoke:true}
+ }
+ | GRANT col_label ON relation_name TO membership_role_specs {
+ sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ }
+ | GRANT col_label ON TABLE relation_name TO membership_role_specs {
+ sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ }
+ | REVOKE SELECT ON relation_name FROM membership_role_specs {
+ sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ }
+ | REVOKE SELECT ON TABLE relation_name FROM membership_role_specs {
+ sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ } ;
 role_kind: ROLE { $$=false } | USER { $$=true } | GROUP { $$=false } ;
 optional_with: /* empty */ | WITH ;
 role_options: /* empty */ { $$=roleOptionState{} }
@@ -1554,9 +1622,17 @@ role_options: /* empty */ { $$=roleOptionState{} }
    default:
     if unsupportedRoleOptions[fold($2.raw)] { sqllex.(*lexer).failAt("0A000","unsupported role option",$2.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1
    }
- } ;
+ }
+ | role_options IN ROLE membership_role_names { $$=$1.members("in",$2,$4) }
+ | role_options IN GROUP membership_role_names { $$=$1.members("in",$2,$4) }
+ | role_options ROLE membership_role_names { $$=$1.members("role",$2,$3) }
+ | role_options USER membership_role_names { $$=$1.members("role",$2,$3) }
+ | role_options ADMIN membership_role_names { $$=$1.members("admin",$2,$3) } ;
 /* WITH is a reserved introducer, never a role option after optional_with. */
-role_option_word: generic_word_without_with | ROLE | USER | GROUP | DROP | RESET | BY | transaction_name | END ;
+/* Attribute words are contextual identifiers. Do not include the membership
+ * introducers ADMIN/IN/ROLE/USER in this alternative: their list productions
+ * must consume those tokens rather than competing with an option-word loop. */
+role_option_word: IDENT | KW_U | INHERIT | GROUP | GRANTED | BY ;
 role_name: name {
  if $1.text=="public" || $1.text=="none" { sqllex.(*lexer).failAt("42939","role name \""+$1.text+"\" is reserved",$1.pos.Offset); return 1 }; $$=$1
  }
@@ -1565,8 +1641,8 @@ role_name: name {
  | CURRENT_ROLE { sqllex.(*lexer).failAt("42939","CURRENT_ROLE cannot be used as a role name here",$1.pos.Offset); return 1 } ;
 create_role: CREATE role_kind role_name optional_with role_options {
  login:=$2
- if $5.count>0 { login=$5.login }
- $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Login:login,OptionCount:$5.count,SecondOption:$5.second}
+ if $5.hasLogin { login=$5.login }
+ $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Login:login,Options:$5.options}
  } ;
 /* IF remains a name unless followed by EXISTS; that lookahead cannot continue
  * an ordinary comma-list. Defer exclusion so malformed suffixes stay 42601. */

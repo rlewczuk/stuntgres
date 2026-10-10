@@ -588,8 +588,15 @@ func relationDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescrip
 	if err == nil {
 		return nil
 	}
-	ns := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
-	if ns.owner == auth.state.CurrentUser {
+	if _, validationErr := auth.object(ref); validationErr != nil {
+		return validationErr
+	}
+	ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+	if !ok {
+		return fmt.Errorf("stuntgres: invalid sequence namespace")
+	}
+	namespace := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: ns.address}
+	if auth.Check(AccessRequirement{Object: namespace, OwnerOnly: true}) == nil {
 		return nil
 	}
 	return err

@@ -27,6 +27,8 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 	}
 	actor, _ := v.roles.Descriptor(v.state.CurrentUser)
 	switch s := stmt.(type) {
+	case *parser.RoleMembership:
+		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
 		target := v.state.SessionUser
 		if s.Reset && v.state.ResetRole != (PrincipalRef{}) {
@@ -86,8 +88,25 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 		a.revision++
 		return Result{}, nil
 	case *parser.CreateRole:
-		if s.OptionCount > 1 {
-			return Result{}, insertError("42601", "conflicting or redundant options", s.SecondOption)
+		var seen [4]bool
+		for _, option := range s.Options {
+			index := 0
+			switch option.Kind {
+			case "login":
+				index = 0
+			case "in":
+				index = 1
+			case "role":
+				index = 2
+			case "admin":
+				index = 3
+			default:
+				return Result{}, fmt.Errorf("stuntgres: invalid initial role option")
+			}
+			if seen[index] {
+				return Result{}, insertError("42601", "conflicting or redundant options", option.Pos)
+			}
+			seen[index] = true
 		}
 		if !actor.Superuser {
 			return Result{}, roleDiagnostic("42501", "permission denied to create role", "Only roles with the CREATEROLE attribute may create roles.")
@@ -109,6 +128,30 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 		n := cloneRoles(e.roles)
 		n.names[name] = ref
 		n.roles[ref] = RoleDescriptor{Ref: ref, Name: name, Login: s.Login}
+		candidate := RoleRead{e, n}
+		ownedEdges := false
+		for _, kind := range []string{"in", "role", "admin"} {
+			for _, option := range s.Options {
+				if option.Kind != kind {
+					continue
+				}
+				newSpec := parser.RoleSpec{Name: name, Pos: s.Name.Pos}
+				mutation := &parser.RoleMembership{Targets: []parser.RoleSpec{newSpec}, Members: option.Members}
+				if kind == "in" {
+					mutation.Targets = option.Members
+					mutation.Members = []parser.RoleSpec{newSpec}
+				}
+				if kind == "admin" {
+					mutation.Options = []parser.MembershipOption{{Name: "admin", Value: true}}
+				}
+				edges, err := planMembership(op, candidate, v.state, mutation, ownedEdges)
+				if err != nil {
+					return Result{}, err
+				}
+				n.edges = edges
+				ownedEdges = true
+			}
+		}
 		op.session.mu.Lock()
 		defer op.session.mu.Unlock()
 		if err := publicationOperationLocked(e, op); err != nil {

@@ -24,13 +24,13 @@ func TestSessionIdentityMembershipClosure(t *testing.T) {
 	admin, _ := roles.Lookup("postgres")
 	edge := func(role, member PrincipalRef, set, inherit, adminOption bool) {
 		t.Helper()
-		if err := e.AddMembership(context.Background(), Membership{Role: role, Member: member, Grantor: admin.Ref, Set: set, Inherit: inherit, Admin: adminOption}); err != nil {
+		if err := grantMembership(t, e, Membership{Role: role, Member: member, Grantor: admin.Ref, Set: set, Inherit: inherit, Admin: adminOption}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	edge(b.Ref, a.Ref, true, false, false)
 	edge(c.Ref, b.Ref, true, false, false)
-	edge(a.Ref, c.Ref, true, false, false)
+	edge(c.Ref, a.Ref, true, false, false)
 	edge(d.Ref, a.Ref, false, true, true)
 	for _, tc := range []struct {
 		from, to PrincipalRef
@@ -115,7 +115,7 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	}
 	a, _ := e.Roles().Lookup("a")
 	admin, _ := e.Roles().Lookup("postgres")
-	if err := e.AddMembership(context.Background(), Membership{Member: a.Ref, Role: b.Ref, Grantor: admin.Ref, Set: true}); err != nil {
+	if err := grantMembership(t, e, Membership{Member: a.Ref, Role: b.Ref, Grantor: admin.Ref, Set: true}); err != nil {
 		t.Fatal(err)
 	}
 	execute("SET ROLE b")

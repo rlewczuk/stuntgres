@@ -195,9 +195,9 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 			lookup := func(name string) PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
 			upstream := Membership{Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
 			downstream := Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
-			unrelated := Membership{Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("member")}
+			unrelated := Membership{Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
 			for _, edge := range []Membership{upstream, downstream, unrelated} {
-				if err := e.AddMembership(context.Background(), edge); err != nil {
+				if err := grantMembership(t, e, edge); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -328,7 +328,7 @@ func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
 	op.session.mu.Unlock()
 	roleError(t, e, op, "DROP ROLE postgres", "55006", "current user cannot be dropped", "")
 	roleExecute(t, e, op, "DROP ROLE dependent")
-	if err := e.AddMembership(context.Background(), Membership{Role: d.Ref}); err == nil {
+	if err := grantMembership(t, e, Membership{Role: d.Ref}); err == nil {
 		t.Fatal("stale membership endpoints")
 	}
 	if err := e.SetRoleReferences(context.Background(), "feature payload", []PrincipalRef{d.Ref}); err == nil {

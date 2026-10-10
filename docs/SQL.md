@@ -12,7 +12,9 @@ Detailed contracts are grouped by topic:
   a contains-row diagnostic without DML's failing-row Detail.
 - [SQL types and Go values](TYPES.md): codecs, metadata and adapter differences.
 - [Identifiers and literals](LEXICAL.md): names, strings and numeric syntax.
-- [Roles, authorization and schemas](AUTHORIZATION.md): ownership, schema lookup and search path.
+- [Roles, authorization and schemas](AUTHORIZATION.md): ownership, role membership
+  GRANT/REVOKE options and origins, CREATE initial memberships, ALTER GROUP,
+  schema lookup and search path.
 - [Transactions and locks](TRANSACTIONS.md) and [session settings](SETTINGS.md).
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.

@@ -102,8 +102,8 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			middle, _ := e.Roles().Lookup("middle")
 			member, _ := e.Roles().Lookup("member")
 			grantor := e.roles.names["postgres"]
-			for _, m := range []Membership{{Role: owner.Ref, Member: middle.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: middle.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: member.Ref, Member: middle.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}} {
-				if err := e.AddMembership(context.Background(), m); err != nil {
+			for _, m := range []Membership{{Role: owner.Ref, Member: middle.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: middle.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: owner.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}} {
+				if err := grantMembership(t, e, m); err != nil {
 					t.Fatal(err)
 				}
 			}

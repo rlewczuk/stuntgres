@@ -283,10 +283,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return d, nil
 	}
 	own := func(d *namespaceDescriptor) error {
-		if !actor.Superuser && d.owner != actor.Ref {
-			return sqlError("42501", "must be owner of schema "+d.name)
-		}
-		return nil
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
+		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateEnum:

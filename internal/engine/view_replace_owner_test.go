@@ -24,7 +24,7 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: owner.Ref}, Privileges: UsagePrivilege | CreatePrivilege}, {Grantor: owner.Ref, Grantee: ACLGrantee{Role: successor.Ref}, Privileges: UsagePrivilege | CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.AddMembership(context.Background(), Membership{Role: successor.Ref, Member: owner.Ref, Grantor: admin, Inherit: true, Set: set}); err != nil {
+			if err := grantMembership(t, e, Membership{Role: successor.Ref, Member: owner.Ref, Grantor: admin, Inherit: true, Set: set}); err != nil {
 				t.Fatal(err)
 			}
 			ref := roleTableRef(t, e, "s.v")
