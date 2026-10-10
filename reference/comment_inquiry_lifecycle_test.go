@@ -107,13 +107,15 @@ func TestReferenceCommentInquiryCapturedAndCanceled(t *testing.T) {
 					}
 					canceled, cancel := context.WithCancel(p.ctx)
 					cancel()
-					canceledRows, err := db.QueryContext(canceled, "SELECT obj_description(11,'pg_namespace')")
-					if canceledRows != nil {
-						canceledRows.Close()
-						t.Fatal("canceled cursor")
-					}
-					if !errors.Is(err, context.Canceled) {
-						t.Fatal(err)
+					for _, q := range []string{"SELECT obj_description(11,'pg_namespace')", "SELECT obj_description(NULL)"} {
+						canceledRows, err := db.QueryContext(canceled, q)
+						if canceledRows != nil {
+							canceledRows.Close()
+							t.Fatal("canceled cursor")
+						}
+						if !errors.Is(err, context.Canceled) {
+							t.Fatal(err)
+						}
 					}
 					fresh, err := db.Query("SELECT shobj_description($1,'pg_authid')", roleOID)
 					commentInquiryRows(t, fresh, err, backend.pg, false, "shobj_description", []any{"new shared"})

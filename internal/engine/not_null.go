@@ -55,7 +55,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return fail(err)
 		}
 	}
-	changes := scope.owner.catalog
+	changes := cloneCatalogChanges(scope.owner.catalog)
 	original := e.storage[ref.Address]
 	store := e.privateStorageLocked(changes, ref.Address)
 	if store == nil || original == nil {
@@ -109,7 +109,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				if _, exists := next.index[action.Column.Text]; exists && stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
 				}
-				next, err = scope.dropColumnCandidate(stage, next, ref, action)
+				next, err = scope.dropColumnCandidate(stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
 				var added addedColumn
 				next, added, err = e.addColumnCandidate(scope, op, auth, next, action)
@@ -196,7 +196,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// USING/CHECK demand must allocate from the AS replacement, not the live
 	// generator. This statement overlay is discarded on failure, never installed
 	// in the owner before Finish. Keep the exact generator pointers through merge.
-	changes = cloneCatalogChanges(changes)
 	e.mu.Lock()
 	if ref.Epoch != e.state.epoch {
 		e.mu.Unlock()
@@ -291,6 +290,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
+	storageOwner := old
+	if accumulated, exists := changes.storage[ref.Address]; exists {
+		shape = accumulated
+		store = accumulated.replacement
+		storageOwner = accumulated.relation
+		versions, ends = store.versions, store.ends
+	}
 	if len(fills) != 0 || len(shape.fills) != 0 {
 		shape.fills = maps.Clone(shape.fills)
 		if shape.fills == nil {
@@ -306,8 +312,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	replacement := store
-	projectedWrites := scope.ownWrites[ref.Address]
-	projectedDeletes := scope.ownDeletes[ref.Address]
+	projectedWrites, projectedDeletes := scope.columnProjectionRoots(ref.Address)
 	validator := alterRowValidator{relation: next, schema: schema}
 	if len(typeChecks) != 0 {
 		traversal := *next
@@ -324,42 +329,20 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	if rewrite {
-		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations, additions, validator)
+		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, storageOwner, next, store, frontier, transformations, additions, validator)
 		if err != nil {
 			return Result{}, err
 		}
 		versions, ends = replacement.versions, replacement.ends
 		shape.rewritten, shape.frontier = true, frontier
 		shape.snapshot, shape.hasSnapshot = nil, false
-	} else if !slices.Equal(old.attributes, next.attributes) {
-		if store.generation == ^uint64(0) {
-			return Result{}, fmt.Errorf("stuntgres: storage generation exhausted")
-		}
-		projection, projectionErr := newColumnProjection(old, next, shape.fills)
-		if projectionErr != nil {
-			return Result{}, projectionErr
-		}
-		versions, err = projection.versions(op.Context(), versions)
+	} else if !slices.Equal(storageOwner.attributes, next.attributes) {
+		shape, projectedWrites, projectedDeletes, err = projectColumnShape(scope, storageOwner, next, store, shape, snapshot, snapshotExists)
 		if err != nil {
 			return Result{}, err
 		}
-		replacement = &relationStorage{versions: versions, ends: ends, generation: store.generation + 1}
-		projectedWrites, err = projection.versions(op.Context(), projectedWrites)
-		if err != nil {
-			return Result{}, err
-		}
-		projectedDeletes = projectDeletions(projectedDeletes, replacement)
-		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.rewritten {
-			if slices.Equal(snapshot.relation.attributes, old.attributes) {
-				shape.snapshot, err = projection.versions(op.Context(), snapshot.versions)
-			} else {
-				shape.snapshot, err = projectVersions(op.Context(), snapshot.versions, snapshot.relation, next, shape.fills)
-			}
-			if err != nil {
-				return Result{}, err
-			}
-			shape.hasSnapshot = true
-		}
+		replacement = shape.replacement
+		versions, ends = replacement.versions, replacement.ends
 	}
 	needsScan := !rewrite && len(typeChecks) != 0
 	if !rewrite {
@@ -503,20 +486,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	// A shape statement replaces prior own roots only on the successful merge.
 	if replacement != store {
-		scope.projectedRoots = true
-		if len(scope.ownWrites) != 0 {
-			scope.stage.rows = make(map[ObjectAddress][]rowVersion, len(scope.ownWrites))
-			for a, rows := range scope.ownWrites {
-				scope.stage.rows[a] = rows
-			}
-			scope.stage.rows[ref.Address] = projectedWrites
-			scope.stage.replacing = true
-		}
-		scope.stage.deletes = make(map[ObjectAddress]*privateDeletionRoot, len(scope.ownDeletes)+1)
-		for a, root := range scope.ownDeletes {
-			scope.stage.deletes[a] = root
-		}
-		scope.stage.deletes[ref.Address] = projectedDeletes
+		scope.stageProjectedColumnRoots(ref.Address, projectedWrites, projectedDeletes)
 	}
 	if len(stage.generators) != 0 {
 		e.mu.Lock()

@@ -685,6 +685,18 @@ rollback restores overlays, not the committed snapshot. Old cursors survive
 ALTER/DROP/native controls; Restore reproduces definitions with reminted OIDs.
 No `pg_sequences`, extra catalog inventories or physical counters are added.
 See [schema, lifetime and feature smoke](SQL.md#pg_sequence-catalog--change-note).
+
+`pg_catalog.pg_depend` is readonly relation2608 with exactly `classid OID`,
+`objid OID`, `objsubid INT4`, `refclassid OID`, `refobjid OID`,
+`refobjsubid INT4`, `deptype CHAR`, all known NOT NULL. Object addresses use real
+catalog class/OID/stable attributes, including tableoid -6; no row `oid`.
+PUBLIC SELECT is not filtered by endpoint privileges. Derived normal/auto/internal
+edges cover represented table/view/sequence/type/default/generated/constraint/
+index/rule owners. Pinned references are absent; public is unpinned. Domain arrays
+are represented, automatic rowtypes and enum arrays are not. Catalog reads do not
+expand REGCLASS column storage, TEMP-table creation or transactional DDL admission.
+See [the exact dependency contract](SQL.md#pg_depend-catalog--change-note).
+
 CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
 comments and dependents while replacing the definition and outgoing dependencies.
 Existing names/types/typmods/collations form a required prefix; trailing columns
@@ -3428,7 +3440,8 @@ Quoted components preserve case/embedded dots and decode doubled quotes; names
 fold ASCII and clip at 63 UTF8-safe bytes. Only exact nonempty ASCII digit strings
 or exact `-` select the opening-free OID path. Padded digit/dash strings instead
 resolve symbolic names, and malformed complete input rejects before effects.
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=1`.
+Input-boundary stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`.
 
 Both `value::regclass` and `CAST(value AS regclass)` are admitted through the shared cast syntax alongside the existing bounded explicit-cast matrix above; unsupported source/target pairs retain that matrix's diagnostics. Regclass (OID2205) is a sequence expression/result identity, not an admitted stored column type. Valid sequence CREATE prepares without namespace permission checks. At execution, schema CREATE denial has no Position; ordinary CREATE validates options first, while IF NOT EXISTS checks namespace authority before skipping an existing relation or validating options. Literal regclass schema USAGE denial remains an analysis/Prepare error positioned at the input literal.
 
@@ -3509,6 +3522,9 @@ INSERT SELECT/Dump consumers respectively retain their captured snapshot and
 observe only live survivors. Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedSequence' VERBOSE=0`;
 pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedSequence' VERBOSE=0`.
+The migrated sequence source/control stream is
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceSourceConsumerStream$' VERBOSE=0`;
+its pinned counterpart adds `REFERENCE=1`.
 
 ## Timezone-aware temporal extension
 

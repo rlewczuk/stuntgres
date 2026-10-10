@@ -273,7 +273,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			return Result{}, err
 		}
 	}
-	if err := stageViewDependents(stage, targets, s.Mode); err != nil {
+	if err := scope.stageExpressionDependents(stage, targets, s.Mode, nil); err != nil {
 		return Result{}, err
 	}
 	// Cascaded view identities receive the same AX admission as explicit targets.

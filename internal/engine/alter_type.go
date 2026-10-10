@@ -303,7 +303,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 			}
 		}
 	}
-	writes, deletes := scope.ownWrites[old.address], scope.ownDeletes[old.address]
+	writes, deletes := scope.columnProjectionRoots(old.address)
 	var replaced map[RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {

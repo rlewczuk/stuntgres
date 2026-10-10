@@ -22,9 +22,9 @@ type domainDependency struct {
 // PostgreSQL dependency traversal visits a dependent domain's descendants before
 // resuming its parent's remaining dependents. Stable attributes are separate
 // dependents; a containing table is never a domain-drop target.
-func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domainDependency, error) {
-	domains := make(map[ObjectAddress]bool, len(stage.domainTargets))
-	for _, a := range stage.domainTargets {
+func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets []ObjectAddress) ([]domainDependency, error) {
+	domains := make(map[ObjectAddress]bool, len(targets))
+	for _, a := range targets {
 		domains[a] = true
 	}
 	for changed := true; changed; {
@@ -51,7 +51,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 		}
 	}
 	seen := make(map[ObjectAddress]bool)
-	for _, a := range stage.domainTargets {
+	for _, a := range targets {
 		seen[a] = true
 	}
 	var result []domainDependency
@@ -136,7 +136,11 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 						depends = depends || dep.ref.Address == target
 					}
 					if depends && !automatic {
-						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: check.OID, label: "constraint " + dependencyIdentifier(check.Name) + " on table " + name, relation: d})
+						orderOID, ordinal := check.OID, int32(0)
+						if target.ClassID == RelationClassID {
+							orderOID, ordinal = a.ObjectID, int32(check.ordinal)
+						}
+						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: orderOID, ordinal: ordinal, label: "constraint " + dependencyIdentifier(check.Name) + " on table " + name, relation: d})
 					}
 				}
 			}
@@ -161,7 +165,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 		}
 		return nil
 	}
-	for _, root := range stage.domainTargets {
+	for _, root := range targets {
 		if err := visit(root, root); err != nil {
 			return nil, err
 		}
@@ -169,10 +173,10 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 	return result, nil
 }
 
-func domainRestrictError(stage *CatalogStage, edges []domainDependency) error {
+func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
-	if len(stage.domainTargets) == 1 {
-		message = "cannot drop " + dependencyObject(stage.base, stage.domainTargets[0], stage.dependencyPath) + " because other objects depend on it"
+	if len(targets) == 1 {
+		message = "cannot drop " + dependencyObject(stage.base, targets[0], stage.dependencyPath) + " because other objects depend on it"
 	}
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {
@@ -184,10 +188,22 @@ func domainRestrictError(stage *CatalogStage, edges []domainDependency) error {
 }
 
 func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode parser.DropMode) error {
-	if len(stage.domainTargets) == 0 {
+	start := len(stage.viewCascadeNames)
+	if err := scope.stageExpressionDependents(stage, stage.domainTargets, mode, nil); err != nil {
+		return err
+	}
+	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames[start:]...)
+	stage.viewCascadeNames = stage.viewCascadeNames[:start]
+	return nil
+}
+
+// All stored-expression owners use the same immutable authority traversal.
+// Generated owners are removed through the existing column/storage projection.
+func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
+	if len(roots) == 0 {
 		return nil
 	}
-	edges, err := domainDependencyClosure(scope.op.Context(), stage)
+	edges, err := domainDependencyClosure(scope.op.Context(), stage, roots)
 	if err != nil {
 		return err
 	}
@@ -196,13 +212,13 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 		visible = visible || !edge.automatic
 	}
 	if mode == parser.DropRestrict && visible {
-		return domainRestrictError(stage, edges)
+		return domainRestrictError(stage, roots, edges)
 	}
-	targets := append([]ObjectAddress(nil), stage.domainTargets...)
+	targets := append([]ObjectAddress(nil), roots...)
 	var relations []*relationDescriptor
 	seen := make(map[ObjectAddress]bool)
 	for _, edge := range edges {
-		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && edge.relation.sqlIndex != nil {
+		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && (edge.relation.sqlIndex != nil || edge.relation.view != nil) {
 			targets = append(targets, edge.address)
 		}
 		if edge.column != "" && !seen[edge.relation.address] {
@@ -218,31 +234,59 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 			return err
 		}
 	}
+	noticeStart := len(stage.viewCascadeNames)
 	if err = stageViewDependents(stage, targets, parser.DropCascade); err != nil {
 		return err
 	}
 	for _, old := range relations {
+		if _, removed := stage.removals[old.address]; removed {
+			continue
+		}
 		ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.address}
 		next := old
-		if replacement, ok := stage.descriptors[old.address].(*relationDescriptor); ok {
-			next = replacement
-		}
+		consumed := false
 		for _, edge := range edges {
 			if edge.column == "" || edge.relation.address != old.address {
 				continue
 			}
-			next, err = scope.dropColumnCandidate(stage, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: edge.column}, Mode: parser.DropCascade})
+			if _, removed := stage.removals[old.address]; removed {
+				break
+			}
+			if replacement, ok := stage.descriptors[old.address].(*relationDescriptor); ok {
+				next = replacement
+			}
+			// The closure captured a live stable attribute. A nested cascade
+			// may already have consumed it through a different provider path.
+			slot := next.indexForAttribute(edge.address.SubID)
+			if slot < 0 {
+				continue
+			}
+			next, err = scope.dropColumnCandidate(stage, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.columns[slot].Name}, Mode: parser.DropCascade}, changes)
 			if err != nil {
 				return err
 			}
+			consumed = true
+		}
+		if !consumed {
+			continue
+		}
+		if _, removed := stage.removals[old.address]; removed {
+			continue
 		}
 		if old.revision == DefinitionRevision(^uint64(0)) {
 			return fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next.revision = old.revision + 1
+		if changes != nil {
+			if err = scope.stagePrivateColumnShape(stage, changes, old, next); err != nil {
+				return err
+			}
+			continue
+		}
 		e.mu.Lock()
 		storage := e.storage[old.address]
-		if e.state.descriptors[old.address] != old || storage == nil {
+		storageOwner := stage.base.state.descriptors[old.address].(*relationDescriptor)
+		if e.state.descriptors[old.address] != storageOwner || storage == nil {
 			e.mu.Unlock()
 			return CatalogConflict{}
 		}
@@ -251,7 +295,7 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 		if generation == ^uint64(0) {
 			return fmt.Errorf("stuntgres: storage generation exhausted")
 		}
-		projected, er := projectVersions(scope.op.Context(), rows, old, next, nil)
+		projected, er := projectVersions(scope.op.Context(), rows, storageOwner, next, nil)
 		if er != nil {
 			return er
 		}
@@ -261,7 +305,10 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 		}
 	}
 	e.mu.Lock()
-	for _, target := range targets {
+	for i, target := range targets {
+		if target.ClassID != TypeClassID && i < len(roots) {
+			continue
+		}
 		if target.ClassID == TypeClassID || target.ClassID == RelationClassID && target.SubID == 0 {
 			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
 				break
@@ -272,10 +319,10 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 	if err != nil {
 		return err
 	}
-	stage.viewCascadeNames = nil
+	stage.viewCascadeNames = stage.viewCascadeNames[:noticeStart]
 	for _, edge := range edges {
 		if !edge.automatic {
-			stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+edge.label)
+			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+edge.label)
 		}
 	}
 	return nil
@@ -298,7 +345,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 			return err
 		}
 	}
-	edges, err := domainDependencyClosure(op.Context(), stage)
+	edges, err := domainDependencyClosure(op.Context(), stage, stage.domainTargets)
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,7 @@ package engine
 import "stuntgres/internal/parser"
 
 // AUTO dependencies use stable attribute SubIDs, never compacted column slots.
-func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
 	var closure []ObjectAddress
 	for a, d := range stage.base.state.descriptors {
 		if _, removed := stage.removals[a]; removed {
@@ -32,7 +32,7 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 			copy(closure, targets)
 		}
 		closure[len(targets)] = a
-		if err := stageViewDependents(stage, closure, mode); err != nil {
+		if err := s.stageExpressionDependents(stage, closure, mode, changes); err != nil {
 			return err
 		}
 		ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: a}

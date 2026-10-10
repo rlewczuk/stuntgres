@@ -89,7 +89,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	// The actual dependency closure records the destination's stable attribute.
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ObjectAddress{domain.Address()}
-	edges, err := domainDependencyClosure(context.Background(), drop)
+	edges, err := domainDependencyClosure(context.Background(), drop, drop.domainTargets)
 	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].relation != d || edges[0].column != "d" || edges[0].address.SubID != 2 {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}

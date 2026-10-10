@@ -476,6 +476,23 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	case currentDateTimeExpression:
 		return n.sql()
 	case literalExpression:
+		if n.regclassRef != (ObjectRef{}) {
+			ref := n.regclassRef
+			target, ok := view.Descriptor(ref.Address)
+			relation, relationOK := target.(*relationDescriptor)
+			if !ok || !relationOK || ref.owner != view.owner.owner || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
+				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
+			}
+			r.record(ref)
+			if r.checkLiterals == nil {
+				namespace, ok := view.Descriptor(relation.namespace)
+				if !ok {
+					return "", fmt.Errorf("stuntgres: missing stored regclass namespace")
+				}
+				name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(relation.name)
+				return "CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)", nil
+			}
+		}
 		if r.checkLiterals != nil {
 			*r.checkLiterals = append(*r.checkLiterals, n)
 			return fmt.Sprintf("$%d", len(*r.checkLiterals)), nil
@@ -513,6 +530,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return "", fmt.Errorf("stuntgres: invalid default collation")
 	case coercionExpression:
+		if r.commentSnapshot != nil && n.child != nil && n.child.ResultUsage().Type.ContainsRegclass() && u.Type.BaseType().ID() == sqltype.Text {
+			*r.commentSnapshot = true
+		}
 		if n.child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
 		}
@@ -1181,6 +1201,7 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		rebound = n
 	case literalExpression:
 		info.unknownNull = n.unknownNull
+		info.regclassRef = n.regclassRef
 		if !changed {
 			return node, false, nil
 		}

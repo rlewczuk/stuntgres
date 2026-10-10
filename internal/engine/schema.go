@@ -202,7 +202,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 			removedRelations = append(removedRelations, address)
 		}
 	}
-	if err := stageViewDependents(stage, removedRelations, parser.DropCascade); err != nil {
+	if err := scope.stageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)

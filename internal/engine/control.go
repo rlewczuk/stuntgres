@@ -81,7 +81,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
 	indexIndices := make(map[OID]int)
-	// Only newly added default edges are removed if their topology is cyclic.
+	// Only exclusively deferrable default contributions may relax a cycle.
 	var defaultPredecessors map[OID][]OID
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
@@ -247,6 +247,21 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			oid := r.address.ObjectID
 			viewDependencies[oid] = []OID{r.sqlIndex.parent.ObjectID}
+			for _, key := range r.sqlIndex.keys {
+				if key.derived == nil {
+					continue
+				}
+				for _, dependency := range key.derived.dependencies {
+					predecessor, err := dumpPredecessor(catalog, dependency.Address, r.sqlIndex.parent)
+					if err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					if predecessor != 0 && !slices.Contains(viewDependencies[oid], predecessor) {
+						viewDependencies[oid] = append(viewDependencies[oid], predecessor)
+					}
+				}
+			}
 			indexIndices[oid] = len(indexes)
 			indexes = append(indexes, dumpView{principal.Name, sql})
 			continue
@@ -350,22 +365,6 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		for _, definition := range r.defaults {
-			for _, dependency := range definition.dependencies {
-				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
-				if err != nil {
-					e.mu.Unlock()
-					return err
-				}
-				if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
-					if defaultPredecessors == nil {
-						defaultPredecessors = make(map[OID][]OID)
-					}
-					defaultPredecessors[oid] = append(defaultPredecessors[oid], predecessor)
-					predecessors = append(predecessors, predecessor)
-				}
-			}
-		}
 		for _, definition := range r.generations {
 			for _, dependency := range definition.dependencies {
 				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
@@ -377,6 +376,39 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					predecessors = append(predecessors, predecessor)
 				}
 			}
+		}
+		var deferredPredecessors []OID
+		for _, definition := range r.defaults {
+			deferrable := defaultReplayDeferrable(definition)
+			for _, dependency := range definition.dependencies {
+				// Even a same-table Const needs its provider to exist before binding.
+				predecessor, err := dumpPredecessor(catalog, dependency.Address, ObjectAddress{})
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if predecessor == 0 {
+					continue
+				}
+				if deferrable {
+					if !slices.Contains(deferredPredecessors, predecessor) {
+						deferredPredecessors = append(deferredPredecessors, predecessor)
+					}
+				} else if !slices.Contains(predecessors, predecessor) {
+					predecessors = append(predecessors, predecessor)
+				}
+			}
+		}
+		for _, predecessor := range deferredPredecessors {
+			// CHECK/generated/nondeferrable defaults retain shared predecessors.
+			if slices.Contains(predecessors, predecessor) {
+				continue
+			}
+			if defaultPredecessors == nil {
+				defaultPredecessors = make(map[OID][]OID)
+			}
+			defaultPredecessors[oid] = append(defaultPredecessors[oid], predecessor)
+			predecessors = append(predecessors, predecessor)
 		}
 		viewDependencies[oid] = predecessors
 		tableIndices[oid] = len(tables)
@@ -514,7 +546,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				line.WriteString(" COLLATE \"pg_catalog\"." + quoteIdentifier(name))
 			}
-			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && closedSequenceDefault(definition.expression)) {
+			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && defaultReplayDeferrable(definition)) {
 				text, err := defaultSQL(ctx, catalog, definition.expression)
 				if err != nil {
 					return err
@@ -599,7 +631,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				currentOwner = t.owner
 			}
-			if err := t.emitSequenceDefaults(ctx, catalog, emit); err != nil {
+			if err := t.emitDeferredDefaults(ctx, catalog, emit); err != nil {
 				return err
 			}
 		}
@@ -716,7 +748,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred sequence DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {

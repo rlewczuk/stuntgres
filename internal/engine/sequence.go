@@ -492,9 +492,9 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	auth, err = e.authorizationLocked(scope.op)
 	if err != nil {
+		e.mu.Unlock()
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
@@ -502,15 +502,43 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	// Ordinary defaults, CHECKs and views share one private dependency closure.
+	// Every stored-expression owner shares one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(checkStage)
 	checkStage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {
+		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := stageViewDependentsLocked(checkStage, targets, s.Mode); err != nil {
+	e.mu.Unlock()
+	if err := scope.stageExpressionDependents(checkStage, targets, s.Mode, changes); err != nil {
 		return Result{}, err
+	}
+	if _, err := e.ValidateCatalogStage(scope.op.Context(), checkStage); err != nil {
+		return Result{}, err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if auth.catalog.Epoch() != e.state.epoch {
+		return Result{}, ErrCatalogReplaced
+	}
+	for address := range checkStage.descriptors {
+		expected := auth.catalog.state.descriptors[address]
+		if original, private := changes.originals[address]; private {
+			expected = original
+		}
+		if e.state.descriptors[address] != expected {
+			return Result{}, CatalogConflict{}
+		}
+	}
+	for address := range checkStage.removals {
+		expected := auth.catalog.state.descriptors[address]
+		if original, private := changes.originals[address]; private {
+			expected = original
+		}
+		if e.state.descriptors[address] != expected {
+			return Result{}, CatalogConflict{}
+		}
 	}
 	for address, descriptor := range checkStage.descriptors {
 		e.catalogChangeLocked(changes, address, descriptor)
@@ -532,6 +560,23 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
+	}
+	for address, descriptor := range checkStage.descriptors {
+		next, ok := descriptor.(*relationDescriptor)
+		old, oldOK := auth.catalog.state.descriptors[address].(*relationDescriptor)
+		if !ok || !oldOK {
+			continue
+		}
+		for _, attribute := range old.attributes {
+			if !next.hasAttribute(attribute) {
+				target := address
+				target.SubID = attribute
+				targets = append(targets, target)
+			}
+		}
+	}
+	for address := range checkStage.removals {
+		targets = append(targets, address)
 	}
 	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.state, targets: targets})
 	scope.catalog = changes

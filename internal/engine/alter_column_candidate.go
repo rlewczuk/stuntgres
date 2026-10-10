@@ -7,7 +7,7 @@ import (
 )
 
 // Stable attributes own defaults, ACLs, comments, constraints and dependency edges.
-func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction) (*relationDescriptor, error) {
+func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, error) {
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
@@ -48,11 +48,11 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 		}
 		dependentAction := a
 		dependentAction.Column = parser.Identifier{Text: old.columns[generatedSlot].Name}
-		remaining, err := scope.dropColumnCandidate(stage, old, ref, dependentAction)
+		remaining, err := scope.dropColumnCandidate(stage, old, ref, dependentAction, changes)
 		if err != nil {
 			return nil, err
 		}
-		return scope.dropColumnCandidate(stage, remaining, ref, a)
+		return scope.dropColumnCandidate(stage, remaining, ref, a, changes)
 	}
 	// Dependency passes must see preceding actions in this same ALTER list.
 	if err := stage.Replace(old); err != nil {
@@ -199,7 +199,7 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	if err := stage.Replace(&next); err != nil {
 		return nil, err
 	}
-	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}, a.Mode); err != nil {
+	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}, a.Mode, changes); err != nil {
 		return nil, err
 	}
 	return stage.descriptors[ref.Address].(*relationDescriptor), nil

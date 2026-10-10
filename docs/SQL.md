@@ -603,7 +603,8 @@ Restore replays those differences atomically while retaining target shared role
 comments. See [comment mutation and native controls](TABLES.md#object-comments)
 for the remaining DDL/transaction boundaries.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
+Feature stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCommentInquiry$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry$' VERBOSE=0`.
 Dual-mode native union: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`;
 pinned independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`.
 Captured old table/shared comments and fresh same-object inquiries preserve actual
@@ -737,6 +738,132 @@ No `pg_sequences` view or `pg_attribute`/`pg_depend` expansion is implied.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0`,
 and the identical command with `REFERENCE=1` for pinned PostgreSQL.
 
+## pg_depend catalog — change note
+
+`pg_catalog.pg_depend` (relation2608, namespace11) uses the existing normal
+direct/prepared SELECT pipeline. Its columns, in order, are `classid OID`,
+`objid OID`, `objsubid INT4`, `refclassid OID`, `refobjid OID`,
+`refobjsubid INT4`, `deptype CHAR`. All are known NOT NULL, with origins
+relation2608/attributes1–7, including empty results. CHAR is PostgreSQL's internal
+`"char"`, not CHAR(n). pq descriptors expose unknown nullability. There is no row
+`oid`: selecting it reports42703 `column "oid" does not exist`, Position8.
+Unordered results are bags, retaining independently constructed multiplicities.
+
+Each row identifies dependent `(classid,objid,objsubid)` to referenced
+`(refclassid,refobjid,refobjsubid)`. Whole objects use subid0; live relation columns
+use stable attribute numbers, not dense evaluation slots. tableoid uses -6.
+Generated OIDs are backend-local identities, never allocator-parity promises.
+
+| Represented construction | Exact edge flavors |
+|---|---|
+| Table/view/sequence | Whole relation to actual namespace `n`; declared user column type `n` |
+| Enum/domain | Declaration to namespace `n`; domain to immediate unpinned base `n` |
+| Domain array | Actual array to element domain `i`, no independent namespace edge |
+| NOT NULL | Real constraint to owner column `a` |
+| CHECK | Constraint to conkey columns (or table0 if none) `a`, separately to expression references `n` |
+| UNIQUE | Constraint to key columns `a`; backing index to constraint `i` |
+| Default | Real attrdef to owner column `a`, expression references `n` |
+| STORED generation | Real attrdef to generated column `i`, input/external references `n` |
+| SERIAL / plain OWNED BY | Sequence to owner column `a`; SERIAL attrdef also to sequence `n` |
+| Identity | Sequence to owner column `i`, no synthetic ordinary attrdef |
+| View | Real `_RETURN` rule to view `i`, actual query references `n` |
+| Ordinary index | Distinct simple key/INCLUDE and parent expression columns `a`, external references `n` |
+| Expression-only index | Additionally parent table0 `a` when there are no simple key/INCLUDE columns |
+
+CHECK can expose both `a` and `n` to the same column; these are not collapsed.
+Expression collections deduplicate repeated addresses and omit a redundant
+whole-object reference when that collection references its columns. Separate
+construction passes remain separate, notably expression-index parent0 ownership.
+Domain-valued Vars reference columns, not their result type; user constants and
+non-function coercion targets can reference types. Dependencies retain analyzed
+dead CASE branches rather than reflecting runtime expression simplification.
+
+Named and quoted numeric scalar REGCLASS constants capture a real existing
+relation identity. NULL, nonexistent quoted numeric constants and plain OIDs
+have no fabricated relation reference. PostgreSQL runtime integer-to-REGCLASS
+casts likewise add no Const edge; native preserves its existing42804
+`incompatible source and destination types` boundary for these casts.
+Domain-over-REGCLASS explicit casts retain the existing native0A000 primitive
+cast boundary, not a new cast implementation. REGCLASS-array payloads are not
+recursively scanned for scalar relation dependencies. Supported BOOL consumers
+such as `'p'::regclass IS NOT NULL` exercise every stored expression owner
+without adding REGCLASS column storage or REGCLASS-to-TEXT casts in defaults.
+Existing TEXT concatenation consumers remain supported. Rename follows captured
+identity, not later name lookup. Same-name replacement never retargets an
+obsolete provider.
+
+Pinned builtin type/function/operator/collation/opclass/conversion references
+and pg_catalog namespace11 are omitted, not synthetic `p` rows. public is not
+pinned; discover its actual OID because the reference fixture recreates it.
+Automatic rowtypes, enum arrays, pg_shdepend owner/ACL/membership relationships,
+extensions, partitions, foreign keys/triggers and unsupported physical objects
+are not invented. Actual domain arrays and view rules are not exclusions.
+PUBLIC SELECT requires no endpoint SELECT/schema USAGE and applies no per-edge
+privilege filtering. Native mutation reports0A000
+`catalog source mutation is unsupported`; row locking reports0A000
+`row locking is not supported for virtual catalog relations`.
+Schema permission denial preserves native utility source-route positioning:
+`DROP TABLE pgdep_private.secret` reports42501
+`permission denied for schema pgdep_private`, Position12 (the schema token).
+PostgreSQL18 reports the same fields with an empty Position; both complete
+diagnostics are specified independently, not described as positioning parity.
+
+Native general view expressions do not expose `tableoid`; their existing42703
+boundary remains explicit while generated-column expressions retain supported
+system-attribute references. Query frame coverage uses supported `MAX`,
+correlation, joins, grouping, derived frames and supported UNION ALL arms,
+including their analyzed coercion expressions. Expression
+owners are declared in supported complete CREATE TABLE statements, not
+unsupported ALTER ADD CHECK/generated-column routes.
+
+Existing feature owners remain authoritative for RESTRICT/CASCADE. External
+default removal preserves the column/table; CHECK removal preserves its table;
+generation removal redirects to the generated column; index/view owners are
+removed as such. Direct identity-sequence and UNIQUE-backing-index drops retain
+their2BP01 internal-owner diagnostics and hints. Ordinary RESTRICT uses2BP01
+`cannot drop ... because other objects depend on it`, exact dependent Detail and
+`Use DROP ... CASCADE to drop the dependent objects too.` Rename preserves
+identities; TYPE reconstruction can remint index/definition identities.
+
+Reads derive detached rows from one supplied catalog frontier, including supported
+private sequence changes. Returned rows/metadata survive later DDL and native
+Reset/Restore; another held statement execution captures the new frontier.
+Catalog projection does not expand transactional CREATE TABLE/ALTER DEFAULT or
+TEMP-table creation. Existing supported sequence CREATE/ALTER/DROP provides
+transaction/savepoint/peer-visibility witnesses. Native Dump serializes owning
+DDL, never pg_depend rows; Restore derives relationships from destination
+identities, including foreign-Driver replay. Logical replay can remint OIDs and
+historical column gaps. Failed/canceled replacement preserves the prior catalog.
+Supported transactional sequence CASCADE redirects external generated-column
+dependencies through the existing column-shape projection seam. Nested traversal
+through a generated column's OWNED BY sequence retains one candidate and one
+private storage/change authority, including multiple tables and repeated
+projections of sibling columns in the same table. Accumulated own index roots,
+pending inserts/deletes and repeatable-read snapshot roots are projected from
+their correct prior layout; descriptors, storage and saved layouts publish
+atomically. Savepoint rollback restores them together, peers retain the committed
+frontier until publication, and final publication preserves concurrent committed
+rows outside the transaction's stable snapshot.
+Overlapping direct and nested paths consume each original stable attribute
+identity once against the effective staged descriptor. A target removed by an
+earlier valid cascade is not dropped or projected again. This does not change
+the42703 error for a genuinely missing user-requested DROP COLUMN.
+The immutable generated consumer can be BOOL (`'s'::regclass IS NOT NULL`);
+REGCLASS-to-TEXT output is stable and is not admitted as an immutable generated
+expression. Dump orders expression-provider objects before their index consumers.
+Dump can defer already-admitted immutable scalar defaults with captured REGCLASS
+providers, alongside fixed early-bound `nextval` defaults, to break legal
+default-only cycles. One eligibility decision controls ordering, inline omission,
+deferred ALTER emission and ordinary Restore binding. CHECK/generated edges
+remain mandatory; cycles that cannot be resolved this way fail before output.
+
+Complete reference family: `RUN='^TestReferencePGDepend'`, `PACKAGES=./reference`,
+once with `make quickcheck` and once with `REFERENCE=1`, each under900 seconds.
+Feature smoke uses the identical modes with
+`RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0`; it covers actual construction
+bags, domain arrays, stable attributes, retained/held queries, scalar REGCLASS
+RESTRICT/CASCADE and explicit native controls plus actual emitted SQL PG replay.
+
 ## Sequences
 
 `CREATE [TEMPORARY | TEMP | UNLOGGED] SEQUENCE [IF NOT EXISTS] name` supports
@@ -816,7 +943,8 @@ and comment-looking bytes belong to unquoted names: `s--suffix` and `s/*suffix*/
 never select the prefix `s`. Dots and ASCII whitespace separate components;
 quoted components preserve case and embedded dots, and doubled quotes decode
 to one quote. Names use ASCII folding and UTF8-safe 63-byte clipping.
-Input-boundary smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=0`.
+Input-boundary stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`.
 
 Standalone selected regclass casts have column label `regclass` and export
 the visible relation name, or a schema-qualified name when shadowed/off-path,
@@ -910,7 +1038,8 @@ the shared cast routing alongside the bounded int4/int8/text/bool and character
 explicit-cast matrix. Unsupported type pairs retain their documented positioned
 diagnostics; sequence support does not widen that matrix.
 
-Feature commands: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceSmoke$' VERBOSE=0`,
+Feature commands: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceSourceConsumerStream$' VERBOSE=0`,
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequenceSourceConsumerStream$' VERBOSE=0`,
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`,
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`.
 The sequence families include an exact concurrent CACHE1 bag, CACHE7

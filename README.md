@@ -759,7 +759,8 @@ refresh on their next execution. Views preserve strict constant-NULL inquiry
 syntax without runtime sibling demand. Native builtin namespace/type descriptions
 and explicit namespace removals round-trip through native controls.
 See [semantics and boundaries](docs/SQL.md#object-comment-inquiries--change-note).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
+Feature stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCommentInquiry$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry$' VERBOSE=0`.
 
 **Catalog change note:** `pg_catalog.pg_description` is a readonly normal query
 source with exactly `objoid OID`, `classoid OID`, `objsubid INT4` and
@@ -774,6 +775,18 @@ logical Restore can remint surviving column numbers after a dropped column.
 See [catalog contract](docs/SQL.md#pg_description-catalog--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL.
+**Dependency catalog change note:** `pg_catalog.pg_depend` is a readonly normal
+query source (relation2608) with seven NOT NULL object/subobject/dependency-type
+columns and no row `oid`. It derives exact `n`, `a` and `i` edges from represented
+owner definitions, including real domain arrays and view rewrite rules; builtin
+pinned references, automatic rowtypes and enum arrays are not fabricated.
+Scalar REGCLASS constants capture existing relation identities, including dead
+CASE branches; runtime integer-to-REGCLASS casts and array payloads do not invent
+relation edges. Existing feature owners govern rename/drop and native replay.
+See [dependency contract](docs/SQL.md#pg_depend-catalog--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0`,
+and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
+
 
 **Sequence catalog change note:** `pg_catalog.pg_sequence` exposes the exact
 eight readonly definition fields, known NOT NULL native metadata and logical

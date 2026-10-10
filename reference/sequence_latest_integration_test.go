@@ -182,6 +182,21 @@ func TestReferenceSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 					for i, expression := range []string{"nextval(NULL)", "setval('default_s',nextval('default_s'),NULL)", "nextval(NULL::regclass)", "lastval()"} {
 						name := "default_bad" + strconv.Itoa(i)
 						q := "CREATE TABLE " + name + "(v BIGINT DEFAULT " + expression + ")"
+						if prepared {
+							// Original smoke used ExecContext even in its Prepared
+							// outer phase; retain that route beside prepared CREATE.
+							sourceName := name + "_context"
+							sourceQuery := "CREATE TABLE " + sourceName + "(v BIGINT DEFAULT " + expression + ")"
+							source := referenceExec(sourceQuery, 0)
+							if !pg {
+								source = referenceError(sourceQuery, "0A000")
+								source.errorStage = "execute"
+							}
+							referenceRunStep(t, p.ctx, a, record, source)
+							if pg {
+								referenceLockExec(t, p.ctx, a, "DROP TABLE "+sourceName, 0)
+							}
+						}
 						if pg {
 							s := referenceExec(q, 0)
 							s.prepared = prepared
@@ -215,28 +230,19 @@ func TestReferenceSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 						}
 					}
 					for i, expression := range []string{"NULL::regclass IS NULL", "'default_s'::regclass IS NULL"} {
-						name := "regclass_bad" + strconv.Itoa(i)
-						q := "CREATE TABLE " + name + "(v BOOL DEFAULT (" + expression + "))"
-						if pg {
-							s := referenceExec(q, 0)
-							s.prepared = prepared
-							referenceRunStep(t, p.ctx, a, record, s)
-							referenceLockExec(t, p.ctx, a, "INSERT INTO "+name+" DEFAULT VALUES", 1)
-							referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"BOOL"}, [][]any{{i == 0}}))
-						} else {
-							s := referenceError(q, "0A000")
-							s.prepared = prepared
-							if got := referenceRunStep(t, p.ctx, a, record, s); got.errorStage != "execute" {
-								t.Fatal("native capability exclusion occurred before utility execution", got.errorStage)
-							}
-							missing := controlsReferenceDiagnostic("42P01", `relation "`+name+`" does not exist`)
-							missing.Position = "15"
-							query := referenceErrorDiagnostic("SELECT v FROM "+name, missing)
-							query.selectRows = true
-							query.errorStage = "execute"
-							referenceRunStep(t, p.ctx, a, record, query)
-
+						name := "regclass_default" + strconv.Itoa(i)
+						if prepared {
+							sourceName := name + "_context"
+							referenceRunStep(t, p.ctx, a, record, referenceExec("CREATE TABLE "+sourceName+"(v BOOL DEFAULT ("+expression+"))", 0))
+							referenceLockExec(t, p.ctx, a, "INSERT INTO "+sourceName+" DEFAULT VALUES", 1)
+							referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT v FROM "+sourceName, []string{"v"}, []string{"BOOL"}, [][]any{{i == 0}}))
+							referenceLockExec(t, p.ctx, a, "DROP TABLE "+sourceName, 0)
 						}
+						s := referenceExec("CREATE TABLE "+name+"(v BOOL DEFAULT ("+expression+"))", 0)
+						s.prepared = prepared
+						referenceRunStep(t, p.ctx, a, record, s)
+						referenceLockExec(t, p.ctx, a, "INSERT INTO "+name+" DEFAULT VALUES", 1)
+						referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"BOOL"}, [][]any{{i == 0}}))
 					}
 					if !pg {
 						sequenceProbeValue(t, p.ctx, a, "SELECT nextval('default_s')", 17)

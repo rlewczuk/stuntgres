@@ -51,10 +51,12 @@ type EvalContext struct {
 	query          *queryState
 }
 type expressionInfo struct {
-	usage                         sqltype.Usage
-	pos                           parser.Position
-	properties                    ExprProperties
-	unknownNull                   bool
+	usage       sqltype.Usage
+	pos         parser.Position
+	properties  ExprProperties
+	unknownNull bool
+	// Only genuine scalar REGCLASS constants carry captured relation authority.
+	regclassRef                   ObjectRef
 	collationConflict             bool
 	collationExplicit             parser.Position
 	collationLeft, collationRight sqltype.CollationRef

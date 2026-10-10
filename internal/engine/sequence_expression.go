@@ -11,10 +11,11 @@ import (
 )
 
 type sequenceConstant struct {
-	offset    int
-	ref       ObjectRef
-	temporary SessionToken
-	stamp     DefinitionRevision
+	offset      int
+	ref         ObjectRef
+	temporary   SessionToken
+	stamp       DefinitionRevision
+	represented bool
 }
 type sequenceCallExpression struct {
 	expressionInfo
@@ -92,10 +93,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 		var err error
 		if i == 0 {
 			if b.defaultConsumer {
-				// REGCLASS is admitted only for this closed nextval argument.
-				b.defaultConsumer = false
 				node, ref, err = b.bindRegclass(raw)
-				b.defaultConsumer = true
 				literal, ok := node.(literalExpression)
 				if err == nil && (!ok || literal.value.IsNull() || ref == (ObjectRef{})) {
 					return nil, expressionError("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
@@ -148,9 +146,6 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 	return sequenceCallExpression{expressionInfo: b.info(b.typ(sqltype.Int8).Usage(), r.SourcePosition(), properties), name: name, args: args, ref: ref, temporary: temporary}, nil
 }
 func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, error) {
-	if b.defaultConsumer {
-		return nil, ObjectRef{}, expressionError("0A000", "regclass is unsupported in DEFAULT expressions", parser.ExpressionStart(raw))
-	}
 	if err := qualifiedCastChild(raw); err != nil {
 		return nil, ObjectRef{}, err
 	}
@@ -190,12 +185,17 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 		var stamp DefinitionRevision
 		// Capture the provider stamp from the same authority as its name and
 		// temporary lifetime, never from a different published catalog.
-		if d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
-			stamp = d.sequencePlanStamp
+		_, represented := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		if represented {
+			stamp = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp
 		}
-		b.sequenceConstants = append(b.sequenceConstants, sequenceConstant{offset: literal.Value.Pos.Offset, ref: ref, temporary: temporary, stamp: stamp})
+		b.sequenceConstants = append(b.sequenceConstants, sequenceConstant{offset: literal.Value.Pos.Offset, ref: ref, temporary: temporary, stamp: stamp, represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
-		return literalExpression{b.info(typ.Usage(), literal.Value.Pos, ExprProperties{}), sqltype.String(typ, text)}, ref, nil
+		info := b.info(typ.Usage(), literal.Value.Pos, ExprProperties{})
+		if _, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
+			info.regclassRef = ref
+		}
+		return literalExpression{info, sqltype.String(typ, text)}, ref, nil
 	}
 	// This legacy provider also owns explicit REGCLASS annotations and sequence
 	// inputs. New contextual inquiry coercions must not widen its public boundary.

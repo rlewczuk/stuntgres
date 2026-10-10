@@ -161,6 +161,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		}
 		return child(r.Child, bound)
 	case parser.RegclassExpr:
+		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
+			bound = coercion.child
+		}
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
@@ -505,6 +508,11 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			typ, ok := catalog.LookupType(usage.Type.ID())
 			if !ok || typ != usage.Type {
 				return fmt.Errorf("stuntgres: foreign view literal type")
+			}
+			if ref := literal.regclassRef; ref != (ObjectRef{}) {
+				if _, ok := catalog.Descriptor(ref.Address); !ok || ref.owner != catalog.owner.owner || ref.Epoch != catalog.Epoch() || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.value.IsNull() {
+					return fmt.Errorf("stuntgres: invalid view regclass literal authority")
+				}
 			}
 			(*count)++
 			return nil

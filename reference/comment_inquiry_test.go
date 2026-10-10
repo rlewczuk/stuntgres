@@ -54,11 +54,14 @@ func TestReferenceCommentInquiry(t *testing.T) {
 						{fmt.Sprintf("shobj_description(%d,'pg_authid'::text)", roleOID), "shobj_description", "shared"},
 						{fmt.Sprintf("obj_description(%d,'pg_authid')", roleOID), "obj_description", nil},
 						{"shobj_description('t'::regclass,'pg_class')", "shobj_description", nil},
+						{"obj_description(11,'pg_namespace')", "obj_description", "system catalog schema"},
+						{"obj_description(23,'pg_type')", "obj_description", "-2 billion to 2 billion integer, 4-byte storage"},
 						{"col_description(NULL,1)", "col_description", nil}, {"col_description(1,NULL)", "col_description", nil},
 						{"obj_description(NULL)", "obj_description", nil}, {"obj_description(NULL,'pg_class')", "obj_description", nil}, {"obj_description(1,NULL)", "obj_description", nil},
 						{"shobj_description(NULL,'pg_authid')", "shobj_description", nil}, {"shobj_description(1,NULL)", "shobj_description", nil},
 						{"shobj_description(10,NULL)", "shobj_description", nil},
 						{"obj_description(4294967295::bigint,'pg_class')", "obj_description", nil},
+						{"obj_description(0,'pg_class')", "obj_description", nil},
 						{"pg_catalog.col_description('t'::regclass,1)", "col_description", "first"},
 					} {
 						s := selectOne("SELECT "+tc.expr, tc.label, tc.want)
@@ -132,7 +135,29 @@ func TestReferenceCommentInquiry(t *testing.T) {
 							}
 						}
 					})
+					// The source smoke retained this Context handle across comment
+					// removal and a physical attribute hole, not just fresh queries.
+					contextHeld, err := db.PrepareContext(p.ctx, "SELECT col_description($1::regclass,$2)")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer contextHeld.Close()
+					for _, tc := range []struct {
+						sql  string
+						want any
+					}{{"'replacement'", "replacement"}, {"NULL", nil}, {"''", nil}, {"' '", " "}} {
+						commentInquiryStep(t, p, backend, db, referenceExec("COMMENT ON COLUMN t.a IS "+tc.sql, 0))
+						rows, err := contextHeld.QueryContext(p.ctx, "t", 1)
+						commentInquiryRows(t, rows, err, backend.pg, false, "col_description", []any{tc.want})
+					}
 					run(referenceExec("ALTER TABLE t DROP b", 0))
+					for _, tc := range []struct {
+						attribute int
+						want      any
+					}{{2, nil}, {3, "third"}} {
+						rows, err := contextHeld.QueryContext(p.ctx, "t", tc.attribute)
+						commentInquiryRows(t, rows, err, backend.pg, false, "col_description", []any{tc.want})
+					}
 					for _, tc := range []struct {
 						n    int
 						want any

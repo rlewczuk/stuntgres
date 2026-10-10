@@ -75,3 +75,21 @@ func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage,
 	}
 	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
 }
+
+func indexExpressionDepends(d *relationDescriptor, target ObjectAddress) bool {
+	if d.sqlIndex == nil {
+		return false
+	}
+	for _, key := range d.sqlIndex.keys {
+		if key.derived == nil {
+			continue
+		}
+		for _, ref := range key.derived.dependencies {
+			a := ref.Address
+			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
+				return true
+			}
+		}
+	}
+	return false
+}

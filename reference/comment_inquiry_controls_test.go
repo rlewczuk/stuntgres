@@ -36,6 +36,7 @@ func TestReferenceCommentInquiryBuiltinRemovalControls(t *testing.T) {
 						check(tc.seed)
 						run(referenceExec("COMMENT ON SCHEMA "+tc.name+" IS NULL", 0))
 						check(nil)
+						run(referenceExec("COMMENT ON ROLE postgres IS 'shared'", 0))
 						if !backend.pg {
 							text := commentInquiryDump(t, p)
 							if !strings.Contains(text, "COMMENT ON SCHEMA \""+tc.name+"\" IS NULL;") {
@@ -49,6 +50,8 @@ func TestReferenceCommentInquiryBuiltinRemovalControls(t *testing.T) {
 								t.Fatal(err)
 							}
 							check(nil)
+							rows, err := db.QueryContext(p.ctx, "SELECT shobj_description(10,'pg_authid')")
+							commentInquiryRows(t, rows, err, false, false, "shobj_description", []any{"shared"})
 							if commentInquiryDump(t, p) != text {
 								t.Fatal("noncanonical removal replay")
 							}

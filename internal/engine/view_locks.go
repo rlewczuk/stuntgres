@@ -140,7 +140,9 @@ func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
 		add(dependency.ref)
 	}
 	for _, constant := range b.sequenceConstants {
-		add(constant.ref)
+		if constant.represented {
+			add(constant.ref)
+		}
 	}
 	return s.acquireBoundViewRelations(refs)
 }

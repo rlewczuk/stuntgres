@@ -106,3 +106,63 @@ func TestReferenceSequenceRegclassParameterNamespaceInput(t *testing.T) {
 		})
 	}
 }
+
+// Retain the original held QueryRowContext route and its no-demand import
+// failures before admitting punctuation and whitespace as real identifiers.
+func TestReferenceSequenceRegclassSourceInputStream(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			w := newSequencePreparedSession(t, p, backend)
+			for _, q := range []string{"CREATE SEQUENCE s START 17 CACHE 1", "CREATE SEQUENCE t START 31 CACHE 1", "CREATE TABLE empty_table(v INT)", "CREATE TABLE nullable_table(v BIGINT)"} {
+				w.exec(q)
+			}
+			referenceLockExec(t, p.ctx, w.c, "INSERT INTO nullable_table VALUES(NULL)", 1)
+			held := w.hold("SELECT nextval($1)")
+			for _, input := range []string{"s--suffix", "s/*suffix*/"} {
+				want := controlsReferenceDiagnostic("42P01", `relation "`+input+`" does not exist`)
+				want.Context = "unnamed portal parameter $1 = '...'"
+				for _, q := range []string{"SELECT nextval($1) FROM empty_table", "SELECT setval($1,$2)", "SELECT setval($1,v) FROM nullable_table", "SELECT setval($1,nextval('t'))"} {
+					stmt := w.hold(q)
+					args := []any{input}
+					if q == "SELECT setval($1,$2)" {
+						args = append(args, nil)
+					}
+					var n any
+					err := stmt.QueryRowContext(p.ctx, args...).Scan(&n)
+					referenceAssertDiagnostic(t, err, &want)
+					if err := stmt.Close(); err != nil {
+						t.Fatal(err)
+					}
+				}
+				var n int64
+				referenceAssertDiagnostic(t, held.QueryRowContext(p.ctx, input).Scan(&n), &want)
+				for _, name := range []string{"s", "t"} {
+					undefined := controlsReferenceDiagnostic("55000", `currval of sequence "`+name+`" is not yet defined in this session`)
+					referenceAssertDiagnostic(t, w.c.QueryRowContext(p.ctx, "SELECT currval('"+name+"')").Scan(&n), &undefined)
+				}
+				undefined := controlsReferenceDiagnostic("55000", "lastval is not yet defined in this session")
+				referenceAssertDiagnostic(t, w.c.QueryRowContext(p.ctx, "SELECT lastval()").Scan(&n), &undefined)
+			}
+			for _, q := range []string{`CREATE SEQUENCE "s--suffix" START 41 CACHE 1`, `CREATE SEQUENCE "s/*suffix*/" START 51 CACHE 1`, `CREATE SEQUENCE "s-other" START 61 CACHE 1`, `CREATE SEQUENCE "0" START 71 CACHE 1`, `CREATE SEQUENCE "-" START 81 CACHE 1`, `CREATE SEQUENCE "4294967295" START 91 CACHE 1`} {
+				w.exec(q)
+			}
+			for _, tc := range []struct {
+				input string
+				want  int64
+			}{{"s--suffix", 41}, {"s/*suffix*/", 51}, {"s-other", 61}, {" 0 ", 71}, {" - ", 81}, {" 4294967295 ", 91}, {"s", 17}, {"t", 31}} {
+				var n int64
+				if err := held.QueryRowContext(p.ctx, tc.input).Scan(&n); err != nil || n != tc.want {
+					t.Fatal(tc.input, n, tc.want, err)
+				}
+			}
+			projection := w.hold("SELECT $1::regclass")
+			for _, tc := range []struct{ input, want string }{{"0", "-"}, {"-", "-"}, {"4294967295", "4294967295"}, {" 0 ", `"0"`}, {" - ", `"-"`}, {" 4294967295 ", `"4294967295"`}} {
+				var name string
+				if err := projection.QueryRowContext(p.ctx, tc.input).Scan(&name); err != nil || name != tc.want {
+					t.Fatal(tc.input, name, tc.want, err)
+				}
+			}
+		})
+	}
+}

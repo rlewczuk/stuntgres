@@ -321,6 +321,39 @@ Run both with a900-second deadline. The full `^TestReferenceIndexProperties`
 selector covers every new definition; see [the inquiry design](design/PG18-FUNC-INFO-INDEX-PROPERTIES.md)
 for the shared-coercion consumer risk selectors. Smoke does not replace those
 identical dual-mode selective runs, ordinary quickcheck or post-merge fullcheck.
+The dependency catalog family independently specifies exact represented edge bags,
+all seven result descriptors, owner-specific diagnostics, supported private
+sequence changes, retained cursors and native controls with actual SQL replay.
+Run the identical complete family in both modes, each with a900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGDepend' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGDepend' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0
+```
+Changed existing default definitions must also run in both modes; the family
+prefix does not select them. They preserve genuine direct and prepared CREATE,
+default INSERT, data/provider sentinels and existing excluded sequence-expression
+controls without separate duplicated PostgreSQL-only success bodies:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(SequenceLatestIntegrationDefaultBoundary|StringCoreRegclassDefaultSourceConsumerRoutes|StringCoreRegclassDefaultBoundary)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SequenceLatestIntegrationDefaultBoundary|StringCoreRegclassDefaultSourceConsumerRoutes|StringCoreRegclassDefaultBoundary)$' VERBOSE=0
+```
+
+Each selective invocation has a900-second deadline. Source-route migration
+definitions are additional named selections, not replacements for this family
+or these changed existing definitions.
+
+
+Supplemental collector/walker units use
+`make quickcheck PACKAGES=./internal/engine RUN='^TestPGDepend' VERBOSE=0`.
+These do not replace the dual-mode runs, ordinary quickcheck or post-merge
+fullcheck. Public capability boundaries remain explicit: no REGCLASS column
+storage, set-operation query rollout, transactional CREATE TABLE/ALTER DEFAULT
+or native TEMP-table creation is implied by metadata reading.
+
 
 The prepared-transaction family independently asserts state/diagnostics,
 ownership and five-column XID metadata, physical-origin-close survival,

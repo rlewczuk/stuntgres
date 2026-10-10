@@ -20,6 +20,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"seqrelid", sqltype.Oid}, {"seqtypid", sqltype.Oid}, {"seqstart", sqltype.Int8}, {"seqincrement", sqltype.Int8}, {"seqmax", sqltype.Int8}, {"seqmin", sqltype.Int8}, {"seqcache", sqltype.Int8}, {"seqcycle", sqltype.Bool}}},
+		{2608, "pg_depend", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"classid", sqltype.Oid}, {"objid", sqltype.Oid}, {"objsubid", sqltype.Int4}, {"refclassid", sqltype.Oid}, {"refobjid", sqltype.Oid}, {"refobjsubid", sqltype.Int4}, {"deptype", sqltype.Char}}},
 		{2609, "pg_description", []struct {
 			name string
 			typ  sqltype.ID
@@ -58,7 +62,7 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
-			if spec.oid == 2604 || spec.oid == 2224 {
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == 2609 {
@@ -85,6 +89,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 12001 {
 		return e.capturePreparedSourceLocked(ctx, ref, source)
+	}
+	if source.address.ObjectID == 2608 {
+		return capturePGDepend(ctx, catalog, ref, source)
 	}
 	var relations []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {

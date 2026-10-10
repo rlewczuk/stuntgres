@@ -56,6 +56,15 @@ self-edge; ordinary standalone sequences remain in the earlier creation prefix.
 Creation addresses break ties between ready objects. Retained TEMP collision
 remapping may move a source OID above its dependent; topology then wins so replay
 remains executable, without promising allocator-relative diagnostic-order parity.
+Captured scalar REGCLASS defaults and fixed early-bound `nextval` defaults may
+close a dependency cycle through their provider. Dump defers only these already
+admitted definitions: it omits them from CREATE TABLE and emits ALTER DEFAULT
+after their providers exist. Restore uses the ordinary default binder and the
+same replay eligibility decision. Required CHECK/generated dependencies are
+never relaxed; cycles that remain fail before SQL is emitted.
+Roundtrip and actual pinned replay:
+`make quickcheck PACKAGES=./reference RUN='^TestReferencePGDependReviewCapturedReplay$' VERBOSE=0`;
+the pinned counterpart adds `REFERENCE=1`.
 The two-retained-sequence, second-Dump/Restore regression and independent
 PostgreSQL nested-view consumers run through the same mode-aware definition:
 

@@ -58,6 +58,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	case identityExpression, currentDateTimeExpression:
 		next = n
 	case literalExpression:
+		if n.regclassRef != (ObjectRef{}) {
+			n.regclassRef = ref(n.regclassRef)
+		}
 		if n.usage.Type.ContainsRegclass() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRegclassDatum(n.value, func(id OID) OID {

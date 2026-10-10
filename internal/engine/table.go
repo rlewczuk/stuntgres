@@ -113,10 +113,10 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	if err := stageViewDependents(stage, targets, s.Mode); err != nil {
+	if err := scope.stageExpressionDependents(stage, targets, s.Mode, nil); err != nil {
 		return Result{}, err
 	}
-	if err := scope.stageOwnedSequences(stage, targets, s.Mode); err != nil {
+	if err := scope.stageOwnedSequences(stage, targets, s.Mode, nil); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

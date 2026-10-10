@@ -23,11 +23,11 @@ type dumpRelation struct {
 	identitySequences   map[ObjectAddress]dumpSequence
 }
 
-func (t *dumpRelation) emitSequenceDefaults(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
 	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 	for i, c := range t.columns {
 		definition, exists := t.defaults[t.attributes[i]]
-		if !exists || !closedSequenceDefault(definition.expression) {
+		if !exists || !defaultReplayDeferrable(definition) {
 			continue
 		}
 		text, err := defaultSQL(ctx, catalog, definition.expression)
@@ -86,8 +86,8 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 	return nil
 }
 
-// Replay uses the ordinary binder/publication path, then admits only the exact
-// sequence-reference default kind that Dump can defer for a legal cycle.
+// Replay uses the ordinary binder/publication path, then admits only the same
+// captured-reference default definitions that Dump can defer for a legal cycle.
 func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefault) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -101,8 +101,8 @@ func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefa
 	}
 	d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	slot, ok := d.index[s.Column.Text]
-	if !ok || !closedSequenceDefault(d.defaults[d.attributes[slot]].expression) {
-		return sqlError("0A000", "restore accepts only deferred sequence-reference defaults")
+	if !ok || !defaultReplayDeferrable(d.defaults[d.attributes[slot]]) {
+		return sqlError("0A000", "restore accepts only deferred captured-reference defaults")
 	}
 	return nil
 }

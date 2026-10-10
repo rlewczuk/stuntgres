@@ -170,7 +170,7 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 		t.Fatal("definition allocation does not follow attribute defaults then CHECK", first, second, check)
 	}
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
-	dependencies, err := domainDependencyClosure(context.Background(), stage)
+	dependencies, err := domainDependencyClosure(context.Background(), stage, stage.domainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}
