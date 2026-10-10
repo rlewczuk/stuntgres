@@ -215,7 +215,8 @@ Legacy whole-object collision results remain consistent within each statement,
 without promising a portable catalog ordering. Persisted inquiry views retain
 typed syntax even when strict constant-NULL inputs eliminate execution demand.
 Dropping/recreating an object clears text, while schema rename/owner transfer
-preserves it. Plain LIKE does not copy comments. COMMENT ON TYPE, DATABASE and
+preserves it. Plain LIKE does not copy comments; INCLUDING COMMENTS copies exact
+column text, not the table comment. COMMENT ON TYPE, DATABASE and
 other unsupported object kinds remain excluded. Table/schema COMMENT in an
 explicit driver transaction returns native 0A000; supported sequence COMMENT
 uses transaction-private metadata. PostgreSQL permits transactional COMMENT.
@@ -271,7 +272,10 @@ child Boolean, input and operator diagnostics retain their PostgreSQL precedence
 The existing null, truth and distinct predicates retain their ordinary typed
 semantics and fully parenthesized unevaluated Dump representation in defaults.
 Named DEFAULT syntax is accepted but does not create a named constraint object.
-Plain LIKE copies shape and NOT NULL, **not defaults**.
+Plain LIKE copies shape and NOT NULL, **not defaults**. INCLUDING DEFAULTS copies
+the cooked typed definition without evaluating it or recapturing temporal literals.
+Copied nextval defaults retain the original sequence; this is independent of
+INCLUDING IDENTITY, which creates a new owned sequence.
 
 Runtime INSERT default demand stops at the first completed row failing NOT NULL
 or CHECK, before evaluating later rows. Rows publish only as one atomic batch;
@@ -554,20 +558,29 @@ There is no dummy column. Public `INSERT ... DEFAULT VALUES` inserts one row,
 including into a zero-column table; `INSERT ... VALUES ()` is invalid syntax. Ordinary `oid` is a legal column;
 `ctid`, `xmin`, `cmin`, `xmax`, `cmax` and `tableoid` conflict with system names.
 
-Plain LIKE copies column names and supported concrete types in declaration
-order, and named NOT NULL identities at the LIKE element's position. Copied
-constraints are processed in source constraint-name order, as in PostgreSQL.
-Multiple/interleaved LIKE clauses are allowed; duplicate expanded names fail `42701`. The destination
-has fresh relation/attribute identities, current-user ownership, no copied rows
-or ACL, and no persistent dependency on its source. LIKE requires relation-level
-SELECT; column-only SELECT is insufficient.
+LIKE copies live column names, supported full types/typmods/collations and NOT NULL
+at the element's position. Named NOT NULL declarations retain source names, with
+fresh destination definition identities. Multiple/interleaved clauses and existing
+view and composite-type sources are allowed; duplicate expanded names fail `42701`
+atomically. Composite members retain their declared nullable shape; options
+without applicable descriptors have no effect.
+The destination has fresh relation/attribute identities, current-user ownership,
+no source rows or ACL and no automatic parent linkage. A copied expression can
+still retain real external dependencies, including an explicit source REGCLASS.
+Table/view LIKE sources require relation-level SELECT; column-only SELECT is
+insufficient. Composite sources instead require USAGE on the reciprocal type,
+not SELECT on its nonstorage backing relation. Namespace USAGE precedes source-kind
+validation, which precedes the applicable source privilege. Sequences and indexes
+fail `42809`, even when their SELECT privilege is denied. Composite source relation
+and type incarnations are captured through the existing CREATE publication fences.
 
 Qualified LIKE sources use that schema's USAGE checks; unqualified sources follow
 the effective search path independently of the destination. Nested CREATE TABLE
 elements in CREATE SCHEMA support the same ordered elements and zero-column shape.
 They bind against preceding staged tables as the enclosing schema owner, with that
 schema prepended to a local path. The caller's identity and stored path do not
-change; inaccessible or non-SELECT sources fail the entire schema construction.
+change; inaccessible sources or missing applicable source privileges fail the
+entire schema construction.
 
 For example:
 
@@ -578,11 +591,67 @@ DROP TABLE source RESTRICT; -- clone remains independent and writable
 CREATE TABLE empty_shape ();
 ```
 
-Valid `INCLUDING`/`EXCLUDING` option names (COMMENTS, COMPRESSION, CONSTRAINTS,
-DEFAULTS, GENERATED, IDENTITY, INDEXES, STATISTICS, STORAGE, ALL) are parsed, but
-new-table execution returns positioned `0A000`, `LIKE options are unsupported`.
-Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
-EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
+Each LIKE clause starts with all optional properties excluded. Ordered repeated
+`INCLUDING`/`EXCLUDING` COMMENTS, COMPRESSION, CONSTRAINTS, DEFAULTS, GENERATED,
+IDENTITY, INDEXES, STATISTICS, STORAGE and ALL are accepted; the last option wins.
+ALL changes every option bit, and subsequent exclusions affect only their property.
+NOT NULL is unconditional, including EXCLUDING CONSTRAINTS or EXCLUDING ALL.
+
+DEFAULTS copies ordinary cooked defaults; GENERATED separately copies admitted
+STORED expressions and remaps row references/tableoid to the destination. Explicit
+REGCLASS/REGTYPE constants and external calls are not redirected. CONSTRAINTS
+copies named CHECKs and NO INHERIT, not UNIQUE. Copied CHECK-name collisions use
+`42710` and never merge equal expressions.
+
+TEMP sources are not blanket exclusions. Constant defaults and defaults using
+permanent sequences copy into permanent or same-session TEMP destinations.
+An ordinary default capturing a TEMP sequence requires the destination's same
+physical session token. Copying it into a permanent destination fails native
+`0A000`, `temporary sequence DEFAULT is unsupported`, at Execute without Position;
+PostgreSQL permits that dependency. Excluding DEFAULTS avoids this boundary.
+Same-session TEMP copies retain the original sequence and its contextual
+reference manifest across native Reset/Restore, without evaluating or rebinding
+the default. This does not make generic stale or foreign references valid.
+
+IDENTITY copies mode and numeric configuration into a fresh independently owned
+sequence, initially uncalled at its configured START, not at source current state
+or RESTART value. Fresh sequences follow destination namespace and persistence:
+permanent for permanent destinations, temporary for TEMP destinations, never a
+source token or persistence override.
+INDEXES copies live btree/hash/unique/expression/INCLUDE definitions,
+including admitted partial B-tree and partial UNIQUE predicates, classes,
+collations and ordering into freshly named ready/valid/live indexes with new
+roots and backing identities only where the source has a backing constraint.
+Both analyzed and execution predicate trees use destination attributes; external
+REGCLASS/REGTYPE constants retain their original dependencies. Only TRUE rows
+enter a partial root, before derived-key evaluation. Live invalid source
+definitions are rebuilt, nonlive ones omitted. COMMENTS copies exact column text,
+never table text
+or source authority. Index-comment SQL/control and constraint-comment providers
+remain absent; a generic descriptor comment field does not promise those APIs.
+
+Compression/storage/extended-statistics descriptors, virtual generation,
+PK/EXCLUDE and constraint-comment providers are not implemented. Partial HASH
+and partial concurrent index creation retain their existing native exclusions;
+ordinary partial B-tree and partial UNIQUE definitions are not absent providers.
+An option with no applicable admitted descriptor copies nothing, even under ALL;
+accepting its grammar does not add an absent provider.
+
+Source and selected providers are held by exact incarnation through the single
+atomic publication. Inline CREATE SCHEMA uses preceding private staged sources.
+Dump serializes the resulting independent definitions/data, and Restore replays
+them atomically; no retained LIKE history or source-name rebinding is needed.
+Native controls retain existing physical-session TEMP definitions/data separately
+from the permanent emitted stream. New copies from retained TEMP sources give
+mapped local column/tableoid references the fresh destination's current authority,
+including both cooked generation, expression-key and predicate trees and CHECKs.
+External literals and DEFAULT providers retain their original contextual authority;
+this does not admit stale external TEMP references into permanent consumers.
+Actual independent permanent stream replay requires neither the original TEMP
+source nor its private namespace.
+Shared coverage: `RUN='^TestReferenceTable(Like|Core)'`. Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeFeatureSmoke$' VERBOSE=0`
+and the same command with `REFERENCE=1` for the pinned PostgreSQL oracle.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
 Known single-name types outside INT2/INT4/INT8/NAME/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/TIMETZ/TIMESTAMPTZ/NUMERIC/UUID/BYTEA fail
@@ -1231,8 +1300,9 @@ It retains owning relation identity rather than a cached numeric constant.
 Native Dump writes canonical generated declarations and DEFAULT for generated
 row cells, including all-generated tables. Restore recomputes normal generated
 values and remaps tableoid-dependent values to the final destination owner;
-held eager cursors retain original cells and metadata. Virtual columns, ADD
-generated, SET/DROP EXPRESSION and LIKE INCLUDING GENERATED remain outside scope.
+held eager cursors retain original cells and metadata. INCLUDING GENERATED
+copies the cooked STORED provider with destination row/tableoid remapping.
+Virtual columns, ADD generated and SET/DROP EXPRESSION remain outside scope.
 
 Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$' VERBOSE=0`.

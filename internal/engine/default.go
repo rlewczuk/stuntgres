@@ -22,6 +22,28 @@ type columnDefault struct {
 	regtypeReferences bool
 }
 
+// Raw and cooked DEFAULT consumers share the physical TEMP provider boundary.
+// Cooked copies supply no position: their original call token is not in LIKE SQL.
+func validateDefaultTemporaryProvider(provider, consumer SessionToken, position parser.Position) error {
+	if provider != (SessionToken{}) && provider != consumer {
+		return expressionError("0A000", "temporary sequence DEFAULT is unsupported", position)
+	}
+	return nil
+}
+
+func validateCookedDefaultTemporary(node BoundExpr, consumer SessionToken) error {
+	var err error
+	walkBoundExpression(node, func(node BoundExpr) {
+		if err != nil {
+			return
+		}
+		if call, ok := node.(sequenceCallExpression); ok {
+			err = validateDefaultTemporaryProvider(call.temporary, consumer, parser.Position{})
+		}
+	})
+	return err
+}
+
 func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (BoundExpr, error) {
 	// Recursive binding carries this consumer policy through Boolean and
 	// comparison children, preserving their ordinary diagnostic order.

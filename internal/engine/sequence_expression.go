@@ -128,8 +128,8 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 		}
 	}
 	if b.defaultConsumer {
-		if temporary != (SessionToken{}) && temporary != b.defaultTemporary {
-			return nil, expressionError("0A000", "temporary sequence DEFAULT is unsupported", r.SourcePosition())
+		if err := validateDefaultTemporaryProvider(temporary, b.defaultTemporary, r.SourcePosition()); err != nil {
+			return nil, err
 		}
 		// Stored defaults do not enter call-site prepared literal reanalysis.
 		b.sequenceConstants = nil

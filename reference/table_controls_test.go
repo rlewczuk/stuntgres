@@ -22,13 +22,23 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 	p.step(t, referenceExec(`INSERT INTO "clone.dot" VALUES(8,NULL,NULL,NULL)`, 1))
 	p.step(t, referenceExec(`CREATE TABLE z()`, 0))
 	p.step(t, referencePrepared(referenceExec(`CREATE TABLE zl(LIKE z)`, 0)))
+	p.step(t, referencePrepared(referenceExec("CREATE TABLE typed(i INT4 NOT NULL,b INT8,s TEXT,f BOOL)", 0)))
+	p.step(t, referenceExec(`CREATE TABLE quoted_types(i "int4" NOT NULL,b "int8",s "text",f "bool")`, 0))
+	for _, name := range []string{"typed", "quoted_types"} {
+		p.step(t, referencePrepared(referenceExec("INSERT INTO "+name+" VALUES($1,$2,$3,$4)", 1, 7, int64(9223372036854775807), "O'Brien", true)))
+		for _, prepared := range []bool{false, true} {
+			step := referenceSelect("SELECT * FROM "+name, []string{"i", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(7), int64(9223372036854775807), "O'Brien", true}})
+			step.prepared = prepared
+			p.step(t, step)
+			for _, backend := range p.backends() {
+				referenceTableDDLMetadata(t, p.ctx, backend.db, backend.pg, prepared, step.query, step.columns, step.types, []bool{false, true, true, true}, 1)
+			}
+		}
+	}
 	p.step(t, referenceExec(`DROP TABLE "source.dot" RESTRICT`, 0))
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
-	}
-	if strings.Contains(dump.String(), "LIKE") {
-		t.Fatal(dump.String())
 	}
 	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
 		t.Fatal(err)
@@ -40,7 +50,7 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.postgres != nil {
-		if _, err := p.postgres.ExecContext(p.ctx, `DROP TABLE "clone.dot",z,zl`); err != nil {
+		if _, err := p.postgres.ExecContext(p.ctx, `DROP TABLE "clone.dot",z,zl,typed,quoted_types`); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
@@ -52,6 +62,16 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 	p.step(t, referencePrepared(expected))
 	for _, b := range p.backends() {
 		referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, false, expected.query, expected.columns, expected.types, []bool{false, true, true, true}, 2)
+	}
+	for _, name := range []string{"typed", "quoted_types"} {
+		for _, prepared := range []bool{false, true} {
+			step := referenceSelect("SELECT * FROM "+name, []string{"i", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(7), int64(9223372036854775807), "O'Brien", true}})
+			step.prepared = prepared
+			p.step(t, step)
+			for _, backend := range p.backends() {
+				referenceTableDDLMetadata(t, p.ctx, backend.db, backend.pg, prepared, step.query, step.columns, step.types, []bool{false, true, true, true}, 1)
+			}
+		}
 	}
 	for _, z := range []string{"z", "zl"} {
 		p.step(t, referenceSelect("SELECT * FROM "+z, []string{}, []string{}, nil))
@@ -65,6 +85,7 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 		t.Fatal(redump.String(), err)
 	}
 	p.step(t, referenceImplicitError(`INSERT INTO "clone.dot" VALUES(NULL,NULL,NULL,NULL)`, referenceDiagnostic{Code: "23502", Message: `null value in column "i.dot" of relation "clone.dot" violates not-null constraint`, Detail: "Failing row contains (null, null, null, null).", Schema: "public", Table: "clone.dot", Column: "i.dot"}))
+	// Restore resolves LIKE against its private candidate, not incumbent z.
 	for _, script := range []string{"CREATE TABLE replacement(LIKE missing)", "CREATE TABLE replacement(id INT,id TEXT)", "CREATE TABLE replacement(id no_such_type)", "CREATE TABLE replacement(LIKE z INCLUDING ALL)", "DROP TABLE z", "CREATE TABLE replacement(id INT); DROP TABLE replacement"} {
 		if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err == nil {
 			t.Fatal("bad restore accepted", script)

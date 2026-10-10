@@ -457,6 +457,7 @@ type CatalogStage struct {
 	initialTables map[ObjectAddress]*relationStorage
 	initialTx     TxRef
 	querySources  []Descriptor
+	likeSources   []Descriptor // CREATE-only exact descriptor captures, not dependencies.
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -859,6 +860,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
+		}
+		if err := s.validateLikeSources(CatalogRead{owner: e, state: current}); err != nil {
+			e.mu.Unlock()
+			return ChangeSet{}, err
 		}
 		for _, source := range s.querySources {
 			if current.descriptors[source.Address()] != source {

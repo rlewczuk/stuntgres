@@ -432,6 +432,96 @@ rows. No discovery filter, success logging or observation fallback is retained.
 Change note: JSONPath oracle-discovery envelopes are replaced with quiet shared
 reference assertions; quick-mode failure precedes production implementation.
 
+Table definition-copy coverage uses
+`RUN='^TestReference(Table(Like|Core)|SchemaTableIntegration|IdentitySerialAndNativeBoundaries|NotNullExternalInheritance)'`
+in both modes; feature smoke uses `RUN='^TestReferenceTableLikeFeatureSmoke$'`.
+Oracle-first discovery fixes complete diagnostics/index-name expectations before
+the native failing regression. Actual native Dump output is replayed on pinned
+PostgreSQL with independent expected rows and future writes, not SQL-substring or
+no-LIKE assertions. PostgreSQL-only structural inquiries for absent native catalog
+sources/columns are paired with native descriptor proofs and shared pg_indexes,
+pg_sequence/pg_depend inquiries and actual enforcement. GRANT/REVOKE SQL is an
+oracle authority control; native ACL setup uses the existing engine descriptor
+authorization seam, not new SQL grammar or duplicated database/sql tests.
+Predicate-only `pg_depend` projection remains outside the bounded native catalog:
+mixed key/INCLUDE/predicate inquiries independently expect native attributes2,3
+versus PostgreSQL2,3,4, and predicate-only external counts0 versus1. Exact native
+analyzed/execution manifests and shared real DROP/column lifecycle/controls prove
+the underlying predicate dependencies; this inquiry boundary never skips a scenario.
+The partial-copy subfamily is `RUN='^TestReferenceTableLikePartial'`; run
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikePartial' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikePartial' VERBOSE=0`.
+Private cooked-tree, stable/dense attribute, fresh membership-root and actual
+provider-admission witnesses use
+`make quickcheck PACKAGES=./internal/engine RUN='^TestTableLikePartial' VERBOSE=0`.
+The expanded existing feature smoke includes actual partial-index Dump/Restore
+and PostgreSQL replay with future membership, uniqueness and predicate-first
+errors. The complete shared union also retains CoreNativeControlRoundTrip's
+standalone typed/direct and quoted/prepared MAXINT8/O'Brien/TRUE rows and metadata
+after actual Restore, plus CoreSemanticSkipNotices' quoted unknown `"integer"`
+IF NOT EXISTS notice and unchanged-data witnesses. Each quickcheck invocation
+has its own 900-second deadline.
+TEMP composition uses `RUN='^TestReferenceTableLikeTemporary'` in both modes and
+`RUN='^TestTableLikeTemporary'` for native engine units. Shared SQL covers
+same-session cooked defaults, constant/permanent-sequence defaults from TEMP
+sources, DEFAULT mask precedence, fresh destination-owned identity sequences,
+and exact native0A000/PG-success permanent TEMP-provider differential. Native
+control phases exercise actual Reset/Restore, retained rows/provider identity,
+new copies from retained sources, failed/canceled replacement and actual permanent
+stream replay on PostgreSQL. These phases have no PostgreSQL control API substitute.
+The existing feature smoke includes both TEMP default and identity lifecycles.
+
+Composite LIKE sources use `RUN='^TestReferenceTableLikeComposite'`, with ordinary
+and pinned reference gates below. Plain/ALL/per-LIKE masks, nullable fields,
+interleaved type usage, empty composites, source-type removal through the existing
+dedicated-schema `DROP SCHEMA ... CASCADE` route, duplicate atomicity and actual
+independent-table controls/replay share the existing fixtures. Native DROP TYPE
+syntax is not expanded; all public copies must survive actual source retirement.
+PostgreSQL GRANT/REVOKE setup verifies type USAGE rather than backing-relation
+SELECT; `TestTableLikeCompositeSourceACL` exercises that distinction through the
+native ACL seam, including namespace-first errors and reciprocal source captures.
+Pinned PostgreSQL composite discovery expectations are encoded; the temporary
+scenario-local backend filter is removed before the native regression.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeComposite' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikeComposite' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestTableLikeComposite' VERBOSE=0
+```
+
+The retained row-expression regression family is
+`RUN='^TestReferenceTableLikeTemporaryRetained'`. Its SQL witnesses cover
+GENERATED, CHECK, expression keys and partial predicates copied into permanent
+and same-owner TEMP destinations, and a separate same-owner TEMP external-literal
+fixture. Native phases perform actual persistent replacement before CREATE and
+again after source removal: restored permanent and retained TEMP copies must
+preserve full rows/metadata and future generation, CHECK and partial-index
+enforcement even without Docker. Optional PostgreSQL replay consumes that actual
+permanent Dump stream; it does not replace the second native Reset/Restore.
+PostgreSQL exercises shared SQL without a fabricated control API.
+`RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)'` supplies descriptor
+authority and real lock-manager contention witnesses: local row/tableoid refs
+receive current destination authority, external stored references remain old,
+and queued admission must preserve those manifests while canceling, rolling back,
+publishing or rejecting a dead/recreated/same-address revised provider.
+`TestTableLikeDefinitionDependencyOrder` additionally exercises the common DROP
+dependency formatter through ordinary CREATE, not a LIKE special case: an earlier
+view, generated column, two CHECKs whose definition-OID order opposes declaration
+order, and a later index retain the exact report schedule. The shared retained
+literal fixture asserts the full six-line PostgreSQL dependency diagnostic.
+Pinned PostgreSQL discovery expectations are encoded and the scenario-local
+backend filters removed. The native-red and final dual-mode gates use the
+complete scenarios. Each invocation below has a900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeTemporaryRetained' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikeTemporaryRetained' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)' VERBOSE=0
+make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestTableLikeDefinitionDependencyOrder' VERBOSE=0
+```
+
+
 The serial/identity inquiry family is selected with
 `RUN='^TestReferenceSerialIdentity(Ownership|Lifecycle|Names|Nulls|Diagnostics|Consumers|Controls|FeatureSmoke|SystemColumns)$'`.
 Its shared public scenarios independently assert AUTO/INTERNAL/manual ownership,

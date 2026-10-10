@@ -15,6 +15,12 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 }
 
 func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
+	return remapScalarExpression(node, ref, ref, slots, queryMapper)
+}
+
+// Row copies retain explicit object constants and external calls. Replacement
+// callers map both roles, whereas LIKE supplies a distinct owner-row mapper.
+func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -24,7 +30,7 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 			return old
 		}
 		var next BoundExpr
-		next, err = remapBoundExpressionWithQuery(old, ref, slots, queryMapper)
+		next, err = remapScalarExpression(old, ref, rowRef, slots, queryMapper)
 		return next
 	}
 	args := func(old []BoundExpr) []BoundExpr {
@@ -61,6 +67,10 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	case identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		next = n
 	case literalExpression:
+		if ref == nil {
+			next = n
+			break
+		}
 		if n.regclassRef != (ObjectRef{}) {
 			n.regclassRef = ref(n.regclassRef)
 		}
@@ -84,10 +94,10 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 		}
 		next = n
 	case tableOIDExpression:
-		n.owner = ref(n.owner)
+		n.owner = rowRef(n.owner)
 		next = n
 	case columnExpression:
-		n.origin = ref(n.origin)
+		n.origin = rowRef(n.origin)
 		if slots != nil {
 			slot, ok := slots[n.origin.Address.SubID]
 			if !ok {
@@ -266,7 +276,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 		n.args = args(n.args)
 		next = n
 	case sequenceCallExpression:
-		n.ref = ref(n.ref)
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
 		n.args = args(n.args)
 		next = n
 	case caseExpression:

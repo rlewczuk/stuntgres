@@ -56,14 +56,11 @@ func TestReferenceNotNullExternalInheritance(t *testing.T) {
 	run(referenceExec("CREATE TABLE check_unknown(a INT CHECK(a>0))", 0))
 	run(referenceExec("INSERT INTO check_unknown VALUES(NULL)", 1))
 	run(referenceSelect("SELECT * FROM check_unknown", []string{"a"}, []string{"INT4"}, [][]any{{nil}}))
-	run(referenceExec("CREATE TABLE excluded(LIKE nn_parent EXCLUDING CONSTRAINTS)", 0))
-	run(referenceImplicitError("INSERT INTO excluded VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "a" of relation "excluded" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "excluded", Column: "a"}))
 	// Native exclusions are separately asserted, not counted as engine hierarchy coverage.
 	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE TABLE nn_parent(a INT NOT NULL)", 0))
 	for _, tc := range []struct{ q, token, message string }{
 		{"CREATE TABLE nn_child(a INT NULL) INHERITS(nn_parent)", "INHERITS", "table inheritance is unsupported"},
 		{"CREATE TABLE noinherit_parent(a INT CONSTRAINT nn NOT NULL NO INHERIT)", "NO INHERIT", "NOT NULL modifiers are unsupported"},
-		{"CREATE TABLE excluded(LIKE nn_parent EXCLUDING CONSTRAINTS)", "EXCLUDING", "LIKE options are unsupported"},
 	} {
 		for _, prepared := range []bool{false, true} {
 			step := referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.q, tc.token) + 1)})
@@ -71,13 +68,10 @@ func TestReferenceNotNullExternalInheritance(t *testing.T) {
 			if prepared {
 				step.errorStage = "prepare"
 			}
-			if strings.Contains(tc.q, "LIKE") {
-				step.errorStage = ""
-			}
 			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
 		}
 	}
-	for _, name := range []string{"nn_child", "noinherit_parent", "excluded"} {
+	for _, name := range []string{"nn_child", "noinherit_parent"} {
 		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError("SELECT * FROM "+name, referenceDiagnostic{Code: "42P01", Message: `relation "` + name + `" does not exist`, Position: "15"}))
 	}
 	// CHECK's UNKNOWN result is supported independently of hierarchy support.

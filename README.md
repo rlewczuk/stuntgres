@@ -1408,6 +1408,34 @@ The ALTER lifecycle is shared reference coverage:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceAlterIdentity' VERBOSE=0`;
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAlterIdentity' VERBOSE=0`.
 
+Change note: CREATE TABLE LIKE accepts ordered INCLUDING/EXCLUDING options,
+including ALL and last-option precedence. Existing defaults, CHECKs, STORED
+generation, independent identity sequences, freshly named btree/hash/unique/
+expression/partial indexes and column comments copy through their real owning providers.
+Plain LIKE still copies only shape and NOT NULL. Existing view and composite-type
+sources are admitted; composites require type USAGE rather than backing-relation
+SELECT. Copied expressions retain real external dependencies while row references
+target the clone. Source data, owner, ACL and table comment never copy.
+Partial B-tree and partial UNIQUE copies remap both cooked predicate trees,
+retain analyzed external dependencies, and start with fresh empty membership
+roots. TRUE alone qualifies, before derived-key evaluation; partial HASH and
+partial concurrent creation retain their existing native exclusions.
+Same-session TEMP sources and copies compose with these providers. Cooked TEMP
+sequence defaults retain their original authority through native controls; a
+permanent destination preserves native's precise `0A000` TEMP-default boundary,
+unlike PostgreSQL. Constant/permanent-sequence defaults remain copyable. Fresh
+identity sequences follow destination persistence, never source state or token.
+Copies made after native replacement remap retained TEMP local row/tableoid
+references to current destination authority; external literals and DEFAULT
+manifests remain unchanged under their existing contextual authority.
+Compression/storage/extended-statistics and other absent providers remain absent;
+an option with no applicable descriptor has no effect. See
+[table definition copies](docs/TABLES.md#ordinary-table-definitions-and-removal).
+Shared family: `RUN='^TestReference(Table(Like|Core)|SchemaTableIntegration|IdentitySerialAndNativeBoundaries|NotNullExternalInheritance)'` in both modes.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikeFeatureSmoke$' VERBOSE=0`.
+
+
 SMALLSERIAL/SERIAL/BIGSERIAL (and serial2/4/8) expand CREATE columns to
 SMALLINT/INTEGER/BIGINT NOT NULL, ordinary nextval defaults and AUTO-owned
 sequences. Supplied values do not advance the sequence or imply uniqueness;

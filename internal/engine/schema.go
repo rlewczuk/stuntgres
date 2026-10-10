@@ -107,19 +107,32 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageCreateSerials(stage, d, b.createDeclarations); err != nil {
 		return err
 	}
+	if err := e.stageLikeColumns(op, auth, stage, d, b.createLikes); err != nil {
+		return err
+	}
 	// All owned sequences and their defaults share the private CREATE candidate.
 	auth.catalog = e.stageRead(stage)
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
 	binder.defaultTemporary = auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor).temporary
-	d.defaults, err = bindCreateDefaults(binder, d.columns, b.createDeclarations)
+	defaults, err := bindCreateDefaults(binder, d.columns, b.createDeclarations)
 	if err != nil {
 		return err
+	}
+	if d.defaults == nil {
+		d.defaults = defaults
+	} else {
+		for attribute, definition := range defaults {
+			d.defaults[attribute] = definition
+		}
 	}
 	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
 		return err
 	}
 	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
+		return err
+	}
+	if err := e.stageLikeChecks(op, auth, d, b.createLikes); err != nil {
 		return err
 	}
 	if err := e.assignDefinitionOIDsLocked(d); err != nil {
@@ -156,7 +169,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 		}
 	}
-	return e.stageCreateUniques(stage, d, s)
+	if err := e.stageCreateUniques(stage, d, s); err != nil {
+		return err
+	}
+	return e.stageLikeIndexes(op, auth, stage, d, b.createLikes)
 }
 
 // The table identity owner is shared by declared and query-derived schemas.

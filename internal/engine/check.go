@@ -188,14 +188,15 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	var refs []ObjectRef
 	var retained map[ObjectAddress]Descriptor
 	add := func(ref ObjectRef, d *relationDescriptor) error {
-		ref.Address.SubID = 0
-		if ref.Address.ClassID != RelationClassID || ref.Address == d.address {
+		address := ref.Address
+		address.SubID = 0
+		if address.ClassID != RelationClassID || d != nil && address == d.address {
 			return nil
 		}
-		if _, incumbent := stage.base.state.descriptors[ref.Address]; !incumbent {
+		if _, incumbent := stage.base.state.descriptors[address]; !incumbent {
 			// Newly created providers belong to the private atomic candidate.
-			provider, staged := stage.descriptors[ref.Address].(*relationDescriptor)
-			if !staged || provider.address != ref.Address || ref.owner != stage.owner.owner || ref.Epoch != stage.base.Epoch() {
+			provider, staged := stage.descriptors[address].(*relationDescriptor)
+			if !staged || provider.address != address || ref.owner != stage.owner.owner || ref.Epoch != stage.base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
 			return nil
@@ -203,6 +204,8 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if !storedReferenceEpochValid(stage.base, d, ref) {
 			return fmt.Errorf("stuntgres: invalid retained definition provider")
 		}
+		// Prove the original attribute reference before using a whole-object lock.
+		ref.Address = address
 		if ref.Epoch != stage.base.Epoch() {
 			if retained == nil {
 				retained = make(map[ObjectAddress]Descriptor)
@@ -214,6 +217,12 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			refs = append(refs, ref)
 		}
 		return nil
+	}
+	for _, descriptor := range stage.likeSources {
+		ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: descriptor.Address()}
+		if err := add(ref, nil); err != nil {
+			return err
+		}
 	}
 	for _, descriptor := range stage.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
@@ -238,6 +247,25 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			for _, ref := range definition.dependencies {
 				if err := add(ref, d); err != nil {
 					return err
+				}
+			}
+		}
+		if d.sqlIndex != nil {
+			for _, key := range d.sqlIndex.keys {
+				if key.derived == nil {
+					continue
+				}
+				for _, ref := range key.derived.dependencies {
+					if err := add(ref, d); err != nil {
+						return err
+					}
+				}
+			}
+			if predicate := d.sqlIndex.predicate; predicate != nil {
+				for _, ref := range predicate.dependencies {
+					if err := add(ref, d); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -270,7 +298,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			return err
 		}
 	}
-	return nil
+	return stage.validateLikeSources(e.CatalogRead())
 }
 
 func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {

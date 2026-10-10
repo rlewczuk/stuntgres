@@ -139,37 +139,50 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 					return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 				}
 			}
-			oid, err := e.allocateOIDLocked()
-			if err != nil {
+			if err := e.stageIdentitySequence(stage, table, slot, name, definition.Mode, options, restart); err != nil {
 				return err
 			}
-			rev, err := e.revisionLocked()
-			if err != nil {
-				return err
-			}
-			address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-			options.owned = table.address
-			options.owned.SubID = table.attributes[slot]
-			options.identity = true
-			d := &relationDescriptor{address: address, namespace: namespace, name: name, revision: rev, sequencePlanStamp: rev, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
-			d.attributeHighWater = 3
-			if err := stage.Create(d); err != nil {
-				return err
-			}
-			if table.identities == nil {
-				table.identities = make(map[int32]columnIdentity)
-			}
-			table.identities[table.attributes[slot]] = columnIdentity{mode: definition.Mode, sequence: address}
-			if stage.generators == nil {
-				stage.generators = make(map[ObjectAddress]*sequenceGenerator)
-			}
-			initial := options.start
-			if restart != nil {
-				initial = *restart
-			}
-			stage.generators[address] = &sequenceGenerator{last: initial, generation: rev}
 		}
 	}
+	return nil
+}
+
+func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescriptor, slot int, name string, mode parser.IdentityMode, options sequenceOptions, restart *int64) error {
+	namespace := stage.base.state.descriptors[table.namespace]
+	if staged, ok := stage.descriptors[table.namespace]; ok {
+		namespace = staged
+	}
+	if namespace.(*namespaceDescriptor).temporary != (SessionToken{}) {
+		options.persistence = "temporary"
+	}
+	oid, err := e.allocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	rev, err := e.revisionLocked()
+	if err != nil {
+		return err
+	}
+	address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+	options.owned = table.address
+	options.owned.SubID = table.attributes[slot]
+	options.identity = true
+	d := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: rev, sequencePlanStamp: rev, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
+	if err := stage.Create(d); err != nil {
+		return err
+	}
+	if table.identities == nil {
+		table.identities = make(map[int32]columnIdentity)
+	}
+	table.identities[table.attributes[slot]] = columnIdentity{mode: mode, sequence: address}
+	if stage.generators == nil {
+		stage.generators = make(map[ObjectAddress]*sequenceGenerator)
+	}
+	initial := options.start
+	if restart != nil {
+		initial = *restart
+	}
+	stage.generators[address] = &sequenceGenerator{last: initial, generation: rev}
 	return nil
 }
 

@@ -53,17 +53,17 @@ type Result struct {
 	Rows  RowResult
 }
 type binding struct {
-	relation           *relationDescriptor
-	storage            *relationStorage
-	ref                ObjectRef
-	targets            []int
-	usedColumns        []int
-	query              *BoundQuery
-	querySources       []queryLeaf
-	visibilitySnapshot bool
-	subqueryDemand     bool
-	viewLiterals       map[viewLiteralPath]literalExpression
-	viewCastUsages     map[viewLiteralPath]sqltype.Usage
+	relation              *relationDescriptor
+	storage               *relationStorage
+	ref                   ObjectRef
+	targets               []int
+	usedColumns           []int
+	query                 *BoundQuery
+	querySources          []queryLeaf
+	visibilitySnapshot    bool
+	subqueryDemand        bool
+	viewLiterals          map[viewLiteralPath]literalExpression
+	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewColumns        map[viewLiteralPath]viewColumn
 	viewStars          map[viewLiteralPath][]viewColumn
@@ -80,6 +80,7 @@ type binding struct {
 	createColumns      []ColumnDescriptor
 	createNotNull      []notNullConstraint
 	createDeclarations []createColumnDeclaration
+	createLikes        []createLikeInput
 	defaults           []BoundExpr
 	identityDiscard    []bool
 	insertProjection   []int
@@ -435,12 +436,6 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
-				if len(like.Options) != 0 {
-					if like.Options[0].Pos.Character == 0 {
-						return b, sqlError("0A000", "LIKE options are unsupported")
-					}
-					return b, insertError("0A000", "LIKE options are unsupported", like.Options[0].Pos)
-				}
 				ref, err := e.resolveReference(auth, like.Name)
 				if err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok {
@@ -456,18 +451,38 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					}
 					return b, err
 				}
-				if err := auth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
-					return b, err
-				}
 				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-				if err := tableKind(source, "like"); err != nil {
-					diagnostic := err.(*sqlstate.Error)
+				if source.relationKind != tableRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
+					kind := "relations of this kind"
+					if source.relationKind == sequenceRelation {
+						kind = "sequences"
+					}
+					if source.relationKind == indexRelation {
+						kind = "indexes"
+					}
+					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.name)).(*sqlstate.Error)
+					diagnostic.Detail = "This operation is not supported for " + kind + "."
 					if pos := like.Name.Parts[0].Pos.Character; pos > 0 {
 						diagnostic.Position = strconv.Itoa(pos)
 					}
 					return b, diagnostic
 				}
+				var sourceType *typeDescriptor
+				if source.relationKind == compositeRelation {
+					typeRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}}
+					var ok bool
+					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
+					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
+						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
+					}
+					if err := auth.CanUse(typeRef); err != nil {
+						return b, err
+					}
+				} else if err := auth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
+					return b, err
+				}
 				offset := len(columns)
+				b.createLikes = append(b.createLikes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
 				start := len(inherited)
 				for _, constraint := range source.notNullConstraints {
 					for i, attribute := range source.attributes {

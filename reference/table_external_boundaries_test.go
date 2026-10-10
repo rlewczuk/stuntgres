@@ -3,33 +3,8 @@
 package reference_test
 
 import (
-	"fmt"
 	"testing"
 )
-
-func TestReferenceTableCoreLikeOptionsExternalBoundary(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE source(i INT NOT NULL)", 0))
-	for _, prepared := range []bool{false, true} {
-		for _, prefix := range []string{"INCLUDING", "EXCLUDING"} {
-			for _, option := range []string{"COMMENTS", "COMPRESSION", "CONSTRAINTS", "DEFAULTS", "GENERATED", "IDENTITY", "INDEXES", "STATISTICS", "STORAGE", "ALL"} {
-				q := fmt.Sprintf("CREATE TABLE boundary(LIKE source %s %s)", prefix, option)
-				native := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "LIKE options are unsupported", Position: "35"})
-				native.prepared = prepared
-				native.errorStage = "execute"
-				referenceRunStep(t, p.ctx, p.memory, &referenceRecorder{}, native)
-				pg := referenceExec(q, 0)
-				pg.prepared = prepared
-				referenceRunStep(t, p.ctx, p.postgres, &referenceRecorder{}, pg)
-				// PostgreSQL supports these options; excluding constraints still copies NOT NULL.
-				failure := referenceImplicitError("INSERT INTO boundary VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "i" of relation "boundary" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "boundary", Column: "i"})
-				failure.errorStage = "execute"
-				referenceRunStep(t, p.ctx, p.postgres, &referenceRecorder{}, failure)
-				referenceRunStep(t, p.ctx, p.postgres, &referenceRecorder{}, referenceExec("DROP TABLE boundary", 0))
-			}
-		}
-	}
-}
 
 func TestReferenceTableCoreExternalDependencyBoundary(t *testing.T) {
 	p := newReferencePair(t)

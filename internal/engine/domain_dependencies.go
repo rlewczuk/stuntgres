@@ -178,6 +178,12 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			if direct[i].oid != direct[j].oid {
 				return direct[i].oid < direct[j].oid
 			}
+			// Columns and relation-target CHECKs share their table's primary
+			// identity. Order those real dependent classes before their own
+			// stable attribute/declaration ordinals, not CHECK enforcement OIDs.
+			if direct[i].address.ClassID != direct[j].address.ClassID {
+				return direct[i].address.ClassID < direct[j].address.ClassID
+			}
 			return direct[i].ordinal < direct[j].ordinal
 		})
 		for _, edge := range direct {
@@ -204,14 +210,30 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 
 func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
-	if len(targets) == 1 {
-		target := targets[0]
-		if typ, ok := stage.base.state.descriptors[target].(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
-			if _, removed := stage.removals[typ.owningRelation]; removed {
-				target = typ.owningRelation
+	var primary ObjectAddress
+	for _, target := range targets {
+		var owner ObjectAddress
+		switch descriptor := stage.base.state.descriptors[target].(type) {
+		case *typeDescriptor:
+			owner = descriptor.owningRelation
+		case *relationDescriptor:
+			if descriptor.sequence != nil {
+				owner = descriptor.sequence.owned
+				owner.SubID = 0
 			}
 		}
-		message = "cannot drop " + dependencyObject(stage.base, target, stage.dependencyPath) + " because other objects depend on it"
+		if _, removed := stage.removals[owner]; owner != (ObjectAddress{}) && removed {
+			target = owner
+		}
+		if primary == (ObjectAddress{}) {
+			primary = target
+		} else if primary != target {
+			primary = ObjectAddress{}
+			break
+		}
+	}
+	if primary != (ObjectAddress{}) {
+		message = "cannot drop " + dependencyObject(stage.base, primary, stage.dependencyPath) + " because other objects depend on it"
 	}
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {

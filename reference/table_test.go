@@ -46,6 +46,9 @@ func TestReferenceTableCoreOrderedLikeShapeAndDrop(t *testing.T) {
 			run(referenceExec("CREATE TABLE two(b TEXT)", 0))
 			run(referenceExec("CREATE TABLE interleaved(head BOOL,LIKE one,middle INT8,LIKE two,tail TEXT)", 0))
 			run(referenceSelect("SELECT * FROM interleaved", []string{"head", "a", "middle", "b", "tail"}, []string{"BOOL", "INT4", "INT8", "TEXT", "TEXT"}, nil))
+			for _, b := range p.backends() {
+				referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM interleaved", []string{"head", "a", "middle", "b", "tail"}, []string{"BOOL", "INT4", "INT8", "TEXT", "TEXT"}, []bool{true, false, true, true, true}, 0)
+			}
 			for _, q := range []string{"CREATE TABLE bad(LIKE one,a TEXT)", "CREATE TABLE bad(LIKE one,LIKE one)"} {
 				s := referenceImplicitError(q, referenceDiagnostic{Code: "42701", Message: `column "a" specified more than once`})
 				s.errorStage = "execute"
@@ -104,7 +107,7 @@ func TestReferenceTableCoreSemanticSkipNotices(t *testing.T) {
 					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, conn, record, s) }
 					run(referenceExec("CREATE TABLE t(id INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(11)", 1))
-					for _, q := range []string{"CREATE TABLE IF NOT EXISTS t(id no_such_type)", "CREATE TABLE IF NOT EXISTS t(id SMALLINT)", "CREATE TABLE IF NOT EXISTS t(id NAME)", "CREATE TABLE IF NOT EXISTS t(id INT,id TEXT)", "CREATE TABLE IF NOT EXISTS t(LIKE missing)", "CREATE TABLE IF NOT EXISTS t(LIKE missing INCLUDING ALL)", "CREATE TABLE IF NOT EXISTS t(LIKE missing EXCLUDING CONSTRAINTS)"} {
+					for _, q := range []string{"CREATE TABLE IF NOT EXISTS t(other TEXT)", "CREATE TABLE IF NOT EXISTS t(id no_such_type)", `CREATE TABLE IF NOT EXISTS t(id "integer")`, "CREATE TABLE IF NOT EXISTS t(id SMALLINT)", "CREATE TABLE IF NOT EXISTS t(id NAME)", "CREATE TABLE IF NOT EXISTS t(id INT,id TEXT)", "CREATE TABLE IF NOT EXISTS t(LIKE missing)", "CREATE TABLE IF NOT EXISTS t(LIKE missing INCLUDING ALL)", "CREATE TABLE IF NOT EXISTS t(LIKE missing EXCLUDING CONSTRAINTS)"} {
 						notices = nil
 						run(referenceExec(q, 0))
 						want := []referenceDiagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: `relation "t" already exists, skipping`}}
@@ -131,6 +134,25 @@ func TestReferenceTableCoreSemanticSkipNotices(t *testing.T) {
 					want := []referenceDiagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `table "missing" does not exist, skipping`}, {Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `schema "absent_schema" does not exist, skipping`}}
 					if !reflect.DeepEqual(notices, want) {
 						t.Fatal(notices, want)
+					}
+					notices = nil
+					run(referenceExec("CREATE TABLE a(id INT)", 0))
+					run(referenceExec("CREATE TABLE b(id INT)", 0))
+					notices = nil
+					referenceRunStep(t, p.ctx, conn, record, referencePrepared(referenceExec("DROP TABLE IF EXISTS a,missing,public.a,b CASCADE", 0)))
+					groupedNotice := []referenceDiagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `table "missing" does not exist, skipping`}}
+					if !reflect.DeepEqual(notices, groupedNotice) {
+						t.Fatal("grouped DROP notice", notices, groupedNotice)
+					}
+					for _, name := range []string{"a", "b"} {
+						absent := referenceImplicitError("SELECT * FROM "+name, referenceDiagnostic{Code: "42P01", Message: `relation "` + name + `" does not exist`, Position: "15"})
+						absent.selectRows = true
+						if prepared {
+							absent.errorStage = "prepare"
+						} else {
+							absent.errorStage = "execute"
+						}
+						run(absent)
 					}
 					notices = nil
 					run(referenceExec("SET client_min_messages TO warning", 0))

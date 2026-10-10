@@ -2050,8 +2050,9 @@ demanded. Identity mode, linked address, privileges and comments remain intact.
 Feature smokes: `make quickcheck PACKAGES=./smoke RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
 Native controls preserve definitions, actual sequence names/configuration/state and
-literal identity rows without allocating values. Ordinary/identity UPDATE DEFAULT,
-LIKE INCLUDING IDENTITY, arbitrary table DDL in transactions and full identity
+literal identity rows without allocating values. LIKE INCLUDING IDENTITY copies
+mode/configuration to an independent initially uncalled owned sequence. Ordinary/
+identity UPDATE DEFAULT, arbitrary table DDL in transactions and full identity
 catalog views remain excluded. Logical controls do not imply physical/WAL/wire support.
 
 
@@ -3695,7 +3696,25 @@ Input syntax is validated during INSERT/SELECT Prepare at unconstrained typmod; 
 
 For NUMERIC column `v`, `SELECT $1 FROM n WHERE v=$1` fails Prepare with `42P08`, primary `inconsistent types deduced for parameter $1`, Detail `numeric versus text`, Position `8`; direct Query with supplied arguments reports the same record at execution. Zero-argument native Query still reports that `42P08` record, while lib/pq's PostgreSQL simple query instead reports `42P02`, `there is no parameter $1`, Position `8`. The different complete records are asserted independently, without false parity.
 
-CREATE TABLE uses ordered explicit columns and plain LIKE elements, including multiple/interleaved sources and zero-column `()`. LIKE copies declaration shape and NOT NULL, never source rows/owner/ACL/dependencies; qualified/effective-path lookup requires source namespace USAGE and relation SELECT. LIKE options remain unsupported, not successful no-ops. IF NOT EXISTS skips an existing authorized destination before semantic element analysis, including nested CREATE TABLE in CREATE SCHEMA; malformed syntax still fails before effects. Nested elements use the enclosing owner and local staged schema path, never change session identity/settings, and publish atomically. Outer CREATE SCHEMA IF NOT EXISTS still cannot contain elements.
+CREATE TABLE uses ordered explicit columns and LIKE elements, including multiple/interleaved table, existing-view or composite-type sources and zero-column `()`. LIKE always copies declaration shape/NOT NULL, never source rows/owner/ACL or automatic parent linkage; qualified/effective-path lookup requires source namespace USAGE, then validates kind before relation SELECT for table/view sources or type USAGE for composite sources. Composite backing relations remain nonstorage authorities; absent descriptors make their options effect-free. Ordered INCLUDING/EXCLUDING options have last-option precedence, including ALL. Real defaults/CHECKs/STORED generation/identity/indexes/column comments copy through their owning descriptors with fresh identities and row remapping; explicit external constants/dependencies remain external. Absent compression/storage/extended-statistics and other unimplemented providers are not fabricated. IF NOT EXISTS skips an existing authorized destination before semantic element analysis, including nested CREATE TABLE in CREATE SCHEMA; malformed syntax still fails before effects. Nested elements use the enclosing owner and local staged schema path, never change session identity/settings, and publish atomically. Outer CREATE SCHEMA IF NOT EXISTS still cannot contain elements.
+
+INCLUDING INDEXES and ALL also copy admitted partial B-tree and partial UNIQUE
+definitions. Both analyzed and execution predicates remap destination row
+attributes without redirecting external REGCLASS/REGTYPE constants. Analyzed
+dependencies remain held even if execution folds their arm away. Fresh roots
+contain no source rows; only TRUE qualifies, before expression-key evaluation.
+Partial HASH and partial concurrent creation retain their existing exclusions.
+
+TEMP LIKE composition preserves physical-session authority. Same-session copied
+TEMP sequence defaults retain original linkage across native Reset/Restore;
+constant and permanent-sequence defaults from TEMP sources also copy into
+permanent destinations. Capturing a TEMP sequence in a permanent copied DEFAULT
+retains native Execute0A000 `temporary sequence DEFAULT is unsupported`, with no
+Position from the source SQL, while PostgreSQL permits the dependency. Excluding
+DEFAULTS avoids this narrow boundary. IDENTITY instead allocates a fresh owned
+sequence in destination namespace/persistence, including TEMP destinations.
+Predicate-only index edges remain outside the bounded native `pg_depend`
+projection; exact descriptor manifests and real dependency DROP/controls remain authoritative.
 
 NOT NULL is an identity-bearing relation constraint, separate from CHECK.
 Ordered column `[CONSTRAINT name] NULL/NOT NULL` declarations and table
@@ -4354,7 +4373,7 @@ restored generated OIDs must be rediscovered. Session search_path is not dumped.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
 
 
-COMMENT supports TABLE/COLUMN/SCHEMA/ROLE only, with decoded literals and NULL/empty removal (whitespace persists). Store text in immutable descriptors, column maps keyed by stable SubID, or shared RoleDescriptor values; never name-keyed side storage or adjacent SQL description functions. Lookup and live ownership precede mutation; COLUMN nonowner says relation, TABLE says table. Ordinary roles cannot self-comment; CREATEROLE/ADMIN expansion is excluded. Explicit-TX COMMENT remains native 0A000. Rename/owner transfer retains text; drop/recreate clears it; LIKE does not copy it. Database Dump excludes shared role comments, Reset/Restore retain them.
+COMMENT supports TABLE/COLUMN/SCHEMA/ROLE only, with decoded literals and NULL/empty removal (whitespace persists). Store text in immutable descriptors, column maps keyed by stable SubID, or shared RoleDescriptor values; never name-keyed side storage or adjacent SQL description functions. Lookup and live ownership precede mutation; COLUMN nonowner says relation, TABLE says table. Ordinary roles cannot self-comment; CREATEROLE/ADMIN expansion is excluded. Explicit-TX COMMENT remains native 0A000. Rename/owner transfer retains text; drop/recreate clears it. Plain LIKE excludes text; INCLUDING COMMENTS copies admitted column comments, never the table comment. Database Dump excludes shared role comments, Reset/Restore retain them.
 
 DSNs are exact opaque process-local names, including empty string, scoped to a Driver. Different strings/Drivers isolate data. Closing pools/connections does not erase an engine. Reset atomically clears objects retaining process-local identity. Dump serializes persistent user schemas before qualified tables/views in common creation-address order among objects whose sources are ready, with owner directives as needed and table data/comments beside CREATE; unsupported explicit ACLs fail before output. Incumbent view topology takes precedence over exceptional remapped source addresses. Restore stages and atomically replaces, preserving independently mapped namespace/table owners through private stage-only destination authority, never fake grants. Controls require native pools, reject wrapped/foreign drivers and nil inputs, and preserve data on errors. Snapshots survive controls and schema lifecycle changes. Never hold target locks during external I/O.
 
@@ -5135,9 +5154,10 @@ destination assignment remains separate from explicit expression coercion.
 Native Dump retains declarations and emits DEFAULT instead of computed literals;
 replacement remaps owner-dependent stored cells without changing held snapshots.
 Existing ALTER DEFAULT/TYPE and dependent DROP paths guard definition integrity.
-Virtual/omitted-kind generation, ADD generated, expression ALTER lifecycle and
-LIKE INCLUDING GENERATED remain unsupported; generated destination TYPE without
-USING remains an explicit native boundary rather than an implicit rewrite.
+LIKE INCLUDING GENERATED copies admitted STORED definitions, remapping owner-row
+references without redirecting explicit external literals. Virtual/omitted-kind
+generation, ADD generated and expression ALTER lifecycle remain unsupported;
+generated destination TYPE without USING remains an explicit native boundary.
 Shared scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReferenceGeneratedStored' VERBOSE=0`,
 and the same command with `REFERENCE=1`.
 

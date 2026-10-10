@@ -182,7 +182,10 @@ CREATE INDEX [name] ON [schema.]table USING hash
 CREATE INDEX IF NOT EXISTS name ON [schema.]table USING hash
   (key [COLLATE [schema.]collation] [[schema.]opclass])
 element := column type [COLLATE [schema.]name] [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
-         | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
+         | [CONSTRAINT name] NOT NULL column | check_constraint
+         | LIKE [schema.]source [{INCLUDING | EXCLUDING} like_option]...
+like_option := COMMENTS | COMPRESSION | CONSTRAINTS | DEFAULTS | GENERATED
+             | IDENTITY | INDEXES | STATISTICS | STORAGE | ALL
 check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 COMMENT ON TABLE [schema.]name IS string_literal | NULL
@@ -1019,6 +1022,10 @@ construction passes remain separate, notably expression-index parent0 ownership.
 Domain-valued Vars reference columns, not their result type; user constants and
 non-function coercion targets can reference types. Dependencies retain analyzed
 dead CASE branches rather than reflecting runtime expression simplification.
+Index predicate-only edges are not part of this native projection, even though
+owning analyzed predicate manifests participate in real DROP/column lifecycle,
+copy admission and native controls. PostgreSQL exposes those edges. Shared
+inquiries retain independent adapter expectations without skipping behavior.
 
 Named and quoted numeric scalar REGCLASS constants capture a real existing
 relation identity. NULL, nonexistent quoted numeric constants and plain OIDs
@@ -1258,6 +1265,17 @@ becomes temporary; another owner's namespace rejects42P16. Owner lookup shadows
 permanent relations and explicit persistent qualification bypasses it.
 ON COMMIT acts only at successful outer commit; physical end removes TEMP,
 while native persistent controls preserve live owner TEMP and exclude it from Dump.
+LIKE INCLUDING DEFAULTS preserves original sequence linkage. Same-session TEMP
+destinations accept TEMP sequence defaults, including new copies of retained
+definitions after native replacement. Constant/permanent-sequence defaults from
+TEMP sources also copy into permanent destinations. A permanent copied DEFAULT
+capturing a TEMP sequence retains native Execute0A000
+`temporary sequence DEFAULT is unsupported` with no copied source Position;
+PostgreSQL permits it. Raw DEFAULT binding preserves its actual call Position.
+Fresh copied identity sequences follow destination namespace and persistence,
+not the source token or consumed state. Acquisition may use a current-epoch lock
+reference only after existing bounded retained TEMP authority proves the original
+reference; stored expression/manifests and generic ObjectRef validity are unchanged.
 Permanent transactional CREATE/DROP, GLOBAL/LOCAL and TEMP views remain excluded.
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
 
@@ -1595,6 +1613,12 @@ reservations until transaction outcome; outside rows reserve no partial keys.
 Predicate-only TYPE validates final rebound membership immediately, including own
 writes/deletes. Analyzed standalone Boolean TRUE becomes no stored predicate and
 deparses without WHERE; other definitions remain partial despite execution folding.
+CREATE TABLE LIKE INCLUDING INDEXES (or ALL) copies these admitted partial B-tree
+and partial UNIQUE definitions through the same index owner. Both cooked predicate
+trees remap row references to destination attributes; analyzed external
+REGCLASS/REGTYPE dependencies remain unchanged even if execution folds them away.
+Copied indexes start with fresh empty roots and preserve TRUE-only qualification
+before derived-key evaluation.
 Only effective nonpartial unique keys contribute strong UPDATE locks/history.
 Partial replacement/control witnesses retain supported TEMP sequences (including
 cached values and destination identity collisions) and eager selected rows across

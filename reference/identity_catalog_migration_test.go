@@ -19,7 +19,6 @@ func TestReferenceIdentitySerialAndNativeBoundaries(t *testing.T) {
 				position string
 			}{
 				{`UPDATE i SET id=DEFAULT`, "UPDATE DEFAULT is unsupported", "17"},
-				{`CREATE TABLE clone(LIKE i INCLUDING IDENTITY)`, "LIKE options are unsupported", "27"},
 			} {
 				result, err := backend.db.Exec(boundary.query)
 				if backend.pg {
@@ -38,11 +37,10 @@ func TestReferenceIdentitySerialAndNativeBoundaries(t *testing.T) {
 					referenceAssertDiagnostic(t, err, &want)
 				}
 			}
-			if backend.pg {
-				// INCLUDING IDENTITY creates a fresh sequence for the clone.
-				identityRefExec(t, backend.db, `INSERT INTO clone DEFAULT VALUES`, 1)
-				identityRefRows(t, backend.db, `SELECT * FROM clone`, [][]int64{{1}})
-			}
+			// INCLUDING IDENTITY now admits independently owned sequence behavior.
+			identityRefExec(t, backend.db, `CREATE TABLE clone(LIKE i INCLUDING IDENTITY)`, 0)
+			identityRefExec(t, backend.db, `INSERT INTO clone DEFAULT VALUES`, 1)
+			identityRefRows(t, backend.db, `SELECT * FROM clone`, [][]int64{{1}})
 		})
 	}
 }
