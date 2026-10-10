@@ -20,6 +20,7 @@ const (
 	deparseViewTextPretty
 	deparseViewOIDPretty
 	deparseViewWrap
+	deparseSerialSequence
 )
 
 type deparseSignatureDefinition struct {
@@ -39,6 +40,7 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 	{"pg_get_viewdef", []sqltype.ID{sqltype.Text, sqltype.Bool}},
 	{"pg_get_viewdef", []sqltype.ID{sqltype.Oid, sqltype.Bool}},
 	{"pg_get_viewdef", []sqltype.ID{sqltype.Oid, sqltype.Int4}},
+	{"pg_get_serial_sequence", []sqltype.ID{sqltype.Text, sqltype.Text}},
 }
 
 type deparseExpression struct {
@@ -74,7 +76,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	var candidates [11]deparseSignature
+	var candidates [len(deparseSignatures)]deparseSignature
 	count, best := 0, -1
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	for index, signature := range deparseSignatures {
@@ -226,6 +228,9 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	if c.statementScope == nil || c.statementScope.commentCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
+	}
+	if e.signature == deparseSerialSequence {
+		return e.evalSerialSequence(c, values)
 	}
 	view := c.statementScope.commentCatalog
 	pretty := false

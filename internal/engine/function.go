@@ -81,7 +81,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	switch name {
 	case "gen_random_uuid", "uuidv4", "uuidv7":
 		return b.bindUUIDGeneration(raw, visible)
-	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef":
+	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":
 		return b.bindDatetimeExtract(raw, visible)

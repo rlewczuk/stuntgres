@@ -368,6 +368,45 @@ rendering is structural and executable, not original SQL or view evaluation.
 Existing ordinary views and simple/UNIQUE backing indexes are supported; this
 adds no materialized-view, expression/partial/INCLUDE index DDL or catalogs.
 
+### Owned sequence introspection — change note
+
+`pg_get_serial_sequence(table text, column text) -> text` is the sole signature.
+This strict STABLE inquiry finds actual column-owned sequences: AUTO ownership
+from SMALLSERIAL/SERIAL/BIGSERIAL or manual OWNED BY, and INTERNAL ownership from
+the supported identity columns. It does not infer an association from a default
+or `_seq` spelling. DROP DEFAULT or a different nextval provider leaves ownership
+intact; OWNED BY NONE removes the association even if the default survives.
+An ordinary unowned column returns typed TEXT NULL.
+The existing `ctid`, `xmin`, `cmin`, `xmax`, `cmax` and `tableoid` system
+attributes on supported non-view relations also have no owned sequence and return
+NULL. Views lack those implicit attributes and retain42703 for absent names;
+a declared view column with the same spelling follows ordinary declared lookup.
+This existence inquiry adds no system-column value projection or DDL capability.
+
+The first argument is SQL-qualified identifier text: unquoted components fold,
+quoted components preserve case/dots/embedded quotes, and identifiers truncate
+at a complete UTF8 boundary of63 bytes. Numeric text names a relation, not an OID.
+A matching current-database prefix is accepted; cross-database references are
+unsupported. The second argument is an exact literal column name, with no
+folding, unquoting or whitespace trimming beyond ordinary character coercion.
+Missing relations/schemas/columns and malformed input retain PostgreSQL
+diagnostics; wrong signatures fail binding before strict NULL execution.
+NULL arguments suppress catalog lookup after demanded children are evaluated.
+
+Output always qualifies and safely quotes the actual sequence namespace/name,
+so it can feed nextval/currval. Inquiries consume no generator values and use the
+current statement's immutable, transaction-visible catalog. Held statements
+observe later ownership/search-path changes at execution. TEXT metadata remains
+known for success, NULL and empty results. Views, closed STABLE defaults and CHECK
+retain symbolic inquiries; native Dump/Restore preserves existing ownership and
+generator state without new serialization. No serial/identity DDL boundary is
+widened. `pg_get_owned_sequence` is explanatory prose, not an alias.
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSerialIdentityFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerialIdentityFeatureSmoke$' VERBOSE=0`.
+
+
 
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA, BIT[(n)], BIT VARYING[(n)], VARBIT[(n)] and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, raw B/X bit literals, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).

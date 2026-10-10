@@ -105,6 +105,20 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+The serial/identity inquiry family is selected with
+`RUN='^TestReferenceSerialIdentity(Ownership|Lifecycle|Names|Nulls|Diagnostics|Consumers|Controls|FeatureSmoke|SystemColumns)$'`.
+Its shared public scenarios independently assert AUTO/INTERNAL/manual ownership,
+ownership versus defaults, qualified-name parsing and literal column names,
+strict NULL and TEXT metadata, complete diagnostic fields and binding/execution
+phases, symbolic consumers, retained results, and ownership-preserving native
+Dump/Restore with actual emitted-SQL replay on PostgreSQL. Native control phases
+have no PostgreSQL API equivalent; the SQL witnesses are shared. The cohesive
+feature smoke is `RUN='^TestReferenceSerialIdentityFeatureSmoke$'`. Run both
+selectors in quick and pinned modes using the commands above.
+System-column coverage independently asserts all six existing table system names
+return TEXT NULL, while absent system names on views retain complete42703
+diagnostics and held recovery. The feature smoke includes both boundaries.
+
 The numeric-formatting family independently asserts the five numeric
 `to_char` overloads, preferred FLOAT8 SMALLINT route, `to_number`, exact/binary
 rounding, C currency space, global FM, signs, Roman/ordinal/V/scientific

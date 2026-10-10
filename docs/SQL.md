@@ -509,6 +509,34 @@ column zero gives CREATE INDEX without a terminator, valid columns give only key
 invalid nonzero columns give empty TEXT, and missing/wrong-kind OIDs give NULL.
 See [deparse contracts](QUERIES.md#index-and-view-deparsing--change-note).
 
+Owned sequence inquiry has exactly `pg_get_serial_sequence(text,text) -> text`.
+Its strict STABLE provider returns the actual qualified, safely quoted AUTO or
+INTERNAL sequence name for serial, manual OWNED BY or supported identity
+metadata, and typed TEXT NULL for an unowned column.
+Existing system attributes (`ctid`, `xmin`, `cmin`, `xmax`, `cmax`, `tableoid`)
+on supported non-view relations are unowned and return NULL. An absent system name
+on a view still raises42703; declared columns take precedence over this
+relation-kind-aware existence check. No system-column projection is added.
+A nextval default is neither necessary nor sufficient: changing/dropping the
+default preserves association,
+whereas OWNED BY NONE removes it. The first TEXT parses qualified relation names
+and folds unquoted identifiers; the second is the literal case-sensitive column
+name. A numeric first argument is a name rather than an OID. Matching
+current-database qualification is accepted without supporting cross-database
+lookup. Bare and pg_catalog-qualified calls share the sole signature;
+`pg_get_owned_sequence` is not a SQL alias.
+
+Argument binding precedes strict NULL behavior. Runtime name/schema/column
+diagnostics have no offsets into embedded TEXT. Execution uses the captured
+transaction-visible catalog and stable attribute identities, so a retained
+statement observes ownership changes and preceding-column compaction correctly.
+The inquiry does not draw numbers or infer ownership from generator/default
+state. Nullable TEXT metadata is retained for empty/all-NULL results. Stored
+views/defaults/CHECK remain symbolic across existing native Dump/Restore, which
+preserves actual sequence names, ownership and future draws.
+See [owned sequence introspection](DIALECT.md#owned-sequence-introspection--change-note).
+
+
 These native catalog rows are derived and have no durable physical row identity.
 Direct, nested, stored or empty marked reads fail0A000 `row locking is not
 supported for virtual catalog relations`, without Position/Detail/Hint or partial

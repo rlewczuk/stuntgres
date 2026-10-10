@@ -364,6 +364,20 @@ Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`.
 
+Change note: `pg_get_serial_sequence(text,text) -> text` finds actual AUTO-owned
+serial/manual sequences and INTERNAL-owned supported identity sequences, not
+nextval defaults or inferred names. It returns safely quoted, always-qualified
+TEXT or NULL without drawing a number. First-argument qualified-name parsing
+folds unquoted identifiers; the second is an exact literal column name. Strict
+NULL, binding/runtime diagnostics, held execution-time catalog lookup and known
+nullable TEXT metadata reuse existing typed providers. OWNED BY NONE removes
+the association; native Dump/Restore and symbolic views/defaults/CHECK retain
+existing ownership and generator state. No new DDL or pg_get_owned_sequence
+alias is added. See [owned sequence introspection](docs/DIALECT.md#owned-sequence-introspection--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSerialIdentityFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerialIdentityFeatureSmoke$' VERBOSE=0`.
+
+
 Change note: arrays now provide catalog-owned storage and literal input/output
 over every supported stored scalar family and domains, including arrays of
 domains, domains over arrays and nested array-valued domains. `type[]`, repeated
