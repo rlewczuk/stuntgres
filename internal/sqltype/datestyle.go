@@ -89,6 +89,12 @@ func ParseDateStyle(text string, current, defaults DateStyle) (DateStyle, string
 	return result, ""
 }
 func zoneOffsetOutput(east int32) string {
+	// PostgreSQL's TIMETZ formatter prints the wrapped INT32_MIN components
+	// unsigned. Only conversion can produce this payload; literal/SET bounds
+	// remain unchanged.
+	if east == -2147483648 {
+		return fmt.Sprintf("+%02d:%02d:%02d", uint32(east/3600), uint32(east/60%60), uint32(east%60))
+	}
 	sign := "+"
 	if east < 0 {
 		sign = "-"

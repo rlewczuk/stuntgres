@@ -523,12 +523,16 @@ and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAttrdef
 
 Time-zone-aware `TIMESTAMPTZ` and `TIMETZ` values support per-physical-session
 TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
-`AT TIME ZONE` / `AT LOCAL`. Timestamptz stores an instant; timetz retains
+`AT TIME ZONE` / `AT LOCAL` and all nine `timezone(...)` overloads.
+Timestamptz stores an instant; timetz retains
 its fixed offset. Rules are embedded from the pinned PostgreSQL 18.0 image,
 not the host timezone installation. See [temporal types](docs/TYPES.md#time-zone-aware-values)
 and [session settings](docs/SETTINGS.md#temporal-settings).
 Native logical Dump/Restore preserves these values independently of session
-presentation. This does not add timezone catalog views or general INTERVAL arithmetic.
+presentation. `date_add` / `date_subtract` accept timestamptz plus interval,
+with an optional explicit zone for calendar months/days; elapsed microseconds
+remain instant arithmetic. The five SQL current-date/time producers are supported
+separately. This does not add timezone catalog views.
 Change note: `timezone_abbreviations` now selects embedded stock Default,
 Australia or India for all temporal input consumers, with session-zone priority.
 It does not change output labels or load customized installation files.
@@ -536,8 +540,8 @@ DateStyle/IntervalStyle and native UTC defaults retain their existing contracts.
 Dual-mode feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`.
-The five SQL current-date/time producers are supported separately.
-Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
+Public feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0`;
+pinned oracle: add `REFERENCE=1` to the same command.
 
 SELECT and INSERT SELECT support comma products, CROSS JOIN and inner or
 LEFT/RIGHT/FULL [OUTER] joins with ON, USING or NATURAL, including nested joins,

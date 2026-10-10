@@ -365,6 +365,34 @@ native implementation; final verification uses the same completed bodies in both
 modes. Internal `TestDeleteUsing` parser/engine tests exercise positioned traversal,
 captured identity/authority, successful-only suppression and failure/cleanup seams.
 
+The timezone/calendar function family independently covers all nine timezone
+and four date_add/date_subtract signatures, operator counterparts, inference,
+strict demand, metadata, DST/calendar stages, released displacement extrema,
+stored definitions and native control atomicity. Complete original timezone
+smoke assertions now live in `TestReferenceDatetimeZoneMigratedTimezoneSmoke`;
+existing `TestReferenceTimezone*` fixtures remain intact. Selected live
+cancellation uses a finite row-dependent date_add INSERT SELECT, gated by the
+actual PostgreSQL query/PID and the native provider/worker synchronization
+pattern. Each direct/prepared subcase cleans its fixtures even on failure.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(DatetimeZone|Timezone)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DatetimeZone|Timezone)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestDatetimeZone' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestDatetimeZone' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestDatetimeZone' VERBOSE=0
+```
+
+Both complete reference modes must run before review/integration. Each quickcheck
+has a900-second deadline. Provider units include warmed EST/MSK/IANA allocation
+witnesses; they supplement, not replace, public independent SQL expectations.
+The discovery backend.pg filter and focused logging-only oracle probes are
+temporary and must be removed before native checks; neither remains in the
+completed family. The root runs verification and feature smoke after edits, then
+the final post-merge fullcheck under one1800-second deadline.
+
 The interval-justification family covers exact30-day/24-hour boundaries,
 mixed signs and component extrema, complete diagnostics and phases, metadata,
 held inferred parameters/recovery, four styles, existing consumers, statement

@@ -159,6 +159,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case datetimeTruncExpression:
 		out.WriteString("Datetime truncation")
 		err = args(n.children())
+	case datetimeZoneCalendarExpression:
+		out.WriteString("Datetime " + n.name)
+		err = args(n.children())
 	case datetimeAgeFiniteExpression:
 		out.WriteString("Datetime " + n.plan.Name())
 		err = args(n.children())
@@ -221,6 +224,11 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
 		err = args(n.args)
 	case timeZoneExpression:
+		if n.function {
+			out.WriteString("Datetime timezone")
+			err = args(n.functionArguments())
+			break
+		}
 		if n.local {
 			out.WriteString("AtLocal")
 			err = child(n.value)

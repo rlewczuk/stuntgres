@@ -1971,17 +1971,23 @@ unknown zones and invalid offsets still fail with positioned English diagnostics
 Literal ISO offsets are east-positive and bounded to ±15:59:59.
 POSIX specifications have the opposite sign (`UTC-2` means +02:00).
 
-`TIMESTAMP AT TIME ZONE text` produces TIMESTAMPTZ; TIMESTAMPTZ converts back
-to civil TIMESTAMP. AT LOCAL uses session TimeZone. TIMETZ converts to TIMETZ,
+`TIMESTAMP AT TIME ZONE text/interval` produces TIMESTAMPTZ; TIMESTAMPTZ converts
+back to civil TIMESTAMP. All nine `timezone(...)` overloads share this provider;
+their unary forms and AT LOCAL use session TimeZone. TIMETZ converts to TIMETZ,
 shifting/wrapping its clock and replacing its offset. Named destination offsets
 are chosen at transaction-start instant, not the source literal's date or a
 per-row wall clock. A full DST-bearing zone in timetz input requires a supplied
 date; stored timetz output remains fixed when session TimeZone changes.
 
-Stored/provider-derived TIMETZ offsets range from 169 hours east to 168 hours west,
-distinct from literal input's ±15:59:59 bound: a valid wide POSIX/session rule may produce
-a timetz offset that cannot be entered as an ordinary numeric-offset literal.
-Prepared capture, comparison, conversion and native replay retain that identity.
+POSIX/session-derived TIMETZ offsets range from169 hours east to168 hours west,
+distinct from literal input's ±15:59:59 bound. Interval-zone conversion truncates
+fractional seconds and wraps to an int32 displacement, accepting the complete
+released conversion domain without widening typed literals or SET TIME ZONE.
+Converted values retain their clock/offset through arithmetic, storage and native
+replay; replay reconstructs wide values through interval conversion, not invalid
+numeric-offset input. At INT32_MIN, TEXT output preserves the pinned release's
+unsigned offset-field rendering. lib/pq cannot decode these huge TIMETZ offsets
+as ordinary raw values; shared extrema coverage uses explicit TEXT output.
 Timestamptz equality/order uses the instant. Timetz compares non-modular UTC-clock
 keys and then seconds-west offset: `09:00+01` sorts before, and is unequal to,
 `08:00+00`. Grouping, ordering and conditional/distinct predicates share these semantics.
@@ -2003,13 +2009,23 @@ analysis. Parameters, column casts/comparisons and AT LOCAL read execution setti
 Held cursors retain captured presentation and metadata across settings changes
 and native replacement. Dump uses canonical ISO/UTC timestamptz and stored timetz
 offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
-No timezone catalog views or timezone(...) aliases are added. Selected [INTERVAL arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) uses these existing codecs.
+No timezone catalog views are added. Selected [INTERVAL arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) uses these existing codecs.
 The five [SQL current date/time producers](DIALECT.md#sql-current-date-and-time--change-note)
 use these same codecs/settings and remain dynamic under held prepared execution.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
-Public/provider witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
-Independent pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
+`date_add(timestamptz,interval[,text])` and `date_subtract` reuse the existing
+interval arithmetic provider. Months and days follow the selected zone's civil
+calendar (including gap/fold transitions); microseconds remain elapsed time.
+Omitting the zone reads execution TimeZone; explicit zones do not change the
+session. Full dynamic-abbreviation rules are used for calendar operations.
+Every formal is strict and every result has unrestricted typmod. Explicit-zone
+calendar forms are Immutable; omitted-zone forms are Stable, with child/cast
+dependence retained. Input errors keep the existing adapter parameter Context;
+runtime zone/arithmetic errors do not invent one.
+
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0`.
+Public/provider witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReference(DatetimeZone|Timezone)' VERBOSE=0`.
+Independent pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DatetimeZone|Timezone)' VERBOSE=0`.
 
 
 Initial timestamptz input range checking and typmod rounding are distinct:

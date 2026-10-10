@@ -873,6 +873,7 @@ func restoreScalar(raw parser.Expr) error {
 		case "age", "isfinite":
 		case "overlaps":
 		case "date_trunc":
+		case "timezone", "date_add", "date_subtract":
 		case "justify_days", "justify_hours", "justify_interval":
 		case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
 		case "gen_random_uuid", "uuidv4", "uuidv7":

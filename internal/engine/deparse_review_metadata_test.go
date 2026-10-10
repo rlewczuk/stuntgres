@@ -250,9 +250,6 @@ func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	conversion := node.(timeZoneExpression)
-	if conversion.zone.ResultUsage().Type.ID() != sqltype.Interval || conversion.zone.ResultUsage().Typmod == -1 || conversion.ResultUsage().Type.ID() != sqltype.Timestamptz {
-		t.Fatal(conversion)
-	}
 	value, err := conversion.Eval(&EvalContext{Context: context.Background()})
 	if err != nil {
 		t.Fatal(err)

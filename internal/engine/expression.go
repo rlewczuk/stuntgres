@@ -256,20 +256,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
 	case timeZoneExpression:
-		value, changed, err := preflightCoercionsWithPolicy(c, e.value, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
+		if randomLiteralNull(e.value) || !e.local && randomLiteralNull(e.zone) {
+			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
 		}
-		e.value = value
+		changed := false
 		if !e.local {
-			zone, zoneChanged, err := preflightCoercionsWithPolicy(c, e.zone, decisiveDefaults)
+			zone, did, err := preflightCoercionsWithPolicy(c, e.zone, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
-			e.zone = zone
-			changed = changed || zoneChanged
+			e.zone, changed = zone, did
 		}
-		return e, changed, nil
+		value, did, err := preflightCoercionsWithPolicy(c, e.value, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.value, changed = value, changed || did
+		next, simplified, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || simplified, err
 	case regclassArrayExpression:
 		var elements []BoundExpr
 		for i, old := range e.elements {
@@ -598,6 +602,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
+	case datetimeZoneCalendarExpression:
+		for _, arg := range e.children() {
+			if randomLiteralNull(arg) {
+				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		anyChanged := false
+		for i, arg := range e.children() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.args[i], anyChanged = folded, true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
 	case datetimeAgeFiniteExpression:
 		anyChanged := false
 		for i, arg := range e.children() {
@@ -905,27 +927,30 @@ type expressionDependency struct {
 	revision DefinitionRevision
 }
 type expressionBinder struct {
-	engine                     *Engine
-	ctx                        context.Context
-	relation                   *relationDescriptor
-	insertTarget               *relationDescriptor // Diagnostic candidate only, never a source.
-	ref                        ObjectRef
-	parameters                 map[int]sqltype.Usage
-	updateParameters           bool
-	updateInputParameters      map[int]sqltype.Usage
-	uses                       []int
-	dependencies               []expressionDependency
-	input                      sqltype.InputEnvironment
-	op                         *Operation
-	expected                   *StatementDescription
-	temporals                  []temporalConstant
-	anyParameters              []parameterExpression
-	deleteTarget               bool
-	deleteUsingSources         bool
-	targetName                 string
-	targetAlias                string
-	returningAliases           *returningAliases
-	defaultConsumer            bool
+	engine                *Engine
+	ctx                   context.Context
+	relation              *relationDescriptor
+	insertTarget          *relationDescriptor // Diagnostic candidate only, never a source.
+	ref                   ObjectRef
+	parameters            map[int]sqltype.Usage
+	updateParameters      bool
+	updateInputParameters map[int]sqltype.Usage
+	uses                  []int
+	dependencies          []expressionDependency
+	input                 sqltype.InputEnvironment
+	op                    *Operation
+	expected              *StatementDescription
+	temporals             []temporalConstant
+	anyParameters         []parameterExpression
+	deleteTarget          bool
+	deleteUsingSources    bool
+	targetName            string
+	targetAlias           string
+	returningAliases      *returningAliases
+	defaultConsumer       bool
+	// Selected timezone/calendar operand analysis owns its released rejection
+	// diagnostic without admitting additional explicit cast providers.
+	datetimeZoneOperands       bool
 	checkConsumer              bool
 	indexConsumer              bool
 	generatedOwner             *relationDescriptor
@@ -1504,7 +1529,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 	case parser.TimeZoneExpr:
 		var err error
-		node, err = b.bindTimeZone(r, policy)
+		node, err = b.bindTimeZone(r)
 		if err != nil {
 			return nil, err
 		}
@@ -1663,7 +1688,8 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if target.Type.ID() == sqltype.Regclass {
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
-	if !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
+	unsupportedTarget := !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
+	if unsupportedTarget && !b.datetimeZoneOperands {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if target.Type.ContainsCatalogIdentifier() {
@@ -1721,13 +1747,16 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !b.datetimeZoneOperands && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
 			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 		}
 		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+	}
+	if unsupportedTarget {
+		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if plan.RequiresCatalogOutput() {
 		b.regclassConcat = true

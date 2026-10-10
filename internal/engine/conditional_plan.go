@@ -178,9 +178,14 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		expression = e
 	case timeZoneExpression:
-		e.value, err = child(e.value)
-		if err == nil && !e.local {
+		if randomLiteralNull(e.value) || !e.local && randomLiteralNull(e.zone) {
+			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+		}
+		if !e.local {
 			e.zone, err = child(e.zone)
+		}
+		if err == nil {
+			e.value, err = child(e.value)
 		}
 		expression = e
 	case collationExpression:
@@ -340,6 +345,22 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		for _, arg := range e.children() {
 			if randomLiteralNull(arg) {
 				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		expression = e
+	case datetimeZoneCalendarExpression:
+		for _, arg := range e.children() {
+			if randomLiteralNull(arg) {
+				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		for i, old := range e.children() {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i], changed = node, true
 			}
 		}
 		expression = e
@@ -632,6 +653,8 @@ func plannedConditionalResult(info expressionInfo, node BoundExpr) BoundExpr {
 func conditionalConstantInputs(node BoundExpr) bool {
 	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
+	case timeZoneExpression:
+		return literal(e.value) && (e.local || literal(e.zone))
 	case collationExpression:
 		return literal(e.child)
 	case coercionExpression:
@@ -680,6 +703,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		}
 		return true
 	case datetimeTruncExpression:
+		for _, arg := range e.children() {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case datetimeZoneCalendarExpression:
 		for _, arg := range e.children() {
 			if !literal(arg) {
 				return false

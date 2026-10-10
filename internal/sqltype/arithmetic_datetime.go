@@ -128,7 +128,9 @@ func (p Arithmetic) datetimeBinary(a, b Value, input InputEnvironment) (Value, e
 			n += microsPerDay
 		}
 		if l == Timetz {
-			return TimetzValue(p.result, n, a.west)
+			value, err := TimeValue(p.result, n)
+			value.west = a.west // Retain an already valid converted fixed offset.
+			return value, err
 		}
 		return TimeValue(p.result, n)
 	}

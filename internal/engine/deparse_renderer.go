@@ -203,7 +203,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			text = regclassSpelling(r.view, r.path, OID(id))
 		}
 		return quote(text) + "::regclass", nil
-	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+	case sqltype.Timetz:
+		return datetimeZoneTimetzDeparse(ctx, v, typ, text, quote)
+	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse constant type %d", u.Type.ID())
@@ -579,6 +581,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return n.publicSQL(ctx, r, child)
 	case datetimeTruncExpression:
 		return function("date_trunc", n.children(), true)
+	case datetimeZoneCalendarExpression:
+		return function(n.name, n.children(), true)
 	case datetimeAgeFiniteExpression:
 		return function(n.plan.Name(), n.children(), true)
 	case datetimeMakeExpression:
@@ -715,6 +719,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
 	case timeZoneExpression:
+		if n.function {
+			return function("timezone", n.functionArguments(), true)
+		}
 		text, err := child(n.value)
 		if err != nil {
 			return "", err

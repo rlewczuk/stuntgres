@@ -242,6 +242,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return n.logicalSQL(func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 	case datetimeTruncExpression:
 		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.children())
+	case datetimeZoneCalendarExpression:
+		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.children())
 	case datetimeAgeFiniteExpression:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.children())
 	case datetimeMakeExpression:
@@ -565,6 +567,12 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return catalogLiteralSQL(ctx, view, n)
 	case timeZoneExpression:
+		if n.function {
+			if n.local {
+				return r.functionSQL(ctx, view, "pg_catalog.timezone", []BoundExpr{n.value})
+			}
+			return r.functionSQL(ctx, view, "pg_catalog.timezone", []BoundExpr{n.zone, n.value})
+		}
 		value, err := r.sql(ctx, view, n.value)
 		if err != nil {
 			return "", err
@@ -1189,6 +1197,27 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		}
 		n.plan, n.expressionInfo = plan, info
 		rebound = n
+	case datetimeZoneCalendarExpression:
+		for i := range n.children() {
+			n.args[i] = child(n.args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		op := sqltype.ArithmeticAdd
+		if n.name == "date_subtract" {
+			op = sqltype.ArithmeticSubtract
+		}
+		provider, failure := sqltype.BindArithmetic(op, n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type, info.usage.Type)
+		if failure != nil {
+			return node, false, failure
+		}
+		changed = changed || provider != n.provider
+		if !changed {
+			return node, false, nil
+		}
+		n.provider, n.expressionInfo = provider, info
+		rebound = n
 	case datetimeAgeFiniteExpression:
 		for i := range n.children() {
 			n.args[i] = child(n.args[i])
@@ -1588,6 +1617,9 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 		declaration, err := u.Declaration()
 		if err != nil {
 			return "", err
+		}
+		if u.Type.ID() == sqltype.Timetz && strings.HasPrefix(literal, "pg_catalog.timezone(") {
+			return "CAST(" + literal + " AS " + declaration + ")", nil
 		}
 		return declaration + " " + literal, nil
 	case sqltype.Numeric:

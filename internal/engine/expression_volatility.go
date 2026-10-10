@@ -64,6 +64,8 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return session(children(n.children()...), n.plan.SessionDependent())
 	case datetimeTruncExpression:
 		return session(children(n.children()...), n.plan.SessionDependent())
+	case datetimeZoneCalendarExpression:
+		return merge(children(n.children()...), n.intrinsicVolatility())
 	case datetimeAgeFiniteExpression:
 		return session(children(n.children()...), n.plan.SessionDependent())
 	case datetimeMakeExpression:

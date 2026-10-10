@@ -1382,6 +1382,7 @@ func datetimeFunctionName(name string) bool {
 		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
 		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || strings.EqualFold(name, "to_number") ||
+		strings.EqualFold(name, "timezone") || strings.EqualFold(name, "date_add") || strings.EqualFold(name, "date_subtract") ||
 		datetimeMakeFunctionName(name) || TransactionTimeFunctionName(name)
 }
 

@@ -3,6 +3,17 @@ package sqltype
 import "fmt"
 
 func timetzSQLLiteral(v Value) string {
+	if v.west < minProviderSecondsWest || v.west > maxProviderSecondsWest {
+		// A conversion may legitimately produce every int32 displacement, while
+		// typed literals/POSIX input retain their narrower accepted domain.
+		// Reconstruct through the same interval overload, not invalid input text.
+		east := -v.west
+		source := (v.integer - int64(east)*1000000) % microsPerDay
+		if source < 0 {
+			source += microsPerDay
+		}
+		return fmt.Sprintf("pg_catalog.timezone(INTERVAL '%d seconds',TIMETZ '%s+00')", east, timeOutput(source))
+	}
 	east := -v.west
 	if east >= -57599 && east <= 57599 {
 		return "'" + timeOutput(v.integer) + zoneOffsetOutput(east) + "'"

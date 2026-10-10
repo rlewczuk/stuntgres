@@ -83,10 +83,13 @@ func temporalConversion(v Value, target Usage, env InputEnvironment) (Value, err
 	return Value{}, fmt.Errorf("invalid datetime conversion")
 }
 
-// AtTimeZone implements the three admitted PostgreSQL AT overloads.
+// AtTimeZone implements the three PostgreSQL text-zone conversion overloads.
 func AtTimeZone(v Value, target *Descriptor, name string, local bool, env InputEnvironment) (Value, error) {
 	if v.null {
 		return Null(target), nil
+	}
+	if (v.typ.id == Timestamp || v.typ.id == Timestamptz) && (v.integer == TimestampNegativeInfinity || v.integer == TimestampPositiveInfinity) {
+		return TimestampValue(target, v.integer)
 	}
 	specification := zoneSpecification{zone: env.Zone}
 	var err error
@@ -108,6 +111,9 @@ func AtTimeZoneInterval(v Value, target *Descriptor, zone Value, env InputEnviro
 	if zone.typ == nil || zone.typ.id != Interval {
 		return Value{}, fmt.Errorf("invalid AT TIME ZONE interval operand")
 	}
+	if (v.typ.id == Timestamp || v.typ.id == Timestamptz) && (v.integer == TimestampNegativeInfinity || v.integer == TimestampPositiveInfinity) {
+		return TimestampValue(target, v.integer)
+	}
 	if intervalInfinity(zone) != 0 || zone.months != 0 || zone.days != 0 {
 		text, err := intervalOutput(zone, env.IntervalStyle)
 		if err != nil {
@@ -117,7 +123,7 @@ func AtTimeZoneInterval(v Value, target *Descriptor, zone Value, env InputEnviro
 		if intervalInfinity(zone) != 0 {
 			reason = "must be finite"
 		}
-		return Value{}, failure("22023", fmt.Sprintf("interval time zone %q %s", text, reason))
+		return Value{}, failure("22023", fmt.Sprintf("interval time zone \"%s\" %s", text, reason))
 	}
 	return atTimeZone(v, target, zoneSpecification{east: int32(zone.integer / 1000000), fixed: true}, env)
 }
@@ -139,7 +145,9 @@ func atTimeZone(v Value, target *Descriptor, specification zoneSpecification, en
 			return TimestampValue(target, v.integer)
 		}
 		east := specification.offsetInstant(floorDiv(v.integer, 1000000) + 946684800)
-		n := v.integer + int64(east)*1000000
+		// Released interval offsets negate an int32 west displacement before
+		// rotating the instant. Preserve its defined wrapping at INT32_MIN.
+		n := v.integer - int64(-east)*1000000
 		if n < timestampMinimum || n >= timestampEnd {
 			return Value{}, failure("22008", "timestamp out of range")
 		}

@@ -4228,13 +4228,32 @@ supported in existing scalar positions, including direct and prepared queries.
 For example, `TIMESTAMP 'epoch'::timestamp` preserves the timestamp value and
 `CAST(TIMESTAMP 'epoch' AS text)` renders `1970-01-01 00:00:00` under ISO DateStyle.
 This does not expand unrelated cast families: integer-to-VARCHAR remains excluded.
-Timezone name/abbreviation views and timezone(...) aliases are excluded.
+Timezone name/abbreviation catalog views remain excluded.
 Selected [INTERVAL arithmetic](#date-and-time-arithmetic--change-note) and
 the five SQL current-date/time producers are supported separately.
 The timezone-only INTERVAL
 operand of SET TIME ZONE remains bounded independently of the general
 [interval value type](#interval-values--change-note).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
+All nine `timezone` overloads are supported: text/interval plus TIMESTAMP,
+TIMESTAMPTZ or TIMETZ, and unary session-zone forms. `AT TIME ZONE` / `AT LOCAL`
+bind those same signatures, including preferred UNKNOWN resolution, implicit
+DATE/TIME coercions and unrestricted result typmods. They are strict in every
+formal; a constant NULL suppresses execution after complete child analysis,
+whereas a runtime NULL does not suppress evaluation of other arguments.
+
+`date_add` and `date_subtract` accept `(timestamptz, interval)` or
+`(timestamptz, interval, text)`. Calendar months, then days, use the execution
+session zone or the explicit full zone; elapsed microseconds are applied last.
+Dynamic abbreviations such as MSK select their owning full zone for calendar
+arithmetic, not a permanently fixed abbreviation offset. Explicit zone lookup
+precedes infinity/zero arithmetic handling. Timestamp conversion infinities
+instead bypass zone validation. Unary timezone, text/TIMETZ conversion and
+two-argument calendar forms are Stable; the other selected forms are Immutable,
+subject to child/coercion volatility. Symbolic defaults and stored definitions
+retain that distinction across prepared execution and native logical replay.
+
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0`;
+pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0`.
 
 
 ## Session and database identity — change note
