@@ -1299,6 +1299,25 @@ NULL for empty/all-NULL input. For `1,NULL,3`, the mean is numeric
 is promised. Public AVG feature checks use independent assertions in both modes:
 `make quickcheck PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.
+Change note: `sum(SMALLINT/INTEGER)` returns INT8; `sum(BIGINT/NUMERIC)`
+returns unrestricted NUMERIC; `sum(REAL)` returns FLOAT4 and
+`sum(DOUBLE PRECISION)` returns FLOAT8. All six ignore NULL, return typed NULL
+for empty/all-NULL input, and give `4` for `1,NULL,3`. Results are nullable,
+typmod -1 and have no physical origin. BIGINT accumulation is exact beyond
+signed64 and binary64 limits. NUMERIC preserves maximum finite input display
+scale, including zero/cancellation, and checks range only when packing the final
+finite sum; NaN/opposite infinities yield NaN and one infinity sign dominates.
+Floating SUM seeds from the first non-NULL value (retaining negative zero) and
+rounds each addition in its input precision. Finite overflow fails immediately
+with22003, `value out of range: overflow`; explicit infinities/NaN follow IEEE
+arithmetic. No unordered transition order is promised. Direct/prepared calls,
+FILTER/DISTINCT/ALL/in-call ordering and stored views use the ordinary eager
+aggregate pipeline. Unknown unary arguments give42725; invalid signatures,
+including zero/star/multiple arguments, give42883. UPDATE/VALUES/RETURNING
+remain forbidden clauses. Runtime INTERVAL SUM and windows remain excluded;
+typed INTERVAL SUM in RETURNING retains42803. Public feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0`.
 `any_value(anyelement)` returns an arbitrary non-NULL input of its concrete type,
 or typed NULL for empty/all-NULL input. It preserves the datum representation
 and collation, but not input typmod or physical origin; metadata is nullable.

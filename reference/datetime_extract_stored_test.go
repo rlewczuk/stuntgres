@@ -40,13 +40,7 @@ func datetimeExtractStored(t *testing.T, p *referencePair, b referenceBackend, c
 	datetimeExtractBoth(t, p, b, c, referenceSelect("SELECT EXTRACT(year FROM s) AS year,count(*) AS n FROM dx_stored GROUP BY EXTRACT(year FROM s) ORDER BY EXTRACT(year FROM s)", []string{"year", "n"}, []string{"NUMERIC", "INT8"}, [][]any{{"2000", int64(1)}, {"2001", int64(1)}}))
 	datetimeExtractBoth(t, p, b, c, referenceSelect("SELECT COUNT(EXTRACT(month FROM s)) AS total FROM dx_stored WHERE date_part('year',s)=2000 OR date_part('year',s)=2001", []string{"total"}, []string{"INT8"}, [][]any{{int64(2)}}))
 	sumQuery := "SELECT SUM(EXTRACT(month FROM s)) AS total FROM dx_stored WHERE date_part('year',s)=2000 OR date_part('year',s)=2001"
-	if b.pg {
-		datetimeExtractBoth(t, p, b, c, referenceSelect(sumQuery, []string{"total"}, []string{"NUMERIC"}, [][]any{{"3"}}))
-	} else {
-		d := controlsReferenceDiagnostic("0A000", "functions are unsupported")
-		d.Position = "8"
-		datetimeExtractFailure(t, p, b, c, sumQuery, d, "prepare")
-	}
+	datetimeExtractBoth(t, p, b, c, referenceSelect(sumQuery, []string{"total"}, []string{"NUMERIC"}, [][]any{{"3"}}))
 	datetimeExtractBoth(t, p, b, c, referenceSelect("SELECT a.id FROM dx_stored a JOIN dx_stored b ON EXTRACT(year FROM a.s)=EXTRACT(year FROM b.s) ORDER BY a.id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
 	datetimeExtractPair(t, p, b, c, "year", "COALESCE(NULL::timestamp,TIMESTAMP '2000-01-01')", "2000", 2000)
 	run(referenceExec("ALTER TABLE dx_stored RENAME COLUMN s TO stamp", 0))

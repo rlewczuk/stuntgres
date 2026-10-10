@@ -412,7 +412,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func ordinaryAggregate(name string) bool {
-	return name == "count" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max"
+	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max"
 }
 
 func (l *lexer) scalarInput(expr Expr) bool {
@@ -442,6 +442,11 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		}
 		return true
 	case AggregateExpr:
+		if r.Name == "sum" {
+			// SUM analyzes children and FILTER before its VALUES clause error.
+			// Other scalar consumers retain their existing admission boundary.
+			return true
+		}
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {
 				return false

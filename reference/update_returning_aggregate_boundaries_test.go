@@ -19,10 +19,7 @@ func TestReferenceUpdateReturningUntypedAggregateBoundaries(t *testing.T) {
 				if prefix != "" {
 					position += 6
 				}
-				d := referenceDiagnostic{Code: "0A000", Message: "untyped aggregate arguments are unsupported", Position: strconv.Itoa(position)}
-				if backend.pg {
-					d = referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: strconv.Itoa(position)}
-				}
+				d := referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: strconv.Itoa(position)}
 				for _, route := range []string{"exec", "query", "prepare"} {
 					want := d
 					if backend.pg && argument == "$1" && route != "prepare" {
@@ -42,9 +39,7 @@ func TestReferenceUpdateReturningUntypedAggregateBoundaries(t *testing.T) {
 			}
 		}
 		for _, q := range []string{"SELECT sum(id) FROM t", "UPDATE t SET id=sum(id)", "INSERT INTO t(id) VALUES(sum(1))"} {
-			if !backend.pg {
-				run(referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "functions are unsupported", Position: strconv.Itoa(strings.Index(q, "sum") + 1)}))
-			} else if strings.HasPrefix(q, "SELECT") {
+			if strings.HasPrefix(q, "SELECT") {
 				run(referenceSelect(q, []string{"sum"}, []string{"INT8"}, [][]any{{int64(1)}}))
 			} else {
 				message := "aggregate functions are not allowed in UPDATE"

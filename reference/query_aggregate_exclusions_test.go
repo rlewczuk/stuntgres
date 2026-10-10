@@ -15,7 +15,6 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 		q, name string
 		rows    [][]any
 	}{
-		{"SELECT sum(v) FROM t", "sum", [][]any{{int64(4)}}},
 		{"SELECT count(*) FILTER (WHERE v>1) FROM t", "count", [][]any{{int64(1)}}},
 		{"SELECT count(DISTINCT v) FROM t", "count", [][]any{{int64(2)}}},
 		{"SELECT count(ALL v) FROM t", "count", [][]any{{int64(3)}}},
@@ -47,6 +46,15 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 			}
 		})
 	}
+	t.Run("SELECT sum(v) FROM t", func(t *testing.T) {
+		for _, backend := range p.backends() {
+			for _, prepared := range []bool{false, true} {
+				s := referenceSelect("SELECT sum(v) FROM t", []string{"sum"}, []string{"INT8"}, [][]any{{int64(4)}})
+				s.prepared = prepared
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+			}
+		}
+	})
 }
 
 func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
@@ -60,8 +68,18 @@ func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
 		p.step(t, failure)
 		p.step(t, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
 	}
+	// SUM is now admitted. A malformed SUM suffix still rejects the whole input
+	// before its preceding INSERT can publish, through direct and prepared routes.
+	for _, backend := range p.backends() {
+		for _, prepared := range []bool{false, true} {
+			q := "INSERT INTO t VALUES(1);SELECT sum(v) FROM t WHERE"
+			failure := referenceImplicitError(q, referenceDiagnostic{Code: "42601", Message: "syntax error at end of input", Position: referencePosition(len(q) + 1)})
+			failure.prepared = prepared
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, failure)
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
+		}
+	}
 	for _, q := range []string{
-		"SELECT sum(v) FROM t",
 		"SELECT count(*) OVER () FROM t",
 		"SELECT v FROM t GROUP BY ROLLUP(v)", "SELECT v FROM t GROUP BY CUBE(v)",
 		"SELECT v FROM t GROUP BY GROUPING SETS ((v))", "SELECT v FROM t GROUP BY ()",

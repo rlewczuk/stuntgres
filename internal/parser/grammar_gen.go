@@ -10946,11 +10946,7 @@ sqldefault:
 					sqllex.(*lexer).failAt("42601", "syntax error", sqlDollar[2].expr.SourcePosition().Offset)
 					return 1
 				}
-				if sqlDollar[1].tok.text == "sum" {
-					sqlVAL.expr = AggregateExpr{Name: sqlDollar[1].tok.text, Args: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}
-				} else {
-					sqlVAL.expr = CastExpr{Child: sqlDollar[2].expr, TypeName: columnType(sqlDollar[1].tok), Syntax: FunctionCast, Callee: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
-				}
+				sqlVAL.expr = CastExpr{Child: sqlDollar[2].expr, TypeName: columnType(sqlDollar[1].tok), Syntax: FunctionCast, Callee: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
 			}
 		}
 	case 1083:
@@ -10963,11 +10959,7 @@ sqldefault:
 					sqllex.(*lexer).failAt("42601", "syntax error", sqlDollar[2].expr.SourcePosition().Offset)
 					return 1
 				}
-				if sqlDollar[1].typ.Name == "sum" {
-					sqlVAL.expr = AggregateExpr{Name: sqlDollar[1].typ.Name, Schema: sqlDollar[1].typ.Schema, Args: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].typ.Pos}
-				} else {
-					sqlVAL.expr = CastExpr{Child: sqlDollar[2].expr, TypeName: sqlDollar[1].typ, Syntax: FunctionCast, Callee: sqlDollar[1].typ.Name, Pos: sqlDollar[1].typ.Pos}
-				}
+				sqlVAL.expr = CastExpr{Child: sqlDollar[2].expr, TypeName: sqlDollar[1].typ, Syntax: FunctionCast, Callee: sqlDollar[1].typ.Name, Pos: sqlDollar[1].typ.Pos}
 			}
 		}
 	case 1084:

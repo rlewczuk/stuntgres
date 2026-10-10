@@ -1015,7 +1015,7 @@ type FunctionExpr struct {
 	StringSyntax   StringSyntax
 }
 
-// AggregateExpr retains ordinary aggregate arguments, call-local ordering and diagnostic-only single-argument SUM.
+// AggregateExpr retains ordinary aggregate arguments and call-local modifiers.
 type AggregateExpr struct {
 	Name     string
 	Star     bool

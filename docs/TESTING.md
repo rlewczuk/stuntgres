@@ -306,8 +306,10 @@ PostgreSQL partial descriptors/filtered rows. Catalog definition queries use
 existing same-OID joins. Wrapper units supply the existing fixed transaction
 clock fixture while retaining a real statement/session scope for random.
 COUNT(EXTRACT(month FROM s)) covers actual aggregate-child ownership with an
-independent INT8 count2. Original SUM extraction retains native admission0A000/
-Prepare rejection versus PostgreSQL NUMERIC3. Scoped helper subtests include
+independent INT8 count2. SUM(EXTRACT(month FROM s)) is a shared direct/prepared
+success with exact NUMERIC3 (February2 plus January1), covered by both
+`TestReferenceDatetimeExtractStoredConsumers` and
+`TestReferenceDatetimeExtractFeatureSmoke`. Scoped helper subtests include
 their SQL query for actionable quiet-run diagnostics.
 
 The review lifecycle witnesses are
@@ -958,4 +960,87 @@ owner planning/application in all claimed and excluded contexts and projection
 ownership/cancellation/generation retention, without issuing SQL. Selective
 runs and smoke do not replace ordinary quickcheck or the post-merge fullcheck
 under its single1800-second deadline.
+
+## Numeric SUM reference contract
+
+The untagged `TestReferenceNumericSum*` family covers all six numeric overloads,
+typed NULL and nullable/promoted metadata, exact integral and decimal boundaries,
+same-precision ordered floating transitions, signed zero and specials, full
+diagnostics, held parameter recovery, modifiers and consumers, eager write
+atomicity, authorization, cancellation and stored view control round trips.
+Native control phases additionally restore into an independent Driver and replay
+the actual emitted SQL on PostgreSQL; they do not invent PostgreSQL controls.
+Column GRANT remains an explicit native SQL capability boundary.
+
+Run the identical completed definitions in both modes, each under a900-second
+deadline. The broad migration/risk selector covers every changed behavioral
+definition plus retained RETURNING restrictions and shared AVG-state regressions;
+the separate SSI selector covers its comment-only maintenance. Avoid interior
+`$` anchors in `RUN`: make consumes them even inside shell single quotes.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(NumericSum|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects|UpdateReturning|GeneratedStoredDefinitionDiagnostics|ExpressionIndexDiagnostics|NumericAvg|IntervalAvgDiagnostics|DatetimeExtractStoredConsumers|DatetimeExtractFeatureSmoke)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericSum|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects|UpdateReturning|GeneratedStoredDefinitionDiagnostics|ExpressionIndexDiagnostics|NumericAvg|IntervalAvgDiagnostics|DatetimeExtractStoredConsumers|DatetimeExtractFeatureSmoke)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSerializableWriteSkew$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerializableWriteSkew$' VERBOSE=0
+```
+
+Numeric SUM followed the oracle-first order above: root recorded the pinned
+PostgreSQL contract before authorizing production after native behavioral red.
+Discovery filters are removed from the completed definitions; never reintroduce
+them or adapt independently observed expectations to native output. FLOAT4 pq
+ScanType is float32 while native exports float64. A later-group overflow
+opening witness uses ORDER BY aggregate result, then grouping key, to force a
+blocking sort before any PostgreSQL cursor rows can be published.
+
+The `TestReferenceNumericSumReview*` regressions preserve complete direct/prepared
+Exec/Query diagnostics and Unicode positions. INSERT VALUES resolves children,
+FILTER and signatures before rejecting a valid numeric SUM; a valid first VALUES
+row remains unpublished when a later SUM expression fails. Domain signatures
+distinguish visible unqualified names from hidden qualified names, while valid
+numeric-domain input returns exact NUMERIC4.656 with promoted metadata. Missing
+signatures with multiple in-call ORDER BY keys use the misplaced-ORDER-BY Hint;
+ambiguity, child/FILTER precedence and successfully resolved ordered calls retain
+their own contracts. Root validated these new cases on pinned PostgreSQL before
+removing their discovery filter and observing native behavioral red:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSumReview' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSumReview' VERBOSE=0
+```
+
+Both completed-mode runs require separate900-second deadlines after remedies;
+neither the oracle/red checkpoint nor prior family passes establishes closure.
+
+SUM child analysis uses the empty VALUES source namespace, not the destination
+table's columns. The destination remains an inaccessible diagnostic candidate:
+`sum(i)` reports42703 with the independently observed destination-column Detail,
+not a successful source read. FILTER type errors beneath CAST and nested scalar
+wrappers retain their own complete records instead of becoming target-assignment
+errors. An unrelated BOOLEAN-to-INTEGER assignment control retains its ordinary
+column-type message, rewrite/cast Hint and operand position. These additions
+followed a separate pinned oracle/native-red round; unrelated scalar admission
+and assignment diagnostics keep their existing boundaries.
+
+Private units supplement the public contract with shared exact-state/AVG
+regressions, zero-allocation integral transitions, same-precision/signed-zero
+transitions, old/new-generation remapping, actual provider cancellation checks,
+late/prepublication eager cancellation and exact column-ACL manifests:
+
+```sh
+make quickcheck PACKAGES=./internal/sqltype RUN='^Test(NumericSum|NumericAvg)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^Test(Sum|NumericSum|NumericAvg|Avg|UpdateReturningMalformedSumShape)' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^Test(Sum|NumericSum|UpdateReturningAggregate)' VERBOSE=0
+make quickcheck VERBOSE=0
+```
+
+Focused smoke expects direct/prepared six outputs4, promoted nullable metadata,
+typed empty/all-NULL results, exact INT8 max-pair NUMERIC, decimal4.656/0.0000,
+ordered REAL0, negative zero, held parameter recovery, full diagnostics/no
+partial effects, global INSERT affected1 versus empty keyed0, and SUM view
+control replay with retained metadata. Root runs selective checks under separate
+900-second deadlines after generation/formatting, and fullcheck only after merge
+under one1800-second deadline.
 

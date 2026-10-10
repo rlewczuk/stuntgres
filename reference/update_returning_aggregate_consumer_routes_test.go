@@ -21,9 +21,9 @@ func TestReferenceUpdateReturningAggregateDiagnosticsConsumerRoutes(t *testing.T
 			{"sum(v)", referenceDiagnostic{Code: "42883", Message: "function sum(text) does not exist", Hint: hint, Position: "29"}},
 			{"public.sum(id)", referenceDiagnostic{Code: "42883", Message: "function public.sum(integer) does not exist", Hint: hint, Position: "29"}},
 			{"pg_catalog.sum(id)", referenceDiagnostic{Code: "42803", Message: "aggregate functions are not allowed in RETURNING", Position: "29"}},
-			{"sum('7')", referenceDiagnostic{Code: "0A000", Message: "untyped aggregate arguments are unsupported", Position: "29"}},
-			{"sum(NULL)", referenceDiagnostic{Code: "0A000", Message: "untyped aggregate arguments are unsupported", Position: "29"}},
-			{"sum($1)", referenceDiagnostic{Code: "0A000", Message: "untyped aggregate arguments are unsupported", Position: "29"}},
+			{"sum('7')", referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: "29"}},
+			{"sum(NULL)", referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: "29"}},
+			{"sum($1)", referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: "29"}},
 		}
 		for _, column := range []string{"id", "s", "b", "f", "g", "n", "i", "old.id", "new.id", "COALESCE(old.id,new.id)", "CAST(old.id AS BIGINT)", "id+1"} {
 			cases = append(cases, struct {
@@ -40,13 +40,9 @@ func TestReferenceUpdateReturningAggregateDiagnosticsConsumerRoutes(t *testing.T
 					d.Position = strconv.Itoa(p + 6)
 				}
 				prepareDiagnostic := d
-				if backend.pg && tc.d.Code == "0A000" {
-					prepareDiagnostic = referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: d.Position}
-					d = prepareDiagnostic
-					if tc.output == "sum($1)" {
-						position, _ := strconv.Atoi(d.Position)
-						d = referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: strconv.Itoa(position + 4)}
-					}
+				if backend.pg && tc.output == "sum($1)" {
+					position, _ := strconv.Atoi(d.Position)
+					d = referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: strconv.Itoa(position + 4)}
 				}
 				result, err := db.Exec(q)
 				if result != nil {
@@ -69,12 +65,7 @@ func TestReferenceUpdateReturningAggregateDiagnosticsConsumerRoutes(t *testing.T
 		}
 		for _, q := range []string{"SELECT sum(id) FROM t", "UPDATE t SET id=sum(id)", "INSERT INTO t(id) VALUES(sum(1))"} {
 			result, err := db.Exec(q)
-			if !backend.pg {
-				if result != nil {
-					t.Fatal("unsupported aggregate exposed result", result)
-				}
-				updateReturningReferenceDiagnostic(t, err, referenceDiagnostic{Code: "0A000", Message: "functions are unsupported", Position: strconv.Itoa(strings.Index(q, "sum") + 1)})
-			} else if strings.HasPrefix(q, "SELECT") {
+			if strings.HasPrefix(q, "SELECT") {
 				deleteReferenceCount(t, result, err, 1)
 			} else {
 				message := "aggregate functions are not allowed in UPDATE"

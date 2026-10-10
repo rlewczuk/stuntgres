@@ -592,8 +592,8 @@ Ordinary extraction expression indexes are shared supported consumers. Partial
 indexes remain a native parser boundary; the references retain native0A000/
 no-publication and actual PostgreSQL partial descriptors/filter results.
 COUNT(EXTRACT(...)) exercises the supported aggregate child path with independent
-INT8 counts. The original SUM(EXTRACT(...)) witness remains native function
-admission0A000 versus PostgreSQL's exact NUMERIC sum, not a new SUM implementation.
+INT8 counts. SUM(EXTRACT(...)) is a shared direct/prepared supported consumer:
+February2 plus January1 returns exact NUMERIC `"3"` through numeric SUM.
 Catalog definition tests use existing same-OID pg_attrdef/pg_class joins, not
 new regclass-to-OID casts.
 Later-row extraction NULLs into NOT NULL targets preserve statement atomicity
@@ -1080,6 +1080,26 @@ promising an unordered floating accumulation order.
 Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericAvgSmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericAvgSmoke$' VERBOSE=0`.
 
+Change note: numeric `sum` supports exactly SMALLINT/INTEGER→INT8,
+BIGINT/NUMERIC→NUMERIC, REAL→FLOAT4 and DOUBLE PRECISION→FLOAT8.
+NULL inputs are ignored; empty/all-NULL global input returns typed NULL,
+empty keyed input no rows. Results are nullable, typmod-1, without physical
+origin. BIGINT sums are exact and cannot wrap at signed64. NUMERIC retains the
+maximum finite input display scale, including zero and cancellation, and
+checks finite format range only at finalization (`22003`, `value overflows
+numeric format`). NaN or opposite infinities yield NaN; a single infinity sign
+dominates even an oversized finite subtotal. Floating SUM retains first-value
+negative zero and rounds every addition at binary32/binary64 respectively.
+Finite transition overflow is immediate22003, `value out of range: overflow`,
+and later compensators/specials cannot rescue it. There is no addition-underflow
+rule or unordered accumulation guarantee. Existing FILTER/DISTINCT/ALL/order,
+direct/prepared, eager publication, ACLs and view replay contracts apply.
+Unknown unary inputs fail42725; invalid types/arity/star fail42883 with the
+ordinary signature/hint/character position. Runtime INTERVAL SUM remains native
+0A000; unary typed INTERVAL RETURNING preserves42803, not missing-signature42883.
+Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0`.
+
 `any_value(anyelement)` returns an arbitrary non-NULL datum of the concrete input
 type, not a stable first/last/minimum/maximum winner. Empty/all-NULL global input
 returns typed NULL; empty keyed input returns no rows. Result metadata is known
@@ -1139,7 +1159,7 @@ Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAgg
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 
 Grouping uses the ordinary no-FROM local input. It does not add
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
 OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
@@ -2129,9 +2149,9 @@ Public metadata witnesses use standard `sql.Rows` descriptors and stored-view
 results; derived collations are exercised by demanding `lower` consumers across
 stored views. Exact OID25, typmod-1, collation100/950/6411 and no-origin assertions
 use the real package binder/schema harness, not an unexposed `pg_attribute`.
-Formatted aggregate descendants use existing COUNT/MIN providers; format adds no
-SELECT SUM implementation. DEFAULT introspection joins exposed pg_attrdef and
-pg_class on matching OID types rather than adding an OID=REGCLASS operator.
+Formatted aggregate descendants use the ordinary aggregate providers, including
+numeric SUM. DEFAULT introspection joins exposed pg_attrdef and pg_class on
+matching OID types rather than adding an OID=REGCLASS operator.
 Direct computed format reports unknown nullable metadata. Projecting its stored
 view column preserves the existing native catalog-known nullable descriptor
 (`true/true`); pq still exposes unknown (`false/false`) nullable metadata.

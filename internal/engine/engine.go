@@ -489,6 +489,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "insert into")
 		}
+		binder.insertTarget = b.relation
 		if op != nil && op.restoreInsertAuthority && len(b.relation.identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
@@ -602,6 +603,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					plan, err = bind(v, c, sqltype.Assignment)
 				}
 				if err != nil {
+					if plan == nil && containsSumAnalysis(v) {
+						// No source was produced: preserve SUM's child/FILTER/signature
+						// analysis diagnostic rather than treating it as assignment failure.
+						return b, err
+					}
 					var source *sqltype.Descriptor
 					if plan != nil {
 						source = plan.ResultUsage().Type

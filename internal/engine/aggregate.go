@@ -29,6 +29,9 @@ const (
 	aggregateString
 	aggregateMin
 	aggregateMax
+	aggregateIntegralSum
+	aggregateNumericSum
+	aggregateFloatSum
 )
 
 type aggregateCall struct {

@@ -55,7 +55,7 @@ func TestReferenceSerializableWriteSkew(t *testing.T) {
 							if totalA != 30 || totalB != 300 {
 								t.Fatal("application totals", totalA, totalB)
 							}
-							// This is not a claim that SUM(int4) is implemented.
+							// Application-side totals keep this SSI witness independent of aggregates.
 							ea := serializableReferenceWrite(t, p.ctx, x, fmt.Sprintf("INSERT INTO mytab VALUES(2,%d)", totalA), held, 1)
 							eb := serializableReferenceWrite(t, p.ctx, y, fmt.Sprintf("INSERT INTO mytab VALUES(1,%d)", totalB), held, 1)
 							okA, okB := false, false

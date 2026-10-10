@@ -1056,8 +1056,65 @@ Numeric AVG contract and feature smoke (both independently asserted modes):
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.
 Use `RUN='^TestReferenceNumericAvgSmoke$'` in both commands for the focused smoke.
 
+### Numeric sum — change note
+
+`sum` ignores NULL and returns typed NULL for empty/all-NULL global input;
+empty keyed input returns zero rows with the same schema. SMALLINT/INTEGER
+produce INT8; BIGINT/NUMERIC produce unrestricted NUMERIC; REAL produces FLOAT4
+and DOUBLE PRECISION produces FLOAT8. Result metadata is nullable, typmod-1,
+without source origin; the default label is `sum`.
+
+```sql
+SELECT sum(n),sum(r) FROM readings;
+-- ('4', 4), with NUMERIC/FLOAT4 result types.
+SELECT sum(v) FROM (VALUES (9223372036854775807::bigint),
+                          (9223372036854775807::bigint)) AS t(v);
+-- exact NUMERIC '18446744073709551614'
+```
+
+SUM shares exact accumulation/packing with AVG but never divides or counts a
+denominator. It preserves maximum finite display scale (`1.20+3.456`→`4.656`;
+`1.20-1.20+0.0000`→`0.0000`), including positive numeric zero. Transient
+oversized subtotals can cancel; only the final finite packed value fails22003,
+`value overflows numeric format`. NaN and infinity precedence matches numeric
+AVG and does not suppress later eligible argument evaluation.
+
+Unlike AVG, REAL SUM rounds each transition to binary32. In-call id ordering
+for16777216,1,-16777216 yields0, not1. DOUBLE PRECISION sums at binary64.
+First non-NULL input seeds the state directly, retaining singleton/repeated-0.
+Two finite operands producing infinity fail immediately22003, `value out of
+range: overflow`; explicit infinity/NaN uses IEEE arithmetic. There is no
+addition-underflow check. No unordered output or transition order is promised.
+Native FLOAT4 exports its stored binary32 widened to float64; pq parses the
+released text at binary64 (and reports float32 ScanType). Ordinary approximate
+reference witnesses use bounded absolute+relative1e-6 FLOAT4/1e-12 FLOAT8
+tolerances, never normalizing NULL/type/special/signed-zero/overflow or ordered
+rounding discriminators.
+
+Existing FILTER-before-argument, DISTINCT/ALL/order, HAVING/hidden ORDER,
+correlated consumers, prepared fresh states, ACL checks, eager publication and
+INSERT SELECT atomicity apply. Stored views remap both input/result ownership.
+Unknown unary arguments require explicit casts (42725); invalid signatures,
+including zero/star/multiple arguments, fail42883 with signature hints/positions.
+Missing signatures with multiple in-call ORDER BY keys instead carry the
+PostgreSQL hint that ORDER BY must appear after all regular aggregate arguments.
+This does not change unknown-input ambiguity or child/FILTER error precedence.
+Domain inputs use their existing base-type overload; signature diagnostics name
+visible domains without a schema and hidden domains with their schema.
+INSERT VALUES analyzes SUM children, FILTER and signature before rejecting a
+valid numeric aggregate with42803, `aggregate functions are not allowed in VALUES`.
+Invalid calls retain their earlier diagnostic, and no VALUES prefix is installed.
+Scalar wrappers do not convert a contained SUM analysis error into an assignment
+error. Destination columns remain inaccessible as SUM inputs; a matching column
+may appear only in PostgreSQL's missing-column Detail, never as a source read.
+Runtime INTERVAL SUM and windows remain excluded. Contract and feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSum' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSum' VERBOSE=0`;
+use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
+
+
 This does not admit
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
 DISTINCT/ALL grouping modifiers, OVER, grouping sets/ROLLUP/CUBE/empty sets,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
@@ -1609,14 +1666,17 @@ Thus `SET id=$1 RETURNING $1` reports 42804 at the assignment, while typed WHERE
 can establish INT4 and make it valid. `$1,$1::int4` outputs report 42P08 at the
 first output occurrence; reverse order succeeds. Positions count UTF8 characters.
 
-Aggregate outputs are rejected, not evaluated. Diagnostic recognition of
-one-argument SUM preserves argument-resolution errors first, then resolves the
-builtin namespace and known numeric/INTERVAL signature before reporting 42803
-`aggregate functions are not allowed in RETURNING`. A missing argument column
-remains 42703; TEXT or an unavailable qualified SUM remains 42883 with the ordinary
-function-signature Hint. This is not a SUM runtime provider: native SELECT/SET/
-INSERT SUM remains unsupported, as do untyped SUM arguments requiring overload
-inference, SUM(*) and windows/SRFs. Existing COUNT/modifiers retain their ordinary clause restrictions.
+Aggregate outputs are rejected, not evaluated. Ordinary SUM binding preserves
+child/FILTER errors first, then checks namespace, arity and overload before
+reporting42803, `aggregate functions are not allowed in RETURNING`, for valid
+numeric inputs. Unary typed INTERVAL SUM retains that same clause diagnostic,
+without an interval runtime provider. A missing column remains42703; TEXT,
+unavailable qualified calls, zero/star/multiple arguments fail42883 with the
+function-signature Hint (or the misplaced-ORDER-BY Hint for multiple ordering
+keys); unknown unary arguments fail42725 ambiguity.
+Numeric SELECT SUM is executable; valid SUM in UPDATE assignments/INSERT VALUES
+gives42803 after child/FILTER and signature analysis.
+Windows/SRFs remain excluded; existing COUNT/modifiers retain clause restrictions.
 
 Each successful constrained row is projected exactly once before atomic Finish.
 Late output conversion/division/overflow and prepublication cancellation expose

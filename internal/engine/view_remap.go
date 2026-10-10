@@ -399,6 +399,18 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				p.input = typ(p.input)
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p
+			case integralSumProvider:
+				p.input = typ(p.input)
+				p.usage.Type = typ(p.usage.Type)
+				copy.calls[i].provider = p
+			case numericSumProvider:
+				p.input = typ(p.input)
+				p.usage.Type = typ(p.usage.Type)
+				copy.calls[i].provider = p
+			case floatSumProvider:
+				p.input = typ(p.input)
+				p.usage.Type = typ(p.usage.Type)
+				copy.calls[i].provider = p
 			case anyValueProvider:
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p

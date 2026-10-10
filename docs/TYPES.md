@@ -2179,6 +2179,29 @@ Public contracts:
 `make quickcheck PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.
 
+### Numeric and floating sum — change note
+
+SUM supports SMALLINT/INTEGER→INT8 (OID20), BIGINT/NUMERIC→NUMERIC (OID1700),
+REAL→FLOAT4 (OID700) and DOUBLE PRECISION→FLOAT8 (OID701). Results are nullable,
+typmod-1, without physical origin. Native exports INT8 as int64, NUMERIC as
+string, and both float types as float64. NULLs are ignored; empty/all-NULL input
+returns typed NULL. Numeric input precision/scale is not result metadata.
+
+BIGINT and NUMERIC share AVG's exact accumulation and finite packing, but SUM
+has no denominator/division. Maximum finite input display scale survives zeros
+and cancellation. Packed finite range is checked only at finalization; NaN and
+infinity precedence runs before packing. Integer-width promotion never uses a
+float intermediary. REAL SUM rounds every addition to binary32, rather than
+AVG's widened binary64 state; FLOAT8 sums at binary64. First-value seeding
+preserves negative zero. Finite addition overflow fails22003 immediately;
+explicit specials use IEEE arithmetic and addition has no underflow error.
+Unordered floating accumulation order is unspecified. Native FLOAT4 exports
+widened stored binary32 while pq parses released text at64 and advertises
+float32 ScanType, an explicit adapter difference rather than a new SQL type.
+Public contracts:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSum' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSum' VERBOSE=0`.
+
 
 ## Pattern matching and physical character values
 

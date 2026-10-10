@@ -168,9 +168,17 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	if hasNested {
 		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.pos)
 	}
+	// SUM resolves its children and signature before the INSERT VALUES restriction.
+	// Keep other aggregates' incumbent clause handling unchanged.
+	if clause == "INSERT VALUES" {
+		switch call.operation {
+		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum:
+			clause = "VALUES"
+		}
+	}
 	switch clause {
 	case "SELECT", "HAVING", "ORDER BY":
-	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER":
+	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER", "UPDATE":
 		return nil, expressionError("42803", "aggregate functions are not allowed in "+clause, e.pos)
 	default:
 		return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", e.pos)
