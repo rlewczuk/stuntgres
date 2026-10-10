@@ -142,9 +142,14 @@ pointers, complete typed tuples and live version identities directly.
 
 `projectIndexMetadata(context, CatalogRead, ObjectRef)` projects both internal
 `indexMetadata` and `indexesMetadata`; `indexCatalogMetadata` is the enumeration
-owner for later pg_index/pg_indexes inquiry owners. It registers no SQL source,
+owner for ACL-neutral structural consumers. It registers no SQL source,
 vector codec, node-tree list API or driver API. Every field and deparse operation
 uses one immutable capture, with no current-engine lookup or ACL filtering.
+The subsequent SQL pg_indexes source enumerates actual index descriptors and
+reuses indexDefinitionSQL without allocating discarded pg_index vectors.
+That source alone applies original-invoker schema USAGE and parent table-or-any-
+live-column SELECT policy against its same captured catalog; structural
+projections and pg_get_indexdef remain ACL-neutral.
 Scalars/vectors and the expression list are detached; immutable analyzed nodes
 are shared. Old captures remain valid across rename, drop and replacement.
 

@@ -30,14 +30,14 @@ func TestReferenceIndexMaintenanceMetadataOracle(t *testing.T) {
 			run(referenceSelect(`SELECT c.relname,i.indclass::text,i.indcollation::text,pg_get_expr(i.indexprs,i.indrelid) AS expressions FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE c.relname IN ('ni','ei','ci','u','distinct_u') ORDER BY c.relname`, []string{"relname", "indclass", "indcollation", "expressions"}, []string{"NAME", "TEXT", "TEXT", "TEXT"}, [][]any{
 				{"ci", "3126 3126 3126", "950 951 100", nil}, {"distinct_u", "1978", "0", nil}, {"ei", "3126 1978 1978", "100 0 0", "lower(s), (n + 1)"}, {"ni", "1978 1978 1978 1978", "0 0 0 0", nil}, {"u", "1978", "0", nil},
 			}))
-			run(referenceSelect(`SELECT schemaname,tablename,indexname,tablespace,indexdef FROM pg_indexes WHERE tablename IN ('t','q','d') ORDER BY indexname`, []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}, []string{"NAME", "NAME", "NAME", "NAME", "TEXT"}, [][]any{
-				{"public", "t", "ci", nil, `CREATE INDEX ci ON public.t USING btree (s COLLATE "C", s COLLATE "POSIX", s)`},
-				{"public", "d", "distinct_u", nil, "CREATE UNIQUE INDEX distinct_u ON public.d USING btree (n)"},
-				{"public", "t", "ei", nil, "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + 1)), n DESC NULLS LAST)"},
-				{"public", "t", "ni", nil, "CREATE INDEX ni ON public.t USING btree (n, n NULLS FIRST, n DESC NULLS LAST, n DESC)"},
-				{"public", "q", "u", nil, "CREATE UNIQUE INDEX u ON public.q USING btree (n) NULLS NOT DISTINCT"},
-			}))
 		}
+		run(referenceSelect(`SELECT schemaname,tablename,indexname,tablespace,indexdef FROM pg_catalog.pg_indexes WHERE schemaname='public' AND (tablename='t' OR tablename='q' OR tablename='d') ORDER BY indexname`, []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}, []string{"NAME", "NAME", "NAME", "NAME", "TEXT"}, [][]any{
+			{"public", "t", "ci", nil, `CREATE INDEX ci ON public.t USING btree (s COLLATE "C", s COLLATE "POSIX", s)`},
+			{"public", "d", "distinct_u", nil, "CREATE UNIQUE INDEX distinct_u ON public.d USING btree (n)"},
+			{"public", "t", "ei", nil, "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + 1)), n DESC NULLS LAST)"},
+			{"public", "t", "ni", nil, "CREATE INDEX ni ON public.t USING btree (n, n NULLS FIRST, n DESC NULLS LAST, n DESC)"},
+			{"public", "q", "u", nil, "CREATE UNIQUE INDEX u ON public.q USING btree (n) NULLS NOT DISTINCT"},
+		}))
 		run(referenceExec("ALTER INDEX ni RENAME TO renamed_ni", 0))
 		run(referenceExec("REINDEX TABLE t", 0))
 		if b.pg {
@@ -50,9 +50,7 @@ func TestReferenceIndexMaintenanceMetadataOracle(t *testing.T) {
 			run(referenceSelect(`SELECT i.indkey::text,i.indclass::text,i.indcollation::text,i.indexprs IS NULL AS no_expr,pg_get_indexdef(c.oid) AS definition FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE c.relname='ci'`, []string{"indkey", "indclass", "indcollation", "no_expr", "definition"}, []string{"TEXT", "TEXT", "TEXT", "BOOL", "TEXT"}, [][]any{{"3 3 3", "3126 3126 3126", "950 951 100", true, `CREATE INDEX ci ON public.t USING btree (renamed_s COLLATE "C", renamed_s COLLATE "POSIX", renamed_s)`}}))
 		}
 		run(referenceExec("DROP INDEX renamed_ni", 0))
-		if b.pg {
-			run(referenceSelect("SELECT indexname FROM pg_indexes WHERE indexname='renamed_ni'", []string{"indexname"}, []string{"NAME"}, nil))
-		}
+		run(referenceSelect("SELECT indexname FROM pg_catalog.pg_indexes WHERE schemaname='public' AND indexname='renamed_ni'", []string{"indexname"}, []string{"NAME"}, nil))
 	})
 }
 

@@ -10,6 +10,16 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
+table/name, NULL default tablespace and compact reconstructable definition.
+Access method appears in CREATE INDEX text, not a sixth field. Native visibility
+requires schema USAGE plus parent table SELECT or any live column SELECT,
+intentionally stricter than PostgreSQL's unfiltered view. Held executions
+refresh definitions/ACLs; eager rows retain their own prior metadata and values.
+See [indexes](docs/SQL.md#indexes).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0`.
+
 Change note: PostgreSQL UUID generation supports `gen_random_uuid()`, `uuidv4()`,
 `uuidv7()` and `uuidv7(interval shift)`, returning typed UUID values. Version4
 uses cryptographic random bits; version7 combines current UNIX milliseconds,
@@ -857,7 +867,7 @@ occurrence retains its frozen attribute layout and read-attribute identities acr
 column and schema renames; dependencies block restrictive drops, including
 columns used only by a second source's join condition. Each execution checks
 current privileges for every source, even for empty results. Bounded, queryable
-`pg_class`, `pg_rewrite` and `pg_views` sources expose actual catalog
+`pg_class`, `pg_rewrite`, `pg_views` and `pg_indexes` sources expose actual catalog
 state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
 CREATE OR REPLACE preserves view/rule identity, ownership, ACLs and dependents,

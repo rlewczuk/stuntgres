@@ -112,7 +112,7 @@ func TestReferenceDropViewIndexWrongKind(t *testing.T) {
 							}
 							before[name] = value
 						}
-						var viewDefinition, indexDefinition string
+						var viewDefinition string
 						if err := backend.db.QueryRowContext(p.ctx, "SELECT definition FROM pg_views WHERE viewname='v'").Scan(&viewDefinition); err != nil {
 							t.Fatal(err)
 						}
@@ -121,9 +121,9 @@ func TestReferenceDropViewIndexWrongKind(t *testing.T) {
 							if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 								t.Fatal(err)
 							}
-						} else if err := backend.db.QueryRowContext(p.ctx, "SELECT indexdef FROM pg_indexes WHERE indexname='ix'").Scan(&indexDefinition); err != nil {
-							t.Fatal(err)
 						}
+						indexRow := pgIndexesRow("public", "t", "ix", "CREATE INDEX ix ON public.t USING btree (id)")
+						pgIndexesCheck(t, p, backend, backend.db, "ix", indexRow)
 						bad := referenceImplicitError(query, referenceDiagnostic{Code: "42809", Message: `"ix" is not a view`, Hint: "Use DROP INDEX to remove an index."})
 						bad.prepared, bad.errorStage = prepared, "execute"
 						run(bad)
@@ -145,11 +145,8 @@ func TestReferenceDropViewIndexWrongKind(t *testing.T) {
 							if after.String() != dump.String() {
 								t.Fatal("DROP changed native persistent definitions/data")
 							}
-						} else {
-							if err := backend.db.QueryRowContext(p.ctx, "SELECT indexdef FROM pg_indexes WHERE indexname='ix'").Scan(&retainedDefinition); err != nil || retainedDefinition != indexDefinition {
-								t.Fatal(retainedDefinition, indexDefinition, err)
-							}
 						}
+						pgIndexesCheck(t, p, backend, backend.db, "ix", indexRow)
 						run(referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 						run(referenceSelect("SELECT id FROM v", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 					})

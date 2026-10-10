@@ -106,8 +106,8 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 	return m, names, nil
 }
 
-// The enumeration owner for later pg_index and pg_indexes inquiry owners. It
-// intentionally registers no SQL source, vector codec, or node-tree list API.
+// ACL-neutral structural enumeration for internal metadata consumers.
+// The SQL pg_indexes source separately applies its invoker disclosure policy.
 func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMetadata, []indexesMetadata, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err

@@ -873,6 +873,36 @@ make quickcheck PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexC
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
 ```
 
+The `TestReferencePGIndexes` acceptance family pins the five-column view shape,
+compact definitions, held execution, lifecycle, supported transactional overlays,
+repeatable-read peer CREATE boundary, independent disclosure policy and full
+diagnostics. Controls replay actual native Dump SQL on PostgreSQL; the existing
+ready-invalid concurrent hash witness also checks descriptor enumeration.
+Run the complete affected selector in both modes (900 seconds per invocation):
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferencePGIndexes.*|TestReferenceIndexMaintenanceMetadataOracle|TestReferenceDropViewIndexWrongKind|TestReferenceConcurrentIndexHashInvalidQuery|TestReferenceConcurrentIndexFeatureSmoke)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^(TestReferencePGIndexes.*|TestReferenceIndexMaintenanceMetadataOracle|TestReferenceDropViewIndexWrongKind|TestReferenceConcurrentIndexHashInvalidQuery|TestReferenceConcurrentIndexFeatureSmoke)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0
+```
+
+Initial pinned oracle discovery passed before production. All scenario-local
+discovery filters are removed; both commands now execute the same shared bodies,
+including native behavioral-red before implementation. A filtered native run
+is not verification. PostgreSQL exposes denied underlying objects here;
+native acceptance intentionally requires schema USAGE and parent table SELECT
+or SELECT on any live column. No global fixture behavior is changed.
+Private `TestPGIndexes` units exercise real SetObjectACL/AuthorizationView
+captures: table versus live non-indexed column grants, PUBLIC, ordinary owner,
+superuser, schema denial, dropped stable attributes, revocation, retained old
+captures and original invoker dispatch. Structural metadata units remain
+ACL-neutral. Run alongside the shared reference gate:
+
+```sh
+make quickcheck PACKAGES=./internal/engine RUN='^(TestPGIndexes.*|TestIndexMaintenanceMetadata.*)$' VERBOSE=0
+```
+
 The shared referenceHeldStatement retains its three-field layout and adds actual
 plain DB/Tx Prepare/Exec/Query consumers alongside existing Context consumers.
 Its matched query uses the genuinely held statement; unmatched queries use the

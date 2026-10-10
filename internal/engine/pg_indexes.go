@@ -1,0 +1,62 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// The SQL source owns disclosure, not the ACL-neutral structural projections.
+// Authorization and deparsing both read the exact immutable statement capture.
+func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth AuthorizationView, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.owner != catalog.owner.owner || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.state.descriptors[ref.Address] != source {
+		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
+	}
+	rows := make([][]sqltype.Value, 0)
+	for _, descriptor := range catalog.state.descriptors {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil {
+			continue
+		}
+		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing index parent")
+		}
+		schema, ok := catalog.state.descriptors[parent.namespace]
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing index namespace")
+		}
+		schemaRef := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.namespace}
+		err := auth.CanUse(schemaRef)
+		if err == nil {
+			err = auth.checkColumns(binding{ref: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.address}, relation: parent}, SelectPrivilege, nil)
+		}
+		if err != nil {
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) && diagnostic.Code == "42501" {
+				continue
+			}
+			return nil, err
+		}
+		definition, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{})
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, []sqltype.Value{
+			sqltype.String(source.columns[0].Usage.Type, schema.Name()),
+			sqltype.String(source.columns[1].Usage.Type, parent.name),
+			sqltype.String(source.columns[2].Usage.Type, index.name),
+			sqltype.Null(source.columns[3].Usage.Type),
+			sqltype.String(source.columns[4].Usage.Type, definition),
+		})
+	}
+	return &querySource{ref: ref, anonymous: rows}, nil
+}

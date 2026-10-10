@@ -967,7 +967,7 @@ unrelated column compaction; dependency-aware RESTRICT/CASCADE integrates with
 existing mutation paths. Zero-column views preserve source occurrences.
 Empty SELECT target lists use the same source path (`SELECT FROM relation`),
 retaining row occurrences independently of output width.
-`pg_catalog.pg_class`, `pg_rewrite` and `pg_views` are real bounded normal query
+`pg_catalog.pg_class`, `pg_rewrite`, `pg_views` and `pg_indexes` are real bounded normal query
 sources with OID/internal CHAR metadata; their exact supported columns and
 unsupported tree/array fields are listed in [the view contract](SQL.md#views).
 `pg_catalog.pg_description` is another readonly normal query source, relation2609,
@@ -4389,8 +4389,18 @@ without expanding excluded CHAR stored declarations or CHAR domains. All impleme
 explicit classes/collations and INCLUDE payloads survive maintenance. Full/column/
 pretty index deparse uses the existing PG renderer and compatibility reconstruction
 owner; native Dump retains canonical replay, including admitted decorations.
-No new pg_index/pg_indexes SQL source, node-tree list API, optimizer or physical
-storage behavior is added.
+The readonly `pg_catalog.pg_indexes` SQL source exposes five columns:
+schemaname, tablename, indexname and tablespace are NAME; indexdef is TEXT.
+Access method is inside compact schema-qualified CREATE INDEX text; native
+tablespace is NULL and no unsupported physical options are fabricated.
+Native disclosure requires schema USAGE plus parent table SELECT or SELECT
+on any live column, intentionally unlike PostgreSQL's unfiltered view.
+The operation invoker, not a stored-view owner, controls this policy.
+Prepared executions use fresh catalog/ACL captures; existing eager results
+remain owned through mutation and Reset/Restore. Generic native catalog reads
+use latest committed state plus their own supported overlay, not an RR catalog
+snapshot. SQL pg_index, node-tree lists, optimizer and physical storage behavior
+remain outside this surface. See [the SQL contract](SQL.md#indexes).
 See [the design](design/PG18-INDEX-MAINTENANCE.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
 repeat with `REFERENCE=1` for the independent pinned oracle.

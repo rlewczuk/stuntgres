@@ -38,6 +38,17 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		if d.address.ObjectID == 2609 {
 			catalog = scope.commentCatalog
 		}
+		if d.address.ObjectID == 12002 {
+			auth, err := e.authorizationLocked(scope.op)
+			if err != nil {
+				e.mu.Unlock()
+				return nil, err
+			}
+			auth.catalog = catalog
+			source, err := capturePGIndexes(ctx, catalog, auth, ref, d)
+			e.mu.Unlock()
+			return source, err
+		}
 		source, err := e.captureCatalogSourceLocked(ctx, catalog, ref, d)
 		e.mu.Unlock()
 		return source, err

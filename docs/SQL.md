@@ -486,6 +486,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL` |
 | `pg_catalog.pg_rewrite` | `oid OID`, `rulename NAME`, `ev_class OID`, `ev_type CHAR`, `ev_enabled CHAR`, `is_instead BOOL` |
 | `pg_catalog.pg_views` | `schemaname NAME`, `viewname NAME`, `viewowner NAME`, `definition TEXT` |
+| `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
 
 Each user view has one `_RETURN` rule (`ev_type='1'`, `ev_enabled='O'`,
@@ -1374,8 +1375,29 @@ phases. No meaningful option is discarded.
 
 Compact full/column/pretty pg_get_indexdef uses original analyzed keys and current
 names, including correct expression parentheses and actual collations. Dump
-retains canonical replay rendering. The internal pg_index/pg_indexes-shaped
-projection is not a new SQL inquiry interface.
+retains canonical replay rendering. The internal pg_index-shaped projection
+remains internal; `pg_catalog.pg_indexes` is a readonly normal query source.
+It emits each actual index once, including constraint-backed and retained
+ready-invalid concurrent indexes. Access method is inside `indexdef`, not an
+extra column. Definitions are compact logical SQL: the parent is always
+schema-qualified, identifiers are minimally quoted, default ordering collapses,
+and no trailing semicolon or CONCURRENTLY clause appears. Native tablespace is
+NULL; unsupported physical storage options are never invented.
+
+Native pg_indexes disclosure requires schema USAGE and parent table SELECT or
+SELECT on any live column, even a non-indexed column. Search-path absence alone
+is not a privilege denial. This is intentionally stricter than PostgreSQL18's
+unfiltered pg_indexes view. Index ACL and INSERT/DELETE/MAINTAIN alone do not
+grant disclosure; ordinary owner ACL and superuser semantics still apply.
+The original operation invoker controls disclosure, including through views.
+
+Prepared queries capture current definitions and ACLs at each execution; eager
+rows and their metadata retain their prior values through rename/drop and native
+Reset/Restore. Generic native catalog reads see latest committed definitions
+plus their own supported transaction overlay, not PostgreSQL's repeatable-read
+catalog snapshot. Dump/Restore serializes owning indexes, not pg_indexes rows.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0`.
 See [the design](design/PG18-INDEX-MAINTENANCE.md).
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
 repeat the same selector with `REFERENCE=1`.

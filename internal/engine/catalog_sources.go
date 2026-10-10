@@ -60,6 +60,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"transaction", sqltype.Xid}, {"gid", sqltype.Text}, {"prepared", sqltype.Timestamptz}, {"owner", sqltype.Name}, {"database", sqltype.Name}}},
+		{12002, "pg_indexes", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"schemaname", sqltype.Name}, {"tablename", sqltype.Name}, {"indexname", sqltype.Name}, {"tablespace", sqltype.Name}, {"indexdef", sqltype.Text}}},
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
