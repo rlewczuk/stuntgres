@@ -26,21 +26,8 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 					for _, prepared := range []bool{false, true} {
 						t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 							s := referenceSelect(tc.q, []string{tc.label}, []string{tc.typ}, tc.rows)
-							if !backend.pg && tc.name != "no-from" {
-								message, position := "aggregate modifiers are unsupported", ""
-								switch tc.name {
-								case "distinct-tuples":
-									message, position = "aggregate DISTINCT is unsupported", "8"
-								case "all":
-									message, position = "aggregate ALL is unsupported", "8"
-								case "over":
-									position = stringAggPosition(tc.q, "OVER", false)
-								case "sibling-order":
-									message, position = "aggregate ordering is unsupported", "8"
-								default:
-									position = stringAggPosition(tc.q, "FILTER", false)
-								}
-								s = referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: message, Position: position})
+							if !backend.pg && tc.name == "over" {
+								s = referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: "aggregate modifiers are unsupported", Position: stringAggPosition(tc.q, "OVER", false)})
 								s.selectRows = true
 							}
 							s.prepared = prepared
@@ -50,8 +37,8 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 				})
 			}
 			if !backend.pg {
-				q := "INSERT INTO capabilities VALUES(5,'leaked','!'); SELECT string_agg(DISTINCT v,d) FROM capabilities"
-				s := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "aggregate DISTINCT is unsupported", Position: stringAggPosition(q, "string_agg", false)})
+				q := "INSERT INTO capabilities VALUES(5,'leaked','!'); SELECT string_agg(DISTINCT v,d ORDER BY id) FROM capabilities"
+				s := referenceError(q, "0A000")
 				run(s)
 				run(referenceSelect("SELECT id FROM capabilities ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {int64(4)}}))
 			}

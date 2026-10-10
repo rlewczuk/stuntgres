@@ -31,6 +31,9 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 		t.Run(tc.q, func(t *testing.T) {
 			for _, prepared := range []bool{false, true} {
 				native := referenceError(tc.q, "0A000")
+				if tc.q == "SELECT count(*) FILTER (WHERE v>1) FROM t" || tc.q == "SELECT count(DISTINCT v) FROM t" || tc.q == "SELECT count(ALL v) FROM t" || tc.q == "SELECT count(v ORDER BY v) FROM t" {
+					native = referenceSelect(tc.q, []string{tc.name}, []string{"INT8"}, tc.rows)
+				}
 				native.selectRows = true
 				native.prepared = prepared
 				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
@@ -59,8 +62,7 @@ func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
 	}
 	for _, q := range []string{
 		"SELECT sum(v) FROM t",
-		"SELECT count(*) FILTER (WHERE TRUE) FROM t", "SELECT count(DISTINCT v) FROM t",
-		"SELECT count(* ORDER BY v) FROM t", "SELECT count(*) OVER () FROM t", "SELECT count(ALL v) FROM t",
+		"SELECT count(*) OVER () FROM t",
 		"SELECT v FROM t GROUP BY ROLLUP(v)", "SELECT v FROM t GROUP BY CUBE(v)",
 		"SELECT v FROM t GROUP BY GROUPING SETS ((v))", "SELECT v FROM t GROUP BY ()",
 		"SELECT v FROM t GROUP BY DISTINCT v", "SELECT v FROM t GROUP BY ALL v",

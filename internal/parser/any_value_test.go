@@ -31,7 +31,7 @@ func TestAnyValueExclusions(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 	}
-	for _, q := range []string{"SELECT any_value(DISTINCT v) FROM t", "SELECT any_value(ALL v) FROM t", "SELECT any_value(v ORDER BY v) FROM t", "SELECT any_value(v) FILTER (WHERE FALSE) FROM t", "SELECT any_value(v) OVER () FROM t"} {
+	for _, q := range []string{"SELECT any_value(v) OVER () FROM t"} {
 		statements, err := Parse("INSERT INTO t VALUES(1);" + q)
 		var diagnostic *sqlstate.Error
 		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {

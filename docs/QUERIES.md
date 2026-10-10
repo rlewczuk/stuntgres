@@ -322,7 +322,7 @@ pipeline. INSERT SELECT deduplicates **source-typed** keys before destination
 assignment: different numeric source values that round to the same INTEGER still
 insert separate occurrences. OVERRIDING USER VALUE cannot prune a DISTINCT key.
 Failure/cancellation publishes no partial native cursor or INSERT batch.
-DISTINCT ON, aggregate/grouping DISTINCT modifiers, ordinary array comparison
+DISTINCT ON, grouping DISTINCT modifiers, ordinary array comparison
 operators/ordering, general FROM expansion and spill/planner machinery remain
 excluded.
 
@@ -803,8 +803,8 @@ pipeline. Every argument still evaluates once per source occurrence after a
 candidate is retained. Later errors or cancellation prevent any result or partial
 INSERT batch. Finalized values retain their immutable payload through source,
 statement and fixture lifecycle changes; no aggregate work occurs during Next.
-Source ACLs apply even to empty or filtered-out input. This adds no relationless
-SELECT, FILTER/DISTINCT/ALL/in-call ORDER/OVER, ordinary arrays, casts or codecs.
+Source ACLs apply even to empty or filtered-out input. This adds no OVER provider,
+ordinary arrays, casts or codecs; aggregate modifiers use the shared contract below.
 Existing native multi-statement and INSERT RETURNING parser boundaries remain
 `0A000`, before aggregate execution or consumer/signature analysis. Carrier
 eligibility itself does not add explicit casts to TEXT: raw aggregate output,
@@ -859,7 +859,7 @@ Conflicting implicit string collations fail42P22 only when two eligible candidat
 need comparison; zero/one/all-NULL inputs succeed. A final COLLATE resolves it.
 Runtime diagnostics retain their original fields and have no invented Position.
 
-FILTER/DISTINCT/ALL/OVER and min/max in-call ORDER remain excluded.
+OVER remains excluded; FILTER/DISTINCT/ALL and min/max in-call ORDER use the shared modifier contract.
 No-FROM extrema use the ordinary local input. Ordinary namespace, arity, 100-argument, nested-call and clause guards
 retain full SQLSTATE/English diagnostic/character-location contracts.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExtremaSmoke$' VERBOSE=0`.
@@ -918,8 +918,8 @@ ORDER preserve complete SQLSTATE/English diagnostics and character positions.
 In INSERT VALUES, string_agg gives42803 at the call. INSERT RETURNING is still
 an independent native0A000 suffix exclusion; it does not reach aggregate binding.
 
-DISTINCT/FILTER/ALL/OVER, ordered sibling aggregates and array_agg remain
-excluded. No-FROM aggregates use the ordinary local input. Unsupported XML ordering controls do not add XML or
+OVER and array_agg remain excluded. FILTER/DISTINCT/ALL and sibling ordering use
+the shared modifier contract. No-FROM aggregates use the ordinary local input. Unsupported XML ordering controls do not add XML or
 cast edges. Public smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`.
 Shared contracts:
@@ -1003,12 +1003,61 @@ Use `RUN='^TestReferenceNumericAvgSmoke$'` in both commands for the focused smok
 
 This does not admit
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
-FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER on sibling
-aggregates, OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
-optimizer/spill/parallel machinery.
+DISTINCT/ALL grouping modifiers, OVER, grouping sets/ROLLUP/CUBE/empty sets,
+new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
 aggregate projections and selected sequence/REGCLASS siblings. Function-provider
 restrictions and INSERT-only producer rules remain separate and unchanged.
+
+### Aggregate modifiers — change note
+
+All existing providers share FILTER, DISTINCT, default-equivalent ALL and local
+ORDER BY. For `(1),(1),(NULL),(2)`, `count(DISTINCT v)` is2 and
+`count(v) FILTER(WHERE v=1)` is2. FILTER requires BOOL and admits only TRUE,
+running before every argument/key. Groups still exist when all their inputs are
+rejected; global COUNT returns0, other providers typed NULL. Every admitted
+argument and unique key evaluates before NULL/duplicate transition skipping,
+including string_agg delimiters on NULL values and keys on decisive Boolean or
+any_value states. DISTINCT uses type-owned equality/hash for the **complete**
+argument tuple; NULL delimiter components are valid and equal to each other.
+
+Local keys bind only in the input namespace: no SELECT aliases or ordinals.
+ASC defaults NULLS LAST, DESC NULLS FIRST; explicit null placement is independent.
+Different calls order independently, and final ORDER BY sorts result groups only.
+Peers without a unique tiebreaker have no portable order. DISTINCT ORDER keys must
+match complete arguments, not arbitrary expressions containing the same column.
+Only implicit argument coercions are ignored; explicit casts retain identity.
+Matching argument/order expressions (even volatile) reuse one evaluated input
+within a call. Other distinct expressions still evaluate separately, and any
+volatile argument/FILTER/order prevents aggregate-state sharing between calls.
+
+Analysis transforms arguments, FILTER, arity/namespace/signature, then ORDER/
+DISTINCT eligibility and ownership. Bad FILTER gives42804; invalid DISTINCT
+ORDER reference42P10; direct aggregate in FILTER42803. Star permits FILTER only:
+DISTINCT/ALL star or ordered star gives42601 before any batch prefix effects.
+DISTINCT COUNT unknown parameters and a matched UNKNOWN local ORDER target infer
+TEXT; FILTER unknown parameters infer BOOL. Plain `count($1)` without a resolving
+modifier retains its unresolved-parameter diagnostic. Modifier-only
+columns/relations/sequences retain ACL and dependency checks even on empty input
+or FILTER FALSE, including held prepared reauthorization.
+
+Aggregate DISTINCT requires equality and sort eligibility even though native
+deduplication uses hashing. Native arrays/domains-over-arrays and PG_NODE_TREE
+give positioned0A000 aggregate-specific capability boundaries for DISTINCT or
+local ORDER; PostgreSQL supports these represented carriers. Explicit tree TEXT
+casts use existing TEXT support. SELECT DISTINCT structural equality is unchanged;
+no ordinary array/tree comparator, aggregate provider or OVER support is added.
+Prepared/view plans remain immutable; per-execution group/call dedup and ordering
+buffers never survive execution. Stored views/export/native Dump/Restore preserve
+FILTER/DISTINCT/order and rebind descriptor-owned key families/comparators.
+All errors/cancellation veto native cursor/INSERT publication; public Next does
+no expression evaluation.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceAggregateModifiersFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAggregateModifiersFeatureSmoke$' VERBOSE=0
+```
+
 
 Feature checks (repository root, quiet output):
 
@@ -1458,7 +1507,7 @@ builtin namespace and known numeric/INTERVAL signature before reporting 42803
 remains 42703; TEXT or an unavailable qualified SUM remains 42883 with the ordinary
 function-signature Hint. This is not a SUM runtime provider: native SELECT/SET/
 INSERT SUM remains unsupported, as do untyped SUM arguments requiring overload
-inference, count(expr), SUM(*), aggregate DISTINCT/ordering and windows/SRFs.
+inference, SUM(*) and windows/SRFs. Existing COUNT/modifiers retain their ordinary clause restrictions.
 
 Each successful constrained row is projected exactly once before atomic Finish.
 Late output conversion/division/overflow and prepublication cancellation expose
@@ -2245,8 +2294,8 @@ analyzed before conditional pruning. Thus a dead-arm ungrouped column still
 fails grouping validation, and aggregates hidden in WHERE or GROUP BY remain
 `42803` errors. Conditional grouping keys use the same structural identity as
 other scalar keys; rewriting them does not mutate prepared expression trees.
-This does not admit `count(expression)`, aggregate modifiers, or relationless
-aggregate SELECT.
+Existing count(expression), aggregate modifiers and no-FROM aggregates use the
+same conditional analysis and immutable rewrite contracts.
 
 ```sql
 SELECT CASE WHEN v=0 THEN 0 ELSE 10/v END,

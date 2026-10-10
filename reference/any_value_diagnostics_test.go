@@ -101,23 +101,13 @@ func TestReferenceAnyValueBoundaries(t *testing.T) {
 					if strings.Contains(tc.q, "COALESCE") {
 						s.columns = []string{"coalesce"}
 					}
-					if !backend.pg && strings.Contains(tc.q, "FILTER") {
-						s = referenceError(tc.q, "0A000")
-						s.selectRows = true
-					}
 					s.prepared = prepared
 					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 				}
 			}
 			for _, q := range []string{"SELECT any_value(DISTINCT v) FROM t", "SELECT any_value(ALL v) FROM t", "SELECT any_value(v ORDER BY v) FROM t"} {
 				for _, prepared := range []bool{false, true} {
-					if backend.pg {
-						anyValueMembership(t, p, backend, q, prepared, []string{"any_value"}, []string{"INT4"}, map[any][]any{nil: {int64(11), int64(23)}})
-					} else {
-						s := referenceError(q, "0A000")
-						s.selectRows, s.prepared = true, prepared
-						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
-					}
+					anyValueMembership(t, p, backend, q, prepared, []string{"any_value"}, []string{"INT4"}, map[any][]any{nil: {int64(11), int64(23)}})
 				}
 			}
 			const windowQuery = "SELECT any_value(v) OVER () FROM t"

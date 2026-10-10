@@ -47,11 +47,7 @@ func TestStringAggregateGrammar(t *testing.T) {
 
 func TestStringAggregateCapabilityGuards(t *testing.T) {
 	for _, q := range []string{
-		"SELECT string_agg(DISTINCT v,d ORDER BY d) FROM t",
-		"SELECT string_agg(ALL v,d ORDER BY id) FROM t",
-		"SELECT string_agg(v,d ORDER BY id) FILTER (WHERE FALSE) FROM t",
 		"SELECT string_agg(v,d) OVER () FROM t",
-		"SELECT count(v ORDER BY id) FROM t",
 	} {
 		statements, err := Parse("INSERT INTO t VALUES('unpublished');" + q)
 		var d *sqlstate.Error

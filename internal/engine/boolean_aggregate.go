@@ -69,6 +69,10 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 			types[i] = typ.DiagnosticName()
 		}
 	}
+	filter, err := b.bindAggregateFilter(raw)
+	if err != nil {
+		return nil, err
+	}
 	if len(operands) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -89,19 +93,5 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 		operation = aggregateOr
 	}
 	call := aggregateCall{provider: booleanAggregateProvider{typ.Usage(), operation}, argument: arg, operation: operation}
-	slot := len(b.aggregates)
-	if arg.Properties().Volatility == Immutable {
-		for i, existing := range b.aggregates {
-			if operation == existing.operation && b.sameGroupExpression(arg, existing.argument) {
-				slot = i
-				break
-			}
-		}
-	}
-	if slot == len(b.aggregates) {
-		b.aggregates = append(b.aggregates, call)
-	}
-	p := arg.Properties()
-	properties := ExprProperties{StageDependent: true, ParameterDependent: p.ParameterDependent, Volatility: p.Volatility}
-	return aggregateExpression{expressionInfo: b.info(typ.Usage(), raw.Pos, properties), slot: slot, frame: b.frameID()}, nil
+	return b.finishAggregate(raw, call, filter, b.info(typ.Usage(), raw.Pos, ExprProperties{}))
 }

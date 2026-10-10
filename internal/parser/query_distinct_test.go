@@ -39,7 +39,7 @@ func TestQueryDistinctGrammar(t *testing.T) {
 }
 
 func TestQueryDistinctGrammarBoundaries(t *testing.T) {
-	for _, q := range []string{"SELECT DISTINCT ON (a) a FROM t", "SELECT count(DISTINCT a) FROM t", "SELECT a FROM t GROUP BY DISTINCT a", "SELECT DISTINCT DISTINCT a FROM t", "SELECT DISTINCT FROM t"} {
+	for _, q := range []string{"SELECT DISTINCT ON (a) a FROM t", "SELECT a FROM t GROUP BY DISTINCT a", "SELECT DISTINCT DISTINCT a FROM t", "SELECT DISTINCT FROM t"} {
 		statements, err := Parse(q)
 		var diagnostic *sqlstate.Error
 		if err == nil || len(statements) != 0 || !errors.As(err, &diagnostic) {

@@ -1776,8 +1776,10 @@ stays `30 days`, not `1 mon`. SQL comparison and grouping use the widened span
 `(months*30+days)*86400000000+microseconds`, so those pairs compare equal while
 native serialization retains their distinct representations. Infinity sorts
 below/above finite values and is unchanged by field restrictions.
-Existing GROUP BY consumes the same equality classes; SELECT DISTINCT and
-aggregate DISTINCT remain outside the supported query surface.
+Existing GROUP BY, SELECT DISTINCT and aggregate DISTINCT consume the same
+typed equality classes. Aggregate DISTINCT also validates sort eligibility;
+native arrays/PG_NODE_TREE have explicit aggregate DISTINCT/order0A000 boundaries
+despite PostgreSQL support, without widening ordinary carrier ordering.
 
 Declarations admit INTERVAL, INTERVAL(p), YEAR/MONTH/DAY/HOUR/MINUTE/SECOND,
 YEAR TO MONTH, DAY TO HOUR/MINUTE/SECOND, HOUR TO MINUTE/SECOND and MINUTE TO

@@ -454,7 +454,7 @@ Dump/Restore retain the same contract. Arrays/domains use structural key equalit
 Enums and enum domains use declaration-ordinal keys. Explicit ORDER aliases and
 ordinals preserve the selected visible occurrence, including independent repeated
 volatile projections. Projected enum-domain arrays do not widen array storage.
-Ordinary array operators/order, DISTINCT ON and aggregate/grouping DISTINCT
+Ordinary array operators/order, DISTINCT ON and grouping DISTINCT
 modifiers remain excluded. No implicit order is promised.
 See [distinct projected rows](QUERIES.md#distinct-projected-rows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
@@ -681,7 +681,7 @@ its own delimiter, including empty values. Empty/all-NULL global input returns
 typed NULL; empty keyed input has no rows and complete metadata.
 Native TEXT Length is `(MaxInt64,true)`; native BYTEA Length is `(0,false)`.
 Both lib/pq overloads expose `(MaxInt64,true)`; DecimalSize is unavailable.
-Only these calls admit in-call `ORDER BY` source expressions, multiple keys,
+All existing aggregates admit in-call `ORDER BY` source expressions, multiple keys,
 ASC/DESC and NULLS FIRST/LAST. Integer keys are constants, not output ordinals;
 projection aliases are invisible. Different calls sort independently. Without
 in-call ordering, concatenation order is unspecified; outer ORDER sorts groups.
@@ -697,7 +697,7 @@ independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 
 Grouping uses the ordinary no-FROM local input. It does not add
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
-FILTER/DISTINCT/ALL/OVER, in-call ordering of sibling aggregates, DISTINCT/ALL grouping,
+OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
@@ -708,12 +708,30 @@ independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 Boolean smoke: `make quickcheck PACKAGES=./reference RUN='^TestReference(BooleanAggregate[A-Za-z0-9_]*|AnyValueSourceACL)$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0`.
 Parameterless count() gives42809 and preserves a qualified call name in its message.
-Children are analyzed before the more-than-100-argument guard54023, then
-namespace/visibility and signature resolution. An absent explicit schema gives
-3F000 only after child analysis and the guard; bad arity (including 100 arguments)
+Children are analyzed before FILTER's contextual BOOL check, then the
+more-than-100-argument guard54023, namespace/visibility and signature resolution.
+An absent explicit schema gives3F000 only after child/FILTER analysis and the guard; bad arity (including 100 arguments)
 gives42883 with actual argument types.
+
+Aggregate FILTER, DISTINCT and default-equivalent ALL are admitted across every
+existing provider. FILTER is evaluated first; FALSE/NULL skip arguments and keys.
+DISTINCT uses typed full-argument tuples, including NULL delimiter components,
+before strict NULL transition skipping; arguments and keys still evaluate on
+duplicates and NULL values. Local numeric keys are constants, not ordinals.
+DISTINCT ORDER keys must match complete arguments, ignoring only implicit argument
+coercions, otherwise42P10. Bare DISTINCT COUNT parameters and a matched UNKNOWN
+local ORDER target infer TEXT. Plain `count($1)` still does not infer an unresolved
+parameter. FILTER parameters infer BOOL.
+All modifier reads retain source ACLs/dependencies even on empty/FALSE input.
+Views/native replay retain modifiers and rebind typed comparators/key families.
+Native aggregate DISTINCT/order on arrays or PG_NODE_TREE gives positioned0A000
+(`aggregate DISTINCT is unsupported for type ...` / `aggregate ordering is unsupported for type ...`);
+PostgreSQL supports these represented carriers. This does not add their ordinary
+ordering or any aggregate/window provider.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAggregateModifiersFeatureSmoke$' VERBOSE=0`;
+oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAggregateModifiersFeatureSmoke$' VERBOSE=0`.
 Only a resolved aggregate call rejects nesting with42803 at the inner call.
-ANY does not infer bare parameter types: cast unresolved parameters explicitly.
+Unmodified COUNT ANY does not infer bare parameter types: cast unresolved parameters explicitly.
 
 Simple/searched CASE, COALESCE, NULLIF, GREATEST and LEAST are scalar constructs
 in every existing general-scalar consumer, including DEFAULT/native roundtrip.

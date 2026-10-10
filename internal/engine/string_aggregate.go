@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -110,6 +109,10 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 			}
 		}
 	}
+	filter, err := b.bindAggregateFilter(raw)
+	if err != nil {
+		return nil, err
+	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -143,62 +146,10 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	}
 	properties := mergeExpressionProperties(value.Properties(), separator.Properties())
 	properties.StageDependent = true
-	keys := make([]sortKey, len(raw.Order))
-	for i, key := range raw.Order {
-		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-		expression, err = b.finalizeProjection(expression)
-		if err != nil {
-			return nil, err
-		}
-		if expression.CollationIndeterminate() {
-			left, right, position := expression.ImplicitCollationConflict()
-			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, builtinCollationName(left.ID), builtinCollationName(right.ID)), position).(*sqlstate.Error)
-			d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
-			return nil, d
-		}
-		comparison, err := sqltype.BindOrdering(expression.ResultUsage())
-		if err != nil {
-			if d, ok := err.(*sqlstate.Error); ok {
-				copy := *d
-				copy.Position = fmt.Sprint(key.Pos.Character)
-				return nil, &copy
-			}
-			return nil, err
-		}
-		keys[i] = sortKey{expression: expression, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, cache: -1, slot: -1}
-		properties = mergeExpressionProperties(properties, expression.Properties())
-	}
 	info, err := collatedInfo(b.info(typ.Usage(), raw.Pos, properties), value, separator)
 	if err != nil {
 		return nil, err
 	}
-	call := aggregateCall{provider: stringAggregateProvider{info.usage}, argument: value, separator: separator, order: keys, operation: aggregateString}
-	slot := len(b.aggregates)
-	if properties.Volatility == Immutable {
-		for i, other := range b.aggregates {
-			if b.sameStringAggregate(call, other) {
-				slot = i
-				break
-			}
-		}
-	}
-	if slot == len(b.aggregates) {
-		b.aggregates = append(b.aggregates, call)
-	}
-	return aggregateExpression{expressionInfo: info, slot: slot, frame: b.frameID()}, nil
-}
-func (b *expressionBinder) sameStringAggregate(a, other aggregateCall) bool {
-	if other.operation != aggregateString || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) {
-		return false
-	}
-	for i, key := range a.order {
-		o := other.order[i]
-		if key.desc != o.desc || key.nullsFirst != o.nullsFirst || !b.sameGroupExpression(key.expression, o.expression) {
-			return false
-		}
-	}
-	return true
+	call := aggregateCall{provider: stringAggregateProvider{info.usage}, argument: value, separator: separator, operation: aggregateString}
+	return b.finishAggregate(raw, call, filter, info)
 }

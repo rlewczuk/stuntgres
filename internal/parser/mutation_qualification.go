@@ -47,6 +47,7 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 		for _, key := range e.Order {
 			absorb(key.Expr)
 		}
+		absorb(e.Filter)
 		return result
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
@@ -149,7 +150,7 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 				return token, reject
 			}
 		}
-		return nil, false
+		return nonqueryQualification(e.Filter, assignment)
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			return &lexeme{raw: ".", pos: e.QualificationPos}, assignment && !e.QualificationGrouped
@@ -234,6 +235,13 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 		}
 		for i, key := range e.Order {
 			e.Order[i].Expr, _ = markGroupedQualification(key.Expr)
+		}
+		if e.Filter != nil {
+			filter, changed := markGroupedQualification(e.Filter)
+			if changed {
+				e.Filter = filter
+				return e, true
+			}
 		}
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 && !e.QualificationGrouped {

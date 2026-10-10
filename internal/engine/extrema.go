@@ -102,6 +102,10 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 			}
 		}
 	}
+	filter, err := b.bindAggregateFilter(raw)
+	if err != nil {
+		return nil, err
+	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -155,20 +159,8 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 	}
 	provider := extremaProvider{usage: usage, comparison: comparison, maximum: operation == aggregateMax, collationConflict: arg.CollationIndeterminate()}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
-	slot := len(b.aggregates)
-	if arg.Properties().Volatility == Immutable {
-		for i, existing := range b.aggregates {
-			if existing.operation == operation && existing.provider.ResultUsage() == usage && b.sameGroupExpression(arg, existing.argument) {
-				slot = i
-				break
-			}
-		}
-	}
-	if slot == len(b.aggregates) {
-		b.aggregates = append(b.aggregates, call)
-	}
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
 	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
-	return aggregateExpression{expressionInfo: info, slot: slot, frame: b.frameID()}, nil
+	return b.finishAggregate(raw, call, filter, info)
 }

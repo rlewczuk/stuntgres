@@ -17,6 +17,10 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 		}
 		args[i] = arg
 	}
+	filter, err := b.bindAggregateFilter(raw)
+	if err != nil {
+		return nil, err
+	}
 	if len(args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -43,27 +47,18 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 		return nil, expressionError("42809", objectNameText(name)+"(*) must be used to call a parameterless aggregate function", raw.Pos)
 	}
 	call := aggregateCall{provider: countProvider{b.typ(sqltype.Int8).Usage()}, operation: aggregateCount}
-	properties := ExprProperties{StageDependent: true}
 	if len(args) == 1 {
 		call.argument = args[0]
-		p := args[0].Properties()
-		properties.ParameterDependent, properties.Volatility = p.ParameterDependent, p.Volatility
-		if parameter, ok := args[0].(parameterExpression); ok && parameter.usage.Type == nil {
-			b.anyParameters = append(b.anyParameters, parameter)
-		}
 	}
-	slot := len(b.aggregates)
-	// Bind every occurrence before sharing; only immutable arguments may share.
-	if call.argument == nil || call.argument.Properties().Volatility == Immutable {
-		for i, existing := range b.aggregates {
-			if call.operation == existing.operation && b.sameGroupExpression(call.argument, existing.argument) {
-				slot = i
-				break
-			}
-		}
+	result, err := b.finishAggregate(raw, call, filter, b.info(call.provider.ResultUsage(), raw.Pos, ExprProperties{}))
+	if err != nil {
+		return nil, err
 	}
-	if slot == len(b.aggregates) {
-		b.aggregates = append(b.aggregates, call)
+	// Modifiers can resolve a matched UNKNOWN input target. Only an actual
+	// remaining ANY occurrence participates in the unresolved-parameter guard.
+	argument := b.aggregates[result.(aggregateExpression).slot].argument
+	if parameter, ok := argument.(parameterExpression); ok && parameter.usage.Type == nil {
+		b.anyParameters = append(b.anyParameters, parameter)
 	}
-	return aggregateExpression{expressionInfo: b.info(call.provider.ResultUsage(), raw.Pos, properties), slot: slot, frame: b.frameID()}, nil
+	return result, nil
 }

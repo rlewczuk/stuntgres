@@ -364,11 +364,35 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.separator != nil {
 				copy.calls[i].separator = expression(call.separator)
 			}
+			if call.filter != nil {
+				copy.calls[i].filter = expression(call.filter)
+			}
+			copy.calls[i].distinct = make([]sqltype.Grouping, len(call.distinct))
+			for k := range call.distinct {
+				arg := copy.calls[i].argument
+				if k == 1 {
+					arg = copy.calls[i].separator
+				}
+				if err == nil {
+					copy.calls[i].distinct[k], err = sqltype.BindGrouping(arg.ResultUsage())
+				}
+				if err == nil {
+					_, err = aggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)
+				}
+			}
 			copy.calls[i].order = append([]sortKey(nil), call.order...)
 			for k, key := range call.order {
 				copy.calls[i].order[k].expression = expression(key.expression)
 				if err == nil {
-					copy.calls[i].order[k].comparison, err = sqltype.BindOrdering(copy.calls[i].order[k].expression.ResultUsage())
+					usage := copy.calls[i].order[k].expression.ResultUsage()
+					if key.slot == 0 {
+						usage = copy.calls[i].argument.ResultUsage()
+					} else if key.slot == 1 {
+						usage = copy.calls[i].separator.ResultUsage()
+					} else if key.slot >= 2 {
+						usage = copy.calls[i].order[key.slot-2].expression.ResultUsage()
+					}
+					copy.calls[i].order[k].comparison, err = aggregateOrdering(usage, key.expression.SourcePosition(), false)
 				}
 			}
 		}

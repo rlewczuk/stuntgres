@@ -32,11 +32,14 @@ const (
 )
 
 type aggregateCall struct {
-	provider  aggregateProvider
-	argument  BoundExpr
-	separator BoundExpr
-	order     []sortKey
-	operation aggregateOperation
+	provider   aggregateProvider
+	argument   BoundExpr
+	separator  BoundExpr
+	order      []sortKey
+	filter     BoundExpr
+	distinct   []sqltype.Grouping
+	stageWidth int // Value, separator, then unique local targets; keys address cache slots.
+	operation  aggregateOperation
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,
@@ -47,6 +50,7 @@ func (call aggregateCall) expressions(visit func(BoundExpr)) {
 	for _, key := range call.order {
 		visit(key.expression)
 	}
+	visit(call.filter)
 }
 
 type countProvider struct{ usage sqltype.Usage }

@@ -29,6 +29,10 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 			}
 		}
 	}
+	filter, err := b.bindAggregateFilter(raw)
+	if err != nil {
+		return nil, err
+	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -68,19 +72,5 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 		return nil, err
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
-	slot := len(b.aggregates)
-	if arg.Properties().Volatility == Immutable {
-		for i, existing := range b.aggregates {
-			if existing.operation == operation && b.sameGroupExpression(arg, existing.argument) {
-				slot = i
-				break
-			}
-		}
-	}
-	if slot == len(b.aggregates) {
-		b.aggregates = append(b.aggregates, call)
-	}
-	p := arg.Properties()
-	properties := ExprProperties{StageDependent: true, ParameterDependent: p.ParameterDependent, Volatility: p.Volatility}
-	return aggregateExpression{expressionInfo: b.info(provider.ResultUsage(), raw.Pos, properties), slot: slot, frame: b.frameID()}, nil
+	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
 }

@@ -966,12 +966,14 @@ type FunctionExpr struct {
 
 // AggregateExpr retains ordinary aggregate arguments, call-local ordering and diagnostic-only single-argument SUM.
 type AggregateExpr struct {
-	Name   string
-	Star   bool
-	Args   []Expr
-	Order  []OrderKey
-	Schema *Identifier
-	Pos    Position
+	Name     string
+	Star     bool
+	Args     []Expr
+	Order    []OrderKey
+	Distinct bool
+	Filter   Expr
+	Schema   *Identifier
+	Pos      Position
 }
 
 func (AggregateExpr) expression()                {}

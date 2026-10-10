@@ -235,7 +235,7 @@ var keywords = [...]keyword{
 	{"false", Reserved, true, FALSE},
 	{"family", Unreserved, true, 0},
 	{"fetch", Reserved, false, FETCH},
-	{"filter", Unreserved, false, 0},
+	{"filter", Unreserved, false, FILTER},
 	{"finalize", Unreserved, true, 0},
 	{"first", Unreserved, true, 0},
 	{"float", ColumnName, true, 0},

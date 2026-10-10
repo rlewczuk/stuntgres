@@ -108,9 +108,6 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		}
 	case parser.AggregateExpr:
 		if n, ok := bound.(aggregateExpression); ok {
-			if r.Star {
-				return nil
-			}
 			if call, ok := b.aggregateCallAt(n); ok {
 				for i, arg := range r.Args {
 					expression := call.argument
@@ -129,6 +126,11 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				}
 				for i, key := range r.Order {
 					if err := child(key.Expr, call.order[i].expression); err != nil {
+						return err
+					}
+				}
+				if r.Filter != nil {
+					if err := child(r.Filter, call.filter); err != nil {
 						return err
 					}
 				}
@@ -536,6 +538,9 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			if err := child(key.Expr); err != nil {
 				return err
 			}
+		}
+		if r.Filter != nil {
+			return child(r.Filter)
 		}
 		return nil
 	case parser.TimeZoneExpr:

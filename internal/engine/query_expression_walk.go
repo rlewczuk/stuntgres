@@ -158,7 +158,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	}
 	switch clause {
 	case "SELECT", "HAVING", "ORDER BY":
-	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES":
+	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER":
 		return nil, expressionError("42803", "aggregate functions are not allowed in "+clause, e.pos)
 	default:
 		return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", e.pos)
@@ -179,14 +179,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		})
 		if immutable {
 			for i, existing := range s.aggregates {
-				if call.operation != existing.operation || call.provider.ResultUsage() != existing.provider.ResultUsage() {
-					continue
-				}
-				same := b.sameGroupExpression(call.argument, existing.argument)
-				if call.operation == aggregateString {
-					same = b.sameStringAggregate(call, existing)
-				}
-				if same {
+				if b.sameAggregateCall(call, existing) {
 					e.slot = i
 					break
 				}

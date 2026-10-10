@@ -379,7 +379,7 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 				return false
 			}
 		}
-		return true
+		return r.Filter == nil || l.scalarInputTree(r.Filter)
 	case CaseExpr:
 		if r.Test != nil && !l.scalarInputTree(r.Test) {
 			return false

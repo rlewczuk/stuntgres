@@ -542,12 +542,18 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if e.Schema != nil {
 			name = quoteIdentifier(e.Schema.Text) + "." + quoteIdentifier(e.Name)
 		}
+		var text string
+		var err error
 		if e.Star {
-			return name + "(*)", nil
-		}
-		text, err := args(e.Args)
-		if err != nil {
-			return "", err
+			text = "*"
+		} else {
+			text, err = args(e.Args)
+			if err != nil {
+				return "", err
+			}
+			if e.Distinct {
+				text = "DISTINCT " + text
+			}
 		}
 		if len(e.Order) > 0 {
 			text += " ORDER BY "
@@ -572,7 +578,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				}
 			}
 		}
-		return name + "(" + text + ")", err
+		text = name + "(" + text + ")"
+		if e.Filter != nil {
+			filter, err := child(e.Filter)
+			if err != nil {
+				return "", err
+			}
+			text += " FILTER (WHERE " + filter + ")"
+		}
+		return text, nil
 	case parser.ConditionalExpr:
 		text, err := args(e.Args)
 		return e.Kind.String() + "(" + text + ")", err

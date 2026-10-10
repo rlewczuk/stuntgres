@@ -68,7 +68,10 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if err := expressions(e.Args); err != nil {
 				return err
 			}
-			return orderKeys(e.Order)
+			if err := orderKeys(e.Order); err != nil {
+				return err
+			}
+			return expression(e.Filter)
 		case ConditionalExpr:
 			return expressions(e.Args)
 		case CallExpr:

@@ -165,7 +165,7 @@ func TestReferenceBooleanAggregateCapabilityBoundaries(t *testing.T) {
 					} {
 						for _, prepared := range []bool{false, true} {
 							s := referenceSelect(tc.q, []string{tc.name}, []string{"BOOL"}, tc.rows)
-							if !backend.pg && tc.q != "SELECT bool_and(TRUE)" {
+							if !backend.pg && tc.q == "SELECT bool_or(b) OVER () FROM m" {
 								s = referenceError(tc.q, "0A000")
 								s.selectRows = true
 							}

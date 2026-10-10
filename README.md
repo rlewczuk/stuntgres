@@ -678,7 +678,7 @@ arrays/domains retain structural equality; supported tree carriers retain their
 binary-compatible structural text equality. Projection is evaluated once before
 deduplication; ORDER must reference projected outputs, and locking DISTINCT is
 rejected. Views/native replay and INSERT SELECT share source-typed deduplication
-before destination assignment. DISTINCT ON and aggregate/grouping DISTINCT,
+before destination assignment. DISTINCT ON and grouping DISTINCT,
 ordinary array operators/order and new FROM forms remain excluded.
 See [distinct projected rows](docs/QUERIES.md#distinct-projected-rows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
@@ -1057,8 +1057,9 @@ Empty/all-NULL global input returns typed NULL. Use call-local
 `ORDER BY` with a unique tiebreaker to guarantee concatenation order; outer
 ordering only orders result groups. Each call can use different source-key order.
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
-Dump/Restore use the same eager pipeline. DISTINCT/FILTER/ALL/OVER, ordered sibling
-aggregates and array_agg remain excluded. Admitted aggregates also use the ordinary no-FROM input.
+Dump/Restore use the same eager pipeline. All existing aggregates admit
+FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. OVER and
+array_agg remain excluded. Admitted aggregates also use the ordinary no-FROM input.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row
@@ -1067,6 +1068,21 @@ promised. The same eager pipeline serves direct/prepared queries and
 `INSERT ... SELECT`; public rows never evaluate aggregates during `Next`.
 See [query grouping](docs/QUERIES.md#grouping-and-count--change-note) for examples,
 diagnostics and deliberate exclusions.
+
+Change note: aggregate modifiers share one input pipeline across COUNT, Boolean,
+AVG, any_value, min/max and string_agg providers. FILTER admits only TRUE and runs
+before arguments and local keys. DISTINCT compares the complete typed argument
+tuple (including string_agg's delimiter), with NULL-equal keys; NULL value inputs
+still do not transition. Admitted arguments/keys evaluate before duplicate or
+NULL skipping. Local ORDER uses source expressions, not output aliases/ordinals,
+and DISTINCT keys must match complete arguments (implicit coercion permitted,
+explicit casts retained). Matching volatile argument/order targets evaluate once
+within each call; volatile calls never share state. Final ORDER only sorts groups.
+Native aggregate DISTINCT/order on arrays and PG_NODE_TREE has an explicit0A000
+capability boundary; PostgreSQL supports those carriers. Explicit tree-to-TEXT
+casts use existing TEXT support. No ordinary array/tree ordering is added.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAggregateModifiersFeatureSmoke$' VERBOSE=0`;
+oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAggregateModifiersFeatureSmoke$' VERBOSE=0`.
 
 ## Documentation
 

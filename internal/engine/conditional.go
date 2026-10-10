@@ -473,6 +473,9 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+		if e.Filter != nil {
+			return qualifiedCastChild(e.Filter)
+		}
 	case parser.CollateExpr:
 		return qualifiedCastChild(e.Child)
 	case parser.CastExpr:

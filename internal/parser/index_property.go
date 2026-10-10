@@ -42,6 +42,7 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 		for _, key := range e.Order {
 			child(key.Expr)
 		}
+		child(e.Filter)
 	case CaseExpr:
 		child(e.Test)
 		for _, arm := range e.Arms {

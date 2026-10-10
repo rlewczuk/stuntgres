@@ -32,7 +32,7 @@ func TestBooleanAggregateExclusions(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 	}
-	for _, q := range []string{"SELECT bool_or(DISTINCT b) FROM t", "SELECT every(ALL b) FROM t", "SELECT bool_and(b ORDER BY b) FROM t", "SELECT bool_or(b) FILTER (WHERE FALSE) FROM t", "SELECT every(b) OVER () FROM t"} {
+	for _, q := range []string{"SELECT every(b) OVER () FROM t"} {
 		statements, err := Parse("INSERT INTO t VALUES(TRUE);" + q)
 		var d *sqlstate.Error
 		if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" {

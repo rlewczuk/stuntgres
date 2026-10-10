@@ -223,7 +223,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		}
 		var calls []aggregateCall
 		for i, call := range n.calls {
-			for j, expression := range [2]BoundExpr{call.argument, call.separator} {
+			for j, expression := range [3]BoundExpr{call.argument, call.separator, call.filter} {
 				if expression == nil {
 					continue
 				}
@@ -237,8 +237,10 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 					}
 					if j == 0 {
 						calls[i].argument = folded
-					} else {
+					} else if j == 1 {
 						calls[i].separator = folded
+					} else {
+						calls[i].filter = folded
 					}
 				}
 			}
