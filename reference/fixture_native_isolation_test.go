@@ -39,9 +39,9 @@ func TestReferenceFixtureResetIsolation(t *testing.T) {
 					referenceRunStep(t, p.ctx, c, b.recorder, referenceExec(query, 0))
 				}
 				if b.pg {
-					// A replay can also return an admin session with the wrong
-					// principal. Boundary reset must discard it without letting
-					// it change the reset-only session's schema ownership.
+					// A replay can return an admin session with the wrong
+					// principal. Boundary sanitation must restore its original
+					// authenticator before recreating the public schema.
 					admin, err := referenceAdmin.Conn(p.ctx)
 					if err != nil {
 						t.Fatal(err)

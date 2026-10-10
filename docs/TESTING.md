@@ -48,16 +48,18 @@ This is the authoritative test-placement and implementation workflow.
   asserting a complete database-wide candidate bag. The shared PostgreSQL
   fixture resets `public`, not every nonpublic schema; unrelated same-name
   objects can legitimately remain outside the scenario's search path.
-- The pinned fixture owns a private reset-only physical PostgreSQL connection.
-  Both before-case and after-case resets still execute `DROP SCHEMA public CASCADE;
-  CREATE SCHEMA public` under their 15-second contexts. Reusing only that connection
-  avoids repeated authentication without reusing test sessions or native engines.
-  Administrative probe pools still discard idle sessions at each boundary, so
-  returned `SESSION AUTHORIZATION` state cannot change the reset principal or
-  public-schema owner. Startup failure and final teardown release the reset
-  connection before the administrative database. The shared
-  `TestReferenceFixtureResetIsolation` and pinned
-  `TestReferenceFixtureSessionAuthorizationReset` independently cover the boundary:
+- The pinned fixture retains one idle administrative PostgreSQL session, with
+  unrestricted open connections for concurrent observers. Serialized resets
+  require all borrowers, Rows and workers to return before the boundary. Each
+  before-case and after-case reset borrows that session under the existing
+  15-second context, executes standalone `ROLLBACK`, then standalone `DISCARD ALL`,
+  then unchanged `DROP SCHEMA public CASCADE; CREATE SCHEMA public` on that same
+  connection. Returning it preserves authentication without retaining dirty
+  authorization, role, settings, temporary, prepared or advisory state.
+  Case pools and native engines remain isolated. Startup failure and final
+  teardown close the administrative pool; no separate reset connection is owned.
+  `TestReferenceFixtureResetIsolation` and
+  `TestReferenceFixtureSessionAuthorizationReset` independently cover this boundary:
 
   ```sh
   make quickcheck PACKAGES=./reference RUN='^TestReferenceFixture' VERBOSE=0
@@ -2057,23 +2059,30 @@ owns a 30-second context and pool cleanup; real fixtures reset `public` before
 and after each case. All real fixtures share one bounded-lifecycle container:
 **do not use `t.Parallel()`**.
 
-Schema-reset SQL runs only through a suite-owned pristine PostgreSQL connection,
-borrowed once from `referenceAdmin` and held across serialized fixtures, never
-lent to replay or probes. Retaining it avoids two needless PostgreSQL connection
-handshakes per fixture while preserving both before/after `DROP SCHEMA public
-CASCADE; CREATE SCHEMA public` operations. The shared probe/admin pool
-still discards idle sessions (`SetMaxIdleConns(0)` then `2`) at **both** reset
-boundaries, so replay-altered session authorization or roles cannot leak into
-later probes. Startup failure and final teardown return the reset connection
-before closing its owning admin pool.
-The existing pinned `TestReferenceFixtureSessionAuthorizationReset` independently
-asserts discarded replay authorization, a pristine `stuntgres` probe, an empty
-schema and the `stuntgres` schema owner after cleanup and before the next case;
-its SQL expectations and both boundary assertions are unchanged.
+Change note: the pinned admin pool retains one idle physical session instead of
+reconnecting at every fixture reset. Open connections remain unrestricted so
+observers can run while a replay holds an admin handle. Every existing
+15-second before/after reset borrows one connection, executes standalone
+`ROLLBACK`, then standalone `DISCARD ALL`, then the existing public schema
+DROP/CREATE on that same connection, and returns it on every exit.
+`DISCARD ALL` must not share a multi-statement execution with ROLLBACK: it
+cannot run inside a transaction block. It restores authenticated/session role
+state, GUCs and temp/prepared/advisory state before schema ownership is assigned.
+All borrowed admin handles, Rows and workers must be returned/closed/joined
+before serial fixture cleanup. Case pools remain fresh; SCRAM authentication,
+startup configuration, fixture contexts and verification deadlines are unchanged.
 
-```sh
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFixtureSessionAuthorizationReset$' VERBOSE=0
-```
+`TestReferenceFixtureSessionAuthorizationReset` retains its schema-owner and
+empty-public assertions and now deliberately contaminates authorization, SET
+ROLE, settings, TEMP, named PREPARE, advisory state and an aborted transaction
+before both reset boundaries. The same definition runs without Docker, proving
+fresh wrapped/native control settings, identities, prepared consumers and case
+catalogs; admin-only sanitation checks run in pinned mode. It does not assert
+incidental backend PIDs, reconnection counts or timing. Focused gates, each with
+a 900-second deadline:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`
+and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`.
 
 Non-public schemas are not reset by the fixture. Register
 `schemaReferenceCleanup(t, "schema_name")` before constructing the scenario

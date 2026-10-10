@@ -17,9 +17,6 @@ import (
 // responses retain their own synchronous read/close ownership.
 var referenceLogClient *testcontainers.DockerClient
 
-// Only serialized fixture boundary resets use this pinned session. Never lend
-// it to a scenario: unlike admin probe sessions, its principal stays stuntgres.
-var referenceResetConn *sql.Conn
 
 func referenceEnsureStarted() error {
 	referenceStartup.Do(func() {
@@ -64,6 +61,9 @@ func referenceStart() error {
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
+	// Retain one sanitizable idle admin session, without limiting concurrent
+	// observers while a replay holds a borrowed connection.
+	referenceAdmin.SetMaxIdleConns(1)
 	return referenceInitialize(ctx)
 }
 
@@ -92,29 +92,17 @@ func referenceInitialize(ctx context.Context) (err error) {
 	if _, err = referenceAdmin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
 		return fmt.Errorf("native bootstrap owner: %w", err)
 	}
-	referenceResetConn, err = referenceAdmin.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("schema reset connection: %w", err)
-	}
 	return nil
 }
 
 // Release ownership before cleanup so a failed startup cannot leave resources
 // for test callbacks or cause final teardown to close/terminate them twice.
 func referenceReleaseResources() error {
-	admin, resetConn, logClient, container := referenceAdmin, referenceResetConn, referenceLogClient, referenceContainer
-	referenceAdmin, referenceResetConn, referenceLogClient, referenceContainer = nil, nil, nil, nil
+	admin, logClient, container := referenceAdmin, referenceLogClient, referenceContainer
+	referenceAdmin, referenceLogClient, referenceContainer = nil, nil, nil
 	referenceDSN, referenceContainerID = "", ""
 	referenceStarted = false
 	var cleanupErr error
-	// Reset statements have bounded contexts and complete synchronously before
-	// fixture teardown; this privately owned session has no outstanding borrower.
-	// Return it before closing its database, including partial-startup unwind.
-	if resetConn != nil {
-		if err := resetConn.Close(); err != nil {
-			cleanupErr = fmt.Errorf("reference schema reset close: %w", err)
-		}
-	}
 	if admin != nil {
 		if err := admin.Close(); err != nil {
 			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("reference close: %w", err))

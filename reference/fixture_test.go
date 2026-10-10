@@ -103,15 +103,24 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 		}
 		resetCtx, resetCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer resetCancel()
-		// A replay can return a pooled connection authenticated as postgres.
-		// Recycle probe/admin idle sessions at both boundaries so stale auth or
-		// roles cannot reach later probes. Serial fixtures return borrowed admin
-		// handles before cleanup. Reset SQL uses its own pristine pinned connection,
-		// never a session that replay or a probe can mutate.
-		referenceAdmin.SetMaxIdleConns(0)
-		referenceAdmin.SetMaxIdleConns(2)
-		if _, err := referenceResetConn.ExecContext(resetCtx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
-			t.Errorf("reference schema reset: %v", err)
+		// Serialized fixtures return every borrowed admin handle before reset.
+		// Rollback and DISCARD must be separate executions: DISCARD ALL cannot
+		// run inside a transaction block, including an aborted replay.
+		conn, err := referenceAdmin.Conn(resetCtx)
+		if err != nil {
+			t.Errorf("reference reset connection: %v", err)
+			return
+		}
+		defer func() {
+			if err := conn.Close(); err != nil {
+				t.Errorf("reference reset connection close: %v", err)
+			}
+		}()
+		for _, query := range []string{"ROLLBACK", "DISCARD ALL", "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"} {
+			if _, err := conn.ExecContext(resetCtx, query); err != nil {
+				t.Errorf("reference schema reset %s: %v", query, err)
+				return
+			}
 		}
 	}
 	reset()
