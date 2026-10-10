@@ -55,6 +55,18 @@ release, replacement identity/all five defaults0, and healthy INSERT9 affected1
 with exact final INT4 rows7,9 and no99/private8/blocked8 replay. Reference selectors
 do not replace this executable gate; see [testing](docs/TESTING.md).
 
+Change note: permanent `CREATE/DROP MATERIALIZED VIEW` stores a typed query
+result, including duplicate and NULL occurrences, independently of later base
+writes. `WITH NO DATA` retains the definition but reads fail55000; public DML
+fails42809. Native Dump/Restore preserves the exact stale rows and population
+bit through a Restore-only comment snapshot, not REFRESH or writable MVs.
+PostgreSQL replay of the emitted script restores definitions unpopulated.
+See [materialized views](docs/TABLES.md#materialized-views--change-note).
+Feature smoke (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceMaterializedViewFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMaterializedViewFeatureSmoke$' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
 documented eight/four columns with exact current schema/name/owner identities.
 Both disclose underlying objects independent of privileges and search_path, unlike
@@ -546,7 +558,7 @@ other valid columns give only the key expression or included column name, and
 invalid columns give empty text. Text view arguments resolve relation names, not
 numeric OIDs. Ordinary views and existing simple, expression-key and UNIQUE
 backing indexes are covered, including ordinary indexes with INCLUDE payload.
-Materialized-view DDL remains excluded. Partial index predicates are supported
+Materialized-view ALTER, indexes and REFRESH remain excluded. Partial index predicates are supported
 through the same current-name index introspection and control paths.
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`

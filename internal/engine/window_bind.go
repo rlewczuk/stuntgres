@@ -372,7 +372,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 		if err != nil {
 			return err
 		}
-		if b.noParameters {
+		if b.noParameters || b.materializedDefinition {
 			ordinal := 0
 			path := viewLiteralPath{query: b.frameID(), clause: viewWindowLiteral, target: definitionIndex}
 			for i, key := range definition.Spec.Partition {

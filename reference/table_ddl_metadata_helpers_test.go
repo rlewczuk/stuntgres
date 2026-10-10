@@ -62,6 +62,11 @@ func referenceTableDDLColumnTypes(t *testing.T, postgres bool, columns []*sql.Co
 			if postgres {
 				scan = reflect.TypeFor[any]()
 			}
+		case "NAME":
+			scan = reflect.TypeFor[string]()
+			if postgres {
+				scan = reflect.TypeFor[any]()
+			}
 		case "TEXT", "VARCHAR":
 			scan = reflect.TypeFor[string]()
 		default:

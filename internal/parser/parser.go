@@ -23,6 +23,8 @@ type Options struct {
 	StandardConformingStrings bool
 	Context                   context.Context
 	Notice                    func(sqlstate.Error)
+	// LineComment is a trusted import hook; ordinary SQL leaves it nil.
+	LineComment func(string) error
 }
 
 func ParseWithOptions(query string, options Options) ([]Statement, error) {
@@ -72,6 +74,12 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 		var viewQuery *Select
 		if view, ok := statement.(*CreateView); ok {
 			viewQuery = LeftmostSelect(view.Query)
+		}
+		if creation, ok := statement.(*CreateQueryTable); ok && creation.Form == CreateMaterializedView {
+			viewQuery = LeftmostSelect(creation.Query)
+			if viewQuery != nil && viewQuery.Into != nil {
+				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "materialized views must not contain SELECT INTO"}
+			}
 		}
 		if err := VisitQuerySources(statement, func(query *Select) error {
 			if query.Set != nil {

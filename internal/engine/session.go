@@ -130,6 +130,7 @@ type Operation struct {
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
 	restoreCommentAuthority bool
+	materializedPopulation  bool // Operation-local execution path, never session settings.
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {

@@ -245,7 +245,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	// FROM preorder is shared with the renderer. Capture the namespace after
 	// aliases and USING have been applied, before a parent rebases its slots.
 	ordinal := -1
-	if b.noParameters && item != nil {
+	if (b.noParameters || b.materializedDefinition) && item != nil {
 		ordinal = len(b.viewNamespaces)
 		b.viewNamespaces = append(b.viewNamespaces, viewNamespace{})
 		defer func() {
@@ -372,7 +372,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
-			if b.noParameters {
+			if b.noParameters || b.materializedDefinition {
 				if err := b.captureViewLiterals(n.On, join.predicate, viewJoinLiteral, joinOrdinal); err != nil {
 					return nil, queryNamespace{}, err
 				}

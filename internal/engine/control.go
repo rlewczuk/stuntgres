@@ -95,6 +95,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		owner, sql string
 	}
 	var views []dumpView
+	var materialized []dumpRelation
 	var indexes []dumpView
 	viewDependencies := make(map[OID][]OID)
 	viewIndices := make(map[OID]int)
@@ -294,7 +295,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if r.view != nil {
-			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state}, viewPresentation{columns: r.columns})
+			// Materialized definitions preserve their analyzed presentation
+			// without injecting synthetic source aliases during replay. A nil
+			// path qualifies identities for portable, executable dump SQL.
+			presentation := viewPresentation{columns: r.columns, deparse: r.relationKind == materializedViewRelation}
+			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state}, presentation)
 			if err != nil {
 				e.mu.Unlock()
 				return err
@@ -309,6 +314,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			sql := "CREATE VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns +
 				fmt.Sprintf(" WITH (security_barrier=%t, security_invoker=%t) AS ", r.view.barrier, r.view.invoker) + body + ";\n"
+			if r.relationKind == materializedViewRelation {
+				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns + " AS " + body + " WITH NO DATA;\n"
+				storage := e.storage[a]
+				if storage == nil {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: materialized view storage is missing")
+				}
+				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, descriptor: r})
+			}
 			// Capture every source occurrence and expression dependency from the
 			// same immutable catalog used to render the definition. Attribute
 			// references depend on their parent relation, not its column OID.
@@ -757,6 +771,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	slices.SortFunc(materialized, func(a, b dumpRelation) int {
+		if order := strings.Compare(a.schema, b.schema); order != 0 {
+			return order
+		}
+		return strings.Compare(a.name, b.name)
+	})
+	for i := range materialized {
+		if err := materialized[i].emitMaterializedSnapshot(ctx, catalog, emit); err != nil {
+			return err
+		}
+	}
 	return ctx.Err()
 }
 
@@ -790,7 +815,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true})
+	var snapshots []materializedSnapshot
+	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string) error {
+		record, recognized, err := decodeMaterializedSnapshot(comment)
+		if err == nil && recognized {
+			snapshots = append(snapshots, record)
+		}
+		return err
+	}})
 	if err != nil {
 		return err
 	}
@@ -837,6 +869,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain:
 		case *parser.CreateView:
+		case *parser.CreateQueryTable:
+			if s.Form != parser.CreateMaterializedView || !s.NoData {
+				return sqlError("0A000", "restore accepts only unpopulated materialized view definitions")
+			}
 		case *parser.CreateIndex:
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {
@@ -908,6 +944,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if _, ok := stmt.(*parser.CreateIndex); ok {
 			op.restoreTableDestination = true
 		}
+		if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView {
+			op.restoreTableDestination = true
+		}
 		op.restoreInsertAuthority = false
 		if _, ok := stmt.(*parser.Insert); ok {
 			op.restoreInsertAuthority = true
@@ -934,6 +973,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return err
 			}
 		}
+	}
+	if err := stage.importMaterializedSnapshots(ctx, op, snapshots); err != nil {
+		return err
 	}
 	_, err = e.replaceCatalog(ctx, stage.CatalogRead(), op)
 	return err

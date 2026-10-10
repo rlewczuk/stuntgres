@@ -40,11 +40,16 @@ func tableKind(d *relationDescriptor, operation string) error {
 	if d.relationKind == compositeRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for composite types."}
 	}
+	if d.relationKind == materializedViewRelation && operation == "change" {
+		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.name))
+	}
 	if operation == "ADD COLUMN" {
 		kind := ""
 		switch d.relationKind {
 		case viewRelation:
 			kind = "views"
+		case materializedViewRelation:
+			kind = "materialized views"
 		case indexRelation:
 			kind = "indexes"
 		case sequenceRelation:
@@ -53,6 +58,9 @@ func tableKind(d *relationDescriptor, operation string) error {
 		if kind != "" {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ADD COLUMN cannot be performed on relation "%s"`, d.name), Detail: "This operation is not supported for " + kind + "."}
 		}
+	}
+	if d.relationKind == materializedViewRelation {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for materialized views."}
 	}
 	if d.relationKind == indexRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for indexes."}

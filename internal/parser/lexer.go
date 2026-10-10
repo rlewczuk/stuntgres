@@ -144,8 +144,15 @@ func (l *lexer) skip(allowBlock bool) bool {
 		}
 		if strings.HasPrefix(l.input[l.offset:], "--") {
 			l.offset += 2
+			start := l.offset
 			for l.offset < len(l.input) && l.input[l.offset] != '\n' && l.input[l.offset] != '\r' {
 				l.offset++
+			}
+			if l.options.LineComment != nil {
+				if err := l.options.LineComment(l.input[start:l.offset]); err != nil {
+					l.err = err
+					return newline
+				}
 			}
 			continue
 		}

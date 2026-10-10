@@ -98,7 +98,7 @@ func compositeMembers(relation *relationDescriptor) []sqltype.CompositeMember {
 }
 
 func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescriptor) error {
-	if relation.relationKind != tableRelation && relation.relationKind != viewRelation && relation.relationKind != compositeRelation || relation.rowType != 0 {
+	if !relation.relationKind.stored() && relation.relationKind != viewRelation && relation.relationKind != compositeRelation || relation.rowType != 0 {
 		return nil
 	}
 	arrayID, err := e.allocateOIDLocked()

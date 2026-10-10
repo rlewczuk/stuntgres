@@ -123,7 +123,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				}
 				if d.view != nil {
 					if viewDepends(d, target) {
-						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "view " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: relationDiagnosticKind(d) + " " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
 					}
 					continue
 				}

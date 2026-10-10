@@ -82,7 +82,7 @@ func representedSummaryTable(oid OID) bool {
 	return false
 }
 
-func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, value) }
@@ -103,7 +103,11 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 			if relation.relationKind != tableRelation && !builtinTable {
 				continue
 			}
-		} else if relation.view == nil && builtinDefinition == "" {
+		} else if source.address.ObjectID == 12006 {
+			if relation.relationKind != materializedViewRelation {
+				continue
+			}
+		} else if relation.relationKind != viewRelation && builtinDefinition == "" {
 			continue
 		}
 		owner, err := (RoleRead{e, e.roles}).Descriptor(relation.owner)
@@ -122,13 +126,18 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		} else {
 			definition := builtinDefinition
 			if relation.view != nil {
-				definition, err = relation.view.selectSQL(ctx, catalog, viewPresentation{columns: relation.columns})
+				presentation.columns = relation.columns
+				definition, err = relation.view.selectSQL(ctx, catalog, presentation)
 				if err != nil {
 					return nil, err
 				}
 				definition += ";"
 			}
-			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), text(3, definition)})
+			if source.address.ObjectID == 12006 {
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), sqltype.Null(source.columns[3].Usage.Type), boolean(4, relation.hasIndexes), boolean(5, relation.populated), text(6, definition)})
+			} else {
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), text(3, definition)})
+			}
 		}
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil
@@ -141,6 +150,18 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 // In particular native pg_indexes retains its separately documented ACL policy.
 func representedSummaryViewDefinition(oid OID) string {
 	switch oid {
+	case 12006:
+		return ` SELECT n.nspname AS schemaname,
+    c.relname AS matviewname,
+    pg_get_userbyid(c.relowner) AS matviewowner,
+    t.spcname AS tablespace,
+    c.relhasindex AS hasindexes,
+    c.relispopulated AS ispopulated,
+    pg_get_viewdef(c.oid) AS definition
+   FROM ((pg_class c
+     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+     LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
+  WHERE (c.relkind = 'm'::"char");`
 	case 12002:
 		return ` SELECT n.nspname AS schemaname,
     c.relname AS tablename,

@@ -108,6 +108,7 @@ type relationDescriptor struct {
 	onCommit           parser.OnCommitAction
 	sequence           *sequenceOptions
 	view               *viewDefinition
+	populated          bool // Independent of stored row count, including populated-empty MVs.
 	virtualView        bool
 	sqlIndex           *indexDefinition
 	rowType            sqltype.ID
@@ -213,7 +214,10 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.virtualView && r.relationKind != catalogRelation {
 		return fmt.Errorf("stuntgres: virtual view requires a catalog source")
 	}
-	if r.relationKind == tableRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation {
+	if r.populated && r.relationKind != materializedViewRelation || r.view != nil && r.relationKind != viewRelation && r.relationKind != materializedViewRelation {
+		return fmt.Errorf("stuntgres: invalid stored definition kind")
+	}
+	if r.relationKind.stored() || r.relationKind == viewRelation || r.relationKind == compositeRelation {
 		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
@@ -284,7 +288,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		return nil
 	}
-	if r.relationKind == viewRelation {
+	if r.relationKind == viewRelation || r.relationKind == materializedViewRelation {
 		return validateViewDefinition(v, r)
 	}
 	names := make(map[string]bool, len(r.notNullConstraints))
@@ -980,7 +984,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		for a, d := range s.descriptors {
 			next.descriptors[a] = d
-			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == tableRelation && storage[a] == nil {
+			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind.stored() && storage[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
 					storage[a] = initial
 				} else {
@@ -1275,7 +1279,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	var next *catalogState
 	relationAddresses := make([]ObjectAddress, 0, len(replacement.state.descriptors))
 	for a, d := range replacement.state.descriptors {
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == tableRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.relationKind.stored() {
 			relationAddresses = append(relationAddresses, a)
 		}
 	}

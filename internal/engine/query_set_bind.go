@@ -34,7 +34,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 	if unknown, ok := original.(unknownOutput); ok {
 		arm.expressions[slot] = node
 		arm.querySchema[slot].Usage = node.ResultUsage()
-		if b.noParameters {
+		if b.noParameters || b.materializedDefinition {
 			for i, raw := range arm.syntax.Targets {
 				if raw == unknown.raw {
 					if err := b.captureViewLiterals(raw, node, viewTargetLiteral, i); err != nil {
@@ -199,7 +199,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []BoundE
 				return nil, d
 			}
 		}
-		if b.noParameters && !ordinal {
+		if (b.noParameters || b.materializedDefinition) && !ordinal {
 			if err := b.captureViewLiterals(raw.Expr, projection[slot], viewOrderLiteral, i); err != nil {
 				return nil, err
 			}

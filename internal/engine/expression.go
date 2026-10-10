@@ -1098,6 +1098,9 @@ type expressionBinder struct {
 	groupSubquery              bool
 	viewValuesCount            int
 	noParameters               bool
+	// Materialized definitions need frozen renderer metadata while retaining
+	// their distinct, post-analysis bound-parameter diagnostic.
+	materializedDefinition bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
 	checkLiterals         []literalExpression

@@ -49,6 +49,60 @@ This is the authoritative test-placement and implementation workflow.
   fixture resets `public`, not every nonpublic schema; unrelated same-name
   objects can legitimately remain outside the scenario's search path.
 
+The affected visibility utility-boundary scenarios now assert supported MV
+creation/count/stored rows and cleanup in both backends, instead of obsolete
+native syntax rejection. Validate those changed contracts in both modes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$' VERBOSE=0`
+and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$' VERBOSE=0`
+(900 seconds each).
+
+Materialized-view coverage uses the same public dual-mode scenarios:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceMaterializedView' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMaterializedView' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceMaterializedViewFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMaterializedViewFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestMaterializedView' VERBOSE=0
+```
+
+Each quickcheck has a 900-second deadline. Independently specified bags retain
+duplicate/NULL rows after base changes, distinguish empty/populated/no-data
+states, and assert complete55000/42809/42501/25006 diagnostics, real cursor
+metadata, dependency DROP, source/drop lock timeouts and atomic failure.
+RestrictedSearchPath uses supported CURRENT_SCHEMA: population sees pg_catalog
+while binding the original public source; SHOW and subsequent CURRENT_SCHEMA
+still see public. Changed goldens require pinned oracle evidence, not native output.
+Native controls assert exact stale rows after two cycles/fresh Driver/second pool,
+including RestoreTemporary collisions. PostgreSQL replay of the actual emitted
+script asserts definitions and unpopulated55000, never stale-row parity.
+Native precanceled CREATE guarantees no publication; lib/pq may complete a fast
+CREATE despite an already-canceled context. Shared lock-timeout cases retain
+portable atomicity assertions. Private units cover real descriptor/staging,
+frozen identities, strict codec/import and opt-in lexical comment boundaries.
+Review-remedy regressions use
+`RUN='^TestReferenceMaterializedView(KeywordTypes|SnapshotTypmods)$'` with both
+`make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds each).
+They preserve unquoted `materialized` type/schema legality and reject native
+lossy snapshot coercions atomically beside genuine-Dump positives. NUMERIC
+assertions use exact decimal driver transport, not numeric-to-text SQL casts.
+KeywordTypes independently asserts native DROP TYPE's existing0A000 utility
+exclusion; fixture reset and supported DROP SCHEMA CASCADE clean up native enum
+types. Declaration, unquoted type references and cast legality remain shared.
+Recursive/specialized snapshot scenarios use
+`RUN='^TestReferenceMaterializedView(RecursiveSnapshots|TemporalSnapshots)$'`
+with both `make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds each).
+Independently expected raw domain/enum/constrained-array/composite values and
+metadata precede native genuine-Dump restoration, reminted identities, retained
+MV cursors and atomic malformed recursive payload rejection. Temporal coverage
+includes both infinities and converted TIMETZ int32-displacement endpoints; the
+endpoint's TEXT representation is intentional because pq cannot construct its
+raw invalid-Location time.Time. Normal SQL expectations are shared; no PostgreSQL
+Restore API or native stored-row parity from PostgreSQL script replay is invented.
+
 Timezone lookup coverage uses `RUN='^TestReferenceTimezoneViews'` in both
 `make quickcheck PACKAGES=./reference` and
 `make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds per invocation).

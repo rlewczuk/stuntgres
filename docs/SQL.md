@@ -401,6 +401,40 @@ Serialization does not evaluate defaults or widen ordinary grouped-comparison
 admission; restored defaults retain typed NULL and deferred errors.
 
 
+## Materialized views — change note
+
+```sql
+CREATE MATERIALIZED VIEW [IF NOT EXISTS] name [(column_names)]
+  AS query [WITH [NO] DATA];
+DROP MATERIALIZED VIEW [IF EXISTS] name [, ...] [RESTRICT | CASCADE];
+```
+
+Permanent SELECT/VALUES producers reuse the ordinary typed query pipeline.
+Default/WITH DATA executes once and atomically publishes the complete stored
+bag; WITH NO DATA analyzes without evaluating the producer. Prepare publishes
+nothing. Prefix column aliases, frozen star expansion, output types/typmods,
+nullable columns, ownership and dependency identities are retained.
+Frozen analysis captures literal, column/frame and namespace occurrences across
+the existing SELECT/VALUES, join, grouping, window, set-operation and limit
+producers. This capture is independent of parameter policy: typed bound
+parameters still fail0A000 after analysis, before any definition publication.
+Population evaluates with operation-local `pg_catalog,pg_temp` search_path,
+after binding sources in the caller's original namespace. Caller settings
+are unchanged, including after failure.
+
+Reads require the materialization's privileges, not renewed source privileges,
+and do not evaluate its definition. Unpopulated demanded reads fail55000 with
+`materialized view "<name>" has not been populated` and the PostgreSQL REFRESH
+hint; REFRESH itself is not supported. Valid-owner INSERT/UPDATE/DELETE fail42809
+`cannot change materialized view "<name>"`; semantic, ACL and read-only errors
+retain their ordinary precedence. Row-lock requests fail42809.
+Grouped DROP preflights every target before one publication. RESTRICT/CASCADE
+retain ordinary frozen-definition dependency behavior without dropping sources.
+
+No runtime parameters, temporary MV/source, OR REPLACE, MV ALTER/index/REFRESH,
+storage options, access methods or tablespaces are added. Existing producer and
+explicit-transaction utility exclusions remain. See [lifecycle and persistence](TABLES.md#materialized-views--change-note).
+
 ## Views
 
 `CREATE [OR REPLACE] VIEW` stores an immutable, identity-bound definition analyzed by the
@@ -563,9 +597,10 @@ Queryable catalog sources have this deliberately bounded exact schema:
 
 | Source | Columns and PostgreSQL logical types |
 |---|---|
-| `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL` |
+| `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL`, `relispopulated BOOL` |
 | `pg_catalog.pg_rewrite` | `oid OID`, `rulename NAME`, `ev_class OID`, `ev_type CHAR`, `ev_enabled CHAR`, `is_instead BOOL` |
 | `pg_catalog.pg_views` | `schemaname NAME`, `viewname NAME`, `viewowner NAME`, `definition TEXT` |
+| `pg_catalog.pg_matviews` | `schemaname NAME`, `matviewname NAME`, `matviewowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `ispopulated BOOL`, `definition TEXT` |
 | `pg_catalog.pg_tables` | `schemaname NAME`, `tablename NAME`, `tableowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `hasrules BOOL`, `hastriggers BOOL`, `rowsecurity BOOL` |
 | `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |

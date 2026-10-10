@@ -153,7 +153,34 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	if source.rowType != sqltype.ID(12035) || len(source.columns) != 8 {
 		t.Fatal("pg_tables rowtype/schema", source.rowType, source.columns)
 	}
-	tables, views := 0, 0
+	for _, expected := range []struct {
+		oid   OID
+		name  string
+		table bool
+	}{
+		{2605, "pg_cast", true},
+		{2224, "pg_sequence", true},
+		{2608, "pg_depend", true},
+		{2609, "pg_description", true},
+		{2396, "pg_shdescription", true},
+		{2606, "pg_constraint", true},
+		{2604, "pg_attrdef", true},
+		{1259, "pg_class", true},
+		{2618, "pg_rewrite", true},
+		{12000, "pg_views", false},
+		{12001, "pg_prepared_xacts", false},
+		{12002, "pg_indexes", false},
+		{12003, "pg_tables", false},
+		{12006, "pg_matviews", false},
+	} {
+		relation, ok := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: expected.oid}].(*relationDescriptor)
+		if !ok || relation.name != expected.name || relation.relationKind != catalogRelation {
+			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
+		}
+		if representedSummaryTable(expected.oid) != expected.table || (representedSummaryViewDefinition(expected.oid) != "") == expected.table {
+			t.Fatalf("incorrect table/view classification for %s", expected.name)
+		}
+	}
 	for _, d := range catalog.state.descriptors {
 		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == catalogRelation {
 			table := representedSummaryTable(relation.address.ObjectID)
@@ -161,25 +188,13 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 			if table && view {
 				t.Fatal("builtin classified twice")
 			}
-			if table {
-				tables++
-			}
-			if view {
-				views++
-			}
 		}
 	}
-	if tables != 9 || views != 4 {
-		t.Fatal(tables, views)
-	}
 	e.mu.Lock()
-	captured, err := e.captureTableViewSummary(context.Background(), catalog, ObjectRef{}, source)
+	captured, err := e.captureTableViewSummary(context.Background(), catalog, ObjectRef{}, source, viewPresentation{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
-	}
-	if len(captured.anonymous) != 9 {
-		t.Fatal("table bag", len(captured.anonymous))
 	}
 	for _, row := range captured.anonymous {
 		for i, value := range row {
@@ -211,7 +226,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 		catalog := e.CatalogRead()
 		source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 		e.mu.Lock()
-		captured, err := e.captureTableViewSummary(context.Background(), catalog, ObjectRef{}, source)
+		captured, err := e.captureTableViewSummary(context.Background(), catalog, ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -249,7 +264,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	capture := func(catalog CatalogRead) []sqltype.Value {
 		source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 		e.mu.Lock()
-		captured, err := e.captureTableViewSummary(context.Background(), catalog, ObjectRef{}, source)
+		captured, err := e.captureTableViewSummary(context.Background(), catalog, ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

@@ -124,7 +124,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 }
 
 func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.CoercionPlan, info expressionInfo) (BoundExpr, bool, error) {
-	if info.usage.Type.BaseType().ID() != sqltype.Regtype || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters) {
+	if info.usage.Type.BaseType().ID() != sqltype.Regtype || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
 		return nil, false, nil
 	}
 	p := child.Properties()

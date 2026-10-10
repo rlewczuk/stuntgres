@@ -254,6 +254,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			err = e.publishQueryTable(scope, creationStage)
 			return Result{}, err
 		}
+		if creation.Form == parser.CreateMaterializedView {
+			op.materializedPopulation = true
+			defer func() { op.materializedPopulation = false }()
+		}
 	}
 	expressions := b.expressions
 	expressionsChanged := false
@@ -385,9 +389,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
-		if err := tableKind(b.relation, "change"); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
+		if b.relation.relationKind != materializedViewRelation {
+			if err := tableKind(b.relation, "change"); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 		}
 	}
 	// Released MERGE checks read-only after analysis/planning conversions, but
@@ -412,7 +418,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if scope.owner.readOnly {
 		if selecting {
 			for _, leaf := range b.querySources {
-				if leaf.mark.mode != 0 && leaf.relation.view != nil {
+				if leaf.mark.mode != 0 && leaf.relation.relationKind == viewRelation {
 					tag = "SELECT"
 					break
 				}
@@ -432,6 +438,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if scope.owner.readOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
+	}
+	if b.relation != nil && b.relation.relationKind == materializedViewRelation {
+		switch stmt.(type) {
+		case *parser.Insert, *parser.Update, *parser.Delete:
+			e.mu.Unlock()
+			return Result{}, tableKind(b.relation, "change")
+		}
 	}
 	if b.query != nil || b.subqueryDemand || len(b.querySources) != 0 {
 		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.querySources); err != nil {

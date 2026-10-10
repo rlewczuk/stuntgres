@@ -618,7 +618,7 @@ See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 Readonly `pg_tables`/`pg_views` use their documented PostgreSQL18 eight/four
 fields and exact unfiltered underlying-object disclosure, independent of actor
 and search_path. They summarize supported ordinary tables and stored views plus
-the explicitly represented nine system tables/four system views; this does not
+the explicitly represented nine system tables/five system views; this does not
 promise a full PostgreSQL catalog inventory or change `pg_class` kinds.
 Tables retain sticky index-publication history after DROP. Native admitted user
 tables have default NULL tablespace and false rule/trigger/RLS states; no success
@@ -653,8 +653,36 @@ ambiguous calls report42725, missing signatures42883. Names use normal captured
 relation lookup; missing OIDs/nonmatching kinds yield NULL, missing text names
 error. Invalid nonzero index columns yield nonnull empty TEXT. Pretty/width
 rendering is structural and executable, not original SQL or view evaluation.
-Ordinary views and simple/expression/partial/INCLUDE/UNIQUE backing indexes use
-the current-name renderers; materialized-view DDL remains excluded.
+Ordinary and materialized views and simple/expression/partial/INCLUDE/UNIQUE backing
+indexes use the current-name renderers.
+
+### Materialized-view metadata — change note
+
+Permanent materializations expose `pg_class.relkind='m'`, their real owner,
+namespace, column count and `_RETURN` rule. `relhasrules` is true;
+`relispopulated` distinguishes populated empty results from WITH NO DATA and is
+true for other represented relation kinds. `pg_get_viewdef` renders the frozen
+definition without evaluating it.
+
+`pg_catalog.pg_matviews` exposes exactly seven columns: `schemaname NAME`,
+`matviewname NAME`, `matviewowner NAME`, `tablespace NAME`, `hasindexes BOOL`,
+`ispopulated BOOL`, `definition TEXT`. Default tablespace is NULL and indexes
+are false within this scope. Like pg_views, membership discloses represented
+objects independently of privileges and search_path. The materialized definition
+uses the existing PostgreSQL presentation renderer and captured search_path for
+qualification. Dump uses that renderer with fully qualified identities so native
+replay preserves the definition's presentation without synthetic source aliases.
+MVs do not appear as
+ordinary pg_tables/pg_views rows. No full catalogs, physical statistics, public
+MV indexes, ALTER or REFRESH are added. Native persistence preserves exact stale
+rows privately; PostgreSQL dump-script replay deliberately restores only
+unpopulated definitions. See [native controls](TABLES.md#materialized-views--change-note).
+The bounded surface does not add pg_namespace, pg_roles or pg_attribute query
+providers: exact schema/owner names come from pg_matviews, while existing
+pg_class/pg_rewrite identities expose namespace/owner relationships and rule
+links without promising allocator-specific OIDs. Frozen REGTYPE constants use
+the existing typed identity output/remapping authority when deparsed, including
+associated row types whose identities are reminted during native replacement.
 
 ### Owned sequence introspection — change note
 

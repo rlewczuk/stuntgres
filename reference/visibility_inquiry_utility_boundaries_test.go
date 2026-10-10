@@ -49,14 +49,19 @@ func TestReferenceVisibilityInquiryUtilityBoundaries(t *testing.T) {
 					run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 					continue
 				}
+				if strings.HasPrefix(q, "CREATE MATERIALIZED") {
+					run(referenceExec(q, 1))
+					run(referenceSelect("SELECT id FROM mv", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					run(referenceExec("DROP MATERIALIZED VIEW mv", 0))
+					run(referenceSelect("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+					run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					continue
+				}
 				if backend.pg {
 					switch {
 					case strings.HasPrefix(q, "CREATE FOREIGN"):
 						want := controlsReferenceDiagnostic("42704", `server "unavailable" does not exist`)
 						run(referenceErrorDiagnostic(q, want))
-					case strings.HasPrefix(q, "CREATE MATERIALIZED"):
-						run(referenceExec(q, 1))
-						run(referenceSelect("SELECT id FROM mv", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 					default:
 						run(referenceExec(q, 0))
 					}

@@ -139,7 +139,7 @@ package parser
 %token <tok> LIMIT OFFSET FETCH
 %token <tok> DECLARE CURSOR CLOSE SCROLL HOLD FORWARD BACKWARD ABSOLUTE RELATIVE
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
-%token <tok> CROSS INNER JOIN NATURAL USING VIEW LEFT RIGHT FULL OUTER
+%token <tok> CROSS INNER JOIN NATURAL USING VIEW MATERIALIZED LEFT RIGHT FULL OUTER
 %token <tok> DELETE
 %token <tok> MERGE MATCHED SOURCE TARGET DO NOTHING
 %token <tok> CONFLICT ON_CONFLICT_LA
@@ -221,7 +221,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX ADMIN INHERIT OPTION GRANTED REVOKE '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE '.'
 %nonassoc FRAME_EDGE FRAME_START
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -713,6 +713,10 @@ query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
  | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
  | CREATE TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$6,Columns:$8,Pos:$1.pos,IfNotExists:true}}
+ | CREATE MATERIALIZED VIEW relation_name {$$=&CreateQueryTable{Name:$4,Pos:$1.pos,Form:CreateMaterializedView}}
+ | CREATE MATERIALIZED VIEW relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos,Form:CreateMaterializedView}}
+ | CREATE MATERIALIZED VIEW IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true,Form:CreateMaterializedView}}
+ | CREATE MATERIALIZED VIEW IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true,Form:CreateMaterializedView}}
  | CREATE TEMP TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Pos:$1.pos}}
  | CREATE TEMP TABLE relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos}}
  | CREATE TEMP TABLE IF NOT EXISTS relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true}}
@@ -745,7 +749,9 @@ alter_view: view_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identif
  | view_alter_head ALTER optional_column name SET DEFAULT target_or {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1}
  | view_alter_head ALTER optional_column name DROP DEFAULT {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1} ;
 drop_view: DROP VIEW relation_names drop_mode {$$=&DropView{Names:$3,Mode:$4,Pos:$1.pos}}
- | DROP VIEW IF EXISTS relation_names drop_mode {$$=&DropView{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+ | DROP VIEW IF EXISTS relation_names drop_mode {$$=&DropView{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
+ | DROP MATERIALIZED VIEW relation_names drop_mode {$$=&DropView{Names:$4,Mode:$5,Pos:$1.pos,Materialized:true}}
+ | DROP MATERIALIZED VIEW IF EXISTS relation_names drop_mode {$$=&DropView{Names:$6,IfExists:true,Mode:$7,Pos:$1.pos,Materialized:true}} ;
 view_columns: /* empty */ { $$=nil } | '(' view_names ')' { $$=$2 } ;
 view_names: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} } | view_names ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 view_options: /* empty */ { $$=nil } | WITH '(' view_option_list ')' { $$=$3 } ;
@@ -1635,6 +1641,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | ROLE_PASSWORD | ROLE_CONNECTION | ROLE_VALID | ROLE_ENCRYPTED | ROLE_UNENCRYPTED
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
  | GROUPING | SETS | ROLLUP | CUBE
+ | MATERIALIZED
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
@@ -1658,6 +1665,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
  | SIMILAR
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
@@ -1668,6 +1676,7 @@ generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH 
  | membership_keyword
  | SIMILAR
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate

@@ -335,7 +335,7 @@ var keywords = [...]keyword{
 	{"mapping", Unreserved, true, 0},
 	{"match", Unreserved, true, 0},
 	{"matched", Unreserved, true, MATCHED},
-	{"materialized", Unreserved, true, 0},
+	{"materialized", Unreserved, true, MATERIALIZED},
 	{"maxvalue", Unreserved, true, MAXVALUE},
 	{"merge", Unreserved, true, MERGE},
 	{"merge_action", ColumnName, true, 0},

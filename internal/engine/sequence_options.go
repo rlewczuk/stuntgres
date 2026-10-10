@@ -16,7 +16,12 @@ const (
 	catalogRelation
 	indexRelation
 	compositeRelation
+	materializedViewRelation
 )
+
+func (k relationKind) stored() bool {
+	return k == tableRelation || k == materializedViewRelation
+}
 
 type sequenceOptions struct {
 	typ                               sqltype.ID

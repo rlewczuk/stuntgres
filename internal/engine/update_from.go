@@ -25,7 +25,7 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 		if !ok || ref.owner != e.owner || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
-		if relation.view != nil {
+		if relation.relationKind == viewRelation {
 			if visited[ref] {
 				return nil
 			}
@@ -39,7 +39,7 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 				}
 			}
 		}
-		if relation.relationKind == tableRelation {
+		if relation.relationKind.stored() {
 			for _, prior := range refs {
 				if prior == ref {
 					return nil

@@ -132,7 +132,7 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.address.ObjectID, checkOrdinal: edge.check.ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: "view " + dependencyRelationName(catalog, edge.view, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
 	}
 	slices.SortFunc(dependents, func(a, b supportedDependent) int { return cmp.Compare(a.oid, b.oid) })
 	// CHECK OIDs can be assigned in enforcement/name order. Permute only their

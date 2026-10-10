@@ -179,6 +179,7 @@ type QueryTableForm uint8
 const (
 	CreateTableAs QueryTableForm = iota
 	SelectInto
+	CreateMaterializedView
 )
 
 type CreateQueryTable struct {
@@ -258,10 +259,11 @@ type AlterView struct {
 func (*AlterView) statement() {}
 
 type DropView struct {
-	Names    []ObjectName
-	IfExists bool
-	Mode     DropMode
-	Pos      Position
+	Names        []ObjectName
+	IfExists     bool
+	Mode         DropMode
+	Pos          Position
+	Materialized bool
 }
 
 func (*DropView) statement() {}

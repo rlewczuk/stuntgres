@@ -413,6 +413,19 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
 	}
+	if env.ExactSnapshot && typmod >= 0 {
+		value, err := d.InputWithEnvironment(ctx, text, -1, env)
+		if err != nil {
+			return Value{}, err
+		}
+		target := d.Usage()
+		target.Typmod = typmod
+		plan, err := PlanCoercion(d.Usage(), target, Assignment)
+		if err != nil {
+			return Value{}, err
+		}
+		return plan.Apply(ctx, value, env, OutputEnvironment{})
+	}
 	if d.IsArray() {
 		if err := validateCharacterInput(text); err != nil {
 			return Value{}, err
@@ -1231,6 +1244,13 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	return p, failure("42804", "incompatible source and destination types")
 }
 func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
+	if input.ExactSnapshot {
+		return p.applyExactSnapshot(ctx, v, input, output)
+	}
+	return p.applyBaseUnchecked(ctx, v, input, output)
+}
+
+func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}

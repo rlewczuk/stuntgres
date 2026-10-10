@@ -340,8 +340,9 @@ type AuthorizationView struct {
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ObjectAddress
 	// An owned TEMP table builder may see its namespace before session publication.
-	stagedTemporary ObjectAddress
-	session         *Session
+	stagedTemporary        ObjectAddress
+	session                *Session
+	materializedPopulation bool
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.
@@ -355,6 +356,13 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore view authority")
+		}
+		auth.state.CurrentUser = bootstrap.Ref
+	}
+	if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView && op.restoreTableDestination {
+		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore materialized view authority")
 		}
 		auth.state.CurrentUser = bootstrap.Ref
 	}
@@ -425,7 +433,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if s.transactions != nil {
 		view = e.privateCatalogLocked(s.transactions.catalog)
 	}
-	return AuthorizationView{engine: e, catalog: view, roles: r, state: a.state, revision: a.revision, settings: s.settings, session: s}, nil
+	return AuthorizationView{engine: e, catalog: view, roles: r, state: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}, nil
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {
@@ -572,6 +580,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
 			kind = "view"
 		}
+		if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
+			kind = "materialized view"
+		}
 		if r, ok := d.(*relationDescriptor); ok && r.relationKind == indexRelation {
 			kind = "index"
 		}
@@ -603,6 +614,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "schema"
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		kind = "sequence"
+	}
+	if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
+		kind = "materialized view"
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
 }
@@ -755,7 +769,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if source.relation.view != nil && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
+		if source.relation.relationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
 			if err := v.checkViewRowMarks(source.relation, source.mark, v.state.CurrentUser); err != nil {
 				return err
 			}

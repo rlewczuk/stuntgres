@@ -237,7 +237,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			if err != nil {
 				return nil, err
 			}
-			if b.noParameters {
+			if b.noParameters || b.materializedDefinition {
 				if err := b.captureValuesViewLiteral(source.Rows[i][j], node, viewValuesCellLiteral, occurrence, i, j); err != nil {
 					return nil, err
 				}
@@ -267,7 +267,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	if err != nil {
 		return nil, err
 	}
-	if b.noParameters {
+	if b.noParameters || b.materializedDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
 				if err := b.captureValuesViewLiteral(key.Expr, order[i].expression, viewValuesOrderLiteral, occurrence, 0, i); err != nil {

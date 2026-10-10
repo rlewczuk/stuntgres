@@ -55,7 +55,7 @@ func (e *Engine) initializeCatalogSources() error {
 		{1259, "pg_class", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}}},
+		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}, {"relispopulated", sqltype.Bool}}},
 		{2618, "pg_rewrite", []struct {
 			name string
 			typ  sqltype.ID
@@ -76,6 +76,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"schemaname", sqltype.Name}, {"tablename", sqltype.Name}, {"tableowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"hasrules", sqltype.Bool}, {"hastriggers", sqltype.Bool}, {"rowsecurity", sqltype.Bool}}},
+		{12006, "pg_matviews", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
@@ -131,7 +135,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return capturePGDepend(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 12000 || source.address.ObjectID == 12003 {
-		return e.captureTableViewSummary(ctx, catalog, ref, source)
+		return e.captureTableViewSummary(ctx, catalog, ref, source, viewPresentation{})
 	}
 	var relations []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {
@@ -196,6 +200,8 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			kind := "r"
 			if relation.relationKind == sequenceRelation {
 				kind = "S"
+			} else if relation.relationKind == materializedViewRelation {
+				kind = "m"
 			} else if relation.relationKind == viewRelation || relation.virtualView {
 				kind = "v"
 			} else if relation.relationKind == indexRelation {
@@ -203,7 +209,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			} else if relation.relationKind == compositeRelation {
 				kind = "c"
 			}
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil)})
+			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated)})
 		case 2618:
 			if relation.view == nil {
 				continue

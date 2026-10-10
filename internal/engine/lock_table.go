@@ -29,7 +29,7 @@ func explicitLockMode(mode parser.TableLockMode) relationLockMode {
 }
 
 func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescriptor, mode relationLockMode) error {
-	if d.relationKind != tableRelation && d.view == nil {
+	if d.relationKind != tableRelation && d.relationKind != viewRelation {
 		return tableKind(d, "lock")
 	}
 	rights, err := auth.Effective(ref, false)
@@ -47,7 +47,7 @@ func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescrip
 		return nil
 	}
 	kind := "table"
-	if d.view != nil {
+	if d.relationKind == viewRelation {
 		kind = "view"
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
@@ -137,7 +137,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 	if err != nil {
 		return err
 	}
-	if d.view == nil {
+	if d.relationKind != viewRelation {
 		return nil
 	}
 	principal := d.owner
@@ -153,7 +153,10 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 		if !valid {
 			return ErrCatalogReplaced
 		}
-		if child.relationKind != tableRelation && child.view == nil {
+		if child.relationKind == materializedViewRelation {
+			return tableKind(child, "lock")
+		}
+		if child.relationKind != tableRelation && child.relationKind != viewRelation {
 			continue
 		}
 		if err := s.acquireExplicitRelation(stmt, source.ref, child.Name(), mode, policy, principal, invoker, ancestors); err != nil {

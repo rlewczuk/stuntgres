@@ -33,6 +33,9 @@ type InputEnvironment struct {
 	// TypeDiagnosticName captures coherent catalog visibility for child input
 	// errors. A nil callback or empty spelling uses immutable descriptor naming.
 	TypeDiagnosticName func(ID) string
+	// ExactSnapshot is private native-import policy. Codecs and coercions reject
+	// modifier loss throughout nested values; ordinary SQL leaves it disabled.
+	ExactSnapshot bool
 }
 
 type RegclassResolver interface {

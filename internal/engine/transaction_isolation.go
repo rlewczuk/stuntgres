@@ -285,6 +285,9 @@ func modifyingTag(stmt parser.Statement) string {
 	case *parser.AlterView:
 		return "ALTER VIEW"
 	case *parser.DropView:
+		if stmt.(*parser.DropView).Materialized {
+			return "DROP MATERIALIZED VIEW"
+		}
 		return "DROP VIEW"
 	case *parser.Select:
 		if sel := stmt.(*parser.Select); sel.Locking != nil {
@@ -305,6 +308,9 @@ func modifyingTag(stmt parser.Statement) string {
 	case *parser.Delete:
 		return "DELETE"
 	case *parser.CreateQueryTable:
+		if stmt.(*parser.CreateQueryTable).Form == parser.CreateMaterializedView {
+			return "CREATE MATERIALIZED VIEW"
+		}
 		if stmt.(*parser.CreateQueryTable).Form == parser.SelectInto {
 			return "SELECT INTO"
 		}

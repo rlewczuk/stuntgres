@@ -280,53 +280,10 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition := &viewDefinition{query: b.query, syntax: view.Query, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
-	definition.literals = b.viewLiterals
-	definition.castUsages = b.viewCastUsages
-	definition.similarSubstrings = b.viewSimilarSubstrings
-	definition.columns, definition.stars = b.viewColumns, b.viewStars
-	definition.frames, definition.queries = collectQueryFrames(b.query.Root)
-	definition.namespaces = b.viewNamespaces
-	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))
-	for _, constant := range b.sequenceConstants {
-		if constant.temporary != (SessionToken{}) {
-			e.mu.Unlock()
-			return Result{}, sqlError("0A000", "temporary views are unsupported")
-		}
-		definition.sequenceRefs[constant.offset] = constant.ref
-		if _, exists := e.state.descriptors[constant.ref.Address]; exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: constant.ref, revision: constant.stamp})
-		}
-	}
-	for _, constant := range b.regtypeConstants {
-		if constant.value.Type() != nil {
-			var references []ObjectRef
-			if err := (scalarRenderer{dependencies: &references}).recordRegtypeReferences(auth.catalog, constant.value); err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-			for _, ref := range references {
-				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.state.descriptors[ref.Address].Revision()})
-			}
-		}
-		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(constant.id)}
-		if d, exists := auth.catalog.state.descriptors[address]; exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}, revision: d.Revision()})
-		}
-	}
-	definition.sources = make([]viewLeaf, len(b.querySources))
-	for occurrence, source := range b.querySources {
-		leaf := &definition.sources[occurrence]
-		leaf.ref = source.ref
-		leaf.mark = source.mark
-		leaf.attributes = append([]int32(nil), source.relation.attributes...)
-		for _, slot := range source.uses {
-			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
-		}
-		if namespace := e.state.descriptors[source.relation.namespace].(*namespaceDescriptor); namespace.temporary != (SessionToken{}) {
-			e.mu.Unlock()
-			return Result{}, sqlError("0A000", "temporary views are unsupported")
-		}
+	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, viewRelation)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {

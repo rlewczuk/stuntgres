@@ -229,6 +229,18 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if !ok {
 			continue
 		}
+		if d.view != nil {
+			for _, leaf := range d.view.sources {
+				if err := add(leaf.ref, d); err != nil {
+					return err
+				}
+			}
+			for _, dependency := range d.view.dependencies {
+				if err := add(dependency.ref, d); err != nil {
+					return err
+				}
+			}
+		}
 		for _, c := range d.checkConstraints {
 			for _, dep := range c.dependencies {
 				if err := add(dep.ref, d); err != nil {

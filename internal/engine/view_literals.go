@@ -68,6 +68,12 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.ParameterExpr:
+		// MV parameter admission follows complete typed analysis. No such
+		// definition can publish; leave this occurrence to the later 0A000.
+		if parameter, ok := bound.(parameterExpression); b.materializedDefinition && ok && parameter.number == r.Number {
+			return nil
+		}
 	case parser.SubqueryExpr:
 		if n, ok := bound.(subqueryExpression); ok {
 			return b.captureSubqueryLeft(r.Left, n, path, ordinal)

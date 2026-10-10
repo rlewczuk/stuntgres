@@ -112,9 +112,24 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 			stage.querySources = append(stage.querySources, descriptor)
 		}
 	}
-	d, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, names)
+	owner := auth.state.CurrentUser
+	if s.Form == parser.CreateMaterializedView && op.restoreTableDestination {
+		directive, err := e.authorizationLocked(op)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		owner = directive.state.CurrentUser
+	}
+	d, err := e.newTableDescriptorLocked(ns.Address, name, owner, columns, names)
 	if err != nil {
 		return nil, nil, false, err
+	}
+	if s.Form == parser.CreateMaterializedView {
+		definition, err := e.freezeViewDefinitionLocked(auth, s.Query, b, false, false, 0, materializedViewRelation)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		d.relationKind, d.view, d.populated = materializedViewRelation, definition, !s.NoData
 	}
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, nil, false, err
@@ -174,7 +189,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
 		d, ok := s.descriptors[address].(*relationDescriptor)
-		if !ok || d.relationKind != tableRelation || s.base.state.descriptors[address] != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		if !ok || !d.relationKind.stored() || d.relationKind == materializedViewRelation && !d.populated || s.base.state.descriptors[address] != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
 		for _, row := range storage.versions {

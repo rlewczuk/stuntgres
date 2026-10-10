@@ -206,6 +206,10 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			text = regclassSpelling(r.view, r.path, OID(id))
 		}
 		return quote(text) + "::regclass", nil
+	case sqltype.Regtype:
+		// Output above resolves the typed identity through the captured
+		// catalog/path, including reminted user types after Restore.
+		return quote(text) + "::regtype", nil
 	case sqltype.Timetz:
 		return datetimeZoneTimetzDeparse(ctx, v, typ, text, quote)
 	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:

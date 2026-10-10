@@ -70,7 +70,7 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		pos := firstQueryBoundFrameVariable(expr, b.frameID())
 		return nil, expressionError("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
-	if b.noParameters && captureLiterals {
+	if (b.noParameters || b.materializedDefinition) && captureLiterals {
 		if err := b.captureViewLiterals(raw, expr, literalClause, 0); err != nil {
 			return nil, err
 		}

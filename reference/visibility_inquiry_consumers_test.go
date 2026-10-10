@@ -117,19 +117,25 @@ func TestReferenceVisibilityInquiryBoundaries(t *testing.T) {
 							run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 							continue
 						}
+						if strings.HasPrefix(q, "CREATE MATERIALIZED") {
+							for _, prepared := range []bool{false, true} {
+								creation := referenceExec(q, 1)
+								creation.prepared = prepared
+								run(creation)
+								run(referenceSelect("SELECT id FROM mv", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+								run(referenceExec("DROP MATERIALIZED VIEW mv", 0))
+							}
+							run(referenceSelect("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+							run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+							continue
+						}
 						if backend.pg {
 							s := referenceExec(q, 0)
-							if strings.HasPrefix(q, "CREATE MATERIALIZED") {
-								s.affected = 1
-							}
 							if strings.HasPrefix(q, "CREATE FOREIGN") {
 								s = referenceErrorDiagnostic(q, controlsReferenceDiagnostic("42704", `server "unavailable" does not exist`))
 								s.errorStage = "execute"
 							}
 							run(s)
-							if strings.HasPrefix(q, "CREATE MATERIALIZED") {
-								run(referenceSelect("SELECT id FROM mv", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
-							}
 						} else {
 							token := strings.Fields(q)[1]
 							want := referenceDiagnostic{Code: "42601", Message: `syntax error at or near "` + token + `"`, Position: "8"}

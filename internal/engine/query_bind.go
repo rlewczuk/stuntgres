@@ -118,7 +118,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			} else if s.From == nil {
 				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
 			}
-			if b.noParameters {
+			if b.noParameters || b.materializedDefinition {
 				if b.viewStars == nil {
 					b.viewStars = make(map[viewLiteralPath][]viewColumn)
 				}
@@ -133,7 +133,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 				projection = append(projection, expr)
 				targetNames = append(targetNames, c.descriptor.Name)
-				if b.noParameters {
+				if b.noParameters || b.materializedDefinition {
 					b.viewStars[starPath] = append(b.viewStars[starPath], viewColumn{frame: frame, slot: c.slot})
 					literalTargets = append(literalTargets, -1)
 				}
@@ -144,7 +144,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				return nil, err
 			}
 			projection = append(projection, expr)
-			if b.noParameters {
+			if b.noParameters || b.materializedDefinition {
 				literalTargets = append(literalTargets, target)
 			}
 			name, _ := expressionName(raw, expr.ResultUsage(), expr)
@@ -161,12 +161,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		if b.noParameters {
+		if b.noParameters || b.materializedDefinition {
 			if err := b.captureViewLiterals(s.Where, filter, viewWhereLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
-		if !contextual && !b.noParameters && len(s.Locking) == 0 {
+		if !contextual && !b.noParameters && !b.materializedDefinition && len(s.Locking) == 0 {
 			if source, ok := root.(*sourceNode); ok && len(b.querySources) == 1 && b.querySources[0].mark.mode == 0 {
 				b.querySources[0].partialCandidate = b.partialIndexCandidate(source.ref, filter)
 			}
@@ -187,7 +187,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		if b.noParameters {
+		if b.noParameters || b.materializedDefinition {
 			if err := b.captureViewLiterals(s.Having, having, viewHavingLiteral, 0); err != nil {
 				return nil, err
 			}
@@ -261,7 +261,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err := b.resolveWindows(); err != nil {
 		return nil, err
 	}
-	if b.noParameters && s.Order != nil {
+	if (b.noParameters || b.materializedDefinition) && s.Order != nil {
 		frozen := *s.Order
 		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
 		for i, key := range frozen.Keys {
@@ -292,7 +292,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 			projection[i] = expr
 		}
-		if b.noParameters && literalTargets[i] >= 0 && expr.ResultUsage().Type != nil {
+		if (b.noParameters || b.materializedDefinition) && literalTargets[i] >= 0 && expr.ResultUsage().Type != nil {
 			target := literalTargets[i]
 			if err := b.captureViewLiterals(s.Targets[target], expr, viewTargetLiteral, target); err != nil {
 				return nil, err

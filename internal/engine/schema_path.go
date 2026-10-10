@@ -77,13 +77,17 @@ func parseSearchPath(input string) ([]string, error) {
 // explicitPath runs under the engine mutex and captures one immutable setting value.
 func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, error) {
 	entries := e.settingsDefinitions["search_path"].bootValue.path
-	if auth.settings != nil {
+	if auth.settings != nil && !auth.materializedPopulation {
 		auth.settings.mu.Lock()
 		entries = auth.settings.typedValue("search_path").path
 		auth.settings.mu.Unlock()
 	}
+	restricted := [2]string{"pg_catalog", "pg_temp"}
+	if auth.materializedPopulation {
+		entries = restricted[:]
+	}
 	var result []ObjectAddress
-	if auth.pathPrefix != (ObjectAddress{}) {
+	if auth.pathPrefix != (ObjectAddress{}) && !auth.materializedPopulation {
 		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: auth.pathPrefix}
 		if err := auth.CanUse(ref); err != nil {
 			return nil, false, err

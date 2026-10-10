@@ -2,6 +2,47 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Materialized views — change note
+
+`CREATE MATERIALIZED VIEW saved AS SELECT i,label FROM source` creates an owned,
+permanent stored result and an identity-bound definition. Later source writes
+leave saved rows unchanged. WITH DATA/default preserves NULLs, duplicate
+multiplicity and zero-column occurrences. An empty populated result remains
+readable; WITH NO DATA is a distinct state whose demanded reads fail55000.
+The definition's source/attribute/type dependencies survive stale data and source
+renames. Ordinary views over a materialization read its stored rows, not its base.
+Public INSERT/UPDATE/DELETE never populate or modify it.
+
+Native Dump writes owner-bearing canonical CREATE MATERIALIZED VIEW ... WITH NO
+DATA in dependency order, then captures exact stored rows at the dump frontier.
+Definition SQL uses the existing identity-bound presentation renderer with
+fully qualified names, preserving the restored public definition presentation
+without adding synthetic source aliases. Ordinary view serialization is unchanged.
+A versioned SQL line comment, `-- stuntgres-matview-v1 <base64>`, carries strict
+JSON fields `schema`, `name`, `populated`, `rows`. The row text uses existing
+canonical scalar codecs; it is converted privately by Restore, never executed
+as public MV INSERT or used to reevaluate the defining query. Empty true/false
+and zero-width row occurrences remain distinct. Ordinary SQL ignores the record.
+
+Restore recognizes only genuine line comments, not marker text in string values,
+identifiers or nested block comments. It rejects malformed/duplicate records,
+wrong targets, invalid shape/type/typmod or effectful row expressions, validating
+in an isolated candidate before one catalog replacement. Read, parse, context
+and late SQL failures leave the destination catalog/data/retained rows unchanged.
+Native second-cycle/fresh-driver Restore preserves stale data, current names,
+owners, typed references and population; caller-owned TEMP objects retain their
+existing replacement contract.
+Snapshot input and every implicit, explicit, nested and assignment coercion must
+preserve the encoded datum. Modifier rounding, truncation or padding is rejected,
+including domain bases and array elements and literals folded during binding.
+Canonical domain/enum/array, temporal and symbolic-reference codecs remain valid.
+This import-only rule does not change ordinary SQL's cast or assignment semantics.
+
+PostgreSQL ignores these comments. Replaying the actual dump script there
+restores schema and frozen definitions with all MVs unpopulated, not native stale
+rows. There is no public DML bypass, REFRESH or reconstruction from current base
+data. See [syntax and exclusions](SQL.md#materialized-views--change-note).
+
 ## Query-derived tables — change note
 
 ```sql

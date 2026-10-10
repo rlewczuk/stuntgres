@@ -80,7 +80,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	}
 	var visit func(*relationDescriptor, queryRowMark, relationLockMode) (relationLockMode, error)
 	visit = func(d *relationDescriptor, inherited queryRowMark, diagnostic relationLockMode) (relationLockMode, error) {
-		if d.view == nil {
+		if d.relationKind != viewRelation {
 			if inherited.mode == 0 {
 				return 0, nil
 			}
@@ -119,7 +119,7 @@ func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 	seen := make(map[ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(d *relationDescriptor) bool {
-		if d.view == nil || seen[d.address] {
+		if d.relationKind != viewRelation || seen[d.address] {
 			return false
 		}
 		seen[d.address] = true
@@ -247,7 +247,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	scope.visibilityDemand = visibilityDemand
 	var visit func(*relationDescriptor, queryRowMark, bool) error
 	visit = func(d *relationDescriptor, inherited queryRowMark, referenceMarked bool) error {
-		if d.view != nil {
+		if d.relationKind == viewRelation {
 			if queryHasSetOutput(d.view.query.Root) {
 				referenceMarked = false
 			}
@@ -266,6 +266,9 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 				}
 			}
 			return nil
+		}
+		if (referenceMarked || inherited.mode != 0) && d.relationKind == materializedViewRelation {
+			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.name))
 		}
 		// PostgreSQL validates reference rowmark kinds even for an unselected
 		// sequence sibling. This does not confer UPDATE ACLs or tuple grants.
@@ -300,7 +303,7 @@ func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited qu
 }
 
 func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited queryRowMark, invoker PrincipalRef) error {
-	if d.view == nil {
+	if d.relationKind != viewRelation {
 		return nil
 	}
 	if err := viewRowLockLegality(d.view, queryRowDiagnostic(inherited)); err != nil {

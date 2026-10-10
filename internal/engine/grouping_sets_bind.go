@@ -85,7 +85,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 		if err != nil {
 			return out, err
 		}
-		if b.noParameters && !isOrdinal {
+		if (b.noParameters || b.materializedDefinition) && !isOrdinal {
 			if err := b.captureViewLiterals(item.Expr, key, viewGroupLiteral, leaf); err != nil {
 				return out, err
 			}

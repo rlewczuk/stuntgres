@@ -371,6 +371,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		binder.queryLockAdmission = &manifest
 	}
 	var view *parser.CreateView
+	materialized := false
 	if s, ok := stmt.(*parser.CreateView); ok {
 		if parser.LeftmostSelect(s.Query).Into != nil {
 			return b, sqlError("0A000", "views must not contain SELECT INTO")
@@ -381,6 +382,8 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.commandQuery = true
 	}
 	if s, ok := stmt.(*parser.CreateQueryTable); ok {
+		materialized = s.Form == parser.CreateMaterializedView
+		binder.materializedDefinition = materialized
 		stmt = s.Query
 		b.commandQuery = true
 	}
@@ -663,6 +666,16 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.parameters, err = binder.finish()
 	if err != nil {
 		return b, err
+	}
+	if materialized {
+		if b.parameters.Count != 0 {
+			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
+		}
+		for _, source := range binder.querySources {
+			if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) {
+				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
+			}
+		}
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Merge:

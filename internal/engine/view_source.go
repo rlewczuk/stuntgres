@@ -54,6 +54,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			e.mu.Unlock()
 			return source, err
 		}
+		if d.address.ObjectID == 12006 {
+			source, err := e.captureTableViewSummary(ctx, catalog, ref, d, viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+			e.mu.Unlock()
+			return source, err
+		}
 		source, err := e.captureCatalogSourceLocked(ctx, catalog, ref, d)
 		e.mu.Unlock()
 		return source, err
@@ -154,7 +159,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}
 		}
 		return bridge, nil
-	case tableRelation:
+	case tableRelation, materializedViewRelation:
+		if d.relationKind == materializedViewRelation && !d.populated {
+			e.mu.Unlock()
+			return nil, materializedViewReadError(d)
+		}
 		view, err := scope.acquireDataViewLocked(e, ref)
 		e.mu.Unlock()
 		if err != nil {

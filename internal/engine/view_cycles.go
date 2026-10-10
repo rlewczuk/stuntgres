@@ -9,7 +9,7 @@ import "fmt"
 func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
-		if leaf.relation.view != nil {
+		if leaf.relation.relationKind == viewRelation {
 			hasView = true
 			break
 		}
@@ -21,7 +21,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 	visibilityDemand := false
 	var visit func(*relationDescriptor) error
 	visit = func(d *relationDescriptor) error {
-		if d.view == nil || done[d.address] {
+		if d.relationKind != viewRelation || done[d.address] {
 			return nil
 		}
 		if active[d.address] {
@@ -43,7 +43,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.relation.view == nil {
+		if leaf.relation.relationKind != viewRelation {
 			continue
 		}
 		current, ok := catalog.state.descriptors[leaf.relation.address].(*relationDescriptor)

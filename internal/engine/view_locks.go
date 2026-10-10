@@ -8,9 +8,9 @@ func (s *StatementScope) acquireViewSources() error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	d, _ := e.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
-	hasView := d != nil && d.view != nil
+	hasView := d != nil && d.relationKind == viewRelation
 	for _, leaf := range s.querySources {
-		if leaf.relation.view != nil {
+		if leaf.relation.relationKind == viewRelation {
 			hasView = true
 			break
 		}
@@ -43,7 +43,7 @@ func (s *StatementScope) acquireViewSources() error {
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
 			refs = append(refs, ref)
 		}
-		if d.view != nil {
+		if d.relationKind == viewRelation {
 			for i, leaf := range d.view.sources {
 				if err := visit(leaf.ref, viewLeafRowMark(d.view, i, queryRowMark{mode: mode}).mode); err != nil {
 					return err

@@ -179,6 +179,10 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	kind, label := viewRelation, "view"
+	if s.Materialized {
+		kind, label = materializedViewRelation, "materialized view"
+	}
 	refs := make([]ObjectRef, 0, len(s.Names))
 	seen := make(map[ObjectAddress]bool, len(s.Names))
 	var notices []sqlstate.Error
@@ -187,23 +191,27 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		if err != nil {
 			if !s.IfExists || !renameMissing(err) {
 				e.mu.Unlock()
-				return Result{}, viewDropMissing(err, name)
+				return Result{}, viewDropMissing(err, name, label)
 			}
-			diagnostic := viewDropMissing(err, name).(*sqlstate.Error)
+			diagnostic := viewDropMissing(err, name, label).(*sqlstate.Error)
 			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
 			continue
 		}
 		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-		if d.relationKind != viewRelation {
+		if d.relationKind != kind {
 			hint := "Use DROP TABLE to remove a table."
 			switch d.relationKind {
 			case sequenceRelation:
 				hint = "Use DROP SEQUENCE to remove a sequence."
 			case indexRelation:
 				hint = "Use DROP INDEX to remove an index."
+			case viewRelation:
+				hint = "Use DROP VIEW to remove a view."
+			case materializedViewRelation:
+				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
 			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a view`, d.name), Hint: hint}
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.name, label), Hint: hint}
 		}
 		if err := viewDropOwner(auth, ref, d); err != nil {
 			e.mu.Unlock()
@@ -311,10 +319,10 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	return Result{}, nil
 }
 
-func viewDropMissing(err error, name parser.ObjectName) error {
+func viewDropMissing(err error, name parser.ObjectName, label string) error {
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "42P01" {
 		return err
 	}
-	return sqlError("42P01", fmt.Sprintf(`view "%s" does not exist`, name.Parts[len(name.Parts)-1].Text))
+	return sqlError("42P01", fmt.Sprintf(`%s "%s" does not exist`, label, name.Parts[len(name.Parts)-1].Text))
 }

@@ -123,7 +123,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	}
 	var invoker PrincipalRef
 	for _, leaf := range leaves {
-		if leaf.relation.view != nil {
+		if leaf.relation.relationKind == viewRelation {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
 				return nil, err
@@ -243,6 +243,12 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		case sequenceRelation:
 			e.markTemporaryAccessLocked(scope, leaf.ref)
 			source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
+		case materializedViewRelation:
+			if !leaf.relation.populated {
+				err = materializedViewReadError(leaf.relation)
+			} else {
+				source, err = captureQueryPrefix(view, leaf.ref)
+			}
 		case tableRelation:
 			source, err = captureQueryPrefix(view, leaf.ref)
 			if err == nil {

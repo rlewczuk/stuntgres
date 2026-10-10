@@ -67,6 +67,9 @@ func relationDiagnosticKind(r *relationDescriptor) string {
 	if r.relationKind == compositeRelation {
 		return "composite type"
 	}
+	if r.relationKind == materializedViewRelation {
+		return "materialized view"
+	}
 	if r.relationKind == indexRelation {
 		return "index"
 	}
