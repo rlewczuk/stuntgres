@@ -134,10 +134,10 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 
 func TestQueryTableCreateRestoreReferenceLiteralBoundary(t *testing.T) {
 	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `"public"."anchor"`}}
-	if err := restoreScalar(parser.RegclassExpr{Child: literal}); err != nil {
+	if err := restoreScalar(parser.RegclassExpr{Child: literal}, false); err != nil {
 		t.Fatal("canonical stored reference literal rejected", err)
 	}
-	if err := restoreScalar(parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}); err != nil {
+	if err := restoreScalar(parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, false); err != nil {
 		t.Fatal("ordinary stored NULL rejected", err)
 	}
 	for _, tc := range []struct {
@@ -157,7 +157,7 @@ func TestQueryTableCreateRestoreReferenceLiteralBoundary(t *testing.T) {
 		{"nested_reference", parser.RegclassExpr{Child: literal}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := restoreScalar(parser.RegclassExpr{Child: tc.child})
+			err := restoreScalar(parser.RegclassExpr{Child: tc.child}, false)
 			if tc.name == "parameter" {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" {

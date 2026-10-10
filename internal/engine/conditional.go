@@ -504,6 +504,13 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+	case parser.SubscriptExpr:
+		var storage [13]parser.Expr
+		for _, child := range e.Children(&storage) {
+			if err := qualifiedCastChild(child); err != nil {
+				return err
+			}
+		}
 	case parser.OperatorExpr:
 		for _, arg := range e.Args {
 			if err := qualifiedCastChild(arg); err != nil {

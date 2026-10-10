@@ -106,7 +106,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			}
 			rawArgs[slot] = parser.ParameterExpr{Number: 1}
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: rawArgs}
-			if err := restoreScalar(raw); err == nil {
+			if err := restoreScalar(raw, false); err == nil {
 				t.Fatal(name, slot, "Restore accepted parameter")
 			}
 		}

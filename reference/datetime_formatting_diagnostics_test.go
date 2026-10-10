@@ -25,13 +25,11 @@ func TestReferenceDatetimeFormattingSignaturesOwnerBoundary(t *testing.T) {
 		cases = append(cases, datetimeFormattingCase{name: expr, expression: expr})
 	}
 	// These exact original routes keep their independent PostgreSQL contracts.
-	// Native lacks the adjacent TIME-to-INTERVAL cast and ARRAY constructor.
+	// Native lacks the adjacent TIME-to-INTERVAL cast.
 	timeBoundary := datetimeFormattingDiagnostic("0A000", "time to interval conversion is unsupported", "", "")
 	timeBoundary.Position = "8"
 	cases = append(cases, datetimeFormattingCase{name: "to_char(TIME '12:00','HH24')", expression: "to_char(TIME '12:00','HH24')", nativeDiagnostic: timeBoundary})
-	arrayBoundary := datetimeFormattingDiagnostic("42601", `syntax error at or near "ARRAY"`, "", "")
-	arrayBoundary.Position = "25"
-	cases = append(cases, datetimeFormattingCase{name: "to_date(VARIADIC ARRAY['2000','YYYY'])", expression: "to_date(VARIADIC ARRAY['2000','YYYY'])", nativeDiagnostic: arrayBoundary})
+	cases = append(cases, datetimeFormattingCase{name: "to_date(VARIADIC ARRAY['2000','YYYY'])", expression: "to_date(VARIADIC ARRAY['2000','YYYY'])"})
 	// Numeric signatures now route to the numeric formatting provider.
 	for _, typ := range []string{"smallint", "integer", "bigint", "numeric", "real", "double precision"} {
 		cases = append(cases, datetimeFormattingCase{name: "numeric owner/" + typ, expression: "to_char(12::" + typ + ",'FM999')", want: "12"})

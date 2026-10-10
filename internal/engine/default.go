@@ -158,8 +158,10 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	}
 	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
-	case regclassArrayExpression:
-		return r.regclassArraySQL(ctx, view, n)
+	case arrayExpression:
+		return r.arraySQL(ctx, view, n)
+	case subscriptExpression:
+		return r.subscriptSQL(ctx, view, n)
 	case indexPropertyExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: index property inquiries are unsupported in stored defaults")
@@ -637,7 +639,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid default coercion mode")
 		}
 		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, n.mode)
-		if err != nil || plan != n.plan {
+		if err != nil || !plan.Equal(n.plan) {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
 		if r.commentSnapshot != nil && plan.RequiresCatalogOutput() {
@@ -1033,7 +1035,7 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range n.elements {
 			next, replaced, failure := retagBoundTypesWithQuery(old, retainedType, queryMapper)
@@ -1054,6 +1056,17 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		if elements != nil {
 			n.elements = elements
 		}
+		n.expressionInfo = info
+		rebound = n
+	case subscriptExpression:
+		var replaced bool
+		n, replaced, err = mapSubscript(n, func(old BoundExpr) (BoundExpr, bool, error) {
+			return retagBoundTypesWithQuery(old, retainedType, queryMapper)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || replaced
 		n.expressionInfo = info
 		rebound = n
 	case tableOIDExpression:

@@ -26,6 +26,22 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			return err
 		}
 	}
+	for i, target := range s.Targets {
+		if len(target.Subscripts) == 0 {
+			continue
+		}
+		if binder.mergeInput {
+			return expressionError("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
+		}
+		if b.arrayTargets == nil {
+			b.arrayTargets = make([]*arrayAssignmentTarget, len(b.targets))
+		}
+		partial, err := binder.bindArrayTarget(b.relation.columns[b.targets[i]], target.Subscripts, target.Pos, false)
+		if err != nil {
+			return err
+		}
+		b.arrayTargets[i] = partial
+	}
 	if len(b.relation.defaults) != 0 || len(b.relation.identities) != 0 {
 		b.defaults = make([]BoundExpr, len(b.relation.columns))
 		for i, attribute := range b.relation.attributes {
@@ -99,9 +115,19 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 		for j, v := range row {
 			if _, requested := v.(parser.DefaultExpr); requested {
+				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
+					return expressionError("0A000", "cannot set an array element to DEFAULT", s.Targets[j].Pos)
+				}
 				continue
 			}
 			c := b.relation.columns[b.targets[j]]
+			var partial *arrayAssignmentTarget
+			if len(b.arrayTargets) != 0 {
+				partial = b.arrayTargets[j]
+				if partial != nil {
+					c = partial.column(c)
+				}
+			}
 			if _, generated := b.relation.generations[b.relation.attributes[b.targets[j]]]; generated {
 				return generationWriteError(c.Name, false)
 			}
@@ -121,6 +147,13 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 				plan, err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: sqltype.Assignment, column: c.Name})
 			}
 			if err != nil {
+				if partial != nil {
+					var source *sqltype.Descriptor
+					if plan != nil {
+						source = plan.ResultUsage().Type
+					}
+					return partial.diagnostic(err, source)
+				}
 				if plan == nil && containsSumAnalysis(v) {
 					return err
 				}
@@ -136,6 +169,13 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 	if len(b.defaults) != 0 {
 		remaining := len(b.relation.defaults) + len(b.relation.identities)
 		for j, target := range b.targets {
+			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
+				if b.defaults[target] != nil {
+					b.defaults[target] = nil
+					remaining--
+				}
+				continue
+			}
 			if len(b.identityDiscard) != 0 && b.identityDiscard[target] {
 				continue
 			}

@@ -811,6 +811,30 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
 			}
+			for _, element := range s.Elements {
+				if element.Column != nil {
+					for _, constraint := range element.Column.Constraints {
+						if err := restoreScalar(constraint.Default, true); err != nil {
+							return err
+						}
+						if constraint.Generation != nil {
+							if err := restoreScalar(constraint.Generation.Expression, true); err != nil {
+								return err
+							}
+						}
+						if constraint.Check != nil {
+							if err := restoreScalar(constraint.Check.Expression, true); err != nil {
+								return err
+							}
+						}
+					}
+				}
+				if element.Check != nil {
+					if err := restoreScalar(element.Check.Expression, true); err != nil {
+						return err
+					}
+				}
+			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain:
 		case *parser.CreateView:
 		case *parser.CreateIndex:
@@ -847,9 +871,23 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if s.Source != nil {
 				return sqlError("0A000", "restore INSERT query sources are unsupported")
 			}
+			for _, target := range s.Targets {
+				for _, bound := range target.Subscripts {
+					if bound.Lower != nil {
+						if err := restoreScalar(bound.Lower, false); err != nil {
+							return err
+						}
+					}
+					if bound.Upper != nil {
+						if err := restoreScalar(bound.Upper, false); err != nil {
+							return err
+						}
+					}
+				}
+			}
 			for _, row := range s.Rows {
 				for _, v := range row {
-					if err := restoreScalar(v); err != nil {
+					if err := restoreScalar(v, false); err != nil {
 						return err
 					}
 				}
@@ -906,106 +944,119 @@ func commentLiteral(text string) string {
 	return "E'" + strings.ReplaceAll(strings.ReplaceAll(text, "\\", "\\\\"), "'", "''") + "'"
 }
 
-func restoreScalar(raw parser.Expr) error {
+// Stored CREATE expressions retain their binder's admission rules. INSERT
+// expressions retain the existing Restore whitelist. Both modes reject every
+// parameter reached through the shared recursive visitor.
+func restoreScalar(raw parser.Expr, stored bool) error {
 	switch r := raw.(type) {
 	case parser.FunctionExpr:
-		if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
-			return fmt.Errorf("stuntgres: invalid restore scalar")
-		}
-		switch r.Name.Parts[len(r.Name.Parts)-1].Text {
-		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
-		case "to_bin", "to_oct", "to_hex":
-		case "pg_size_bytes", "pg_size_pretty":
-		case "age", "isfinite":
-		case "overlaps":
-		case "date_trunc":
-		case "timezone", "date_add", "date_subtract":
-		case "justify_days", "justify_hours", "justify_interval":
-		case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
-		case "gen_random_uuid", "uuidv4", "uuidv7":
-		case "format":
-		case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
-		case "like_escape":
-			if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
+		if !stored {
+			if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
-		case "similar_to_escape":
-			if r.Syntax != parser.SimilarEscapeFunctionSyntax || len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) < 1 || len(r.Args) > 2 || r.Variadic {
+			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
+			case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
+			case "to_bin", "to_oct", "to_hex":
+			case "pg_size_bytes", "pg_size_pretty":
+			case "age", "isfinite":
+			case "overlaps":
+			case "date_trunc":
+			case "timezone", "date_add", "date_subtract":
+			case "justify_days", "justify_hours", "justify_interval":
+			case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
+			case "gen_random_uuid", "uuidv4", "uuidv7":
+			case "format":
+			case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
+			case "like_escape":
+				if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
+			case "similar_to_escape":
+				if r.Syntax != parser.SimilarEscapeFunctionSyntax || len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) < 1 || len(r.Args) > 2 || r.Variadic {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
+			case "substring":
+				if len(r.Args) != 3 || r.Variadic {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
+			default:
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
-		case "substring":
-			if len(r.Args) != 3 || r.Variadic {
-				return fmt.Errorf("stuntgres: invalid restore scalar")
-			}
-		default:
-			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		for _, child := range r.Args {
-			if err := restoreScalar(child); err != nil {
+			if err := restoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.CaseExpr:
 		if r.Test != nil {
-			if err := restoreScalar(r.Test); err != nil {
+			if err := restoreScalar(r.Test, stored); err != nil {
 				return err
 			}
 		}
 		for _, arm := range r.Arms {
-			if err := restoreScalar(arm.Condition); err != nil {
+			if err := restoreScalar(arm.Condition, stored); err != nil {
 				return err
 			}
-			if err := restoreScalar(arm.Result); err != nil {
+			if err := restoreScalar(arm.Result, stored); err != nil {
 				return err
 			}
 		}
 		if r.Else != nil {
-			return restoreScalar(r.Else)
+			return restoreScalar(r.Else, stored)
 		}
 		return nil
 	case parser.ConditionalExpr:
 		for _, child := range r.Args {
-			if err := restoreScalar(child); err != nil {
+			if err := restoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.LogicalExpr:
-		if err := restoreScalar(r.Left); err != nil {
+		if err := restoreScalar(r.Left, stored); err != nil {
 			return err
 		}
 		if r.Right != nil {
-			return restoreScalar(r.Right)
+			return restoreScalar(r.Right, stored)
 		}
 		return nil
 	case parser.PredicateExpr:
-		if err := restoreScalar(r.Left); err != nil {
+		if err := restoreScalar(r.Left, stored); err != nil {
 			return err
 		}
 		if r.Right != nil {
-			return restoreScalar(r.Right)
+			return restoreScalar(r.Right, stored)
 		}
 		return nil
 	case parser.CollateExpr:
-		return restoreScalar(r.Child)
+		return restoreScalar(r.Child, stored)
 	case parser.CastExpr:
-		return restoreScalar(r.Child)
+		return restoreScalar(r.Child, stored)
 	case parser.RegclassExpr:
-		return restoreScalar(r.Child)
+		return restoreScalar(r.Child, stored)
 	case parser.ArrayExpr:
 		for _, element := range r.Elements {
-			if err := restoreScalar(element); err != nil {
+			if err := restoreScalar(element, stored); err != nil {
+				return err
+			}
+		}
+		return nil
+	case parser.SubscriptExpr:
+		var storage [13]parser.Expr
+		for _, child := range r.Children(&storage) {
+			if err := restoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.TimeZoneExpr:
-		if err := restoreScalar(r.Value); err != nil {
+		if err := restoreScalar(r.Value, stored); err != nil {
 			return err
 		}
 		if !r.Local {
-			return restoreScalar(r.Zone)
+			return restoreScalar(r.Zone, stored)
 		}
 		return nil
 	case parser.ParameterExpr:
@@ -1013,28 +1064,33 @@ func restoreScalar(raw parser.Expr) error {
 	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
 		return nil
 	case parser.OperatorExpr:
-		if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
-			return fmt.Errorf("stuntgres: invalid restore scalar")
-		}
-		spelling := r.Name.Parts[len(r.Name.Parts)-1].Text
-		if spelling == "!~" || spelling == "~" && len(r.Args) == 2 {
-			if !r.SQLSimilar || len(r.Args) != 2 {
+		if !stored {
+			if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
-			normalizer, ok := r.Args[1].(parser.FunctionExpr)
-			if !ok || normalizer.Syntax != parser.SimilarEscapeFunctionSyntax {
+			spelling := r.Name.Parts[len(r.Name.Parts)-1].Text
+			if spelling == "!~" || spelling == "~" && len(r.Args) == 2 {
+				if !r.SQLSimilar || len(r.Args) != 2 {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
+				normalizer, ok := r.Args[1].(parser.FunctionExpr)
+				if !ok || normalizer.Syntax != parser.SimilarEscapeFunctionSyntax {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
+			} else if r.SQLSimilar {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
-		} else if r.SQLSimilar {
-			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		for _, child := range r.Args {
-			if err := restoreScalar(child); err != nil {
+			if err := restoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	default:
+		if stored {
+			return nil
+		} // Existing stored binder owns unsupported syntax.
 		return fmt.Errorf("stuntgres: invalid restore scalar")
 	}
 }

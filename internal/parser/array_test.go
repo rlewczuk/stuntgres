@@ -1,11 +1,8 @@
 package parser
 
 import (
-	"errors"
 	"reflect"
 	"testing"
-
-	"stuntgres/internal/sqlstate"
 )
 
 func TestArrayTypeDeclarations(t *testing.T) {
@@ -46,10 +43,12 @@ func TestArrayTypeDeclarations(t *testing.T) {
 		}
 	}
 	for _, query := range []string{"SELECT a[1] FROM t", "SELECT a[1:2] FROM t"} {
-		_, err := Parse(query)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {
-			t.Fatal("admitted excluded array expression", query, err)
+		statements, err := Parse(query)
+		if err != nil {
+			t.Fatal(query, err)
+		}
+		if _, ok := statements[0].(*Select).Targets[0].(SubscriptExpr); !ok {
+			t.Fatal("missing subscript AST", query)
 		}
 	}
 }
@@ -67,4 +66,43 @@ func TestArrayKeywordCategories(t *testing.T) {
 	}
 	keywordDiagnostic(t, "CREATE TABLE array (x INT)", "42601", `syntax error at or near "array"`, "14")
 	keywordDiagnostic(t, "SELECT x array FROM t", "42601", `syntax error at or near "array"`, "10")
+}
+
+func TestArrayExpressionAST(t *testing.T) {
+	statements, err := Parse("SELECT ARRAY[[1,2],[3,4]],a[1:2][3],(a[1:2])[1],a[:],a[NULL:2] FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := statements[0].(*Select).Targets
+	constructor := targets[0].(ArrayExpr)
+	if len(constructor.Elements) != 2 || len(constructor.Elements[0].(ArrayExpr).Elements) != 2 {
+		t.Fatal(constructor)
+	}
+	adjacent := targets[1].(SubscriptExpr)
+	if len(adjacent.Subscripts) != 2 || !adjacent.Subscripts[0].Slice || adjacent.Subscripts[1].Slice {
+		t.Fatal(adjacent)
+	}
+	grouped := targets[2].(SubscriptExpr)
+	if _, ok := grouped.Base.(SubscriptExpr); !ok {
+		t.Fatal("grouping merged dimensions", grouped)
+	}
+	omitted := targets[3].(SubscriptExpr).Subscripts[0]
+	explicit := targets[4].(SubscriptExpr).Subscripts[0]
+	if omitted.Lower != nil || omitted.Upper != nil || explicit.Lower == nil {
+		t.Fatal("omission collapsed into NULL")
+	}
+	statements, err = Parse("INSERT INTO t(a[1],a[3:4]) VALUES(7,ARRAY[8,9]);UPDATE t SET a[$1]=$2,a[:2]=ARRAY[7,8]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	insert := statements[0].(*Insert)
+	update := statements[1].(*Update)
+	if len(insert.Targets[0].Subscripts) != 1 || !insert.Targets[1].Subscripts[0].Slice || len(update.Assignments[0].Subscripts) != 1 || update.Assignments[1].Subscripts[0].Lower != nil {
+		t.Fatal(insert, update)
+	}
+	for _, query := range []string{"SELECT ARRAY[1,2][1] FROM t", "SELECT a[1:] garbage garbage FROM t", "INSERT INTO t(a[1]) VALUES(7) junk"} {
+		if statements, err := Parse(query); err == nil || statements != nil {
+			t.Fatal("accepted excluded suffix/base", query)
+		}
+	}
 }

@@ -40,7 +40,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 	}
 	var err error
 	switch e := expression.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range e.elements {
 			next, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -58,6 +58,14 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if elements != nil {
 			e.elements = elements
 		}
+		expression = e
+	case subscriptExpression:
+		var did bool
+		e, did, err = mapSubscript(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || did
 		expression = e
 	case caseExpression:
 		if e.test != nil {

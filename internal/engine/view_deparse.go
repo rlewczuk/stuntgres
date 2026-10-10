@@ -1032,6 +1032,34 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	case parser.ArrayExpr:
 		text, err := args(e.Elements)
 		return "ARRAY[" + text + "]", err
+	case parser.SubscriptExpr:
+		text, err := child(e.Base)
+		if err != nil {
+			return "", err
+		}
+		text = "(" + text + ")"
+		for _, s := range e.Subscripts {
+			text += "["
+			if s.Lower != nil {
+				part, err := child(s.Lower)
+				if err != nil {
+					return "", err
+				}
+				text += part
+			}
+			if s.Slice {
+				text += ":"
+			}
+			if s.Upper != nil {
+				part, err := child(s.Upper)
+				if err != nil {
+					return "", err
+				}
+				text += part
+			}
+			text += "]"
+		}
+		return text, nil
 	case parser.RegclassExpr:
 		text, err := child(e.Child)
 		return "CAST(" + text + " AS regclass)", err

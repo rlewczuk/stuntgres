@@ -94,9 +94,19 @@ func closedRegclassDefault(node BoundExpr) bool {
 		return true
 	case coercionExpression:
 		return closedRegclassDefault(n.child)
-	case regclassArrayExpression:
+	case arrayExpression:
 		for _, element := range n.elements {
 			if !closedRegclassDefault(element) {
+				return false
+			}
+		}
+		return true
+	case subscriptExpression:
+		if !closedRegclassDefault(n.base) {
+			return false
+		}
+		for _, s := range n.subscripts {
+			if s.lower != nil && !closedRegclassDefault(s.lower) || s.upper != nil && !closedRegclassDefault(s.upper) {
 				return false
 			}
 		}

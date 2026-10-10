@@ -104,9 +104,11 @@ func TestReferenceDomainArrays(t *testing.T) {
 			}
 		}
 		run(referenceSelect("SELECT id FROM domain_s.arr WHERE id=200", []string{"id"}, []string{"INT4"}, [][]any{}))
+		constructor := arrayReferenceSelect("SELECT ARRAY['a'::name,'b'::name]::domain_s.da AS made,('{a,b}'::domain_s.da)[1] AS first", []string{"made", "first"}, []string{"_NAME", "NAME"}, []string{"_NAME", "NAME"}, [][]any{{"{a,b}", "a"}}, backend.pg)
+		run(constructor)
+		run(referencePrepared(constructor))
 		if backend.pg {
-			// Explicit comparator/constructor/subscript controls: not general arrays.
-			run(referenceSelect("SELECT ARRAY['a'::name,'b'::name]::domain_s.da AS made,('{a,b}'::domain_s.da)[1] AS first", []string{"made", "first"}, []string{"_NAME", "NAME"}, [][]any{{"{a,b}", "a"}}))
+			// Array ordering remains a separately owned comparator boundary.
 			run(referenceSelect("SELECT a FROM domain_s.arr WHERE id IN (1,3) ORDER BY a", []string{"a"}, []string{"_NAME"}, [][]any{{"{}"}, {`{NULL,"NULL","",alpha}`}}))
 		} else {
 			run(referenceError("SELECT a FROM domain_s.arr ORDER BY a", "42883"))

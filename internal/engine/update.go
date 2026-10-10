@@ -11,10 +11,11 @@ import (
 )
 
 type boundUpdate struct {
-	assignments []BoundExpr
-	predicate   BoundExpr
-	from        LogicalNode
-	sourceWidth int
+	assignments  []BoundExpr
+	arrayTargets []*arrayAssignmentTarget
+	predicate    BoundExpr
+	from         LogicalNode
+	sourceWidth  int
 }
 
 // Reuse the shared coercion traversal; only changed execution branches are
@@ -22,6 +23,15 @@ type boundUpdate struct {
 func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error) {
 	result := original
 	var assignments []BoundExpr
+	targets, err := preflightArrayTargets(c, original.arrayTargets)
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) != 0 && &targets[0] != &original.arrayTargets[0] {
+		private := *original
+		private.arrayTargets = targets
+		result = &private
+	}
 	for i, expression := range original.assignments {
 		folded, changed, err := preflightCoercions(c, expression)
 		if err != nil {
@@ -35,7 +45,7 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 		}
 	}
 	if assignments != nil {
-		private := *original
+		private := *result
 		private.assignments = assignments
 		result = &private
 	}
@@ -121,6 +131,11 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		}
 	}
 	for i, a := range s.Assignments {
+		if len(a.Subscripts) != 0 {
+			if _, requested := a.Value.(parser.DefaultExpr); requested {
+				return expressionError("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
+			}
+		}
 		if slot, exists := b.relation.index[a.Target.Text]; exists {
 			if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
 				if _, requested := a.Value.(parser.DefaultExpr); !requested {
@@ -135,6 +150,9 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		expected := sqltype.Usage{}
 		if slot, ok := b.relation.index[a.Target.Text]; ok {
 			expected = b.relation.columns[slot].Usage
+			if len(a.Subscripts) != 0 {
+				expected = arrayTargetUsage(expected, a.Subscripts)
+			}
 		}
 		u.assignments[i], err = binder.bind(a.Value, expressionPolicy{context: projectionContext, expected: expected})
 		if err != nil {
@@ -162,10 +180,11 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		if len(a.Indirection) != 0 {
 			return expressionError("0A000", "field assignments are unsupported", a.Target.Pos)
 		}
-		if seen[slot] {
+		partial := len(a.Subscripts) != 0
+		if previous, exists := seen[slot]; exists && (!previous || !partial) {
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
-		seen[slot] = true
+		seen[slot] = partial
 		if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
 			b.targets = append(b.targets, slot)
 			continue
@@ -179,9 +198,24 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		b.targets = append(b.targets, slot)
 		source := u.assignments[i]
 		dest := b.relation.columns[slot]
+		var target *arrayAssignmentTarget
+		if partial {
+			target, err = binder.bindArrayTarget(dest, a.Subscripts, a.Target.Pos, true)
+			if err != nil {
+				return err
+			}
+			if u.arrayTargets == nil {
+				u.arrayTargets = make([]*arrayAssignmentTarget, len(s.Assignments))
+			}
+			u.arrayTargets[i] = target
+			dest = target.column(dest)
+		}
 		if source.ResultUsage() != dest.Usage {
 			plan, err := sqltype.PlanCoercion(source.ResultUsage(), dest.Usage, sqltype.Assignment)
 			if err != nil {
+				if target != nil {
+					return target.diagnostic(err, source.ResultUsage().Type)
+				}
 				var d *sqlstate.Error
 				if errors.As(err, &d) && d.Code == "42804" {
 					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, dest.Name, dest.Usage.Type.DiagnosticName(), source.ResultUsage().Type.DiagnosticName()), Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(parser.ExpressionStart(a.Value).Character)}
@@ -285,7 +319,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	state := queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
 	eval := state.evaluation(ctx)
 	var stage indexedStage
-	var frame, assigned []sqltype.Value
+	var frame []sqltype.Value
 	var updated map[RowID]bool
 	sourceCount := 1
 	if b.update.from != nil {
@@ -305,7 +339,6 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		sourceCount = stage.count()
 		if sourceCount != 0 {
 			frame = make([]sqltype.Value, len(b.relation.columns)+b.update.sourceWidth)
-			assigned = make([]sqltype.Value, len(b.targets))
 			updated = make(map[RowID]bool)
 		}
 	}
@@ -377,38 +410,29 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				continue
 			}
 		}
-		if b.update.from != nil {
-			// PostgreSQL projects SET for losing duplicate pairs too. Suppress
-			// only replacement/count/RETURNING, never eligible scalar demand.
-			for i, expr := range b.update.assignments {
-				if expr == nil {
-					continue
-				}
-				value, err := expr.Eval(&eval)
-				if err != nil {
-					return Result{}, err
-				}
-				assigned[i] = value
-			}
-			if updated[candidate.row] {
-				continue
-			}
-		}
+		// RHS and bounds see the unchanged old frame; partial writes compose
+		// only in this private replacement. Losing FROM pairs still demand SET.
 		row := make([]sqltype.Value, len(old.values))
 		copy(row, old.values)
 		for i, expr := range b.update.assignments {
 			if expr == nil {
 				continue
 			}
-			if b.update.from != nil {
-				row[b.targets[i]] = assigned[i]
+			target := b.targets[i]
+			var value sqltype.Value
+			var err error
+			if len(b.update.arrayTargets) != 0 && b.update.arrayTargets[i] != nil {
+				value, err = b.update.arrayTargets[i].applyExpression(&eval, row[target], expr)
 			} else {
-				value, err := expr.Eval(&eval)
-				if err != nil {
-					return Result{}, err
-				}
-				row[b.targets[i]] = value
+				value, err = expr.Eval(&eval)
 			}
+			if err != nil {
+				return Result{}, err
+			}
+			row[target] = value
+		}
+		if b.update.from != nil && updated[candidate.row] {
+			continue
 		}
 		generationEval := eval
 		if err := evaluateGenerations(ctx, b.relation, row, &generationEval); err != nil {

@@ -201,6 +201,12 @@ func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []BoundExp
 				return insertValueError(read, err, b.relation.columns[target], syntax[i], nil)
 			}
 			if len(b.identityDiscard) == 0 || !b.identityDiscard[target] {
+				if len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil {
+					value, err = b.arrayTargets[i].apply(evaluation, row[target], value)
+					if err != nil {
+						return err
+					}
+				}
 				row[target] = value
 			}
 		}
@@ -209,6 +215,19 @@ func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []BoundExp
 		discard := len(b.identityDiscard) != 0 && b.identityDiscard[target]
 		if source >= 0 && supplied[source] != nil && !discard {
 			if !sourceFirst {
+				if len(b.arrayTargets) != 0 && b.arrayTargets[source] != nil {
+					for i, slot := range b.targets {
+						if slot != target || supplied[i] == nil {
+							continue
+						}
+						value, err := b.arrayTargets[i].applyExpression(evaluation, row[target], supplied[i])
+						if err != nil {
+							return err
+						}
+						row[target] = value
+					}
+					continue
+				}
 				value, err := supplied[source].Eval(evaluation)
 				if err != nil {
 					return insertValueError(read, err, b.relation.columns[target], syntax[source], nil)

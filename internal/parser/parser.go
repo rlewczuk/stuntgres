@@ -457,6 +457,14 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 			}
 		}
 		return true
+	case SubscriptExpr:
+		var storage [13]Expr
+		for _, child := range r.Children(&storage) {
+			if !l.scalarInputTree(child) {
+				return false
+			}
+		}
+		return true
 	case FunctionExpr:
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {

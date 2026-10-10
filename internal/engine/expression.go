@@ -297,7 +297,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.value, changed = value, changed || did
 		next, simplified, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || simplified, err
-	case regclassArrayExpression:
+	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range e.elements {
 			next, changed, err := preflightCoercionsWithPolicy(c, old, decisiveDefaults)
@@ -314,7 +314,17 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if elements != nil {
 			e.elements = elements
 		}
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
 		return e, elements != nil, nil
+	case subscriptExpression:
+		next, changed, err := mapSubscript(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, old, decisiveDefaults)
+		})
+		return next, changed, err
 	case collationExpression:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
@@ -1457,7 +1467,17 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 	case parser.ArrayExpr:
 		var err error
-		node, err = b.bindRegclassArray(r, policy.expected)
+		var target sqltype.Usage
+		if policy.mode == sqltype.Explicit {
+			target = policy.expected
+		}
+		node, err = b.bindArray(r, target)
+		if err != nil {
+			return nil, err
+		}
+	case parser.SubscriptExpr:
+		var err error
+		node, err = b.bindSubscript(r)
 		if err != nil {
 			return nil, err
 		}
@@ -1841,6 +1861,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		}
 	case parser.ArrayExpr:
 		policy.expected = target
+		policy.mode = sqltype.Explicit
 	case parser.CastExpr:
 		if unknownNullSyntax(child) {
 			policy.expected = target
@@ -1966,6 +1987,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 		return "regclass", false
 	case parser.ArrayExpr:
 		return "array", false
+	case parser.SubscriptExpr:
+		return expressionName(r.Base, usage, bound)
 	case parser.TimeZoneExpr:
 		return "timezone", true
 	case parser.CollateExpr:
@@ -2238,7 +2261,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
+	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

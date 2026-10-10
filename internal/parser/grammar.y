@@ -27,6 +27,9 @@ package parser
  alterAction AlterTableAction
  dropTarget dropTarget
  targets []InsertTarget
+ target InsertTarget
+ subscripts []ArraySubscript
+ subscript ArraySubscript
  assignments []UpdateAssignment
  assignment UpdateAssignment
  names []string
@@ -122,6 +125,7 @@ package parser
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
 %token <tok> OPERATOR
+%token <tok> TYPECAST
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
@@ -229,7 +233,7 @@ package parser
 %nonassoc KW_T CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
 %nonassoc '='
 %left COLLATE
-%left ':'
+%left TYPECAST
 %nonassoc '['
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses
  * target_or only when a logical/comparison continuation requires it. */
@@ -351,6 +355,11 @@ package parser
 %type <tok> interval_qualifier interval_field
 %type <typ> qualified_call_head
 %type <targets> insert_targets
+%type <target> insert_target
+%type <subscripts> array_subscripts
+%type <subscript> array_subscript
+%type <expr> array_bracket array_member column_reference
+%type <row> array_members array_member_list
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base update_from delete_using
 %type <identifiers> alias_columns using_columns
@@ -1045,6 +1054,8 @@ update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name {
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
 update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
 update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
+ | name array_subscripts '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Subscripts:$2,Value:$4} }
+ | name array_subscripts '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Subscripts:$2,Value:DefaultExpr{Pos:$4.pos}} }
  | name '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:DefaultExpr{Pos:$3.pos}} }
  | name '.' name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Indirection:[]Identifier{{Text:$3.text,Pos:$3.pos}},Value:$5} }
  | name '=' scalar_projection '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
@@ -1111,7 +1122,15 @@ delete_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 }
  } ;
 like_operator: LIKE | ILIKE ;
 target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;
-insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
+insert_targets: insert_target { $$=[]InsertTarget{$1} } | insert_targets ',' insert_target { $$=append($1,$3) } ;
+insert_target: name { $$=InsertTarget{Name:$1.text,Pos:$1.pos} }
+ | name array_subscripts { $$=InsertTarget{Name:$1.text,Pos:$1.pos,Subscripts:$2} } ;
+array_subscripts: array_subscript { $$=[]ArraySubscript{$1} } | array_subscripts array_subscript { $$=append($1,$2) } ;
+array_subscript: '[' scalar_projection ']' { $$=ArraySubscript{Upper:$2,Pos:$1.pos} }
+ | '[' scalar_projection ':' scalar_projection ']' { if $3.text!=":" {sqllex.(*lexer).syntax($3);return 1};$$=ArraySubscript{Lower:$2,Upper:$4,Slice:true,Pos:$1.pos} }
+ | '[' ':' scalar_projection ']' { if $2.text!=":" {sqllex.(*lexer).syntax($2);return 1};$$=ArraySubscript{Upper:$3,Slice:true,Pos:$1.pos} }
+ | '[' scalar_projection ':' ']' { if $3.text!=":" {sqllex.(*lexer).syntax($3);return 1};$$=ArraySubscript{Lower:$2,Slice:true,Pos:$1.pos} }
+ | '[' ':' ']' { if $2.text!=":" {sqllex.(*lexer).syntax($2);return 1};$$=ArraySubscript{Slice:true,Pos:$1.pos} } ;
 insert_input: insert_select {
    if $1.Values!=nil {
       if !sqllex.(*lexer).validateInsertValues($1.Values) {return 1}
@@ -1143,8 +1162,9 @@ scalar: scalar_atom { $$=$1 }
    $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$2.pos},{Text:"overlaps",Pos:$2.pos}}},Args:[]Expr{left.Fields[0],left.Fields[1],right.Fields[0],right.Fields[1]},Syntax:SQLFunctionSyntax,Pos:$2.pos}
  }
  | '(' scalar ')' { $$=groupedQualification($2) }
+ | '(' scalar ')' array_subscripts { $$=SubscriptExpr{Base:groupedQualification($2),Subscripts:$4,Pos:$1.pos} }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
- | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 && len($3.ArrayBounds)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
+ | scalar TYPECAST type %prec TYPECAST { if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 && len($3.ArrayBounds)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
  | scalar COLLATE relation_name %prec COLLATE { $$=CollateExpr{Child:$1,Name:$3,Pos:$2.pos} }
  | aggregate_application { $$=$1 }
  | GROUPING '(' function_values ')' { $$=GroupingExpr{Args:$3,Pos:$1.pos} }
@@ -1173,7 +1193,9 @@ overlaps_row: ROW '(' ')' { $$=RowExpr{Explicit:true,Pos:$1.pos} }
  | ROW '(' row_fields ')' { $$=RowExpr{Fields:$3,Explicit:true,Pos:$1.pos} }
  | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
- | ARRAY '[' sequence_args ']' { $$=ArrayExpr{Elements:$3,Pos:$1.pos,Spelling:$1.raw} }
+ | ARRAY array_bracket { n:=$2.(ArrayExpr);n.Pos=$1.pos;$$=n }
+ | column_reference array_subscripts { $$=SubscriptExpr{Base:$1,Subscripts:$2,Pos:$1.SourcePosition()} }
+ | PARAM array_subscripts { $$=SubscriptExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Subscripts:$2,Pos:$1.pos} }
  | string_function { $$=$1 }
  | CURRENT_CATALOG { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_ROLE { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
@@ -1207,12 +1229,9 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING { if $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | KW_C STRING { if $1.text!="json" {sqllex.(*lexer).syntax($2);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
- | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
- /* A second dot continues the existing three-part column path; it must not
-  * inherit the nonassociative precedence of the first dot. */
- | name '.' col_label %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ | column_reference %prec NAME_LIST { $$=$1 }
  | name '.' col_label STRING {raw,ok:=qualifiedTypedLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
- | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
+ /* Qualified column paths are shared with the subscript postfix. */
  | conditional { $$=$1 }
  | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
@@ -1359,6 +1378,13 @@ call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
 sequence_values: operand { $$=[]Expr{$1} }
  | sequence_values ',' operand { $$=append($1,$3) } ;
+array_bracket: '[' array_members ']' { $$=ArrayExpr{Elements:$2,Pos:$1.pos} } ;
+array_members: /* empty */ { $$=nil } | array_member_list { $$=$1 } ;
+array_member_list: array_member { $$=[]Expr{$1} } | array_member_list ',' array_member { $$=append($1,$3) } ;
+array_member: scalar_projection { $$=$1 } | array_bracket { $$=$1 } ;
+column_reference: name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | name '.' col_label %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} } ;
 operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
 qualified_operator: OPERATOR '(' name '.' operator_symbol ')' { $$=ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$1.pos},{Text:$5.text,Pos:$5.pos}}} } ;

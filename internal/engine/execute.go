@@ -279,6 +279,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.insertConflict = b.conflict
 		}
 		if inserting {
+			b.arrayTargets, err = preflightArrayTargets(&evaluation, b.arrayTargets)
+			if err != nil {
+				return Result{}, err
+			}
 			// Supplied values retain priority over defaults and executor ACLs.
 			// Constant planning and frame conversions both run unlocked; only
 			// changed rows and the outer slice need execution-private copies.
@@ -605,7 +609,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if len(b.defaults) != 0 {
 				supplied := b.expressions[i]
 				for j, target := range b.targets {
-					if j < len(supplied) && supplied[j] != nil {
+					if j < len(supplied) && supplied[j] != nil && (len(b.arrayTargets) == 0 || b.arrayTargets[j] == nil) {
 						row[target] = sqltype.Value{}
 					}
 				}
@@ -624,7 +628,15 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				}
 				target := b.targets[j]
 				c := b.relation.columns[target]
-				row[target], err = expressions[i][j].Eval(&evaluation)
+				var value sqltype.Value
+				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
+					value, err = b.arrayTargets[j].applyExpression(&evaluation, row[target], expressions[i][j])
+				} else {
+					value, err = expressions[i][j].Eval(&evaluation)
+				}
+				if err == nil {
+					row[target] = value
+				}
 				if err != nil {
 					return Result{}, insertValueError(auth.catalog, err, c, v, nil)
 				}

@@ -286,15 +286,15 @@ the bounded coercion matrix; BOOL and NUMERIC are not implicit extensions.
 Output uses visible names, otherwise qualified/quoted names; missing identities
 display decimal and zero displays `-`.
 
-Flat `ARRAY[...]` construction is admitted only for scalar regclass elements,
-including typed NULLs and parameters inferred from regclass-array context or
-regclass peers, such as `ARRAY[$1]::regclass[]` and `ARRAY[$1,'pg_class'::regclass]`.
+`ARRAY[...]` retains scalar regclass elements, including typed NULLs and
+parameters inferred from explicit array casts or regclass peers, such as
+`ARRAY[$1]::regclass[]` and `ARRAY[$1,'pg_class'::regclass]`.
 Repeated parameter occurrences share one input contract and fresh execution
 values; constructor children are evaluated once in order.
 Contextual `ARRAY[]::regclass[]` is nonnull empty;
 untyped empty ARRAY retains42P18 and its explicit-cast hint. NULL elements are
-not NULL arrays. Nested constructors and general element families are not added;
-existing array literal dimensions/lower bounds remain supported.
+not NULL arrays. Nested and other typed constructor families share the array
+expression authority described below; existing literal bounds remain supported.
 
 Stored scalar regclass input constants, including existing digit-string input
 and scalar leaves under constructors/domain casts, depend on their live relation.
@@ -394,8 +394,65 @@ rank, extents and bounds must match across input arrays. Whole NULL/empty arrays
 are rejected, but element NULLs are retained. Scalar NULLs are collected, and
 no admitted inputs produce a typed NULL array.
 See [array aggregation](QUERIES.md#array-aggregation--change-note).
-This declaration/literal capability adds no general array cast graph or
-constructor families. The selected flat regclass constructor is described above.
+Cross-array coercion delegates elementwise to the existing scalar directional
+edges in the same Implicit/Assignment/Explicit context, preserving shape and
+bounds. This adds no transitive cast graph or new scalar conversion provider.
+INT4[] can therefore promote to INT8[] implicitly or on assignment; known TEXT[]
+does not become INT4[] by assignment. Explicit TEXT/array IO remains STABLE.
+
+### Array expressions and partial targets
+
+`ARRAY[...]` resolves a common typed element just like CASE, preserving identical
+domains and retained occurrence modifiers. All unknown members resolve to TEXT;
+empty constructors require an explicit array cast, even in an INT[] destination.
+Explicit casts coerce individual members explicitly (including numeric rounding).
+Constructor array association uses the coherent catalog's reciprocal element/
+array edge, including dynamically published domains and enums, and checks the
+exact current descriptor generation. Builtin codec IDs alone are not authority.
+Nested shorthand `ARRAY[[1,2],[3,4]]` and array-valued children build rectangular
+arrays with matching ranks, extents and inner lower bounds. The new outer lower
+bound is one. Domain-over-array children remain scalar domain elements.
+All empty/NULL subarrays yield canonical empty; mixing them with a nonempty child
+fails2202E, distinct from a valid scalar NULL cell.
+
+Parenthesized general expressions, columns and parameters support element access
+and slices. Adjacent brackets are one multidimensional operation; parenthesized
+reaccess is another. Bounds use INT4 assignment conversion. NULL or out-of-range
+element access, including wrong rank, returns typed NULL. Any colon switches the
+whole group to slicing: a plain `[n]` then means `[1:n]`, whereas omitted bounds
+use existing dimension limits. Slices fill trailing dimensions, clip overlap,
+preserve rank and reset output lower bounds to one. Outside/inverted/excess-rank
+fetches return canonical empty; explicit NULL slice bounds return SQL NULL.
+
+INSERT/UPDATE element and slice targets preserve ordinary atomic constraints.
+Partial INSERT starts with typed NULL and does not consume the column DEFAULT.
+Repeated partial targets compose in order; UPDATE RHS and bounds see the old
+row. NULL assignment bounds fail22004. Empty originals can acquire explicit
+coordinates; existing one-dimensional arrays enlarge with NULL gaps, while
+existing multidimensional arrays cannot enlarge. Slice RHS shape/bounds do not
+restrict the destination: sufficient flattened entries fill row-major, excess
+entries are ignored, and insufficient input fails2202E. NULL slice RHS is a no-op
+(a NULL original becomes empty). Empty slice assignment requires explicit bounds.
+Nonempty originals validate each dimension's inversion/range in order and final
+destination shape before checking RHS sufficiency. Empty/NULL originals instead
+construct explicit spans: zero spans produce canonical empty arrays; negative
+or overflowing spans fail with SQLSTATE `54000`. A zero span cannot hide a later invalid span,
+missing boundary or invalid final bound. Empty originals check RHS sufficiency
+before final bounds; NULL RHS remains a no-op before these mutation checks.
+Repeated whole/mixed whole-partial targets remain errors.
+Element enlargement and slice construction reject oversized results before
+allocation with `54000: array size exceeds the maximum allowed (134217727)`,
+matching the pinned x64 PostgreSQL limit and retaining the original array.
+
+Existing prepared, query, DEFAULT/CHECK/view/generated/index and native logical
+control consumers reuse these nodes and dependencies. Array IO remains STABLE;
+construction/access over immutable children are immutable. ARRAY(SELECT),
+partial MERGE, new array function/operator/comparator providers and new scalar
+cast edges remain excluded.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArrayExpressionFeatureSmoke$' VERBOSE=0`
+and the identical command with `REFERENCE=1` (900 seconds per invocation).
+
 
 Ordinary INTERVAL DAY/HOUR array input first parses bare `1` as seconds and then
 applies the field mask, yielding zero; array elements which are DAY/HOUR domains

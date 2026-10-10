@@ -89,13 +89,25 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case parameterExpression:
 		o, ok := other.(parameterExpression)
 		return ok && e.number == o.number
-	case regclassArrayExpression:
-		o, ok := other.(regclassArrayExpression)
-		if !ok || len(e.elements) != len(o.elements) {
+	case arrayExpression:
+		o, ok := other.(arrayExpression)
+		if !ok || e.multidimensional != o.multidimensional || len(e.elements) != len(o.elements) {
 			return false
 		}
 		for i, element := range e.elements {
 			if !same(element, o.elements[i]) {
+				return false
+			}
+		}
+		return true
+	case subscriptExpression:
+		o, ok := other.(subscriptExpression)
+		if !ok || e.slice != o.slice || len(e.subscripts) != len(o.subscripts) || !same(e.base, o.base) {
+			return false
+		}
+		for i, s := range e.subscripts {
+			t := o.subscripts[i]
+			if s.slice != t.slice || !same(s.lower, t.lower) || !same(s.upper, t.upper) {
 				return false
 			}
 		}
@@ -105,7 +117,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return ok && same(e.child, o.child)
 	case coercionExpression:
 		o, ok := other.(coercionExpression)
-		return ok && e.plan == o.plan && e.mode == o.mode && same(e.child, o.child)
+		return ok && e.plan.Equal(o.plan) && e.mode == o.mode && same(e.child, o.child)
 	case bitwiseExpression:
 		o, ok := other.(bitwiseExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -464,10 +476,24 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.pos)
 		}
 		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
-	case regclassArrayExpression:
+	case arrayExpression:
 		e.elements = append([]BoundExpr(nil), e.elements...)
 		for i, element := range e.elements {
 			e.elements[i] = rewrite(element)
+		}
+		stage(&e.expressionInfo)
+		expr = e
+	case subscriptExpression:
+		var failure error
+		e, _, failure = mapSubscript(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			if child == nil {
+				return nil, false, nil
+			}
+			next := rewrite(child)
+			return next, !b.sameGroupExpression(child, next), err
+		})
+		if failure != nil {
+			return nil, failure
 		}
 		stage(&e.expressionInfo)
 		expr = e
@@ -715,9 +741,15 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	}
 	switch e := expr.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		for _, element := range e.elements {
 			walk(element)
+		}
+	case subscriptExpression:
+		walk(e.base)
+		for _, s := range e.subscripts {
+			walk(s.lower)
+			walk(s.upper)
 		}
 	case currentSchemasExpression:
 		walk(e.arg)

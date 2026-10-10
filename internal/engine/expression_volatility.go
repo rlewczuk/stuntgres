@@ -26,8 +26,11 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return v
 	}
 	switch n := node.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		return children(n.elements...)
+	case subscriptExpression:
+		var storage [13]BoundExpr
+		return children(subscriptChildren(n, &storage)...)
 	case literalExpression, columnExpression:
 		return Immutable
 	case collationExpression:

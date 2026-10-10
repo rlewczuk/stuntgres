@@ -66,6 +66,14 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 			valid, found = valid && a, found || b
 		}
 		return valid, found
+	case SubscriptExpr:
+		var storage [13]Expr
+		valid, found := true, false
+		for _, child := range e.Children(&storage) {
+			a, b := stringSingletonFamily(child, datetimeOnly)
+			valid, found = valid && a, found || b
+		}
+		return valid, found
 	case TimeZoneExpr:
 		a, b := stringSingletonFamily(e.Value, datetimeOnly)
 		if e.Local {

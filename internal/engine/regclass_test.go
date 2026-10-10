@@ -97,7 +97,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.ArrayExpr{Elements: []parser.Expr{parser.RegclassExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "pg_catalog.pg_class"}}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}
-	node, err := b.bindRegclassArray(raw, sqltype.Usage{})
+	node, err := b.bindArray(raw, sqltype.Usage{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if _, err = node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	empty, err := b.bindRegclassArray(parser.ArrayExpr{}, node.ResultUsage())
+	empty, err := b.bindArray(parser.ArrayExpr{}, node.ResultUsage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestRegclassConstructorParameterOccurrences(t *testing.T) {
 			if repeated {
 				raw.Elements = append(raw.Elements, parser.ParameterExpr{Number: 1})
 			}
-			node, err := b.bindRegclassArray(raw, expected)
+			node, err := b.bindArray(raw, expected)
 			if err != nil {
 				t.Fatal(contextual, repeated, err)
 			}

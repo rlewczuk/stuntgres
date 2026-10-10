@@ -130,12 +130,12 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 
 func TestCastRestoreRecursiveParameterGuard(t *testing.T) {
 	raw := castTarget(t, "SELECT CAST($1::text AS int4) FROM t")
-	err := restoreScalar(raw)
+	err := restoreScalar(raw, false)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "42P02" || d.Position != "13" {
 		t.Fatal(err)
 	}
-	if err := restoreScalar(castTarget(t, "SELECT CAST('42'::text AS int4) FROM t")); err != nil {
+	if err := restoreScalar(castTarget(t, "SELECT CAST('42'::text AS int4) FROM t"), false); err != nil {
 		t.Fatal(err)
 	}
 }

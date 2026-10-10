@@ -216,9 +216,12 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 		return nil, d
 	}
-	// Array expressions are not in the selected native scalar surface. Keep the
-	// original operand location, including UNKNOWN string and NULL literals.
+	// Ordinary arguments count whole-value nullness, including arrays. Explicit
+	// VARIADIC array expansion remains outside this provider's capability.
 	if raw.Variadic {
+		if typ := args[len(args)-1].ResultUsage().Type; typ != nil && typ.BaseType().IsArray() {
+			return nil, expressionError("0A000", "VARIADIC arrays in null-count arguments are unsupported", raw.Args[len(raw.Args)-1].SourcePosition())
+		}
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
 	return nullCountExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), kind: kind, args: args}, nil

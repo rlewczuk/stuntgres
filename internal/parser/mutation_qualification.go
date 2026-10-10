@@ -88,6 +88,12 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 		for _, element := range e.Elements {
 			absorb(element)
 		}
+	case SubscriptExpr:
+		absorb(e.Base)
+		for _, s := range e.Subscripts {
+			absorb(s.Lower)
+			absorb(s.Upper)
+		}
 	case OperatorExpr:
 		for _, child := range e.Args {
 			absorb(child)
@@ -190,6 +196,13 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	case ArrayExpr:
 		for _, element := range e.Elements {
 			if token, reject := nonqueryQualification(element, assignment); token != nil {
+				return token, reject
+			}
+		}
+	case SubscriptExpr:
+		var storage [13]Expr
+		for _, child := range e.Children(&storage) {
+			if token, reject := nonqueryQualification(child, assignment); token != nil {
 				return token, reject
 			}
 		}
@@ -375,6 +388,28 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 		}
 		if elements != nil {
 			e.Elements = elements
+			return e, true
+		}
+	case SubscriptExpr:
+		base, changed := markGroupedQualification(e.Base)
+		e.Base = base
+		var subs []ArraySubscript
+		for i, s := range e.Subscripts {
+			lower, lc := markGroupedQualification(s.Lower)
+			upper, uc := markGroupedQualification(s.Upper)
+			if lc || uc {
+				if subs == nil {
+					subs = append([]ArraySubscript(nil), e.Subscripts...)
+				}
+				s.Lower, s.Upper = lower, upper
+				subs[i] = s
+				changed = true
+			}
+		}
+		if subs != nil {
+			e.Subscripts = subs
+		}
+		if changed {
 			return e, true
 		}
 	case LogicalExpr:

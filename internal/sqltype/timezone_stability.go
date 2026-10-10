@@ -1,6 +1,9 @@
 package sqltype
 
 func (p CoercionPlan) SessionDependent() bool {
+	if p.element != nil {
+		return p.element.SessionDependent()
+	}
 	source, target := p.source.Type.id, p.target.Type.id
 	if p.method == moneyConversion {
 		return true

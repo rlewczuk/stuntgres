@@ -57,6 +57,7 @@ type binding struct {
 	storage               *relationStorage
 	ref                   ObjectRef
 	targets               []int
+	arrayTargets          []*arrayAssignmentTarget
 	usedColumns           []int
 	query                 *BoundQuery
 	querySources          []queryLeaf

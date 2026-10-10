@@ -47,7 +47,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			if failure == "close" {
 				cursor.closeError = injected
 			}
-			rows, err := assembleInsertRows(scope.op.Context(), b, cursor, count, "public", scope.input, scope.output, scope, true)
+			rows, err := assembleInsertRows(scope.op.Context(), b, cursor, count, "public", scope.input, scope.output, scope, true, nil)
 			if failure == "none" {
 				if err != nil || len(rows) != 2 || cursor.position != 3 {
 					t.Fatal("consumed vs admitted", count, len(rows), cursor.position, err)

@@ -215,7 +215,7 @@ pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 Change note: PostgreSQL 18 `regclass` identifies tables, views, indexes and
 sequences using quoted names, the effective relation search path or unsigned OID
 input. Direct scalar/array columns, domains, supported numeric/text casts and
-flat `ARRAY[scalar_regclass, ...]` constructors now compose with writes, stored
+`ARRAY[typed_expression, ...]` constructors now compose with writes, stored
 defaults, CHECKs, views and logical native Dump/Restore. Stored scalar input
 constants retain identity and DROP dependencies; ordinary prepared SQL
 reanalyzes its source spelling. Numeric coercion expressions retain their
@@ -574,12 +574,34 @@ associated array; declared bounds do not constrain stored shape. Native values
 are canonical array-literal strings, with owned immutable dimensions/elements,
 typed NULLs, element typmods and statement-owned temporal/REGCLASS presentation.
 Domain publication/drop and native Dump/Restore retain both association halves
-and recursively reown stored identities. This declaration/literal change adds
-no general constructor family; the selected flat regclass constructor is
-documented above. Existing subscripts/operators/functions have separate notes.
+and recursively reown stored identities. Typed constructors and access extend
+this immutable storage through the existing expression consumers, as described
+in the array expression change note below.
 See [arrays](docs/TYPES.md#arrays--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`.
+
+Change note: PostgreSQL 18 typed `ARRAY[...]` constructors support nested
+rectangles, explicit typed empties, common element types and existing array
+children. Element fetches honor stored lower bounds and return typed NULL for
+NULL/out-of-range/wrong-rank input. Slices use global colon semantics, clip
+overlap, return empty outside, and reset fetched lower bounds to one.
+Partial INSERT/UPDATE targets compose in SQL order; UPDATE RHS values and bounds
+see the old row. INSERT partial targets start from typed NULL, not DEFAULT.
+One-dimensional assignments can enlarge with NULL gaps; existing multidimensional
+arrays cannot enlarge. Slice RHS cells are consumed row-major regardless of RHS
+shape, with insufficient input rejected and excess ignored. Prepared/stored
+consumers and logical native controls share the same typed nodes.
+Slice validation preserves dimension/error order before source sufficiency on
+nonempty originals. Empty/NULL originals construct explicit spans: zero yields
+canonical empty, negative/overflow fails with SQLSTATE `54000`, and final bounds
+remain checked.
+No ARRAY(SELECT), partial MERGE targets, new array operators/functions or new
+expression consumers are added. Feature smoke (900-second deadline each):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceArrayExpressionFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArrayExpressionFeatureSmoke$' VERBOSE=0`.
+
 Full array definitions: run the same commands with `RUN='^TestReferenceArray'`.
 
 Change note: Serializable transactions now use stable snapshots plus nonblocking
@@ -604,7 +626,7 @@ and physical codecs. `DROP DOMAIN [IF EXISTS] ... [RESTRICT | CASCADE]` follows
 real type/column/stored-expression dependencies: CASCADE removes dependent columns
 and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
 qualified declarations, chains, owners and data. Domain DEFAULT/CHECK/NOT NULL,
-ALTER DOMAIN, array operators/functions/constructors/subscripts, type ACL-management
+ALTER DOMAIN, array operators/functions, type ACL-management
 SQL and transactional domain DDL remain excluded. See [domains](docs/TYPES.md#domains--change-note).
 Feature smokes:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$' VERBOSE=0`,

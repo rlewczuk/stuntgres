@@ -85,11 +85,29 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		fmt.Fprintf(out, "TransactionTime kind %d", n.kind)
 	case columnExpression:
 		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
-	case regclassArrayExpression:
-		fmt.Fprint(out, "RegclassArray")
+	case arrayExpression:
+		fmt.Fprint(out, "Array")
 		for _, element := range n.elements {
 			if err = child(element); err != nil {
 				break
+			}
+		}
+	case subscriptExpression:
+		fmt.Fprintf(out, "Subscript slice %t", n.slice)
+		if err = child(n.base); err != nil {
+			return err
+		}
+		for _, s := range n.subscripts {
+			fmt.Fprintf(out, " Dimension slice %t lower %t upper %t", s.slice, s.lower != nil, s.upper != nil)
+			if s.lower != nil {
+				if err = child(s.lower); err != nil {
+					return err
+				}
+			}
+			if s.upper != nil {
+				if err = child(s.upper); err != nil {
+					return err
+				}
 			}
 		}
 	case collationExpression:

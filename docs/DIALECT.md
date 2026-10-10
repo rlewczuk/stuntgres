@@ -377,7 +377,7 @@ storage parameters, tablespaces, ON COMMIT, AS EXECUTE and AS TABLE remain expli
 capability boundaries. Deferred option rejection still consumes the complete
 input before effects. Native pg_temp namespace rejection retains destination
 character Position; other CTAS destination schema errors are unpositioned.
-This adds no array constructors/subscripts, new set/query providers, SQL GRANT
+This CTAS change itself adds no new set/query providers, SQL GRANT
 surface, native pg_type/pg_attribute source or broader Restore whitelist.
 
 Full shared definitions: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryTableCreate' VERBOSE=0`
@@ -496,6 +496,44 @@ composite arrays, builtin/catalog row execution, ROW constructors, field operati
 comparison/hash/key operations and new ALTER/DROP TYPE forms remain excluded.
 See [complete type/transport/shape contract](TYPES.md#composites--change-note).
 
+### Array expressions and partial assignments
+
+`ARRAY[...]` supports scalar common-type resolution and rectangular nested
+constructors. An explicitly cast empty constructor obtains its element type
+from that cast. Constructors are not assignment-context typed; existing scalar
+coercion rules apply elementwise without adding new scalar cast routes.
+
+Array access supports adjacent subscripts, parenthesized expression bases and
+parameters. Element reads respect actual lower bounds; NULL, missing and
+wrong-rank reads yield typed NULL. A colon makes the entire access a slice:
+plain subscripts become `1:upper`, omitted bounds use the actual dimensions,
+and clipped result bounds start at one. Slice misses yield typed empty arrays.
+
+INSERT and UPDATE allow element and slice targets, including repeated partial
+targets in SQL order. INSERT partial targets start from typed NULL rather than
+the column default. UPDATE RHS and bounds read the old row while partial writes
+compose privately. NULL assignment bounds are errors; NULL slice RHS is a
+no-op. One-dimensional writes may enlarge arrays with typed NULL gaps.
+Multi-dimensional writes preserve shape, and slice assignment consumes enough
+flattened RHS elements while ignoring excess. MERGE partial targets remain
+unsupported.
+Nonempty slice writes validate destination dimensions in order and final shape
+before RHS size. Empty/NULL originals construct explicit spans: zero yields
+canonical empty, negative/overflow yields SQLSTATE `54000`, and omitted boundaries
+remain errors. Empty originals check source sufficiency before final bounds,
+including final bounds when another span is zero. NULL slice RHS bypasses span
+checks after bound NULL validation.
+
+Execution demands the base, all upper bounds, then all lower bounds. Reads of
+a whole-NULL array skip bounds; assignments do not. Assignment NULL-bound
+validation precedes its replacement RHS. Existing source-first INSERT query
+and identity behavior is preserved.
+
+Native Restore applies its central parameter rejection to stored CREATE column
+defaults, generated expressions and column/table CHECK expressions, including
+parameters inside array members or bounds. Stored expression admission stays
+with the existing binder; INSERT retains its existing Restore whitelist.
+
 ### Domains — change note
 
 `CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]`
@@ -517,7 +555,7 @@ eager, while assignment typmod enforcement and explicit truncation use the norma
 execution coercion. Qualified modifier syntax resolves the actual catalog type,
 including a domain whose name is also a builtin spelling.
 The default is typed NULL. Domain DEFAULT/CHECK/NOT NULL, ALTER DOMAIN,
-array operators/functions/constructors/subscripts, GRANT/REVOKE TYPE/DOMAIN and
+array operators/functions, GRANT/REVOKE TYPE/DOMAIN and
 explicit-transaction domain utilities remain unsupported, not successful no-ops.
 The migrated visibility boundary retains its exact CREATE DOMAIN d AS integer
 Query, empty utility result and typed7/true INT4/BOOL witness. DROP followed by
@@ -1190,8 +1228,8 @@ native reports 0A000 `epoch to_timestamp is unsupported`.
 PostgreSQL's implicit TIME-to-INTERVAL formatting route depends on a cast not
 provided by the current native temporal substrate; native reports 0A000
 `time to interval conversion is unsupported`. This does not implement that
-adjacent cast. General-family VARIADIC ARRAY construction remains excluded;
-the selected flat regclass constructor does not add temporal-array construction.
+adjacent cast. Typed ARRAY construction is supported by the array expression
+family; it does not add nonexistent VARIADIC datetime function signatures.
 The string-category resolver, DATE's implicit source promotion and namespace
 visibility retain the existing overload rules. No temporal arithmetic,
 new general casts or wire protocol is added. Locale category settings use the
@@ -2266,11 +2304,14 @@ Independent reference coverage asserts PostgreSQL's positive BOOL outputs and
 native failures separately, without normalizing this capability boundary.
 
 Selected `num_nulls`/`num_nonnulls` calls additionally work in SELECT projections
-and nested selected arguments, accepting1–100 heterogeneous scalars without
+and nested selected arguments, accepting1–100 heterogeneous typed datums without
 common-type conversion. They are immutable, nonstrict and return nonnull INT4
 (native int64) counts with function-name labels and no physical origin.
 Explicit NULL positions count; zero, false and empty strings are nonnull.
 Their decoded counts sum to the ordinary argument count.
+Ordinary array arguments count the whole array as one argument: whole SQL NULL
+counts as null, while empty arrays and arrays with NULL cells count as nonnull.
+This is existing whole-value nullness composition, not array member expansion.
 
 No-FROM projections use the ordinary local one-row input and the existing
 binder/project/finalization pipeline, without a selected-call witness or
@@ -2290,8 +2331,10 @@ is not a child analysis error, so over100 still fails54023 before whole-statemen
 parameter finalization.
 Explicit VARIADIC scalar operands fail42804 at the operand, including unknown
 strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
-Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
-native support, and ordinary NULL is a single null argument. Calls remain excluded
+Explicit VARIADIC arrays remain a native capability boundary:0A000
+`VARIADIC arrays in null-count arguments are unsupported` at the operand.
+PostgreSQL expands their members; native does not. Scalar VARIADIC retains the
+existing42804 diagnostic. Ordinary NULL is a single null argument. Calls remain excluded
 from INSERT, WHERE and setting arguments. General calls, function qualification,
 casts outside the bounded baseline and character-family sets, arithmetic,
 DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments

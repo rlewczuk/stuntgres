@@ -43,6 +43,12 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 		args = e.Args
 	case ArrayExpr:
 		args = e.Elements
+	case SubscriptExpr:
+		child(e.Base)
+		for _, s := range e.Subscripts {
+			child(s.Lower)
+			child(s.Upper)
+		}
 	case OperatorExpr:
 		args = e.Args
 	case ConditionalExpr:

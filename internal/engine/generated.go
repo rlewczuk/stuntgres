@@ -121,8 +121,11 @@ func generationImmutable(node BoundExpr) bool {
 		return true
 	}
 	switch n := node.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		return args(n.elements)
+	case subscriptExpression:
+		var storage [13]BoundExpr
+		return args(subscriptChildren(n, &storage))
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
 	case uuidGenerationExpression:
@@ -248,8 +251,11 @@ func generationHasTableOID(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		return args(n.elements)
+	case subscriptExpression:
+		var storage [13]BoundExpr
+		return args(subscriptChildren(n, &storage))
 	case tableOIDExpression:
 		return true
 	case collationExpression:
@@ -456,8 +462,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return nil
 	}
 	switch n := node.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		return args(n.elements)
+	case subscriptExpression:
+		var storage [13]BoundExpr
+		return args(subscriptChildren(n, &storage))
 	case columnExpression:
 		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.address.ClassID || n.origin.Address.ObjectID != d.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.columns) || d.attributes[n.slot] != n.origin.Address.SubID || usage != d.columns[n.slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")

@@ -614,6 +614,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 		if c == ':' && l.offset < len(l.input) && l.input[l.offset] == ':' {
 			l.current.text = "::"
 			l.offset++
+			token = TYPECAST
 		} else if c == ':' && l.offset < len(l.input) && l.input[l.offset] == '=' {
 			l.current.text = ":="
 			l.offset++

@@ -95,6 +95,9 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return expressions(e.Args)
 		case ArrayExpr:
 			return expressions(e.Elements)
+		case SubscriptExpr:
+			var storage [13]Expr
+			return expressions(e.Children(&storage))
 		case CastExpr:
 			return expression(e.Child)
 		case RegclassExpr:
@@ -217,6 +220,16 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	case *CreateQueryTable:
 		return query(s.Query)
 	case *Insert:
+		for _, target := range s.Targets {
+			for _, bound := range target.Subscripts {
+				if err := expression(bound.Lower); err != nil {
+					return err
+				}
+				if err := expression(bound.Upper); err != nil {
+					return err
+				}
+			}
+		}
 		if s.Source != nil {
 			if s.Source.Select != nil {
 				return query(s.Source.Select)
@@ -254,6 +267,14 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return err
 		}
 		for _, assignment := range s.Assignments {
+			for _, bound := range assignment.Subscripts {
+				if err := expression(bound.Lower); err != nil {
+					return err
+				}
+				if err := expression(bound.Upper); err != nil {
+					return err
+				}
+			}
 			if err := expression(assignment.Value); err != nil {
 				return err
 			}

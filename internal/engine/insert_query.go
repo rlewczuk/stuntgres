@@ -10,8 +10,8 @@ import (
 	"unicode/utf8"
 )
 
-// slots may be nil for the target-first lock-analysis checkpoint. Names are
-// unique per descriptor, so duplicate target names identify duplicate slots.
+// slots may be nil for the target-first lock-analysis checkpoint. Repeated
+// partial targets compose; any repeated whole-column target remains an error.
 func bindInsertTargets(relation *relationDescriptor, targets []parser.InsertTarget, slots []int) error {
 	for i, target := range targets {
 		slot, ok := relation.index[target.Name]
@@ -19,7 +19,7 @@ func bindInsertTargets(relation *relationDescriptor, targets []parser.InsertTarg
 			return insertError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, target.Name, relation.name), target.Pos)
 		}
 		for _, previous := range targets[:i] {
-			if previous.Name == target.Name {
+			if previous.Name == target.Name && (len(previous.Subscripts) == 0 || len(target.Subscripts) == 0) {
 				return insertError("42701", fmt.Sprintf(`column "%s" specified more than once`, target.Name), target.Pos)
 			}
 		}
@@ -72,6 +72,13 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	schemaDetached := false
 	for i, expr := range project.expressions {
 		target := out.relation.columns[out.targets[i]]
+		var partial *arrayAssignmentTarget
+		if len(out.arrayTargets) != 0 {
+			partial = out.arrayTargets[i]
+			if partial != nil {
+				target = partial.column(target)
+			}
+		}
 		if _, generated := out.relation.generations[out.relation.attributes[out.targets[i]]]; generated {
 			return generationWriteError(target.Name, false)
 		}
@@ -79,8 +86,11 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			return identityInsertError(target.Name)
 		}
 		assigned, err := binder.assignOutput(expr, target)
+		if err != nil && partial != nil {
+			err = partial.diagnostic(err, expr.ResultUsage().Type)
+		}
 		if err != nil {
-			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && s.Source.Select != nil {
+			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && s.Source.Select != nil && partial == nil {
 				// Projection expansion can change output indices. Match the
 				// retained source position instead of indexing raw targets.
 				for _, raw := range s.Source.Select.Targets {
@@ -142,6 +152,9 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 }
 
 func typeCategory(t *sqltype.Descriptor) byte {
+	if t.BaseType().IsArray() {
+		return 'A'
+	}
 	switch t.BaseType().ID() {
 	case sqltype.Bool:
 		return 'B'
@@ -365,10 +378,10 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique)
+	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique, parameters)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool) (rows [][]sqltype.Value, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value) (rows [][]sqltype.Value, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -389,7 +402,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		rows = make([][]sqltype.Value, 0)
 	}
 	scratch := make([]sqltype.Value, len(b.targets))
-	evaluation := EvalContext{Context: ctx, Input: input, Output: output, statementScope: scope}
+	evaluation := EvalContext{Context: ctx, Parameters: parameters, Input: input, Output: output, statementScope: scope}
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -409,7 +422,14 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			row[j] = sqltype.Null(c.Usage.Type)
 		}
 		for j, target := range b.targets {
-			row[target] = scratch[j]
+			value := scratch[j]
+			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
+				value, err = b.arrayTargets[j].apply(&evaluation, row[target], value)
+				if err != nil {
+					return nil, err
+				}
+			}
+			row[target] = value
 		}
 		for j, expression := range b.defaults {
 			if expression != nil {

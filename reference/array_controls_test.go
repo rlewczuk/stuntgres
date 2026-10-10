@@ -198,10 +198,14 @@ func TestReferenceArraySmoke(t *testing.T) {
 		want.Context = "unnamed portal parameter $2 = '...'"
 		run(referencePrepared(referenceErrorDiagnostic("INSERT INTO public.array_smoke (id,i) VALUES (3,$1),(4,$2)", want, "{9}", "{1,,2}")))
 		run(check)
+		for _, s := range []referenceStep{
+			arrayReferenceSelect("SELECT ARRAY[1,2] AS a FROM public.one", []string{"a"}, []string{"_INT4"}, []string{"_INT4"}, [][]any{{"{1,2}"}}, b.pg),
+			referenceSelect("SELECT i[1] AS e FROM public.array_smoke ORDER BY id", []string{"e"}, []string{"INT4"}, [][]any{{nil}, {nil}}),
+		} {
+			run(s)
+			run(referencePrepared(s))
+		}
 		if !b.pg {
-			for _, q := range []string{"SELECT ARRAY[1,2] FROM public.one", "SELECT i[1] FROM public.array_smoke"} {
-				run(referenceError(q, "42601"))
-			}
 			for _, q := range []string{"SELECT i FROM public.array_smoke ORDER BY i", "SELECT i=i FROM public.array_smoke"} {
 				run(referenceError(q, "42883"))
 			}

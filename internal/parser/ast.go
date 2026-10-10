@@ -325,15 +325,66 @@ type RegclassExpr struct {
 func (RegclassExpr) expression()                {}
 func (e RegclassExpr) SourcePosition() Position { return e.Pos }
 
-// ArrayExpr is flat ARRAY[...] syntax; type admission belongs to the binder.
+// ArrayExpr retains ordered scalar or array children of ARRAY[...] syntax.
 type ArrayExpr struct {
 	Elements []Expr
 	Pos      Position
-	Spelling string // Original keyword spelling for excluded-family diagnostics.
 }
 
 func (ArrayExpr) expression()                {}
 func (e ArrayExpr) SourcePosition() Position { return e.Pos }
+
+type ArraySubscript struct {
+	Lower, Upper Expr
+	Slice        bool
+	Pos          Position
+}
+
+type SubscriptExpr struct {
+	Base       Expr
+	Subscripts []ArraySubscript
+	Pos        Position
+}
+
+func (SubscriptExpr) expression()                {}
+func (e SubscriptExpr) SourcePosition() Position { return e.Pos }
+
+// Children uses caller storage for admitted ranks. Larger raw syntax still
+// traverses safely before the binder reports the dimension-limit diagnostic.
+func (e SubscriptExpr) Children(storage *[13]Expr) []Expr {
+	count := 0
+	if e.Base != nil {
+		count++
+	}
+	for _, s := range e.Subscripts {
+		if s.Lower != nil {
+			count++
+		}
+		if s.Upper != nil {
+			count++
+		}
+	}
+	children := storage[:]
+	if count > len(children) {
+		children = make([]Expr, count)
+	}
+	at := 0
+	if e.Base != nil {
+		children[at] = e.Base
+		at++
+	}
+	for _, s := range e.Subscripts {
+		if s.Lower != nil {
+			children[at] = s.Lower
+			at++
+		}
+		if s.Upper != nil {
+			children[at] = s.Upper
+			at++
+		}
+	}
+	return children[:count]
+}
 
 type TimeZoneExpr struct {
 	Value, Zone Expr
@@ -508,8 +559,9 @@ type InsertConflict struct {
 }
 
 type InsertTarget struct {
-	Name string
-	Pos  Position
+	Name       string
+	Pos        Position
+	Subscripts []ArraySubscript
 }
 
 func (*Insert) statement() {}
@@ -589,6 +641,7 @@ type Update struct {
 type UpdateAssignment struct {
 	Target      Identifier
 	Indirection []Identifier
+	Subscripts  []ArraySubscript
 	Value       Expr
 }
 
@@ -1261,6 +1314,9 @@ func (e FunctionExpr) SourcePosition() Position     { return e.Pos }
 // Grouping is transparent; folded literals already retain their sign location.
 func ExpressionStart(expr Expr) Position {
 	pos := expr.SourcePosition()
+	if subscript, ok := expr.(SubscriptExpr); ok {
+		return ExpressionStart(subscript.Base)
+	}
 	if cast, ok := expr.(CastExpr); ok && cast.Syntax == PostfixCast {
 		return ExpressionStart(cast.Child)
 	}

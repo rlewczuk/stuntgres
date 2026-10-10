@@ -20,8 +20,14 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	switch e := node.(type) {
 	case groupingExpression:
 		args(e.args)
-	case regclassArrayExpression:
+	case arrayExpression:
 		args(e.elements)
+	case subscriptExpression:
+		walk(e.base)
+		for _, s := range e.subscripts {
+			walk(s.lower)
+			walk(s.upper)
+		}
 	case updateOldExpression:
 		walk(e.columnExpression)
 	case deleteNewExpression:

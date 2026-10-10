@@ -868,6 +868,7 @@ const (
 	datetimeConversion
 	charTextConversion
 	bitStringConversion
+	arrayConversion
 )
 
 type CoercionPlan struct {
@@ -875,12 +876,28 @@ type CoercionPlan struct {
 	method                       coercionMethod
 	context                      CoercionContext
 	logicalSource, logicalTarget *Descriptor
+	element                      *CoercionPlan
+}
+
+func (p CoercionPlan) Equal(other CoercionPlan) bool {
+	child, next := p.element, other.element
+	p.element, other.element = nil, nil
+	if p != other {
+		return false
+	}
+	if child == nil || next == nil {
+		return child == next
+	}
+	return child.Equal(*next)
 }
 
 // RequiresCatalogOutput follows the selected operation, including recursive
 // array/domain output, rather than the destination's spelling. Identity and
 // numeric OID conversions never invoke symbolic output.
 func (p CoercionPlan) RequiresCatalogOutput() bool {
+	if p.element != nil {
+		return p.element.RequiresCatalogOutput()
+	}
 	return p.method == viaIO && p.source.Type.ContainsCatalogIdentifier()
 }
 
@@ -888,6 +905,9 @@ func (p CoercionPlan) RequiresCatalogOutput() bool {
 // a relabel, one cast function, or the output/input pair of an IO coercion.
 // OVERLAPS uses it for the released duplicated-argument inline threshold.
 func (p CoercionPlan) EvaluationFunctionCount() int {
+	if p.element != nil {
+		return p.element.EvaluationFunctionCount()
+	}
 	if p.method == viaIO {
 		return 2
 	}
@@ -1081,6 +1101,17 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		if source.Type == target.Type {
 			return p, nil
 		}
+		if source.Type.IsArray() && target.Type.IsArray() {
+			from, to := source.Type.Element().Usage(), target.Type.Element().Usage()
+			from.Typmod, to.Typmod = source.Typmod, target.Typmod
+			from.Collation, to.Collation = source.Collation, target.Collation
+			child, err := PlanCoercion(from, to, context)
+			if err != nil {
+				return p, err
+			}
+			p.method, p.element = arrayConversion, &child
+			return p, nil
+		}
 		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
 			p.method = viaIO
 			return p, nil
@@ -1212,6 +1243,10 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 	switch p.method {
 	case moneyConversion:
 		return moneyCoercion(v, p.target, input.MonetaryLocale)
+	case arrayConversion:
+		return v.MapArray(p.target.Type, func(element Value, _ *Descriptor) (Value, error) {
+			return p.element.Apply(ctx, element, input, output)
+		})
 	case bitStringConversion:
 		v.typ = p.target.Type
 		return sizeBitString(v, p.target.Typmod)

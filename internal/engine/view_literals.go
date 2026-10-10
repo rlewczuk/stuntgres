@@ -170,8 +170,27 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return nil
 		}
 	case parser.ArrayExpr:
-		if n, ok := bound.(regclassArrayExpression); ok {
+		if n, ok := bound.(arrayExpression); ok {
 			return children(r.Elements, n.elements)
+		}
+	case parser.SubscriptExpr:
+		if n, ok := bound.(subscriptExpression); ok && len(r.Subscripts) == len(n.subscripts) {
+			if err := child(r.Base, n.base); err != nil {
+				return err
+			}
+			for i, s := range r.Subscripts {
+				if s.Lower != nil {
+					if err := child(s.Lower, n.subscripts[i].lower); err != nil {
+						return err
+					}
+				}
+				if s.Upper != nil {
+					if err := child(s.Upper, n.subscripts[i].upper); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		}
 	case parser.CollateExpr:
 		if n, ok := bound.(collationExpression); ok {
@@ -695,6 +714,9 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		return child(r.Child)
 	case parser.ArrayExpr:
 		return args(r.Elements)
+	case parser.SubscriptExpr:
+		var storage [13]parser.Expr
+		return args(r.Children(&storage))
 	case parser.OperatorExpr:
 		return args(r.Args)
 	case parser.LogicalExpr:

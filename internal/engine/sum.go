@@ -147,6 +147,14 @@ func containsSumAnalysis(raw parser.Expr) bool {
 		children = e.Args
 	case parser.ArrayExpr:
 		children = e.Elements
+	case parser.SubscriptExpr:
+		var storage [13]parser.Expr
+		for _, child := range e.Children(&storage) {
+			if containsSumAnalysis(child) {
+				return true
+			}
+		}
+		return false
 	case parser.RowExpr:
 		children = e.Fields
 	case parser.SubqueryExpr:

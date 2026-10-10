@@ -54,7 +54,27 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]BoundExpr, catalog CatalogRead) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
+	validateTargets := func(targets []*arrayAssignmentTarget) error {
+		for _, target := range targets {
+			if target == nil {
+				continue
+			}
+			var storage [13]BoundExpr
+			for _, child := range subscriptChildren(target.node, &storage) {
+				if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := validateTargets(b.arrayTargets); err != nil {
+		return err
+	}
 	if b.update != nil {
+		if err := validateTargets(b.update.arrayTargets); err != nil {
+			return err
+		}
 		for _, expression := range b.update.assignments {
 			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
@@ -472,8 +492,26 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	switch e := expr.(type) {
 	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		return 0, nil
-	case regclassArrayExpression:
+	case arrayExpression:
 		children = e.elements
+	case subscriptExpression:
+		sides, err := joinExpressionSides(e.base, leftWidth, rightWidth)
+		if err != nil {
+			return 0, err
+		}
+		for _, s := range e.subscripts {
+			for _, child := range [2]BoundExpr{s.lower, s.upper} {
+				if child == nil {
+					continue
+				}
+				side, err := joinExpressionSides(child, leftWidth, rightWidth)
+				if err != nil {
+					return 0, err
+				}
+				sides |= side
+			}
+		}
+		return sides, nil
 	case coercionExpression:
 		return joinExpressionSides(e.child, leftWidth, rightWidth)
 	case collationExpression:

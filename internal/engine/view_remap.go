@@ -42,8 +42,17 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	}
 	var next BoundExpr
 	switch n := node.(type) {
-	case regclassArrayExpression:
+	case arrayExpression:
 		n.elements = args(n.elements)
+		next = n
+	case subscriptExpression:
+		n, _, err = mapSubscript(n, func(old BoundExpr) (BoundExpr, bool, error) {
+			if old == nil {
+				return nil, false, nil
+			}
+			next := child(old)
+			return next, true, err
+		})
 		next = n
 	case subqueryExpression:
 		if queryMapper != nil {
