@@ -90,7 +90,7 @@ func NewPair(t *testing.T) *Pair {
 	return NewFixture(t, true, false)
 }
 
-func NewFixture(t *testing.T, withPostgres, freshNative bool) *Pair {
+func NewFixture(t *testing.T, withPostgres, nativeRaw bool) *Pair {
 	t.Helper()
 	if withPostgres {
 		if err := EnsureStarted(); err != nil {
@@ -133,7 +133,7 @@ func NewFixture(t *testing.T, withPostgres, freshNative bool) *Pair {
 		t.FailNow()
 	}
 	p := &Pair{Ctx: ctx, MemoryRecord: &Recorder{}, PostgresRecord: &Recorder{}}
-	if freshNative {
+	if nativeRaw {
 		p.MemoryRecord.RawBackend = RawNative
 		p.PostgresRecord.RawBackend = RawPostgres
 	}
@@ -147,29 +147,19 @@ func NewFixture(t *testing.T, withPostgres, freshNative bool) *Pair {
 		}
 		reset()
 	})
-	nativeDriver := referenceMemoryDriver
-	if freshNative {
-		nativeDriver = stuntgres.NewDriver()
-	}
+	nativeDriver := stuntgres.NewDriver()
 	connector, err := nativeDriver.OpenConnector("reference/" + t.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.NativeConnector = connector.(*stuntgres.Connector)
 	p.Native = sql.OpenDB(connector)
-	if freshNative {
-		wrapped := sqlmw.Driver(NoticeReferenceDriver{connector}, Interceptor{})
-		configured, err := wrapped.(driver.DriverContext).OpenConnector("")
-		if err != nil {
-			t.Fatal(err)
-		}
-		p.Memory = sql.OpenDB(configured)
-	} else {
-		p.Memory, err = sql.Open("stuntgres_reference_memory", "reference/"+t.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
+	wrapped := sqlmw.Driver(NoticeReferenceDriver{connector}, Interceptor{})
+	configured, err := wrapped.(driver.DriverContext).OpenConnector("")
+	if err != nil {
+		t.Fatal(err)
 	}
+	p.Memory = sql.OpenDB(configured)
 	if withPostgres {
 		p.Postgres, err = sql.Open("stuntgres_reference_postgres", DSN)
 		if err != nil {
@@ -822,8 +812,11 @@ func NoticeReferencePool(t *testing.T, p *Pair, postgres bool, records *[]Diagno
 		connector = pq.ConnectorWithNoticeHandler(base, func(n *pq.Error) { deliver(ExtractDiagnostic(t, n)) })
 	} else {
 		base := p.NativeConnector
-		if base == nil || p.MemoryRecord.RawBackend == RawLegacy {
-			legacy, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
+		if base == nil {
+			t.Fatal("notice pool has no owning native connector")
+		}
+		if p.MemoryRecord.RawBackend == RawLegacy {
+			legacy, err := base.Driver().(*stuntgres.Driver).OpenConnector("reference/" + t.Name())
 			if err != nil {
 				t.Fatal(err)
 			}

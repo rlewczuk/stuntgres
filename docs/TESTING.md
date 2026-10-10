@@ -3149,6 +3149,32 @@ a 900-second deadline:
 and
 `make check REFERENCE=1 RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`.
 
+Every pair, including legacy `fixture.NewPair(t)`, owns a dedicated native
+`Driver`. Its wrapped and native control pools share the exact fixture DSN;
+closing and reopening a pool on that same Driver/DSN preserves its engine.
+Legacy recorder provenance remains unchanged. Legacy notice helpers preserve
+their caller-specific `reference/` + `t.Name()` DSNs on the pair's Driver:
+equal caller names share state, different names remain isolated. Modern
+scenario notice helpers retain the parent connector. Neither kind retains
+finished fixture engines in the process-registered Driver. The explicit
+registered-driver BYTEA ownership witness is intentionally unchanged.
+
+Fixture ownership regressions live beside the common exported helpers in
+`reference/fixture/fixture_native_isolation_test.go` and
+`reference/fixture/fixture_notice_ownership_test.go`. These identical definitions
+run in both modes (900 seconds per invocation):
+
+```sh
+make check RUN='^TestReferenceFixture(NativeIsolation|LegacyNoticeOwnership|ByteOwnership|ResetIsolation|SessionAuthorizationReset)$'
+make check REFERENCE=1 RUN='^TestReferenceFixture(NativeIsolation|LegacyNoticeOwnership|ByteOwnership|ResetIsolation|SessionAuthorizationReset)$'
+```
+
+These selectors do not replace whole-project Docker-free `make quickcheck`
+verification or post-merge `make finalcheck`. Use `RACE=1` on a selected
+`make check` command for bounded race proof, and `REFERENCE=1 RACE=1` for the
+same definitions against pinned PostgreSQL. Reduced engine retention is an
+ownership correction, not evidence of a measured performance improvement.
+
 Non-public schemas are not reset by the fixture. Register
 `fixture.SchemaReferenceCleanup(t, "schema_name")` before constructing the scenario
 when a case creates or moves objects into another schema; otherwise a later
@@ -3422,6 +3448,7 @@ cleanup and assertions rather than weakening them to make a migration pass.
 | Helper | Contract and use |
 | --- | --- |
 | `fixture.NewScenario(t) *fixture.Pair` | Required entry point for new dual-mode tests; honors `-reference` and uses a fresh native engine. Do not use legacy `fixture.NewPair(t)`, which always starts Docker. |
+| `fixture.NewFixture(t, withPostgres, nativeRaw) *fixture.Pair` | Low-level fixture seam for ownership/provenance tests. Every pair owns a dedicated native Driver. `withPostgres` controls oracle startup; `nativeRaw` selects native/PostgreSQL raw recorder provenance, not Driver ownership. False retains exact legacy raw semantics. Prefer `fixture.NewScenario` for feature tests. |
 | `p.Step(t, s)` | Execute and independently assert the same step on available backends, then compare observations. |
 | `p.Backends()` | Returns backend descriptors with `Name`, `DB` (`*sql.DB`), `Recorder`, and `PG` (true only for PostgreSQL). Loop once over these and share the callback. |
 | `p.Ctx`, `p.Native`, `p.NativeConnector` | Bounded scenario context; unwrapped native control pool; fresh native connector for public connector controls. `p.Memory` and `p.Postgres` are the wrapped pools; `p.Postgres` is nil in quick mode. |
@@ -3439,7 +3466,7 @@ cleanup and assertions rather than weakening them to make a migration pass.
 | `fixture.ExtractDiagnostic(t, err) fixture.Diagnostic` | Extract structured public native/pq diagnostics; validates diagnostic shape and excludes native claims of PostgreSQL C source locations. Useful while discovering oracle data. |
 | `fixture.AssertDiagnostic(t, err, &want) fixture.Diagnostic` | Assert the complete structured diagnostic for custom calls. Does not accept a nil expectation. |
 | `fixture.Normalize(value) any` | Converts `[]byte` to string and `time.Time` to UTC without monotonic/location identity; leaves other values unchanged. Standard steps apply this automatically. |
-| `fixture.NoticeReferencePool(t, p, postgres, &records)` | Return a notice-enabled pool, pinned connection and recorder; append complete notice diagnostics to `records`. Select the backend using `backend.PG`; fixture registers cleanup. |
+| `fixture.NoticeReferencePool(t, p, postgres, &records)` | Return a notice-enabled pool, pinned connection and recorder; append complete notice diagnostics to `records`. Select the backend using `backend.PG`; fixture registers cleanup. Native legacy provenance preserves the exact caller `reference/` + `t.Name()` DSN on the pair-owned Driver; scenario provenance shares the parent connector even for child names. The native pair must have an owning connector; there is no registered-driver fallback. |
 | `fixture.SessionCancel(t, parent, conn, prepared, queryMode...)` | Observe real PostgreSQL pg_sleep admission, cancel through the server, join the operation and assert full57014. Optional true queryMode selects Query with nil error cursor; otherwise Exec. The caller asserts SAME-owner continuation; this is not a native precancel substitute. |
 | `fixture.RoleReferenceCleanup(t, names)` | Register cleanup for real PostgreSQL roles created by the test **before constructing the scenario**, so pool closure and schema reset happen before role removal. Public-schema resets do not remove cluster roles. |
 

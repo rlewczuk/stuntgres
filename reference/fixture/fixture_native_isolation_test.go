@@ -2,23 +2,99 @@ package fixture
 
 import (
 	"bytes"
+	"database/sql"
+	"database/sql/driver"
 	"stuntgres"
 	"testing"
+
+	"github.com/ngrok/sqlmw"
 )
 
 func TestReferenceFixtureNativeIsolation(t *testing.T) {
-	// Equal test names must not retain an earlier pilot's process-local engine.
-	first := NewFixture(t, false, true)
-	first.Step(t, Exec("CREATE TABLE isolated(v INT)", 0))
-	first.Step(t, Exec("INSERT INTO isolated VALUES (7)", 1))
-	var value int64
-	if err := first.Native.QueryRowContext(first.Ctx, "SELECT v FROM isolated").Scan(&value); err != nil || value != 7 {
-		t.Fatalf("native control pool shares wrapped state: value=%d error=%v", value, err)
+	for _, mode := range []struct {
+		name      string
+		nativeRaw bool
+	}{{"legacy", false}, {"native_raw", true}} {
+		t.Run(mode.name, func(t *testing.T) {
+			first := NewFixture(t, *Mode, mode.nativeRaw)
+			wantMemoryRaw, wantPostgresRaw := RawLegacy, RawLegacy
+			if mode.nativeRaw {
+				wantMemoryRaw, wantPostgresRaw = RawNative, RawPostgres
+			}
+			if first.MemoryRecord.RawBackend != wantMemoryRaw || first.PostgresRecord.RawBackend != wantPostgresRaw {
+				t.Fatal("fixture changed recorder provenance")
+			}
+			first.Step(t, Exec("CREATE TABLE isolated(v INT)", 0))
+			first.Step(t, Exec("INSERT INTO isolated VALUES (7)", 1))
+			var value int64
+			if err := first.Native.QueryRowContext(first.Ctx, "SELECT v FROM isolated").Scan(&value); err != nil || value != 7 {
+				t.Fatalf("native control pool shares wrapped state: value=%d error=%v", value, err)
+			}
+			for _, prepared := range []bool{false, true} {
+				step := Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
+				step.Prepared = prepared
+				first.Step(t, step)
+			}
+			if mode.nativeRaw {
+				for _, backend := range first.Backends() {
+					t.Run("scenario_notice/"+backend.Name, func(t *testing.T) {
+						var notices []Diagnostic
+						_, peer, record := NoticeReferencePool(t, first, backend.PG, &notices)
+						RunStep(t, first.Ctx, peer, record, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+						RunStep(t, first.Ctx, peer, record, Exec("UPDATE isolated SET v=9", 1))
+						RunStep(t, first.Ctx, backend.DB, backend.Recorder, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, [][]any{{int64(9)}}))
+						RunStep(t, first.Ctx, backend.DB, backend.Recorder, Exec("UPDATE isolated SET v=7", 1))
+					})
+				}
+			}
+
+			// Native host lifetime is Driver/exact-DSN lifetime, not pool lifetime.
+			if err := first.Memory.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := first.Native.Close(); err != nil {
+				t.Fatal(err)
+			}
+			connector, err := first.NativeConnector.Driver().(driver.DriverContext).OpenConnector("reference/" + t.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.Native = sql.OpenDB(connector)
+			wrapped := sqlmw.Driver(NoticeReferenceDriver{connector}, Interceptor{})
+			configured, err := wrapped.(driver.DriverContext).OpenConnector("")
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.Memory = sql.OpenDB(configured)
+			if err := first.Native.QueryRowContext(first.Ctx, "SELECT v FROM isolated").Scan(&value); err != nil || value != 7 {
+				t.Fatalf("reopened native control pool: value=%d error=%v", value, err)
+			}
+			distinctConnector, err := first.NativeConnector.Driver().(driver.DriverContext).OpenConnector("reference/" + t.Name() + "/distinct")
+			if err != nil {
+				t.Fatal(err)
+			}
+			distinct := sql.OpenDB(distinctConnector)
+			t.Cleanup(func() {
+				if err := distinct.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			err = distinct.QueryRowContext(first.Ctx, "SELECT v FROM isolated").Scan(&value)
+			wantMissing := Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "isolated" does not exist`, Position: "15"}
+			if err == nil || ExtractDiagnostic(t, err) != wantMissing {
+				t.Fatal("different DSN inherited fixture table", err)
+			}
+
+			// A separate fixture owns a separate Driver even for this exact DSN.
+			// PostgreSQL has no per-Driver database equivalent; this is a native
+			// control phase after the shared SQL witnesses above.
+			second := NewFixture(t, false, mode.nativeRaw)
+			second.Step(t, ImplicitError("SELECT v FROM isolated", wantMissing))
+			second.Step(t, Exec("CREATE TABLE isolated(v INT)", 0))
+			second.Step(t, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, nil))
+			first.Step(t, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		})
 	}
-	second := NewFixture(t, false, true)
-	second.Step(t, Exec("CREATE TABLE isolated(v INT)", 0))
-	second.Step(t, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, nil))
-	first.Step(t, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 }
 
 func TestReferenceFixtureResetIsolation(t *testing.T) {
