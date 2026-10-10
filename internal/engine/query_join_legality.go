@@ -500,6 +500,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case binaryExpression:
 		children = e.args
+	case datetimeJustifyExpression:
+		children = e.children()
 	case datetimeAgeFiniteExpression:
 		children = e.children()
 	case datetimeMakeExpression:

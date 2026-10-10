@@ -340,9 +340,45 @@ input at Prepare and cursor output at Execute. See [types](TYPES.md#interval--ch
 and [settings](SETTINGS.md#intervalstyle--change-note).
 Malformed/range/precision errors use originating PostgreSQL logical diagnostics
 and atomic publication. [Date/time arithmetic](#date-and-time-arithmetic--change-note)
-adds selected operators separately; justify/extract, wire protocol and physical
-storage remain excluded. Selected constructors are documented below.
+adds selected operators separately; extract, wire protocol and physical
+storage remain excluded. Selected constructors and justification are documented below.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+
+### Interval justification — change note
+
+The strict IMMUTABLE signatures `justify_days(interval)`,
+`justify_hours(interval)` and `justify_interval(interval)` return unrestricted
+base INTERVAL (OID1186, typmod-1), including for restricted or domain inputs.
+UNKNOWN literals, bare NULL and positional parameters infer INTERVAL; NULL
+propagates. These functions accept one unnamed argument.
+
+`justify_days` carries each 30 days into months and repairs opposing month/day
+signs, leaving the clock unchanged. `justify_hours` carries each 24 hours into
+days and repairs opposing day/clock signs, leaving months unchanged. Combined
+justification normalizes both and aligns nonzero signs: `1 mon -1 hour` becomes
+`29 days 23:00:00`. Neither interval equality nor ordinary arithmetic implicitly
+justifies stored representations.
+
+Combined normalization checks the release-prescribed intermediate month carries
+and first reduces same-sign days/clock to avoid a spurious day overflow:
+`2147483647 days 24 hours` becomes `5965232 years 4 mons 8 days`, while
+`justify_hours` on that value fails. Finite normalization overflow is
+`22008 interval out of range`; input syntax/range errors remain22007/22015.
+Both infinities pass through unchanged. Signature failures retain42883 with
+the English explicit-cast Hint and character location. PostgreSQL's implicit
+TIME-to-INTERVAL route is an explicit native0A000 capability boundary;
+no new cast or named-function infrastructure is introduced.
+
+Queries, grouping, joins, writes, defaults/views, generated columns and expression
+indexes share the unary bound expression. Native Dump/Restore remints descriptor
+ownership and retains statement atomicity and old cursors. Rendering uses the
+existing Execute-captured IntervalStyle, not scalar arithmetic settings.
+Public output is string/nil natively and byte-slice/nil through pq, with fixed
+INTERVAL metadata even for empty/all-NULL results.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`.
+The complete shared family selector is `^TestReferenceDatetimeJustify`.
 
 ### Age and finite predicates — change note
 
@@ -353,7 +389,7 @@ fields, borrowing a partial month's days from the original earlier timestamp's
 month. Thus June1 minus April30 is `1 mon 1 day`, not an elapsed-day interval
 or `1 mon 2 days`. Months, days and microseconds remain separate; reverse age
 negates each component. BC uses astronomical year0 for1BC, so1BC to1AD is1year.
-No justify/extract, new temporal casts or excluded executable overloads are added.
+This age/finite family adds no extract, new temporal casts or excluded executable overloads.
 
 Unary age subtracts from transaction-current local DATE at midnight. It is
 STABLE and responds to Execute-time TimeZone and transaction start; binary
@@ -430,7 +466,7 @@ indexes; timestamptz defaults/views remain dynamic. Existing query/DML/CHECK,
 group/join, stored remapping and native control consumers share the same bound
 nodes. Stored definitions preserve supplied named order and omitted defaults;
 deparse normalizes named separators to `=>`. No general named-function provider,
-new temporal arithmetic, justify/extract, host timezone fallback or wire service
+new temporal arithmetic, extract, host timezone fallback or wire service
 is added.
 
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
@@ -509,7 +545,7 @@ Native ordinary arithmetic projections remain row-owned on empty input, unlike
 PostgreSQL's eager constant/custom planning errors. Existing bounded conditional
 folding still diagnoses demanded row-dependent CASE constant failures.
 Native logical replay, staged atomicity, cancellation and retained cursor ownership
-use existing controls; this adds no age/justify/extract functions or cast families.
+use existing controls; this arithmetic family adds no functions or cast families.
 
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$' VERBOSE=0`.

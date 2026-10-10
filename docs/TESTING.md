@@ -165,6 +165,26 @@ native implementation; final verification uses the same completed bodies in both
 modes. Internal `TestDeleteUsing` parser/engine tests exercise positioned traversal,
 captured identity/authority, successful-only suppression and failure/cleanup seams.
 
+The interval-justification family covers exact30-day/24-hour boundaries,
+mixed signs and component extrema, complete diagnostics and phases, metadata,
+held inferred parameters/recovery, four styles, existing consumers, statement
+atomicity and native Dump/Restore with actual emitted SQL replay. Precanceled
+ordinary context errors are a native-only API boundary, not a race-prone fast pq
+request assertion. Run the same complete definitions in both modes:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustify' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustify' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0
+```
+
+Each invocation has a900-second deadline. Supplemental units use
+`PACKAGES=./internal/sqltype RUN='^TestDatetimeJustify'`,
+`PACKAGES=./internal/parser RUN='^TestDatetimeJustify'` and
+`PACKAGES=./internal/engine RUN='^TestDatetimeJustify'`; neither these nor selected
+smoke replace ordinary quickcheck or the post-merge1800-second fullcheck.
+
 ### Sequence definition catalog discovery
 
 The shared `TestReferencePGSequence` family covers the eight-column

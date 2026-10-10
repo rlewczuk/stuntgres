@@ -1917,7 +1917,9 @@ NULL/infinities retain their existing encoding. Selected
 [interval and timestamp arithmetic](DIALECT.md#date-and-time-arithmetic--change-note)
 preserves these components and returns unrestricted computed metadata.
 Selected `make_interval` construction is documented above.
-Justify/extract and new cross-family cast edges are not added.
+Selected [interval justification](DIALECT.md#interval-justification--change-note)
+normalizes components with unrestricted base INTERVAL output, including NULL,
+restricted and domain inputs; extract and new cross-family cast edges remain excluded.
 See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 The interaction regressions are merged into untagged dual-mode `reference/`

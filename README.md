@@ -51,10 +51,18 @@ components independently default to zero. Negative years mean BC, TIME retains
 24:00, and microseconds round to nearest/even. Timestamptz construction uses an
 explicit zone or the Execute-time session zone; output uses the captured session.
 The constructors compose in queries, writes and stored definitions, including
-native Dump/Restore. General named-function binding, justify and extract remain
+native Dump/Restore. General named-function binding and extract remain
 excluded. See [datetime constructors](docs/DIALECT.md#datetime-constructors--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
+
+Change note: `justify_days(interval)`, `justify_hours(interval)` and
+`justify_interval(interval)` normalize 30-day months, 24-hour days and combined
+mixed signs respectively. They preserve NULL and return unrestricted INTERVAL;
+checked component overflow reports `22008`. See
+[interval justification](docs/DIALECT.md#interval-justification--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`.
 
 Change note: PostgreSQL BIT and BIT VARYING/VARBIT scalar storage preserves
 leading zeroes, empty values and NULL through direct/prepared statements,

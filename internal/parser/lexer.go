@@ -1321,5 +1321,9 @@ func indexPropertyCallName(name string) bool {
 
 // Recognize quoted spellings for admission without changing exact resolution.
 func datetimeFunctionName(name string) bool {
-	return strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") || strings.EqualFold(name, "to_char") || strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || datetimeMakeFunctionName(name)
+	return strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") ||
+		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
+		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
+		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") ||
+		datetimeMakeFunctionName(name)
 }

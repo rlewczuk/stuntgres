@@ -534,6 +534,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return text.String(), nil
 	case mathExpression:
 		return function(n.plan.Name(), n.args, true)
+	case datetimeJustifyExpression:
+		return function(n.plan.Name(), n.children(), true)
 	case datetimeAgeFiniteExpression:
 		return function(n.plan.Name(), n.children(), true)
 	case datetimeMakeExpression:

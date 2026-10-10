@@ -132,6 +132,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	case binaryExpression:
 		n.args = args(n.args)
 		next = n
+	case datetimeJustifyExpression:
+		n.arg = child(n.arg)
+		next = n
 	case datetimeAgeFiniteExpression:
 		for i := range n.children() {
 			n.args[i] = child(n.args[i])
