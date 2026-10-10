@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -66,68 +65,4 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	if len(grouped) != 1 || len(grouped[0]) != 2 || grouped[0][1] != int64(3) || (grouped[0][0] != "relation candidate" && grouped[0][0] != "namespace candidate") {
 		t.Fatal("equal inputs split into inconsistent groups", grouped)
 	}
-}
-
-func TestCommentInquirySharedIdentityWidth(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
-	defer done()
-	e.nextPrincipal = 20000
-	roleExecute(t, e, op, "CREATE ROLE low")
-	roleExecute(t, e, op, "COMMENT ON ROLE low IS 'low shared'")
-	e.nextPrincipal = uint64(1)<<32 | 20000
-	roleExecute(t, e, op, "CREATE ROLE high")
-	roleExecute(t, e, op, "COMMENT ON ROLE high IS 'high excluded'")
-	got := tuples(roleExecute(t, e, op, "SELECT shobj_description(20000,'pg_authid')"))
-	if len(got) != 1 || got[0][0] != "low shared" {
-		t.Fatal("truncated principal match", got)
-	}
-	roleExecute(t, e, op, "DROP ROLE low")
-	got = tuples(roleExecute(t, e, op, "SELECT shobj_description(20000,'pg_authid')"))
-	if len(got) != 1 || got[0][0] != nil {
-		t.Fatal("high principal aliased missing low", got)
-	}
-}
-
-func TestCommentInquiryRoleNameReuse(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
-	defer done()
-	roleExecute(t, e, op, "CREATE ROLE named_comment")
-	first, ok := e.Roles().Lookup("named_comment")
-	if !ok {
-		t.Fatal("created role absent")
-	}
-	check := func(id uint64, want any) {
-		t.Helper()
-		got := tuples(roleExecute(t, e, op, fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", id)))
-		if len(got) != 1 || len(got[0]) != 1 || got[0][0] != want {
-			t.Fatal("actual principal inquiry", id, got, want)
-		}
-	}
-	for _, tc := range []struct {
-		sql  string
-		want any
-	}{
-		{"'old identity'", "old identity"},
-		{"'replacement'", "replacement"},
-		{"NULL", nil},
-		{"''", nil},
-		{"' '", " "},
-	} {
-		roleExecute(t, e, op, "COMMENT ON ROLE named_comment IS "+tc.sql)
-		check(first.Ref.ID(), tc.want)
-	}
-	roleExecute(t, e, op, "COMMENT ON ROLE named_comment IS 'old identity'")
-	roleExecute(t, e, op, "DROP ROLE named_comment")
-	roleExecute(t, e, op, "CREATE ROLE named_comment")
-	second, ok := e.Roles().Lookup("named_comment")
-	if !ok || second.Ref == first.Ref {
-		t.Fatal("recreated role did not obtain fresh identity", first, second)
-	}
-	check(first.Ref.ID(), nil)
-	check(second.Ref.ID(), nil)
-	roleExecute(t, e, op, "COMMENT ON ROLE named_comment IS 'new identity'")
-	check(second.Ref.ID(), "new identity")
-	check(first.Ref.ID(), nil)
 }

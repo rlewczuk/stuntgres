@@ -924,6 +924,15 @@ No new COMMENT kinds, inquiry routing, catalog inventories or SQL predicate
 syntax are implied. Native mutation and row locking remain0A000 virtual-source
 boundaries, unlike PostgreSQL physical superuser catalogs.
 See [exact catalog contract and reference smoke](SQL.md#pg_description-catalog--change-note).
+`pg_catalog.pg_shdescription` separately exposes shared ROLE comments:
+relation2396, exactly `objoid OID`, `classoid OID`, `description TEXT`, all
+NOT NULL (TEXT C950), with no row `oid` or `objsubid`. The key is actual
+principal identity/class1260, not a name. Only exactly representable uint32
+principal identities appear; no comments are fabricated for native bootstrap
+roles. PUBLIC SELECT and inquiry expressions share the immutable role snapshot.
+Shared roles/comments survive native Reset/Restore and are excluded from Dump.
+DATABASE/TABLESPACE commands and role transaction mutation support are not
+expanded. See [shared catalog contract](SQL.md#pg_shdescription-catalog--change-note).
 `pg_catalog.pg_sequence` is a readonly exact eight-field definition source:
 `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`,
 `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL`.

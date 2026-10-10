@@ -314,6 +314,32 @@ Each invocation has a900-second deadline. Supplemental units use
 `PACKAGES=./internal/engine RUN='^TestDatetimeJustify'`; neither these nor selected
 smoke replace ordinary quickcheck or the post-merge1800-second fullcheck.
 
+### Shared-comment catalog coverage
+
+The untagged `TestReferencePGShDescription` family independently asserts the
+three-column relation2396 contract, shared ROLE comment identities/contents,
+local catalog separation, ordinary readability, full diagnostics, transactions,
+held freshness, detached rows/metadata and stored-view/composition behavior.
+Role IDs come from a separately owned helper relation's `pg_class.relowner`;
+schema IDs come from that relation's `relnamespace`, not an adjacent catalog.
+Native bootstrap has no seeded shared comments, while PostgreSQL can have
+legitimate global rows: scenarios filter exact object/class pairs, never assert
+whole-cluster row-count parity. Native-only Reset/Dump/Restore phases preserve
+shared roles outside local replay and feed actual emitted local SQL to PostgreSQL.
+Pure `TestPGShDescription` units cover descriptor/PUBLIC ACL, uint32 maximum and
+uint64 non-aliasing, detached captures, inquiry agreement, saved-scope nested
+opening and entry/in-loop cancellation without private public-SQL duplicates.
+
+Run the same completed definitions in both modes, each within900 seconds:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescription' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGShDescription' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestPGShDescription' VERBOSE=0
+```
+
 ### Sequence definition catalog discovery
 
 The shared `TestReferencePGSequence` family covers the eight-column

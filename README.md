@@ -927,6 +927,18 @@ logical Restore can remint surviving column numbers after a dropped column.
 See [catalog contract](docs/SQL.md#pg_description-catalog--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL.
+**Shared-comment catalog change note:** `pg_catalog.pg_shdescription` now reads
+existing shared ROLE comments through the normal direct/prepared/view pipeline.
+Its three NOT NULL columns are `objoid OID`, `classoid OID`, `description TEXT`;
+relation2396 has no row `oid` or subobject field. Actual principal identities
+use class1260 and remain separate from local `pg_description`. Replacement,
+empty/NULL removal, drop and same-name recreation follow existing role effects.
+No bootstrap descriptions, DATABASE/TABLESPACE commands or new role catalog
+are invented; uint64 principals outside uint32 range are never truncated.
+Shared comments survive native Reset/Restore and stay outside local Dump.
+See [shared catalog contract](docs/SQL.md#pg_shdescription-catalog--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0`,
+and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 **Dependency catalog change note:** `pg_catalog.pg_depend` is a readonly normal
 query source (relation2608) with seven NOT NULL object/subobject/dependency-type
 columns and no row `oid`. It derives exact `n`, `a` and `i` edges from represented

@@ -32,6 +32,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"objoid", sqltype.Oid}, {"classoid", sqltype.Oid}, {"objsubid", sqltype.Int4}, {"description", sqltype.Text}}},
+		{2396, "pg_shdescription", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"objoid", sqltype.Oid}, {"classoid", sqltype.Oid}, {"description", sqltype.Text}}},
 		{2606, "pg_constraint", []struct {
 			name string
 			typ  sqltype.ID
@@ -69,7 +73,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 {
 				d.columns[i].Nullable = false
 			}
-			if spec.oid == 2609 {
+			if spec.oid == 2609 || spec.oid == 2396 {
 				d.columns[i].Nullable = false
 				if column.typ == sqltype.Text {
 					d.columns[i].Usage.Collation.ID = 950

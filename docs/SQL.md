@@ -677,6 +677,65 @@ Complete changed reference selection:
 `RUN='^TestReference(PGDescription|CommentInquiryBuiltins)'` with `PACKAGES=./reference`,
 once in quick mode and once with `REFERENCE=1`, each under900 seconds.
 
+### pg_shdescription catalog — change note
+
+`pg_catalog.pg_shdescription` is the readonly shared-comment source, relation
+OID2396 in namespace11, with exactly these ordered fields:
+
+| Column | Type | Typmod | Collation | Native nullability |
+|---|---|---|---|---|
+| objoid | OID26 | -1 | 0 | known NOT NULL |
+| classoid | OID26 | -1 | 0 | known NOT NULL |
+| description | TEXT25 | -1 | C950 | known NOT NULL |
+
+Origins are relation2396/attributes1–3; pq nullability is unknown. There is no
+row `oid` or `objsubid`. The key is `(objoid,classoid)`, not an object name.
+Current supported shared commands produce ROLE comments only: objoid is the
+actual principal identity and classoid is1260 (`pg_authid`). Shared roles remain
+separate from database-local `pg_description`; local table/column/schema/
+sequence and builtin type/collation/conversion descriptions never appear here.
+No DATABASE/TABLESPACE command, role catalog, shared allocator or physical
+cluster storage is added.
+
+Fresh native roles have no invented comments, so this source initially has
+zero rows. PostgreSQL can have genuine shared bootstrap descriptions; there is
+no whole-server row-count parity promise. COMMENT replacement changes one row,
+NULL/empty text removes it, whitespace is retained, DROP removes it, and
+same-name recreation obtains a distinct identity without inheriting text.
+Principal storage remains uint64: only exactly representable uint32 identities
+are projected, with no truncation or high/low identity alias.
+
+PUBLIC SELECT permits ordinary readers to inspect comments without COMMENT
+authority. Direct/prepared execution, views and relational consumers share the
+existing query pipeline. Projection and `shobj_description(objoid,'pg_authid')`
+use the same immutable statement role snapshot, including nested provider
+openings; `obj_description(objoid,'pg_authid')` remains NULL. Returned rows and
+saved metadata survive replacement/removal/drop; a held statement captures fresh
+shared comments on its next execution. This does not introduce role MVCC.
+
+Unknown columns and malformed OIDs retain normal SQLSTATE/English diagnostics.
+The `objsubid` error additionally suggests `pg_shdescription.objoid` on both
+current adapters with the same complete spelling Hint.
+Native catalog mutations and row locking retain their existing0A000
+virtual-source limits. Shared reads work in transactions, but native writable
+transaction ROLE COMMENT, including semantic Prepare, remains0A000 and aborts
+the block (subsequent25P02). Read-only Execute remains25006; PostgreSQL instead
+supports transactional shared COMMENT commit/rollback.
+
+Native Reset and Restore preserve shared roles, identities and comments outside
+local replay. Dump emits local definitions/comments, not ROLE comments or
+synthetic shared-catalog INSERTs. Restore rejects shared COMMENT targets with
+0A000 `restore accepts only database-local COMMENT targets`; failed/canceled
+controls leave prior shared/local state intact. Already returned snapshots stay
+usable across successful replacement.
+
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0`
+and the same command with `REFERENCE=1`. Complete reference selection:
+`RUN='^TestReferencePGShDescription'`, both modes under separate900-second
+deadlines. Role identities are learned independently from a helper relation's
+owner, never copied from the catalog under test.
+
 
 Catalog visibility's seven-DDL boundary corpus retains the original SQL while
 respecting incoming domain support: exact CREATE DOMAIN d AS integer succeeds
