@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -59,7 +58,7 @@ var zones struct {
 	archive       *zip.Reader
 	members       map[string]*zip.File
 	cache         sync.Map
-	abbreviations map[string]zoneAbbreviation
+	abbreviations [3]map[string]zoneAbbreviation
 }
 
 func initializeZones() {
@@ -72,23 +71,9 @@ func initializeZones() {
 	for _, f := range r.File {
 		zones.members[strings.ToLower(f.Name)] = f
 	}
-	zones.abbreviations = make(map[string]zoneAbbreviation)
-	for _, line := range strings.Split(defaultZoneAbbreviations, "\n") {
-		if p := strings.IndexByte(line, '#'); p >= 0 {
-			line = line[:p]
-		}
-		fields := strings.Fields(line)
-		if len(fields) >= 2 {
-			entry := zoneAbbreviation{}
-			if east, err := strconv.ParseInt(fields[1], 10, 32); err == nil {
-				entry.east = int32(east)
-				entry.daylight = len(fields) > 2 && fields[2] == "D"
-			} else {
-				entry.owner = fields[1]
-			}
-			zones.abbreviations[strings.ToLower(fields[0])] = entry
-		}
-	}
+	zones.abbreviations[TimezoneAbbreviationsDefault] = stockAbbreviations(defaultZoneAbbreviations, nil)
+	zones.abbreviations[TimezoneAbbreviationsAustralia] = stockAbbreviations(australiaZoneAbbreviations, zones.abbreviations[TimezoneAbbreviationsDefault])
+	zones.abbreviations[TimezoneAbbreviationsIndia] = stockAbbreviations(indiaZoneAbbreviations, zones.abbreviations[TimezoneAbbreviationsDefault])
 }
 func FixedZone(name string, east int32) *Zone {
 	return &Zone{name: name, types: []zoneType{{east: east, abbreviation: name}}, fixed: true}

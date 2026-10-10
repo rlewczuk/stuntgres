@@ -96,7 +96,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				}
 				p.zoneSet = true
 			} else {
-				zone, err := resolveParsedInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -168,13 +168,13 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				status = compact(s)
 			}
 		case 's':
-			kind := inputAbbreviationKind(s, env.Zone)
+			kind := inputAbbreviationKind(s, env)
 			if kind != timestampUnknownZone {
 				if p.zoneSet || kind == timestampDaylightZone && p.daylightSet {
 					return bad(timestampMalformed)
 				}
 				p.zoneSet = true
-				zone, err := resolveParsedInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -239,7 +239,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				}
 				prefix = unsupportedPrefix
 			default:
-				zone, err := resolveParsedInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env)
 				if coreDateWord(s) || err != nil || p.zoneSet {
 					return bad(timestampMalformed)
 				}

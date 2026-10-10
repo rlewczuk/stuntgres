@@ -30,6 +30,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
 		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
 		{"TimeZone", "UTC", "Sets the time zone for displaying and interpreting time stamps."},
+		{"timezone_abbreviations", "Default", "Selects a file of time zone abbreviations."},
 		{"transaction_deferrable", "off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
 		{"transaction_isolation", "read committed", "Sets the current transaction's isolation level."},
 		{"transaction_read_only", "off", "Sets the current transaction's read-only status."},

@@ -139,6 +139,7 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 					expected := map[string][2]string{
 						"DateStyle":                      {"ISO, MDY", "Sets the display format for date and time values."},
 						"TimeZone":                       {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
+						"timezone_abbreviations":         {"Default", "Selects a file of time zone abbreviations."},
 						"application_name":               {"", "Sets the application name to be reported in statistics and logs."},
 						"bytea_output":                   {"hex", "Sets the output format for bytea."},
 						"IntervalStyle":                  {"postgres", "Sets the display format for interval values."},
@@ -160,7 +161,7 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 					if backend.name == "postgres" {
 						expected["TimeZone"] = [2]string{"Etc/UTC", "Sets the time zone for displaying and interpreting time stamps."}
 						// Project the genuine registry, not fabricated whole-catalog parity.
-						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only') ORDER BY lower(name)"
+						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only') ORDER BY lower(name)"
 						run(referenceSelect("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
 					}
 					var rows *sql.Rows

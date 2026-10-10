@@ -325,6 +325,7 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		// PostgreSQL REL_18_0 guc_tables.c short_desc, independent of the registry.
 		"DateStyle":                      {"ISO, MDY", "Sets the display format for date and time values."},
 		"TimeZone":                       {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
+		"timezone_abbreviations":         {"Default", "Selects a file of time zone abbreviations."},
 		"application_name":               {"", "Sets the application name to be reported in statistics and logs."},
 		"client_min_messages":            {"notice", "Sets the message levels that are sent to the client."},
 		"bytea_output":                   {"hex", "Sets the output format for bytea."},

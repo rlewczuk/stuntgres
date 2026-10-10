@@ -329,6 +329,11 @@ func sessionPresentation(session *Session) (input sqltype.InputEnvironment, outp
 	if !ok {
 		style = settings.defaultTyped["datestyle"]
 	}
+	abbreviations, ok := settings.typed["timezone_abbreviations"]
+	if !ok {
+		abbreviations = settings.defaultTyped["timezone_abbreviations"]
+	}
+	input.TimezoneAbbreviations = abbreviations.timezoneAbbreviations
 	input.Zone, output.Zone = zone.zone, zone.zone
 	input.DateStyle, output.DateStyle = style.dateStyle, style.dateStyle
 	output.IntervalStyle = sqltype.ParseIntervalStyle(settings.value("intervalstyle"))

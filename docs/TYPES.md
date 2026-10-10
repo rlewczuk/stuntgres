@@ -1955,8 +1955,10 @@ TimeZone. Output renders that instant in the captured session zone. Thus
 `2004-10-19 10:23:54+02` renders `2004-10-19 08:23:54+00` in UTC and
 `2004-10-19 04:23:54-04` in New York, but compares equal in both sessions.
 IANA names and aliases are case-insensitive. Session-zone abbreviation meanings
-precede installed Default abbreviations; dynamic abbreviations retain historical
-meanings, not just today's active offset. Rule bytes are embedded from the pinned
+precede the execution-selected embedded Default/Australia/India abbreviation
+table; dynamic abbreviations retain historical meanings, not just today's
+active offset. Customized installation files/runtime file loading are unavailable.
+Rule bytes are embedded from the pinned
 PostgreSQL 18.0 Debian image's IANA2025b/backzone data; runtime never consults host
 zone files. Historical second offsets and future rules use the same provider.
 

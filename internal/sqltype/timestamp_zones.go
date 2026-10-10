@@ -12,10 +12,9 @@ const (
 	timestampNamedZone
 )
 
-// Civil decoders and conversion use the same pinned rules/Default authority.
-func timestampAbbreviationKind(name string) byte {
-	zones.once.Do(initializeZones)
-	entry, ok := lookupZoneAbbreviation(name)
+// Civil decoders and conversion share the captured stock-table authority.
+func timestampAbbreviationKind(name string, set TimezoneAbbreviations) byte {
+	entry, ok := lookupZoneAbbreviation(name, set)
 	if !ok {
 		return timestampUnknownZone
 	}
@@ -27,7 +26,8 @@ func timestampAbbreviationKind(name string) byte {
 	}
 	return timestampFixedZone
 }
-func inputAbbreviationKind(name string, session *Zone) byte {
+func inputAbbreviationKind(name string, env InputEnvironment) byte {
+	session := env.Zone
 	if session != nil {
 		var match zoneType
 		found := false
@@ -47,9 +47,10 @@ func inputAbbreviationKind(name string, session *Zone) byte {
 			return timestampFixedZone
 		}
 	}
-	return timestampAbbreviationKind(name)
+	return timestampAbbreviationKind(name, env.TimezoneAbbreviations)
 }
-func lookupZoneAbbreviation(name string) (zoneAbbreviation, bool) {
+func lookupZoneAbbreviation(name string, set TimezoneAbbreviations) (zoneAbbreviation, bool) {
+	zones.once.Do(initializeZones)
 	if len(name) > 255 {
 		return zoneAbbreviation{}, false
 	}
@@ -57,11 +58,11 @@ func lookupZoneAbbreviation(name string) (zoneAbbreviation, bool) {
 	for i := range len(name) {
 		folded[i] = timestampASCIILower(name[i])
 	}
-	entry, ok := zones.abbreviations[string(folded[:len(name)])]
+	entry, ok := zones.abbreviations[set][string(folded[:len(name)])]
 	return entry, ok
 }
-func timestampZoneKind(name string) byte {
-	if kind := timestampAbbreviationKind(name); kind != timestampUnknownZone {
+func timestampZoneKind(name string, env InputEnvironment) byte {
+	if kind := inputAbbreviationKind(name, env); kind != timestampUnknownZone {
 		return kind
 	}
 	if _, err := ResolveZone(name); err == nil {
@@ -69,6 +70,6 @@ func timestampZoneKind(name string) byte {
 	}
 	return timestampUnknownZone
 }
-func recognizedTimestampZone(name string) bool {
-	return timestampZoneKind(name) != timestampUnknownZone
+func recognizedTimestampZone(name string, env InputEnvironment) bool {
+	return timestampZoneKind(name, env) != timestampUnknownZone
 }

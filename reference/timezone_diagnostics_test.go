@@ -85,8 +85,8 @@ func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
 		{"SET TIME ZONE INTERVAL (-1) '1 second'", "42601", `syntax error at or near "-"`, "", "25", true},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
-			// Oracle normalization is explicit; this does not ask stuntgres to expose
-			// the unrelated general IntervalStyle setting/type feature.
+			// Fix the supported IntervalStyle explicitly so timezone interval
+			// diagnostics are independent of preceding session presentation.
 			p.step(t, referenceExec("SET IntervalStyle='postgres'", 0))
 			s := referenceImplicitError(tc.query, referenceDiagnostic{Code: tc.code, Message: tc.message, Detail: tc.detail, Position: tc.position})
 			for _, prepared := range []bool{false, true} {

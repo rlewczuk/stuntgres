@@ -134,7 +134,7 @@ func (p DatetimeMakePlan) Evaluate(ctx context.Context, args []Value, env InputE
 			if err != nil {
 				return Value{}, err
 			}
-			specification, err = makeZone(name, env.Zone)
+			specification, err = makeZone(name, env)
 			if err != nil {
 				return Value{}, err
 			}
@@ -217,7 +217,7 @@ func makeInterval(result *Descriptor, ints [6]int64, seconds float64) (Value, er
 	return v, err
 }
 
-func makeZone(name string, session *Zone) (zoneSpecification, error) {
+func makeZone(name string, env InputEnvironment) (zoneSpecification, error) {
 	if len(name) > 0 && name[0] >= '0' && name[0] <= '9' {
 		err := failure("22023", fmt.Sprintf("invalid input syntax for type numeric time zone: \"%s\"", name)).(*sqlstate.Error)
 		err.Hint = "Numeric time zones must have \"-\" or \"+\" as first character."
@@ -233,5 +233,5 @@ func makeZone(name string, session *Zone) (zoneSpecification, error) {
 		}
 		// Malformed signed names can still be resolved by the existing zone provider.
 	}
-	return resolveInputZone(name, session)
+	return resolveInputZone(name, env)
 }

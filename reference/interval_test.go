@@ -128,6 +128,26 @@ func TestReferenceIntervalStylesPreparedCaptureAndSessionIsolation(t *testing.T)
 				referenceRunStep(t, p.ctx, referenceHeldStatement{a, prepared, "SELECT v FROM ivstyle WHERE id=4"}, backend.recorder, referenceSelect("SELECT v FROM ivstyle WHERE id=4", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
 				run(referenceSelect("SELECT v FROM ivstyle WHERE id=5", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.zero}}))
 			}
+			for _, tc := range []struct{ input, canonical, output string }{
+				{"PoStGrEs", "postgres", "-1 years -2 mons +3 days -04:05:06"},
+				{"POSTGRES_VERBOSE", "postgres_verbose", "@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago"},
+				{"SqL_StAnDaRd", "sql_standard", "-1-2 +3 -4:05:06"},
+				{"IsO_8601", "iso_8601", "P-1Y-2M3DT-4H-5M-6S"},
+			} {
+				run(referenceExec("SET IntervalStyle='"+tc.input+"'", 0))
+				run(referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{tc.canonical}}))
+				run(referenceSelect("SELECT v FROM ivstyle WHERE id=4", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.output}}))
+				referenceRunStep(t, p.ctx, referenceHeldStatement{a, prepared, "SELECT v FROM ivstyle WHERE id=4"}, backend.recorder, referenceSelect("SELECT v FROM ivstyle WHERE id=4", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.output}}))
+			}
+			run(referenceExec("SET IntervalStyle='sql_standard'", 0))
+			for _, prepared := range []bool{false, true} {
+				s := referenceSelect("SELECT INTERVAL '-1 +2:03:04'::TEXT AS v FROM ivstyle WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{"+0-0 -1 +2:03:04"}})
+				s.prepared = prepared
+				run(s)
+				s = referenceSelect("SELECT $1::INTERVAL::TEXT AS v FROM ivstyle WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{"+0-0 -1 +2:03:04"}}, "-1 +2:03:04")
+				s.prepared = prepared
+				run(s)
+			}
 			run(referenceExec("RESET IntervalStyle", 0))
 			run(referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"postgres"}}))
 		})

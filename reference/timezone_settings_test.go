@@ -141,6 +141,30 @@ func TestReferenceTimezoneDateStyle(t *testing.T) {
 		timezoneBoth(t, p, referenceSelect("SHOW DateStyle", []string{"DateStyle"}, []string{"TEXT"}, [][]any{{tc.want}}))
 	}
 	timezoneBoth(t, p, timezoneTextStep("DATE '31/12/2024'", "2024-12-31"))
+	for _, backend := range p.backends() {
+		run := func(s referenceStep) {
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
+		}
+		for _, tc := range []struct{ input, show, date string }{
+			{"Euro", "ISO, DMY", "2003-02-01"},
+			{"NonEuro", "ISO, MDY", "2003-01-02"},
+			{"eUrO", "ISO, DMY", "2003-02-01"},
+			{"nOnEuRo", "ISO, MDY", "2003-01-02"},
+			{"sQl,dMy", "SQL, DMY", "2003-02-01"},
+			{"iSo,yMd", "ISO, YMD", "2001-02-03"},
+			{"PostgreSQL,DMY", "Postgres, DMY", "2003-02-01"},
+			{"Eurozone", "ISO, DMY", "2003-02-01"},
+			{"NonEurozone", "ISO, MDY", "2003-01-02"},
+		} {
+			run(referenceExec("SET DateStyle='ISO,MDY'", 0))
+			run(referenceExec("SET DateStyle='"+tc.input+"'", 0))
+			run(referenceSelect("SHOW DateStyle", []string{"DateStyle"}, []string{"TEXT"}, [][]any{{tc.show}}))
+			// Change only presentation style, preserving the alias-selected order.
+			run(referenceExec("SET DateStyle='ISO'", 0))
+			run(timezoneTextStep("DATE '01/02/03'", tc.date))
+		}
+	}
 }
 
 func TestReferenceTimezoneSettingsLifecycleAndOffsets(t *testing.T) {

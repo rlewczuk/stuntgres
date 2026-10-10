@@ -455,11 +455,11 @@ func TestTimestampEnvironmentAndCivilTime(t *testing.T) {
 	}
 	zones.once.Do(initializeZones)
 	for name := range zones.members {
-		if !recognizedTimestampZone(name) {
+		if !recognizedTimestampZone(name, InputEnvironment{}) {
 			t.Fatal(name)
 		}
 	}
-	for name := range zones.abbreviations {
+	for name := range zones.abbreviations[TimezoneAbbreviationsDefault] {
 		v, e := d.Input(ctx, "1999-01-08 04:05:06 "+name, -1)
 		out, _ := d.Output(ctx, v)
 		if e != nil || out != "1999-01-08 04:05:06" {

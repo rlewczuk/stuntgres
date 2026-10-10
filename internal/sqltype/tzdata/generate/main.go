@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	source := flag.String("source", "", "directory containing copied zoneinfo, Default and tzdata-copyright")
+	source := flag.String("source", "", "directory containing copied zoneinfo, Default, Australia, India and tzdata-copyright")
 	output := flag.String("output", "", "output directory")
 	flag.Parse()
 	if *source == "" || *output == "" {
@@ -69,7 +69,7 @@ func main() {
 	must(os.MkdirAll(*output, 0755))
 	must(os.WriteFile(filepath.Join(*output, "zones.zip"), archive.Bytes(), 0644))
 	fmt.Fprintf(&manifest, "%x  zones.zip\n", sha256.Sum256(archive.Bytes()))
-	for _, name := range []string{"Default", "tzdata-copyright"} {
+	for _, name := range []string{"Default", "Australia", "India", "tzdata-copyright"} {
 		b := mustRead(filepath.Join(*source, name))
 		must(os.WriteFile(filepath.Join(*output, name), b, 0644))
 		fmt.Fprintf(&manifest, "%x  %s\n", sha256.Sum256(b), name)

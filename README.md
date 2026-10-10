@@ -449,6 +449,13 @@ not the host timezone installation. See [temporal types](docs/TYPES.md#time-zone
 and [session settings](docs/SETTINGS.md#temporal-settings).
 Native logical Dump/Restore preserves these values independently of session
 presentation. This does not add timezone catalog views or general INTERVAL arithmetic.
+Change note: `timezone_abbreviations` now selects embedded stock Default,
+Australia or India for all temporal input consumers, with session-zone priority.
+It does not change output labels or load customized installation files.
+DateStyle/IntervalStyle and native UTC defaults retain their existing contracts.
+Dual-mode feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`.
 The five SQL current-date/time producers are supported separately.
 Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 

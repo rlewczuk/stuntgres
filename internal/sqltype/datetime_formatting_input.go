@@ -255,7 +255,6 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 		case "TZ", "tz", "OF", "TZH", "TZM":
 			numeric = false
 			if key == "TZ" || key == "tz" {
-				zones.once.Do(initializeZones)
 				length := 0
 				for length < min(len(source)-position, 255) && ((source[position+length] >= 'A' && source[position+length] <= 'Z') || (source[position+length] >= 'a' && source[position+length] <= 'z')) {
 					length++
@@ -263,8 +262,8 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 				matched := false
 				for size := length; size > 0; size-- {
 					name := source[position : position+size]
-					if _, ok := lookupZoneAbbreviation(name); ok {
-						zone, err := resolveInputZone(name, nil)
+					if inputAbbreviationKind(name, env) != timestampUnknownZone {
+						zone, err := resolveInputZone(name, env)
 						if err != nil {
 							return Value{}, err
 						}

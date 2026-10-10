@@ -784,8 +784,11 @@ must stay below one second and clocks cannot exceed 23:59:59.
 
 TIMESTAMPTZ output uses the Execute-captured session zone, including historical
 abbreviations and second-resolution offsets. Numeric input offsets and the
-existing default abbreviation table are supported; named-zone and non-C locale
-configuration are not expanded. Integral-hour `OF` output omits `:00`.
+execution-selected embedded Default/Australia/India abbreviation tables are
+supported. TZ/tz readers prioritize session-zone abbreviations, then the selected
+table; they do not read full IANA names. Customized installation files, runtime
+file loading and non-C locale configuration are not expanded.
+Integral-hour `OF` output omits `:00`.
 NULL skips formatting itself, not errors from demanded child expressions.
 Indeterminate implicit collation is diagnosed only when a reached `TM` name
 needs case conversion. Exact localized input spelling bypasses conversion;

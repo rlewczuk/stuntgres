@@ -128,7 +128,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 					}
 					return Value{}, timestampError(text, "", false)
 				}
-				zone, err := resolveParsedInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -180,121 +180,123 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 			}
 			continue
 		}
-		if m := monthNumber(s); m != 0 {
-			if p.mask&dateMonth != 0 && p.mask&dateDay == 0 && !p.textMonth && p.m >= 1 && p.m <= 31 {
-				p.d = p.m
-				p.mask = p.mask&^dateMonth | dateDay
+		kind := inputAbbreviationKind(s, env)
+		if kind == timestampUnknownZone {
+			if m := monthNumber(s); m != 0 {
+				if p.mask&dateMonth != 0 && p.mask&dateDay == 0 && !p.textMonth && p.m >= 1 && p.m <= 31 {
+					p.d = p.m
+					p.mask = p.mask&^dateMonth | dateDay
+				}
+				if p.mask&dateMonth != 0 {
+					return Value{}, timestampError(text, "", false)
+				}
+				p.m, p.textMonth = m, true
+				p.mask |= dateMonth
+				continue
 			}
-			if p.mask&dateMonth != 0 {
-				return Value{}, timestampError(text, "", false)
+			if weekday(s) {
+				if p.weekSet {
+					return Value{}, timestampError(text, "", false)
+				}
+				p.weekSet = true
+				continue
 			}
-			p.m, p.textMonth = m, true
-			p.mask |= dateMonth
-			continue
-		}
-		if weekday(s) {
-			if p.weekSet {
-				return Value{}, timestampError(text, "", false)
-			}
-			p.weekSet = true
-			continue
-		}
-		switch {
-		case timestampASCIIEqual(s, "at"), timestampASCIIEqual(s, "on"):
-			continue
-		case timestampASCIIEqual(s, "epoch"), timestampASCIIEqual(s, "infinity"),
-			len(s) > 1 && (s[0] == '+' || s[0] == '-') &&
-				timestampASCIIEqual(strings.TrimLeft(s[1:], " \t\n\r\f\v"), "infinity"):
-			if p.mask != 0 || p.timeSet || p.zoneSet {
-				return Value{}, timestampError(text, "", false)
-			}
-			p.mask, p.timeSet, p.zoneSet = dateComplete, true, true
 			switch {
-			case timestampASCIIEqual(s, "epoch"):
-				result = epochResult
-			case s[0] == '-':
-				result = negativeInfinityResult
-			default:
-				result = positiveInfinityResult
-			}
-			continue
-		case timestampASCIIEqual(s, "dst"):
-			if p.daylightSet {
-				return Value{}, timestampError(text, "", false)
-			}
-			p.dstSet, p.daylightSet = true, true
-			continue
-		case timestampASCIIEqual(s, "ad"), timestampASCIIEqual(s, "bc"):
-			if p.eraSet {
-				return Value{}, timestampError(text, "", false)
-			}
-			p.eraSet, p.bc = true, timestampASCIIEqual(s, "bc")
-			continue
-		case timestampASCIIEqual(s, "am"), timestampASCIIEqual(s, "pm"):
-			if p.merSet {
-				return Value{}, timestampError(text, "", false)
-			}
-			p.merSet = true
-			if timestampASCIIEqual(s, "pm") {
-				p.mer = 12
-			}
-			continue
-		case timestampASCIIEqual(s, "t"):
-			if p.mask != dateComplete || prefix != noPrefix {
-				return Value{}, timestampError(text, "", false)
-			}
-			prefix = timePrefix
-			continue
-		case timestampASCIIEqual(s, "j"), timestampASCIIEqual(s, "jd"), timestampASCIIEqual(s, "julian"):
-			if prefix != noPrefix {
-				return Value{}, timestampError(text, "", false)
-			}
-			prefix = julianPrefix
-			continue
-		case timestampASCIIEqual(s, "y"), timestampASCIIEqual(s, "m"), timestampASCIIEqual(s, "d"),
-			timestampASCIIEqual(s, "h"), timestampASCIIEqual(s, "mm"), timestampASCIIEqual(s, "s"),
-			timestampASCIIEqual(s, "dow"), timestampASCIIEqual(s, "doy"),
-			timestampASCIIEqual(s, "isodow"), timestampASCIIEqual(s, "isoyear"):
-			if prefix != noPrefix {
-				return Value{}, timestampError(text, "", false)
-			}
-			prefix = unsupportedPrefix
-			continue
-		case timestampASCIIEqual(s, "allballs"):
-			if p.timeSet || p.zoneSet {
-				return Value{}, timestampError(text, "", false)
-			}
-			p.timeSet, p.zoneSet = true, true
-			p.zone = zoneSpecification{fixed: true}
-			continue
-		case timestampASCIIEqual(s, "now"), timestampASCIIEqual(s, "today"), timestampASCIIEqual(s, "tomorrow"), timestampASCIIEqual(s, "yesterday"):
-			if p.mask != 0 || timestampASCIIEqual(s, "now") && (p.timeSet || p.zoneSet) {
-				return Value{}, timestampError(text, "", false)
-			}
-			if env.TransactionStart.IsZero() {
-				return Value{}, fmt.Errorf("missing timestamp input environment")
-			}
-			east, _ := env.Zone.OffsetAt(env.TransactionStart.Unix())
-			t := env.TransactionStart.UTC().Add(time.Duration(east) * time.Second)
-			y, m, day := t.Date()
-			days := civilDay(y, int(m), day)
-			if timestampASCIIEqual(s, "tomorrow") {
-				days++
-			} else if timestampASCIIEqual(s, "yesterday") {
-				days--
-			}
-			p.y, p.m, p.d = dayCivil(days)
-			p.mask = dateComplete
-			if timestampASCIIEqual(s, "now") {
-				p.h, p.min, p.s = t.Clock()
-				p.u = int(math.RoundToEven(float64(t.Nanosecond()) / 1000))
+			case timestampASCIIEqual(s, "at"), timestampASCIIEqual(s, "on"):
+				continue
+			case timestampASCIIEqual(s, "epoch"), timestampASCIIEqual(s, "infinity"),
+				len(s) > 1 && (s[0] == '+' || s[0] == '-') &&
+					timestampASCIIEqual(strings.TrimLeft(s[1:], " \t\n\r\f\v"), "infinity"):
+				if p.mask != 0 || p.timeSet || p.zoneSet {
+					return Value{}, timestampError(text, "", false)
+				}
+				p.mask, p.timeSet, p.zoneSet = dateComplete, true, true
+				switch {
+				case timestampASCIIEqual(s, "epoch"):
+					result = epochResult
+				case s[0] == '-':
+					result = negativeInfinityResult
+				default:
+					result = positiveInfinityResult
+				}
+				continue
+			case timestampASCIIEqual(s, "dst"):
+				if p.daylightSet {
+					return Value{}, timestampError(text, "", false)
+				}
+				p.dstSet, p.daylightSet = true, true
+				continue
+			case timestampASCIIEqual(s, "ad"), timestampASCIIEqual(s, "bc"):
+				if p.eraSet {
+					return Value{}, timestampError(text, "", false)
+				}
+				p.eraSet, p.bc = true, timestampASCIIEqual(s, "bc")
+				continue
+			case timestampASCIIEqual(s, "am"), timestampASCIIEqual(s, "pm"):
+				if p.merSet {
+					return Value{}, timestampError(text, "", false)
+				}
+				p.merSet = true
+				if timestampASCIIEqual(s, "pm") {
+					p.mer = 12
+				}
+				continue
+			case timestampASCIIEqual(s, "t"):
+				if p.mask != dateComplete || prefix != noPrefix {
+					return Value{}, timestampError(text, "", false)
+				}
+				prefix = timePrefix
+				continue
+			case timestampASCIIEqual(s, "j"), timestampASCIIEqual(s, "jd"), timestampASCIIEqual(s, "julian"):
+				if prefix != noPrefix {
+					return Value{}, timestampError(text, "", false)
+				}
+				prefix = julianPrefix
+				continue
+			case timestampASCIIEqual(s, "y"), timestampASCIIEqual(s, "m"), timestampASCIIEqual(s, "d"),
+				timestampASCIIEqual(s, "h"), timestampASCIIEqual(s, "mm"), timestampASCIIEqual(s, "s"),
+				timestampASCIIEqual(s, "dow"), timestampASCIIEqual(s, "doy"),
+				timestampASCIIEqual(s, "isodow"), timestampASCIIEqual(s, "isoyear"):
+				if prefix != noPrefix {
+					return Value{}, timestampError(text, "", false)
+				}
+				prefix = unsupportedPrefix
+				continue
+			case timestampASCIIEqual(s, "allballs"):
+				if p.timeSet || p.zoneSet {
+					return Value{}, timestampError(text, "", false)
+				}
 				p.timeSet, p.zoneSet = true, true
-				p.zone = zoneSpecification{east: east, fixed: true}
+				p.zone = zoneSpecification{fixed: true}
+				continue
+			case timestampASCIIEqual(s, "now"), timestampASCIIEqual(s, "today"), timestampASCIIEqual(s, "tomorrow"), timestampASCIIEqual(s, "yesterday"):
+				if p.mask != 0 || timestampASCIIEqual(s, "now") && (p.timeSet || p.zoneSet) {
+					return Value{}, timestampError(text, "", false)
+				}
+				if env.TransactionStart.IsZero() {
+					return Value{}, fmt.Errorf("missing timestamp input environment")
+				}
+				east, _ := env.Zone.OffsetAt(env.TransactionStart.Unix())
+				t := env.TransactionStart.UTC().Add(time.Duration(east) * time.Second)
+				y, m, day := t.Date()
+				days := civilDay(y, int(m), day)
+				if timestampASCIIEqual(s, "tomorrow") {
+					days++
+				} else if timestampASCIIEqual(s, "yesterday") {
+					days--
+				}
+				p.y, p.m, p.d = dayCivil(days)
+				p.mask = dateComplete
+				if timestampASCIIEqual(s, "now") {
+					p.h, p.min, p.s = t.Clock()
+					p.u = int(math.RoundToEven(float64(t.Nanosecond()) / 1000))
+					p.timeSet, p.zoneSet = true, true
+					p.zone = zoneSpecification{east: east, fixed: true}
+				}
+				continue
 			}
-			continue
 		}
-		zone, err := resolveParsedInputZone(s, env.Zone)
-		kind := inputAbbreviationKind(s, env.Zone)
+		zone, err := resolveParsedInputZone(s, env)
 		if p.zoneSet || err != nil || kind == timestampDaylightZone && p.daylightSet {
 			return Value{}, timestampError(text, "", false)
 		}

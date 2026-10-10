@@ -12,17 +12,18 @@ type zoneSpecification struct {
 	fixed        bool
 }
 
-func resolveParsedInputZone(name string, session *Zone) (zoneSpecification, error) {
+func resolveParsedInputZone(name string, env InputEnvironment) (zoneSpecification, error) {
 	// DecodeDateTime folds input tokens; AT TIME ZONE retains its expression text.
-	specification, err := resolveInputZone(name, session)
+	specification, err := resolveInputZone(name, env)
 	if err != nil {
 		_, err = ResolveZone(strings.ToLower(name))
 	}
 	return specification, err
 }
 
-func resolveInputZone(name string, session *Zone) (zoneSpecification, error) {
+func resolveInputZone(name string, env InputEnvironment) (zoneSpecification, error) {
 	zones.once.Do(initializeZones)
+	session := env.Zone
 	if session != nil {
 		found := false
 		var first zoneType
@@ -45,7 +46,7 @@ func resolveInputZone(name string, session *Zone) (zoneSpecification, error) {
 			return zoneSpecification{zone: session, abbreviation: name}, nil
 		}
 	}
-	if entry, ok := lookupZoneAbbreviation(name); ok {
+	if entry, ok := lookupZoneAbbreviation(name, env.TimezoneAbbreviations); ok {
 		if entry.owner == "" {
 			return zoneSpecification{east: entry.east, fixed: true}, nil
 		}

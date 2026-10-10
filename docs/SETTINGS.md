@@ -51,7 +51,7 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-The exact supported builtin registry contains these eighteen settings:
+The exact supported builtin registry contains these nineteen settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |
@@ -62,6 +62,7 @@ The exact supported builtin registry contains these eighteen settings:
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
 | bytea_output | hex / session | Selects hex or escape BYTEA output |
 | TimeZone | UTC / session | Typed embedded timezone rules for input, output and conversions |
+| timezone_abbreviations | Default / session | Embedded Default/Australia/India input meanings; captured immutable table |
 | DateStyle | `ISO, MDY` / session | ISO/SQL/Postgres/German output and MDY/DMY/YMD input order |
 | statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
 | lock_timeout | 0 / session | Millisecond limit for each queued lock acquisition; 0 disables |
@@ -287,6 +288,40 @@ presentation even after SET. Prepared typed temporal constants freeze at analysi
 parameter input, column casts/comparisons and AT LOCAL use execution settings.
 TIME/TIMETZ clock output is independent of DateStyle. For finite TIMESTAMP Go
 time.Time exports, use an explicit SQL TEXT cast to observe DateStyle formatting.
+
+### timezone_abbreviations — change note
+
+The session string setting `timezone_abbreviations` selects the embedded stock
+`Default`, `Australia` or `India` input table. These values are exact-case file
+names, not case-insensitive aliases; parameter names and abbreviation tokens are
+case-insensitive. The default is `Default`. Session TimeZone abbreviations take
+priority over the selected table, which takes priority over date/time keywords
+(Australia's SAT is +09:30, not Saturday). Full IANA/POSIX names and numeric
+offsets retain their existing behavior. Dynamic entries retain historical rules.
+
+With TimeZone UTC, `2004-07-01 12:00 IST` means 10:00 UTC under Default and
+06:30 UTC under India; Australia's EST means 02:00 UTC. With TimeZone
+America/New_York, EST still means 17:00 UTC even under Australia.
+The same captured input authority serves temporal casts, `AT TIME ZONE`,
+`make_timestamptz` and formatting-input TZ/tz tokens. It does not change output
+labels, the TimeZone setting's own name parser, plain timestamp civil fields,
+TIME clocks or stored TIMETZ offsets.
+
+SET/RESET/default/set_config, LOCAL, transactions and savepoints restore the
+typed table and displayed name together. Prepared temporal constants keep their
+Prepare-time interpretation; textual parameters and functions use Execute-time
+capture. Healthy pool reuse retains the setting; physical replacement starts
+with its captured default. Dump/Reset/Restore neither serializes nor changes it.
+Unknown/customized installation files and runtime file loading are unsupported:
+`SET timezone_abbreviations='default'` fails with SQLSTATE22023 and
+`invalid value for parameter "timezone_abbreviations": "default"`, without a
+filesystem Detail/Hint and without changing the previous table.
+
+Native TimeZone defaults to UTC, the pinned fixture environment to Etc/UTC;
+PostgreSQL's compile-time default is GMT. These are intentionally distinct
+default names, not a change to the native environment contract.
+Public feature smoke (also run with `REFERENCE=1`):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`.
 
 ## IntervalStyle — change note
 

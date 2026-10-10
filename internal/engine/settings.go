@@ -94,6 +94,7 @@ var builtinSettings = []SettingDefinition{
 	{Name: "timezone", Type: SettingString, BootDefault: "UTC", Description: "Sets the time zone for displaying and interpreting time stamps."},
 	{Name: "datestyle", Type: SettingString, BootDefault: "ISO, MDY", Description: "Sets the display format for date and time values."},
 	{Name: "intervalstyle", Type: SettingEnum, BootDefault: "postgres", EnumValues: []string{"postgres", "postgres_verbose", "sql_standard", "iso_8601"}, Description: "Sets the display format for interval values."},
+	{Name: "timezone_abbreviations", Type: SettingString, BootDefault: "Default", Description: "Selects a file of time zone abbreviations."},
 	clientMinMessages,
 	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
@@ -243,12 +244,13 @@ func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 }
 
 type settingValue struct {
-	text      string
-	number    float64
-	boolean   bool
-	path      []string
-	zone      *sqltype.Zone
-	dateStyle sqltype.DateStyle
+	text                  string
+	number                float64
+	boolean               bool
+	path                  []string
+	zone                  *sqltype.Zone
+	dateStyle             sqltype.DateStyle
+	timezoneAbbreviations sqltype.TimezoneAbbreviations
 }
 
 func settingDiagnostic(message, hint string) error {
@@ -260,6 +262,14 @@ func (d SettingDefinition) invalid(input, hint string) error {
 
 func (d SettingDefinition) parse(input string) (settingValue, error) {
 	v := settingValue{}
+	if d.Name == "timezone_abbreviations" {
+		set, ok := sqltype.ParseTimezoneAbbreviations(input)
+		if !ok {
+			return v, d.invalid(input, "")
+		}
+		v.timezoneAbbreviations, v.text = set, set.String()
+		return v, nil
+	}
 	if d.Name == "timezone" {
 		zone, detail, err := sqltype.ParseSessionZone(input)
 		if err != nil {

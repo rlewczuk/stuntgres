@@ -91,7 +91,7 @@ func AtTimeZone(v Value, target *Descriptor, name string, local bool, env InputE
 	specification := zoneSpecification{zone: env.Zone}
 	var err error
 	if !local {
-		specification, err = resolveInputZone(name, env.Zone)
+		specification, err = resolveInputZone(name, env)
 		if err != nil {
 			return Value{}, err
 		}
