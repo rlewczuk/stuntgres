@@ -77,7 +77,7 @@ func binaryHashVectors(t *testing.T) {
 func TestReferenceBinaryHashVectors(t *testing.T) { binaryHashVectors(t) }
 func TestReferenceBinaryHashSmoke(t *testing.T) {
 	binaryHashVectors(t)
-	t.Run("MD5 capability boundary", TestReferenceBinaryHashMD5Boundary)
+	t.Run("MD5 overloads", TestReferenceBinaryHashMD5Overloads)
 }
 
 // Assert raw driver types before the fixture's []byte normalization.

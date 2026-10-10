@@ -7,9 +7,9 @@ import (
 	"unicode/utf8"
 )
 
-// StringIntegerArgument identifies fixed INT4 roles across selected providers.
+// StringIntegerArgument identifies numeric roles, excluding TEXT conversion.
 func StringIntegerArgument(name string, index int) bool {
-	return name == "chr" && index == 0 || name == "overlay" && index >= 2 || (name == "lpad" || name == "rpad" || name == "repeat") && index == 1
+	return StringBaseConversion(name) && index == 0 || name == "chr" && index == 0 || name == "overlay" && index >= 2 || (name == "lpad" || name == "rpad" || name == "repeat") && index == 1
 }
 
 // PostgreSQL's varlena allocation includes a four-byte header. Padding reserves

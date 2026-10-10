@@ -263,6 +263,15 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			if err != nil {
 				return "", err
 			}
+			if sqltype.StringBaseConversion(n.plan.Name()) {
+				// Replay must select the stored integer overload, including
+				// small BIGINT values and typed NULLs.
+				declaration, err := catalogTypeDeclaration(view, n.plan.ArgumentUsage(i))
+				if err != nil {
+					return "", err
+				}
+				text = "CAST(" + text + " AS " + declaration + ")"
+			}
 			parts[i] = text
 		}
 		if n.syntax != parser.OrdinaryStringSyntax {

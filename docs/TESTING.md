@@ -105,6 +105,31 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+The integer-base/TEXT-MD5 family asserts independent 32/64-bit two's-complement
+vectors, RFC/UTF8 digest constants, unknown-TEXT versus known-BYTEA selection,
+held parameter recovery and retained TEXT metadata, complete diagnostics,
+consumer/write atomicity, symbolic stored widths and MD5 through native controls
+with actual emitted SQL replay, and public cancellation. Run the complete
+affected family in both modes before review, each under the 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(StringNumericBase|BinaryHash)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(StringNumericBase|BinaryHash)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^Test(StringNumericBase|BinaryHash)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^Test(StringNumericBase|BinaryHash)' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestStringNumericBase' VERBOSE=0
+```
+
+The smoke expects `fffffb2e` versus `fffffffffffffb2e` for INTEGER/BIGINT -1234,
+`0` for zero, RFCabc/empty MD5, typed NULL, exact ambiguity/missing/input
+diagnostics, no partial publication, and successful held-call recovery. Typed
+nil `[]byte` inferred as TEXT intentionally retains native empty-input MD5 versus
+pq NULL; do not erase this inherited adapter difference or use Go kinds for
+signature selection. These selectors do not replace ordinary quickcheck or
+post-merge fullcheck.
+
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
 held prepared session-zone changes, full calendar/seconds/zone/signature errors,

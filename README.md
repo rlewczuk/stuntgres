@@ -453,15 +453,29 @@ bytes: `crc32`/`crc32c` return unsigned 32-bit checksums in INT8, `md5(bytea)`
 returns 32 lowercase hexadecimal TEXT characters, and `sha224`/`sha256`/`sha384`/
 `sha512` return raw BYTEA digests of 28/32/48/64 bytes. All are strict; empty
 input has a nonnull digest. CRC/SHA infer BYTEA for unknown literals and binds;
-MD5 requires an already-known BYTEA operand. Native MD5 TEXT/unknown calls
-remain missing-function boundaries (42883), independently tested against
-PostgreSQL's TEXT overload. Hashes compose in queries, writes, CHECKs and views,
-and parameter-free hash calls are admitted in native Restore INSERTs; DEFAULT
-functions remain excluded. Cryptographic hashes use bounded scratch; all
-providers check cancellation without payload-sized temporary copies. See the
+MD5 unknown literals and parameters prefer TEXT; known BYTEA still selects
+raw-octet hashing. TEXT MD5 hashes exact UTF8 bytes after implicit TEXT conversion
+(BPCHAR padding is removed, VARCHAR spaces retained). MD5-first inference fixes
+TEXT and a later SHA call fails `sha256(text)`; SHA-first fixes BYTEA. Hashes
+compose in queries, writes, CHECKs and views. Parameter-free calls are admitted
+in native Restore INSERTs; BYTEA hash DEFAULT functions remain excluded, while
+TEXT MD5 DEFAULT is supported. Cryptographic hashes use bounded scratch and
+check cancellation without payload-sized temporary copies. See the
 [hash contract](docs/DIALECT.md#bytea-checksums-and-hashes--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryHash' VERBOSE=0`.
+
+Integer `to_bin`, `to_oct` and `to_hex` accept exactly INTEGER or BIGINT and
+return TEXT. Negative values use the selected 32/64-bit two's-complement width,
+without a sign or radix prefix; hex is lowercase. SMALLINT and unknown input
+are ambiguous (42725), requiring an explicit INTEGER/BIGINT cast. Typed NULL
+returns NULL. These immutable functions and TEXT MD5 compose through existing
+DEFAULT/CHECK/view/generated/index and Dump/Restore paths. Inferred TEXT MD5
+binds retain the inherited adapter boundary: native typed nil `[]byte` is empty
+TEXT, whereas pq sends NULL; ordinary nil is NULL on both.
+Feature smoke in both modes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0`.
 
 Change note: core strings support `||` string overloads, `btrim`/`ltrim`/`rtrim`,
 SQL `TRIM`, `normalize` and `IS [NOT] [form] NORMALIZED`. Character operands

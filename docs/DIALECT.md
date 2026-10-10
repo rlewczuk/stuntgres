@@ -2297,13 +2297,37 @@ infer BYTEA; Go string/[]byte binds are raw bytes. Literal `'\x41'` hashes A,
 but a bound `\x41` hashes its four literal bytes. Inference is occurrence-based:
 an earlier SHA occurrence can fix a shared parameter as BYTEA for later MD5.
 
-Native MD5 TEXT and unresolved/unknown operands intentionally fail 42883 with
-the existing missing-function primary, standard explicit-casts Hint and
-character-based function Position. PostgreSQL's independent TEXT overload is
-tested, not implemented here. In particular, MD5-first parameter occurrence
-selects TEXT on PostgreSQL and can make a later SHA call fail `sha256(text)`;
-native instead rejects the initial `md5(unknown)`. No backwards/global inference
-pass or Go-kind-based overload selection is introduced.
+MD5 has independent TEXT and BYTEA signatures. Unknown literals, NULL and
+parameters prefer TEXT; known BYTEA uses raw-octet hashing. TEXT input hashes
+exact UTF8 bytes, with no normalization or BYTEA interpretation; its existing
+input codec rejects NUL/invalid UTF8. Implicit BPCHAR-to-TEXT removes trailing
+ASCII spaces, whereas TEXT/VARCHAR retain them. MD5-first establishes TEXT and
+a later SHA call fails 42883 `function sha256(text) does not exist` at Position16
+in `SELECT md5($1),sha256($1)`; SHA-first establishes BYTEA. There is no backward
+inference or Go-kind-based signature selection. Native typed nil `[]byte` bound
+to inferred TEXT remains empty TEXT (empty MD5); pq sends NULL. Ordinary nil
+returns NULL on both.
+
+`to_bin`, `to_oct` and `to_hex` have exactly INTEGER and BIGINT unary signatures,
+returning strict immutable TEXT. Zero is `0`, positive output has no leading
+zeroes, and negatives use full 32/64-bit unsigned two's-complement width with
+no minus sign or radix prefix. Hex digits are lowercase. Width is SQL-type
+directed, including domains, not selected from Go values. SMALLINT and unknown
+(literal, NULL or parameter) are ambiguous: 42725, primary
+`function to_hex(unknown) is not unique` (or the actual function/type), empty
+Detail and Hint `Could not choose a best candidate function. You might need to
+add explicit type casts.` Other incompatible known types fail 42883 with the
+standard cast Hint. Diagnostics use character-based function positions; input
+errors retain codec positions/stages. Fixed scalar VARIADIC is accepted; named
+arguments are rejected without discarding their labels.
+
+Selected width and symbolic TEXT MD5 survive DEFAULT/CHECK/views, immutable
+generated columns and expression indexes, native Dump/Reset/Restore and replay
+of actual emitted SQL on PostgreSQL. Failed writes/Restore publish no prefix.
+Results have ordinary TEXT metadata (typmod-1, not a digest length modifier).
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0`.
 
 Quoted lowercase hash names resolve normally. Quoted uppercase/mixed-case names
 retain their spelling and fail 42883 rather than selecting a lowercase routine.
@@ -2341,9 +2365,10 @@ Reset/Restore rebinds destination descriptors without evaluating stored rows.
 Parameter-free Restore INSERTs admit these seven hash names recursively,
 including `sha256('abc')`. Nested parameters remain rejected with 42P02 at the
 parameter token. Parameter/input/read/cancellation failures publish no replacement,
-even after a valid staged prefix, and retained results stay detached. DEFAULT
-functions remain excluded. No md5(TEXT), SHA1, encode/decode, pgcrypto, routine
-catalog/OID publication, new cast edges or adjacent function family is implied.
+even after a valid staged prefix, and retained results stay detached.
+BYTEA hash functions remain excluded from DEFAULT; TEXT MD5 is supported through
+the string provider. No SHA1, encode/decode, pgcrypto, routine catalog/OID
+publication, new cast edges or adjacent function family is implied.
 
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;

@@ -683,9 +683,28 @@ has a nonnull digest (CRC zero). NUL, invalid UTF8 octets and backslashes are
 hashed as bytes, not decoded or normalized. SQL unknown CRC/SHA literals and
 parameters infer BYTEA; raw Go binds never invoke byteain. For example,
 `sha256('\x41')` hashes A, while a raw bound `\x41` hashes four literal bytes.
-MD5 requires a BYTEA column/expression or parameter already inferred as BYTEA
-by a preceding occurrence; native TEXT/unknown MD5 is excluded with 42883,
-not coerced to BYTEA based on a Go argument's kind.
+MD5 chooses BYTEA for an already-known BYTEA expression/parameter, and prefers
+TEXT for unknown input. TEXT MD5 hashes exact UTF8 after implicit TEXT conversion:
+BPCHAR padding is removed; TEXT/VARCHAR spaces remain; NUL/invalid UTF8 input
+is rejected. Go argument kinds never choose an overload. Inferred TEXT imports
+native typed nil `[]byte` as empty TEXT, while pq sends NULL; ordinary nil is
+NULL on both. SHA-first establishes BYTEA; MD5-first establishes TEXT.
+Textual string-function roles also admit internal `"char"` annotations through
+the existing type-owned input codec, so `md5('a'::"char")` hashes `a`. Literal,
+NULL and parameter inputs retain the resolved CHAR descriptor without requiring
+a general explicit CHAR identity cast; typed NULL still yields TEXT NULL.
+This bounded input admission does not enable internal-CHAR columns, nontextual
+base-conversion arguments or general CHAR casts.
+
+`to_bin(integer|bigint)`, `to_oct(integer|bigint)` and
+`to_hex(integer|bigint)` return TEXT with selected 32/64-bit two's-complement
+width for negatives, no sign/prefix, lowercase hex and no leading zeroes for
+positives. SMALLINT/unknown are ambiguous (42725); use an explicit selected-width
+cast. Typed NULL returns typed TEXT NULL. Like MD5, results have TEXT typmod-1,
+Length MaxInt64 and no DecimalSize, not a fixed digest/base-output length.
+Stored base calls preserve their selected integer descriptor during SQL
+reconstruction: even a small BIGINT value or typed NULL replays with its
+original overload, rather than being reinferred as INTEGER or unknown.
 
 Results have computed unknown nullability and no physical origin. MD5 TEXT
 reports Length MaxInt64 on both adapters; native CRC/SHA Length is unavailable.
@@ -694,7 +713,8 @@ Changing bytea_output affects neither checksum integers nor MD5 text nor raw
 SHA bytes. Every exported SHA buffer is independently owned. Providers check
 cancellation at bounded chunks and before result publication; hashing does not
 allocate scratch proportional to input size. Query/write/CHECK/view and native
-replay use the existing scalar provider; hash DEFAULT calls remain excluded.
+replay use the existing scalar provider; BYTEA hash DEFAULT calls remain excluded,
+while TEXT MD5 and base-conversion DEFAULT calls are supported.
 Hash feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
 pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryHash' VERBOSE=0`.
 

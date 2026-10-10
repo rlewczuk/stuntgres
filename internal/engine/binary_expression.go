@@ -97,7 +97,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	hash := false
 	switch name {
-	case "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
+	case "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512":
 		hash = true
 	}
 	if hash {
@@ -105,9 +105,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 			return missing()
 		}
 		d := operands[0].descriptor()
-		// Unknown MD5 belongs to the excluded TEXT overload in PostgreSQL.
-		// CRC/SHA have a unique BYTEA signature and may infer it here.
-		if (d == nil && name == "md5") || (d != nil && d.ID() != sqltype.Bytea) {
+		// CRC/SHA have unique BYTEA signatures; shared MD5 selection is
+		// owned by the string binder before reaching the binary provider.
+		if d != nil && d.BaseType().ID() != sqltype.Bytea {
 			return missing()
 		}
 		return b.finishBinary(name, raw.Pos, operands, raw.Syntax)

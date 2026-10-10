@@ -227,6 +227,16 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unkno
 }
 
 func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false)
+}
+
+// String roles admit internal CHAR without admitting it as a column or a
+// general cast target. Lookup, permissions and modifier checks stay type-owned.
+func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true)
+}
+
+func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		switch name {
@@ -288,7 +298,7 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void || d.ID() == sqltype.Xid {
+	if !d.Concrete() || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void || d.ID() == sqltype.Xid {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()

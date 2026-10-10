@@ -37,11 +37,7 @@ func TestReferenceBinaryHashConsumers(t *testing.T) {
 				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
 			}
 			md5First := "SELECT md5($1),sha256($1) FROM hash_input WHERE v=$1 AND id=2"
-			diagnostic := referenceDiagnostic{Code: "42883", Message: "function md5(unknown) does not exist", Hint: binaryHashHint, Position: "8"}
-			if backend.pg {
-				diagnostic.Message = "function sha256(text) does not exist"
-				diagnostic.Position = "16"
-			}
+			diagnostic := referenceDiagnostic{Code: "42883", Message: "function sha256(text) does not exist", Hint: binaryHashHint, Position: "16"}
 			for _, prepared := range []bool{false, true} {
 				s := referenceImplicitError(md5First, diagnostic, []byte("abc"))
 				s.selectRows = true

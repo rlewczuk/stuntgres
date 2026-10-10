@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -118,13 +116,7 @@ func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []Bound
 			types[i] = arg.ResultUsage().Type.DiagnosticName()
 		}
 	}
-	code, ending, hint := "42883", "does not exist", functionCastHint
-	if ambiguous {
-		code, ending, hint = "42725", "is not unique", "Could not choose a best candidate function. You might need to add explicit type casts."
-	}
-	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", objectNameText(raw.Name), strings.Join(types, ", "), ending), raw.Pos).(*sqlstate.Error)
-	d.Hint = hint
-	return d
+	return functionResolutionErrorForTypes(raw.Name, raw.Pos, types, ambiguous)
 }
 
 func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {

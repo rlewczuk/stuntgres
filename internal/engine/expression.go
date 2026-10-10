@@ -787,6 +787,8 @@ type expressionPolicy struct {
 	mode             sqltype.CoercionContext
 	column           string
 	booleanConstruct string
+	// String-family textual roles alone admit internal CHAR annotations.
+	stringInput bool
 	// Selected string INSERT rows analyze occurrences before target assignment.
 	deferAssignment bool
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
@@ -1496,7 +1498,13 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
-	target, err := b.engine.resolveAnnotationType(raw.TypeName, b.op, unknownNull)
+	var target sqltype.Usage
+	var err error
+	if outerPolicy.stringInput {
+		target, err = b.engine.resolveStringAnnotationType(raw.TypeName, b.op, unknownNull)
+	} else {
+		target, err = b.engine.resolveAnnotationType(raw.TypeName, b.op, unknownNull)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1508,7 +1516,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		node, _, err := b.bindRegclass(raw.Child)
 		return node, err
 	}
-	if !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
+	if !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if target.Type.ContainsRegclass() {
@@ -1559,6 +1567,11 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	if target.Collation.ID != 0 && source.Collation.ID != 0 {
 		target.Collation = source.Collation
+	}
+	if outerPolicy.stringInput && target.Type.ID() == sqltype.Char && source == target {
+		// The literal/input path already applied the CHAR codec. Retain that
+		// resolved datum without admitting CHAR to general explicit coercion.
+		return child, nil
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
@@ -1881,7 +1894,13 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		return comparisonOperand{raw: raw}, nil
 	}
 	if annotation, ok := raw.(parser.CastExpr); ok && unknownNullSyntax(raw) {
-		target, err := b.engine.resolveAnnotationType(annotation.TypeName, b.op, true)
+		var target sqltype.Usage
+		var err error
+		if policy.stringInput {
+			target, err = b.engine.resolveStringAnnotationType(annotation.TypeName, b.op, true)
+		} else {
+			target, err = b.engine.resolveAnnotationType(annotation.TypeName, b.op, true)
+		}
 		if err != nil {
 			return comparisonOperand{}, err
 		}

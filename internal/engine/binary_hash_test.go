@@ -88,7 +88,8 @@ func TestBinaryHashOccurrenceBinding(t *testing.T) {
 		t.Fatal(md5, err)
 	}
 	fresh := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	if _, err := fresh.bind(call("md5", parameter), expressionPolicy{context: projectionContext}); err == nil {
-		t.Fatal("unresolved MD5 selected BYTEA")
+	selected, err := fresh.bind(call("md5", parameter), expressionPolicy{context: projectionContext})
+	if err != nil || selected.ResultUsage().Type.ID() != sqltype.Text || fresh.parameters[1].Type.ID() != sqltype.Text {
+		t.Fatal(selected, err, "unresolved MD5 did not select TEXT")
 	}
 }

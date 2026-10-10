@@ -76,7 +76,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 // COLLATE resolves before overload finalization. Contextualize only textual
 // roles, preserving each established parameter's input descriptor.
 func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (comparisonOperand, error) {
-	policy := expressionPolicy{context: projectionContext}
+	policy := expressionPolicy{context: projectionContext, stringInput: textual}
 	if _, collated := raw.(parser.CollateExpr); collated && textual {
 		policy.expected = b.typ(sqltype.Text).Usage()
 		child := raw
@@ -117,6 +117,9 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
+	if sqltype.StringBaseConversion(name) {
+		return b.finishStringNumericBase(raw, visible, operands)
+	}
 	count := name == "length" || name == "char_length" || name == "character_length" || name == "octet_length" || name == "bit_length"
 	search := name == "position" || name == "strpos"
 	replacement := name == "replace" || name == "translate" || name == "starts_with" || name == "overlay"
@@ -140,7 +143,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	// positions do not participate in TEXT/BYTEA candidate selection.
 	binary := visible && ((!raw.Variadic && len(operands) == 2 && (name == "btrim" || name == "ltrim" || name == "rtrim")) ||
 		(!raw.Variadic && len(operands) == 1 && (name == "length" || name == "octet_length" || name == "bit_length")) ||
-		(len(operands) == 2 && name == "position") || (name == "reverse" && len(operands) == 1) || (name == "overlay" && (len(operands) == 3 || len(operands) == 4)))
+		(len(operands) == 2 && name == "position") || ((name == "reverse" || name == "md5") && len(operands) == 1) || (name == "overlay" && (len(operands) == 3 || len(operands) == 4)))
 	knownBinary := false
 	for i, o := range operands {
 		if sqltype.StringIntegerArgument(name, i) {
@@ -178,7 +181,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			encodingID = sqltype.Int4
 		}
 	}
-	valid := visible && (!raw.Variadic || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse")
+	valid := visible && (!raw.Variadic || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse" || name == "md5")
 	switch {
 	case name == "ascii" || name == "chr" || name == "unistr" || name == "unicode_assigned":
 		valid = valid && len(operands) == 1
@@ -186,7 +189,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		valid = valid && (len(operands) == 2 || len(operands) == 3)
 	case name == "repeat":
 		valid = valid && len(operands) == 2
-	case name == "reverse":
+	case name == "reverse" || name == "md5":
 		valid = valid && len(operands) == 1
 	case name == "overlay":
 		valid = valid && (len(operands) == 3 || len(operands) == 4)

@@ -81,40 +81,27 @@ func TestReferenceBinaryHashDiagnostics(t *testing.T) {
 	}
 }
 
-func TestReferenceBinaryHashMD5Boundary(t *testing.T) {
+func TestReferenceBinaryHashMD5Overloads(t *testing.T) {
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE hash_text(v TEXT)", 0))
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO hash_text VALUES('abc')", 1))
 			for _, tc := range []struct {
-				q, typ string
-				want   any
-				args   []any
-			}{{"SELECT md5('abc')", "unknown", binaryHashCrypto[1][0], nil}, {"SELECT md5('')", "unknown", binaryHashCrypto[0][0], nil}, {"SELECT md5(NULL)", "unknown", nil, nil}, {"SELECT md5(v) FROM hash_text", "text", binaryHashCrypto[1][0], nil}, {"SELECT md5($1)", "unknown", binaryHashCrypto[1][0], []any{"abc"}}} {
+				q    string
+				want any
+				args []any
+			}{{"SELECT md5('abc')", binaryHashCrypto[1][0], nil}, {"SELECT md5('')", binaryHashCrypto[0][0], nil}, {"SELECT md5(NULL)", nil, nil}, {"SELECT md5(v) FROM hash_text", binaryHashCrypto[1][0], nil}, {"SELECT md5($1)", binaryHashCrypto[1][0], []any{"abc"}}} {
 				t.Run(tc.q, func(t *testing.T) {
-					if backend.pg {
-						s := referenceSelect(tc.q, []string{"md5"}, []string{"TEXT"}, [][]any{{tc.want}}, tc.args...)
-						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
-						referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
-					} else {
-						s := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42883", Message: "function md5(" + tc.typ + ") does not exist", Hint: binaryHashHint, Position: "8"}, tc.args...)
-						s.selectRows = true
-						s.errorStage = "execute"
-						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
-						s.errorStage = "prepare"
-						referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
-					}
+					s := referenceSelect(tc.q, []string{"md5"}, []string{"TEXT"}, [][]any{{tc.want}}, tc.args...)
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
 				})
 			}
 			q := `SELECT md5('\x0')`
-			if backend.pg {
-				s := referenceSelect(q, []string{"md5"}, []string{"TEXT"}, [][]any{{"d8e6a5626b620a84d69e8052951a080a"}})
-				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
-				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
-			} else {
-				binaryHashDiagnostic(t, p, backend.db, q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function md5(unknown) does not exist", Hint: binaryHashHint, Position: "8"})
-			}
+			s := referenceSelect(q, []string{"md5"}, []string{"TEXT"}, [][]any{{"d8e6a5626b620a84d69e8052951a080a"}})
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
 		})
 	}
 }

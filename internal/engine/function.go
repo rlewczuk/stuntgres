@@ -87,13 +87,13 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindDatetimeMake(raw, visible)
 	case "to_char", "to_date", "to_timestamp":
 		return b.bindDatetimeFormatting(raw, visible)
-	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
+	case "to_bin", "to_oct", "to_hex", "md5", "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
 		return b.bindStringFunction(raw, visible && name != "trim")
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "like_escape":
 		return b.bindLikeEscape(raw, visible)
-	case "substring", "substr", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
+	case "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512":
 		return b.bindBinaryFunction(raw, visible)
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		return b.bindMath(raw, visible)
@@ -279,7 +279,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 	// only, the argument limit still precedes exact-name signature resolution.
 	if len(raw.Args) > 100 && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		for _, selected := range [...]string{"crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512"} {
+		for _, selected := range [...]string{"to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512"} {
 			if len(name) != len(selected) || !strings.EqualFold(name, selected) {
 				continue
 			}
@@ -320,8 +320,16 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 
 // Reuse transformed argument names when a diagnostic producer already bound them.
 func functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
-	d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(name), strings.Join(names, ", ")), pos).(*sqlstate.Error)
-	d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+	return functionResolutionErrorForTypes(name, pos, names, false)
+}
+
+func functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
+	code, ending, hint := "42883", "does not exist", functionCastHint
+	if ambiguous {
+		code, ending, hint = "42725", "is not unique", "Could not choose a best candidate function. You might need to add explicit type casts."
+	}
+	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", objectNameText(name), strings.Join(names, ", "), ending), pos).(*sqlstate.Error)
+	d.Hint = hint
 	return d
 }
 
