@@ -476,7 +476,7 @@ var keywords = [...]keyword{
 	{"sets", Unreserved, true, SETS},
 	{"share", Unreserved, true, 0},
 	{"show", Unreserved, true, SHOW},
-	{"similar", TypeFunctionName, true, 0},
+	{"similar", TypeFunctionName, true, SIMILAR},
 	{"simple", Unreserved, true, 0},
 	{"skip", Unreserved, true, SKIP},
 	{"smallint", ColumnName, true, 0},

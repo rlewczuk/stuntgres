@@ -38,6 +38,13 @@ func TestReferenceBinarySliceCapabilityBoundaries(t *testing.T) {
 						run(t, p.ctx, backend.db, backend.recorder, referencePrepared(step))
 					}
 				}
+				// Only the three-TEXT SQL-regex overload crosses this boundary;
+				// positional TEXT and the two-argument POSIX overload stay above.
+				for _, q := range []string{`SELECT substring('abc','%','#') AS v`, `SELECT substring('abc' FROM '%' FOR '#') AS v`, `SELECT substring('abc' SIMILAR '%' ESCAPE '#') AS v`} {
+					s := referenceSelect(q, []string{"v"}, []string{"TEXT"}, [][]any{{"abc"}})
+					run(t, p.ctx, backend.db, backend.recorder, s)
+					run(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
+				}
 			}
 		})
 	}

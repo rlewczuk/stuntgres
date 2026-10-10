@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// Native has no public ACL mutation API. Keep this genuine Engine.SetObjectACL
+// authority regression internal; TestReferenceLikeOracleSecurity independently
+// covers the PostgreSQL public column-GRANT routes, without fake native grants.
 func TestLikePatternEscapeColumnACL(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

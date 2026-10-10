@@ -772,6 +772,51 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
+	case similarExpression:
+		left, err := r.sql(ctx, view, n.left)
+		if err != nil {
+			return "", err
+		}
+		normalizer, ok := n.right.(similarEscapeExpression)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: invalid stored SIMILAR normalizer")
+		}
+		pattern, err := r.sql(ctx, view, normalizer.pattern)
+		if err != nil {
+			return "", err
+		}
+		operator := "SIMILAR TO"
+		if n.operator == "!~" {
+			operator = "NOT SIMILAR TO"
+		}
+		text := "(" + left + " " + operator + " " + pattern
+		if !normalizer.omitted {
+			escape, err := r.sql(ctx, view, normalizer.escape)
+			if err != nil {
+				return "", err
+			}
+			text += " ESCAPE " + escape
+		}
+		return text + ")", nil
+	case similarEscapeExpression:
+		return "", fmt.Errorf("stuntgres: standalone stored SIMILAR normalizer")
+	case similarSubstringExpression:
+		source, err := r.sql(ctx, view, n.args[0])
+		if err != nil {
+			return "", err
+		}
+		pattern, err := r.sql(ctx, view, n.args[1])
+		if err != nil {
+			return "", err
+		}
+		escape, err := r.sql(ctx, view, n.args[2])
+		if err != nil {
+			return "", err
+		}
+		if n.syntax != parser.SQLFunctionSyntax {
+			return `pg_catalog."substring"(` + source + ", " + pattern + ", " + escape + ")", nil
+		}
+		return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
@@ -1542,6 +1587,49 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 			info, err = collatedInfo(info, n.pattern, n.escape)
 			if err == nil {
 				n.provider, err = sqltype.BindLikeEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), info.usage)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
+	case similarExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			var collation expressionInfo
+			collation, err = collatedInfo(expressionInfo{usage: n.left.ResultUsage(), pos: info.pos}, n.left, n.right)
+			if err == nil {
+				n.provider, err = sqltype.BindSimilar(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.usage, collation.usage.Collation, collation.collationConflict)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
+	case similarEscapeExpression:
+		n.pattern, n.escape = child(n.pattern), child(n.escape)
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			info, err = collatedInfo(info, n.pattern, n.escape)
+			if err == nil {
+				n.provider, err = sqltype.BindSimilarEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), info.usage)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
+	case similarSubstringExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			info, err = collatedInfo(info, n.args[:]...)
+			if err == nil {
+				usages := [3]sqltype.Usage{n.args[0].ResultUsage(), n.args[1].ResultUsage(), n.args[2].ResultUsage()}
+				n.provider, err = sqltype.BindSimilarSubstring(usages, info.usage, n.provider.WrapperContext())
 			}
 		}
 		n.expressionInfo = info

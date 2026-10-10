@@ -110,6 +110,15 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case likeEscapeExpression:
 		fmt.Fprintf(out, "LikeEscape")
 		err = pair(n.pattern, n.escape)
+	case similarExpression:
+		fmt.Fprintf(out, "Similar %s", n.operator)
+		err = pair(n.left, n.right)
+	case similarEscapeExpression:
+		fmt.Fprintf(out, "SimilarEscape omitted %t", n.omitted)
+		err = pair(n.pattern, n.escape)
+	case similarSubstringExpression:
+		fmt.Fprintf(out, "SimilarSubstring syntax %d", n.syntax)
+		err = args(n.args[:])
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

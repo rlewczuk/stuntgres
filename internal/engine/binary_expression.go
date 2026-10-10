@@ -68,10 +68,10 @@ func binaryTextType(d *sqltype.Descriptor) bool {
 }
 
 func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	if b.defaultConsumer {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if b.defaultConsumer && (name != "substring" || len(raw.Args) != 3) {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	conversion := name == "convert" || name == "convert_from" || name == "convert_to" || name == "encode" || name == "decode"
 	var operands []comparisonOperand
 	var names []string
@@ -96,6 +96,19 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	if b.defaultConsumer {
+		selected := true
+		for _, operand := range operands {
+			selected = selected && binaryTextType(operand.descriptor())
+		}
+		if selected {
+			if !visible {
+				return missing()
+			}
+			return b.bindSimilarSubstring(raw, operands)
+		}
+		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	}
 	switch name {
 	case "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 		return b.bindBinaryAccess(raw, visible, operands, names)
@@ -160,6 +173,19 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		regex := name == "substring"
 		for _, o := range operands[1:] {
 			regex = regex && binaryTextType(o.descriptor())
+		}
+		if regex && len(operands) == 3 {
+			return b.bindSimilarSubstring(raw, operands)
+		}
+		if !regex && text {
+			// A known integer count selects the existing positional signature.
+			// Preserve its input-conversion diagnostics before reporting the
+			// native positional-TEXT capability boundary.
+			for _, operand := range operands[1:] {
+				if _, err := b.likeOperand(operand, b.typ(sqltype.Int4)); err != nil {
+					return nil, err
+				}
+			}
 		}
 		text = text || regex
 	}

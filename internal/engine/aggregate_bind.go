@@ -121,6 +121,15 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case likeEscapeExpression:
 		o, ok := other.(likeEscapeExpression)
 		return ok && e.provider == o.provider && same(e.pattern, o.pattern) && same(e.escape, o.escape)
+	case similarExpression:
+		o, ok := other.(similarExpression)
+		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+	case similarEscapeExpression:
+		o, ok := other.(similarEscapeExpression)
+		return ok && e.provider == o.provider && e.omitted == o.omitted && same(e.pattern, o.pattern) && same(e.escape, o.escape)
+	case similarSubstringExpression:
+		o, ok := other.(similarSubstringExpression)
+		return ok && e.provider == o.provider && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1]) && same(e.args[2], o.args[2])
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
 		return ok && e.predicate == o.predicate && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -495,6 +504,20 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.pattern, e.escape = rewrite(e.pattern), rewrite(e.escape)
 		stage(&e.expressionInfo)
 		expr = e
+	case similarExpression:
+		e.left, e.right = rewrite(e.left), rewrite(e.right)
+		stage(&e.expressionInfo)
+		expr = e
+	case similarEscapeExpression:
+		e.pattern, e.escape = rewrite(e.pattern), rewrite(e.escape)
+		stage(&e.expressionInfo)
+		expr = e
+	case similarSubstringExpression:
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -721,6 +744,16 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case likeEscapeExpression:
 		walk(e.pattern)
 		walk(e.escape)
+	case similarExpression:
+		walk(e.left)
+		walk(e.right)
+	case similarEscapeExpression:
+		walk(e.pattern)
+		walk(e.escape)
+	case similarSubstringExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
 	case comparisonExpression:
 		walk(e.left)
 		walk(e.right)

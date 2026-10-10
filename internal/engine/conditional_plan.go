@@ -221,6 +221,26 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.escape, err = child(e.escape)
 		}
 		expression = e
+	case similarExpression:
+		e.left, err = child(e.left)
+		if err == nil {
+			e.right, err = child(e.right)
+		}
+		expression = e
+	case similarEscapeExpression:
+		e.pattern, err = child(e.pattern)
+		if err == nil {
+			e.escape, err = child(e.escape)
+		}
+		expression = e
+	case similarSubstringExpression:
+		for i, arg := range e.args {
+			e.args[i], err = child(arg)
+			if err != nil {
+				break
+			}
+		}
+		expression = e
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -689,6 +709,12 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.left) && literal(e.right)
 	case likeEscapeExpression:
 		return literal(e.pattern) && literal(e.escape)
+	case similarExpression:
+		return literal(e.left) && literal(e.right)
+	case similarEscapeExpression:
+		return literal(e.pattern) && literal(e.escape)
+	case similarSubstringExpression:
+		return literal(e.args[0]) && literal(e.args[1]) && literal(e.args[2])
 	case comparisonExpression:
 		return literal(e.left) && literal(e.right)
 	case logicalExpression:

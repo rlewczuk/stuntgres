@@ -12,6 +12,7 @@ TEST_COMMAND = timeout --signal=KILL 900s sh -c '$(MAKE) generate && exec "$$@"'
 
 generate:
 	go generate ./internal/parser
+	go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go -regex-output ./internal/sqltype/unicode16/regex_tables_generated.go
 
 build:
 	go build ./...

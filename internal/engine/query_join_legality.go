@@ -492,6 +492,12 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = []BoundExpr{e.left, e.right}
 	case likeEscapeExpression:
 		children = []BoundExpr{e.pattern, e.escape}
+	case similarExpression:
+		children = []BoundExpr{e.left, e.right}
+	case similarEscapeExpression:
+		children = []BoundExpr{e.pattern, e.escape}
+	case similarSubstringExpression:
+		children = e.args[:]
 	case nullTestExpression:
 		children = []BoundExpr{e.child}
 	case truthTestExpression:

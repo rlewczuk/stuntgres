@@ -1011,6 +1011,8 @@ type OperatorExpr struct {
 	Name ObjectName
 	Args []Expr
 	Pos  Position
+	// SQLSimilar distinguishes SQL regex lowering from adjacent POSIX operators.
+	SQLSimilar bool
 }
 
 type LogicalOperator uint8
@@ -1116,6 +1118,7 @@ type FunctionSyntax uint8
 const (
 	OrdinaryFunctionSyntax FunctionSyntax = iota
 	SQLFunctionSyntax
+	SimilarEscapeFunctionSyntax
 )
 
 // StringSyntax retains the selected string family's distinct SQL forms.

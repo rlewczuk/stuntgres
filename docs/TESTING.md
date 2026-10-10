@@ -2036,3 +2036,52 @@ whole-input zero-statement publication and inner ordinary-call capability owners
 These new units and the final grammar remedy require root verification; the
 historical oracle pass/native red are not final passing evidence.
 
+## SQL SIMILAR oracle and feature checks
+
+The untagged `TestReferenceSimilar` families share independent direct/prepared
+expectations for SQL matching/extraction, classes/escapes/capture, diagnostic
+fields/stage/positions, metadata/deparse, demand/held parameters, consumers,
+stored atomicity and public replay. Discovery-only backend filters and failure
+logging were removed after the root's pinned PostgreSQL18.0 observations.
+Review regressions are `TestReferenceSimilarReviewDefault`,
+`TestReferenceSimilarReviewMalformedDefault`,
+`TestReferenceSimilarReviewDefaultControls`,
+`TestReferenceSimilarReviewDefaultBoundaries`,
+`TestReferenceSimilarReviewGroupIdentity` and
+`TestReferenceSimilarReviewTaggedIterator`. They encode the pinned default
+diagnostic, all sixteen cross-spelling grouping pairs and eight exact
+nullable-iterator/backreference capture outcomes. Native-only DEFAULT boundaries
+and host controls are explicit; the controls replay actual emitted SQL on the
+pinned backend. `TestSimilarSubstringPresentationIdentity`,
+`TestSimilarExecutionReplacementOwnership` and
+`TestSimilarExecutionReplacementBudget` are genuine structural/injected-limit
+units; the latter cover configuration-preserving invalidation, preallocation
+replacement ownership, translation/compile/runtime failure, NULL, cancellation
+and recovery. They do not claim a PostgreSQL-identical resource cutoff.
+`TestReferenceSimilarActualCancellation` executes the actual regex UPDATE;
+server admission is observed before cancellation, and native cancellation
+observes entry into translation/compiler/matcher work. It must not substitute
+`pg_sleep`, a precanceled context or readiness for exercised cancellation.
+
+Root runs both modes before review, each under the Makefile's 900-second bound:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilar' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSimilar' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilarFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSimilarFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilarReview' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSimilarReview' VERBOSE=0
+make quickcheck PACKAGES='./internal/engine ./internal/sqltype' RUN='^TestSimilar(SubstringPresentationIdentity|ExecutionReplacementOwnership|ExecutionReplacementBudget)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(BinarySlice|LikeLegacy)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(BinarySlice|LikeLegacy)' VERBOSE=0
+```
+
+The BinarySlice capability selector preserves positional TEXT/two-argument
+POSIX exclusions but requires all three SQL-regex substring spellings. LIKE
+legacy migration retains its independent matching/metadata/replay assertion
+union. Genuine parser/provider/bound-node units supplement public reference
+coverage; they must not recreate SQL-through-internal-engine tests. Native
+resource-accounting units use injected limits rather than claiming a portable
+PostgreSQL complexity cutoff. Final fullcheck belongs to the root after merge
+under one 1800-second deadline.

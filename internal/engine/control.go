@@ -887,6 +887,14 @@ func restoreScalar(raw parser.Expr) error {
 			if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
+		case "similar_to_escape":
+			if r.Syntax != parser.SimilarEscapeFunctionSyntax || len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) < 1 || len(r.Args) > 2 || r.Variadic {
+				return fmt.Errorf("stuntgres: invalid restore scalar")
+			}
+		case "substring":
+			if len(r.Args) != 3 || r.Variadic {
+				return fmt.Errorf("stuntgres: invalid restore scalar")
+			}
 		default:
 			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
@@ -964,6 +972,18 @@ func restoreScalar(raw parser.Expr) error {
 		return nil
 	case parser.OperatorExpr:
 		if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
+			return fmt.Errorf("stuntgres: invalid restore scalar")
+		}
+		spelling := r.Name.Parts[len(r.Name.Parts)-1].Text
+		if spelling == "!~" || spelling == "~" && len(r.Args) == 2 {
+			if !r.SQLSimilar || len(r.Args) != 2 {
+				return fmt.Errorf("stuntgres: invalid restore scalar")
+			}
+			normalizer, ok := r.Args[1].(parser.FunctionExpr)
+			if !ok || normalizer.Syntax != parser.SimilarEscapeFunctionSyntax {
+				return fmt.Errorf("stuntgres: invalid restore scalar")
+			}
+		} else if r.SQLSimilar {
 			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		for _, child := range r.Args {

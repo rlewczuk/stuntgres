@@ -761,8 +761,9 @@ Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
 Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
 octets. Selected functions share query/write/CHECK/view consumers and native
 replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
-TEXT/regex substring, encoding-aware length, BYTEA DEFAULT functions and direct
-byteacat remain excluded; no new cast edges or byteapos alias are added.
+Positional TEXT and two-argument POSIX-regex substring, encoding-aware length,
+BYTEA DEFAULT functions and direct byteacat remain excluded; the three-TEXT
+SQL-SIMILAR substring overload is supported. No new cast edges or byteapos alias are added.
 Core strings provide TEXT trim/concatenation siblings through the shared dispatch.
 `length`, `char_length`/`character_length`, `octet_length` and `bit_length`
 also measure strings; `strpos(source,needle)` and SQL POSITION search them.
@@ -1218,11 +1219,29 @@ operands retain physical padding. Supported default/C/POSIX ILIKE folds ASCII
 only; C and POSIX remain distinct collation identities. Scalar COLLATE also
 supports `pg_c_utf8`/`pg_unicode_fast`, with case-sensitive LIKE but a positioned
 0A000 ILIKE boundary. Explicit C on either operand overrides implicit Unicode
-collation and permits ASCII ILIKE. Arbitrary locales, regex and SIMILAR TO remain excluded.
+collation and permits ASCII ILIKE. Arbitrary locales and public POSIX regex APIs remain excluded.
 Collatable wrappers retain identity and demanded conflicts; indeterminate TEXT
 view outputs are rejected before publication, while BOOL matching views replay.
 See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestLikeSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceLikeLegacyMigration$' VERBOSE=0`.
+
+`SIMILAR TO` and `NOT SIMILAR TO` independently implement full-string SQL
+regular expressions: `%`/`_`, alternation, groups, quantifiers, brackets,
+fixed builtin collation classes, escapes and separator capture/backreferences.
+SQL punctuation `.`, `^`, `$` is literal outside brackets. Wildcards advance
+UTF8 code points and include newlines. BPCHAR predicate sources retain padding.
+`substring(s SIMILAR p ESCAPE e)`, `substring(s FROM p FOR e)` and the
+three-TEXT ordinary/qualified `substring(s,p,e)` return the separator capture,
+the entire matching source without separators, or TEXT NULL for no match/NULL.
+Extraction's inner matcher uses database-default C collation; predicate classes
+honor the selected builtin identity. No public POSIX operators/functions or
+positional TEXT substring are added.
+Hostile patterns can consume substantial time and memory. Set a context deadline;
+native execution polls cancellation and checks a 64 MiB IR/scratch/state ceiling,
+not a PostgreSQL-identical complexity threshold or universal linear-time promise.
+See [SQL regex details](docs/DIALECT.md#similar-to-and-sql-regex-substring--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilarFeatureSmoke$' VERBOSE=0`;
+add `REFERENCE=1` to exercise the same assertions against pinned PostgreSQL18.0.
 
 Standalone `VALUES (1,'a'),(1,'a'),(2,NULL)` and parenthesized VALUES in FROM are
 supported queries. Optional relation/column aliases expose computed `columnN`

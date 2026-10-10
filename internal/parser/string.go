@@ -79,6 +79,7 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
 		found = strings.EqualFold(name, "format") || name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name) || stringPaddingFunction(name) || datetimeFunctionName(name)
+		found = found || e.Syntax == SimilarEscapeFunctionSyntax
 		if !found && !singletonArgument(e) {
 			return false, false
 		}
@@ -94,7 +95,7 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 		}
 		return true, found
 	case OperatorExpr:
-		found = !datetimeOnly && len(e.Name.Parts) > 0 && (e.Name.Parts[len(e.Name.Parts)-1].Text == "||" || e.Name.Parts[len(e.Name.Parts)-1].Text == "^@")
+		found = !datetimeOnly && (e.SQLSimilar || len(e.Name.Parts) > 0 && (e.Name.Parts[len(e.Name.Parts)-1].Text == "||" || e.Name.Parts[len(e.Name.Parts)-1].Text == "^@"))
 		for _, arg := range e.Args {
 			ok, has := stringSingletonFamily(arg, datetimeOnly)
 			if !ok {

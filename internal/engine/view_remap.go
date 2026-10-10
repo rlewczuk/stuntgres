@@ -132,6 +132,37 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	case likeEscapeExpression:
 		n.pattern, n.escape = child(n.pattern), child(n.escape)
 		next = n
+	case similarExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if err == nil {
+			var collation expressionInfo
+			collation, err = collatedInfo(expressionInfo{usage: n.left.ResultUsage(), pos: n.pos}, n.left, n.right)
+			if err == nil {
+				n.provider, err = sqltype.BindSimilar(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), n.usage, collation.usage.Collation, collation.collationConflict)
+			}
+		}
+		next = n
+	case similarEscapeExpression:
+		n.pattern, n.escape = child(n.pattern), child(n.escape)
+		if err == nil {
+			n.expressionInfo, err = collatedInfo(n.expressionInfo, n.pattern, n.escape)
+			if err == nil {
+				n.provider, err = sqltype.BindSimilarEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), n.usage)
+			}
+		}
+		next = n
+	case similarSubstringExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		if err == nil {
+			n.expressionInfo, err = collatedInfo(n.expressionInfo, n.args[:]...)
+			if err == nil {
+				usages := [3]sqltype.Usage{n.args[0].ResultUsage(), n.args[1].ResultUsage(), n.args[2].ResultUsage()}
+				n.provider, err = sqltype.BindSimilarSubstring(usages, n.usage, n.provider.WrapperContext())
+			}
+		}
+		next = n
 	case comparisonExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n

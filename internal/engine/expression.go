@@ -52,6 +52,7 @@ type EvalContext struct {
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
+	similar        sqltype.SimilarExecution
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -351,6 +352,66 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		return e, pc || ec, nil
+	case similarEscapeExpression:
+		pattern, pc, err := preflightCoercionsWithPolicy(c, e.pattern, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		escape, ec, err := preflightCoercionsWithPolicy(c, e.escape, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.pattern, e.escape = pattern, escape
+		p := e.Properties()
+		if randomLiteralNull(pattern) || randomLiteralNull(escape) {
+			similarExecution(c).Reset()
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, pc || ec, nil
+	case similarExpression:
+		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		right, rc, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.left, e.right = left, right
+		if randomLiteralNull(left) || randomLiteralNull(right) {
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, lc || rc, nil
+	case similarSubstringExpression:
+		changed := false
+		for i, arg := range e.args {
+			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			e.args[i] = next
+			changed = changed || did
+		}
+		for _, arg := range e.args {
+			if randomLiteralNull(arg) {
+				return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			}
+		}
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, changed, nil
 	case likeExpression:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -1029,13 +1090,14 @@ type expressionBinder struct {
 	noParameters               bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals  []literalExpression
-	viewLiterals   map[viewLiteralPath]literalExpression
-	viewCastUsages map[viewLiteralPath]sqltype.Usage
-	viewColumns    map[viewLiteralPath]viewColumn
-	viewStars      map[viewLiteralPath][]viewColumn
-	viewJoinCount  int
-	viewNamespaces []viewNamespace
+	checkLiterals         []literalExpression
+	viewLiterals          map[viewLiteralPath]literalExpression
+	viewCastUsages        map[viewLiteralPath]sqltype.Usage
+	viewSimilarSubstrings map[viewLiteralPath]bool
+	viewColumns           map[viewLiteralPath]viewColumn
+	viewStars             map[viewLiteralPath][]viewColumn
+	viewJoinCount         int
+	viewNamespaces        []viewNamespace
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -1611,7 +1673,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 	case parser.OperatorExpr:
 		var err error
-		if subquery, ok := rowSubqueryComparison(r); ok {
+		if r.SQLSimilar {
+			node, err = b.bindSimilar(r)
+		} else if subquery, ok := rowSubqueryComparison(r); ok {
 			node, err = b.bindSubquery(subquery)
 		} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
 			node, err = b.bindStringConcat(r)

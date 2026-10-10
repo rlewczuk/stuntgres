@@ -54,6 +54,16 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case likeEscapeExpression:
 		walk(e.pattern)
 		walk(e.escape)
+	case similarExpression:
+		walk(e.left)
+		walk(e.right)
+	case similarEscapeExpression:
+		walk(e.pattern)
+		walk(e.escape)
+	case similarSubstringExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)

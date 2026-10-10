@@ -11,20 +11,21 @@ import (
 // A definition owns an immutable analyzed query and its creation-time source layout.
 // Runtime source opening uses identities, never the retained deparser syntax.
 type viewDefinition struct {
-	query            *BoundQuery
-	syntax           *parser.Select
-	sources          []viewLeaf
-	dependencies     []expressionDependency
-	sequenceRefs     map[int]ObjectRef
-	literals         map[viewLiteralPath]literalExpression
-	castUsages       map[viewLiteralPath]sqltype.Usage
-	columns          map[viewLiteralPath]viewColumn
-	stars            map[viewLiteralPath][]viewColumn
-	frames           map[uint32]*projectNode
-	queries          map[*parser.Select]*projectNode
-	namespaces       []viewNamespace
-	barrier, invoker bool
-	rule             OID
+	query             *BoundQuery
+	syntax            *parser.Select
+	sources           []viewLeaf
+	dependencies      []expressionDependency
+	sequenceRefs      map[int]ObjectRef
+	literals          map[viewLiteralPath]literalExpression
+	castUsages        map[viewLiteralPath]sqltype.Usage
+	similarSubstrings map[viewLiteralPath]bool
+	columns           map[viewLiteralPath]viewColumn
+	stars             map[viewLiteralPath][]viewColumn
+	frames            map[uint32]*projectNode
+	queries           map[*parser.Select]*projectNode
+	namespaces        []viewNamespace
+	barrier, invoker  bool
+	rule              OID
 }
 
 // Persistent leaves contain identities and frozen layout, never live storage or
@@ -282,6 +283,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition := &viewDefinition{query: b.query, syntax: view.Query, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals = b.viewLiterals
 	definition.castUsages = b.viewCastUsages
+	definition.similarSubstrings = b.viewSimilarSubstrings
 	definition.columns, definition.stars = b.viewColumns, b.viewStars
 	definition.frames, definition.queries = collectQueryFrames(b.query.Root)
 	definition.namespaces = b.viewNamespaces

@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+// Denied-schema setup exercises the private catalog ACL seam: native has no
+// public GRANT/REVOKE API. The missing-schema public route is migrated to
+// TestReferenceLikeLegacyMissingNamespace; PostgreSQL denied-schema SQL is
+// independently covered by TestReferenceLikeOracleSecurity.
 func TestLikeNamespaceDiagnostics(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -19,7 +23,6 @@ func TestLikeNamespaceDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ query, code, message string }{
-		{"SELECT v OPERATOR(missing_like.~~) 'a%' FROM t", "3F000", "schema \"missing_like\" does not exist"},
 		{"SELECT v OPERATOR(like_denied.~~) 'a%' FROM public.t", "42501", "permission denied for schema like_denied"},
 	} {
 		if tc.code == "42501" {

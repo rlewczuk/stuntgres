@@ -65,6 +65,7 @@ type binding struct {
 	subqueryDemand     bool
 	viewLiterals       map[viewLiteralPath]literalExpression
 	viewCastUsages     map[viewLiteralPath]sqltype.Usage
+	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewColumns        map[viewLiteralPath]viewColumn
 	viewStars          map[viewLiteralPath][]viewColumn
 	viewNamespaces     []viewNamespace
@@ -647,6 +648,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.regtypeInput = binder.input.Regtype
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
+	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
 	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })

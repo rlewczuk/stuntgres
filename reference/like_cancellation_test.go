@@ -19,7 +19,12 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 	defer func() {
 		cancel()
 		if !joined {
-			<-result
+			select {
+			case <-result:
+				joined = true
+			case <-time.After(5 * time.Second):
+				t.Error("canceled worker did not complete during cleanup", provider)
+			}
 		}
 	}()
 	profiles := make([]runtime.StackRecord, 128)
@@ -57,8 +62,13 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 		}
 	}
 	cancel()
-	err := <-result
-	joined = true
+	var err error
+	select {
+	case err = <-result:
+		joined = true
+	case <-time.After(5 * time.Second):
+		t.Fatal("canceled worker did not complete", provider)
+	}
 	if !observed || !errors.Is(err, context.Canceled) {
 		t.Fatal("entered provider cancellation", provider, observed, err)
 	}

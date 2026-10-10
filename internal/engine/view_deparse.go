@@ -670,9 +670,14 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			op = "OPERATOR(" + quoteIdentifier(e.Name.Parts[0].Text) + "." + op + ")"
 		} else if op == "^@" {
 			op = "OPERATOR(pg_catalog.^@)"
+		} else if e.SQLSimilar && !v.presentation.deparse {
+			op = "SIMILAR TO"
+			if spelling == "!~" {
+				op = "NOT SIMILAR TO"
+			}
 		}
 		precedence := 4
-		if pgOperatorPriority(spelling) != 0 || len(e.Args) == 1 {
+		if e.SQLSimilar || pgOperatorPriority(spelling) != 0 || len(e.Args) == 1 {
 			precedence = 5
 		}
 		leftParent := pgRenderParent{precedence: precedence, operator: spelling}
@@ -857,6 +862,58 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return text + ending, nil
 	case parser.FunctionExpr:
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if e.Syntax == parser.SimilarEscapeFunctionSyntax {
+			if len(e.Args) < 1 || len(e.Args) > 2 {
+				return "", fmt.Errorf("stuntgres: invalid stored SIMILAR normalizer arity")
+			}
+			pattern, err := child(e.Args[0])
+			if err != nil {
+				return "", err
+			}
+			if v.presentation.deparse {
+				if len(e.Args) == 1 {
+					return "similar_to_escape(" + pattern + ")", nil
+				}
+				escape, err := child(e.Args[1])
+				if err != nil {
+					return "", err
+				}
+				return "similar_to_escape(" + pattern + ", " + escape + ")", nil
+			}
+			if len(e.Args) == 1 {
+				return pattern, nil
+			}
+			escape, err := child(e.Args[1])
+			if err != nil {
+				return "", err
+			}
+			return pattern + " ESCAPE " + escape, nil
+		}
+		if v.similarSubstrings[path] {
+			if name != "substring" || len(e.Args) != 3 {
+				return "", fmt.Errorf("stuntgres: invalid stored SIMILAR substring occurrence")
+			}
+			source, err := child(e.Args[0])
+			if err != nil {
+				return "", err
+			}
+			pattern, err := child(e.Args[1])
+			if err != nil {
+				return "", err
+			}
+			escape, err := child(e.Args[2])
+			if err != nil {
+				return "", err
+			}
+			if e.Syntax == parser.SQLFunctionSyntax {
+				return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
+			}
+			functionName := `pg_catalog."substring"`
+			if v.presentation.deparse {
+				functionName = `"substring"`
+			}
+			return functionName + "(" + source + ", " + pattern + ", " + escape + ")", nil
+		}
 		if name == "overlaps" {
 			ordinary := "pg_catalog.overlaps"
 			if v.presentation.deparse {

@@ -2311,7 +2311,7 @@ through the existing staged, failure-atomic control path.
 Codepoint, padding and match-prefix scans check cancellation at bounded work
 intervals; search reuses the constant-space raw matcher without rune arrays,
 normalization or payload-sized scratch allocation. BYTEA DEFAULT, encoding-aware
-length, bit types and adjacent TEXT/regex substring remain excluded.
+length, bit types, positional TEXT and two-argument POSIX substring remain excluded.
 Independent scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReference(StringLength|BinaryBasic|BinarySlice)' VERBOSE=0`;
 pinned counterpart adds `REFERENCE=1` to that same command.
 
@@ -3015,7 +3015,7 @@ empty results remain nonnull empty. Known BYTEA operands contextualize unknown
 byte arguments, with INT4 index/count slots and raw Go binds. Results retain
 BYTEA/INT4 metadata even on empty rowsets. Scalar query/write/view/CHECK consumers
 and native replay share the providers; BYTEA DEFAULT functions remain excluded.
-TEXT/regex substring and encoding-aware length remain truthful0A000 boundaries;
+Positional TEXT/two-argument POSIX substring and encoding-aware length remain truthful0A000 boundaries;
 selected TEXT/BPCHAR length and search siblings are supported as documented above.
 The excluded `length(bytea,name)` candidate also recognizes unknown source/encoding
 arguments and existing implicit TEXT/VARCHAR/BPCHAR-to-NAME encoding conversions.
@@ -4862,9 +4862,86 @@ matching after independent normalization preflight. Held executions never retain
 normalized parameter values.
 
 Matching participates in shared CHECK/view expression consumers, deparse/rebind
-and atomic public Dump/Reset/Restore. Regex/SIMILAR TO, additional locales and
-general no-FROM scalar SELECT are not included.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestLikeSmoke$' VERBOSE=0`.
+and atomic public Dump/Reset/Restore. Public POSIX regex APIs and additional
+locales are not included. SQL SIMILAR support is documented below.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceLikeLegacyMigration$' VERBOSE=0`.
+
+## SIMILAR TO and SQL regex substring — change note
+
+Full-string `SIMILAR TO`/`NOT SIMILAR TO` support SQL `%` and `_`, alternation,
+noncapturing user groups, greedy/lazy `*`, `+`, `?` and counted repetition
+(PostgreSQL bounds 0 through 255), brackets/ranges, standard character classes,
+collating elements, equivalence classes, word constraints and documented escape
+extensions. Outside brackets `.`, `^` and `$` remain literal SQL punctuation.
+Wildcards include newlines and advance UTF8 code points, not bytes/graphemes.
+Default escape is backslash; an empty escape disables it; a custom escape is
+one code point. The release consumes a terminal escape. Escape-double-quote
+separators outside brackets create the sole capture; more than two raise 2200C.
+User parentheses do not create numbered captures. Backreferences target only
+that separator capture; malformed references and other regex syntax raise 2201B.
+
+`substring(source SIMILAR pattern ESCAPE escape)`, the older FROM/FOR spelling,
+and ordinary/qualified three-TEXT `substring` share SQL-regex extraction.
+They require a complete match and return the selected separator capture, or
+the full source when no separator occurs. Empty captures are empty TEXT,
+not NULL; an absent separator capture on a winning cross-section alternative,
+no match and NULL arguments return TEXT NULL. Source BPCHAR coerces
+to TEXT (trimming padding); predicate BPCHAR keeps its physical source padding.
+Pattern/escape BPCHAR coercions use the existing trimming contract.
+Repeated groups select the final iteration's capture when it participates;
+a final alternative bypassing that capture clears it to NULL. Greedy/lazy
+partition choices follow the release's hierarchical subexpression preferences,
+not first-success backtracking or a post-match capture heuristic.
+
+Predicate classes use existing default/C/POSIX/pg_c_utf8/pg_unicode_fast
+collation identities and pinned Unicode16 data, never host Unicode tables.
+The SQL substring wrapper's inner matcher uses database-default C even if
+arguments carry explicit Unicode builtin identity; output collation metadata
+still follows the established binder contract. Explicit conflicts fail in
+binding; demanded predicate implicit conflicts raise 42P22 with the English
+COLLATE hint. Normalization and compilation remain separate: invariant bad
+ESCAPE can fail even on empty input, whereas a malformed row-dependent matcher
+is compiled only when demanded. NULL/dead CASE/COALESCE branches follow the
+release-oracle demand matrix, without treating malformed regex as no match.
+
+The provider is independent of any public POSIX matcher. No POSIX operator or
+function, arbitrary locale, two-argument regex substring, or positional TEXT
+substring capability is introduced. Prepared plans retain descriptors/provenance
+only; execution-local active-pattern state cannot leak parameter values,
+captured offsets, NULL or compilation failures into held re-execution.
+SQL regex nodes participate in current query/group/order, staged DML, CHECK,
+DEFAULT, generated-column/index, view dependency/rebind and control consumers.
+Only selected three-TEXT SQL-regex extraction is admitted as a function DEFAULT;
+positional TEXT, two-argument POSIX, BYTEA and unrelated function DEFAULT
+boundaries remain unchanged. Defaults stay symbolic until an omitted value
+demands evaluation, so an explicit INSERT value does not evaluate a malformed
+extraction default. Grouping identity ignores the four extraction spellings,
+while stored SQL preserves their presentation provenance.
+Native Dump retains symbolic SQL SIMILAR forms; PostgreSQL deparse retains its
+canonical helper/operator presentation. Failed/canceled replay cannot publish.
+
+**Security/complexity:** hostile patterns may consume substantial time and
+memory, especially captures/backreferences and nested quantified ambiguity.
+Use a context deadline for untrusted patterns. Native work polls context at
+bounded primitive-work intervals, uses execution-local reusable state, and
+checks a 64 MiB per-evaluation canonical/IR/scratch/state-memory ceiling before
+allocation (caller-owned input excluded). Replacement drops obsolete cache
+ownership before allocating; normalized canonical backing is counted once with
+the active program, under one allowance, not a second translation allowance.
+Strict NULL, failure and cancellation invalidate active ownership. Compilation
+resource failures are 2201B
+`invalid regular expression: regular expression is too complex`; runtime
+resource failures are 2201B `regular expression failed: regular expression is
+too complex`. This is a native boundary, not PostgreSQL's identical cutoff.
+There is no arbitrary semantic pattern-length/CPU cutoff or universal linear
+time claim; capture-free regular patterns use state-set execution.
+
+Independent reference families: `^TestReferenceSimilar`. Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilarFeatureSmoke$' VERBOSE=0`;
+the pinned counterpart adds `REFERENCE=1`. Both use a 900-second invocation
+deadline and independently assert rows, metadata, complete diagnostics and
+atomicity. Actual-feature cancellation/recovery is covered by
+`^TestReferenceSimilarActualCancellation$` and the complete family.
 
 
 ## Stored generated columns — change note (changelog)

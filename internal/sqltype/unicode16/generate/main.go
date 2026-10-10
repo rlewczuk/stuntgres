@@ -193,6 +193,7 @@ func main() {
 	output := flag.String("output", "", "generated Go file")
 	caseOutput := flag.String("case-output", "", "optional generated case Go file")
 	assignedOutput := flag.String("assigned-output", "", "optional generated assigned-codepoint Go file")
+	regexOutput := flag.String("regex-output", "", "optional generated SQL-regex property Go file")
 	flag.Parse()
 	if *source == "" || *output == "" || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "-source and -output are required")
@@ -214,6 +215,13 @@ func main() {
 		assigned, e = generateAssigned(*source)
 		if e == nil {
 			e = os.WriteFile(*assignedOutput, assigned, 0644)
+		}
+	}
+	if e == nil && *regexOutput != "" {
+		var regex []byte
+		regex, e = generateRegex(*source)
+		if e == nil {
+			e = os.WriteFile(*regexOutput, regex, 0644)
 		}
 	}
 	if e != nil {

@@ -1281,13 +1281,33 @@ func referenceLockOperation(t *testing.T, ctx context.Context, call func(context
 // an observed admission barrier, not a timing assumption about either driver.
 func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool, queryMode ...bool) {
 	t.Helper()
+	query := "SELECT pg_sleep(600)"
+	queryCursor := len(queryMode) != 0 && queryMode[0]
+	referenceSessionCancelQuery(t, parent, conn, prepared, query, queryCursor)
+}
+
+// referenceSessionCancelQuery observes admission of the supplied SQL itself.
+// Existing callers retain their pg_sleep barrier through referenceSessionCancel.
+func referenceSessionCancelQuery(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool, query string, queryCursor bool) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
 	var pid int
 	if err := conn.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
 		t.Fatal(err)
 	}
-	const query = "SELECT pg_sleep(600)"
+	joined := true
+	result := make(chan error, 1)
+	defer func() {
+		cancel()
+		if !joined {
+			select {
+			case <-result:
+			case <-time.After(5 * time.Second):
+				t.Error("cancellation worker failed to join")
+			}
+		}
+	}()
 	var stmt *sql.Stmt
 	if prepared {
 		var err error
@@ -1297,11 +1317,12 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 		}
 		defer stmt.Close()
 	}
-	result := make(chan error, 1)
+	// result is buffered so teardown can always release the worker.
 	var exposedCursor bool
+	joined = false
 	go func() {
 		var err error
-		if len(queryMode) != 0 && queryMode[0] {
+		if queryCursor {
 			var rows *sql.Rows
 			if stmt != nil {
 				rows, err = stmt.QueryContext(ctx)
@@ -1319,6 +1340,23 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 		}
 		result <- err
 	}()
+	join := func() error {
+		select {
+		case err := <-result:
+			joined = true
+			return err
+		case <-ctx.Done():
+			cancel()
+			select {
+			case err := <-result:
+				joined = true
+				return err
+			case <-time.After(5 * time.Second):
+				t.Fatal("cancellation worker failed to join after deadline")
+				return ctx.Err()
+			}
+		}
+	}
 	for {
 		var active bool
 		err := referenceAdmin.QueryRowContext(ctx,
@@ -1326,7 +1364,7 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 			pid, query).Scan(&active)
 		if err != nil {
 			cancel()
-			statementErr := <-result
+			statementErr := join()
 			t.Fatalf("cancellation admission barrier: %v; statement: %v", err, statementErr)
 		}
 		if active {
@@ -1334,6 +1372,7 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 		}
 		select {
 		case err := <-result:
+			joined = true
 			t.Fatalf("statement completed before cancellation admission: %v", err)
 		default:
 		}
@@ -1341,10 +1380,10 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 	var signaled bool
 	if err := referenceAdmin.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&signaled); err != nil || !signaled {
 		cancel()
-		statementErr := <-result
+		statementErr := join()
 		t.Fatalf("cancel backend: signaled=%t error=%v; statement: %v", signaled, err, statementErr)
 	}
-	err := <-result
+	err := join()
 	if exposedCursor {
 		t.Fatal("canceled admitted Query exposed a cursor")
 	}

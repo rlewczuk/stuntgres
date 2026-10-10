@@ -239,6 +239,11 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				return err
 			}
 			return child(r.Args[1], n.right)
+		case similarExpression:
+			if err := child(r.Args[0], n.left); err != nil {
+				return err
+			}
+			return child(r.Args[1], n.right)
 		case comparisonExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err
@@ -304,6 +309,22 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				return err
 			}
 			return child(r.Args[1], n.escape)
+		}
+		if n, ok := bound.(similarEscapeExpression); ok {
+			if err := child(r.Args[0], n.pattern); err != nil {
+				return err
+			}
+			if !n.omitted {
+				return child(r.Args[1], n.escape)
+			}
+			return nil
+		}
+		if n, ok := bound.(similarSubstringExpression); ok {
+			if b.viewSimilarSubstrings == nil {
+				b.viewSimilarSubstrings = make(map[viewLiteralPath]bool)
+			}
+			b.viewSimilarSubstrings[path] = true
+			return children(r.Args, n.args[:])
 		}
 		if n, ok := bound.(indexPropertyExpression); ok {
 			return children(r.Args, n.children())
