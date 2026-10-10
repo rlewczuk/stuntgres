@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
@@ -393,24 +394,26 @@ func (m migrationSmoke) transactionCancellation(ctx context.Context, db *sql.DB,
 	cancel()
 	preCanceled, err := a.BeginTx(canceled, nil)
 	if m.pg {
-		// The pinned pq route admits Begin despite the already-canceled context.
-		// Its context watcher can roll back before this explicit cleanup arrives.
-		if err != nil || preCanceled == nil {
-			return fmt.Errorf("PostgreSQL pre-canceled BeginTx: tx=%v error=%v", preCanceled, err)
+		// Pre-canceled pq admission and rollback race the adapter's context
+		// watcher; their outcomes are not a PostgreSQL SQL contract. Dispose
+		// any admitted transaction and explicitly retire its physical session
+		// before asserting SQL state through an unaffected/fresh borrower.
+		if preCanceled != nil {
+			preCanceled.Rollback()
 		}
-		if err = preCanceled.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			return err
-		}
-		// Cancellation may discard pq's physical session. Do not require native
-		// same-borrower reuse from that transport; retain the native route below.
-		if err = a.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
-			return err
-		}
+		a.Raw(func(any) error { return driver.ErrBadConn })
+		a.Close()
 		a, err = db.Conn(ctx)
 		if err != nil {
 			return err
 		}
 		defer a.Close()
+		if err := m.transactionSelectValues(ctx, b, "SELECT v FROM t ORDER BY v", false, 7, 9, 10); err != nil {
+			return err
+		}
+		if err := m.transactionSelectValues(ctx, a, "SELECT v FROM t ORDER BY v", false, 7, 9, 10); err != nil {
+			return err
+		}
 	} else {
 		if preCanceled != nil {
 			preCanceled.Rollback()

@@ -3029,8 +3029,8 @@ The former public SQL smoke scenarios now live in untagged reference tests.
 Run both selectors before review, each under its own 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|TransactionBeginContextCancellation|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|TransactionBeginContextCancellation|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
 ```
 
 These definitions preserve direct and prepared SQL, held statements, independent
@@ -3043,4 +3043,21 @@ both backends. Dump/Reset/Restore, retained eager native rows, replacement
 incarnation errors and Restore reader cancellation remain explicit native control
 phases; PostgreSQL has no equivalent engine control API. No migration enables
 additional engine functionality or turns a native failure into an oracle golden.
+
+Pre-canceled native BeginTx deterministically rejects admission with an ordinary
+context error and no effects. In the pq route, pre-canceled admission and rollback
+race the adapter's context watcher; their incidental transport outcomes are not
+PostgreSQL SQL expectations. These scenarios clean up any returned transaction
+and explicitly retire the canceled physical connection, then independently assert
+unchanged rows through the unaffected observer and a fresh usable borrower.
+The live canceled transaction still publishes no private rows, and a subsequent
+transaction commits its independently expected row. The context-cancellation
+definition additionally exercises admitted server cancellation in direct/prepared
+routes. Run the changed cancellation definitions under race in both modes before
+review, each invocation bounded to 900 seconds:
+
+```sh
+make quickcheck RACE=1 PACKAGES=./reference RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$' VERBOSE=0
+make quickcheck RACE=1 REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$' VERBOSE=0
+```
 
