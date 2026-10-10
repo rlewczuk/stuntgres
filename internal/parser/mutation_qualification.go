@@ -57,6 +57,9 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 			for _, key := range e.Window.Order {
 				absorb(key.Expr)
 			}
+			for _, offset := range e.Window.Offsets() {
+				absorb(offset)
+			}
 		}
 		return result
 	case ColumnExpr:
@@ -122,6 +125,9 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 			}
 			for _, key := range e.Window.Order {
 				absorb(key.Expr)
+			}
+			for _, offset := range e.Window.Offsets() {
+				absorb(offset)
 			}
 		}
 	case CallExpr:
@@ -191,6 +197,11 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 					return token, reject
 				}
 			}
+			for _, offset := range e.Window.Offsets() {
+				if token, reject := nonqueryQualification(offset, assignment); token != nil {
+					return token, reject
+				}
+			}
 		}
 		return nonqueryQualification(e.Filter, assignment)
 	case ArrayExpr:
@@ -240,6 +251,11 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 			}
 			for _, key := range e.Window.Order {
 				if token := deleteQualification(key.Expr, true); token != nil {
+					return token, false
+				}
+			}
+			for _, offset := range e.Window.Offsets() {
+				if token := deleteQualification(offset, true); token != nil {
 					return token, false
 				}
 			}
@@ -316,6 +332,7 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 			for i, key := range e.Window.Order {
 				e.Window.Order[i].Expr, _ = markGroupedQualification(key.Expr)
 			}
+			markWindowFrameQualification(e.Window)
 		}
 		if e.Filter != nil {
 			filter, changed := markGroupedQualification(e.Filter)
@@ -335,6 +352,7 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 			for i, key := range e.Window.Order {
 				e.Window.Order[i].Expr, _ = markGroupedQualification(key.Expr)
 			}
+			markWindowFrameQualification(e.Window)
 		}
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 && !e.QualificationGrouped {

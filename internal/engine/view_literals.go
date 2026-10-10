@@ -129,7 +129,15 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				}
 			}
 			for i, key := range r.Window.Order {
-				if err := child(key.Expr, spec.order[i].expression); err != nil {
+				if err := child(key.Expr, spec.order[spec.orderMap[i]].expression); err != nil {
+					return err
+				}
+			}
+			if r.Window.Frame != nil {
+				if err := child(r.Window.Frame.Start.Offset, spec.frame.start.offset); err != nil {
+					return err
+				}
+				if err := child(r.Window.Frame.End.Offset, spec.frame.end.offset); err != nil {
 					return err
 				}
 			}
@@ -533,6 +541,11 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 					return err
 				}
 			}
+			for _, offset := range definition.Spec.Offsets() {
+				if err := v.validateLiteralTree(catalog, offset, path, &ordinal, &count, &columnCount); err != nil {
+					return err
+				}
+			}
 		}
 		// VALUES owns its decorations' source-ordinal literal paths even when
 		// the SELECT syntax wrapper also exposes those same tail pointers.
@@ -696,6 +709,11 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			}
 			for _, key := range r.Window.Order {
 				if err := child(key.Expr); err != nil {
+					return err
+				}
+			}
+			for _, offset := range r.Window.Offsets() {
+				if err := child(offset); err != nil {
 					return err
 				}
 			}

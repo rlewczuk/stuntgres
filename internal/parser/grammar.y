@@ -109,6 +109,8 @@ package parser
  windowOver windowOverClause
  windows []WindowDefinition
  window WindowDefinition
+ rangeFrame *RangeFrame
+ frameBound FrameBound
  groupClause *GroupClause
  groupItems []GroupItem
  groupItem GroupItem
@@ -210,6 +212,8 @@ package parser
 /* SQL-regex continuation terminates a postfix-cast type, rather than becoming
  * an arbitrary second type-name word. Preserve SIMILAR's keyword identity. */
 %nonassoc SIMILAR
+/* Frame units/edges terminate postfix type annotations in window keys/bounds. */
+%nonassoc FRAME_UNIT FRAME_EDGE FRAME_START
 %nonassoc TYPE_NAME
 /* Retain contextual type-tail shifts instead of relying on yacc defaults. */
 %nonassoc INDEX CONCURRENTLY
@@ -221,8 +225,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE '.'
-%nonassoc FRAME_EDGE FRAME_START
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
 %nonassoc GENERATION_OVER
@@ -248,7 +251,9 @@ package parser
 %type <row> window_partition
 %type <orderKeys> window_order
 %type <tok> window_name
-%type <tok> window_frame
+%type <rangeFrame> window_frame
+%type <frameBound> frame_bound
+%type <tok> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> declare_cursor fetch_cursor close_cursor
 %type <cursorFetch> cursor_direction
@@ -1363,17 +1368,17 @@ window_definition: name AS '(' window_spec ')' { $4.Pos=$3.pos;$$=WindowDefiniti
 over_clause: OVER name { $$=windowOverClause{spec:WindowSpec{Name:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos,Bare:true},token:$1} }
  | OVER '(' window_spec ')' { $3.Pos=$2.pos;$$=windowOverClause{spec:$3,token:$1} } ;
 window_spec: window_parent window_partition window_order { $$=WindowSpec{Name:$1,Partition:$2,Order:$3} }
- | window_parent window_partition window_order window_frame {sqllex.(*lexer).failAt("0A000","explicit window frames are unsupported",$4.pos.Offset);return 1} ;
-window_frame: FRAME_UNIT frame_bound window_exclusion { $$=$1 }
- | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion { $$=$1 } ;
-frame_bound: FRAME_START FRAME_EDGE {}
- | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1}}
- | scalar_projection FRAME_EDGE {} ;
-window_exclusion: /* empty */ {}
- | KW_U KW_U {if $1.text!="exclude" || $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1}}
- | KW_U GROUP {if $1.text!="exclude" {sqllex.(*lexer).syntax($1);return 1}}
- | KW_U KW_U ROW {if $1.text!="exclude" || $2.text!="current" {sqllex.(*lexer).syntax($1);return 1}}
- | KW_U NO KW_U {if $1.text!="exclude" || $3.text!="others" {sqllex.(*lexer).syntax($1);return 1}} ;
+ | window_parent window_partition window_order window_frame {$$=WindowSpec{Name:$1,Partition:$2,Order:$3,Frame:$4}} ;
+window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeRangeFrame(sqllex.(*lexer),$1,$2,FrameBound{Kind:FrameCurrentRow,Pos:$2.Pos},$3);if !ok{return 1}}
+ | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion {var ok bool;$$,ok=makeRangeFrame(sqllex.(*lexer),$1,$3,$5,$6);if !ok{return 1}} ;
+frame_bound: FRAME_START FRAME_EDGE {kind:=FrameUnboundedPreceding;if $2.text=="following"{kind=FrameUnboundedFollowing};$$=FrameBound{Kind:kind,Pos:$1.pos}}
+ | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=FrameBound{Kind:FrameCurrentRow,Pos:$1.pos}}
+ | scalar_projection FRAME_EDGE {kind:=FrameOffsetPreceding;if $2.text=="following"{kind=FrameOffsetFollowing};$$=FrameBound{Kind:kind,Offset:$1,Pos:ExpressionStart($1)}} ;
+window_exclusion: /* empty */ {$$=lexeme{}}
+ | KW_U KW_U {if $1.text!="exclude" || $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | KW_U GROUP {if $1.text!="exclude" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | KW_U KW_U ROW {if $1.text!="exclude" || $2.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | KW_U NO KW_U {if $1.text!="exclude" || $3.text!="others" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 window_parent: /* empty */ %prec NAME_LIST { $$=nil } | window_name { $$=&Identifier{Text:$1.text,Pos:$1.pos} } | BETWEEN { $$=&Identifier{Text:$1.text,Pos:$1.pos} } ;
 window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY row_fields { $$=$3 } ;
 window_order: /* empty */ %prec NAME_LIST { $$=nil } | ORDER BY order_keys { $$=$3 } ;

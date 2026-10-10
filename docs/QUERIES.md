@@ -1284,7 +1284,7 @@ use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
 
 This does not admit
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
-other window providers or explicit frames,
+other window providers or ROWS/GROUPS frames/exclusions,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
 aggregate projections and selected sequence/REGCLASS siblings. Function-provider
@@ -3173,6 +3173,59 @@ Typed partition equality groups NULLs together and uses existing numeric,
 character/domain/enum/structural key contracts. ASC defaults NULLS LAST; DESC
 defaults NULLS FIRST. NULL peer keys compare equal.
 
+### RANGE offsets — change note
+
+Explicit RANGE admits UNBOUNDED PRECEDING/FOLLOWING, CURRENT ROW and expression
+offset PRECEDING/FOLLOWING, including BETWEEN bounds. An omitted end is CURRENT
+ROW. Finite bounds are inclusive; CURRENT ROW covers the whole peer group.
+Numerically reversed bounds can produce a nonnull zero count. Offset frames
+require exactly one effective ORDER expression: repeated equivalent keys do not
+add a key, and the first direction/NULL placement wins. For integer gaps1,3,5,
+RANGE1PRECEDING counts1,1,1, unlike ROWS1PRECEDING's1,2,2.
+
+Released B-tree in-range support is registered for existing SMALLINT/INTEGER/
+BIGINT keys (integer offsets), REAL/DOUBLE PRECISION (FLOAT8 offsets), NUMERIC
+(NUMERIC offsets), and DATE/TIMESTAMP/TIMESTAMPTZ/TIME/TIMETZ/INTERVAL
+(INTERVAL offsets). Unknown literals and parameters receive the selected support
+context; typed offsets use ordinary implicit coercion, never assignment casts.
+Domains retain logical metadata and dependencies. An integer-domain offset can
+be ambiguous among integer registrations; explicitly cast it to the intended
+integer width. Sortable text, money, OID, enum, UUID and JSONB keys do not thereby
+gain in-range support; existing unsortable-key boundaries still precede lookup.
+
+Integer mathematical bounds do not overflow; numeric distances remain exact
+and do not inherit key typmods. Timestamp months clamp to month end. Zoned
+calendar arithmetic captures the Execute timezone (a day need not be24hours).
+Clock bounds do not wrap at midnight; TIME/TIMETZ ignore offset months/days.
+Temporal component overflow retains ordinary errors, not arbitrary saturation.
+NULL keys form their full peer group for finite bounds under either direction
+and either NULL placement. Mixed unbounded endpoints respect their sort placement.
+
+Offsets cannot contain current-query variables, correlated variables, aggregates,
+grouping operations or window calls; independent scalar subqueries are allowed.
+Each demanded count frame evaluates start then end once per execution, across
+partitions. NULL gives22004, including empty input. Negative/NaN offsets give
+22013 only when an in-range predicate is demanded: empty/all-NULL inputs can
+suppress that predicate. LIMIT0, row_number-only frames and unused definitions
+do not demand offsets, but all definitions still undergo analysis/authorization.
+An active count frame inside EXISTS remains demanded. Ordinary source tuple,
+sorting and constant-expression failures can precede offset validation.
+
+Bare OVER w uses an explicitly framed named window. OVER(w) cannot copy that
+window; a frameless inherited order may receive a new frame. Inline/named/unused
+offset literals and source dependencies survive symbolic view replay, rename and
+native Dump/Restore. No per-execution offsets, permutations or output overlays
+are stored in prepared plans or catalogs.
+
+Different named definitions retain independent frame identity even when their
+offset trees are structurally equal. Calls using the same named definition share
+one offset evaluation; distinct names do not discard volatile side effects or
+merge count outputs. Equivalent partition/order keys still share their sorting
+and peer order. Named ordinals are query-local analyzed identity, copied by graph
+rewrite/remap and rebound from symbolic definitions during Restore, not global
+runtime IDs or persisted mutable state.
+
+
 The stage follows WHERE, ordinary grouping/aggregation and HAVING, then precedes
 DISTINCT, outer ORDER and LIMIT/OFFSET. A window count alone does not create a
 grouped query. Grouped keys must be grouped columns or ordinary aggregate results.
@@ -3243,8 +3296,8 @@ preserves ordinary context errors. Finalized cursors and metadata survive later
 append/Reset/Restore. Stored view capture/export/remap and pristine Dump/Restore
 persist input/key identities and definitions, never mutable window state.
 
-Explicit frames/units/exclusions, other window providers, count(expr) windows and
-window aggregate FILTER remain excluded. Native errors distinguish valid excluded
+Explicit ROWS/GROUPS frames and exclusions, other window providers, count(expr)
+windows and window aggregate FILTER remain excluded. Native errors distinguish valid excluded
 capabilities (0A000) from malformed syntax (42601). Ordinary aggregate modifiers
 remain unchanged; this does not add public GRANT, types, joins or persistence formats.
 

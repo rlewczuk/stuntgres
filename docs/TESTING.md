@@ -195,6 +195,35 @@ Do not invent a PostgreSQL control API or duplicate the main SQL test body.
    `make quickcheck`; final `make fullcheck` runs after integration under the
    catalog-part workflow. Selected tests do not replace full verification.
 
+RANGE window coverage selects the complete `^TestReferenceQueryWindow` family
+in both `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindow' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindow' VERBOSE=0`
+(900 seconds each). Feature smoke uses `^TestReferenceQueryWindowRangeFeatureSmoke$` in both modes.
+Named volatile-offset identity is covered by
+`^TestReferenceQueryWindowRangeNamedOffsetIdentity` in both modes: same name
+advances nextval once; distinct names advance it twice and give the final pair
+{2,3}, without assuming evaluation order. The stored-view witness cycles offsets
+1/2 to retain independent membership through repeated export/replay and native
+Dump/Restore. Actual clone/remap units preserve query-local named identity while
+checking shared sort groups. Successful support binding performs neither source
+diagnostic formatting nor class-input diagnostic lookup.
+Provider units use `PACKAGES=./internal/sqltype RUN='^TestWindowRange'`;
+parser/stage units use `RUN='^TestQueryWindow'` in their respective packages.
+Independent membership/type/English diagnostic constants are asserted before
+comparison. Pinned discovery establishes that count inside EXISTS still demands
+its frame, row_number/LIMIT0/unused frames eliminate runtime offsets, NULL fails
+on empty input, and negative/NaN can avoid support demand on empty/all-NULL input.
+Constant input division errors retain22012 before NULL frame validation.
+RANGE offset diagnostics use the binder's coherent visible-type policy: visible
+domains are unqualified and hidden/shadowed domains retain their required schema
+spelling; descriptor SQL declarations are not diagnostic goldens. Relation ACL
+failures occur at Execute in both native and PostgreSQL, including freshly
+prepared SELECTs; do not broaden native Prepare authority to fit a wrong stage.
+The public persistent-definition and four-row2/4/3/2 overlay witnesses migrated
+from native window units; actual staged cancellation/descriptor mechanics remain
+package units. Native Dump/Restore phases have no invented PostgreSQL API.
+
+
 ### Commands and oracle-first discovery
 
 Run from repository root with Go >=1.26 and GNU `timeout`. Real mode also needs

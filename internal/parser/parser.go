@@ -490,6 +490,11 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 					return false
 				}
 			}
+			for _, offset := range r.Window.Offsets() {
+				if offset != nil && !l.scalarInputTree(offset) {
+					return false
+				}
+			}
 		}
 		return true
 	case GroupingExpr:
@@ -518,6 +523,11 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 			}
 			for _, key := range r.Window.Order {
 				if !l.scalarInputTree(key.Expr) {
+					return false
+				}
+			}
+			for _, offset := range r.Window.Offsets() {
+				if offset != nil && !l.scalarInputTree(offset) {
 					return false
 				}
 			}

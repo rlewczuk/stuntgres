@@ -818,6 +818,7 @@ type WindowSpec struct {
 	Name      *Identifier
 	Partition []Expr
 	Order     []OrderKey
+	Frame     *RangeFrame
 	Pos       Position
 	Bare      bool
 }
@@ -825,6 +826,27 @@ type WindowSpec struct {
 type WindowDefinition struct {
 	Name Identifier
 	Spec WindowSpec
+}
+
+type FrameBoundKind uint8
+
+const (
+	FrameUnboundedPreceding FrameBoundKind = iota
+	FrameOffsetPreceding
+	FrameCurrentRow
+	FrameOffsetFollowing
+	FrameUnboundedFollowing
+)
+
+type FrameBound struct {
+	Kind   FrameBoundKind
+	Offset Expr
+	Pos    Position
+}
+
+type RangeFrame struct {
+	Start, End FrameBound
+	Pos        Position
 }
 
 // Parser-only keyword identity is separate from the specification caret and is

@@ -1102,5 +1102,31 @@ func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, erro
 		}
 		parts = append(parts, "ORDER BY "+strings.Join(keys, ", "))
 	}
+	if spec.Frame != nil {
+		boundSQL := func(bound parser.FrameBound) (string, error) {
+			switch bound.Kind {
+			case parser.FrameUnboundedPreceding:
+				return "UNBOUNDED PRECEDING", nil
+			case parser.FrameUnboundedFollowing:
+				return "UNBOUNDED FOLLOWING", nil
+			case parser.FrameCurrentRow:
+				return "CURRENT ROW", nil
+			}
+			text, err := child(bound.Offset)
+			if bound.Kind == parser.FrameOffsetPreceding {
+				return text + " PRECEDING", err
+			}
+			return text + " FOLLOWING", err
+		}
+		start, err := boundSQL(spec.Frame.Start)
+		if err != nil {
+			return "", err
+		}
+		end, err := boundSQL(spec.Frame.End)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, "RANGE BETWEEN "+start+" AND "+end)
+	}
 	return strings.Join(parts, " "), nil
 }

@@ -1730,7 +1730,7 @@ independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 
 Grouping uses the ordinary no-FROM local input. It does not add
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max,
-other window providers or explicit frames. GROUPING SETS, ROLLUP, CUBE, explicit
+other window providers or ROWS/GROUPS frames/exclusions. GROUPING SETS, ROLLUP, CUBE, explicit
 empty groups and ALL/DISTINCT grouping clauses are admitted. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
@@ -5411,13 +5411,31 @@ Names may be referenced by targets before their declaration; definition inherita
 may reference only earlier definitions. Copies cannot add PARTITION and cannot
 override an existing ORDER. Even unused definitions are analyzed.
 
+Explicit RANGE bounds admit inclusive offsets through registered B-tree support
+for existing integer, floating, numeric and temporal carriers. Offset frames need
+one effective ORDER expression; duplicate equivalent keys retain the first sort
+direction. CURRENT ROW includes all peers, including NULL peers; empty frames
+count0. Typed offsets use implicit support coercion, not key typmods or assignment
+casts. TIME/TIMETZ use nonwrapping clock distances; zoned calendar bounds use the
+Execute timezone. Independent offset subqueries and their catalog dependencies
+are retained in inline/named/unused stored definitions. Bare OVER w admits its
+frame; OVER(w) cannot copy an explicitly framed parent.
+
+Demanded count frames reject NULL offsets22004 even on empty input; negative/NaN
+offsets raise22013 only when the in-range predicate is reached. LIMIT0,
+row_number-only frames and unused definitions do not evaluate offsets. An active
+count frame inside EXISTS remains demanded; source/constant errors can precede
+frame validation. Missing/distinct extra keys, unsupported carriers and invalid
+offset expressions retain full PostgreSQL English/SQLSTATE/caret diagnostics.
+
+
 Only SELECT and outer ORDER allow calls. Nested windows, windows inside ordinary
 aggregates, illegal clauses and undefined/duplicate names retain PostgreSQL
 SQLSTATE/English/character positions. Active windows reject FOR UPDATE; unused
 WINDOW syntax alone does not. Referenced key columns require SELECT authority,
 including hidden keys, unused definitions and empty inputs.
 
-Explicit frames, exclusions, other providers, count(expr) window execution and
+ROWS/GROUPS frames, exclusions, other providers, count(expr) window execution and
 window aggregate FILTER remain native0A000 capability boundaries. Ordinary aggregate
 modifiers are unchanged. See [query semantics](QUERIES.md#selected-windows--change-note-changelog).
 

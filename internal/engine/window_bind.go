@@ -27,9 +27,13 @@ func (e *windowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 type boundWindowSpec struct {
-	partition []BoundExpr
-	grouping  []sqltype.Grouping
-	order     []sortKey
+	partition  []BoundExpr
+	grouping   []sqltype.Grouping
+	order      []sortKey
+	orderMap   []int // Raw-to-effective mapping, for literal capture only.
+	frame      boundRangeFrame
+	explicit   bool
+	definition int // Query-local named ordinal+1; zero retains inline spec identity.
 }
 type windowCall struct {
 	expression *windowExpression
@@ -37,6 +41,13 @@ type windowCall struct {
 	number     bool
 	raw        *parser.WindowSpec
 }
+
+type boundRangeBound struct {
+	kind    parser.FrameBoundKind
+	offset  BoundExpr
+	support sqltype.RangeSupport
+}
+type boundRangeFrame struct{ start, end boundRangeBound }
 
 // A same-query call owns only its own argument occurrences. Evidence is checked
 // after that call resolves, so an invalid signature is never hidden by nesting.
@@ -66,7 +77,7 @@ func (b *expressionBinder) windowAllowed(pos parser.Position) error {
 	} else if b.defaultConsumer {
 		clause = "DEFAULT expressions"
 	}
-	if clause == "window definitions" {
+	if clause == "window definitions" || clause == "window RANGE" {
 		return expressionError("42P20", "window functions are not allowed in window definitions", pos)
 	}
 	if clause != "SELECT" && clause != "ORDER BY" {
@@ -372,6 +383,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 		if err != nil {
 			return err
 		}
+		spec.definition = definitionIndex + 1
 		if b.noParameters || b.materializedDefinition {
 			ordinal := 0
 			path := viewLiteralPath{query: b.frameID(), clause: viewWindowLiteral, target: definitionIndex}
@@ -381,7 +393,15 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 				}
 			}
 			for i, key := range definition.Spec.Order {
-				if err := b.captureViewLiteralTree(key.Expr, spec.order[i].expression, path, &ordinal); err != nil {
+				if err := b.captureViewLiteralTree(key.Expr, spec.order[spec.orderMap[i]].expression, path, &ordinal); err != nil {
+					return err
+				}
+			}
+			if definition.Spec.Frame != nil {
+				if err := b.captureViewLiteralTree(definition.Spec.Frame.Start.Offset, spec.frame.start.offset, path, &ordinal); err != nil {
+					return err
+				}
+				if err := b.captureViewLiteralTree(definition.Spec.Frame.End.Offset, spec.frame.end.offset, path, &ordinal); err != nil {
 					return err
 				}
 			}
@@ -405,7 +425,8 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 	old := b.aggregateClause
 	b.aggregateClause = "window definitions"
 	defer func() { b.aggregateClause = old }()
-	spec := boundWindowSpec{order: make([]sortKey, len(raw.Order)), partition: make([]BoundExpr, len(raw.Partition)), grouping: make([]sqltype.Grouping, len(raw.Partition))}
+	spec := boundWindowSpec{order: make([]sortKey, 0, len(raw.Order)), orderMap: make([]int, len(raw.Order)), partition: make([]BoundExpr, len(raw.Partition)), grouping: make([]sqltype.Grouping, len(raw.Partition)), explicit: raw.Frame != nil}
+	spec.frame.start.kind, spec.frame.end.kind = parser.FrameUnboundedPreceding, parser.FrameCurrentRow
 	for i, key := range raw.Order {
 		expr, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -428,7 +449,18 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 		if err != nil {
 			return spec, err
 		}
-		spec.order[i] = sortKey{expression: expr, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc}
+		index := -1
+		for j, previous := range spec.order {
+			if b.sameGroupExpression(previous.expression, expr) {
+				index = j
+				break
+			}
+		}
+		if index < 0 {
+			index = len(spec.order)
+			spec.order = append(spec.order, sortKey{expression: expr, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
+		}
+		spec.orderMap[i] = index
 	}
 	for i, key := range raw.Partition {
 		expr, err := b.bind(key, expressionPolicy{context: projectionContext})
@@ -452,14 +484,53 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 		if len(parent.order) > 0 && len(raw.Order) > 0 {
 			return spec, expressionError("42P20", fmt.Sprintf(`cannot override ORDER BY clause of window "%s"`, raw.Name.Text), raw.Pos)
 		}
+		if parent.explicit {
+			d := expressionError("42P20", fmt.Sprintf(`cannot copy window "%s" because it has a frame clause`, raw.Name.Text), raw.Pos).(*sqlstate.Error)
+			if len(raw.Partition) == 0 && len(raw.Order) == 0 && raw.Frame == nil {
+				d.Hint = "Omit the parentheses in this OVER clause."
+			}
+			return spec, d
+		}
 		spec.partition, spec.grouping = parent.partition, parent.grouping
 		if len(spec.order) == 0 {
 			spec.order = parent.order
 		}
 	}
+	if raw.Frame != nil {
+		if (raw.Frame.Start.Offset != nil || raw.Frame.End.Offset != nil) && len(spec.order) != 1 {
+			return spec, expressionError("42P20", "RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column", raw.Pos)
+		}
+		var err error
+		spec.frame.start, err = b.bindRangeBound(raw.Frame.Start, spec.order)
+		if err != nil {
+			return spec, err
+		}
+		spec.frame.end, err = b.bindRangeBound(raw.Frame.End, spec.order)
+		if err != nil {
+			return spec, err
+		}
+	}
 	return spec, nil
 }
 func (b *expressionBinder) sameWindowSpec(a, c boundWindowSpec) bool {
+	if a.definition != c.definition || !b.sameWindowSort(a, c) || a.explicit != c.explicit {
+		return false
+	}
+	for _, pair := range [2][2]boundRangeBound{{a.frame.start, c.frame.start}, {a.frame.end, c.frame.end}} {
+		if pair[0].kind != pair[1].kind || pair[0].support != pair[1].support {
+			return false
+		}
+		if pair[0].offset == nil || pair[1].offset == nil {
+			if pair[0].offset != nil || pair[1].offset != nil {
+				return false
+			}
+		} else if !b.sameGroupExpression(pair[0].offset, pair[1].offset) {
+			return false
+		}
+	}
+	return true
+}
+func (b *expressionBinder) sameWindowSort(a, c boundWindowSpec) bool {
 	if len(a.partition) != len(c.partition) || len(a.order) != len(c.order) {
 		return false
 	}
@@ -490,6 +561,13 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 					return nil, err
 				}
 			}
+			for _, bound := range [2]boundRangeBound{spec.frame.start, spec.frame.end} {
+				if bound.offset != nil {
+					if _, err := b.rewriteGroup(bound.offset, keys); err != nil {
+						return nil, err
+					}
+				}
+			}
 		}
 	}
 	if len(b.windowCalls) == 0 {
@@ -514,6 +592,19 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 			for j, key := range spec.order {
 				var err error
 				spec.order[j].expression, err = b.rewriteGroup(key.expression, keys)
+				if err != nil {
+					return nil, err
+				}
+			}
+			var err error
+			if spec.frame.start.offset != nil {
+				spec.frame.start.offset, err = b.rewriteGroup(spec.frame.start.offset, keys)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if spec.frame.end.offset != nil {
+				spec.frame.end.offset, err = b.rewriteGroup(spec.frame.end.offset, keys)
 				if err != nil {
 					return nil, err
 				}
@@ -547,7 +638,17 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 		indices = append(indices, index)
 		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), NullabilityKnown: true})
 	}
-	return &windowNode{querySchema: schema, child: root, specs: specs, calls: calls, specIndices: indices}, nil
+	sortIndices := make([]int, len(specs))
+	for i, spec := range specs {
+		sortIndices[i] = i
+		for j := range i {
+			if b.sameWindowSort(spec, specs[j]) {
+				sortIndices[i] = sortIndices[j]
+				break
+			}
+		}
+	}
+	return &windowNode{querySchema: schema, child: root, specs: specs, calls: calls, specIndices: indices, sortIndices: sortIndices}, nil
 }
 
 func windowOccurrence(expr BoundExpr) *windowExpression {

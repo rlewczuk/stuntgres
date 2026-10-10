@@ -479,6 +479,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		for _, key := range spec.order {
 			analysis = append(analysis, key.expression)
 		}
+		if spec.frame.start.offset != nil {
+			analysis = append(analysis, spec.frame.start.offset)
+		}
+		if spec.frame.end.offset != nil {
+			analysis = append(analysis, spec.frame.end.offset)
+		}
 	}
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }

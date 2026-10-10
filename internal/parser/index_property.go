@@ -38,6 +38,9 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 			for _, key := range e.Window.Order {
 				child(key.Expr)
 			}
+			for _, offset := range e.Window.Offsets() {
+				child(offset)
+			}
 		}
 	case CallExpr:
 		args = e.Args
@@ -67,6 +70,9 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 			}
 			for _, key := range e.Window.Order {
 				child(key.Expr)
+			}
+			for _, offset := range e.Window.Offsets() {
+				child(offset)
 			}
 		}
 	case CaseExpr:

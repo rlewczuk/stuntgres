@@ -186,16 +186,17 @@ See [period overlap](docs/DIALECT.md#period-overlap--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`.
 
-Change note: selected PostgreSQL18 windows support `row_number()` and default-frame
-`count(*)` with `OVER`, partition/order keys and inherited named `WINDOW` definitions.
-Counts include every peer through the default RANGE frame; numbering restarts in
-each partition. Windows run after WHERE/group/HAVING and before DISTINCT, outer
+Change note: selected PostgreSQL18 windows support `row_number()` and `count(*)`
+with default or explicit RANGE frames, typed offsets, partition/order keys and
+inherited named `WINDOW` definitions. Bounds are inclusive and preserve NULL peers;
+numbering restarts in each partition and ignores the frame.
+Windows run after WHERE/group/HAVING and before DISTINCT, outer
 ORDER and bounds. Only outer ORDER promises presentation order. Prepared queries,
 INSERT SELECT, captured views and pristine native Dump/Restore share this pipeline.
-Explicit frames, window FILTER, count(expr) windows and other providers remain excluded.
+ROWS/GROUPS frames, exclusions, window FILTER, count(expr) windows and other providers remain excluded.
 See [window queries](docs/QUERIES.md#selected-windows--change-note-changelog).
-Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0`;
-pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindowRangeFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindowRangeFeatureSmoke$' VERBOSE=0`.
 
 Change note: `CREATE TEMP` / `CREATE TEMPORARY TABLE` creates physical-session
 owned tables using the ordinary table/type/default/CHECK/identity/index path.

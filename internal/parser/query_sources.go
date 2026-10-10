@@ -58,7 +58,15 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		if err := expressions(spec.Partition); err != nil {
 			return err
 		}
-		return orderKeys(spec.Order)
+		if err := orderKeys(spec.Order); err != nil {
+			return err
+		}
+		for _, offset := range spec.Offsets() {
+			if err := expression(offset); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	expression = func(raw Expr) error {
 		switch e := raw.(type) {

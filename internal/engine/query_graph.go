@@ -63,6 +63,8 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 			for _, key := range spec.order {
 				visit(key.expression)
 			}
+			visit(spec.frame.start.offset)
+			visit(spec.frame.end.offset)
 		}
 	case *aggregateNode:
 		args(n.keys)

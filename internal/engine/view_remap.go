@@ -476,6 +476,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					spec.order[j].comparison, err = sqltype.BindOrdering(spec.order[j].expression.ResultUsage())
 				}
 			}
+			for _, bound := range []*boundRangeBound{&spec.frame.start, &spec.frame.end} {
+				bound.offset = expression(bound.offset)
+				if err == nil {
+					bound.support, err = bound.support.Remap(m.typ)
+				}
+			}
 			copy.specs[i] = spec
 		}
 		copy.calls = append([]windowCall(nil), n.calls...)

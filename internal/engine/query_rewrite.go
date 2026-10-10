@@ -170,11 +170,25 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 					changed = true
 				}
 			}
+			frame := spec.frame
+			for _, bound := range []*boundRangeBound{&frame.start, &frame.end} {
+				if bound.offset == nil || err != nil {
+					continue
+				}
+				next, different, failure := rewrite(bound.offset)
+				err = failure
+				if different {
+					bound.offset = next
+					specChanged = true
+					changed = true
+				}
+			}
 			if specChanged {
 				if specs == nil {
 					specs = append([]boundWindowSpec(nil), n.specs...)
 				}
 				specs[i].partition = partition
+				specs[i].frame = frame
 				if order != nil {
 					specs[i].order = order
 				}
