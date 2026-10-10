@@ -154,6 +154,18 @@ See [date/time extraction](docs/DIALECT.md#datetime-extraction--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0`.
 
+Change note: `date_trunc(text,timestamp|timestamptz|interval)` and
+`date_trunc(text,timestamptz,text)` preserve typed temporal results, with fields
+from microseconds through millennium. Session/explicit zones preserve each
+fold occurrence for hour truncation and recompute day-or-larger boundaries.
+DATE selects TIMESTAMPTZ; TIME converts to INTERVAL only within this selected
+call (24:00 remains zero days and24hours). See
+[datetime truncation](docs/DIALECT.md#datetime-truncation--change-note) for
+the explicit naive-input timezone boundary and unsupported interval week.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0`.
+
+
 
 Change note: PostgreSQL BIT and BIT VARYING/VARBIT scalar storage preserves
 leading zeroes, empty values and NULL through direct/prepared statements,

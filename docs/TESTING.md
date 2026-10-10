@@ -119,6 +119,39 @@ System-column coverage independently asserts all six existing table system names
 return TEXT NULL, while absent system names on views retain complete42703
 diagnostics and held recovery. The feature smoke includes both boundaries.
 
+The datetime-truncation family independently asserts canonical fields/aliases,
+calendar and BC boundaries, DATE/TIME selection, unrestricted metadata,
+interval component preservation, strict NULL, complete diagnostics and held
+recovery. Zone witnesses cover New York folds/spring, Sao Paulo midnight gaps,
+Lord Howe half-hour transitions, explicit Sydney, POSIX/fixed/dynamic zones.
+Configured-abbreviation direct/prepared/held witnesses cross Default/Australia
+under UTC/New York: session EST retains05UTC, while Australia UTC EST is14UTC
+and CST is14:30UTC on the preceding day. The captured execution environment,
+not Prepare-time settings or a global Default table, selects the resolver.
+Consumer atomicity, savepoint recovery, stored definitions, compatible Retag,
+native destination replacement and actual emitted SQL replay share the bodies.
+Fast precanceled INSERT is native-only: lib/pq may finish it before cancellation;
+real session cancellation instead uses the fixture's observed admission barrier.
+The excluded three-argument naive inputs retain separately asserted native0A000
+and PostgreSQL implicit-coercion success, not parity-derived goldens.
+
+Run changed definitions in both modes, each under900seconds:
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTrunc' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTrunc' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestDatetimeTrunc' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestDatetimeTrunc' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestDatetimeTrunc' VERBOSE=0
+```
+Smoke expects distinct NY fold hours05/06UTC, spring day05UTC, Sydney day13UTC,
+held NULL/error recovery, unchanged late-write sentinel and symbolic stored
+default/view/generated/index replay. Full family checks additionally cover
+week2006-01-01→2005-12-26, quarter2001-02-16→2001-01-01, negative interval
+seconds→-1second and TIME24:00→zero-day24hour INTERVAL. These selected gates
+do not replace ordinary quickcheck or post-merge fullcheck.
+
 The numeric-formatting family independently asserts the five numeric
 `to_char` overloads, preferred FLOAT8 SMALLINT route, `to_number`, exact/binary
 rounding, C currency space, global FM, signs, Roman/ordinal/V/scientific

@@ -85,6 +85,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":
 		return b.bindDatetimeExtract(raw, visible)
+	case "date_trunc":
+		return b.bindDatetimeTrunc(raw, visible)
 	case "age", "isfinite":
 		return b.bindDatetimeAgeFinite(raw, visible)
 	case "overlaps":

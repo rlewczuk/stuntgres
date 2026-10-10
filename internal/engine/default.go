@@ -240,6 +240,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return n.logicalSQL("pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 	case datetimeOverlapsExpression:
 		return n.logicalSQL(func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+	case datetimeTruncExpression:
+		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.children())
 	case datetimeAgeFiniteExpression:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.children())
 	case datetimeMakeExpression:
@@ -1157,6 +1159,23 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 				return node, false, failure
 			}
 			n.folded[pair], changed = retagged, changed || retagged != value
+		}
+		changed = changed || plan != n.plan
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, n.expressionInfo = plan, info
+		rebound = n
+	case datetimeTruncExpression:
+		for i := range n.children() {
+			n.args[i] = child(n.args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		plan, failure := n.plan.Retag(retainedType)
+		if failure != nil {
+			return node, false, failure
 		}
 		changed = changed || plan != n.plan
 		if !changed {

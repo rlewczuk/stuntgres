@@ -6,6 +6,49 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Datetime truncation — change note
+
+`date_trunc(text,timestamp)`, `date_trunc(text,timestamptz)`,
+`date_trunc(text,timestamptz,text)` and `date_trunc(text,interval)` return
+unrestricted results of the selected temporal type. Fields microseconds,
+milliseconds, second, minute, hour, day, week, month, quarter, year, decade,
+century and millennium support PostgreSQL aliases and first10-byte matching.
+Lower fields become zero; calendar day/month become one. Weeks start Monday;
+BC decade/century/millennium boundaries use PostgreSQL's no-display-year-zero
+calendar. INTERVAL retains independent months, days and elapsed microseconds;
+negative fields truncate toward zero, without 30-day or24-hour justification.
+INTERVAL week reports0A000 with Detail `Months usually have fractional weeks.`
+
+TIMESTAMPTZ uses Execute-time session TimeZone or the explicit third argument.
+Day and larger boundaries recompute the offset; hour and smaller retain the
+source instant offset, preserving distinct fall-fold occurrences and half-hour
+DST transitions. Explicit names, captured configured abbreviation sets and POSIX
+zones reuse the existing provider. Session-zone abbreviations have precedence
+over the selected table; dynamic abbreviations use their owning full-zone rules
+without forcing the source abbreviation's offset.
+Explicit results still render in the captured session zone. Invalid zones are
+resolved before invalid fields/infinity; NULL in any active argument bypasses
+both lookups. Wrong signatures still fail during binding.
+
+DATE selects the preferred TIMESTAMPTZ overload and session-local midnight.
+TIME selects INTERVAL through a call-local conversion only;24:00 has zero days
+and24elapsed hours. This does not add a general TIME-to-INTERVAL cast.
+Native intentionally rejects three-argument TIMESTAMP/DATE inputs with0A000
+`date_trunc with time zone requires timestamp with time zone`, at the function
+position. Pinned PostgreSQL18.0 instead implicitly converts these inputs to
+TIMESTAMPTZ in the session zone; shared tests assert that distinct behavior
+independently. Three-argument INTERVAL remains a genuine missing signature.
+
+TIMESTAMP/INTERVAL two-argument forms and explicit-zone TIMESTAMPTZ are immutable;
+session-zone TIMESTAMPTZ is stable, including implicit DATE coercion. Surviving
+child volatility remains authoritative for generated/index admission. Strict
+constant NULL may simplify before admission. Defaults, checks, views, grouping,
+writes and native symbolic Dump/Restore share the ordinary expression path;
+TIME children remain symbolic rather than becoming a new global cast.
+
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0`.
+
 ### UUID generation — change note
 
 `gen_random_uuid()` and `uuidv4()` generate cryptographic version4 UUIDs.

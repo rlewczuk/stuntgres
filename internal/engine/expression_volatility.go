@@ -62,6 +62,8 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return session(children(n.children()...), n.plan.SessionDependent())
 	case datetimeOverlapsExpression:
 		return session(children(n.children()...), n.plan.SessionDependent())
+	case datetimeTruncExpression:
+		return session(children(n.children()...), n.plan.SessionDependent())
 	case datetimeAgeFiniteExpression:
 		return session(children(n.children()...), n.plan.SessionDependent())
 	case datetimeMakeExpression:

@@ -508,6 +508,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.children()
 	case datetimeOverlapsExpression:
 		children = e.children()
+	case datetimeTruncExpression:
+		children = e.children()
 	case datetimeAgeFiniteExpression:
 		children = e.children()
 	case datetimeMakeExpression:

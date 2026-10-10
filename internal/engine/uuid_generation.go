@@ -271,6 +271,10 @@ func closedUUIDDefault(node BoundExpr) bool {
 			}
 		}
 		return true
+	case datetimeTruncExpression:
+		valid := true
+		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		return valid
 	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, likeEscapeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, binaryExpression, datetimeJustifyExpression, datetimeAgeFiniteExpression, datetimeMakeExpression, datetimeFormattingExpression, numericFormattingExpression, stringExpression, timeZoneExpression, mathExpression, nullCountExpression, formatExpression, caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })

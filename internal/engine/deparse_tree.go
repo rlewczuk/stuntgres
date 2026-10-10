@@ -151,6 +151,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case datetimeOverlapsExpression:
 		out.WriteString("Datetime overlaps")
 		err = args(n.children())
+	case datetimeTruncExpression:
+		out.WriteString("Datetime truncation")
+		err = args(n.children())
 	case datetimeAgeFiniteExpression:
 		out.WriteString("Datetime " + n.plan.Name())
 		err = args(n.children())
