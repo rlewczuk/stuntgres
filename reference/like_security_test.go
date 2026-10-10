@@ -1,14 +1,13 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceLikeOracleSecurity(t *testing.T) {
 	roleReferenceCleanup(t, []string{"like_reader"})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "like_denied")
-	run := func(s referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
+	for _, backend := range p.backends() {
+	run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 	run(referenceExec("CREATE ROLE like_reader", 0))
 	run(referenceExec("CREATE TABLE t(v TEXT)", 0))
 	run(referenceExec("CREATE SCHEMA like_denied", 0))
@@ -20,15 +19,15 @@ func TestReferenceLikeOracleSecurity(t *testing.T) {
 	run(referencePrepared(missing))
 	run(referenceExec("CREATE TABLE acl_t(id INT,p TEXT,e TEXT)", 0))
 	run(referenceExec("INSERT INTO acl_t VALUES(1,'a%','!')", 1))
-	run(referenceExec("GRANT USAGE ON SCHEMA public TO like_reader", 0))
+	if backend.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO like_reader", 0)) }
 	run(referenceExec("GRANT SELECT(id) ON acl_t TO like_reader", 0))
-	conn, err := p.postgres.Conn(p.ctx)
+	conn, err := backend.db.Conn(p.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
 	defer conn.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-	reader := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, p.postgresRecord, s) }
+	reader := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, backend.recorder, s) }
 	reader(referenceExec("SET SESSION AUTHORIZATION like_reader", 0))
 	denied := referenceImplicitError("SELECT v OPERATOR(like_denied.~~) 'a%' FROM public.t", referenceDiagnostic{Code: "42501", Message: "permission denied for schema like_denied", Position: "10"})
 	denied.selectRows = true
@@ -59,4 +58,5 @@ func TestReferenceLikeOracleSecurity(t *testing.T) {
 	reader(referencePrepared(s))
 	run(referenceExec("GRANT SELECT(e) ON acl_t TO like_reader", 0))
 	reader(referenceSelect("SELECT id FROM acl_t WHERE 'a' LIKE p ESCAPE e", []string{"id"}, []string{"INT4"}, nil))
+	}
 }

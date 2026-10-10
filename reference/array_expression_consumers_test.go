@@ -29,13 +29,8 @@ func TestReferenceArrayExpressionPrivileges(t *testing.T) {
 		run(referenceExec("INSERT INTO public.ax_acl VALUES ('{7}',1)", 1))
 		q := "SELECT a[hidden] AS e FROM public.ax_acl"
 		check := referenceSelect(q, []string{"e"}, []string{"INT4"}, [][]any{{int64(7)}})
-		if !b.pg {
-			arrayExpressionBoth(t, p, b, c, check)
-			return
-		}
-		// Public native ACL mutation is unavailable; native column manifest units
-		// supplement this PostgreSQL column-grant phase during Stage C.
-		for _, q := range []string{"CREATE ROLE ax_expression_reader", "GRANT USAGE ON SCHEMA public TO ax_expression_reader", "GRANT SELECT(a) ON public.ax_acl TO ax_expression_reader", "SET SESSION AUTHORIZATION ax_expression_reader"} {
+		if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0)) }
+		for _, q := range []string{"CREATE ROLE ax_expression_reader", "GRANT SELECT(a) ON public.ax_acl TO ax_expression_reader", "SET SESSION AUTHORIZATION ax_expression_reader"} {
 			run(referenceExec(q, 0))
 		}
 		defer func() {

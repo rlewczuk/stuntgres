@@ -62,19 +62,11 @@ func TestReferenceArrayAggACL(t *testing.T) {
 			arrayAggBoth(run, s)
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 			run(referenceExec("INSERT INTO aa_acl VALUES(1,7,'{1,NULL}'),(2,NULL,'{2,3}')", 2))
-			// Public native ACL mutation is unavailable. Its owner positives
-			// accompany the shared denials above; private column authority and
-			// exact read manifests are covered by TestArrayAggregateColumnACL.
-			if b.pg {
-				run(referenceExec("GRANT SELECT ON aa_acl TO "+role, 0))
-				run(referenceExec("SET SESSION AUTHORIZATION "+role, 0))
-			}
+			run(referenceExec("GRANT SELECT ON aa_acl TO "+role, 0))
+			run(referenceExec("SET SESSION AUTHORIZATION "+role, 0))
 			arrayAggBoth(run, arrayAggSelect("SELECT array_agg(v ORDER BY id) FROM aa_acl", "_INT4", [][]any{{"{7,NULL}"}}, b.pg))
 			arrayAggBoth(run, arrayAggSelect("SELECT array_agg(a ORDER BY id) FROM aa_acl", "_INT4", [][]any{{"{{1,NULL},{2,3}}"}}, b.pg))
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
-			if !b.pg {
-				return
-			}
 			run(referenceExec("CREATE TABLE aa_column_acl(id INT,v INT,a INT[])", 0))
 			run(referenceExec("INSERT INTO aa_column_acl VALUES(1,7,'{1,NULL}'),(2,NULL,'{2,3}')", 2))
 			run(referenceExec("GRANT SELECT(v) ON aa_column_acl TO "+role, 0))

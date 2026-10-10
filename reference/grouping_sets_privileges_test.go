@@ -12,14 +12,8 @@ func TestReferenceGroupingSetsPrivileges(t *testing.T) {
 		run(referenceExec("INSERT INTO gs_acl VALUES(1,2)", 1))
 		q := "SELECT GROUPING(hidden) AS g FROM gs_acl WHERE FALSE GROUP BY ROLLUP(hidden)"
 		allowed := referenceSelect(q, []string{"g"}, []string{"INT4"}, [][]any{{int64(1)}})
-		if !b.pg {
-			// Public ACL mutation is not available natively; internal manifest and
-			// held-rights seam tests must accompany production (not fake GRANT).
-			groupingSetsBoth(run, allowed)
-			return
-		}
 		run(referenceExec("CREATE ROLE gs_reader", 0))
-		run(referenceExec("GRANT USAGE ON SCHEMA public TO gs_reader", 0))
+		if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO gs_reader", 0)) }
 		run(referenceExec("GRANT SELECT(a) ON gs_acl TO gs_reader", 0))
 		run(referenceExec("SET SESSION AUTHORIZATION gs_reader", 0))
 		defer func() {

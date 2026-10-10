@@ -14,12 +14,9 @@ func TestReferenceQueryDistinctAuthority(t *testing.T) {
 		run(referenceExec("INSERT INTO acl_t VALUES(1,9),(1,8),(2,8)", 3))
 		q := "SELECT DISTINCT id AS secret FROM acl_t ORDER BY secret"
 		queryDistinctBoth(run, referenceSelect(q, []string{"secret"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
-		if !b.pg {
-			return
-		} // GRANT/session authorization has no native public API.
+		if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0)) }
 		for _, s := range []referenceStep{
 			referenceExec("CREATE ROLE distinct_reader", 0),
-			referenceExec("GRANT USAGE ON SCHEMA public TO distinct_reader", 0),
 			referenceExec("GRANT SELECT(id) ON acl_t,acl_empty TO distinct_reader", 0),
 			referenceExec("SET SESSION AUTHORIZATION distinct_reader", 0),
 		} {

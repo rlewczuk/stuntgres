@@ -108,6 +108,7 @@ func TestReferenceQueryLimitPrepared(t *testing.T) {
 }
 
 func TestReferenceQueryLimitDiagnostics(t *testing.T) {
+	roleReferenceCleanup(t, []string{"limit_reader"})
 	p := referenceLimitFixture(t)
 	for _, tc := range []struct {
 		query, code, message, position string
@@ -141,9 +142,7 @@ func TestReferenceQueryLimitDiagnostics(t *testing.T) {
 			p.step(t, referencePrepared(step))
 		})
 	}
-	if p.postgres != nil {
-		t.Run("unauthorized even zero", func(t *testing.T) { referenceLimitACL(t, p) })
-	}
+	t.Run("unauthorized even zero", func(t *testing.T) { referenceLimitACL(t, p) })
 	t.Run("occurrence conflict", func(t *testing.T) {
 		step := referenceImplicitError("SELECT $1 FROM t LIMIT $1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "bigint versus text", Position: "8"}, int64(1))
 		step.selectRows = true

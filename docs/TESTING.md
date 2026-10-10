@@ -188,12 +188,39 @@ Feature smoke uses `RUN='^TestReferenceArrayAggFeatureSmoke$'` in both modes.
 These shared scenarios independently assert scalar NULL inclusion, array rank
 and bounds, metadata/domain identity, complete diagnostics, direct/prepared
 frames, source ACLs and INSERT atomicity; native controls remain explicit phases.
-Public unauthorized-source witnesses run in both modes. Since native SQL has no
-table/column GRANT API, native positive queries run as the owner and PostgreSQL
-alone establishes the grant-based column phase. `TestArrayAggregateColumnACL`
-independently checks native binding's exact source read manifests and private
-`SetObjectACL` authority, including retained manifests after revocation; it does
-not execute SQL or invent privileges for aggregate result columns.
+Public source-authority scenarios use actual table/column GRANT and the same
+consumer identity in both modes; owner substitutions are not positive ACL proof.
+The `TestReferenceRoleGrant` family covers grants, origin-specific delegation,
+table/column revoke independence, warnings, atomicity, utility transaction
+boundaries and native control lifetimes. Its independent expectations require
+the pinned PostgreSQL oracle before native implementation. Select it with
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrant' VERBOSE=0`
+and `make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrant' VERBOSE=0`
+(900 seconds per invocation). Migrated consumer families must also be selected
+in both modes; this new family does not replace their complete assertion unions.
+`TestReferenceRoleGrantColumnNoticeOrder` covers reversed/duplicate/mixed
+requests, dropped attribute gaps and renamed-column diagnostic traversal.
+`TestReferenceRoleGrantColumnFullMaskNotices` compares an enumerated merged
+four-privilege column mask with ALL under partial and zero grant options.
+Both assert complete ordered notices, quiet Prepare and real allowed/denied
+consumers through direct and prepared routes. Focused gates (900 seconds each):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantColumn(NoticeOrder|FullMaskNotices)'`
+and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantColumn(NoticeOrder|FullMaskNotices)'`.
+`TestReferenceRoleGrantFeatureSmoke` exercises the complete public grant path.
+The additional root-owned standalone public Go source is retained in the OMP
+session, temporarily materialized as `./.role-grant-feature-smoke/main.go`, run
+with `go run ./.role-grant-feature-smoke`, and removed after recording its result.
+No permanent executable or native-only SQL witness belongs in the repository.
+Each invocation has a 900-second deadline:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`
+and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`.
+Source-provenance units complement, never replace, public delegation/revoke
+witnesses. Keep upstream table-option revocation with surviving distinct-origin
+column rights separate from a same-column chain's RESTRICT failure. Warning
+assertions retain the complete release system/live-attribute traversal, without
+claiming native system-column query support.
 
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
@@ -723,9 +750,9 @@ the native failing regression. Actual native Dump output is replayed on pinned
 PostgreSQL with independent expected rows and future writes, not SQL-substring or
 no-LIKE assertions. PostgreSQL-only structural inquiries for absent native catalog
 sources/columns are paired with native descriptor proofs and shared pg_indexes,
-pg_sequence/pg_depend inquiries and actual enforcement. GRANT/REVOKE SQL is an
-oracle authority control; native ACL setup uses the existing engine descriptor
-authorization seam, not new SQL grammar or duplicated database/sql tests.
+pg_sequence/pg_depend inquiries and actual enforcement. Table/column GRANT/REVOKE
+is now a shared public authority control; package-function ACL units supplement
+those witnesses without duplicating public SQL tests outside reference.
 Predicate-only `pg_depend` projection remains outside the bounded native catalog:
 mixed key/INCLUDE/predicate inquiries independently expect native attributes2,3
 versus PostgreSQL2,3,4, and predicate-only external counts0 versus1. Exact native
@@ -1756,7 +1783,7 @@ and sequence sources, reader-owned security_invoker/nested catalog views, and
 inline-derived rejection. PostgreSQL fixture-only GRANT controls additionally
 exercise ordinary SELECT-only base readers, local stored marks and revoked SELECT
 under LIMIT0; native private ACL units exercise the same authority boundary
-without introducing public SQL GRANT support. Run each command within900 seconds:
+alongside shared public table/column grants. Run each command within900 seconds:
 
 ```sh
 make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$' VERBOSE=0
@@ -1796,9 +1823,10 @@ object disclosure, immutable captures/held refresh, sticky index history and
 failed ordinary/concurrent publication, reconstructed user-definition replay,
 represented builtin9/4 membership and full released definitions, diagnostics,
 transaction overlays/RR differences and native logical control normalization.
-The controls replay actual native SQL Dump on PostgreSQL. Privileged PG-only
-column GRANT/REVOKE is fixture setup, not a native SQL/public-control feature;
-internal units exercise real ACL-neutral source capture and descriptor replacement.
+The controls replay actual native SQL Dump on PostgreSQL. Column GRANT/REVOKE
+fixture setup remains a separate phase from ACL-neutral native Dump replay:
+explicit ACLs are not serializable. Internal units exercise source capture and
+descriptor replacement without weakening that control boundary.
 Run every new/migrated reference definition in both modes, each with a900-second
 deadline, before review:
 
@@ -2163,6 +2191,12 @@ No additional helper imports or fixture setup are needed.
 | `referenceSessionCancel(t, parent, conn, prepared, queryMode...)` | Observe real PostgreSQL pg_sleep admission, cancel through the server, join the operation and assert full57014. Optional true queryMode selects Query with nil error cursor; otherwise Exec. The caller asserts SAME-owner continuation; this is not a native precancel substitute. |
 | `roleReferenceCleanup(t, names)` | Register cleanup for real PostgreSQL roles created by the test **before constructing the scenario**, so pool closure and schema reset happen before role removal. Public-schema resets do not remove cluster roles. |
 
+Register role cleanup on the same `testing.T` that owns the scenario, before
+constructing its pair. A child subtest using a parent's pair must not register
+role cleanup on the child: child cleanup runs while parent-owned tables/ACLs
+still exist. The parent owns role removal after its physical handles and schema
+have been cleaned up; consumer subtests retain all assertions and reset identity.
+
 ### Step fields and expected data
 
 - `referenceStep.query`, `args`, `prepared`, `selectRows`, `affected`, `state`,
@@ -2346,7 +2380,7 @@ diagnostics, held parameter recovery, modifiers and consumers, eager write
 atomicity, authorization, cancellation and stored view control round trips.
 Native control phases additionally restore into an independent Driver and replay
 the actual emitted SQL on PostgreSQL; they do not invent PostgreSQL controls.
-Column GRANT remains an explicit native SQL capability boundary.
+Column GRANT is supported; explicit-ACL native Dump remains the control boundary.
 
 Run the identical completed definitions in both modes, each under a900-second
 deadline. The broad migration/risk selector covers every changed behavioral

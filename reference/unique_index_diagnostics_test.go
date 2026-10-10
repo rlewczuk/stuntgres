@@ -55,16 +55,11 @@ func TestReferenceUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 				roleReferenceCleanup(t, []string{"ui_owner"})
 				p := newReferenceScenario(t)
 				for _, b := range p.backends() {
-					// Genuine SQL ACL provisioning is PostgreSQL-only. The actual
-					// native catalog counterpart is TestUniqueIndexBuildOwnerDisclosure.
-					if !b.pg {
-						continue
-					}
 					t.Run(b.name, func(t *testing.T) {
 						a, _ := referenceLockConnections(t, p.ctx, b.db)
 						run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
 						run(referenceExec("CREATE ROLE ui_owner", 0))
-						run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO ui_owner", 0))
+						if b.pg { run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO ui_owner", 0)) }
 						run(referenceExec("SET SESSION AUTHORIZATION ui_owner", 0))
 						run(referenceExec("CREATE TABLE ui_t(a INT,b TEXT)", 0))
 						run(referenceExec("INSERT INTO ui_t VALUES(1,'protected'),(1,'protected')", 2))

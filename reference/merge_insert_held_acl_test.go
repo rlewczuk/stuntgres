@@ -3,18 +3,13 @@ package reference_test
 import "testing"
 
 func TestReferenceMergeInsertHeldACL(t *testing.T) {
-	if !*referenceMode {
-		return
-	} // Genuine GRANT boundary; native counterpart uses SetObjectACL.
 	roleReferenceCleanup(t, []string{"merge_held_writer"})
 	p := newReferenceScenario(t)
 	for _, b := range p.backends() {
-		if !b.pg {
-			continue
-		}
 		t.Run(b.name, func(t *testing.T) {
 			run := mergeInsertRun(t, p, b, false)
-			for _, q := range []string{"CREATE USER merge_held_writer", "CREATE TABLE t(id INT,v INT DEFAULT 9)", "CREATE TABLE source(id INT)", "GRANT USAGE ON SCHEMA public TO merge_held_writer", "GRANT INSERT(id,v),SELECT(id) ON t TO merge_held_writer", "GRANT SELECT(id) ON source TO merge_held_writer"} {
+			if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0)) }
+			for _, q := range []string{"CREATE USER merge_held_writer", "CREATE TABLE t(id INT,v INT DEFAULT 9)", "CREATE TABLE source(id INT)", "GRANT INSERT(id,v),SELECT(id) ON t TO merge_held_writer", "GRANT SELECT(id) ON source TO merge_held_writer"} {
 				run(referenceExec(q, 0))
 			}
 			run(referenceExec("INSERT INTO source VALUES(1)", 1))

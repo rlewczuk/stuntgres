@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"context"
 	"strconv"
 	"testing"
 )
@@ -12,16 +9,13 @@ func TestReferenceCheckInsertPrivilegeDetailPostgres(t *testing.T) {
 	for _, mode := range []string{"none", "readable", "columns", "table"} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(mode+strconv.FormatBool(prepared), func(t *testing.T) {
-				p := newReferencePair(t)
-				run := func(step referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step) }
+				roleReferenceCleanup(t, []string{"check_actor"})
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+				run := func(step referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, step) }
 				run(referenceExec("CREATE ROLE check_actor", 0))
-				t.Cleanup(func() {
-					if _, err := referenceAdmin.ExecContext(context.Background(), "DROP OWNED BY check_actor;DROP ROLE check_actor"); err != nil {
-						t.Error(err)
-					}
-				})
 				run(referenceExec("CREATE TABLE t(n INT,secret TEXT DEFAULT 'private',readable TEXT DEFAULT 'visible',CONSTRAINT c CHECK(n=1 AND secret='private'))", 0))
-				run(referenceExec("GRANT USAGE ON SCHEMA public TO check_actor", 0))
+				if backend.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO check_actor", 0)) }
 				run(referenceExec("GRANT INSERT(n) ON t TO check_actor", 0))
 				detail := "n) = (2"
 				switch mode {
@@ -41,6 +35,7 @@ func TestReferenceCheckInsertPrivilegeDetailPostgres(t *testing.T) {
 				run(step)
 				run(referenceExec("RESET ROLE", 0))
 				run(referenceSelect("SELECT * FROM t", []string{"n", "secret", "readable"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{}))
+				}
 			})
 		}
 	}

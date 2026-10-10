@@ -15,16 +15,8 @@ func TestReferenceDeleteUsingPrivilegeOracle(t *testing.T) {
 		run(referenceExec("INSERT INTO t VALUES(1,10),(2,20)", 2))
 		run(referenceExec("INSERT INTO s VALUES(1,'one')", 1))
 		run(referenceExec("INSERT INTO r VALUES(1)", 1))
-		if !b.pg {
-			// Native public SQL has no ACL mutation API. The package-function
-			// companion TestDeleteUsingTargetSourceColumnAuthority exercises
-			// stable physical manifests and same-description revocation.
-			run(referenceExec("DELETE FROM t d USING s WHERE d.id=s.k", 1))
-			run(deleteUsingTargets([][]any{{int64(2), int64(20)}}))
-			return
-		}
 		run(referenceExec("CREATE USER delete_using_reader", 0))
-		run(referenceExec("GRANT USAGE ON SCHEMA public TO delete_using_reader", 0))
+		if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO delete_using_reader", 0)) }
 		run(referenceExec("GRANT DELETE ON t TO delete_using_reader", 0))
 		run(referenceExec("SET SESSION AUTHORIZATION delete_using_reader", 0))
 		defer c.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")

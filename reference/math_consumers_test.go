@@ -9,9 +9,7 @@ import (
 )
 
 func TestReferenceMathConsumers(t *testing.T) {
-	if *referenceMode {
-		t.Run("privileges", referenceMathPrivileges)
-	}
+	t.Run("privileges", referenceMathPrivileges)
 	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE m(id INT,n NUMERIC,d NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO m VALUES(1,1.25,4),(2,1.24,0),(3,-1.25,4)", 3))

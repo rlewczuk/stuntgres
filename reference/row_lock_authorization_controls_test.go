@@ -1,16 +1,13 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceRowLockAuthorizationControl(t *testing.T) {
-	p := newReferencePair(t)
-	// Native ACL mutation has an internal catalog API, not public GRANT syntax.
-	// Independently assert the PostgreSQL column-ACL rule; engine tests exercise
-	// the same authorization manifests through the native catalog authority.
-	record := p.postgresRecord
-	conn, err := p.postgres.Conn(p.ctx)
+	roleReferenceCleanup(t, []string{"row_lock_reader"})
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+	record := backend.recorder
+	conn, err := backend.db.Conn(p.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,8 +15,7 @@ func TestReferenceRowLockAuthorizationControl(t *testing.T) {
 	referenceRunStep(t, p.ctx, conn, record, referenceExec("CREATE TABLE t(id INT,v INT)", 0))
 	referenceRunStep(t, p.ctx, conn, record, referenceExec("INSERT INTO t VALUES(1,10)", 1))
 	referenceRunStep(t, p.ctx, conn, record, referenceExec("CREATE ROLE row_lock_reader", 0))
-	t.Cleanup(func() { referenceAdmin.Exec("DROP OWNED BY row_lock_reader; DROP ROLE row_lock_reader") })
-	referenceRunStep(t, p.ctx, conn, record, referenceExec("GRANT USAGE ON SCHEMA public TO row_lock_reader", 0))
+	if backend.pg { referenceRunStep(t, p.ctx, conn, record, referenceExec("GRANT USAGE ON SCHEMA public TO row_lock_reader", 0)) }
 	referenceRunStep(t, p.ctx, conn, record, referenceExec("GRANT SELECT(id) ON t TO row_lock_reader", 0))
 	referenceRunStep(t, p.ctx, conn, record, referenceExec("SET SESSION AUTHORIZATION row_lock_reader", 0))
 	defer conn.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
@@ -40,9 +36,11 @@ func TestReferenceRowLockAuthorizationControl(t *testing.T) {
 			referenceRunStep(t, p.ctx, conn, record, step)
 		}
 	}
+	}
 }
 
 func TestReferenceRowLockSequenceAuthorizationControl(t *testing.T) {
+	if !*referenceMode { return } // Adjacent sequence ACL oracle, not table grants.
 	p := newReferencePair(t)
 	conn, err := p.postgres.Conn(p.ctx)
 	if err != nil {

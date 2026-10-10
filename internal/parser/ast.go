@@ -7,26 +7,29 @@ type Statement interface{ statement() }
 
 // SQL names belong to the physical session, not to driver statement handles.
 type PrepareSQL struct {
-	Name Identifier
-	Types []TypeName
-	Body Statement
+	Name   Identifier
+	Types  []TypeName
+	Body   Statement
 	Source string
-	Pos Position
+	Pos    Position
 }
+
 func (*PrepareSQL) statement() {}
 
 type ExecuteSQL struct {
-	Name Identifier
+	Name      Identifier
 	Arguments []Expr
-	Pos Position
+	Pos       Position
 }
+
 func (*ExecuteSQL) statement() {}
 
 type DeallocateSQL struct {
 	Name Identifier
-	All bool
-	Pos Position
+	All  bool
+	Pos  Position
 }
+
 func (*DeallocateSQL) statement() {}
 
 // TypeName is syntax, not a resolved catalog type.
@@ -1448,6 +1451,34 @@ type RoleMembership struct {
 }
 
 func (*RoleMembership) statement() {}
+
+// ObjectGrant retains ordered privilege and target syntax for execution-time
+// resolution. Role memberships remain a separate statement.
+type GrantPrivilege struct {
+	Name     string
+	Pos      Position
+	Columns  []Identifier
+	All      bool
+	RoleName bool
+}
+type GrantGrantee struct {
+	Role   RoleSpec
+	Public bool
+}
+type ObjectGrant struct {
+	Privileges  []GrantPrivilege
+	Relations   []ObjectName
+	Schemas     []Identifier
+	Kind        string
+	Grantees    []GrantGrantee
+	Grantor     *RoleSpec
+	GrantOption bool
+	Revoke      bool
+	OptionOnly  bool
+	Cascade     bool
+}
+
+func (*ObjectGrant) statement() {}
 
 type AlterRole struct {
 	Name     Identifier

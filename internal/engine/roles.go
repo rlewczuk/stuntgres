@@ -27,6 +27,8 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 	}
 	actor, _ := v.roles.Descriptor(v.state.CurrentUser)
 	switch s := stmt.(type) {
+	case *parser.ObjectGrant:
+		return e.objectGrantLocked(op, v, s)
 	case *parser.RoleMembership:
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
@@ -106,6 +108,12 @@ func descriptorRoleDependencies(deps []roleDependency, d Descriptor, ref Princip
 	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
 		// The relation carries the ownership/ACL dependency for its internal
 		// row and associated array types; they are not independently owned.
+		return deps
+	}
+	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == indexRelation {
+		// Index ownership follows its validated parent relation. PostgreSQL
+		// records the parent's shared owner dependency, not an extra index
+		// dependency (just as for the relation's internal row types above).
 		return deps
 	}
 	owner, acl, columns := descriptorACL(d)

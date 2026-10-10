@@ -1,8 +1,39 @@
 package reference_test
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
 
 func TestReferenceIndexMaintenancePrivileges(t *testing.T) {
+	t.Run("public_parent_maintain", func(t *testing.T) {
+		roleGrantScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn, run func(referenceStep), prepared bool) {
+			run(referenceExec("CREATE TABLE t(n INT)", 0))
+			run(referenceExec("INSERT INTO t VALUES(1)", 1))
+			run(referenceExec("CREATE INDEX ix ON t(n)", 0))
+			run(referenceExec("GRANT MAINTAIN ON t TO rg_reader", 0))
+			run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+			for _, q := range []string{"REINDEX INDEX ix", "REINDEX TABLE t"} {
+				run(referenceExec(q, 0))
+				stmt, err := c.PrepareContext(p.ctx, q)
+				if err != nil { t.Fatal(err) }
+				defer stmt.Close()
+				held := referenceHeldStatement{referenceExecutor: c, statement: stmt, query: q}
+				referenceRunStep(t, p.ctx, held, b.recorder, referenceExec(q, 0))
+				run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+				run(referenceExec("REVOKE MAINTAIN ON t FROM rg_reader", 0))
+				run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+				message := "permission denied for table t"
+				if q == "REINDEX INDEX ix" { message = "permission denied for index ix" }
+				referenceRunStep(t, p.ctx, held, b.recorder, referenceImplicitError(q, referenceDiagnostic{Code: "42501", Message: message}))
+				run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+				run(referenceExec("GRANT MAINTAIN ON t TO rg_reader", 0))
+				run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+			}
+			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+			run(referenceSelect("SELECT n FROM t", []string{"n"}, []string{"INT4"}, [][]any{{int64(1)}}))
+		})
+	})
 	roleReferenceCleanup(t, []string{"im_actor", "im_owner", "im_schema_owner"})
 	schemaReferenceCleanup(t, "im_acl")
 	indexMaintenanceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
@@ -47,8 +78,8 @@ func TestReferenceIndexMaintenancePrivileges(t *testing.T) {
 			}
 		}
 		run(referenceExec("RESET ROLE", 0))
-		// Native has no public ACL mutation API/SQL GRANT. Real GRANT witnesses
-		// establish the parent MAINTAIN contract; engine ACL units cover native grants.
+		// Nonpublic-schema provisioning remains PostgreSQL-only. The public
+		// parent-MAINTAIN scenario below exercises real grants on both backends.
 		if b.pg {
 			run(referenceExec("GRANT MAINTAIN ON im_acl.t TO im_actor", 0))
 			run(referenceExec("SET ROLE im_actor", 0))

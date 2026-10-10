@@ -258,6 +258,8 @@ const (
 	UpdatePrivilege
 	MaintainPrivilege
 	TruncatePrivilege
+	ReferencesPrivilege
+	TriggerPrivilege
 )
 
 type ACLGrantee struct {
@@ -458,7 +460,7 @@ func classPrivileges(d Descriptor) Privileges {
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		return SelectPrivilege | UsagePrivilege | UpdatePrivilege
 	}
-	return SelectPrivilege | InsertPrivilege | DeletePrivilege | UpdatePrivilege | MaintainPrivilege | TruncatePrivilege
+	return tableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	if v.engine == nil || v.catalog.state == nil || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
@@ -522,7 +524,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 	}
 	mask := classPrivileges(d)
 	if ref.Address.SubID > 0 {
-		mask = SelectPrivilege | InsertPrivilege | UpdatePrivilege
+		mask = columnGrantPrivileges
 	}
 	if actor.Superuser {
 		return mask, nil
@@ -597,7 +599,7 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	mask := classPrivileges(d)
 	if req.Object.Address.SubID > 0 {
-		mask = SelectPrivilege | InsertPrivilege | UpdatePrivilege
+		mask = columnGrantPrivileges
 	}
 	if req.Privileges == 0 || req.Privileges & ^mask != 0 {
 		return fmt.Errorf("stuntgres: invalid privilege mask")
@@ -676,7 +678,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 		if !ok || sub <= 0 || !relation.hasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
-		if err := check(a, SelectPrivilege|InsertPrivilege|UpdatePrivilege); err != nil {
+		if err := check(a, columnGrantPrivileges); err != nil {
 			return err
 		}
 	}

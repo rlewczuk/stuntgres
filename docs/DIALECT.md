@@ -6,6 +6,36 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Table and column grants — change note
+
+Autocommit GRANT and plain REVOKE support SELECT, INSERT, UPDATE, DELETE,
+TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on tables/views/materialized views;
+column lists support SELECT, INSERT, UPDATE and REFERENCES. Optional TABLE,
+multiple targets/grantees, ALL [PRIVILEGES], PUBLIC, WITH GRANT OPTION,
+GRANTED BY and current-only ALL TABLES IN SCHEMA use the existing immutable ACLs.
+Column grants remain independent of table grants; ownership and implicit owner
+options are not ordinary revocable use rights. Delegation records one inherited
+direct source rather than a union of option sources. PostgreSQL18.0 requires
+explicit GRANTED BY to name current_user. Circularity and RESTRICT are checked
+within each ACL, not an invented table-column dependency graph.
+
+Prepare is effect/name-resolution free; Execute publishes all reached ACL changes
+atomically or none, retaining reached warnings. Existing consumers enforce exact
+columns, including empty/filtered sources. MAINTAIN authorizes actual REINDEX;
+TRUNCATE has a LOCK consumer. REFERENCES/TRIGGER do not add absent commands.
+Table grants never confer sequence privileges, including SERIAL defaults.
+Sequence/other-object grants, CASCADE/GRANT OPTION FOR, defaults and native
+explicit-transaction object utilities remain excluded. Native explicit-ACL Dump
+rejects before output; Restore's whitelist is unchanged.
+REFERENCES retains its canonical reserved-word category and existing excluded
+foreign-key constraint path; grant support does not add foreign keys.
+Excluded object-grant forms return native `0A000` / `statement is not supported`.
+See [authorization](AUTHORIZATION.md#table-and-column-grants--change-note) for
+syntax, owner/PUBLIC/INHERIT behavior, grantor provenance and warning contracts.
+Feature smoke (900 seconds each):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`.
+
 ### SQL prepared statements — change note
 
 `PREPARE name [(type, ...)] AS statement` supports currently executable
@@ -1969,9 +1999,9 @@ cursor cleanup and a final cancellation check also veto an otherwise complete
 batch before publication.
 Dump serializes persisted typed rows as literal VALUES. Restore rejects nonnil
 query INSERT sources0A000 before trusted execution; canonical Dump roundtrips
-and retained result ownership remain supported. Native public SQL/API ACL mutation
-is absent: exact positive column grants use the internal consumer seam in units,
-while reference-only GRANT witnesses identify this boundary explicitly.
+and retained result ownership remain supported. Public table/column GRANT and
+plain REVOKE provide actual shared dual-mode source/target authority fixtures;
+sequence and other-object grant capabilities remain independent exclusions.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestInsertSelectSmoke$' VERBOSE=1`.
 Combined real-oracle feature reference (not a PostgreSQL-only empty regex):

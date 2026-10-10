@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -10,39 +8,18 @@ import (
 )
 
 func TestReferenceUpdateCoreColumnPrivileges(t *testing.T) {
-	p := newReferencePair(t)
-	memory, err := p.memory.Conn(p.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	postgres, err := p.postgres.Conn(p.ctx)
-	if err != nil {
-		memory.Close()
-		t.Fatal(err)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		for _, conn := range []*sql.Conn{memory, postgres} {
-			for _, q := range []string{"RESET SESSION AUTHORIZATION", "DROP TABLE IF EXISTS t", "DROP ROLE update_acl_role"} {
-				if _, err := conn.ExecContext(ctx, q); err != nil {
-					t.Error("privilege fixture cleanup", q, err)
-				}
-			}
-			if err := conn.Close(); err != nil {
-				t.Error(err)
-			}
-		}
-	}()
-	native := func(s referenceStep) { referenceRunStep(t, p.ctx, memory, p.memoryRecord, s) }
-	run := func(s referenceStep) { referenceRunStep(t, p.ctx, postgres, p.postgresRecord, s) }
+	roleReferenceCleanup(t, []string{"update_acl_role"})
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+	conn, err := backend.db.Conn(p.ctx)
+	if err != nil { t.Fatal(err) }
+	defer conn.Close()
+	defer conn.ExecContext(p.ctx,"RESET SESSION AUTHORIZATION")
+	run := func(s referenceStep) { referenceRunStep(t,p.ctx,conn,backend.recorder,s) }
 	// Explicit schema recreation has no default PostgreSQL PUBLIC USAGE.
 	// Match the native namespace baseline without granting any table access.
-	run(referenceExec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
-	// Only the shared PostgreSQL fixture can retain a role from a failed case;
-	// the native pair owns a fresh Driver and lacks DROP ROLE IF EXISTS.
-	run(referenceExec("DROP ROLE IF EXISTS update_acl_role", 0))
-	for _, execute := range []func(referenceStep){native, run} {
+	if backend.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0)) }
+	for _, execute := range []func(referenceStep){run} {
 		execute(referenceExec("CREATE ROLE update_acl_role", 0))
 		execute(referenceExec("CREATE TABLE t(a INT,b INT,c INT)", 0))
 		execute(referenceExec("INSERT INTO t VALUES(1,2,3)", 1))
@@ -62,20 +39,20 @@ func TestReferenceUpdateCoreColumnPrivileges(t *testing.T) {
 	run(referenceExec("UPDATE t SET a=b WHERE a=7", 1))
 	run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 	run(referenceSelect("SELECT a,b,c FROM t", []string{"a", "b", "c"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(2), int64(2), int64(3)}}))
+	}
 }
 
-// Native SQL GRANT remains unsupported. The paired native mechanism is the
-// engine's real catalog-ACL/Execute/Finish regression; this is the public-only
-// PostgreSQL oracle, with independent complete diagnostics, not secret absence.
 func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 	for _, mode := range []string{"update_only", "select_readable", "all_column_select", "table_select", "modified_readable", "owner", "superuser"} {
 		for _, prepared := range []bool{false, true} {
 			for _, explicit := range []bool{false, true} {
 				t.Run(mode+map[bool]string{false: "/direct", true: "/prepared"}[prepared]+map[bool]string{false: "/implicit", true: "/explicit"}[explicit], func(t *testing.T) {
-					p := newReferencePair(t)
+					roleReferenceCleanup(t, []string{"nn_acl_actor","nn_acl_owner"})
+					p := newReferenceScenario(t)
 					ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
 					defer cancel()
-					conn, err := p.postgres.Conn(ctx)
+					for _, backend := range p.backends() {
+					conn, err := backend.db.Conn(ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -83,17 +60,16 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 					defer func() {
 						cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 						defer stop()
-						for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION", "DROP TABLE IF EXISTS t", "DROP ROLE IF EXISTS nn_acl_actor", "DROP ROLE IF EXISTS nn_acl_owner"} {
+						for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION"} {
 							if _, err := conn.ExecContext(cleanup, q); err != nil {
 								t.Error("column detail fixture cleanup", q, err)
 							}
 						}
 					}()
-					run := func(step referenceStep) { referenceRunStep(t, ctx, conn, p.postgresRecord, step) }
+					run := func(step referenceStep) { referenceRunStep(t, ctx, conn, backend.recorder, step) }
+					if backend.pg { run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC",0)) }
 					for _, q := range []string{
-						"DROP ROLE IF EXISTS nn_acl_actor", "DROP ROLE IF EXISTS nn_acl_owner",
 						"CREATE ROLE nn_acl_owner LOGIN", "CREATE ROLE nn_acl_actor LOGIN",
-						"GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC",
 						"SET SESSION AUTHORIZATION nn_acl_owner",
 						"CREATE TABLE t(n INT NOT NULL,secret TEXT,readable TEXT)",
 						"INSERT INTO t VALUES(1,'private','visible')",
@@ -181,6 +157,7 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						if mode != "superuser" {
 							run(referenceExec("SET SESSION AUTHORIZATION "+actor, 0))
 						}
+					}
 					}
 				})
 			}

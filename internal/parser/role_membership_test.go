@@ -66,10 +66,12 @@ func TestMembershipGrammarDiagnostics(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"GRANT SELECT ON t TO m", "REVOKE SELECT ON TABLE t FROM m"} {
-		_, err := Parse(q)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
-			t.Fatal("object grant enabled", q, err)
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		if _, ok := statements[0].(*ObjectGrant); !ok {
+			t.Fatal("object grant AST", q, statements)
 		}
 	}
 }

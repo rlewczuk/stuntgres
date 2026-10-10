@@ -136,15 +136,10 @@ func TestReferencePartialIndexUniquePrivacy(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			roleReferenceCleanup(t, []string{"partial_unique_actor"})
 			partialIndexScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, run func(referenceStep)) {
-				// Genuine SQL ACL oracle; native counterpart uses actual SetObjectACL in
-				// assigned owner units, not unsupported native GRANT.
-				if !b.pg {
-					return
-				}
 				a, _ := referenceLockConnections(t, p.ctx, b.db)
 				run = func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
 				run(referenceExec("CREATE ROLE partial_unique_actor", 0))
-				run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO partial_unique_actor", 0))
+				if b.pg { run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO partial_unique_actor", 0)) }
 				run(referenceExec("SET SESSION AUTHORIZATION partial_unique_actor", 0))
 				run(referenceExec("CREATE TABLE u(k INT,j TEXT,payload TEXT,active BOOL)", 0))
 				run(referenceExec("INSERT INTO u VALUES(7,'secret','hidden',TRUE),(7,'secret','other',FALSE)", 2))

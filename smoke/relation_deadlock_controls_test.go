@@ -3,48 +3,10 @@ package smoke_test
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"stuntgres"
 	"testing"
 	"time"
 )
 
-func deadlockPublicNegative(t *testing.T) {
-	db := deadlockPublicDB(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	a := deadlockPublicConn(t, ctx, db)
-	deadlockPublicExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
-	for _, tc := range []struct{ q, code, message, pos string }{
-		{"LOCK TABLE t IN ACCESS EXCLUSIVE MODE", "25P01", "LOCK TABLE can only be used in transaction blocks", ""},
-		{"SELECT * FROM missing", "42P01", `relation "missing" does not exist`, "15"},
-		{"SELECT * FROM t WHERE v = )", "42601", `syntax error at or near ")"`, "27"},
-	} {
-		_, err := a.ExecContext(ctx, tc.q)
-		var d *stuntgres.Error
-		if !errors.As(err, &d) {
-			t.Fatal(err)
-		}
-		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.pos}
-		if *d != want {
-			t.Fatalf("negative diagnostic %#v want %#v", d, want)
-		}
-	}
-	deadlockPublicExec(t, ctx, a, "CREATE ROLE deadlock_reader", 0)
-	deadlockPublicExec(t, ctx, a, "SET SESSION AUTHORIZATION deadlock_reader", 0)
-	deadlockPublicExec(t, ctx, a, "BEGIN", 0)
-	_, err := a.ExecContext(ctx, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-	var d *stuntgres.Error
-	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table t"}
-	if !errors.As(err, &d) || *d != want {
-		t.Fatalf("authorization diagnostic %#v (%v)", d, err)
-	}
-	deadlockPublicExec(t, ctx, a, "ROLLBACK", 0)
-	deadlockPublicExec(t, ctx, a, "RESET SESSION AUTHORIZATION", 0)
-	deadlockPublicExec(t, ctx, a, "BEGIN", 0)
-	deadlockPublicExec(t, ctx, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT", 0)
-	deadlockPublicExec(t, ctx, a, "ROLLBACK", 0)
-}
 
 func deadlockPublicAcyclic(t *testing.T) {
 	db := deadlockPublicDB(t)

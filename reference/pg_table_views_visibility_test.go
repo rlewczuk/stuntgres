@@ -47,8 +47,6 @@ func TestReferencePGTableViewsVisibility(t *testing.T) {
 			}
 			check(reader, reader)
 			check(tableHeld, viewHeld)
-			if b.pg {
-				// Privileged PostgreSQL-only fixture controls, not native GRANT support.
 				run(owner, "GRANT SELECT(n) ON public.pgtv_disclosed TO pgtv_reader")
 				referenceRunStep(t, p.ctx, reader, b.recorder, referenceSelect("SELECT n FROM public.pgtv_disclosed", []string{"n"}, []string{"INT4"}, nil))
 				check(reader, reader)
@@ -59,7 +57,6 @@ func TestReferencePGTableViewsVisibility(t *testing.T) {
 				referenceRunStep(t, p.ctx, reader, b.recorder, s)
 				check(reader, reader)
 				check(tableHeld, viewHeld)
-			}
 			pgViewSummary(t, p, b, reader, "pgtv_private", "pgtv_disclosed_view", "pgtv_private_owner", "pgtv_private", "pgtv_disclosed")
 			run(reader, "RESET SESSION AUTHORIZATION")
 			run(reader, "SET SESSION AUTHORIZATION pgtv_private_owner")

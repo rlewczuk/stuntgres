@@ -34,7 +34,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal(err)
 	}
-	mask := SelectPrivilege | InsertPrivilege | DeletePrivilege | UpdatePrivilege | MaintainPrivilege | TruncatePrivilege
+	mask := tableGrantPrivileges
 	options, err := view.Effective(ref, true)
 	if err != nil || options != mask {
 		t.Fatal("inherited implicit options", options, err)

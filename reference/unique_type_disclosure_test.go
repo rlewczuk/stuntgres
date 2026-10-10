@@ -12,20 +12,15 @@ func TestReferenceUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				roleReferenceCleanup(t, []string{"unique_type_owner"})
 				p := newReferenceScenario(t)
 				for _, b := range p.backends() {
-					// Explicit PostgreSQL SQL-ACL control; native owner revocation
-					// is independently exercised by TestUniqueTypeBuildOwnerDisclosure.
-					if !b.pg {
-						continue
-					}
 					t.Run(b.name, func(t *testing.T) {
 						a, _ := referenceLockConnections(t, p.ctx, b.db)
 						run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
 						run(referenceExec("CREATE ROLE unique_type_owner", 0))
-						run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO unique_type_owner", 0))
+						if b.pg { run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO unique_type_owner", 0)) }
 						run(referenceExec("SET SESSION AUTHORIZATION unique_type_owner", 0))
 						run(referenceExec("CREATE TABLE t(a INT,b TEXT,CONSTRAINT u UNIQUE(a,b))", 0))
 						run(referenceExec("INSERT INTO t VALUES(1,'protected'),(2,'protected')", 2))
-						namespace := uniqueReferencePublicNamespace(t, p.ctx, b.db, true)
+						namespace := uniqueReferencePublicNamespace(t, p.ctx, b.db, b.pg)
 						cq := "SELECT c.oid FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid WHERE r.relname='t' AND r.relnamespace=$1 AND c.conname='u'"
 						iq := "SELECT oid FROM pg_class WHERE relname='u' AND relnamespace=$1"
 						var cid, iid int64

@@ -48,9 +48,6 @@ func TestReferenceSimilarAuthorization(t *testing.T) {
 				run(referenceExec(`RESET SESSION AUTHORIZATION`, 0))
 			}
 			referenceRunStep(t, p.ctx, held, b.recorder, referenceSelect(query, []string{"matched", "piece"}, []string{"BOOL", "TEXT"}, nil))
-			// Native public column GRANT remains a prerequisite capability boundary;
-			// the shared denied routes above still demand every SQL-regex child.
-			if b.pg {
 				run(referenceExec(`GRANT SELECT(id,p) ON source TO similar_reader`, 0))
 				run(referenceExec(`SET SESSION AUTHORIZATION similar_reader`, 0))
 				s := referenceImplicitError(`SELECT id FROM source WHERE 'a' SIMILAR TO p ESCAPE e`, referenceDiagnostic{Code: "42501", Message: "permission denied for table source"})
@@ -65,7 +62,6 @@ func TestReferenceSimilarAuthorization(t *testing.T) {
 				run(referenceSelect(q, []string{"id"}, []string{"INT4"}, nil))
 				run(referencePrepared(referenceSelect(q, []string{"id"}, []string{"INT4"}, nil)))
 				run(referenceExec(`RESET SESSION AUTHORIZATION`, 0))
-			}
 		}()
 	}
 }

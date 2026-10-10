@@ -14,16 +14,11 @@ func TestReferenceConcurrentIndexDisclosure(t *testing.T) {
 					roleReferenceCleanup(t, []string{"ci_disclosure_owner"})
 					p := newReferenceScenario(t)
 					for _, b := range p.backends() {
-						// Genuine SQL ACL provisioning is PostgreSQL-only. Native
-						// actual catalog coverage is U5BuildRepairAndTypeDisclosure.
-						if !b.pg {
-							continue
-						}
 						t.Run(b.name, func(t *testing.T) {
 							c := concurrentIndexConn(t, p, b)
 							run := func(step referenceStep) { referenceRunStep(t, p.ctx, c, b.recorder, step) }
 							run(referenceExec("CREATE ROLE ci_disclosure_owner", 0))
-							run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO ci_disclosure_owner", 0))
+							if b.pg { run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO ci_disclosure_owner", 0)) }
 							run(referenceExec("SET SESSION AUTHORIZATION ci_disclosure_owner", 0))
 							run(referenceExec("CREATE TABLE t(v TEXT,n INTEGER,payload TEXT)", 0))
 							seed := "INSERT INTO t VALUES('A',1,'protected'),('a',1,'different')"

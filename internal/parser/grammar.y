@@ -66,6 +66,11 @@ package parser
  membershipOptions []MembershipOption
  membershipOption MembershipOption
  grantor *RoleSpec
+ grantPrivileges []GrantPrivilege
+ grantPrivilege GrantPrivilege
+ grantGrantees []GrantGrantee
+ grantGrantee GrantGrantee
+ objectGrant *ObjectGrant
  settingName settingName
  tables []*CreateTable
  table *CreateTable
@@ -487,6 +492,15 @@ package parser
 %type <tok> membership_revoke_option
 %type <tok> membership_keyword
 %type <desc> membership_option_value
+%type <grantPrivileges> grant_privileges
+%type <grantPrivilege> grant_privilege
+%type <tok> grant_privilege_word
+%type <identifiers> grant_columns grant_column_list grant_schema_list
+%type <grantGrantee> grant_grantee grant_role_spec
+%type <grantGrantees> grant_grantees
+%type <objectGrant> grant_targets
+%type <desc> grant_option
+%type <objectNames> grant_relations
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable
 %type <types> prepare_types prepare_type_list
@@ -1819,11 +1833,11 @@ membership_grantor: /* empty */ { $$=nil }
 membership_revoke_option: ADMIN OPTION FOR { $$=$1 }
  | INHERIT OPTION FOR { $$=$1 }
  | SET OPTION FOR { $$=$1 } ;
-role_membership: GRANT membership_role_names TO membership_role_specs membership_options membership_grantor {
- $$=&RoleMembership{Targets:$2,Members:$4,Options:$5,Grantor:$6}
+role_membership: GRANT grant_privileges TO membership_role_specs membership_options membership_grantor {
+ roles,ok:=grantMembershipRoles($2);if !ok {sqllex.(*lexer).failAt("42601","syntax error",$2[0].Pos.Offset);return 1};$$=&RoleMembership{Targets:roles,Members:$4,Options:$5,Grantor:$6}
  }
- | REVOKE membership_role_names FROM membership_role_specs membership_grantor drop_behavior {
- $$=&RoleMembership{Targets:$2,Members:$4,Grantor:$5,Revoke:true,Cascade:$6}
+ | REVOKE grant_privileges FROM membership_role_specs membership_grantor drop_behavior {
+ roles,ok:=grantMembershipRoles($2);if !ok {sqllex.(*lexer).failAt("42601","syntax error",$2[0].Pos.Offset);return 1};$$=&RoleMembership{Targets:roles,Members:$4,Grantor:$5,Revoke:true,Cascade:$6}
  }
  | REVOKE membership_revoke_option membership_role_names FROM membership_role_specs membership_grantor drop_behavior {
  $$=&RoleMembership{Targets:$3,Members:$5,Grantor:$6,Revoke:true,RevokeOption:$2.text,Cascade:$7}
@@ -1834,18 +1848,43 @@ role_membership: GRANT membership_role_names TO membership_role_specs membership
  | ALTER GROUP membership_role_spec DROP USER membership_role_specs {
  $$=&RoleMembership{Targets:[]RoleSpec{$3},Members:$6,Alias:true,Revoke:true}
  }
- | GRANT col_label ON relation_name TO membership_role_specs {
- sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ | GRANT grant_privileges ON grant_targets TO grant_grantees grant_option membership_grantor {
+ g:=$4;g.Privileges=$2;g.Grantees=$6;g.GrantOption=$7;g.Grantor=$8;$$=g
  }
- | GRANT col_label ON TABLE relation_name TO membership_role_specs {
- sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ | REVOKE grant_privileges ON grant_targets FROM grant_grantees membership_grantor drop_behavior {
+ g:=$4;g.Privileges=$2;g.Grantees=$6;g.Grantor=$7;g.Revoke=true;g.Cascade=$8;$$=g
  }
- | REVOKE SELECT ON relation_name FROM membership_role_specs {
- sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
- }
- | REVOKE SELECT ON TABLE relation_name FROM membership_role_specs {
- sqllex.(*lexer).deferUnsupported($1,"statement is unsupported");$$=nil
+ | REVOKE GRANT OPTION FOR grant_privileges ON grant_targets FROM grant_grantees membership_grantor drop_behavior {
+ g:=$7;g.Privileges=$5;g.Grantees=$9;g.Grantor=$10;g.Revoke=true;g.OptionOnly=true;g.Cascade=$11;$$=g
  } ;
+grant_privileges: grant_privilege { $$=[]GrantPrivilege{$1} }
+ | grant_privileges ',' grant_privilege { $$=append($1,$3) } ;
+grant_privilege: name grant_columns { $$=GrantPrivilege{Name:$1.text,Pos:$1.pos,Columns:$2,RoleName:true} }
+ | grant_privilege_word grant_columns { $$=GrantPrivilege{Name:$1.text,Pos:$1.pos,Columns:$2} }
+ | ALL grant_columns { $$=GrantPrivilege{All:true,Pos:$1.pos,Columns:$2} }
+ | ALL name grant_columns { if $2.text!="privileges" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=GrantPrivilege{All:true,Pos:$1.pos,Columns:$3} } ;
+grant_privilege_word: SELECT | CREATE | KW_R | KW_T ;
+grant_columns: /* empty */ { $$=nil }
+ | '(' grant_column_list ')' { $$=$2 } ;
+grant_column_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
+ | grant_column_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+grant_relations: relation_name { $$=[]ObjectName{$1} }
+ | grant_relations ',' relation_name { $$=append($1,$3) } ;
+grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
+ | TABLE grant_relations { $$=&ObjectGrant{Relations:$2} }
+ | SEQUENCE grant_relations { $$=&ObjectGrant{Kind:"sequence",Relations:$2} }
+ | ALL name IN SCHEMA grant_schema_list { if $2.text!="tables" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Schemas:$5} } ;
+grant_schema_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
+ | grant_schema_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+grant_grantee: grant_role_spec { $$=$1 } | GROUP grant_role_spec { $$=$2 } ;
+/* PUBLIC is a decoded RoleSpec spelling, not a PostgreSQL keyword. */
+grant_role_spec: name { $$=GrantGrantee{Role:RoleSpec{Name:$1.text,Pos:$1.pos},Public:$1.text=="public"} }
+ | CURRENT_USER { $$=GrantGrantee{Role:RoleSpec{Identity:"current",Pos:$1.pos}} }
+ | CURRENT_ROLE { $$=GrantGrantee{Role:RoleSpec{Identity:"current",Pos:$1.pos}} }
+ | SESSION_USER { $$=GrantGrantee{Role:RoleSpec{Identity:"session",Pos:$1.pos}} } ;
+grant_grantees: grant_grantee { $$=[]GrantGrantee{$1} }
+ | grant_grantees ',' grant_grantee { $$=append($1,$3) } ;
+grant_option: /* empty */ { $$=false } | WITH GRANT OPTION { $$=true } ;
 role_kind: ROLE { $$=false } | USER { $$=true } | GROUP { $$=false } ;
 optional_with: /* empty */ | WITH ;
 role_options: /* empty */ { $$=RoleOptions{} }

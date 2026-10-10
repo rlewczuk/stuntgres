@@ -59,9 +59,6 @@ func TestReferenceInsertConflictPrivileges(t *testing.T) {
 		s.errorStage = "execute"
 		run(s)
 		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
-		if !b.pg {
-			return
-		} // Native actual ACL grants are supplemental catalog units, not SQL GRANT.
 		run(referenceExec("GRANT INSERT ON t TO conflict_actor", 0))
 		run(referenceExec("SET SESSION AUTHORIZATION conflict_actor", 0))
 		run(referenceExec("INSERT INTO t VALUES(1,2,'x',TRUE),(2,3,'kept',FALSE) ON CONFLICT DO NOTHING", 1))

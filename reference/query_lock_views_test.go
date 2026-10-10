@@ -106,13 +106,10 @@ func TestReferenceQueryLockViews(t *testing.T) {
 func TestReferenceQueryLockAuthorization(t *testing.T) {
 	roleReferenceCleanup(t, []string{"query_lock_reader"})
 	queryLockScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, a, peer *sql.Conn) {
-		// SQL GRANT has no native provider. Existing native ACL package units must
-		// independently exercise this same selected-only authority contract.
-		if !b.pg {
-			return
-		}
 		referenceLockExec(t, p.ctx, a, "CREATE ROLE query_lock_reader", 0)
-		referenceLockExec(t, p.ctx, a, "GRANT USAGE ON SCHEMA public TO query_lock_reader", 0)
+		if b.pg {
+			referenceLockExec(t, p.ctx, a, "GRANT USAGE ON SCHEMA public TO query_lock_reader", 0)
+		}
 		referenceLockExec(t, p.ctx, a, "GRANT SELECT ON t,u TO query_lock_reader", 0)
 		referenceLockExec(t, p.ctx, a, "GRANT UPDATE(v) ON t TO query_lock_reader", 0)
 		referenceLockExec(t, p.ctx, a, "CREATE VIEW owner_view AS SELECT a.id,a.v FROM t a JOIN u b USING(id) FOR UPDATE OF a NOWAIT", 0)

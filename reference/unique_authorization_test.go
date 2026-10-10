@@ -43,9 +43,6 @@ func uniqueReferenceAuthorization(t *testing.T, standalone bool) {
 				run(s)
 			}
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
-			// Native all/partial/no-key SELECT Detail authority requires
-			// supplemental internal catalog-ACL units; SQL GRANT is unsupported.
-			if backend.pg {
 				run(referenceExec("GRANT INSERT ON t TO unique_actor", 0))
 				for _, mode := range []string{"none", "partial", "all"} {
 					if mode == "partial" {
@@ -64,7 +61,6 @@ func uniqueReferenceAuthorization(t *testing.T, standalone bool) {
 					run(s)
 					run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 				}
-			}
 		})
 	}
 }

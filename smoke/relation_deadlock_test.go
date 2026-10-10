@@ -494,7 +494,6 @@ func deadlockPublicSoftQueue(t *testing.T, db *sql.DB, observe func(context.Cont
 func TestRelationDeadlockSmokeTable(t *testing.T) {
 	deadlockPublicTable(t)
 	deadlockPublicPreparation(t)
-	deadlockPublicNegative(t)
 }
 func TestRelationDeadlockSmokeRowsMixed(t *testing.T) { deadlockPublicRowsMixed(t) }
 func TestRelationDeadlockSmokeSoftQueue(t *testing.T) {

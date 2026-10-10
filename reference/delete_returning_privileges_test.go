@@ -1,16 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceDeleteReturningPrivileges(t *testing.T) {
 	roleReferenceCleanup(t, []string{"returning_reader"})
-	p := newReferencePair(t)
-	t.Run("postgres", func(t *testing.T) {
-		a, owner := referenceLockConnections(t, p.ctx, p.postgres)
-		r := p.postgresRecord
-		for _, q := range []string{"CREATE USER returning_reader", "CREATE TABLE t(id INT,v TEXT)", "GRANT USAGE ON SCHEMA public TO returning_reader", "GRANT DELETE ON t TO returning_reader"} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+	t.Run(backend.name, func(t *testing.T) {
+		a, owner := referenceLockConnections(t, p.ctx, backend.db)
+		r := backend.recorder
+		if backend.pg { referenceLockExec(t,p.ctx,a,"GRANT USAGE ON SCHEMA public TO PUBLIC",0) }
+		for _, q := range []string{"CREATE USER returning_reader", "CREATE TABLE t(id INT,v TEXT)", "GRANT DELETE ON t TO returning_reader"} {
 			referenceLockExec(t, p.ctx, a, q, 0)
 		}
 		referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,'a'),(2,'b')", 2)
@@ -68,4 +68,5 @@ func TestReferenceDeleteReturningPrivileges(t *testing.T) {
 		referenceLockExec(t, p.ctx, a, "RESET SESSION AUTHORIZATION", 0)
 		deleteReferenceRows(t, p, a, r)
 	})
+	}
 }

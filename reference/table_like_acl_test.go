@@ -13,8 +13,6 @@ func TestReferenceTableLikeSourceACL(t *testing.T) {
 		roleReferenceCleanup(t, []string{role})
 		defer c.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 		run(referenceExec("CREATE USER "+role, 0))
-		// GRANT/REVOKE SQL is an oracle-only authority control, as in view_security.
-		// Native column/relation ACL distinctions use the descriptor authorization seam.
 		if b.pg {
 			run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO "+role, 0))
 		}
@@ -30,7 +28,6 @@ func TestReferenceTableLikeSourceACL(t *testing.T) {
 		run(tableLikeError("CREATE TABLE clone (LIKE idx INCLUDING ALL)", referenceDiagnostic{Code: "42809", Message: `relation "idx" is invalid in LIKE clause`, Detail: "This operation is not supported for indexes.", Position: "26"}))
 		run(tableLikeError("CREATE TABLE clone (LIKE like_private.src INCLUDING ALL)", referenceDiagnostic{Code: "42501", Message: "permission denied for schema like_private", Position: "26"}))
 		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
-		if b.pg {
 			run(referenceExec("GRANT SELECT(a) ON src TO "+role, 0))
 			run(referenceExec("SET SESSION AUTHORIZATION "+role, 0))
 			run(tableLikeError("CREATE TABLE clone (LIKE src INCLUDING ALL)", referenceDiagnostic{Code: "42501", Message: "permission denied for table src"}))
@@ -42,15 +39,12 @@ func TestReferenceTableLikeSourceACL(t *testing.T) {
 			run(tableLikeError("DROP TABLE clone,src CASCADE", referenceDiagnostic{Code: "42501", Message: "must be owner of table src"}))
 			run(referenceSelect("SELECT * FROM clone", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
-			run(referenceSelect("SELECT pg_get_userbyid(relowner) AS owner,relacl IS NULL AS default_acl FROM pg_class WHERE oid='clone'::regclass", []string{"owner", "default_acl"}, []string{"NAME", "BOOL"}, [][]any{{role, true}}))
+			if b.pg { run(referenceSelect("SELECT pg_get_userbyid(relowner) AS owner,relacl IS NULL AS default_acl FROM pg_class WHERE oid='clone'::regclass", []string{"owner", "default_acl"}, []string{"NAME", "BOOL"}, [][]any{{role, true}})) }
 			run(referenceExec("DROP TABLE src CASCADE", 0))
 			run(referenceSelect("SELECT * FROM clone", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
-			run(referenceExec("REVOKE USAGE,CREATE ON SCHEMA public FROM "+role, 0))
+			if b.pg { run(referenceExec("REVOKE USAGE,CREATE ON SCHEMA public FROM "+role, 0)) }
 			run(tableLikeError("DROP ROLE "+role, referenceDiagnostic{Code: "2BP01", Message: `role "` + role + `" cannot be dropped because some objects depend on it`, Detail: "owner of table clone"}))
 			run(referenceExec("DROP TABLE clone", 0))
-		} else {
-			run(referenceExec("DROP TABLE src", 0))
-		}
 		run(referenceExec("DROP SCHEMA like_private CASCADE", 0))
 		run(referenceExec("DROP ROLE "+role, 0))
 	})

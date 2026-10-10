@@ -19,7 +19,7 @@ relation principal. Prepared executions recheck current grants and owners.
 Bound base reads do not repeat name lookup or source-schema USAGE checks; the
 initial named view lookup still requires its schema's USAGE. Relation-principal
 substitution never changes session identity or sequence/function authority.
-Native SQL object GRANT remains absent; object ACL tests use the central internal seam.
+Native table and column GRANT/REVOKE use this same central ACL authority.
 The native prepared witness retains an allowed statement description across
 revocation and regrant: the same handle must deny42501 without rows after revoke
 and resume reads after regrant, including an owner view above an invoker view.
@@ -82,8 +82,8 @@ direct attribute. There is no blanket replication-target restriction.
 DROP and COMMENT ON ROLE retain their existing superuser gates. `pg_user` grants
 PUBLIC SELECT on every LOGIN role's direct summary, including unrelated users;
 membership does not synthesize its flags. Its password is always `********`.
-SQL object GRANT, `pg_roles`/`pg_authid`/`pg_shadow`, role rename and ALTER ROLE
-SET/RESET remain excluded.
+`pg_roles`/`pg_authid`/`pg_shadow`, role rename and ALTER ROLE SET/RESET remain
+excluded. Table/column object grants are supported separately from membership.
 Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority, with separate
 checks for SUPERUSER targets and explicit grantor provenance.
 Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:
@@ -227,6 +227,90 @@ physical replacement starts with the connector's requested authenticator and
 fresh settings. Use held `*sql.Conn` handles for principal-specific operations.
 Two connectors with the same Driver/exact DSN share data, never session state.
 
+## Table and column grants — change note
+
+```sql
+GRANT {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
+  ON [TABLE] relation [, ...] TO grantee [, ...]
+  [WITH GRANT OPTION] [GRANTED BY role];
+REVOKE {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
+  ON [TABLE] relation [, ...] FROM grantee [, ...]
+  [GRANTED BY role] [RESTRICT];
+```
+
+`ON ALL TABLES IN SCHEMA schema [, ...]` expands currently existing tables,
+views and materialized views, not sequences, indexes, composite backing relations
+or future objects. A schema owner does not automatically own its tables.
+Grantees include PUBLIC, optional GROUP before a role specification, CURRENT_USER,
+CURRENT_ROLE and SESSION_USER. The decoded exact lowercase spelling `public`
+denotes PUBLIC even when quoted; quoted `"PUBLIC"` is a distinct role name.
+PUBLIC includes future roles but cannot receive grant options (`0LP01`).
+Table privileges are SELECT, INSERT, UPDATE, DELETE,
+TRUNCATE, REFERENCES, TRIGGER and MAINTAIN; column privileges are SELECT, INSERT,
+UPDATE and REFERENCES. ALL expands the applicable mask, never ownership.
+
+Absent table ACLs give owners ordinary use rights; absent column ACLs are empty.
+The first table mutation materializes owner defaults. Revoking an owner's
+ordinary privileges does not remove ownership or implicit grant options.
+Table privileges OR matching column privileges authorize column operations:
+column-only REVOKE cannot negate a table grant. Whole-table checks never combine
+arbitrary column grants into a table grant.
+
+Grants retain independent `(grantor, grantee)` origins. All-INHERIT paths supply
+ordinary rights and grant authority, while SET-only/disabled paths do not.
+Delegation selects one reachable direct option source, maximizing the requested
+bits rather than fabricating a union across multiple source roles. Actual
+superuser/inherited-owner grants use the owner origin. PostgreSQL18.0 object
+GRANTED BY must name the exact current user, even for superusers or inherited
+owners; another existing role fails `0A000`, and a missing role fails `42704`
+before object lookup.
+
+WITH GRANT OPTION grants use plus delegation rights. Partial table requests
+warn `01007`; table ALL silently grants an eligible nonempty subset. Column
+requests merge by stable attribute identity: a final mask containing all four
+column privileges suppresses partial warnings, whether spelled ALL or enumerated
+across separate privilege items. Plain REVOKE applies the same distinction with
+`01006`. A zero-option request still warns even for a full mask. Having ordinary
+rights but no requested options yields a warning and no grant, not a permission
+token. No rights can fail `42501`. REVOKE removes only the selected source's
+rights/options; default/explicit RESTRICT protects dependent privileges with
+`2BP01` and Hint `Use CASCADE to revoke them too.` Circular grant options fail
+`0LP01`. These checks are scoped to each table or individual column ACL.
+Table options participate in column grantor selection, but do not create a
+cross-ACL dependency graph: revoking an upstream table option can preserve a
+distinct-origin downstream column grant. A same-column dependent chain remains
+protected. Table REVOKE independently selects each column source using the
+original requested mask and original table ACL, not its already reduced result.
+
+Utilities affect zero rows. Autocommit Go Prepare resolves no objects/roles and
+emits no notices; Execute resolves fresh identities and publishes one atomic
+catalog candidate. Late missing targets/columns/grantees, option errors,
+RESTRICT failures and cancellation publish no earlier ACL changes. Reached
+warnings remain observable before a later failure. Explicit and implicit merged
+column requests traverse ascending signed stable attribute numbers, not textual
+request order or column-name order; duplicate column mentions warn only once.
+Table REVOKE emits its table warning before system attributes
+`tableoid,cmax,xmax,cmin,xmin,ctid`, followed by live columns in attribute order.
+This does not add system-column query support.
+
+Real consumers are SELECT/source expressions, assigned INSERT/UPDATE columns,
+DELETE, RETURNING, row-locking SELECT, explicit LOCK and MAINTAIN-based REINDEX.
+TRUNCATE supplies an existing LOCK alternative; REFERENCES/TRIGGER are stored
+and delegated without inventing FK/trigger commands. Table INSERT does not
+grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas
+IDENTITY's internal generation remains supported. Direct sequence grants,
+including TABLE syntax resolving a sequence, remain native `0A000`; schema/type/
+routine grants, defaults, CASCADE and GRANT OPTION FOR are outside this surface.
+Object utilities remain unsupported in native explicit read-write transactions.
+Read-only execution first fails `25006` for GRANT/REVOKE, before object lookup.
+Explicit relation/column ACLs make native Dump fail before output; Restore does
+not accept GRANT, and Reset removes object ACLs while retaining roles/membership.
+
+Feature smoke (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`
+and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`.
+
 New tables belong to current_user and have owner use rights, with no PUBLIC
 table privileges. Central checks cover schema CREATE/USAGE, all actually used
 SELECT projection/predicate/order columns, assigned INSERT/UPDATE columns, and UPDATE RHS/WHERE reads.
@@ -271,20 +355,20 @@ public, so an otherwise unresolved name fails with `42P01`; implicit pg_catalog
 lookup is preserved. Ordinary table/column ACLs remain execution-time checks:
 SELECT/INSERT/UPDATE preparation does not cache permission, and execution reevaluates
 the current principal, returning `42501` / `permission denied for table secret`
-without synthetic diagnostic object fields. Explicit internal empty ACLs remove
-ordinary owner use rights, not owner authority or implicit grant options.
+without synthetic diagnostic object fields. Explicit empty ACLs remove ordinary
+owner use rights, not owner authority or implicit grant options.
 
 Explicit LOCK uses table/view-level ANY alternatives: MAINTAIN, UPDATE, DELETE
 or TRUNCATE permits all eight modes; INSERT permits ACCESS SHARE/ROW SHARE/ROW
-EXCLUSIVE; SELECT permits ACCESS SHARE only. Native internal ACL values represent
+EXCLUSIVE; SELECT permits ACCESS SHARE only. Native table ACL values represent
 MAINTAIN/TRUNCATE on tables/views, never columns/sequences. PUBLIC/default owner
 rights apply, but explicit empty owner ACLs deny use; superusers remain allowed.
 Named view denials say `permission denied for view v`. Bound view sources use
 ordinary-view owner or original security_invoker identity without extra schema
-lookup. Direct sequence LOCK rejects kind before ACL. SQL GRANT and public ACL
-mutation APIs remain unsupported.
+lookup. Direct sequence LOCK rejects kind before ACL. Public SQL table/column
+GRANT/REVOKE is supported; no public direct ACL mutation API is exposed.
 Shared ACL validation rejects grant options for PUBLIC at mutation, staging and
-import boundaries. SQL ACL mutation is not exposed.
+import boundaries.
 After successful namespace lookup, parse/binding literal type input and typed
 parameter input precede executor table permission checks, as at PostgreSQL's
 Parse/Bind boundaries.
@@ -306,6 +390,8 @@ DROP dependency DETAIL preserves object and column identities, PostgreSQL
 relation-name quoting, raw decoded column names and object-identity order
 (not alphabetical description order). Failed batches preserve all roles and
 membership endpoints, including when a later target has an object dependency.
+Owned indexes follow their parent table's shared owner dependency; role DROP
+reports the table rather than redundant index ownership entries.
 Retained identity Rows keep their
 original NAME metadata and values across session switches and native Reset/Restore,
 while new execution observes the current session identity.

@@ -1,0 +1,143 @@
+package reference_test
+
+import (
+	"database/sql"
+	"testing"
+)
+
+func TestReferenceRoleGrantFeatureSmoke(t *testing.T) {
+	roleGrantScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn, run func(referenceStep), prepared bool) {
+		run(referenceExec("SET SESSION AUTHORIZATION rg_owner", 0))
+		run(referenceExec("CREATE TABLE t(a INT,b INT DEFAULT 9)", 0))
+		run(referenceExec("INSERT INTO t VALUES(7,9)", 1))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		run(roleGrantDenied("SELECT a FROM t", "t"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("GRANT SELECT(a) ON t TO rg_reader", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		run(referenceSelect("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		run(roleGrantDenied("SELECT b FROM t", "t"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("GRANT SELECT ON t TO rg_reader", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		q := "SELECT a,b FROM t"
+		stmt, err := c.PrepareContext(p.ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+		held := referenceHeldStatement{referenceExecutor: c, statement: stmt, query: q}
+		want := referenceSelect(q, []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(9)}})
+		referenceRunStep(t, p.ctx, held, b.recorder, want)
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("REVOKE SELECT(a) ON t FROM rg_reader", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		referenceRunStep(t, p.ctx, held, b.recorder, want)
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("REVOKE SELECT ON t FROM rg_reader", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		referenceRunStep(t, p.ctx, held, b.recorder, roleGrantDenied(q, "t"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_owner", 0))
+		run(referenceExec("REVOKE SELECT ON t FROM rg_owner", 0))
+		run(roleGrantDenied("SELECT a FROM t", "t"))
+		run(referenceExec("GRANT SELECT ON t TO rg_a WITH GRANT OPTION", 0))
+		run(referenceExec("GRANT SELECT ON t TO CURRENT_USER", 0))
+		run(referenceSelect("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_a", 0))
+		run(referenceExec("GRANT SELECT ON t TO rg_reader", 0))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		referenceRunStep(t, p.ctx, held, b.recorder, want)
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		var notices []referenceDiagnostic
+		_, nc, recorder := noticeReferencePool(t, p, b.pg, &notices)
+		referenceRunStep(t, p.ctx, nc, recorder, referenceExec("SET SESSION AUTHORIZATION rg_reader", 0))
+		s := referenceExec("GRANT SELECT ON t TO rg_c", 0)
+		s.prepared = prepared
+		referenceRunStep(t, p.ctx, nc, recorder, s)
+		warning := referenceDiagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01007", Message: `no privileges were granted for "t"`}
+		if len(notices) != 1 || notices[0] != warning {
+			t.Fatal("non-option warning", notices, warning)
+		}
+		referenceRunStep(t, p.ctx, nc, recorder, referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(roleGrantDenied("SELECT a FROM t", "t"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		// Two unequal source masks have a unique best grantor: the larger source
+		// provides SELECT+INSERT, not the smaller source's UPDATE option.
+		run(referenceExec("GRANT SELECT,INSERT ON t TO rg_a WITH GRANT OPTION", 0))
+		run(referenceExec("GRANT UPDATE ON t TO rg_b WITH GRANT OPTION", 0))
+		run(referenceExec("GRANT rg_a,rg_b TO rg_group WITH INHERIT TRUE", 0))
+		referenceRunStep(t, p.ctx, nc, recorder, referenceExec("SET SESSION AUTHORIZATION rg_group", 0))
+		notices = nil
+		s = referenceExec("GRANT SELECT,INSERT,UPDATE ON t TO rg_c", 0)
+		s.prepared = prepared
+		referenceRunStep(t, p.ctx, nc, recorder, s)
+		warning.Message = `not all privileges were granted for "t"`
+		if len(notices) != 1 || notices[0] != warning {
+			t.Fatal("single-source warning", notices, warning)
+		}
+		referenceRunStep(t, p.ctx, nc, recorder, referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(referenceSelect("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		run(roleGrantDenied("UPDATE t SET a=8", "t"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_a", 0))
+		run(referenceExec("REVOKE SELECT,INSERT ON t FROM rg_c", 0))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(roleGrantDenied("SELECT a FROM t", "t"))
+		run(roleGrantDenied("INSERT INTO t(a) VALUES(1)", "t"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("CREATE VIEW v AS SELECT a FROM t", 0))
+		run(referenceExec("CREATE MATERIALIZED VIEW m AS SELECT 7 AS a", 1))
+		run(referenceExec("CREATE ROLE rg_future", 0))
+		run(referenceExec("GRANT SELECT ON ALL TABLES IN SCHEMA public TO rg_future", 0))
+		run(referenceExec("CREATE TABLE later(a INT)", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_future", 0))
+		for _, name := range []string{"t", "v", "m"} {
+			run(referenceSelect("SELECT a FROM "+name, []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		}
+		run(roleGrantDenied("SELECT a FROM later", "later"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("CREATE TABLE serial_t(id SERIAL)", 0))
+		run(referenceExec("CREATE TABLE identity_t(id INT GENERATED ALWAYS AS IDENTITY)", 0))
+		run(referenceExec("GRANT INSERT ON serial_t,identity_t TO rg_c", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(referenceImplicitError("INSERT INTO serial_t DEFAULT VALUES", referenceDiagnostic{Code: "42501", Message: "permission denied for sequence serial_t_id_seq"}))
+		run(referenceExec("INSERT INTO identity_t DEFAULT VALUES", 1))
+		run(referenceImplicitError("SELECT nextval('identity_t_id_seq')", referenceDiagnostic{Code: "42501", Message: "permission denied for sequence identity_t_id_seq"}))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceSelect("SELECT id FROM serial_t", []string{"id"}, []string{"INT4"}, nil))
+		run(referenceSelect("SELECT last_value,is_called FROM serial_t_id_seq", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(1), false}}))
+		run(referenceSelect("SELECT id FROM identity_t", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+		run(referenceExec("CREATE INDEX ix ON t(a)", 0))
+		run(referenceExec("GRANT MAINTAIN ON t TO rg_c", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(referenceExec("REINDEX INDEX ix", 0))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("REVOKE MAINTAIN ON t FROM rg_c", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(referenceImplicitError("REINDEX INDEX ix", referenceDiagnostic{Code: "42501", Message: "permission denied for index ix"}))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("GRANT TRUNCATE ON t TO rg_c", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(referenceExec("BEGIN", 0))
+		run(referenceExec("LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT", 0))
+		run(referenceExec("ROLLBACK", 0))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceExec("REVOKE TRUNCATE ON t FROM rg_c", 0))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(referenceExec("BEGIN", 0))
+		run(roleGrantDenied("LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT", "t"))
+		run(referenceExec("ROLLBACK", 0))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+		run(referenceImplicitError("GRANT SELECT ON later,missing_table TO rg_c", referenceDiagnostic{Code: "42P01", Message: `relation "missing_table" does not exist`}))
+		run(referenceExec("SET SESSION AUTHORIZATION rg_c", 0))
+		run(roleGrantDenied("SELECT a FROM later", "later"))
+		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+	})
+}

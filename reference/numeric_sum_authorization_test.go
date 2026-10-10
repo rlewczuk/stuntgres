@@ -39,9 +39,6 @@ func TestReferenceNumericSumAuthorization(t *testing.T) {
 		referenceRunStep(t, p.ctx, held, recorder, s)
 		run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 		referenceRunStep(t, p.ctx, held, recorder, referenceSelect(q, []string{"sum"}, []string{"INT8"}, [][]any{{int64(4)}}))
-		if !pg {
-			return
-		} // Public column GRANT is an existing native capability boundary.
 		run(referenceExec("GRANT SELECT(v) ON source TO numeric_sum_reader", 0))
 		run(referenceExec("SET SESSION AUTHORIZATION numeric_sum_reader", 0))
 		numericSumBoth(t, p, conn, recorder, referenceSelect(q, []string{"sum"}, []string{"INT8"}, [][]any{{int64(4)}}))

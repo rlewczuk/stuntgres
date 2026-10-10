@@ -1,26 +1,23 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceRowLockViewAuthorization(t *testing.T) {
-	p := newReferencePair(t)
-	admin, actor := referenceLockConnections(t, p.ctx, p.postgres)
+	roleReferenceCleanup(t, []string{"row_lock_view_owner","row_lock_view_reader"})
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+	admin, actor := referenceLockConnections(t, p.ctx, backend.db)
 	const owner = "row_lock_view_owner"
 	const reader = "row_lock_view_reader"
-	for _, q := range []string{"CREATE ROLE " + owner, "CREATE ROLE " + reader, "GRANT USAGE,CREATE ON SCHEMA public TO " + owner, "GRANT USAGE ON SCHEMA public TO " + reader, "CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,10)"} {
+	if backend.pg { referenceLockExec(t,p.ctx,admin,"GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC",0) }
+	for _, q := range []string{"CREATE ROLE " + owner, "CREATE ROLE " + reader, "CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,10)"} {
 		if _, err := admin.ExecContext(p.ctx, q); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Cleanup(func() {
 		actor.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-		for _, q := range []string{"DROP OWNED BY " + owner + "," + reader + " CASCADE", "DROP ROLE " + owner + "," + reader} {
-			if _, err := admin.ExecContext(p.ctx, q); err != nil {
-				t.Error(q, err)
-			}
-		}
+		admin.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
 	})
 	referenceLockExec(t, p.ctx, admin, "SET SESSION AUTHORIZATION "+owner, 0)
 	// PostgreSQL independently permits definition without source SELECT or UPDATE.
@@ -35,13 +32,13 @@ func TestReferenceRowLockViewAuthorization(t *testing.T) {
 		t.Helper()
 		step := referenceImplicitError(query, referenceDiagnostic{Code: "42501", Message: "permission denied for table t"})
 		step.selectRows, step.prepared, step.errorStage = true, prepared, "execute"
-		referenceRunStep(t, p.ctx, actor, p.postgresRecord, step)
+		referenceRunStep(t, p.ctx, actor, backend.recorder, step)
 	}
 	selected := func(query string, prepared bool) {
 		t.Helper()
 		step := referenceSelect(query, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}})
 		step.prepared = prepared
-		referenceRunStep(t, p.ctx, actor, p.postgresRecord, step)
+		referenceRunStep(t, p.ctx, actor, backend.recorder, step)
 	}
 	for _, clause := range referenceRowClauses {
 		for _, prepared := range []bool{false, true} {
@@ -72,12 +69,12 @@ func TestReferenceRowLockViewAuthorization(t *testing.T) {
 	}
 	referenceLockExec(t, p.ctx, admin, "REVOKE UPDATE(v) ON t FROM "+owner, 0)
 	denied("SELECT id FROM owned FOR UPDATE", true)
-	// Role-specific controls are not sent through the native SQL GRANT surface;
-	// engine ViewAuthorization uses the existing object/column ACL API independently.
 	referenceLockExec(t, p.ctx, actor, "RESET SESSION AUTHORIZATION", 0)
+	}
 }
 
 func TestReferenceRowLockViewSequenceAuthorization(t *testing.T) {
+	if !*referenceMode { return } // Adjacent sequence privileges remain oracle-only.
 	p := newReferencePair(t)
 	admin, actor := referenceLockConnections(t, p.ctx, p.postgres)
 	const role = "row_lock_view_sequence_reader"

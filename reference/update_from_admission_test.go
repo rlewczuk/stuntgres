@@ -70,15 +70,9 @@ func TestReferenceUpdateFromPrivileges(t *testing.T) {
 		run := updateFromRun(t, p, b, c)
 		updateFromSeed(run)
 		run(referenceExec("CREATE ROLE update_from_reader", 0))
-		if !b.pg {
-			// SQL GRANT is excluded; positive physical grant coverage belongs to U4.
-			_, err := c.ExecContext(p.ctx, "GRANT UPDATE(v) ON t TO update_from_reader")
-			if err == nil {
-				t.Fatal("native GRANT boundary unexpectedly admitted")
-			}
-			return
+		if b.pg {
+			run(referenceExec("GRANT USAGE ON SCHEMA public TO update_from_reader", 0))
 		}
-		run(referenceExec("GRANT USAGE ON SCHEMA public TO update_from_reader", 0))
 		run(referenceExec("GRANT UPDATE(v) ON t TO update_from_reader", 0))
 		run(referenceExec("SET ROLE update_from_reader", 0))
 		defer c.ExecContext(p.ctx, "RESET ROLE")

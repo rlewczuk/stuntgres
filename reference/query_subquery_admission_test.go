@@ -6,8 +6,6 @@ import (
 )
 
 func TestReferenceQuerySubqueryAdmission(t *testing.T) {
-	// Native SQL ACL mutation remains outside the existing dialect; root-resumed
-	// internal authorization units must exercise its real ACL setup seam.
 	roleReferenceCleanup(t, []string{"subquery_reader"})
 	subqueryReference(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn) {
 		run := subqueryRun(t, p, b, c)
@@ -28,11 +26,8 @@ func TestReferenceQuerySubqueryAdmission(t *testing.T) {
 			want.Position = tc.position
 			subqueryAnalysisFailure(run, tc.q, want)
 		}
-		if !b.pg {
-			return
-		}
 		run(referenceExec("CREATE ROLE subquery_reader", 0))
-		run(referenceExec("GRANT USAGE ON SCHEMA public TO subquery_reader", 0))
+		if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO subquery_reader", 0)) }
 		run(referenceExec("GRANT SELECT ON visible TO subquery_reader", 0))
 		run(referenceExec("SET SESSION AUTHORIZATION subquery_reader", 0))
 		defer func() {

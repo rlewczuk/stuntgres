@@ -28,9 +28,6 @@ func TestReferenceGeneratedStoredAuthorization(t *testing.T) {
 		run(referenceImplicitError(`CREATE TABLE generated_guarded.denied(a INT,b INT GENERATED ALWAYS AS(a+1) STORED)`, referenceDiagnostic{Code: "42501", Message: "permission denied for schema generated_guarded", Position: "14"}))
 		run(referenceExec(`RESET SESSION AUTHORIZATION`, 0))
 		run(referenceSelect(`SELECT * FROM g`, []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(3)}}))
-		if backend.pg {
-			// Native grant configuration is internal-only; public denial witnesses above
-			// are shared, while PostgreSQL independently exercises column grants here.
 			run(referenceExec(`GRANT SELECT(b),INSERT(a),UPDATE(a) ON g TO generated_actor`, 0))
 			run(referenceExec(`SET SESSION AUTHORIZATION generated_actor`, 0))
 			run(referenceSelect(`SELECT b FROM g`, []string{"b"}, []string{"INT4"}, [][]any{{int64(3)}}))
@@ -38,6 +35,5 @@ func TestReferenceGeneratedStoredAuthorization(t *testing.T) {
 			run(referenceExec(`UPDATE g SET a=8`, 2))
 			run(referenceImplicitError(`UPDATE g SET a=a+1`, referenceDiagnostic{Code: "42501", Message: "permission denied for table g"}))
 			run(referenceExec(`RESET SESSION AUTHORIZATION`, 0))
-		}
 	})
 }

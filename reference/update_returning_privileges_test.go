@@ -9,29 +9,10 @@ func TestReferenceUpdateReturningPrivileges(t *testing.T) {
 		t.Run(backend.name, func(t *testing.T) {
 			a, owner := referenceLockConnections(t, p.ctx, backend.db)
 			r := backend.recorder
-			if !backend.pg {
-				referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT,v TEXT)", 0)
-				referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,'a'),(2,'b')", 2)
-				referenceRunStep(t, p.ctx, a, r, referenceSelect("UPDATE t SET id=7 WHERE FALSE RETURNING 1", []string{"?column?"}, []string{"INT4"}, [][]any{}))
-				for _, q := range []string{"GRANT UPDATE(id) ON t TO update_returning_reader", "GRANT SELECT(id) ON t TO update_returning_reader"} {
-					result, err := a.ExecContext(p.ctx, q)
-					if result != nil || err == nil {
-						t.Fatal("unsupported SQL ACL control", q, result, err)
-					}
-				}
-				referenceLockExec(t, p.ctx, a, "CREATE ROLE update_returning_reader", 0)
-				defer a.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-				referenceLockExec(t, p.ctx, a, "SET SESSION AUTHORIZATION update_returning_reader", 0)
-				for _, prepared := range []bool{false, true} {
-					s := referenceImplicitError("UPDATE t SET id=7 RETURNING 1", referenceDiagnostic{Code: "42501", Message: "permission denied for table t"})
-					s.prepared, s.selectRows, s.errorStage = prepared, true, "execute"
-					referenceRunStep(t, p.ctx, a, r, s)
-				}
-				referenceLockExec(t, p.ctx, a, "RESET SESSION AUTHORIZATION", 0)
-				deleteReferenceRows(t, p, a, r, 1, 2)
-				return
+			if backend.pg {
+				referenceLockExec(t, p.ctx, a, "GRANT USAGE ON SCHEMA public TO PUBLIC", 0)
 			}
-			for _, q := range []string{"CREATE USER update_returning_reader", "CREATE TABLE t(id INT,v TEXT)", "GRANT USAGE ON SCHEMA public TO update_returning_reader", "GRANT UPDATE(id) ON t TO update_returning_reader"} {
+			for _, q := range []string{"CREATE USER update_returning_reader", "CREATE TABLE t(id INT,v TEXT)", "GRANT UPDATE(id) ON t TO update_returning_reader"} {
 				referenceLockExec(t, p.ctx, a, q, 0)
 			}
 			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,'a'),(2,'b')", 2)

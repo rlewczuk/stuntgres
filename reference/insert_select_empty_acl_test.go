@@ -1,11 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
-// Real PostgreSQL GRANT witnesses only. Native has no public ACL mutation API;
-// the corresponding engine regressions invoke its actual SetObjectACL consumer.
 func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 	const writer = "insert_select_empty_manifest_writer"
 	for _, tc := range []struct {
@@ -42,8 +38,9 @@ func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 			}
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				roleReferenceCleanup(t, []string{writer})
-				p := newReferencePair(t)
-				run := func(s referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 				run(referenceExec("CREATE ROLE "+writer, 0))
 				run(referenceExec("CREATE TABLE s(unused INT,i INT)", 0))
 				run(referenceExec("CREATE TABLE t(unused INT,i INT)", 0))
@@ -53,7 +50,8 @@ func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 					run(referenceExec("INSERT INTO s VALUES(1),(1),(2)", 3))
 				}
 				run(referenceExec("INSERT INTO t VALUES(9)", 1))
-				grants := []string{"GRANT USAGE ON SCHEMA public TO " + writer}
+				grants := []string{}
+				if backend.pg { grants = append(grants, "GRANT USAGE ON SCHEMA public TO " + writer) }
 				if tc.sourceGrant != "" {
 					grants = append(grants, "GRANT "+tc.sourceGrant+" ON s TO "+writer)
 				}
@@ -61,17 +59,17 @@ func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 					grants = append(grants, "GRANT "+tc.targetGrant+" ON t TO "+writer)
 				}
 				for _, q := range grants {
-					if _, err := p.postgres.ExecContext(p.ctx, q); err != nil {
+					if _, err := backend.db.ExecContext(p.ctx, q); err != nil {
 						t.Fatal(err)
 					}
 				}
-				conn, err := p.postgres.Conn(p.ctx)
+				conn, err := backend.db.Conn(p.ctx)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer conn.Close()
 				defer conn.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-				referenceRunStep(t, p.ctx, conn, p.postgresRecord, referenceExec("SET SESSION AUTHORIZATION "+writer, 0))
+				referenceRunStep(t, p.ctx, conn, backend.recorder, referenceExec("SET SESSION AUTHORIZATION "+writer, 0))
 				t.Run("consumer", func(t *testing.T) {
 					s := referenceExec(tc.query, tc.count)
 					if tc.denied != "" {
@@ -79,14 +77,15 @@ func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 						s.errorStage = "execute"
 					}
 					s.prepared = prepared
-					referenceRunStep(t, p.ctx, conn, p.postgresRecord, s)
+					referenceRunStep(t, p.ctx, conn, backend.recorder, s)
 				})
-				referenceRunStep(t, p.ctx, conn, p.postgresRecord, referenceExec("RESET SESSION AUTHORIZATION", 0))
+				referenceRunStep(t, p.ctx, conn, backend.recorder, referenceExec("RESET SESSION AUTHORIZATION", 0))
 				want := make([][]any, len(tc.values))
 				for i, value := range tc.values {
 					want[i] = []any{value}
 				}
-				referenceRunStep(t, p.ctx, conn, p.postgresRecord, referenceSelect("SELECT i FROM t ORDER BY i", []string{"i"}, []string{"INT4"}, want))
+				referenceRunStep(t, p.ctx, conn, backend.recorder, referenceSelect("SELECT i FROM t ORDER BY i", []string{"i"}, []string{"INT4"}, want))
+				}
 			})
 		}
 	}
@@ -98,20 +97,22 @@ func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 			}
 			t.Run("dropped_grant_"+table+"/"+mode, func(t *testing.T) {
 				roleReferenceCleanup(t, []string{writer})
-				p := newReferencePair(t)
-				conn, err := p.postgres.Conn(p.ctx)
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+				conn, err := backend.db.Conn(p.ctx)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer conn.Close()
 				defer conn.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-				run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, p.postgresRecord, s) }
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, backend.recorder, s) }
 				run(referenceExec("CREATE ROLE "+writer, 0))
 				run(referenceExec("CREATE TABLE s(i INT,j INT)", 0))
 				run(referenceExec("CREATE TABLE t(i INT,j INT)", 0))
 				run(referenceExec("INSERT INTO s VALUES(1,2),(1,2)", 2))
 				run(referenceExec("INSERT INTO t VALUES(9,9)", 1))
-				grants := []string{"GRANT USAGE ON SCHEMA public TO " + writer}
+				grants := []string{}
+				if backend.pg { grants = append(grants, "GRANT USAGE ON SCHEMA public TO " + writer) }
 				q := "INSERT INTO t SELECT 7 FROM s"
 				want := [][]any{{int64(7)}, {int64(7)}, {int64(9)}}
 				if table == "s" {
@@ -138,6 +139,7 @@ func TestReferenceInsertSelectEmptyManifestColumnGrantOracle(t *testing.T) {
 				run(failure)
 				run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 				run(referenceSelect("SELECT i FROM t ORDER BY i", []string{"i"}, []string{"INT4"}, want))
+				}
 			})
 		}
 	}

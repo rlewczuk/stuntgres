@@ -102,15 +102,8 @@ func TestReferenceAggregateModifiersPrivileges(t *testing.T) {
 	aggregateModifiersScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn, run func(referenceStep)) {
 		run(referenceExec("CREATE TABLE am_acl(v INT,hidden INT)", 0))
 		run(referenceExec("INSERT INTO am_acl VALUES(1,1)", 1))
-		// Public native ACL mutation is unavailable. Native package-level
-		// TestAggregateModifiersColumnACL exercises the same manifests with
-		// SetObjectACL; PostgreSQL alone can establish this column-grant phase.
-		if !b.pg {
-			aggregateModifiersBoth(run, referenceSelect("SELECT count(v ORDER BY hidden) FILTER(WHERE hidden>0) FROM am_acl", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
-			return
-		}
 		run(referenceExec("CREATE ROLE am_modifier_reader", 0))
-		run(referenceExec("GRANT USAGE ON SCHEMA public TO am_modifier_reader", 0))
+		if b.pg { run(referenceExec("GRANT USAGE ON SCHEMA public TO am_modifier_reader", 0)) }
 		run(referenceExec("GRANT SELECT(v) ON am_acl TO am_modifier_reader", 0))
 		defer func() {
 			if _, err := c.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION"); err != nil {

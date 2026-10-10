@@ -4,16 +4,13 @@ import (
 	"testing"
 )
 
-// These are PostgreSQL-only controls: native has neither SQL GRANT nor an
-// inheritance descriptor. They must not be presented as backend parity.
+// Table and column authority is shared; the separate hierarchy control retains
+// its PostgreSQL-only inheritance-descriptor boundary.
 func TestReferenceLockModesPrivilegeControls(t *testing.T) {
 	const role = "lock_modes_reader"
 	roleReferenceCleanup(t, []string{role})
 	pair := newReferenceScenario(t)
 	for _, backend := range pair.backends() {
-		if !backend.pg {
-			continue // SQL GRANT is an oracle-only capability.
-		}
 		t.Run(backend.name, func(t *testing.T) {
 			ctx := pair.ctx
 			a, b := referenceLockConnections(t, ctx, backend.db)
@@ -23,7 +20,7 @@ func TestReferenceLockModesPrivilegeControls(t *testing.T) {
 				b.ExecContext(ctx, "RESET SESSION AUTHORIZATION")
 			})
 			lockModesExec(t, ctx, a, "CREATE ROLE "+role+" LOGIN")
-			lockModesExec(t, ctx, a, "GRANT USAGE, CREATE ON SCHEMA public TO "+role)
+			if backend.pg { lockModesExec(t, ctx, a, "GRANT USAGE, CREATE ON SCHEMA public TO "+role) }
 			lockModesExec(t, ctx, a, "CREATE TABLE t(v INT)")
 			lockModesExec(t, ctx, a, "CREATE SEQUENCE seq")
 			lockModesExec(t, ctx, a, "CREATE VIEW v AS SELECT v FROM t")

@@ -92,10 +92,8 @@ func TestReferenceRelationLockOrdinaryAuthority(t *testing.T) {
 		if _, err := referenceAdmin.ExecContext(pair.ctx, "GRANT USAGE ON SCHEMA public TO lock_core_reader"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := referenceAdmin.ExecContext(pair.ctx, "GRANT SELECT, INSERT ON t TO lock_core_reader"); err != nil {
-			t.Fatal(err)
-		}
 	}
+	pair.step(t, referenceExec("GRANT SELECT, INSERT ON t TO lock_core_reader", 0))
 	for _, backend := range pair.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			ctx := pair.ctx
@@ -106,14 +104,12 @@ func TestReferenceRelationLockOrdinaryAuthority(t *testing.T) {
 			defer a.Close()
 			referenceLockExec(t, ctx, a, "SET SESSION AUTHORIZATION lock_core_reader", 0)
 			defer a.ExecContext(ctx, "RESET SESSION AUTHORIZATION")
-			if backend.pg {
-				rows, err := a.QueryContext(ctx, "SELECT v FROM t")
-				if err != nil {
-					t.Fatal(err)
-				}
-				referenceTransactionValues(t, rows)
-				referenceLockExec(t, ctx, a, "INSERT INTO t VALUES(7)", 1)
+			rows, err := a.QueryContext(ctx, "SELECT v FROM t")
+			if err != nil {
+				t.Fatal(err)
 			}
+			referenceTransactionValues(t, rows)
+			referenceLockExec(t, ctx, a, "INSERT INTO t VALUES(7)", 1)
 			for _, prepared := range []bool{false, true} {
 				tx, err := a.BeginTx(ctx, nil)
 				if err != nil {

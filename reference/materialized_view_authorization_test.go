@@ -40,9 +40,6 @@ func TestReferenceMaterializedViewAuthorization(t *testing.T) {
 			run(referenceExec("CREATE MATERIALIZED VIEW mv_reader_owned AS SELECT 9 AS i", 1))
 			run(referenceImplicitError("DROP MATERIALIZED VIEW mv_reader_owned,mv_owned", referenceDiagnostic{Code: "42501", Message: "must be owner of materialized view mv_owned"}))
 			run(referenceSelect("SELECT i FROM mv_reader_owned", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
-			// GRANT is PostgreSQL's existing facility, not scope for native SQL GRANT.
-			// Native package ACL witnesses will cover equivalent private authority.
-			if b.pg {
 				run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 				run(referenceExec("GRANT SELECT ON mv_owned TO mv_reader", 0))
 				run(referenceExec("SET SESSION AUTHORIZATION mv_reader", 0))
@@ -51,7 +48,6 @@ func TestReferenceMaterializedViewAuthorization(t *testing.T) {
 				s = referenceImplicitError("SELECT * FROM mv_base", referenceDiagnostic{Code: "42501", Message: "permission denied for table mv_base"})
 				s.selectRows = true
 				run(s)
-			}
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 			run(referenceExec("SET SESSION AUTHORIZATION mv_owner", 0))
 			for _, q := range []string{"INSERT INTO mv_owned VALUES(9,'z')", "UPDATE mv_owned SET i=9", "DELETE FROM mv_owned"} {

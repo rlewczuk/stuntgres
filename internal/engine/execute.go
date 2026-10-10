@@ -65,7 +65,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
+	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant:
 		result, err := e.executeRole(op, stmt, count)
 		if err == nil {
 			scope.completed = true
