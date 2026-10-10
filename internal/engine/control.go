@@ -237,7 +237,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		if r.sqlIndex != nil {
-			if r.sqlIndex.unique != nil {
+			if r.sqlIndex.constraint != nil {
 				continue
 			}
 			sql, err := indexDefinitionSQL(ctx, catalog, r, indexPresentation{dump: true})

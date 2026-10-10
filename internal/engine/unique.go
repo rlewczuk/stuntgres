@@ -27,7 +27,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 		}
 		names[c.Name] = true
 		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || index.sqlIndex.unique == nil || index.sqlIndex.unique.OID != c.OID || index.sqlIndex.unique.Index != c.Index || index.sqlIndex.unique.Name != c.Name || index.sqlIndex.unique.NullsNotDistinct != c.NullsNotDistinct || !slices.Equal(index.sqlIndex.unique.Attributes, c.Attributes) || len(index.sqlIndex.keys) != len(c.Attributes) {
+		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.constraint.Index != c.Index || index.sqlIndex.constraint.Name != c.Name || index.sqlIndex.nullsNotDistinct != c.NullsNotDistinct || !slices.Equal(index.sqlIndex.constraint.Attributes, c.Attributes) || len(index.sqlIndex.keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
 		}
 		used := make(map[int32]bool, len(c.Attributes))
@@ -160,7 +160,7 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{parent: d.address, unique: c, keys: make([]indexKey, len(c.Attributes))}
+		definition := &indexDefinition{parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, keys: make([]indexKey, len(c.Attributes))}
 		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition, columns: make([]ColumnDescriptor, len(c.Attributes)), attributes: make([]int32, len(c.Attributes)), index: make(map[string]int, len(c.Attributes))}
 		index.attributeHighWater = int32(len(index.attributes))
 		labels := make(map[string]bool)
@@ -209,7 +209,7 @@ func uniqueHasNull(key []sqltype.Value) bool {
 }
 
 // DDL ownership is independent of ordinary key SELECT disclosure rights.
-func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, c *uniqueConstraint) (bool, error) {
+func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexKey) (bool, error) {
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return false, err
@@ -217,9 +217,9 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, c *uniqueCons
 	if rights&SelectPrivilege != 0 {
 		return true, nil
 	}
-	for _, attribute := range c.Attributes {
+	for _, key := range keys {
 		column := ref
-		column.Address.SubID = attribute
+		column.Address.SubID = key.attribute
 		rights, err := auth.Effective(column, false)
 		if err != nil {
 			return false, err
@@ -232,17 +232,17 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, c *uniqueCons
 }
 
 // Formatting uses typed provider output, never SQL literals or Go formatting.
-func uniqueDiagnostic(ctx context.Context, parent *relationDescriptor, c *uniqueConstraint, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool) error {
-	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, c.Name)
+func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool) error {
+	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.name)
 	if building {
-		message = fmt.Sprintf(`could not create unique index "%s"`, c.Name)
+		message = fmt.Sprintf(`could not create unique index "%s"`, index.name)
 	}
-	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: message, Schema: schema, Table: parent.name, Constraint: c.Name}
+	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: message, Schema: schema, Table: parent.name, Constraint: index.name}
 	if detailAllowed {
 		labels := make([]string, len(key))
 		values := make([]string, len(key))
 		for i, value := range key {
-			slot := slices.Index(parent.attributes, c.Attributes[i])
+			slot := slices.Index(parent.attributes, index.sqlIndex.keys[i].attribute)
 			labels[i] = pgIdentifier(parent.columns[slot].Name)
 			if value.IsNull() {
 				values[i] = "null"
@@ -265,28 +265,30 @@ func uniqueDiagnostic(ctx context.Context, parent *relationDescriptor, c *unique
 	return d
 }
 
-func validateUniqueRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, root *logicalIndexRoot, schema string, building bool) error {
-	if d.unique == nil {
+func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+	d := index.sqlIndex
+	if !d.unique {
 		return nil
 	}
 	ordering, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return err
 	}
-	return validateUniqueEntries(ctx, parent, d, root.entries, schema, building, ordering)
+	return validateUniqueEntries(ctx, parent, index, root.entries, schema, output, auth, building, ordering)
 }
 
-func validateUniqueEntries(ctx context.Context, parent *relationDescriptor, d *indexDefinition, entries []logicalIndexEntry, schema string, building bool, ordering indexOrdering) error {
+func validateUniqueEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	for i := 1; i < len(entries); i++ {
-		if err := validateUniquePair(ctx, parent, d, entries[i-1], entries[i], schema, building, ordering); err != nil {
+		if err := validateUniquePair(ctx, parent, index, entries[i-1], entries[i], schema, output, auth, building, ordering); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateUniquePair(ctx context.Context, parent *relationDescriptor, d *indexDefinition, previous, current logicalIndexEntry, schema string, building bool, ordering indexOrdering) error {
-	if d.unique == nil || !d.unique.NullsNotDistinct && uniqueHasNull(current.keys) {
+func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+	d := index.sqlIndex
+	if !d.unique || !d.nullsNotDistinct && uniqueHasNull(current.keys) {
 		return nil
 	}
 	cmp, err := ordering.compareKeys(ctx, previous, current)
@@ -294,7 +296,15 @@ func validateUniquePair(ctx context.Context, parent *relationDescriptor, d *inde
 		return err
 	}
 	if cmp == 0 {
-		return uniqueDiagnostic(ctx, parent, d.unique, current.keys, schema, sqltype.OutputEnvironment{}, true, building)
+		allowed := auth == nil // Trusted package-level publication has no SQL principal.
+		if auth != nil {
+			ref := ObjectRef{owner: auth.catalog.owner.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
+			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.keys)
+			if err != nil {
+				return err
+			}
+		}
+		return uniqueDiagnostic(ctx, parent, index, current.keys, schema, output, allowed, building)
 	}
 	return nil
 }

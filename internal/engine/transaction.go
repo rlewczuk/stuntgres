@@ -303,10 +303,18 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	s.stage.self = &s.stage
 	// Capture presentation before engine locking; admission serializes settings
 	// changes on this session for the lifetime of the statement.
-	settings := op.session.settings
+	s.input, s.output = sessionPresentation(op.session)
+	return s, nil
+}
+
+// Admission serializes session settings; publication uses the same typed
+// presentation capture when formatting its supplementary integrity fence.
+func sessionPresentation(session *Session) (input sqltype.InputEnvironment, output sqltype.OutputEnvironment) {
+	settings := session.settings
 	settings.mu.Lock()
+	defer settings.mu.Unlock()
 	if settings.value("bytea_output") == "escape" {
-		s.output.ByteaOutput = sqltype.ByteaEscape
+		output.ByteaOutput = sqltype.ByteaEscape
 	}
 	zone, ok := settings.typed["timezone"]
 	if !ok {
@@ -316,12 +324,11 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	if !ok {
 		style = settings.defaultTyped["datestyle"]
 	}
-	s.input.Zone, s.output.Zone = zone.zone, zone.zone
-	s.input.DateStyle, s.output.DateStyle = style.dateStyle, style.dateStyle
-	s.output.IntervalStyle = sqltype.ParseIntervalStyle(settings.value("intervalstyle"))
-	s.input.IntervalStyle = s.output.IntervalStyle
-	settings.mu.Unlock()
-	return s, nil
+	input.Zone, output.Zone = zone.zone, zone.zone
+	input.DateStyle, output.DateStyle = style.dateStyle, style.dateStyle
+	output.IntervalStyle = sqltype.ParseIntervalStyle(settings.value("intervalstyle"))
+	input.IntervalStyle = output.IntervalStyle
+	return input, output
 }
 
 func (s *StatementScope) active() error {

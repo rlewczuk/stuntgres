@@ -23,10 +23,12 @@ type indexKey struct {
 	explicitClass    bool
 }
 type indexDefinition struct {
-	parent  ObjectAddress
-	keys    []indexKey
-	include []int32
-	unique  *uniqueConstraint
+	parent           ObjectAddress
+	keys             []indexKey
+	include          []int32
+	unique           bool
+	nullsNotDistinct bool
+	constraint       *uniqueConstraint
 }
 type logicalIndexEntry struct {
 	keys    []sqltype.Value
@@ -54,8 +56,8 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.IndexComparison, len(definition.keys)), keys: definition.keys}
 	for i, key := range definition.keys {
 		if key.derived != nil {
-			if definition.unique != nil {
-				return o, fmt.Errorf("stuntgres: derived UNIQUE backing key")
+			if definition.unique {
+				return o, sqlError("0A000", "unique expression indexes are unsupported")
 			}
 			if key.derived.definition == nil || key.derived.execution == nil {
 				return o, fmt.Errorf("stuntgres: missing derived index expression")
@@ -121,21 +123,26 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	if !ok || parent.relationKind != tableRelation || parent.owner != index.owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
-	if d.unique != nil {
+	if d.constraint != nil {
 		found := false
 		for _, c := range parent.uniqueConstraints {
-			if c.Index == index.address && c.OID == d.unique.OID {
+			if c.Index == index.address && c.OID == d.constraint.OID {
 				found = true
 				break
 			}
 		}
-		if !found {
+		if !found || !d.unique || d.nullsNotDistinct != d.constraint.NullsNotDistinct {
 			return fmt.Errorf("stuntgres: orphan unique backing index")
 		}
 	}
 	_, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return err
+	}
+	if d.unique {
+		if err := validateUniqueProviders(parent, d, nil); err != nil {
+			return err
+		}
 	}
 	for i, key := range d.keys {
 		if key.derived != nil {
@@ -303,7 +310,8 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 	}
 	return entries, nil
 }
-func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, old []logicalIndexEntry, p *rowPublication, materialize bool, schema string) (*logicalIndexRoot, error) {
+func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, materialize bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
+	d := index.sqlIndex
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return nil, err
@@ -354,7 +362,7 @@ func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 	havePrevious := false
 	accept := func(entry logicalIndexEntry) error {
 		if havePrevious {
-			if err := validateUniquePair(ctx, parent, d, previous, entry, schema, false, o); err != nil {
+			if err := validateUniquePair(ctx, parent, index, previous, entry, schema, output, auth, false, o); err != nil {
 				return err
 			}
 		}
@@ -483,6 +491,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.keys[i].class.Name)))
 			}
 		}
+		definition.unique, definition.nullsNotDistinct = s.Unique, s.NullsNotDistinct
+		if s.Unique {
+			if err := validateUniqueProviders(parent, definition, s.Keys); err != nil {
+				return fail(err)
+			}
+		}
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			return fail(err)
@@ -500,6 +514,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		base := auth.catalog
 		stage := e.BeginCatalogStage(base)
 		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+		stage.indexOutput = scope.output
 		err = stage.Create(d)
 		e.mu.Unlock()
 		if err != nil {

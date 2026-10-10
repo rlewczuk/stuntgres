@@ -14,10 +14,10 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 	if parent == nil {
 		return nil, nil
 	}
-	if index.sqlIndex.unique != nil {
+	if index.sqlIndex.constraint != nil {
 		found := false
 		for _, c := range parent.uniqueConstraints {
-			if c.Index == index.address && c.OID == index.sqlIndex.unique.OID {
+			if c.Index == index.address && c.OID == index.sqlIndex.constraint.OID {
 				found = true
 				break
 			}
@@ -108,6 +108,11 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 	}
 	if _, err := bindIndexOrdering(parent, definition); err != nil {
 		return nil, err
+	}
+	if definition.unique {
+		if err := validateUniqueProviders(parent, definition, nil); err != nil {
+			return nil, err
+		}
 	}
 	changed := definition != index.sqlIndex || index.namespace != parent.namespace || index.owner != parent.owner
 	for i, key := range definition.keys {
@@ -234,11 +239,11 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor) (map[ObjectAddress]*logicalIndexRoot, error) {
-	return e.prepareIndexPublication(ctx, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true)
+func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, output sqltype.OutputEnvironment, auth *AuthorizationView) (map[ObjectAddress]*logicalIndexRoot, error) {
+	return e.prepareIndexPublication(ctx, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true, output, auth)
 }
 
-func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView) (map[ObjectAddress]*logicalIndexRoot, error) {
 	var result map[ObjectAddress]*logicalIndexRoot
 	for a, d := range next.descriptors {
 		index, ok := d.(*relationDescriptor)
@@ -268,7 +273,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				return nil, err
 			}
 			root = nil
-			if index.sqlIndex.unique != nil {
+			if index.sqlIndex.unique {
 				// Namespace metadata belongs to UNIQUE diagnostics, not ordinary
 				// key construction. Replacement also accepts reduced validated
 				// parent/index catalogues for nonunique roots.
@@ -279,7 +284,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				if err != nil {
 					return nil, err
 				}
-				if err := validateUniqueEntries(ctx, parent, index.sqlIndex, entries, namespace.name, true, ordering); err != nil {
+				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.name, output, auth, true, ordering); err != nil {
 					return nil, err
 				}
 			}
@@ -290,10 +295,10 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			}
 			var err error
 			schema := ""
-			if index.sqlIndex.unique != nil {
+			if index.sqlIndex.unique {
 				schema = next.descriptors[parent.namespace].(*namespaceDescriptor).name
 			}
-			root, err = mergeIndexRoot(ctx, parent, index.sqlIndex, entries, &publications[i], materialize, schema)
+			root, err = mergeIndexRoot(ctx, parent, index, entries, &publications[i], materialize, schema, output, auth)
 			if err != nil {
 				return nil, err
 			}
@@ -323,11 +328,7 @@ func sameIndexKeySemantics(a, b *relationDescriptor) bool {
 			return false
 		}
 	}
-	x, y := a.sqlIndex.unique, b.sqlIndex.unique
-	if x == nil || y == nil {
-		return x == nil && y == nil
-	}
-	return x.NullsNotDistinct == y.NullsNotDistinct && slices.Equal(x.Attributes, y.Attributes)
+	return a.sqlIndex.unique == b.sqlIndex.unique && a.sqlIndex.nullsNotDistinct == b.sqlIndex.nullsNotDistinct
 }
 
 // Only changed roots require a storage fence. Unchanged siblings may have

@@ -1,6 +1,9 @@
 package engine
 
-import "context"
+import (
+	"context"
+	"stuntgres/internal/sqltype"
+)
 
 // Imported storage is private to replacement. Exact retained TEMP storage keeps
 // its internal lifetime and row identities. Allocator frontiers advance only
@@ -22,6 +25,6 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			row.keyChangedAt, row.pendingKeyChange = 0, false
 		}
 	}
-	roots, err := e.prepareIndexCatalog(ctx, &catalogState{}, next, storage, nil, nil, nil)
+	roots, err := e.prepareIndexCatalog(ctx, &catalogState{}, next, storage, nil, nil, nil, sqltype.OutputEnvironment{}, nil)
 	return roots, rowID, versionID, err
 }

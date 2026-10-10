@@ -685,13 +685,17 @@ requested modes as rows and held modes as columns; **yes** means conflict:
 | NO KEY UPDATE | no | yes | yes | yes |
 | UPDATE | yes | yes | yes | yes |
 
-One owner accumulates modes without blocking itself. Native tables have no
-eligible unique-key metadata: supported UPDATE automatically takes NO KEY UPDATE,
-and DELETE takes UPDATE. PostgreSQL unique-key-update controls in the reference
-suite do not imply native unique indexes/constraints. Ordinary nonunique B-tree
-indexes do not strengthen UPDATE's row-lock mode. Other rows and ordinary MVCC
-SELECT are not blocked by row locks, including reads of a peer's privately
-updated/deleted row (which return the committed visible version).
+One owner accumulates modes without blocking itself. UPDATE changing any eligible
+simple UNIQUE key takes UPDATE; unchanged keys and payload/INCLUDE-only changes
+take NO KEY UPDATE. DELETE takes UPDATE. Standalone unique indexes and genuine
+constraint backing indexes share this classification, immediate normalized key
+claims, wait/outcome recapture and savepoint lifetime in the existing lock graph.
+SameDatum transitions, including NUMERIC scale and signed zero, feed retained RR
+key history: changed-then-restored keys are not mistaken for payload-only updates.
+Current uniqueness ignores a stale RR SELECT frontier and sees committed peers.
+Ordinary nonunique indexes do not strengthen UPDATE's mode. Other rows and
+ordinary MVCC SELECT are not blocked by row locks, including reads of a peer's
+privately updated/deleted row (which return the committed visible version).
 
 Execution eagerly freezes qualifying row identities and initial sort order,
 then acquires row grants before returning a cursor. Prepare takes ROW SHARE

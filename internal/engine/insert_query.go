@@ -346,15 +346,26 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: INSERT query lacks final projection")
 	}
+	// Bind uniqueness before opening the producer: opening can itself evaluate
+	// rows. A target without unique indexes needs no per-row catalog recapture;
+	// its epoch is still checked when the completed batch reaches Apply.
+	unique := len(b.relation.uniqueConstraints) != 0
+	if scope != nil {
+		bound, err := scope.bindUniqueWrite(b.ref)
+		if err != nil {
+			return nil, err
+		}
+		unique = len(bound.keys) != 0
+	}
 	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil}
 	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope)
+	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (rows [][]sqltype.Value, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool) (rows [][]sqltype.Value, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -428,7 +439,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, scope.op.session.token.owner.rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
-		if len(b.relation.uniqueConstraints) != 0 {
+		if unique {
 			if scope == nil {
 				return nil, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}

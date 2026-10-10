@@ -6,6 +6,14 @@ import (
 )
 
 func TestReferenceUniqueRowLockStrength(t *testing.T) {
+	uniqueReferenceRowLockStrength(t, false)
+}
+
+func TestReferenceUniqueIndexRowLockStrength(t *testing.T) {
+	uniqueReferenceRowLockStrength(t, true)
+}
+
+func uniqueReferenceRowLockStrength(t *testing.T, standalone bool) {
 	cases := []struct {
 		name, typ, seed, update string
 		blocked                 bool
@@ -26,7 +34,7 @@ func TestReferenceUniqueRowLockStrength(t *testing.T) {
 				t.Run(backend.name, func(t *testing.T) {
 					a, b := referenceLockConnections(t, p.ctx, backend.db)
 					run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.recorder, s) }
-					run(referenceExec("CREATE TABLE t(k "+c.typ+",extra INT,v INT,CONSTRAINT u UNIQUE(k,extra))", 0))
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k "+c.typ+",extra INT,v INT,CONSTRAINT u UNIQUE(k,extra))", "CREATE TABLE t(k "+c.typ+",extra INT,v INT)", "CREATE UNIQUE INDEX u ON t(k,extra)")
 					run(referenceExec("INSERT INTO t VALUES("+c.seed+",1,10)", 1))
 					run(referenceExec("BEGIN", 0))
 					run(referenceSelect("SELECT v FROM t FOR KEY SHARE", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
@@ -59,6 +67,14 @@ func TestReferenceUniqueRowLockStrength(t *testing.T) {
 }
 
 func TestReferenceUniqueContention(t *testing.T) {
+	uniqueReferenceContention(t, false)
+}
+
+func TestReferenceUniqueIndexContention(t *testing.T) {
+	uniqueReferenceContention(t, true)
+}
+
+func uniqueReferenceContention(t *testing.T, standalone bool) {
 	for _, operation := range []string{"insert", "delete", "update"} {
 		for _, commit := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/commit=%t", operation, commit), func(t *testing.T) {
@@ -67,7 +83,7 @@ func TestReferenceUniqueContention(t *testing.T) {
 					t.Run(backend.name, func(t *testing.T) {
 						a, b := referenceLockConnections(t, p.ctx, backend.db)
 						run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.recorder, s) }
-						run(referenceExec("CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", 0))
+						uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", "CREATE TABLE t(k INT)", "CREATE UNIQUE INDEX u ON t(k)")
 						if operation != "insert" {
 							run(referenceExec("INSERT INTO t VALUES(1)", 1))
 						}
@@ -137,12 +153,20 @@ func TestReferenceUniqueContention(t *testing.T) {
 }
 
 func TestReferenceUniqueRepeatableRead(t *testing.T) {
+	uniqueReferenceRepeatableRead(t, false)
+}
+
+func TestReferenceUniqueIndexRepeatableRead(t *testing.T) {
+	uniqueReferenceRepeatableRead(t, true)
+}
+
+func uniqueReferenceRepeatableRead(t *testing.T, standalone bool) {
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, b := referenceLockConnections(t, p.ctx, backend.db)
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.recorder, s) }
-			run(referenceExec("CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", 0))
+			uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", "CREATE TABLE t(k INT)", "CREATE UNIQUE INDEX u ON t(k)")
 			run(referenceExec("BEGIN ISOLATION LEVEL REPEATABLE READ", 0))
 			run(referenceSelect("SELECT k FROM t", []string{"k"}, []string{"INT4"}, [][]any{}))
 			referenceRunStep(t, p.ctx, b, backend.recorder, referenceExec("INSERT INTO t VALUES(1)", 1))

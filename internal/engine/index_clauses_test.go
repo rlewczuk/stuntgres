@@ -71,7 +71,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	successor.base = 1
 	successor.version = 4
 	successor.values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(ctx, parent, index.sqlIndex, root.entries, &rowPublication{writes: []rowVersion{successor}}, true, "")
+	merged, err := mergeIndexRoot(ctx, parent, index, root.entries, &rowPublication{writes: []rowVersion{successor}}, true, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	c := uniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.address}
 	parent.uniqueConstraints = []uniqueConstraint{c}
 	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: class}}, include: []int32{30}, unique: &c}
+	index.sqlIndex = &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: class}}, include: []int32{30}, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: &c}
 	index.columns = []ColumnDescriptor{parent.columns[0], parent.columns[2]}
 	index.attributes = []int32{1, 2}
 	index.attributeHighWater = 2
@@ -163,7 +163,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 		if len(root.entries) != 2 || len(root.entries[0].keys) != 1 {
 			t.Fatal(root)
 		}
-		err = validateUniqueRoot(ctx, parent, index.sqlIndex, root, "public", false)
+		err = validateUniqueRoot(ctx, parent, index, root, "public", sqltype.OutputEnvironment{}, nil, false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Detail != "Key (a)=(1) already exists." {
 			t.Fatal("INCLUDE weakened actual unique root", err)
@@ -356,7 +356,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	// This is a deliberately reduced but valid key-construction catalogue:
 	// namespace descriptors are needed for UNIQUE diagnostics, not nonunique
 	// ordering/provider/shape validation or replacement materialization.
-	roots, err := e.prepareIndexPublication(context.Background(), catalog, catalog, storage, nil, nil, nil, nil, false)
+	roots, err := e.prepareIndexPublication(context.Background(), catalog, catalog, storage, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only replacement required unrelated namespace metadata or materialized roots", roots, err)
 	}
@@ -367,7 +367,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	broken.sqlIndex = &definition
 	invalid := &catalogState{descriptors: map[ObjectAddress]Descriptor{parent.address: parent, index.address: &broken}}
 	for _, materialize := range []bool{false, true} {
-		if _, err := e.prepareIndexPublication(context.Background(), catalog, invalid, storage, nil, nil, nil, nil, materialize); err == nil {
+		if _, err := e.prepareIndexPublication(context.Background(), catalog, invalid, storage, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)
 		}
 	}

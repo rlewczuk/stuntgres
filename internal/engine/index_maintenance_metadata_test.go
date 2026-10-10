@@ -120,10 +120,10 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		run(t, e, q)
 	}
 	un, _ := btreeRoot(t, e, "un")
-	constraint := *un.sqlIndex.unique
+	constraint := *un.sqlIndex.constraint
 	run(t, e, "ALTER INDEX un RENAME TO renamed_un")
 	renamed, _ := btreeRoot(t, e, "renamed_un")
-	if renamed.address != un.address || renamed.sqlIndex.unique.OID != constraint.OID || renamed.sqlIndex.unique.Index != constraint.Index {
+	if renamed.address != un.address || renamed.sqlIndex.constraint.OID != constraint.OID || renamed.sqlIndex.constraint.Index != constraint.Index {
 		t.Fatal("domain backing rename lost real constraint/index link")
 	}
 	check := func(name string, attribute int16, class, collation OID) {
@@ -136,7 +136,7 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		want.IndClass = []OID{class}
 		want.IndCollation = []OID{collation}
 		want.IndOption = []int16{0}
-		if !reflect.DeepEqual(got, want) || index.sqlIndex.keys[0].class.OID() != uint32(class) || index.sqlIndex.unique.Index != index.address {
+		if !reflect.DeepEqual(got, want) || index.sqlIndex.keys[0].class.OID() != uint32(class) || index.sqlIndex.constraint.Index != index.address {
 			t.Fatal("real domain backing descriptor/vector truth", name, got, want)
 		}
 	}
@@ -146,10 +146,10 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		check("us", 2, 3126, 950)
 	}
 	beforeType, oldRoot := btreeRoot(t, e, "renamed_un")
-	oldConstraint := *beforeType.sqlIndex.unique
+	oldConstraint := *beforeType.sqlIndex.constraint
 	run(t, e, "ALTER TABLE q ALTER n TYPE BIGINT USING n::bigint")
 	afterType, typedRoot := btreeRoot(t, e, "renamed_un")
-	if afterType.address == beforeType.address || afterType.sqlIndex.unique.OID == oldConstraint.OID || afterType.sqlIndex.unique.Index != afterType.address || typedRoot == oldRoot || beforeType.sqlIndex.keys[0].class.OID() != 1978 || beforeType.sqlIndex.unique.Index != oldConstraint.Index {
+	if afterType.address == beforeType.address || afterType.sqlIndex.constraint.OID == oldConstraint.OID || afterType.sqlIndex.constraint.Index != afterType.address || typedRoot == oldRoot || beforeType.sqlIndex.keys[0].class.OID() != 1978 || beforeType.sqlIndex.constraint.Index != oldConstraint.Index {
 		t.Fatal("TYPE lost candidate identities/backing link or mutated retained class/root")
 	}
 	if !reflect.DeepEqual(btreeKeys(t, oldRoot), []string{"1", "NULL"}) {

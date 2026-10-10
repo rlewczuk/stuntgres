@@ -31,7 +31,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.sqlIndex.unique.OID && c.Index == index.address {
+		if c.OID == index.sqlIndex.constraint.OID && c.Index == index.address {
 			slot = i
 		}
 	}
@@ -46,9 +46,9 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	next.uniqueConstraints = append([]uniqueConstraint(nil), parent.uniqueConstraints...)
 	next.uniqueConstraints[slot].Name = index.name
 	definition := *index.sqlIndex
-	unique := *definition.unique
-	unique.Name = index.name
-	definition.unique = &unique
+	constraint := *definition.constraint
+	constraint.Name = index.name
+	definition.constraint = &constraint
 	index.sqlIndex = &definition
 	return stage.Replace(&next)
 }

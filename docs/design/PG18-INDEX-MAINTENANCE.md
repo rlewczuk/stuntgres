@@ -84,13 +84,16 @@ No schema denial is presented as a parent MAINTAIN witness.
 
 ## Atomic names and backing constraints
 
-Ordinary index rename changes only the relation name/revision. Parent/key/root
-identities and siblings remain unchanged. Rename of a UNIQUE backing index
-publishes the matching parent constraint record, index name and unique wrapper
-name together, retaining constraint and index OIDs, stable attributes and null
-policy. Relation-name collisions42P07 precede parent constraint collisions42710.
-Subsequent23505 diagnostics name the renamed constraint. Direct backing-index
-DROP fails2BP01, even with CASCADE, and points the caller to DROP CONSTRAINT.
+Standalone index rename, unique or ordinary, changes only relation name/revision.
+Parent/key/root identities and siblings remain unchanged, while23505 uses the
+current index name. Only a genuine UNIQUE attachment also publishes its matching
+parent constraint name, retaining both real OIDs. Relation-name collisions42P07
+precede parent constraint collisions42710. Direct attached DROP fails2BP01 even
+with CASCADE and points to DROP CONSTRAINT; standalone DROP frees enforcement.
+Shared root-build validation uses captured current SELECT disclosure and output
+environment for CREATE/TYPE/REINDEX; ownership alone does not reveal unreadable
+key values. Immutable publication and final catalog/role/session fences remain
+the sole installing authority.
 
 Initial backing construction, temporary TYPE validation and owned TYPE descriptor
 reconstruction retain the same central DefaultIndexClass as ordinary keys.

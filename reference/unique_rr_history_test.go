@@ -6,6 +6,14 @@ import (
 )
 
 func TestReferenceUniqueRepeatableReadKeyHistory(t *testing.T) {
+	uniqueReferenceKeyHistory(t, false)
+}
+
+func TestReferenceUniqueIndexHistory(t *testing.T) {
+	uniqueReferenceKeyHistory(t, true)
+}
+
+func uniqueReferenceKeyHistory(t *testing.T, standalone bool) {
 	cases := []struct {
 		name, typ, seed     string
 		updates             []string
@@ -31,7 +39,7 @@ func TestReferenceUniqueRepeatableReadKeyHistory(t *testing.T) {
 					t.Run(b.name, func(t *testing.T) {
 						a, peer := referenceLockConnections(t, p.ctx, b.db)
 						run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
-						run(referenceExec("CREATE TABLE t(k "+c.typ+" CONSTRAINT u UNIQUE,v INT)", 0))
+						uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k "+c.typ+" CONSTRAINT u UNIQUE,v INT)", "CREATE TABLE t(k "+c.typ+",v INT)", "CREATE UNIQUE INDEX u ON t(k)")
 						run(referenceExec("INSERT INTO t VALUES("+c.seed+",10)", 1))
 						run(referenceExec("BEGIN ISOLATION LEVEL REPEATABLE READ", 0))
 						run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
@@ -86,6 +94,14 @@ func TestReferenceUniqueRepeatableReadKeyHistory(t *testing.T) {
 }
 
 func TestReferenceUniqueRepeatableReadHistoryControls(t *testing.T) {
+	uniqueReferenceHistoryControls(t, false)
+}
+
+func TestReferenceUniqueIndexHistoryControls(t *testing.T) {
+	uniqueReferenceHistoryControls(t, true)
+}
+
+func uniqueReferenceHistoryControls(t *testing.T, standalone bool) {
 	for _, mode := range []string{"rolled_back_change", "old_change", "old_restore"} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/prepared=%t", mode, prepared), func(t *testing.T) {
@@ -94,7 +110,7 @@ func TestReferenceUniqueRepeatableReadHistoryControls(t *testing.T) {
 					t.Run(b.name, func(t *testing.T) {
 						a, peer := referenceLockConnections(t, p.ctx, b.db)
 						run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
-						run(referenceExec("CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v INT)", 0))
+						uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v INT)", "CREATE TABLE t(k INT,v INT)", "CREATE UNIQUE INDEX u ON t(k)")
 						run(referenceExec("INSERT INTO t VALUES(1,10)", 1))
 						key := int64(1)
 						if mode != "rolled_back_change" {

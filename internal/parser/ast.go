@@ -159,13 +159,16 @@ type IndexKey struct {
 	Pos               Position
 }
 type CreateIndex struct {
-	Name        Identifier
-	Table       ObjectName
-	Method      string
-	Keys        []IndexKey
-	Include     []IndexKey
-	IfNotExists bool
-	Pos         Position
+	Name             Identifier
+	Table            ObjectName
+	Method           string
+	Keys             []IndexKey
+	Include          []IndexKey
+	IfNotExists      bool
+	Unique           bool
+	NullsNotDistinct bool
+	NullsPos         Position
+	Pos              Position
 }
 
 func (*CreateIndex) statement() {}

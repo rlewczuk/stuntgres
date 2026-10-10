@@ -406,7 +406,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
-	var uniqueBaselines []*logicalIndexRoot
+	var uniqueBaselines map[string]*logicalIndexRoot
 	if len(transformations) != 0 {
 		// Recapture effective authority after provider waits and row rewriting.
 		// The immutable snapshot is used outside metadata locks for disclosure.
@@ -421,7 +421,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err != nil {
 			return Result{}, err
 		}
-		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, ref, next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations)
+		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations)
 		if err != nil {
 			return Result{}, err
 		}

@@ -538,8 +538,8 @@ or physical index-only promise; unordered SELECT has no new ordering guarantee.
 Dump/Restore serializes actual current definitions and rebuilds entries. TYPE
 reconstruction, including same-type key/payload TYPE with or without USING,
 reselects old-default classes and revalidates retained nondefaults.
-Native CREATE INDEX remains excluded in explicit transactions; standalone CREATE
-UNIQUE INDEX, partial and concurrent indexes remain excluded.
+Native CREATE INDEX remains excluded in explicit transactions; partial and
+concurrent indexes remain excluded. Standalone UNIQUE simple keys are supported.
 See [clause design](docs/design/PG18-INDEX-CLAUSES.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0`;
 use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL oracle.
@@ -554,11 +554,28 @@ a real immutable logical B-tree; INSERT and UPDATE enforce typed equality
 immediately, with atomic failures and transaction-owned key claims. Constraint
 and backing-index identities survive renames and schema moves, rebuild on key
 TYPE, and disappear on DROP CONSTRAINT/key column/table. Dump/Restore emits the
-constraint once and reconstructs its backing index. Deferrability, ALTER ADD
-UNIQUE and standalone CREATE UNIQUE INDEX remain excluded.
+constraint once and reconstructs its backing index. Deferrability and ALTER ADD
+UNIQUE remain excluded.
 See [UNIQUE constraints](docs/TABLES.md#unique-constraints--change-note) and
 [the design](docs/design/PG18-DDL-UNIQUE.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueFeatureSmoke$'`.
+
+Change note: `CREATE UNIQUE INDEX` supports simple/composite keys, default or
+explicit `NULLS DISTINCT`, and trailing `NULLS NOT DISTINCT`. Existing duplicates
+reject the build atomically with23505; writes use the same immediate typed
+enforcement, transaction-owned key claims and current liveness as table UNIQUE.
+Directions, NULL ordering, compatible owned classes/collations and INCLUDE remain
+substantive; INCLUDE never participates in equality. Unique expression keys and
+BPCHAR classes on TEXT/VARCHAR are explicit0A000 boundaries; ordinary indexes
+retain those existing capabilities. A standalone unique index has no synthetic
+pg_constraint row: rename preserves its identity and updates diagnostics, DROP
+frees enforcement, TYPE revalidates converted rows, and Dump emits it exactly once
+after table/data. Build and runtime key disclosure both require current SELECT
+on the table or every key column, even for owners. Native explicit writable
+utility transactions remain excluded; read-only25006 precedes lookup.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueIndexFeatureSmoke$' VERBOSE=0`;
+repeat with `REFERENCE=1` for the pinned PostgreSQL oracle.
+
 
 
 Change note: `ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression`

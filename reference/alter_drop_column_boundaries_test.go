@@ -64,20 +64,13 @@ func TestReferenceAlterDropColumnParserBoundaries(t *testing.T) {
 	p.step(t, referenceSelect("SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "keep"}}))
 }
 
-func TestReferenceAlterDropColumnNativeDependencyCapabilityBoundary(t *testing.T) {
+func TestReferenceAlterDropColumnDependentIndexAndView(t *testing.T) {
 	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(a INT,b TEXT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,'keep')", 1))
-	before := referenceDDLNativeDump(t, p)
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceDDLPositionError("CREATE UNIQUE INDEX idx ON t(b)", "0A000", "unique indexes are unsupported", "8", false, "execute"))
-	if referenceDDLNativeDump(t, p) != before {
-		t.Fatal("unsupported unique index changed native catalog")
-	}
-	if p.postgres != nil {
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("CREATE UNIQUE INDEX idx ON t(b)", 0))
-	}
+	p.step(t, referenceExec("CREATE UNIQUE INDEX idx ON t(b)", 0))
 	p.step(t, referenceExec("CREATE VIEW v AS SELECT b FROM t", 0))
-	before = referenceDDLNativeDump(t, p)
+	before := referenceDDLNativeDump(t, p)
 	failure := referenceImplicitError("ALTER TABLE t DROP b RESTRICT", referenceDiagnostic{Code: "2BP01", Message: "cannot drop column b of table t because other objects depend on it", Detail: "view v depends on column b of table t", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 	failure.errorStage = "execute"
 	p.step(t, failure)
@@ -87,6 +80,7 @@ func TestReferenceAlterDropColumnNativeDependencyCapabilityBoundary(t *testing.T
 	p.step(t, referenceSelect("SELECT * FROM v", []string{"b"}, []string{"TEXT"}, [][]any{{"keep"}}))
 	p.step(t, referenceExec("ALTER TABLE t DROP b CASCADE", 0))
 	p.step(t, referenceSelect("SELECT * FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
+	p.step(t, referenceSelect("SELECT relname FROM pg_class WHERE relname='idx'", []string{"relname"}, []string{"NAME"}, nil))
 	failure = referenceDDLPositionError("SELECT * FROM v", "42P01", `relation "v" does not exist`, "15", false, "execute")
 	failure.selectRows = true
 	p.step(t, failure)

@@ -186,12 +186,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					if parent, remapped := mapping[definition.parent]; remapped {
 						definition.parent = parent
 					}
-					if definition.unique != nil {
-						constraint := *definition.unique
+					if definition.constraint != nil {
+						constraint := *definition.constraint
 						if dest, remapped := mapping[constraint.Index]; remapped {
 							constraint.Index = dest
 						}
-						definition.unique = &constraint
+						definition.constraint = &constraint
 					}
 					n.sqlIndex = &definition
 				}

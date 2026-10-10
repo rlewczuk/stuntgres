@@ -1002,10 +1002,13 @@ inherited-equivalent collations become implicit; genuine overrides remain.
 
 Writable explicit CREATE INDEX transactions are excluded natively (0A000),
 while PostgreSQL supports transactional creation/rollback. Read-only execution
-returns 25006 first. Standalone CREATE UNIQUE INDEX, partial/concurrent
-indexes, non-btree methods, unowned collations/classes, class parameters and storage
-parameters/tablespaces remain excluded; CREATE TABLE UNIQUE constraints are
-supported with owned backing B-trees. Ordinary maintenance is described below.
+returns25006 first. Standalone CREATE UNIQUE INDEX supports simple/composite keys
+and trailing NULLS DISTINCT/NULLS NOT DISTINCT, existing-data validation and the
+same immediate write/transaction-key enforcement as table UNIQUE. Directions,
+NULL ordering, compatible classes/collations and INCLUDE retain their meaning.
+Unique expressions and BPCHAR classes on TEXT/VARCHAR fail explicit0A000;
+ordinary support is unchanged. Partial/concurrent indexes, non-btree methods,
+unowned providers, class parameters, storage parameters/tablespaces remain excluded.
 No unique-index attachment, planner, physical index-only scan or physical tree
 claim is made. Admitted collations are default, C, POSIX, pg_c_utf8 and
 pg_unicode_fast; class/provider inventory and directional binary compatibility
@@ -1022,8 +1025,8 @@ REINDEX TABLE [schema.]name;
 
 Every utility returns zero affected rows/no result columns and Prepare is
 syntax-only. DROP preflights every target before waiting/publishing, deduplicates
-repeated addresses, and removes only selected ordinary indexes. IF EXISTS emits
-complete missing-index/schema notices. Backing UNIQUE indexes cannot be dropped
+repeated addresses, and removes selected standalone indexes, unique or ordinary.
+IF EXISTS emits complete missing-index/schema notices. Attached UNIQUE indexes cannot be dropped
 directly even with CASCADE: use DROP CONSTRAINT. Rename retains root/key/OID
 identities; backing rename also changes its parent constraint name atomically.
 Table/sequence/view rename aliases use the shared relation rename contract.

@@ -19,7 +19,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	c := parent.uniqueConstraints[0]
 	index, empty := btreeRoot(t, e, "u")
-	if c.OID == 0 || c.Index != index.address || index.sqlIndex.unique == nil || index.sqlIndex.unique.OID != c.OID || index.sqlIndex.parent != parent.address || index.owner != parent.owner || index.namespace != parent.namespace || len(empty.entries) != 0 {
+	if c.OID == 0 || c.Index != index.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.parent != parent.address || index.owner != parent.owner || index.namespace != parent.namespace || len(empty.entries) != 0 {
 		t.Fatal("broken parent/index closure")
 	}
 	if index.attributeHighWater != int32(len(index.attributes)) {

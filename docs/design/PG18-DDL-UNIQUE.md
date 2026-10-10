@@ -5,8 +5,9 @@
 CREATE TABLE column/table UNIQUE supports immediate ordered simple keys and
 NULLS DISTINCT (default) / NULLS NOT DISTINCT. The backing relation is a real
 logical B-tree, not a catalog-only declaration or output-text uniqueness cache.
-ALTER ADD UNIQUE, deferrability, standalone CREATE UNIQUE INDEX, RENAME
-CONSTRAINT and PK/FK remain explicit capability boundaries.
+ALTER ADD UNIQUE, deferrability, RENAME CONSTRAINT and PK/FK remain explicit
+capability boundaries. PG18-INDEX-UNIQUE admits standalone simple-key uniqueness
+through the same enforcement, not a synthetic constraint attachment.
 
 ## Descriptor and publication closure
 
@@ -21,6 +22,17 @@ NULLS NOT DISTINCT includes those components.
 Backing columns have their own dense stable attributes and matching allocation
 high-water, independent of the parent's attribute holes. TYPE/remapping copies
 retain this descriptor invariant alongside the real backing identity.
+
+Index definitions now separate `unique` and `nullsNotDistinct` policy from the
+optional actual `constraint` attachment. Nonunique indexes can retain their
+index-wide NULL policy for truthful deparse without becoming enforcing.
+Shared DML bindings enumerate actual immutable catalog index membership and
+cache by catalog identity plus parent/ref, not parent pointer alone. Current
+roots/ACL authority are recaptured after key waits. Only true attachments
+propagate constraint names, prohibit direct DROP, collapse Dump graph nodes or
+remint constraint OIDs. Standalone indexes otherwise share root validation,
+TYPE/private baselines, diagnostics, key claims/history and native remapping.
+
 
 CREATE binds all names/attributes and canonicalizes identical ordered key/policy
 specifications before allocating retained objects. Explicit name transfer occurs
@@ -156,6 +168,7 @@ Context owners. The complete incoming regression/maintenance/lifecycle/control
 unions retain direct/prepared diagnostics, name rebinding, native dump atomicity
 and independent PostgreSQL accepted-definition/transaction witnesses.
 Superseded root/tagged and generic UniqueBtree-named duplicate hosts are removed,
-not kept as forwarding aliases. Constraint-backed UNIQUE tests are unaffected;
-standalone CREATE UNIQUE INDEX remains the native0A000 boundary above.
+not kept as forwarding aliases. Constraint-backed UNIQUE tests share consumer
+bodies with standalone-index wrappers; obsolete standalone exclusions now assert
+supported creation and preserve their original direct/plain/prepared/state union.
 Tests are verification inputs, not a claim that verification has been run.

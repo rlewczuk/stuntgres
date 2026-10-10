@@ -3497,7 +3497,7 @@ are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
 unlike newer development-source behavior. Binding precedes duplicate-name
 checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
 syntax diagnostics retain one-based character positions. Non-btree/
-partial/concurrent/standalone-unique definitions and unowned providers are bounded
+partial/concurrent definitions and unowned providers are bounded
 capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
 42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
 Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
@@ -3523,9 +3523,9 @@ Build and common row publication evaluate derived keys before atomic install;
 evaluation failures leave rows, descriptors and predecessor roots unchanged.
 Definitions retain original analyzed trees/dependencies for current-name
 rendering and TYPE rebinding; dump contents never serialize derived root history.
-Expression indexes do not enable standalone UNIQUE indexes or change the
-simple-slot contract of constraint backing indexes. UPDATE/DELETE acceptance
-remains with those DML parts; existing publication callers share maintenance.
+Unique expression indexes remain an explicit0A000 boundary; standalone and
+constraint-backed uniqueness share the simple-slot contract, immediate checker
+and transaction-owned key claims. Ordinary expression support is unchanged.
 
 Dump writes actual definitions/current names, canonical explicit provider identities
 and INCLUDE after parent data. Reset removes persistent indexes; Restore privately
@@ -3542,9 +3542,23 @@ Reference families are `TestReferenceBtreeIndex...`, `TestReferenceExpressionInd
 and `TestReferenceIndexClauses...`.
 The consolidated source/reference union keeps actual plain maintenance and
 transaction consumers beside recorded Context owners. Standalone CREATE UNIQUE
-INDEX still fails with native0A000/Position8/nil publications and unchanged
-catalog/data/Dump; independent PostgreSQL supported direct/held witnesses do
-not turn that native exclusion into a success.
+INDEX now supports simple/composite keys, default/explicit NULLS DISTINCT and
+trailing NULLS NOT DISTINCT. Duplicate builds fail atomically23505; runtime
+INSERT/UPDATE reuse table UNIQUE's current-root checks, wait/outcome recapture and
+SameDatum key-transition history, independently of a retained RR query snapshot.
+Compatible directions, NULL ordering, owned providers and INCLUDE remain real
+definitions; payload never affects equality. BPCHAR classes on TEXT/VARCHAR fail
+explicit0A000 because their trimmed equality disagrees with existing key hashes;
+ordinary admission is unchanged. A nonunique index may retain NULLS NOT DISTINCT
+for metadata/deparse without enforcing it. Standalone indexes have no constraint
+OID/pg_constraint row: direct DROP frees enforcement and rename changes only the
+index/current diagnostic name. TYPE, REINDEX and native replacement rebuild the
+same roots; Dump emits standalone definitions once after parent/data, while true
+attachments remain inline. Current SELECT on the table or all key columns governs
+build and runtime key Detail, including revoked owners. Native explicit writable
+utility0A000/read-only25006 boundaries remain unchanged.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueIndexFeatureSmoke$' VERBOSE=0`;
+repeat with `REFERENCE=1` for the pinned18.0 oracle.
 
 
 ## LIKE and ILIKE — change note

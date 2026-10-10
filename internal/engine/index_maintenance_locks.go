@@ -39,8 +39,8 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 			if err := relationDropOwner(auth, ref, d); err != nil {
 				return err
 			}
-			if d.sqlIndex.unique != nil {
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because constraint %s on table %s requires it", d.name, d.sqlIndex.unique.Name, auth.catalog.state.descriptors[d.sqlIndex.parent].Name()), Hint: "You can drop constraint " + d.sqlIndex.unique.Name + " on table " + auth.catalog.state.descriptors[d.sqlIndex.parent].Name() + " instead."}
+			if d.sqlIndex.constraint != nil {
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because constraint %s on table %s requires it", d.name, d.sqlIndex.constraint.Name, auth.catalog.state.descriptors[d.sqlIndex.parent].Name()), Hint: "You can drop constraint " + d.sqlIndex.constraint.Name + " on table " + auth.catalog.state.descriptors[d.sqlIndex.parent].Name() + " instead."}
 			}
 		case *parser.AlterIndex:
 			if s.Action != "rename" && d.relationKind != indexRelation {

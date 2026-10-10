@@ -59,7 +59,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		}
 		definition := *index.sqlIndex
 		definition.keys = slices.Clone(index.sqlIndex.keys)
-		definition.unique = c
+		definition.constraint = c
 		clone.sqlIndex = &definition
 		clone.columns = slices.Clone(index.columns)
 		for j, key := range definition.keys {
@@ -87,10 +87,11 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterUniques(ctx context.Context, auth AuthorizationView, ref ObjectRef, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation) ([]*logicalIndexRoot, error) {
+func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation) (map[string]*logicalIndexRoot, error) {
+	indexes := uniqueIndexes(auth.catalog, parent.address)
 	affected := false
-	for _, c := range parent.uniqueConstraints {
-		if uniqueTypeAffected(c, transformations) {
+	for _, index := range indexes {
+		if uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			affected = true
 			break
 		}
@@ -98,9 +99,9 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, ref Objec
 	if !affected {
 		return nil, nil
 	}
-	var baselines []*logicalIndexRoot
+	var baselines map[string]*logicalIndexRoot
 	if len(writes) == 0 && (deletes == nil || len(deletes.rows) == 0) {
-		baselines = make([]*logicalIndexRoot, len(parent.uniqueConstraints))
+		baselines = make(map[string]*logicalIndexRoot)
 	}
 	replaced := make(map[RowID]bool, len(writes))
 	for _, row := range writes {
@@ -118,68 +119,56 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, ref Objec
 		}
 	}
 	candidate := relationStorage{versions: live}
-	for i := range parent.uniqueConstraints {
-		if !uniqueTypeAffected(parent.uniqueConstraints[i], transformations) {
+	oldParent := auth.catalog.state.descriptors[parent.address].(*relationDescriptor)
+	for _, index := range indexes {
+		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			continue
 		}
-		c := &parent.uniqueConstraints[i]
-		d := indexDefinition{parent: parent.address, unique: c, keys: make([]indexKey, len(c.Attributes))}
-		for j, attr := range c.Attributes {
-			usage := parent.columns[slices.Index(parent.attributes, attr)].Usage
-			class, ok := sqltype.DefaultIndexClass(usage.Type)
-			if !ok {
-				return nil, indexDefaultClassError(usage.Type.DiagnosticName())
-			}
-			d.keys[j] = indexKey{attribute: attr, class: class}
-		}
-		root, err := buildIndexRoot(ctx, parent, &d, &candidate)
+		next, err := evolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
 		}
-		ordering, err := bindIndexOrdering(parent, &d)
+		if next == nil {
+			continue
+		}
+		root, err := buildIndexRoot(ctx, parent, next.sqlIndex, &candidate)
 		if err != nil {
 			return nil, err
 		}
-		for j := 1; j < len(root.entries); j++ {
-			key := root.entries[j].keys
-			if !c.NullsNotDistinct && uniqueHasNull(key) {
-				continue
-			}
-			cmp, err := ordering.compareKeys(ctx, root.entries[j-1], root.entries[j])
-			if err != nil {
-				return nil, err
-			}
-			if cmp == 0 {
-				allowed, err := uniqueKeyDetailAllowed(auth, ref, c)
-				if err != nil {
-					return nil, err
-				}
-				return nil, uniqueDiagnostic(ctx, parent, c, key, schema, output, allowed, true)
-			}
+		if err := validateUniqueRoot(ctx, parent, next, root, schema, output, &auth, true); err != nil {
+			return nil, err
 		}
 		if baselines != nil {
-			baselines[i] = root
+			baselines[index.name] = root
 		}
 	}
 	return baselines, nil
 }
 
-// The existing private catalog owner, not a statement/prepared binding, owns
-// these immutable baseline roots. Clone/savepoint restoration shares roots.
-func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, parent *relationDescriptor, baseline *relationStorage, validated []*logicalIndexRoot) error {
-	for i, c := range parent.uniqueConstraints {
-		original, private := changes.originals[c.Index]
-		if !private || original != nil || changes.uniqueRoots[c.Index] != nil {
+func uniqueIndexTypeAffected(definition *indexDefinition, transformations []columnTransformation) bool {
+	for _, key := range definition.keys {
+		for _, change := range transformations {
+			if key.attribute == change.attribute {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Both reminted attachments and evolved standalone indexes use the existing
+// private catalog owner. Roots exclude own successors, which DML checks in its
+// overlay; validated roots are reusable only when there was no own overlay.
+func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, parent *relationDescriptor, baseline *relationStorage, validated map[string]*logicalIndexRoot) error {
+	for address, descriptor := range changes.descriptors {
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil || !index.sqlIndex.unique || index.sqlIndex.parent != parent.address {
 			continue
 		}
-		index, ok := changes.descriptors[c.Index].(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
-			return fmt.Errorf("stuntgres: private unique backing index is missing")
+		if original := changes.originals[address]; original == descriptor {
+			continue
 		}
-		var root *logicalIndexRoot
-		if validated != nil {
-			root = validated[i]
-		}
+		root := validated[index.name]
 		if root == nil {
 			var err error
 			root, err = buildIndexRoot(ctx, parent, index.sqlIndex, baseline)
@@ -190,7 +179,7 @@ func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, paren
 		if changes.uniqueRoots == nil {
 			changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
 		}
-		changes.uniqueRoots[c.Index] = root
+		changes.uniqueRoots[address] = root
 	}
 	return nil
 }

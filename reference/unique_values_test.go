@@ -6,17 +6,25 @@ import (
 )
 
 func uniqueReferenceDuplicate(table, constraint, detail string) referenceDiagnostic {
-	d := controlsReferenceDiagnostic("23505", fmt.Sprintf("duplicate key value violates unique constraint %q", constraint))
+	d := controlsReferenceDiagnostic("23505", fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, constraint))
 	d.Schema, d.Table, d.Constraint, d.Detail = "public", table, constraint, detail
 	return d
 }
 
 func TestReferenceUniqueFeatureSmoke(t *testing.T) {
+	uniqueReferenceFeatureSmoke(t, false)
+}
+
+func TestReferenceUniqueIndexFeatureSmoke(t *testing.T) {
+	uniqueReferenceFeatureSmoke(t, true)
+}
+
+func uniqueReferenceFeatureSmoke(t *testing.T, standalone bool) {
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
-			run(referenceExec("CREATE TABLE t(a INT,b TEXT,CONSTRAINT t_ab_u UNIQUE NULLS NOT DISTINCT(a,b))", 0))
+			uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(a INT,b TEXT,CONSTRAINT t_ab_u UNIQUE NULLS NOT DISTINCT(a,b))", "CREATE TABLE t(a INT,b TEXT)", "CREATE UNIQUE INDEX t_ab_u ON t(a,b) NULLS NOT DISTINCT")
 			run(referencePrepared(referenceExec("INSERT INTO t VALUES($1,$2)", 1, int64(1), "x")))
 			run(referencePrepared(referenceExec("INSERT INTO t VALUES($1,$2)", 1, nil, "n")))
 			for _, prepared := range []bool{false, true} {
@@ -35,7 +43,7 @@ func TestReferenceUniqueFeatureSmoke(t *testing.T) {
 			run(referenceExec("UPDATE t SET a=a WHERE a=1", 1))
 			run(referenceErrorDiagnostic("UPDATE t SET a=1,b='x' WHERE a IS NULL", uniqueReferenceDuplicate("t", "t_ab_u", "Key (a, b)=(1, x) already exists.")))
 			run(want)
-			run(referenceExec("CREATE TABLE distinct_t(a INT,b TEXT,UNIQUE(a,b))", 0))
+			uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE distinct_t(a INT,b TEXT,UNIQUE(a,b))", "CREATE TABLE distinct_t(a INT,b TEXT)", "CREATE UNIQUE INDEX distinct_t_a_b_idx ON distinct_t(a,b)")
 			run(referenceExec("INSERT INTO distinct_t VALUES(NULL,'n'),(NULL,'n')", 2))
 			run(referenceSelect("SELECT a,b FROM distinct_t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{nil, "n"}, {nil, "n"}}))
 		})
@@ -43,13 +51,21 @@ func TestReferenceUniqueFeatureSmoke(t *testing.T) {
 }
 
 func TestReferenceUniqueValues(t *testing.T) {
+	uniqueReferenceValues(t, false)
+}
+
+func TestReferenceUniqueIndexValues(t *testing.T) {
+	uniqueReferenceValues(t, true)
+}
+
+func uniqueReferenceValues(t *testing.T, standalone bool) {
 	for _, mode := range []string{"", " NULLS DISTINCT", " NULLS NOT DISTINCT"} {
 		t.Run(fmt.Sprintf("mode%q", mode), func(t *testing.T) {
 			p := newReferenceScenario(t)
 			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
-					run(referenceExec("CREATE TABLE t(a INT,b INT,CONSTRAINT u UNIQUE"+mode+"(a,b))", 0))
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(a INT,b INT,CONSTRAINT u UNIQUE"+mode+"(a,b))", "CREATE TABLE t(a INT,b INT)", "CREATE UNIQUE INDEX u ON t(a,b)"+mode)
 					run(referenceExec("INSERT INTO t VALUES(1,1),(1,2),(NULL,1),(1,NULL),(NULL,NULL)", 5))
 					run(referenceErrorDiagnostic("INSERT INTO t VALUES(1,1)", uniqueReferenceDuplicate("t", "u", "Key (a, b)=(1, 1) already exists.")))
 					rows := [][]any{{int64(1), int64(1)}, {int64(1), int64(2)}, {nil, int64(1)}, {int64(1), nil}, {nil, nil}}
@@ -79,6 +95,14 @@ func TestReferenceUniqueValues(t *testing.T) {
 }
 
 func TestReferenceUniqueTypedEquality(t *testing.T) {
+	uniqueReferenceTypedEquality(t, false)
+}
+
+func TestReferenceUniqueIndexTypedEquality(t *testing.T) {
+	uniqueReferenceTypedEquality(t, true)
+}
+
+func uniqueReferenceTypedEquality(t *testing.T, standalone bool) {
 	cases := []struct {
 		name, typ, first, second string
 		collide                  bool
@@ -102,7 +126,7 @@ func TestReferenceUniqueTypedEquality(t *testing.T) {
 			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
-					run(referenceExec("CREATE TABLE t(k "+c.typ+" CONSTRAINT u UNIQUE)", 0))
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k "+c.typ+" CONSTRAINT u UNIQUE)", "CREATE TABLE t(k "+c.typ+")", "CREATE UNIQUE INDEX u ON t(k)")
 					run(referenceExec("INSERT INTO t VALUES("+c.first+")", 1))
 					q := "INSERT INTO t VALUES(" + c.second + ")"
 					count := int64(2)

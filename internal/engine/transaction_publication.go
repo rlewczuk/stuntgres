@@ -62,6 +62,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		e.finishPreparedLocked(phase)
 		return nil
 	}
+	_, output := sessionPresentation(op.session)
 	for {
 		var nextCatalog *catalogState
 		var err error
@@ -134,6 +135,13 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				}
 			}
 		}
+		var disclosure AuthorizationView
+		if err == nil {
+			disclosure, err = e.authorizationLocked(op)
+			if nextCatalog != nil {
+				disclosure.catalog = CatalogRead{e, nextCatalog}
+			}
+		}
 		e.mu.Unlock()
 		if err != nil {
 			return err
@@ -195,7 +203,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				}
 			}
 			var indexErr error
-			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, nil, prepared, materialize)
+			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, nil, prepared, materialize, output, &disclosure)
 			if indexErr != nil {
 				return indexErr
 			}

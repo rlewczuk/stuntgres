@@ -155,7 +155,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			}
 			parent := target.state.descriptors[roleTableRef(t, target, "portable.t").Address].(*relationDescriptor)
 			index, root := btreeRoot(t, target, "portable.u")
-			if parent.uniqueConstraints[0].Index != index.address || index.sqlIndex.parent != parent.address || index.sqlIndex.unique.OID != parent.uniqueConstraints[0].OID || len(root.entries) != 1 || root.entries[0].row == 0 || root.entries[0].version == 0 {
+			if parent.uniqueConstraints[0].Index != index.address || index.sqlIndex.parent != parent.address || index.sqlIndex.constraint.OID != parent.uniqueConstraints[0].OID || len(root.entries) != 1 || root.entries[0].row == 0 || root.entries[0].version == 0 {
 				t.Fatal("broken imported closure")
 			}
 			if root == sourceRoot || self && root.entries[0].row == sourceRoot.entries[0].row {

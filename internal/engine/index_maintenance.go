@@ -52,6 +52,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	stage.indexOutput = scope.output
 	stage.indexParents = make(map[ObjectAddress]*relationDescriptor, len(g.parents))
 	for _, ref := range g.parents {
 		stage.indexParents[ref.Address] = g.descriptors[ref.Address]

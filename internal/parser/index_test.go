@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -51,7 +52,6 @@ func TestBtreeIndexSyntaxDiagnostics(t *testing.T) {
 }
 func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
-		{"CREATE UNIQUE INDEX i ON t(n)", "unique indexes are unsupported", "8"},
 		{"CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14"},
 		{"CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24"},
 		{"CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24"},
@@ -62,6 +62,24 @@ func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: tc.position}
 		if !errors.As(err, &got) || !reflect.DeepEqual(*got, want) {
 			t.Fatalf("%s: got %#v want %#v: %v", tc.query, got, want, err)
+		}
+	}
+}
+
+func TestUniqueIndexPolicySyntax(t *testing.T) {
+	for _, query := range []string{
+		"CREATE UNIQUE INDEX ON t(a)",
+		"CREATE UNIQUE INDEX u ON t(a DESC NULLS FIRST,b) INCLUDE(p) NULLS NOT DISTINCT",
+		"CREATE UNIQUE INDEX IF NOT EXISTS u ON t(a) NULLS DISTINCT",
+		"CREATE INDEX u ON t(a) NULLS NOT DISTINCT",
+	} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+		index := statements[0].(*CreateIndex)
+		if index.Unique != strings.HasPrefix(query, "CREATE UNIQUE") || index.NullsNotDistinct != strings.HasSuffix(query, "NULLS NOT DISTINCT") {
+			t.Fatal(query, index)
 		}
 	}
 }

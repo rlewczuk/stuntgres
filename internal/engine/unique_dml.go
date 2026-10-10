@@ -24,7 +24,7 @@ func (s *StatementScope) uniqueParent(ref ObjectRef) (*relationDescriptor, Catal
 }
 
 type uniqueBoundKey struct {
-	constraint   *uniqueConstraint
+	index        *relationDescriptor
 	ordering     indexOrdering
 	grouping     []sqltype.Grouping
 	key, scratch []sqltype.Value
@@ -32,6 +32,7 @@ type uniqueBoundKey struct {
 type uniqueWriteBinding struct {
 	ref      ObjectRef
 	parent   *relationDescriptor
+	catalog  *catalogState
 	keys     []uniqueBoundKey
 	keySlots []int
 }
@@ -41,35 +42,31 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 	if err != nil {
 		return nil, err
 	}
-	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent {
+	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.state {
 		return b, nil
 	}
-	b := &uniqueWriteBinding{ref: ref, parent: parent}
-	if len(parent.uniqueConstraints) != 0 {
-		b.keys = make([]uniqueBoundKey, len(parent.uniqueConstraints))
+	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.state}
+	indexes := uniqueIndexes(view, parent.address)
+	if len(indexes) != 0 {
+		b.keys = make([]uniqueBoundKey, len(indexes))
 	}
-	for i := range b.keys {
+	for i, index := range indexes {
 		bound := &b.keys[i]
-		c := &parent.uniqueConstraints[i]
-		bound.constraint = c
-		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
-			return nil, errors.New("stuntgres: unique backing index is missing")
-		}
+		bound.index = index
 		bound.ordering, err = bindIndexOrdering(parent, index.sqlIndex)
 		if err != nil {
 			return nil, err
 		}
-		bound.grouping = make([]sqltype.Grouping, len(c.Attributes))
-		bound.key = make([]sqltype.Value, len(c.Attributes))
-		bound.scratch = make([]sqltype.Value, len(c.Attributes))
+		bound.grouping = make([]sqltype.Grouping, len(index.sqlIndex.keys))
+		bound.key = make([]sqltype.Value, len(index.sqlIndex.keys))
+		bound.scratch = make([]sqltype.Value, len(index.sqlIndex.keys))
 		for _, slot := range bound.ordering.slots {
 			if !slices.Contains(b.keySlots, slot) {
 				b.keySlots = append(b.keySlots, slot)
 			}
 		}
 		for j, slot := range bound.ordering.slots {
-			bound.grouping[j], err = sqltype.BindGrouping(parent.columns[slot].Usage)
+			bound.grouping[j], err = sqltype.BindGrouping(indexKeyCollation(parent.columns[slot].Usage, index.sqlIndex.keys[j]))
 			if err != nil {
 				return nil, err
 			}
@@ -93,13 +90,13 @@ func (s *StatementScope) claimUniqueRow(ref ObjectRef, row []sqltype.Value) erro
 	}
 	for i := range binding.keys {
 		bound := &binding.keys[i]
-		c := bound.constraint
+		index := bound.index
 		key := bound.load(row)
-		if !c.NullsNotDistinct && uniqueHasNull(key) {
+		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
-		indexRef.Address = c.Index
+		indexRef.Address = index.address
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
 			return err
 		}
@@ -141,14 +138,14 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 	ctx := s.op.Context()
 	for i := range binding.keys {
 		bound := &binding.keys[i]
-		c := bound.constraint
+		index := bound.index
 		ordering := bound.ordering
 		key := bound.load(row)
-		if !c.NullsNotDistinct && uniqueHasNull(key) {
+		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
-		indexRef.Address = c.Index
+		indexRef.Address = index.address
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
 			return err
 		}
@@ -158,16 +155,22 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 			return ErrCatalogReplaced
 		}
 		current := e.privateCatalogLocked(s.owner.catalog)
-		if current.state.descriptors[ref.Address] != parent {
+		currentParent, parentOK := current.state.descriptors[ref.Address].(*relationDescriptor)
+		currentIndex, indexOK := current.state.descriptors[index.address].(*relationDescriptor)
+		// ACL publication replaces immutable descriptors without changing their
+		// definition revision. Validate semantic identity rather than rejecting
+		// that replacement, then use the current descriptor for disclosure.
+		if !parentOK || !indexOK || currentParent.revision != parent.revision || !sameRelationRowShape(parent, currentParent) || currentIndex.revision != index.revision || !sameIndexKeySemantics(index, currentIndex) {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}
+		parent, index = currentParent, currentIndex
 		auth, err := e.authorizationLocked(s.op)
 		auth.catalog = current
 		namespace, _ := current.state.descriptors[parent.namespace].(*namespaceDescriptor)
-		root := e.indexRoots[c.Index]
+		root := e.indexRoots[index.address]
 		if changes := s.owner.catalog; changes != nil {
-			if private := changes.uniqueRoots[c.Index]; private != nil {
+			if private := changes.uniqueRoots[index.address]; private != nil {
 				root = private
 			}
 		}
@@ -266,11 +269,11 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excl
 			}
 		}
 		if conflict {
-			allowed, err := uniqueKeyDetailAllowed(auth, ref, c)
+			allowed, err := uniqueKeyDetailAllowed(auth, ref, index.sqlIndex.keys)
 			if err != nil {
 				return err
 			}
-			return uniqueDiagnostic(ctx, parent, c, key, namespace.name, s.output, allowed, false)
+			return uniqueDiagnostic(ctx, parent, index, key, namespace.name, s.output, allowed, false)
 		}
 	}
 	return nil

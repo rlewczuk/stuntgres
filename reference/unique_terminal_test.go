@@ -9,6 +9,14 @@ import (
 )
 
 func TestReferenceUniqueStatementTimeout(t *testing.T) {
+	uniqueReferenceStatementTimeout(t, false)
+}
+
+func TestReferenceUniqueIndexStatementTimeout(t *testing.T) {
+	uniqueReferenceStatementTimeout(t, true)
+}
+
+func uniqueReferenceStatementTimeout(t *testing.T, standalone bool) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprintf("prepared=%t", prepared), func(t *testing.T) {
 			p := newReferenceScenario(t)
@@ -16,7 +24,7 @@ func TestReferenceUniqueStatementTimeout(t *testing.T) {
 				t.Run(b.name, func(t *testing.T) {
 					a, peer := referenceLockConnections(t, p.ctx, b.db)
 					run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
-					run(referenceExec("CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", 0))
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", "CREATE TABLE t(k INT)", "CREATE UNIQUE INDEX u ON t(k)")
 					run(referenceExec("BEGIN", 0))
 					run(referenceExec("INSERT INTO t VALUES(1)", 1))
 					var ap, bp int
@@ -56,6 +64,14 @@ func TestReferenceUniqueStatementTimeout(t *testing.T) {
 }
 
 func TestReferenceUniqueKeyDeadlock(t *testing.T) {
+	uniqueReferenceKeyDeadlock(t, false)
+}
+
+func TestReferenceUniqueIndexKeyDeadlock(t *testing.T) {
+	uniqueReferenceKeyDeadlock(t, true)
+}
+
+func uniqueReferenceKeyDeadlock(t *testing.T, standalone bool) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprintf("prepared=%t", prepared), func(t *testing.T) {
 			p := newReferenceScenario(t)
@@ -63,7 +79,7 @@ func TestReferenceUniqueKeyDeadlock(t *testing.T) {
 				t.Run(b.name, func(t *testing.T) {
 					a, peer := referenceLockConnections(t, p.ctx, b.db)
 					run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
-					run(referenceExec("CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", 0))
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", "CREATE TABLE t(k INT)", "CREATE UNIQUE INDEX u ON t(k)")
 					namespace := uniqueReferencePublicNamespace(t, p.ctx, b.db, b.pg)
 					var indexOID int64
 					if err := a.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname='u' AND relnamespace=$1", namespace).Scan(&indexOID); err != nil || indexOID <= 0 {

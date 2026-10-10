@@ -115,10 +115,10 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 	run(t, e, "ALTER INDEX u RENAME TO u_new")
 	next, same := btreeRoot(t, e, "u_new")
 	nextParent := e.state.descriptors[old.sqlIndex.parent].(*relationDescriptor)
-	if same != root || next.address != old.address || next.sqlIndex.unique.OID != constraint.OID || next.sqlIndex.unique.Index != constraint.Index || next.sqlIndex.unique.Name != "u_new" || nextParent.uniqueConstraints[0].Name != "u_new" || nextParent.uniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.address] != siblingRoot || e.indexRoots[derived.address] != derivedRoot {
+	if same != root || next.address != old.address || next.sqlIndex.constraint.OID != constraint.OID || next.sqlIndex.constraint.Index != constraint.Index || next.sqlIndex.constraint.Name != "u_new" || nextParent.uniqueConstraints[0].Name != "u_new" || nextParent.uniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.address] != siblingRoot || e.indexRoots[derived.address] != derivedRoot {
 		t.Fatal("backing rename did not preserve real identities/roots")
 	}
-	if parent.uniqueConstraints[0].Name != "u" || old.sqlIndex.unique.Name != "u" {
+	if parent.uniqueConstraints[0].Name != "u" || old.sqlIndex.constraint.Name != "u" {
 		t.Fatal("rename mutated captured descriptors")
 	}
 	before := indexMaintenanceCapture(e)

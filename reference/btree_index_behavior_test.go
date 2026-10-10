@@ -283,6 +283,18 @@ func TestReferenceBtreeIndexControls(t *testing.T) {
 	}
 }
 func TestReferenceBtreeIndexTransactionDistinction(t *testing.T) {
+	referenceIndexTransactionDistinction(t, false)
+}
+
+func TestReferenceUniqueIndexTransactionDistinction(t *testing.T) {
+	referenceIndexTransactionDistinction(t, true)
+}
+
+func referenceIndexTransactionDistinction(t *testing.T, unique bool) {
+	head := "CREATE INDEX"
+	if unique {
+		head = "CREATE UNIQUE INDEX"
+	}
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 			p := newReferenceScenario(t)
@@ -294,12 +306,12 @@ func TestReferenceBtreeIndexTransactionDistinction(t *testing.T) {
 				}
 				defer tx.Rollback()
 				if db == p.memory {
-					step := referencePrepared(referenceImplicitError("CREATE INDEX idx ON t(n)", referenceDiagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
+					step := referencePrepared(referenceImplicitError(head+" idx ON t(n)", referenceDiagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
 					step.errorStage = "execute"
 					step.prepared = prepared
 					referenceRunStep(t, p.ctx, tx, recorder, step)
 				} else {
-					step := referenceExec("CREATE INDEX idx ON t(n)", 0)
+					step := referenceExec(head+" idx ON t(n)", 0)
 					step.prepared = prepared
 					referenceRunStep(t, p.ctx, tx, recorder, step)
 					referenceRunStep(t, p.ctx, tx, recorder, referenceSelect("SELECT relname FROM pg_catalog.pg_class WHERE relname='idx'", []string{"relname"}, []string{"NAME"}, [][]any{{"idx"}}))
@@ -315,7 +327,7 @@ func TestReferenceBtreeIndexTransactionDistinction(t *testing.T) {
 				}
 				defer tx.Rollback()
 				referenceRunStep(t, p.ctx, tx, recorder, referenceExec("SET TRANSACTION READ ONLY", 0))
-				sqlReadOnly := referenceImplicitError("CREATE INDEX idx ON missing(n)", referenceDiagnostic{Code: "25006", Message: "cannot execute CREATE INDEX in a read-only transaction"})
+				sqlReadOnly := referenceImplicitError(head+" idx ON missing(n)", referenceDiagnostic{Code: "25006", Message: "cannot execute CREATE INDEX in a read-only transaction"})
 				sqlReadOnly.prepared = prepared
 				sqlReadOnly.errorStage = "execute"
 				referenceRunStep(t, p.ctx, tx, recorder, sqlReadOnly)
@@ -327,7 +339,7 @@ func TestReferenceBtreeIndexTransactionDistinction(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer tx.Rollback()
-				step := referencePrepared(referenceImplicitError("CREATE INDEX idx ON missing(n)", referenceDiagnostic{Code: "25006", Message: "cannot execute CREATE INDEX in a read-only transaction"}))
+				step := referencePrepared(referenceImplicitError(head+" idx ON missing(n)", referenceDiagnostic{Code: "25006", Message: "cannot execute CREATE INDEX in a read-only transaction"}))
 				step.errorStage = "execute"
 				step.prepared = prepared
 				referenceRunStep(t, p.ctx, tx, recorder, step)

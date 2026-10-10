@@ -271,7 +271,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			clone := *index
 			definition := *index.sqlIndex
 			constraint := d.uniqueConstraints[i]
-			definition.unique = &constraint
+			definition.constraint = &constraint
 			clone.sqlIndex = &definition
 			next.descriptors[clone.address] = &clone
 			changed = true

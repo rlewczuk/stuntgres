@@ -54,7 +54,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	}
 	var sql strings.Builder
 	sql.WriteString("CREATE ")
-	if index.sqlIndex.unique != nil {
+	if index.sqlIndex.unique {
 		sql.WriteString("UNIQUE ")
 	}
 	sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING btree (")
@@ -145,7 +145,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		}
 		sql.WriteByte(')')
 	}
-	if index.sqlIndex.unique != nil && index.sqlIndex.unique.NullsNotDistinct {
+	if index.sqlIndex.nullsNotDistinct {
 		sql.WriteString(" NULLS NOT DISTINCT")
 	}
 	if presentation.dump {

@@ -111,12 +111,13 @@ engine mutex. A permanent zero-allocation evolution witness covers this path.
 
 ## Exclusions and evidence
 
-Standalone UNIQUE/PK/FK, partial/concurrent indexes, non-btree methods, unowned
-collations/opclasses, storage parameters/tablespaces, physical index-only scans,
-DROP/ALTER INDEX and broad pg_index/pg_indexes catalogs remain excluded.
-The existing pg_get_indexdef inquiry is supported. Table UNIQUE backing indexes
-are independently supported; standalone
-unique attachment is not admitted. [PG18-INDEX-CLAUSES](PG18-INDEX-CLAUSES.md)
+PK/FK, partial/concurrent indexes, non-btree methods, unowned providers,
+storage parameters/tablespaces, physical index-only scans and broad
+pg_index/pg_indexes catalogs remain excluded. Existing pg_get_indexdef is supported.
+PG18-INDEX-UNIQUE admits standalone simple-key uniqueness through the existing
+real roots, immediate checker and transaction-key lock graph. Policy is separate
+from optional genuine constraint attachment; no fake pg_constraint row is added.
+[PG18-INDEX-CLAUSES](PG18-INDEX-CLAUSES.md)
 supersedes this part's historical COLLATE/class/INCLUDE exclusions: owned providers
 and simple INCLUDE payload are now admitted, with the 32 limit counting both roles.
 Expression support supersedes the original expression exclusion: the shared

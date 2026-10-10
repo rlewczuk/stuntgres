@@ -189,7 +189,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName string, remove bool) {
 	t.Helper()
 	old, _ := btreeRoot(t, e, name)
-	if old.sqlIndex.unique != nil {
+	if old.sqlIndex.unique {
 		t.Fatal("fixture requires an ordinary index")
 	}
 	base := e.CatalogRead()

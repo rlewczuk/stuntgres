@@ -206,10 +206,15 @@ function shape; raw INCLUDE expressions still reject before any binding.
 
 ## Boundaries and executable evidence
 
-No standalone CREATE UNIQUE INDEX or ALTER attachment is admitted. Existing table
-UNIQUE plus ordinary INCLUDE has public key-only23505 witnesses; a real internal
-unique-backed INCLUDE definition uses actual validators/root equality. The
-PostgreSQL-only unique-INCLUDE control does not create a native attachment path.
+Standalone CREATE UNIQUE INDEX admits simple/composite keys with existing
+directions, NULL ordering, compatible owned providers and INCLUDE. Policy is
+independent of optional real constraint attachment; INCLUDE is never an equality,
+claim, key-lock-strength or Detail-disclosure attribute. Unique expressions and
+BPCHAR classes on TEXT/VARCHAR reject complete input with0A000, while ordinary
+support is unchanged. Existing grouping uses each actual index key collation;
+no second hash/comparison provider or spelling-only comparator is introduced.
+Shared standalone/table-UNIQUE consumer assertions and unique-INCLUDE controls
+exercise the same substantive root equality and write authority.
 Physical planner/index-only scans, new inquiry catalogs, partial/concurrent
 indexes, arbitrary locales/classes, storage parameters/tablespaces and DROP/ALTER
 INDEX remain outside scope. Existing expression keys compose their result Usage

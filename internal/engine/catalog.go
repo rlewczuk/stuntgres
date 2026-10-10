@@ -404,6 +404,7 @@ type CatalogStage struct {
 	indexRebuilds        map[ObjectAddress]*relationDescriptor
 	indexParents         map[ObjectAddress]*relationDescriptor
 	indexSets            map[ObjectAddress]int
+	indexOutput          sqltype.OutputEnvironment
 	oldNames             map[NameKey]bool
 	generators           map[ObjectAddress]*sequenceGenerator
 	identityOriginals    map[ObjectAddress]Descriptor
@@ -803,6 +804,15 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 		}
 		indexPredecessors := e.indexRoots
+		var disclosure *AuthorizationView
+		if op != nil {
+			auth, authErr := e.authorizationLocked(op)
+			if authErr != nil {
+				e.mu.Unlock()
+				return ChangeSet{}, authErr
+			}
+			disclosure = &auth
+		}
 		e.mu.Unlock()
 		next := cloneCatalog(current)
 		storage := make(map[ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
@@ -866,7 +876,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			buildStores[a] = storage[a]
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes, s.indexRebuilds)
+		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}

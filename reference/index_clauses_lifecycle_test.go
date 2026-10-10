@@ -256,12 +256,10 @@ func indexClausesUnique(t *testing.T, p *referencePair, b referenceBackend, run 
 	}
 	run(referenceExec("UPDATE u SET p=NULL WHERE n=1", 1))
 	run(referenceSelect("SELECT n,p FROM u", []string{"n", "p"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), nil}}))
-	if b.pg {
-		run(referenceExec("CREATE TABLE pg_unique(n INT,p TEXT)", 0))
-		run(referenceExec("CREATE UNIQUE INDEX pg_cover ON pg_unique(n) INCLUDE(p)", 0))
-		run(referenceExec("INSERT INTO pg_unique VALUES(1,'first')", 1))
-		run(referenceErrorDiagnostic("INSERT INTO pg_unique VALUES(1,NULL)", uniqueReferenceDuplicate("pg_unique", "pg_cover", "Key (n)=(1) already exists.")))
-	}
+	run(referenceExec("CREATE TABLE pg_unique(n INT,p TEXT)", 0))
+	run(referenceExec("CREATE UNIQUE INDEX pg_cover ON pg_unique(n) INCLUDE(p)", 0))
+	run(referenceExec("INSERT INTO pg_unique VALUES(1,'first')", 1))
+	run(referenceErrorDiagnostic("INSERT INTO pg_unique VALUES(1,NULL)", uniqueReferenceDuplicate("pg_unique", "pg_cover", "Key (n)=(1) already exists.")))
 }
 
 func TestReferenceIndexClausesUniqueInvariant(t *testing.T) {
