@@ -1098,13 +1098,57 @@ ORDER preserve complete SQLSTATE/English diagnostics and character positions.
 In INSERT VALUES, string_agg gives42803 at the call. INSERT RETURNING is still
 an independent native0A000 suffix exclusion; it does not reach aggregate binding.
 
-OVER and array_agg remain excluded. FILTER/DISTINCT/ALL and sibling ordering use
+OVER remains excluded. FILTER/DISTINCT/ALL and sibling ordering use
 the shared modifier contract. No-FROM aggregates use the ordinary local input. Unsupported XML ordering controls do not add XML or
 cast edges. Public smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`.
 Shared contracts:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
+
+### Array aggregation — change note
+
+Both overloads use the shared grouping, modifier, eager publication and source
+authorization paths, including direct/prepared SQL, INSERT SELECT and stored
+views/native Dump/Restore. Scalar aggregation includes SQL NULL:
+
+```sql
+CREATE TABLE array_values(id INT,v INT);
+INSERT INTO array_values VALUES(1,3),(2,NULL),(3,1);
+SELECT array_agg(v ORDER BY id) FROM array_values; -- {3,NULL,1}
+SELECT array_agg(DISTINCT v ORDER BY v) FROM array_values; -- {1,3,NULL}
+```
+
+Without call-local ordering, element order is unspecified. Outer ORDER BY sorts
+groups, not elements. No admitted rows return a typed SQL NULL, not an empty
+array; empty keyed groups produce no rows with complete metadata. Scalar domains
+retain their associated domain-array identity. Domains over arrays select the
+array overload and return the base array; array-of-domain elements stay domains.
+
+Array input concatenates rectangular arrays into rank+1 without changing the
+array type/OID. New outer bounds start at1; every inner extent and lower bound
+must match. Element NULLs survive. Whole NULL input arrays fail22004, first empty
+arrays fail2202E, later dimensionality/bounds mismatch fails2202E, and rank6
+input fails54000. FILTER runs first and can explicitly exclude these inputs;
+it never suppresses semantic analysis or authorization.
+
+Native arrays export as Go strings with string ScanType; lib/pq exports raw
+[]byte with any ScanType. SQL NULL is nil. Array Length is unavailable; native
+aggregate Nullable is known true, while lib/pq leaves nullability unknown.
+Array result typmod is -1 and physical origin is zero. Prepared executions have
+fresh private group state; native late failure/cancellation publishes neither
+a cursor nor a partial INSERT SELECT batch. INSERT VALUES rejects array_agg42803.
+Unknown NULL/string/untyped parameters give42725 ambiguity with the cast hint.
+Existing concrete types without an associated array (for example PG_NODE_TREE
+from pg_attrdef.adbin) fail unpositioned42704 `could not find array type for data
+type pg_node_tree`; no synthetic array type or native0A000 substitute is used.
+
+Scalar DISTINCT and array aggregation ordered by an integer source key succeed.
+Native array DISTINCT and array-valued local ordering retain positioned0A000;
+PostgreSQL supports those comparisons. Valid array_agg OVER retains the existing
+unsupported-window-provider0A000 after ordinary signature resolution.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArrayAggFeatureSmoke$' VERBOSE=0`;
+oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArrayAgg' VERBOSE=0`.
 
 ### Interval average — change note
 
@@ -3167,8 +3211,8 @@ restriction. Physical source authority is required even for empty/no-key queries
 keys, hidden keys and unused definitions require their actual referenced columns.
 Argument and FILTER children, then ordinary callable signatures, are analyzed
 before window shape or clause restrictions for every already admitted aggregate:
-count, row_number, avg, bool_and/bool_or/every, any_value, min/max, string_agg and
-sum. Shared ordinary signature/coercion helpers
+count, row_number, avg, bool_and/bool_or/every, any_value, min/max, string_agg,
+array_agg and sum. Shared ordinary signature/coercion helpers
 retain argument limits, unknown ambiguity and polymorphic-type diagnostics without
 registering ordinary aggregation or constructing another window provider.
 Thus invalid callable signatures are not hidden by DISTINCT, WHERE or provider

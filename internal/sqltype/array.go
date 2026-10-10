@@ -113,6 +113,16 @@ func (v Value) ArrayDimensions() []ArrayDimension {
 	return slices.Clone(v.array.dimensions)
 }
 
+// ArrayRank and ArrayDimension inspect immutable dimensions without cloning.
+// ArrayDimension requires an index in [0, ArrayRank()), like ArrayElement.
+func (v Value) ArrayRank() int {
+	if v.array == nil {
+		return 0
+	}
+	return len(v.array.dimensions)
+}
+func (v Value) ArrayDimension(i int) ArrayDimension { return v.array.dimensions[i] }
+
 // MapArray retains the original immutable payload if every element/descriptor is
 // unchanged, otherwise owns one new element buffer. The callback is internal
 // typed transformation, never a driver/user callback.

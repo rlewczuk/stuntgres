@@ -102,6 +102,21 @@ run in the shared singleton PostgreSQL fixture, discovery or smoke. Safe
 neighboring negative division and checked overflow remain dual-mode witnesses.
 
 
+Array aggregation uses `RUN='^TestReferenceArrayAgg'` with both
+`make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds each).
+Feature smoke uses `RUN='^TestReferenceArrayAggFeatureSmoke$'` in both modes.
+These shared scenarios independently assert scalar NULL inclusion, array rank
+and bounds, metadata/domain identity, complete diagnostics, direct/prepared
+frames, source ACLs and INSERT atomicity; native controls remain explicit phases.
+Public unauthorized-source witnesses run in both modes. Since native SQL has no
+table/column GRANT API, native positive queries run as the owner and PostgreSQL
+alone establishes the grant-based column phase. `TestArrayAggregateColumnACL`
+independently checks native binding's exact source read manifests and private
+`SetObjectACL` authority, including retained manifests after revocation; it does
+not execute SQL or invent privileges for aggregate result columns.
+
+
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control
 phases and independently specified PostgreSQL SQL outcomes where applicable.

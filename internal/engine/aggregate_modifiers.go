@@ -176,7 +176,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
-	if a.operation != other.operation || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.filter, other.filter) {
+	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.filter, other.filter) {
 		return false
 	}
 	for i, key := range a.order {

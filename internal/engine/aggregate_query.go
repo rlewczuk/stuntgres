@@ -280,12 +280,12 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 					}
 				}
 				if len(call.order) > 0 {
-					if call.argument == nil || !value.IsNull() {
+					if call.argument == nil || !value.IsNull() || call.includeNulls {
 						groups[index].ordered[p] = append(groups[index].ordered[p], tuple[:call.stageWidth]...)
 					}
 					continue
 				}
-				if call.argument != nil && value.IsNull() {
+				if call.argument != nil && value.IsNull() && !call.includeNulls {
 					continue
 				}
 				if err := call.provider.Advance(ctx, groups[index].states[p], value, separator); err != nil {

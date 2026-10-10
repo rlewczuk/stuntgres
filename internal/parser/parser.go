@@ -392,7 +392,7 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
-	case "date", "timestamptz", "timetz", "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "min", "max", "row_number":
+	case "date", "timestamptz", "timetz", "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "array_agg", "min", "max", "row_number":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		return callee.keyword == nil // Quoted alias diagnostics belong to binding.
@@ -413,7 +413,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func ordinaryAggregate(name string) bool {
-	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max" || name == "row_number"
+	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "array_agg" || name == "min" || name == "max" || name == "row_number"
 }
 
 // CREATE's direct index-call syntax retains FunctionExpr. Conflict inference

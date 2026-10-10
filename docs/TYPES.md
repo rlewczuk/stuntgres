@@ -386,6 +386,14 @@ Array grouping/key equality, including SELECT DISTINCT, compares rank, dimension
 lower bounds and recursively typed NULL-aware elements; numeric scale, BPCHAR
 padding and floating NaN/signed-zero normalization follow their scalar contracts.
 Domains retain logical identity while delegating key equivalence to their bases.
+`array_agg` uses these immutable flat payloads rather than nested array values.
+Scalar domains retain their actual associated array; domains over arrays select
+the base-array overload, while arrays of domains retain element identity.
+Concatenation adds a lower1 outer dimension and preserves every inner bound;
+rank, extents and bounds must match across input arrays. Whole NULL/empty arrays
+are rejected, but element NULLs are retained. Scalar NULLs are collected, and
+no admitted inputs produce a typed NULL array.
+See [array aggregation](QUERIES.md#array-aggregation--change-note).
 This declaration/literal capability adds no general array cast graph or
 constructor families. The selected flat regclass constructor is described above.
 

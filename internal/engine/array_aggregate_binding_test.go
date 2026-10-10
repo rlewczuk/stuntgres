@@ -1,0 +1,131 @@
+package engine
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func TestArrayAggregateBinding(t *testing.T) {
+	for _, q := range []string{
+		`SELECT array_agg('xy'::varchar(4) COLLATE "C") FROM t`,
+		`SELECT array_agg('xy'::varchar(4) COLLATE "POSIX") FROM t`,
+		"SELECT array_agg(1.2300::numeric(10,4)) FROM t",
+		"SELECT array_agg(NULL::integer[]) FROM t",
+	} {
+		e := New()
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		b.aggregateClause = "SELECT"
+		raw := statement(t, q).(*parser.Select).Targets[0]
+		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		call := b.aggregates[0]
+		argument := call.argument
+		usage := result.ResultUsage()
+		if usage.Typmod != -1 || usage.Collation != argument.ResultUsage().Collation || !result.Properties().StageDependent || !call.includeNulls {
+			t.Fatal("aggregate usage/admission", usage, argument.ResultUsage())
+		}
+		if result.ExplicitCollation() != argument.ExplicitCollation() || result.CollationIndeterminate() != argument.CollationIndeterminate() {
+			t.Fatal("collation provenance lost")
+		}
+		if argument.ResultUsage().Type.IsArray() {
+			if usage.Type != argument.ResultUsage().Type || call.operation != aggregateArrayArray {
+				t.Fatal("array overload identity")
+			}
+		} else {
+			associated, ok := e.CatalogRead().LookupArray(argument.ResultUsage().Type)
+			if !ok || usage.Type != associated || call.operation != aggregateArrayScalar {
+				t.Fatal("coherent associated array identity")
+			}
+		}
+		found := false
+		for _, dependency := range b.dependencies {
+			if dependency.ref.Address.ClassID == TypeClassID && dependency.ref.Address.ObjectID == OID(usage.Type.ID()) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("missing result-array dependency")
+		}
+		again, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil || again.(aggregateExpression).slot != result.(aggregateExpression).slot {
+			t.Fatal("identical aggregate failed state-slot sharing", err)
+		}
+		other := call
+		other.includeNulls = false
+		if b.sameAggregateCall(call, other) {
+			t.Fatal("NULL admission omitted from aggregate identity")
+		}
+	}
+}
+
+func TestArrayAggregateDomainBinding(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, q := range []string{
+		"CREATE DOMAIN public.aa_unit_di AS INT",
+		"CREATE DOMAIN public.aa_unit_dj AS public.aa_unit_di",
+		"CREATE DOMAIN public.aa_unit_da AS INT[]",
+		"CREATE DOMAIN public.aa_unit_dc AS public.aa_unit_da",
+	} {
+		// Existing helpers stage/publish private catalog objects, never execute SQL.
+		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
+	}
+	view := e.CatalogRead()
+	di := domainUnitType(t, view, "aa_unit_di").typ
+	dj := domainUnitType(t, view, "aa_unit_dj").typ
+	da := domainUnitType(t, view, "aa_unit_da").typ
+	dc := domainUnitType(t, view, "aa_unit_dc").typ
+	diArray, ok := view.LookupArray(di)
+	if !ok {
+		t.Fatal("scalar-domain associated array")
+	}
+	djArray, ok := view.LookupArray(dj)
+	if !ok {
+		t.Fatal("chained-domain associated array")
+	}
+	integer, _ := view.LookupType(sqltype.Int4)
+	integerArray, ok := view.LookupArray(integer)
+	if !ok {
+		t.Fatal("builtin associated array")
+	}
+	for _, tc := range []struct {
+		input, want *sqltype.Descriptor
+		arrays      bool
+	}{
+		{di, diArray, false}, {dj, djArray, false},
+		{da, integerArray, true}, {dc, integerArray, true},
+		{diArray, diArray, true},
+	} {
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		b.aggregateClause = "SELECT"
+		b.parameters[1] = tc.input.Usage()
+		raw := parser.AggregateExpr{Name: "array_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
+		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil {
+			t.Fatal(err)
+		}
+		call := b.aggregates[0]
+		provider := call.provider.(*arrayAggregateProvider)
+		if result.ResultUsage().Type != tc.want || provider.usage.Type != tc.want || provider.arrays != tc.arrays || provider.argument != call.argument.ResultUsage().Type {
+			t.Fatal("domain overload lost exact catalog generation", tc, provider)
+		}
+		if !tc.arrays && provider.usage.Type.Element() != tc.input {
+			t.Fatal("scalar domain was flattened")
+		}
+		found := false
+		for _, d := range b.dependencies {
+			if d.ref.Address.ClassID == TypeClassID && d.ref.Address.ObjectID == OID(tc.want.ID()) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("missing concrete domain result dependency")
+		}
+	}
+}

@@ -1397,7 +1397,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if b.indexConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)
 		}
-		if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && r.Name == "string_agg" {
+		if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
 			return nil, expressionError("42803", "aggregate functions are not allowed in VALUES", r.Pos)
 		}
 		if b.checkConsumer {
@@ -1416,6 +1416,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			node, err = b.bindExtrema(r, name)
 		} else if r.Name == "string_agg" {
 			node, err = b.bindStringAggregate(r, name)
+		} else if r.Name == "array_agg" {
+			node, err = b.bindArrayAggregate(r, name)
 		} else {
 			node, err = b.bindCount(r, name)
 		}
@@ -1875,7 +1877,10 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !b.datetimeZoneOperands && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		// A rejected cast from an existing stored scalar to an existing array is
+		// a type mismatch, not an unimplemented scalar provider. This only
+		// selects the diagnostic below; it adds no coercion capability.
+		if !b.datetimeZoneOperands && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {

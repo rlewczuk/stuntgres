@@ -32,17 +32,20 @@ const (
 	aggregateIntegralSum
 	aggregateNumericSum
 	aggregateFloatSum
+	aggregateArrayScalar
+	aggregateArrayArray
 )
 
 type aggregateCall struct {
-	provider   aggregateProvider
-	argument   BoundExpr
-	separator  BoundExpr
-	order      []sortKey
-	filter     BoundExpr
-	distinct   []sqltype.Grouping
-	stageWidth int // Value, separator, then unique local targets; keys address cache slots.
-	operation  aggregateOperation
+	provider     aggregateProvider
+	argument     BoundExpr
+	separator    BoundExpr
+	order        []sortKey
+	filter       BoundExpr
+	distinct     []sqltype.Grouping
+	stageWidth   int // Value, separator, then unique local targets; keys address cache slots.
+	operation    aggregateOperation
+	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,

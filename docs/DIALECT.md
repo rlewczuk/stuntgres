@@ -1595,8 +1595,32 @@ independent native0A000 suffix boundary rather than aggregate-clause parity.
 Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 
+`array_agg(anynonarray)` collects scalar values including NULL into the actual
+associated array type. Scalar domains remain element domains. `array_agg(anyarray)`
+concatenates matching arrays into one higher dimension using the same array type;
+domains over arrays are reduced to their base array, and arrays of domains retain
+their element domain. Result typmod is unrestricted and origin is zero. Both
+overloads return SQL NULL for no admitted input. Scalar DISTINCT and integer
+local ordering keys work; array DISTINCT/array-valued local keys and valid OVER
+retain the existing positioned native0A000 boundaries.
+Array input preserves inner bounds and element NULLs. Whole NULL arrays fail22004
+`cannot accumulate null arrays`; first empty input fails2202E `cannot accumulate
+empty arrays`. Later rank, extent or lower-bound mismatch (including empty after
+nonempty) fails2202E `cannot accumulate arrays of different dimensionality`.
+Rank6 input fails54000 because the result would exceed the six-dimension limit.
+Unknown NULL/string/unresolved parameter input is ambiguous42725 with the cast
+hint, not an implicit TEXT overload. All SQL errors retain PostgreSQL English
+diagnostics; runtime shape errors have no fabricated source Position.
+Existing public carriers without an associated array, such as PG_NODE_TREE
+from pg_attrdef.adbin, fail42704 `could not find array type for data type
+pg_node_tree`, with no Position or optional diagnostic fields. This does not
+add a new array type/provider or substitute a native capability error.
+Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArrayAggFeatureSmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArrayAgg' VERBOSE=0`.
+
+
 Grouping uses the ordinary no-FROM local input. It does not add
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max,
 other window providers or explicit frames. GROUPING SETS, ROLLUP, CUBE, explicit
 empty groups and ALL/DISTINCT grouping clauses are admitted. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately

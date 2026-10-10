@@ -1741,9 +1741,21 @@ ordering only orders result groups. Each call can use different source-key order
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
 Dump/Restore use the same eager pipeline. All existing aggregates admit
 FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. Window execution
-is restricted to row_number() and unmodified count(*); array_agg remains excluded.
+is restricted to row_number() and unmodified count(*).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
+
+Change note: both `array_agg` overloads use the same eager aggregate engine.
+Scalar input includes every NULL and returns its actual associated array type;
+no admitted rows return SQL NULL. Array input concatenates matching nonempty
+arrays into one higher dimension, preserving inner bounds and element NULLs.
+Whole NULL arrays, empty arrays, mismatched shapes/bounds and rank overflow are
+SQL errors. Use call-local ORDER BY with a unique key to specify element order.
+Scalar DISTINCT is supported; array DISTINCT/array-valued ordering and window
+execution retain the existing native capability boundaries.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArrayAggFeatureSmoke$' VERBOSE=0`;
+pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArrayAgg' VERBOSE=0`.
+
 Equal typed keys, including NULL keys, form one group per set occurrence; empty global
 count returns zero. Empty input emits only empty-set groups, not keyed groups. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and
@@ -1770,11 +1782,12 @@ Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(Fea
 oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0`.
 
 Change note: aggregate modifiers share one input pipeline across COUNT, Boolean,
-AVG, any_value, min/max and string_agg providers. FILTER admits only TRUE and runs
+AVG, any_value, min/max, string_agg and array_agg providers. FILTER admits only TRUE and runs
 before arguments and local keys. DISTINCT compares the complete typed argument
-tuple (including string_agg's delimiter), with NULL-equal keys; NULL value inputs
-still do not transition. Admitted arguments/keys evaluate before duplicate or
-NULL skipping. Local ORDER uses source expressions, not output aliases/ordinals,
+tuple (including string_agg's delimiter), with NULL-equal keys. Strict providers
+skip NULL values; scalar array_agg includes them and array-input array_agg rejects
+whole NULL arrays. Admitted arguments/keys evaluate before duplicate or NULL
+admission. Local ORDER uses source expressions, not output aliases/ordinals,
 and DISTINCT keys must match complete arguments (implicit coercion permitted,
 explicit casts retained). Matching volatile argument/order targets evaluate once
 within each call; volatile calls never share state. Final ORDER only sorts groups.

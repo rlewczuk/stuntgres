@@ -518,6 +518,11 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			case stringAggregateProvider:
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p
+			case *arrayAggregateProvider:
+				provider := *p
+				provider.argument = typ(p.argument)
+				provider.usage.Type = typ(p.usage.Type)
+				copy.calls[i].provider = &provider
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}
