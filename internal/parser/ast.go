@@ -481,6 +481,28 @@ type InsertTarget struct {
 
 func (*Insert) statement() {}
 
+// Merge retains only the supported NOT MATCHED BY TARGET insertion class.
+// Source and expression subqueries share ordinary query binding/admission.
+type Merge struct {
+	Name   ObjectName
+	Alias  Identifier
+	Source FromItem
+	On     Expr
+	Arms   []MergeInsert
+	Pos    Position
+}
+
+type MergeInsert struct {
+	Condition      Expr
+	Targets        []InsertTarget
+	Values         []Expr
+	DefaultValues  bool
+	Override       InsertOverride
+	Pos, ActionPos Position
+}
+
+func (*Merge) statement() {}
+
 // Undecorated VALUES stays destination-context input, even in parentheses.
 // Only decorated VALUES is represented as a query source.
 type InsertSource struct {

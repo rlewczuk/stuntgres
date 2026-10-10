@@ -70,6 +70,7 @@ type binding struct {
 	viewNamespaces     []viewNamespace
 	commandQuery       bool
 	update             *boundUpdate
+	merge              *boundMerge
 	deleteUsing        LogicalNode
 	deleteSourceWidth  int
 	returning          *boundReturning
@@ -370,9 +371,6 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		stmt = s.Query
 		b.commandQuery = true
 	}
-	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
-		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode, column: c.Name})
-	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
 		var columns []ColumnDescriptor
@@ -511,163 +509,12 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
-		if len(s.Targets) == 0 && s.Source == nil {
-			width := len(s.Rows[0])
-			if width > len(b.relation.columns) {
-				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.relation.columns)].SourcePosition())
-			}
-			b.targets = make([]int, width)
-			for i := range b.targets {
-				b.targets[i] = i
-			}
-		} else {
-			b.targets = make([]int, len(s.Targets))
-			if err := bindInsertTargets(b.relation, s.Targets, b.targets); err != nil {
-				return b, err
-			}
+		if err := e.bindInsertInput(&b, binder, auth, s); err != nil {
+			return b, err
 		}
-		if len(b.relation.defaults) != 0 || len(b.relation.identities) != 0 {
-			b.defaults = make([]BoundExpr, len(b.relation.columns))
-			for i, attribute := range b.relation.attributes {
-				b.defaults[i] = b.relation.defaults[attribute].expression
-			}
-			for i, attribute := range b.relation.attributes {
-				identity, ok := b.relation.identities[attribute]
-				if !ok {
-					continue
-				}
-				b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
-			}
-			if s.Override == parser.OverrideUser {
-				b.identityDiscard = make([]bool, len(b.relation.columns))
-				for i, attribute := range b.relation.attributes {
-					_, b.identityDiscard[i] = b.relation.identities[attribute]
-				}
-			}
-		}
-		if s.Source != nil {
-			if err := e.bindInsertSource(&b, binder, auth, s); err != nil {
-				return b, err
-			}
-			break
-		}
-		binder.aggregateClause = "INSERT VALUES"
-		b.expressions = make([][]BoundExpr, len(s.Rows))
-		for rowIndex, row := range s.Rows {
-			if rowIndex > 0 && len(row) != len(s.Rows[0]) {
-				return b, insertError("42601", "VALUES lists must all be the same length", row[0].SourcePosition())
-			}
-			if len(row) > len(b.targets) {
-				return b, insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].SourcePosition())
-			}
-			if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.targets) {
-				return b, insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
-			}
-			b.expressions[rowIndex] = make([]BoundExpr, len(row))
-			stringRow := false
-			for _, v := range row {
-				stringRow = stringRow || parser.ContainsStringExpression(v)
-			}
-			if stringRow {
-				// Keep the existing assignment admission, but analyze each source
-				// once before target types constrain shared parameter occurrences.
-				for j, v := range row {
-					if _, requested := v.(parser.DefaultExpr); requested {
-						continue
-					}
-					c := b.relation.columns[b.targets[j]]
-					if _, generated := b.relation.generations[b.relation.attributes[b.targets[j]]]; generated {
-						return b, generationWriteError(c.Name, false)
-					}
-					if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-						return b, identityInsertError(c.Name)
-					}
-					if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-						b.expressions[rowIndex][j] = unknownOutput{expressionInfo: expressionInfo{pos: v.SourcePosition()}, raw: v}
-						continue
-					}
-					plan, err := binder.bind(v, expressionPolicy{context: assignmentContext, deferAssignment: true})
-					if err != nil {
-						return b, err
-					}
-					b.expressions[rowIndex][j] = plan
-				}
-			}
-			for j, v := range row {
-				if _, requested := v.(parser.DefaultExpr); requested {
-					continue
-				}
-				c := b.relation.columns[b.targets[j]]
-				if _, generated := b.relation.generations[b.relation.attributes[b.targets[j]]]; generated {
-					return b, generationWriteError(c.Name, false)
-				}
-				if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-					return b, identityInsertError(c.Name)
-				}
-				var plan BoundExpr
-				var err error
-				if stringRow {
-					plan, err = binder.assignOutput(b.expressions[rowIndex][j], c)
-					if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
-						copy := *d
-						copy.Position = strconv.Itoa(parser.ExpressionStart(v).Character)
-						err = &copy
-					}
-				} else {
-					plan, err = bind(v, c, sqltype.Assignment)
-				}
-				if err != nil {
-					if plan == nil && containsSumAnalysis(v) {
-						// No source was produced: preserve SUM's child/FILTER/signature
-						// analysis diagnostic rather than treating it as assignment failure.
-						return b, err
-					}
-					var source *sqltype.Descriptor
-					if plan != nil {
-						source = plan.ResultUsage().Type
-					}
-					return b, insertValueError(auth.catalog, err, c, v, source)
-				}
-				b.expressions[rowIndex][j] = plan
-			}
-		}
-		// Retain a targeted default only if at least one row requests it.
-		// Explicit NULL is a bound expression, not a DEFAULT marker.
-		if len(b.defaults) != 0 {
-			remaining := len(b.relation.defaults) + len(b.relation.identities)
-			for j, target := range b.targets {
-				if len(b.identityDiscard) != 0 && b.identityDiscard[target] {
-					continue
-				}
-				if b.defaults[target] == nil {
-					continue
-				}
-				consumed := false
-				for _, row := range b.expressions {
-					if j >= len(row) || row[j] == nil {
-						consumed = true
-						break
-					}
-				}
-				if !consumed {
-					b.defaults[target] = nil
-					remaining--
-				}
-			}
-			if remaining == 0 {
-				b.defaults = nil
-			}
-		}
-		if len(b.relation.identities) != 0 {
-			// Compile the destination attribute projection once, independent of
-			// explicit target-list order. -1 denotes an omitted source column.
-			b.insertProjection = make([]int, len(b.relation.columns))
-			for i := range b.insertProjection {
-				b.insertProjection[i] = -1
-			}
-			for i, target := range b.targets {
-				b.insertProjection[target] = i
-			}
+	case *parser.Merge:
+		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
+			return b, err
 		}
 	case *parser.Delete:
 		var err error

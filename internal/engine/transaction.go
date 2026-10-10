@@ -387,7 +387,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Unlock()
 	if idle {
 		switch stmt.(type) {
-		case *parser.Insert, *parser.Update, *parser.Select, *parser.Delete:
+		case *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		case *parser.Comment:

@@ -349,7 +349,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
-	if inserting || b.update != nil || b.query != nil || (deleting && (b.deleteUsing != nil || b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
+	if inserting || b.merge != nil || b.update != nil || b.query != nil || (deleting && (b.deleteUsing != nil || b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
@@ -384,7 +384,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				}
 			}
 		}
-		if b.update != nil {
+		if b.merge != nil {
+			err = preflightMerge(&evaluation, b.merge, auth.catalog)
+		} else if b.update != nil {
 			b.update, err = preflightUpdate(&evaluation, b.update)
 			if err == nil && b.update.from != nil {
 				err = validateQueryJoinExecution(&evaluation, b.update.from, auth.catalog, 0)
@@ -460,6 +462,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 	}
+	// Released MERGE checks read-only after analysis/planning conversions, but
+	// before executor column/source ACLs. Other statements keep their ordering.
+	if b.merge != nil && scope.owner.readOnly {
+		e.mu.Unlock()
+		return Result{}, sqlError("25006", "cannot execute MERGE in a read-only transaction")
+	}
 	if err = auth.checkBinding(b, stmt); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -522,6 +530,35 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	switch s := stmt.(type) {
+	case *parser.Merge:
+		if err := e.captureCheckCommentSnapshotLocked(scope, b.relation); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		refs, err := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		view, err := scope.acquireDataViewsLocked(e, refs)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		target, err := captureQuerySource(ctx, view, b.ref)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		inputs, err := e.captureQuerySourcesLocked(scope, b.querySources, false)
+		if err != nil {
+			target.close()
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+		e.mu.Unlock()
+		return e.executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
 		err = e.captureCheckCommentSnapshotLocked(scope, b.relation)
 		if err == nil && b.returning != nil {

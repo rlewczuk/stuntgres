@@ -121,6 +121,67 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+### MERGE insertion and implicit INSERT migration
+
+Run each selective command under its own900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceMergeInsert' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMergeInsert' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertImplicitShort' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertImplicitShort' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertSelect' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertSelect' VERBOSE=0
+make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestMerge' VERBOSE=0
+```
+
+The shared MERGE family independently checks frozen matching/bag multiplicity,
+ordered conditions, mappings/defaults/identity/generated values, scalar
+subqueries, complete diagnostics and analysis/execute stages, atomic constraints,
+transactions, metadata, held rebind, locks/cancellation and native controls.
+OracleQuestions permanently records O1–O4: demanded nonboolean ON, action
+subqueries, system-column namespaces/providers and permission/read-only order.
+Native count n and observed pinned pq export0 are separate expectations with
+exact persisted rows, never inferred from driver count alone. Native provider42703
+versus positive PostgreSQL system identities is explicit; native column ACL units
+supplement real PostgreSQL GRANT, without implementing an adjacent public API.
+Fixtures use supported named UNIQUE constraints with NOT NULL (implicit for
+identity), not unsupported PRIMARY KEY syntax. Native controls receive the unwrapped `p.native` pool;
+wrapped same-DSN peers remain SQL visibility witnesses. Denied PostgreSQL actors
+receive schema USAGE before testing table denial. Admission diagnostics distinguish
+Prepare token positions on both backends from the absent Position on held Execute.
+Review witnesses `OnCarriers` demand populated-target pairs for physical BOOL,
+INT2/INT4/INT8/TEXT and their domain carriers, including zero, negative/wide
+integers, empty/boolean-looking strings and NULL. `OnCarrierBoundary` separately
+checks unavailable native FLOAT8 ON interpretation versus PostgreSQL effects.
+`ConcurrentUnique` pins a repeatable-read frontier before the worker starts,
+proves native blocking with bounded SQL timeout and PostgreSQL blocking through
+its external wait catalog, then asserts commit23505 or rollback insertion without
+ON restart. `Isolation` separately distinguishes public RC/RR source visibility.
+`HeldACL` retains one actual PostgreSQL handle through target all-arm INSERT and
+source SELECT revoke/restore; native `TestMergeInsertHeldACL` retains the same
+AST/description through the adapter's `scope.Expected` execution seam.
+
+Actual public feature smokes:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceMergeInsertFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMergeInsertFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertImplicitShortFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertImplicitShortFeatureSmoke$' VERBOSE=0
+```
+
+MERGE smoke expects source1/2/3 versus existing1old to insert2two/first and
+3three/fallback with omitted tail default, held repeat0, source append4/new insert,
+empty command metadata, atomic23505, suppressed sequence draws, private rollback,
+retained eager results across native Dump/Reset/Restore, same-DSN peer rows,
+actual emitted SQL PostgreSQL replay and later held fresh execution.
+The old native-only implicit INSERT smoke file is removed. Its full direct/
+prepared/reordered/count/metadata/error/peer/retained-control/failed-staging/
+handwritten-short-Restore union is covered by the complete
+`TestReferenceInsertImplicitShort` family, not just its cohesive FeatureSmoke.
+INSERT SELECT is included above because INSERT input binding is shared.
+
 The serial/identity inquiry family is selected with
 `RUN='^TestReferenceSerialIdentity(Ownership|Lifecycle|Names|Nulls|Diagnostics|Consumers|Controls|FeatureSmoke|SystemColumns)$'`.
 Its shared public scenarios independently assert AUTO/INTERNAL/manual ownership,

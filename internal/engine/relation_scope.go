@@ -54,7 +54,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		return s.acquireQueryRelations(stmt, stmt, execute)
 	}
 	switch stmt.(type) {
-	case *parser.Update, *parser.Delete:
+	case *parser.Update, *parser.Delete, *parser.Merge:
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
 		}
@@ -102,6 +102,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			mode = relationRowShare
 		}
 	case *parser.Insert:
+		name = v.Name
+		mode = rowExclusive
+	case *parser.Merge:
 		name = v.Name
 		mode = rowExclusive
 	case *parser.Delete:

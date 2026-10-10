@@ -187,6 +187,16 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
+	if b.mergeWhen && b.frameID() == 1 && name != "tableoid" && isSystemColumn(name) {
+		for _, q := range b.queryNamespace.qualifiers {
+			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
+				continue
+			}
+			if relation, ok := b.queryAuth.catalog.state.descriptors[q.ref.Address].(*relationDescriptor); ok && relation.relationKind == tableRelation {
+				return nil, expressionError("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
+			}
+		}
+	}
 	if len(parts) == 1 {
 		for i := len(b.queryScopes) - 1; i >= 0; i-- {
 			scope := &b.queryScopes[i]

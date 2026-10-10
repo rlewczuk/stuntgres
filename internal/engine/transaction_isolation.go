@@ -182,7 +182,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 }
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	switch stmt.(type) {
-	case *parser.Select, *parser.CreateQueryTable, *parser.Insert, *parser.Update, *parser.Delete, *parser.SettingCall:
+	case *parser.Select, *parser.CreateQueryTable, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
 	default:
 		return nil
 	}
@@ -298,6 +298,8 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP SEQUENCE"
 	case *parser.Insert:
 		return "INSERT"
+	case *parser.Merge:
+		return "MERGE"
 	case *parser.Update:
 		return "UPDATE"
 	case *parser.Delete:
@@ -337,7 +339,7 @@ func modifyingTag(stmt parser.Statement) string {
 func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error {
 	t := s.owner
 	switch stmt.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete:
+	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return nil
 	}
 	t.mu.Lock()

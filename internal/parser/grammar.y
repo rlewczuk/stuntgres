@@ -36,6 +36,8 @@ package parser
  selectStmt *Select
  parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
+ mergeArms []MergeInsert
+ mergeArm MergeInsert
  valuesQuery *ValuesQuery
  order *Order
  orderKey OrderKey
@@ -121,6 +123,7 @@ package parser
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW LEFT RIGHT FULL OUTER
 %token <tok> DELETE
+%token <tok> MERGE MATCHED SOURCE TARGET DO NOTHING
 %token <tok> RETURNING
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
@@ -398,6 +401,12 @@ package parser
 %type <sequenceOptions> identity_options identity_option_list
 %type <sequenceOption> identity_option identity_set_option
 %type <override> insert_override
+%type <stmt> merge
+%type <mergeArms> merge_arms
+%type <mergeArm> merge_arm merge_insert
+%type <expr> merge_condition
+%type <tok> merge_target_class
+%type <tok> merge_excluded_action
 %type <typ> standalone_type
 %%
 script: separators optional_statements
@@ -414,7 +423,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -956,6 +965,26 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_override insert_input { s:=insertStatement($3,$5,$8,$1.pos);s.Override=$7;$$=s }
  | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
 insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER VALUE { $$=OverrideUser } ;
+merge: MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms {
+   $$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos}
+ }
+ | MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms RETURNING returning_aliases projection { sqllex.(*lexer).deferUnsupported($10,"MERGE RETURNING is unsupported");$$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos} } ;
+merge_arms: merge_arm { $$=[]MergeInsert{$1} }
+ | merge_arms merge_arm { $$=append($1,$2) } ;
+merge_target_class: /* empty */ { $$=lexeme{} } | BY TARGET { $$=$2 } ;
+merge_condition: /* empty */ { $$=nil } | AND target_or { $$=$2 } ;
+merge_arm: WHEN NOT MATCHED merge_target_class merge_condition THEN merge_insert { $$=$7;$$.Condition=$5;$$.Pos=$1.pos }
+ | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { sqllex.(*lexer).deferUnsupported($7,"MERGE DO NOTHING is unsupported");$$=MergeInsert{} }
+ | WHEN MATCHED merge_condition THEN merge_excluded_action { sqllex.(*lexer).deferUnsupported($2,"MERGE MATCHED actions are unsupported");$$=MergeInsert{} }
+ | WHEN NOT MATCHED BY SOURCE merge_condition THEN merge_excluded_action { sqllex.(*lexer).deferUnsupported($5,"MERGE BY SOURCE actions are unsupported");$$=MergeInsert{} } ;
+merge_excluded_action: UPDATE SET update_assignments { $$=$1 }
+ | DELETE { $$=$1 }
+ | DO NOTHING { $$=$1 } ;
+merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeInsert{Values:$4,ActionPos:$1.pos} }
+ | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=MergeInsert{Targets:$3,Values:$7,ActionPos:$1.pos} }
+ | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeInsert{Override:$2,Values:$5,ActionPos:$1.pos} }
+ | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeInsert{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
+ | INSERT DEFAULT VALUES { $$=MergeInsert{DefaultValues:true,ActionPos:$1.pos} } ;
 delete: DELETE FROM relation_name delete_alias delete_using delete_where returning { if $5==nil {if token:=deleteQualification($6,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6,Returning:$7,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_using delete_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
@@ -1448,6 +1477,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
+ | MERGE | MATCHED | SOURCE | TARGET | NOTHING
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
@@ -1467,6 +1497,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
+ | MERGE | MATCHED | SOURCE | TARGET | NOTHING
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
@@ -1488,14 +1519,14 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {sqllex.(
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | UNIQUE { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | BOTH | LEADING | TRAILING | PLACING
- | ANY | SOME
+ | ANY | SOME | DO
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
- | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW ;
+ | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;
 where_predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | CONSTRAINT ;

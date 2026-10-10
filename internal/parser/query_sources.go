@@ -224,6 +224,21 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				return err
 			}
 		}
+	case *Merge:
+		if err := from(s.Source, &Select{From: s.Source}); err != nil {
+			return err
+		}
+		if err := expression(s.On); err != nil {
+			return err
+		}
+		for _, arm := range s.Arms {
+			if err := expression(arm.Condition); err != nil {
+				return err
+			}
+			if err := expressions(arm.Values); err != nil {
+				return err
+			}
+		}
 	case *Update:
 		if err := from(s.From, &Select{From: s.From}); err != nil {
 			return err

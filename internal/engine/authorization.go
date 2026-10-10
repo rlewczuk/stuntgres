@@ -663,6 +663,16 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 			return err
 		}
 		return v.checkQuerySources(b.querySources)
+	case *parser.Merge:
+		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
+			return err
+		}
+		if len(b.usedColumns) != 0 {
+			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
+				return err
+			}
+		}
+		return v.checkQuerySources(b.querySources)
 	case *parser.Delete:
 		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
 			return err

@@ -50,6 +50,27 @@ Native Dump skips builtins and serializes user-view references symbolically;
 Reset/Restore recreate builtins without storing timezone facts or session settings.
 Admitted native results retain prior values, schema and presentation after replacement.
 
+### MERGE insertion — change note
+
+`MERGE INTO table USING joined_table ON expression` supports ordered conditional
+`WHEN NOT MATCHED [BY TARGET] THEN INSERT` arms, with one VALUES tuple or DEFAULT
+VALUES. Current table/view/derived/VALUES/join source capabilities are reused.
+Source occurrences match a frozen target; first TRUE unmatched arm inserts via
+ordinary INSERT mappings/defaults/identity/generated/constraints, atomically.
+Command-only Query has no metadata/rows; native affected count is the inserted
+count, while pinned lib/pq exports0 and shared tests independently inspect rows.
+The observed integer/unknown-string nonboolean ON behavior is MERGE-local;
+ordinary JOIN/WHERE/WHEN boolean rules remain unchanged.
+
+MATCHED actions, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multiple
+tuples and writable target views remain unsupported, never successful no-ops.
+Physical source non-tableoid system columns are prohibited in WHEN (42P10).
+Permitted positive source system references still use the existing unavailable
+native query-column provider boundary (42703); PostgreSQL supplies real identities.
+No native MVCC/OID provider, fake NULL carrier, generic GRANT implementation or
+external durability/network/pg_dump/native-ABI promise is added.
+See [matching and lifecycle semantics](QUERIES.md#merge-insertion--change-note).
+
 ### Datetime truncation — change note
 
 `date_trunc(text,timestamp)`, `date_trunc(text,timestamptz)`,

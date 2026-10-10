@@ -33,6 +33,21 @@ expressions. See [timezone lookup views](docs/DIALECT.md#timezone-lookup-views--
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneViewsFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezoneViewsFeatureSmoke$' VERBOSE=0`.
 
+Change note: PostgreSQL18 `MERGE` supports source-target matching and ordered
+conditional `WHEN NOT MATCHED [BY TARGET] THEN INSERT` arms. Sources reuse the
+query pipeline; each selected arm reuses INSERT mapping, defaults, identity,
+generated columns and constraints. A frozen target snapshot preserves source
+occurrences, and only a fully validated batch publishes. MATCHED/BY SOURCE
+actions, DO NOTHING, RETURNING and writable target views remain excluded.
+See [MERGE insertion](docs/QUERIES.md#merge-insertion--change-note).
+Feature smoke (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceMergeInsertFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMergeInsertFeatureSmoke$' VERBOSE=0`.
+The complete implicit INSERT smoke union now lives in the external shared
+`TestReferenceInsertImplicitShort` family, including
+`TestReferenceInsertImplicitShortFeatureSmoke`; no native-only duplicate remains.
+
 Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
 table/name, NULL default tablespace and compact reconstructable definition.
 Access method appears in CREATE INDEX text, not a sixth field. Native visibility

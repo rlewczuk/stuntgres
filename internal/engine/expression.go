@@ -944,6 +944,8 @@ type expressionBinder struct {
 	anyParameters         []parameterExpression
 	deleteTarget          bool
 	deleteUsingSources    bool
+	mergeWhen             bool
+	mergeInput            bool
 	targetName            string
 	targetAlias           string
 	returningAliases      *returningAliases
