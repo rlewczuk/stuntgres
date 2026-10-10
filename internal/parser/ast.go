@@ -51,6 +51,7 @@ type TypeModifier struct {
 	Integer   *int32
 	Raw       string
 	UnaryPlus bool
+	NonSimple bool // Actual modifier expression; no arithmetic evaluation.
 	Pos       Position
 }
 
@@ -785,6 +786,7 @@ const (
 	NumericValue
 	StringValue
 	BooleanValue
+	BitStringValue
 )
 
 type Value struct {

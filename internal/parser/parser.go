@@ -518,6 +518,13 @@ func intervalPrecision(l sqlLexer, mask int32, tok, open lexeme) (TypeName, bool
 }
 func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, bool) {
 	raw := columnType(tok)
+	if raw.Name == "bit" || raw.Name == "varbit" || raw.Name == "bit varying" {
+		l.(*lexer).bitModifier = true
+		l.(*lexer).characterGeneric = true
+		l.(*lexer).genericModifier = true
+		l.(*lexer).multipleModifiers = true
+		return raw, true
+	}
 	if qualified {
 		// Only catalog resolution can distinguish a builtin-spelled user domain.
 		l.(*lexer).genericModifier = true
@@ -568,8 +575,6 @@ func excludedTypeTail(first, tail lexeme) bool {
 		return false
 	}
 	switch first.text {
-	case "bit":
-		return tail.text == "varying"
 	case "time", "timestamp":
 		return tail.text == "with" || tail.text == "without"
 	}

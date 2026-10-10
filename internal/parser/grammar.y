@@ -90,7 +90,7 @@ package parser
  indexOption IndexOption
  indexValue Value
 }
-%token <tok> IDENT NUMBER STRING PARAM
+%token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
 %token <tok> DATE_MODIFIER_NUMBER
 %token <tok> DOT_DOT
@@ -256,7 +256,8 @@ package parser
 %type <objectName> qualified_operator
 %type <tok> operator_symbol
 %type <dropMode> drop_mode
-%type <typ> type temporal_type generic_precision generic_modifiers type_modifier_head date_literal_precision
+%type <typ> type temporal_type generic_precision generic_modifier_atom generic_modifiers type_modifier_head date_literal_precision
+%type <tok> bit_modifier_operator bit_modifier_symbol
 %type <typ> interval_type interval_fields interval_second_fields interval_type_qualifier
 %type <constraints> nullability column_constraints domain_constraints
 %type <constraint> column_constraint
@@ -767,8 +768,8 @@ type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeN
  | type_name %prec TYPE_NAME { $$=columnType($1) }
  | temporal_type { $$=$1 }
  | interval_type { $$=$1 }
- | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false }
- | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || $1.text=="character" && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
+ | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false;sqllex.(*lexer).bitModifier=false }
+ | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || ($1.text=="character" || $1.text=="bit") && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
  | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos} }
  | type '[' ']' { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
@@ -779,7 +780,7 @@ type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeN
  * their distinct unsigned/single precision contracts. */
 type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
  | TEXT '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
- | type_name type_name '(' {if $1.keyword==nil || $2.keyword==nil || $1.text!="character" || $2.text!="varying" {sqllex.(*lexer).syntax($2);return 1};tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
+ | type_name type_name '(' {if $1.keyword==nil || $2.keyword==nil || ($1.text!="character" && $1.text!="bit") || $2.text!="varying" {sqllex.(*lexer).syntax($2);return 1};tok:=$1;tok.text=$1.text+" varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
  | type_name '.' col_label '(' {tok:=$3;tok.raw="\""+$3.text+"\"";tok.keyword=nil;var ok bool;$$,ok=typeModifierHead(sqllex,tok,$4,true);if !ok{return 1};$$.Name=$3.text;$$.Quoted=columnType($3).Quoted;$$.Schema=&Identifier{Text:$1.text,Pos:$1.pos};$$.Pos=$1.pos} ;
 generic_modifiers: generic_precision { $$=$1 }
  | generic_modifiers ',' {if !sqllex.(*lexer).multipleModifiers {sqllex.(*lexer).syntax($2);return 1}} generic_precision {$$=$1;$$.Modifiers=append($$.Modifiers,$4.Modifiers...) } ;
@@ -817,11 +818,18 @@ interval_second_fields: SECOND %prec TYPE_NAME {$$=intervalField(4096,$1.pos)}
  | DAY TO SECOND {$$=intervalField(7176,$1.pos)}
  | HOUR TO SECOND {$$=intervalField(7168,$1.pos)}
  | MINUTE TO SECOND {$$=intervalField(6144,$1.pos)} ;
-generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=temporalPrecision(sqllex,$1,false)};if !ok{return 1}}
+/* Bit modifiers retain only simple constants or nonsimple provenance, never
+ * evaluated arithmetic. Chains and parentheses therefore need no value tree. */
+generic_precision: generic_modifier_atom {$$=$1}
+ | generic_precision bit_modifier_operator generic_modifier_atom {$$=$1;$$.Modifiers[0]=TypeModifier{NonSimple:true,Pos:$1.Modifiers[0].Pos}} ;
+bit_modifier_operator: bit_modifier_symbol {if !sqllex.(*lexer).bitModifier {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+bit_modifier_symbol: '+' {$$=$1} | '-' {$$=$1} | '*' {$$=$1} | '/' {$$=$1} | '%' {$$=$1} | '^' {$$=$1} ;
+generic_modifier_atom: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=temporalPrecision(sqllex,$1,false)};if !ok{return 1}}
  | '-' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
- | '+' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos}
+ | '+' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].NonSimple=sqllex.(*lexer).bitModifier;$$.Modifiers[0].Pos=$1.pos}
  | STRING {if !sqllex.(*lexer).characterGeneric {sqllex.(*lexer).syntax($1);return 1};$$=TypeName{Modifiers:[]TypeModifier{{Raw:$1.text,Pos:$1.pos}}}}
- | name {if !sqllex.(*lexer).characterGeneric {sqllex.(*lexer).syntax($1);return 1};$$=TypeName{Modifiers:[]TypeModifier{{Raw:$1.text,Pos:$1.pos}}}} ;
+ | name {if !sqllex.(*lexer).characterGeneric {sqllex.(*lexer).syntax($1);return 1};$$=TypeName{Modifiers:[]TypeModifier{{Raw:$1.text,Pos:$1.pos}}}}
+ | '(' {if !sqllex.(*lexer).bitModifier {sqllex.(*lexer).syntax($1);return 1}} generic_precision ')' {$$=$3} ;
 nullability: /* empty */ { $$ = nil }
  | column_constraints { $$=$1 }
  | column_suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
@@ -1049,6 +1057,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | TRUE { $$ = Value{Kind:BooleanValue, Boolean:true, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
+ | BITSTRING { $$ = Value{Kind:BitStringValue, Text:$1.text, Pos:$1.pos} }
  | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
  | KW_T '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | CONCURRENTLY '(' { sqllex.(*lexer).call($1,$2); return 1 }

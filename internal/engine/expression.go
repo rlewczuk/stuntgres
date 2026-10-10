@@ -1247,6 +1247,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 				u = b.typ(sqltype.Text).Usage()
 			}
 			value = sqltype.Null(u.Type)
+		case parser.BitStringValue:
+			value, err = b.inputConstant(v.Text, b.typ(sqltype.Bit).Usage(), v.Pos)
 		case parser.StringValue:
 			if u.Type == nil {
 				u = b.typ(sqltype.Text).Usage()

@@ -52,7 +52,7 @@ func (d *Descriptor) validTypmod(p int32) bool {
 	if d.IsArray() {
 		return d.element.validTypmod(p)
 	}
-	return p == -1 || d.id == Interval && intervalTypmodValid(p) || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
+	return p == -1 || isBitString(d.id) && p >= 1 && p <= maximumBitLength || d.id == Interval && intervalTypmodValid(p) || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
 }
 func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
@@ -87,7 +87,7 @@ func (d *Descriptor) CheckModifierSupport() error {
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	}
 	switch d.id {
-	case Numeric, Timestamp, Time, Timestamptz, Timetz, Interval, BPChar, VarChar:
+	case Bit, VarBit, Numeric, Timestamp, Time, Timestamptz, Timetz, Interval, BPChar, VarChar:
 		return nil
 	case Int2, Int4, Int8, JSON, JSONB:
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
@@ -114,6 +114,10 @@ func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Erro
 	}
 	u := d.Usage()
 	if err := d.CheckModifierSupport(); err != nil {
+		return u, nil, err
+	}
+	if isBitString(d.id) {
+		u, err := d.bitModifiers(modifiers)
 		return u, nil, err
 	}
 	if d.id == Interval {
@@ -187,6 +191,15 @@ func (u Usage) Declaration() (string, error) {
 		u.Type = u.Type.element
 		declaration, err := u.Declaration()
 		return declaration + "[]", err
+	}
+	if isBitString(u.Type.id) {
+		if u.Typmod >= 0 {
+			return fmt.Sprintf("%s(%d)", u.Type.SQLName(), u.Typmod), nil
+		}
+		if u.Type.id == Bit {
+			return `"bit"`, nil
+		}
+		return "BIT VARYING", nil
 	}
 	if u.Type.id == Interval {
 		return intervalDeclaration(u.Typmod), nil

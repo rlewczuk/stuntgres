@@ -39,6 +39,8 @@ const (
 	Timestamptz ID = 1184
 	Interval    ID = 1186
 	Timetz      ID = 1266
+	Bit         ID = 1560
+	VarBit      ID = 1562
 	Numeric     ID = 1700
 	Regclass    ID = 2205
 	Void        ID = 2278
@@ -158,6 +160,8 @@ func Builtins() []*Descriptor {
 		{id: Timestamptz, name: "timestamptz", sql: "TIMESTAMP WITH TIME ZONE", database: "TIMESTAMPTZ", associatedArray: 1185},
 		{id: Interval, name: "interval", sql: "INTERVAL", database: "INTERVAL", associatedArray: 1187},
 		{id: Timetz, name: "timetz", sql: "TIME WITH TIME ZONE", database: "TIMETZ", associatedArray: 1270},
+		{id: Bit, name: "bit", sql: "BIT", database: "BIT"},
+		{id: VarBit, name: "varbit", sql: "BIT VARYING", database: "VARBIT"},
 		{id: Numeric, name: "numeric", sql: "NUMERIC", database: "NUMERIC", associatedArray: 1231},
 		{id: UUID, name: "uuid", sql: "UUID", database: "UUID", associatedArray: 2951},
 		{id: Regclass, name: "regclass", sql: "REGCLASS", database: "REGCLASS", associatedArray: 2210},
@@ -396,6 +400,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.enumInput(text)
 	}
 	switch d.id {
+	case Bit, VarBit:
+		return d.bitInput(text, typmod)
 	case JSON:
 		return d.jsonInput(ctx, text)
 	case JSONB:
@@ -597,6 +603,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.enumOutput(v)
 	}
 	switch d.id {
+	case Bit, VarBit:
+		return v.text, nil
 	case PgNodeTree:
 		if v.treeKey {
 			return v.text, nil
@@ -688,6 +696,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
 	switch d.id {
+	case Bit, VarBit:
+		return "B'" + v.text + "'", nil
 	case Bytea:
 		return byteaHex(v.text, true), nil
 	case UUID:
@@ -767,6 +777,7 @@ const (
 	oidConversion
 	datetimeConversion
 	charTextConversion
+	bitStringConversion
 )
 
 type CoercionPlan struct {
@@ -978,6 +989,10 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	if source.Type == target.Type {
 		return p, nil
 	}
+	if isBitString(source.Type.id) && isBitString(target.Type.id) {
+		p.method = bitStringConversion
+		return p, nil
+	}
 	if target.Type.id == Name && IsCharacter(source.Type.id) {
 		p.method = nameConversion
 		return p, nil
@@ -1020,6 +1035,9 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case bitStringConversion:
+		v.typ = p.target.Type
+		return sizeBitString(v, p.target.Typmod)
 	case charTextConversion:
 		text, err := p.source.Type.ConcatOutput(ctx, v, output)
 		if err != nil {
@@ -1044,6 +1062,9 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 		}
 		if p.target.Type.id == Interval {
 			return adjustInterval(v, p.target.Typmod)
+		}
+		if isBitString(p.target.Type.id) {
+			return sizeBitString(v, p.target.Typmod)
 		}
 		if IsCharacter(p.target.Type.id) {
 			return sizeCharacter(v, p.target.Typmod, p.context == Explicit)

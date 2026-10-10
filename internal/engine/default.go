@@ -307,10 +307,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			if err != nil {
 				return "", err
 			}
-			// ANY operands cannot rely on a formal argument type on replay.
+			// ANY operands need explicit identity on replay unless their owning
+			// literal syntax already preserves it (including canonical B literals).
 			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
 				id := literal.usage.Type.ID()
-				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass {
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Bit {
 					declaration, err := catalogTypeDeclaration(view, literal.usage)
 					if err != nil {
 						return "", err

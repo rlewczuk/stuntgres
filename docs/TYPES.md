@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, interval, uuid, bytea and json. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, canonical UUID and exact JSON source), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, interval, uuid, bytea, json, bit and varbit. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, canonical UUID, exact JSON source and canonical BIT/VARBIT digits), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -13,10 +13,62 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID/BIT/VARBIT and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+## Bit strings — change note
+
+`BIT(n)` stores exactly n bits; `BIT VARYING(n)`/`VARBIT(n)` store at most n.
+Modifiers are single integer constants from1 through83886080. Bare unquoted,
+unqualified `BIT` means `BIT(1)`. Bare `VARBIT` and `BIT VARYING` are unlimited;
+quoted `"bit"` and qualified `pg_catalog.bit` without modifiers are unlimited
+BIT too. Width is preserved rather than padded or truncated on assignment.
+Parentheses around a simple modifier constant retain its value, so `BIT((1))`
+has width1. Actual arithmetic modifier expressions are not evaluated: addition,
+subtraction, multiplication and division fail42601
+`type modifiers must be simple constants or identifiers` at the type start
+during CREATE execution, including prepared CREATE.
+
+Adjacent `B'…'` and `X'…'` tokens produce known BIT literals, not unknown text.
+Binary and hexadecimal bodies are raw: no string escape processing or doubled
+apostrophe escaping. Newline-separated quoted fragments continue a literal,
+including line comments but excluding intervening block comments. Hex input
+expands each digit to four bits, preserving leading zeroes. Textual assignment
+and binds accept binary digits with optional B/b or hexadecimal X/x markers.
+Input validates the complete unbounded value before assignment width checks:
+bad digits fail22P02, fixed-width mismatch22026, varying overflow22001.
+Implicit/assignment BIT↔VARBIT conversion preserves bits and checks the target.
+
+Go exports are canonical binary `string` values, including `""` for an empty
+unlimited/varying value; SQL NULL remains nil. BIT and VARBIT metadata retain
+distinct database type names, `ScanType` string, and known bit lengths (n or-1
+for unlimited), with no decimal precision/scale or collation. Shared reference
+raw checks require native strings and non-nil lib/pq bytes before normalization.
+Bound byte slices are textual input, never a packed-bit representation, and
+executions own their imported data. Typed-nil byte slices bind as SQL NULL for
+BIT/VARBIT; nonnil empty byte slices and empty strings bind as nonnull empty
+bits, just like `B''`. Held statements and retained rows keep
+their typed metadata and value snapshots across catalog replacement.
+Repeated parameters assigned to differing VARBIT maxima still check each
+destination independently. Held parameterized SELECTs use fresh argument frames;
+an earlier native cursor retains its original values and captured metadata.
+
+Native Dump emits canonical `B'…'` values, explicit bounded declarations, and
+`"bit"` for unlimited BIT so replay cannot introduce the keyword default.
+Stored existing `format` consumers of B/X literals preserve their concrete BIT
+identity as canonical `B'…'` operands in defaults and views. Replay does not
+manufacture an explicit BIT cast or substitute a precomputed default value.
+Dump/Restore preserves leading zeroes, empty values and NULL; failed or canceled
+Restore leaves the old store intact. These scalar seams do not enable explicit
+bit casts, comparisons/operators/functions, index classes, or BIT/VARBIT array
+storage. Mixed-destination parameter reuse retains the native0A000 boundary.
+Spaced `b '…'` and `x '…'` are generic typed-literal attempts, not bit
+constants. The existing native typed-literal capability guard reports0A000
+`typed literals are unsupported`, at the prefix; PostgreSQL instead reports
+42704 for the missing type. Both complete diagnostics remain explicitly tested;
+bit-constant admission does not expand generic typed-literal providers.
 
 ## JSON textual storage — change note
 

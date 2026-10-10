@@ -61,7 +61,7 @@ func SameDatum(a, b Value) bool {
 	case Numeric:
 		return a.text == b.text && a.exponent == b.exponent && a.scale == b.scale &&
 			a.negative == b.negative && a.special == b.special
-	case Text, VarChar, BPChar, Name, Bytea, Regclass, Char, JSON:
+	case Bit, VarBit, Text, VarChar, BPChar, Name, Bytea, Regclass, Char, JSON:
 		return a.text == b.text
 	case UUID:
 		return a.uuid == b.uuid

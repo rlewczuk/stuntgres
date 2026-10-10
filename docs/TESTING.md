@@ -126,6 +126,25 @@ codec strings directly; they do not require an `interval::text` conversion edge.
 Constructor write coverage uses INSERT affected counts and existing UPDATE/DELETE
 RETURNING projections, not unsupported INSERT RETURNING syntax.
 
+The bitstring family covers independently pinned BIT/VARBIT values, raw scanner
+and modifier diagnostics, direct/held parameters, assignment atomicity, complete
+metadata and retained ownership, plus native Dump/Reset/Restore with PostgreSQL
+replay of the actual emitted SQL. The expanded feature smoke combines the compact
+scenario with stored-format replay/default demand, compound/simple-parenthesized
+modifiers, differing-width repeated slots and held parameterized cursor snapshots.
+Run each invocation under the quickcheck900-second deadline, quietly:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0
+```
+
+Both modes are required before review/integration. Final fullcheck remains one
+1800-second gate after merge. Discovery-only deliberate observation failures
+and PG-only filters must be removed before the native failing proof and gates.
+
 The index-clause feature smoke exercises mixed keys, an existing scalar expression
 key with explicit owned collation/class and INCLUDE, prepared uppercase projection,
 payload/derived-key maintenance, the total 32/33 boundary and native controls with

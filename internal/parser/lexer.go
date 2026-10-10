@@ -32,6 +32,7 @@ type lexer struct {
 	floatPrecision     bool
 	characterPrecision bool
 	characterGeneric   bool
+	bitModifier        bool // Bit modifiers retain nonsimple arithmetic for provider diagnostics.
 	// Temporal keyword forms retain their unsigned-Iconst grammar; generic
 	// descriptor modifiers retain numeric spellings for subsequent int4 input.
 	temporalLead        bool
@@ -362,6 +363,41 @@ func (l *lexer) stringLiteral(first int, escape bool) (string, bool) {
 	}
 	return s, true
 }
+
+// Bit literals retain their input marker and raw body; unlike ordinary strings,
+// neither doubled quotes nor backslashes have an escape interpretation.
+func (l *lexer) bitLiteral(first int, prefix byte) (string, bool) {
+	var b strings.Builder
+	b.WriteByte(prefix)
+	for {
+		l.offset++ // Opening quote (the prefix has already been consumed).
+		start := l.offset
+		for l.offset < len(l.input) && l.input[l.offset] != '\'' {
+			if l.input[l.offset] == 0 {
+				l.failAt("42601", "NUL in quoted input", first)
+				return "", false
+			}
+			l.offset++
+		}
+		if l.offset == len(l.input) {
+			message := "unterminated bit string literal"
+			if prefix == 'x' {
+				message = "unterminated hexadecimal string literal"
+			}
+			l.scannerError(message, first, len(l.input))
+			return "", false
+		}
+		b.WriteString(l.input[start:l.offset])
+		l.offset++
+		saved := l.offset
+		if !l.skip(false) || l.offset == len(l.input) || l.input[l.offset] != '\'' {
+			l.offset = saved
+			break
+		}
+	}
+	return b.String(), true
+}
+
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
 func (l *lexer) scan(v *sqlSymType) int {
 	l.rawUnicode = false
@@ -388,6 +424,15 @@ func (l *lexer) scan(v *sqlSymType) int {
 	c := l.input[start]
 	token := 0
 	switch {
+	case (c == 'b' || c == 'B' || c == 'x' || c == 'X') && start+1 < len(l.input) && l.input[start+1] == '\'':
+		prefix := c | 32
+		l.offset++
+		s, ok := l.bitLiteral(start, prefix)
+		if !ok {
+			return 0
+		}
+		l.current.text = s
+		token = BITSTRING
 	case (c == 'u' || c == 'U') && start+2 < len(l.input) && l.input[start+1] == '&' && (l.input[start+2] == '\'' || l.input[start+2] == '"'):
 		if l.input[start+2] == '\'' && l.backslashEscapes {
 			l.failAt("0A000", "unsafe use of string constant with Unicode escapes", start)
@@ -505,7 +550,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.offset++
 		}
 		raw := fold(l.input[start:l.offset])
-		if l.offset < len(l.input) && ((raw == "b" || raw == "x" || raw == "n") && l.input[l.offset] == '\'' || raw == "u" && strings.HasPrefix(l.input[l.offset:], "&")) {
+		if l.offset < len(l.input) && (raw == "n" && l.input[l.offset] == '\'' || raw == "u" && strings.HasPrefix(l.input[l.offset:], "&")) {
 			l.fail("0A000", "special quoted syntax is unsupported")
 			return 0
 		}

@@ -70,6 +70,61 @@ func TestTypeCoreAdapterOwnershipAndErrors(t *testing.T) {
 	}
 }
 
+func TestBitstringParameterNullBoundary(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	for _, id := range []sqltype.ID{sqltype.Bit, sqltype.VarBit, sqltype.Bytea, sqltype.JSON, sqltype.Name, sqltype.Text} {
+		target, _ := e.CatalogRead().LookupType(id)
+		for _, raw := range []any{nil, []byte(nil), []byte{}, ""} {
+			normalized, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: raw}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Normalization retains typed-nil bytes for the destination importer,
+			// while taking immutable ownership of every nonnil byte buffer.
+			if bytes, ok := raw.([]byte); ok && bytes == nil {
+				if value, ok := normalized[0].([]byte); !ok || value != nil {
+					t.Fatal("typed-nil authority lost", normalized[0])
+				}
+			}
+			value, err := importParameter(ctx, normalized[0], target.Usage(), sqltype.InputEnvironment{})
+			bytes, typedBytes := raw.([]byte)
+			wantNull := raw == nil || typedBytes && bytes == nil && id != sqltype.Name && id != sqltype.Text
+			if id == sqltype.JSON && !wantNull {
+				var diagnostic *Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" {
+					t.Fatal("empty JSON input", value, err)
+				}
+				continue
+			}
+			if err != nil || value.Type() != target || value.IsNull() != wantNull {
+				t.Fatal(id, raw, value, err)
+			}
+			if id == sqltype.Bit || id == sqltype.VarBit {
+				bounded := target.Usage()
+				bounded.Typmod = 3
+				plan, err := sqltype.PlanCoercion(target.Usage(), bounded, sqltype.Assignment)
+				if err != nil {
+					t.Fatal(err)
+				}
+				sized, err := plan.Apply(ctx, value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+				if wantNull {
+					if err != nil || !sized.IsNull() || sized.Type() != target {
+						t.Fatal("NULL passed through bit sizing", sized, err)
+					}
+				} else if id == sqltype.Bit {
+					var diagnostic *Error
+					if !errors.As(err, &diagnostic) || diagnostic.Code != "22026" {
+						t.Fatal("empty fixed-width input", sized, err)
+					}
+				} else if err != nil || sized.IsNull() {
+					t.Fatal("empty varying input", sized, err)
+				}
+			}
+		}
+	}
+}
+
 func TestTypeCoreScalarImports(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()

@@ -35,6 +35,15 @@ excluded. See [datetime constructors](docs/DIALECT.md#datetime-constructors--cha
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
 
+Change note: PostgreSQL BIT and BIT VARYING/VARBIT scalar storage preserves
+leading zeroes, empty values and NULL through direct/prepared statements,
+textual parameters, metadata and native Dump/Restore. Raw B/X literals and
+assignment enforce exact fixed widths or varying maxima; no padding/truncation
+or bit casts/operators/arrays are introduced. See
+[bit strings](docs/TYPES.md#bit-strings--change-note).
+Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0`.
+
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
 `pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL

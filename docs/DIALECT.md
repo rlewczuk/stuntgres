@@ -6,6 +6,31 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Bit strings — change note
+
+Scalar `BIT`, `BIT(n)`, `BIT VARYING[(n)]` and `VARBIT[(n)]` support stored
+columns, direct/prepared INSERT/SELECT, defaults and NULL. Bare keyword BIT
+defaults to one bit; quoted/qualified BIT and unbounded varying forms do not.
+Modifiers range from1 through83886080. Assignment never pads or truncates:
+fixed mismatches fail22026, varying overflow22001, malformed digits22P02.
+Parentheses around a simple modifier retain the constant; arithmetic modifiers
+are rejected uniformly with42601 at the type start during CREATE execution,
+not evaluated as bit-width arithmetic.
+Adjacent raw `B'…'`/`X'…'` literals and textual parameters produce canonical
+binary string values, preserving leading zeroes and distinguishing empty from
+NULL. BIT↔VARBIT assignment checks destination width. Metadata and native
+Dump/Reset/Restore preserve type identity and bit width. Explicit casts,
+bit operators/functions/comparisons/index classes and bit-array storage remain outside
+this surface; mixed BIT/VARBIT parameter destinations retain native0A000.
+Separated `b '…'`/`x '…'` prefixes remain outside adjacent bit-literal syntax:
+the inherited native generic typed-literal guard returns0A000
+`typed literals are unsupported`, whereas PostgreSQL reports42704 missing type.
+The bit feature does not expand that generic typed-literal surface.
+Existing stored `format` defaults/views consume known B/X literals without
+introducing explicit BIT casts in Dump; restored defaults remain expressions.
+See [bit strings](TYPES.md#bit-strings--change-note) for input, scanner and
+driver details.
+
 ### SQL current date and time — change note
 
 `CURRENT_DATE` returns DATE; `CURRENT_TIME[(p)]` returns TIMETZ;
@@ -145,7 +170,7 @@ adds no materialized-view, expression/partial/INCLUDE index DDL or catalogs.
 
 
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA, BIT[(n)], BIT VARYING[(n)], VARBIT[(n)] and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, raw B/X bit literals, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
 ### JSON textual IO — change note
 

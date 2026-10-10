@@ -11,6 +11,8 @@ import (
 
 func literalTypeName(raw parser.Value) string {
 	switch raw.Kind {
+	case parser.BitStringValue:
+		return "bit"
 	case parser.NumericValue:
 		return "numeric"
 	case parser.IntegerValue:

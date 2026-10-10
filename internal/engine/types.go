@@ -198,6 +198,8 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 			name = "bpchar"
 		case "character varying":
 			name = "varchar"
+		case "bit varying":
+			name = "varbit"
 		}
 	}
 	auth, err := e.authorizationLocked(op)
@@ -243,6 +245,9 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 	if !raw.Quoted && (raw.Name == "char" || raw.Name == "character") && len(raw.Modifiers) == 0 {
 		u.Typmod = 5
 	}
+	if !raw.Quoted && raw.Schema == nil && raw.Name == "bit" && len(raw.Modifiers) == 0 {
+		u.Typmod = 1
+	}
 	if len(raw.Modifiers) > 0 {
 		if d.IsUserDefined() {
 			return sqltype.Usage{}, typeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
@@ -253,7 +258,7 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 	}
 	modifiers := make([]int32, len(raw.Modifiers))
 	for i, modifier := range raw.Modifiers {
-		if modifier.UnaryPlus {
+		if modifier.NonSimple || modifier.UnaryPlus {
 			return sqltype.Usage{}, typeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
 		}
 		if modifier.Integer != nil {
@@ -315,7 +320,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
 	case "money", "char",
-		"bit", "varbit", "timetz",
+		"timetz",
 		"timestamptz", "xml",
 		"name", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":

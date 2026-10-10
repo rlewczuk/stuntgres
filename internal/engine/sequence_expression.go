@@ -36,6 +36,8 @@ func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {
 			names[i] = v.TypeName.Name
 		case parser.LiteralExpr:
 			switch v.Value.Kind {
+			case parser.BitStringValue:
+				names[i] = "bit"
 			case parser.BooleanValue:
 				names[i] = "boolean"
 			case parser.NumericValue:

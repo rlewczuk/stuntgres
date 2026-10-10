@@ -27,6 +27,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.UUID: {"01234567-89ab-cdef-0123-456789abcdef"}, sqltype.Regclass: {"0", "42"},
 		sqltype.JSON:  {"null", ` {"a":1,"a":2} `},
 		sqltype.JSONB: {"null", ` {"a":1,"a":2} `},
+		sqltype.Bit: {"", "0010"}, sqltype.VarBit: {"", "00001111"},
 	}
 	for _, d := range sqltype.Builtins() {
 		if !d.Concrete() {
