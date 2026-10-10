@@ -2439,9 +2439,9 @@ OVERLAY/POSITION/SUBSTRING/TRIM syntax; ordinary calls retain identifier quoting
 typed `Binary <name>` nodes and recursive children without evaluation, not
 PostgreSQL nodeToString interchange. Captured carriers survive native replay.
 Special BYTEA TRIM nodes also record `syntax TRIM`; ordinary Binary tags are unchanged.
-No new typed BYTEA literals, casts, direct byteacat, byteapos alias, binary
-functions beyond the selected raw-byte families, arrays or wire server are
-added; existing cast admission is unchanged. Binary slicing smoke:
+No new typed BYTEA literals, direct byteacat, byteapos alias, binary
+functions beyond the selected raw-byte families or wire server are added;
+generic arrays retain their existing element authority. Binary slicing smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`; pinned independent reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 Selected slicing/search fixed scalar signatures accept matching `VARIADIC`
@@ -2450,10 +2450,30 @@ continuation words retain their qualified-name and projection-label legality.
 SQL-special spelling is display provenance, not a semantic distinction in
 GROUP BY/HAVING or duplicate-label ORDER BY. POSITION searches in constant
 space with linear progress and bounded preprocessing/comparison checkpoints.
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestByteaSmoke$' VERBOSE=0`;
+Migrated smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceByteaSmokeMigration$' VERBOSE=0`;
 Docker-free native witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
 pinned independent reference of the same definitions:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
+
+### BYTEA output setting — change note
+
+Explicit BYTEA→TEXT via `::text`, `CAST(... AS text)` and `text(...)` invokes
+the existing output/input conversion. `bytea_output=hex` (default) emits a
+literal `\x` prefix and lowercase hex; `escape` doubles backslashes and emits
+three-digit octal for bytes 0–31 and 127–255. NULL remains NULL; empty bytes
+produce `\x` or empty TEXT. Input always accepts both formats. Raw driver
+BYTEA results remain owned `[]byte`, and inferred binds remain raw octets.
+No implicit or reverse TEXT→BYTEA edge or charset decoding is introduced.
+Assignment conversion and immutable output classification remain unchanged.
+Held column/bound casts capture each execution's mode; constant-only folding
+is not disabled. Ordinary users may SET this enum without setting grants.
+Existing session isolation, transactional SET/LOCAL/savepoint, DEFAULT/RESET,
+pool reuse and physical replacement rules apply. Invalid values fail22023 with
+`Available values: escape, hex.` and do not publish a new setting.
+Native Dump remains canonical hex in either mode; Reset/Restore retain live
+settings, raw schema/data and already-owned raw/TEXT snapshots. The complete
+legacy BYTEA smoke assertion union now lives in shared reference scenarios.
+Run both BYTEA family commands above before review (each under 900 seconds).
 
 ### BYTEA checksums and hashes — change note
 

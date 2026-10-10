@@ -58,7 +58,8 @@ func TestReferenceByteaControlsRoundTrip(t *testing.T) {
 			referenceByteaExec(t, p.ctx, b.db, b, referenceExec(referenceByteaControlSeed, 3))
 			if !b.pg {
 				func() {
-					conn, err := p.native.Conn(p.ctx)
+					// Keep settings and restored TEXT on one middleware-recorded session.
+					conn, err := b.db.Conn(p.ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -93,6 +94,7 @@ func TestReferenceByteaControlsRoundTrip(t *testing.T) {
 					if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 						t.Fatal(err)
 					}
+					referenceRunStep(t, p.ctx, conn, b.recorder, referenceSelect("SELECT v::text AS rendered FROM t ORDER BY id", []string{"rendered"}, []string{"TEXT"}, [][]any{{""}, {`\000\200\377\\'`}, {nil}}))
 					for _, setting := range []struct{ name, want string }{{"bytea_output", "escape"}, {"standard_conforming_strings", "off"}} {
 						var got string
 						if err := conn.QueryRowContext(p.ctx, "SHOW "+setting.name).Scan(&got); err != nil || got != setting.want {
@@ -137,6 +139,17 @@ func TestReferenceByteaControlsRetainedOwnership(t *testing.T) {
 					}
 				}()
 				err = conn.Raw(func(raw any) error {
+					if _, err := raw.(driver.ExecerContext).ExecContext(p.ctx, "SET bytea_output=escape", nil); err != nil {
+						return err
+					}
+					rendered, err := raw.(driver.QueryerContext).QueryContext(p.ctx, "SELECT v::text AS rendered FROM t ORDER BY id", nil)
+					if err != nil {
+						return err
+					}
+					defer rendered.Close()
+					if _, err := raw.(driver.ExecerContext).ExecContext(p.ctx, "SET bytea_output=hex", nil); err != nil {
+						return err
+					}
 					// This public raw handle remains borrowed through every catalog transition.
 					held, err := raw.(driver.QueryerContext).QueryContext(p.ctx, "SELECT v FROM t ORDER BY id", nil)
 					if err != nil {
@@ -185,6 +198,18 @@ func TestReferenceByteaControlsRetainedOwnership(t *testing.T) {
 					referenceRunStep(t, p.ctx, b.db, b.recorder, s)
 					referenceByteaRaw(t, p.ctx, b.db, b, "SELECT v,r FROM t ORDER BY id", false, []string{"v", "r"}, []int{1, 0}, referenceByteaControlRows(), false)
 					referenceByteaRaw(t, p.ctx, b.db, b, "SELECT v FROM t ORDER BY id", false, []string{"v"}, []int{1}, referenceByteaControlValues(), false)
+					textDst := make([]driver.Value, 1)
+					for _, want := range []any{"", `\000\200\377\\'`, nil} {
+						if err := rendered.Next(textDst); err != nil || !reflect.DeepEqual(textDst[0], want) {
+							t.Fatal("retained escape TEXT", textDst, want, err)
+						}
+					}
+					if err := rendered.Next(textDst); err != io.EOF {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(rendered.Columns(), []string{"rendered"}) || rendered.(driver.RowsColumnTypeDatabaseTypeName).ColumnTypeDatabaseTypeName(0) != "TEXT" || rendered.(driver.RowsColumnTypeScanType).ColumnTypeScanType(0) != reflect.TypeFor[string]() {
+						t.Fatal("retained TEXT metadata")
+					}
 					dst := make([]driver.Value, 1)
 					for _, want := range referenceByteaControlValues() {
 						if err := held.Next(dst); err != nil || !reflect.DeepEqual(dst[0], want[0]) {

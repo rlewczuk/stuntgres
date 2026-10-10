@@ -420,6 +420,19 @@ precision (up to 1000 fractional places). See the
 [mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestMathScalarSmoke$' VERBOSE=0`.
 
+Change note: explicit BYTEA→TEXT (`v::text`, `CAST(v AS text)`, `text(v)`)
+uses the statement's `bytea_output`: lowercase hex by default, or PostgreSQL
+escape/octal output. Both textual input formats remain accepted in either mode.
+Raw BYTEA results and inferred binds remain owned raw `[]byte`/octets; this adds
+no implicit or reverse TEXT→BYTEA cast. Held column and bound casts capture the
+mode at execution; constant-only expressions retain existing immutable folding.
+SHOW/SET/RESET, ordinary-user access and transaction/LOCAL/savepoint restoration
+reuse the session setting contract. Dump stays canonical hex, independent of
+live mode; Reset/Restore preserve live settings and retained results.
+See [BYTEA](docs/TYPES.md#bytea). Selected witnesses:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
+
 BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, two-argument
 `btrim`/`ltrim`/`rtrim`, and byte-indexed `overlay`, `position`, `substring`/`substr`.
 SQL `OVERLAY(... PLACING ... FROM ... [FOR ...])`, `POSITION(needle IN source)`,

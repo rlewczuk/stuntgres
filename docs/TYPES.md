@@ -644,10 +644,18 @@ the statement-captured mode; raw SELECT bytes remain invariant under the setting
 Dump always writes quoted lowercase hex, including `'\x'` for empty and NULL
 for null, independent of output/string settings. Restore privately parses
 default-on strings, preserves live settings and retained snapshots, and
-publishes no replacement on input/read/cancellation failure. BYTEA typed
-literals, modifiers, casts, arrays and wire serving are not added.
+publishes no replacement on input/read/cancellation failure.
+Explicit BYTEA→TEXT (`v::text`, `CAST(v AS text)`, `text(v)`) uses this same
+statement-captured output environment, returning TEXT/string: empty hex is
+`\x`, empty escape is empty TEXT, and NULL remains typed TEXT NULL. Held column
+and bound-parameter casts use the current execution mode. Existing immutable
+output classification and constant folding remain unchanged; a held constant
+cast is not a mode-refresh promise. No implicit or reverse TEXT→BYTEA edge is
+added; existing assignment conversion is unchanged. Generic BYTEA arrays retain
+their established element codec/environment authority. BYTEA typed literals,
+modifiers and wire serving are not added.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestByteaSmoke$' VERBOSE=0`.
+Migrated feature witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceByteaSmokeMigration$' VERBOSE=0`.
 Dual-mode native witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
 local adapter ownership: `make quickcheck PACKAGES=. RUN='^TestByteaAdapterOwnership$' VERBOSE=0`;
 codec witnesses: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=0`.

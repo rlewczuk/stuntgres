@@ -145,3 +145,58 @@ func TestByteaOutputAndCompare(t *testing.T) {
 		}
 	}
 }
+
+func TestByteaExplicitTextCoercion(t *testing.T) {
+	ctx := context.Background()
+	d, text := byteaDescriptor(t), testTypes()[Text]
+	p, err := PlanCoercion(d.Usage(), text.Usage(), Explicit)
+	if err != nil || p.method != viaIO || p.SessionDependent() || d.OutputSessionDependent() {
+		t.Fatal(p, err)
+	}
+	for _, tc := range []struct{ raw, hex, escape string }{
+		{"", `\x`, ""},
+		{"\x00 '\\~\x7f\x80\xff", `\x0020275c7e7f80ff`, `\000 '\\~\177\200\377`},
+	} {
+		v, err := Binary(d, tc.raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, mode := range []ByteaOutput{ByteaHex, ByteaEscape} {
+			want := tc.hex
+			if mode == ByteaEscape {
+				want = tc.escape
+			}
+			got, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{ByteaOutput: mode})
+			if err != nil || got.typ != text || got.IsNull() {
+				t.Fatal(got, err)
+			}
+			if s, err := got.Text(); err != nil || s != want {
+				t.Fatalf("mode %v: %q want %q: %v", mode, s, want, err)
+			}
+			if raw, err := v.Binary(); err != nil || raw != tc.raw || v.typ != d {
+				t.Fatal("source authority changed", v, err)
+			}
+			if literal, err := d.SQLLiteral(ctx, v); err != nil || literal != "'"+tc.hex+"'" {
+				t.Fatal(literal, err)
+			}
+			null, err := p.Apply(ctx, Null(d), InputEnvironment{}, OutputEnvironment{ByteaOutput: mode})
+			if err != nil || !null.IsNull() || null.typ != text {
+				t.Fatal(null, err)
+			}
+		}
+	}
+	if _, err := PlanCoercion(d.Usage(), text.Usage(), Implicit); err == nil {
+		t.Fatal("implicit BYTEA to TEXT admitted")
+	} else {
+		var e *sqlstate.Error
+		if !errors.As(err, &e) || e.Code != "42804" {
+			t.Fatal(err)
+		}
+	}
+	if assignment, err := PlanCoercion(d.Usage(), text.Usage(), Assignment); err != nil || assignment.method != viaIO {
+		t.Fatal("assignment changed", assignment, err)
+	}
+	if _, err := PlanCoercion(text.Usage(), d.Usage(), Explicit); err == nil {
+		t.Fatal("reverse explicit edge admitted")
+	}
+}
