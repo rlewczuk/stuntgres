@@ -73,31 +73,33 @@ type resourceEntry struct {
 	owner  SessionResource
 }
 type Session struct {
-	mu                 sync.Mutex
-	cond               *sync.Cond
-	token              SessionToken
-	state              sessionState
-	completed          chan struct{}
-	leases             int
-	operations         map[*Operation]struct{}
-	detaching          bool
-	serial             uint64
-	resources          [resourceKinds]*resourceEntry
-	removed            map[ResourceHandle]bool
-	reason             EndReason
-	cleanupErrors      []error
-	result             error
-	settings           *sessionSettings
-	transactions       *transactionOwner
-	advisory           sessionAdvisory
-	authorization      *sessionAuthorization
-	sequences          map[ObjectAddress]*sequenceMemory
-	lastSequence       ObjectAddress
-	temporaryNamespace ObjectAddress
-	sequencePath       sequencePathCache
-	random             randomState
-	uuid               uuidClock
-	databaseName       string
+	mu    sync.Mutex
+	cond  *sync.Cond
+	token SessionToken
+	// Written before registry publication, never changed by identity switches.
+	countedAuthenticated PrincipalRef
+	state                sessionState
+	completed            chan struct{}
+	leases               int
+	operations           map[*Operation]struct{}
+	detaching            bool
+	serial               uint64
+	resources            [resourceKinds]*resourceEntry
+	removed              map[ResourceHandle]bool
+	reason               EndReason
+	cleanupErrors        []error
+	result               error
+	settings             *sessionSettings
+	transactions         *transactionOwner
+	advisory             sessionAdvisory
+	authorization        *sessionAuthorization
+	sequences            map[ObjectAddress]*sequenceMemory
+	lastSequence         ObjectAddress
+	temporaryNamespace   ObjectAddress
+	sequencePath         sequencePathCache
+	random               randomState
+	uuid                 uuidClock
+	databaseName         string
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -145,9 +147,9 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		return nil, nameErr
 	}
 	if !role.Login {
-		return nil, fmt.Errorf("stuntgres: role %q is not permitted to log in", role.Name)
+		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{token: SessionToken{e, start.ID}, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{token: SessionToken{e, start.ID}, countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	s.databaseName, _ = database.Text()
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(ctx, true)
@@ -188,7 +190,7 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	if err == nil {
 		role, err = (RoleRead{e, e.roles}).Descriptor(authenticated)
 		if err == nil && !role.Login {
-			err = fmt.Errorf("stuntgres: role %q is not permitted to log in", role.Name)
+			err = roleLoginError(role.Name)
 		}
 	}
 	s.mu.Lock()
@@ -205,7 +207,9 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		}
 		if e.sessions[s.token] != nil {
 			err = errors.New("stuntgres: duplicate session identity")
-		} else {
+		} else if !role.Superuser && role.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(role.ConnectionLimit) {
+			err = roleConnectionLimitError(role.Name)
+		} else if err = ctx.Err(); err == nil {
 			s.state = live
 			e.sessions[s.token] = s
 		}

@@ -27,7 +27,11 @@ func TestRoleGrammarAndIdentityProjection(t *testing.T) {
 			t.Fatal(tc.sql, err)
 		}
 		role := stmts[0].(*CreateRole)
-		if role.Name.Text != tc.name || role.Login != tc.login {
+		login := role.DefaultLogin
+		if role.Options.Present&RoleLogin != 0 {
+			login = role.Options.Login
+		}
+		if role.Name.Text != tc.name || login != tc.login {
 			t.Fatal(role)
 		}
 	}
@@ -36,7 +40,7 @@ func TestRoleGrammarAndIdentityProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	create := stmts[0].(*CreateRole)
-	if len(create.Options) != 2 || create.Options[1].Pos.Character != 21 {
+	if create.Options.Present != RoleLogin || create.Options.Duplicate.Character != 21 {
 		t.Fatal(create)
 	}
 	if !reflect.DeepEqual(stmts[1].(*DropRole).Names, []string{"a", "a"}) {
@@ -63,8 +67,9 @@ func TestRoleGrammarFailureBoundaries(t *testing.T) {
 		{"CREATE ROLE CURRENT_USER", "42939", "CURRENT_USER cannot be used as a role name here", "13"},
 		{"CREATE USER SESSION_USER", "42939", "SESSION_USER cannot be used as a role name here", "13"},
 		{"CREATE GROUP CURRENT_ROLE", "42939", "CURRENT_ROLE cannot be used as a role name here", "14"},
-		{"CREATE ROLE a WITH SUPERUSER", "0A000", "unsupported role option", "20"},
-		{"CREATE ROLE a PASSWORD 'p'", "0A000", "unsupported role option", "15"},
+		// ADMIN requires a member; EOF is after all 24 source characters.
+		{"CREATE ROLE a WITH ADMIN", "42601", "syntax error at end of input", "25"},
+		{"CREATE ROLE a SYSID 12", "0A000", "unsupported role option", "15"},
 		{"CREATE ROLE a WITH WITH LOGIN", "42601", `syntax error at or near "WITH"`, "20"},
 		{"CREATE ROLE a LOGIN WITH NOLOGIN", "42601", `syntax error at or near "WITH"`, "21"},
 		{"CREATE ROLE with LOGIN", "42601", `syntax error at or near "with"`, "13"},

@@ -356,7 +356,7 @@ func planMembership(op *Operation, r RoleRead, state RoleState, s *parser.RoleMe
 				}
 				continue
 			}
-			edge := Membership{Role: role, Member: member, Grantor: grantor, Inherit: true, Set: true}
+			edge := Membership{Role: role, Member: member, Grantor: grantor, Inherit: r.state.roles[member].Inherit, Set: true}
 			if found >= 0 {
 				edge = edges[found]
 			}

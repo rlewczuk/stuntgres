@@ -16,6 +16,37 @@ describe types without drawing; each execution uses its current physical session
 No generator state is serialized into Dump. Feature smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 
+## Trusted role admission and physical limits
+
+`OpenConnectorAs(dsn, role)` asserts an exact trusted native principal; it does
+not parse credentials or perform a password/SCRAM handshake. Missing or miscased
+role names retain ordinary host errors without SQLSTATE. An existing NOLOGIN
+principal instead rejects new physical connections with FATAL, unlocalized FATAL,
+SQLSTATE28000, `role "name" is not permitted to log in`. Superusers are not exempt
+from LOGIN. Already admitted connections remain usable after NOLOGIN.
+
+CONNECTION LIMIT counts physical sessions against the immutable original
+authenticated role, not current_user or session_user after SET ROLE/SESSION
+AUTHORIZATION. Limit -1 is unlimited; 0 denies ordinary admission; positive limits
+bound it. Superusers bypass limits. Denial is FATAL/unlocalized FATAL53300,
+`too many connections for role "name"`; these admission diagnostics have no other
+detail/hint/position fields. Lowering a limit does not terminate incumbents.
+An idle pooled connection still counts. Returning `sql.Conn` to its pool does
+not release a slot, and borrowing/reusing it does not consume another.
+Raw physical `driver.Conn.Close`, or actual pool disposal, releases the slot once.
+Failed initialization consumes none; final admission rechecks current attributes.
+
+PASSWORD and VALID UNTIL are meaningful stored SQL metadata but trusted native
+admission ignores both, including NULL passwords and expired timestamps.
+PostgreSQL password-authenticated fixture connections are an independent route,
+not evidence of a native password handshake. Native Reset/Restore retain roles,
+attributes, membership and live admission accounting; Dump emits no role/password
+DDL. Role utilities remain excluded from native explicit transactions.
+Observed public smoke exercised creator ADMIN, omitted ALTER USER retention,
+expired trusted admission, physical limit release, NOLOGIN and held authority
+refresh. Its repeatable reference selector is
+`RUN='^TestReferenceRoleAttributesFeatureSmoke$'` in both quickcheck modes.
+
 ## Command and transaction clocks
 
 Each native public SQL request captures a microsecond-quantized command sample

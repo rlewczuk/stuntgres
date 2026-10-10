@@ -16,7 +16,7 @@ import (
 // and TestReferenceRoleTrustedConnector*. This preserves its remaining controls
 // and changed-session pool reuse witnesses without a native-only SQL copy.
 func TestReferenceRoleMigratedSmokeControls(t *testing.T) {
-	roleReferenceCleanup(t, []string{"role_smoke_owner", "role_smoke_reader"})
+	roleReferenceCleanup(t, []string{"role_smoke_owner", "role_smoke_reader", "role_smoke_unsupported"})
 	p := newReferenceScenario(t)
 	dsn := "reference/" + t.Name()
 	for _, backend := range p.backends() {
@@ -31,15 +31,15 @@ func TestReferenceRoleMigratedSmokeControls(t *testing.T) {
 			if backend.pg {
 				run(admin, referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
 			}
+			run(admin, referenceExec("CREATE ROLE role_smoke_unsupported", 0))
 			if backend.pg {
-				run(admin, referenceExec("CREATE ROLE role_smoke_unsupported WITH SUPERUSER", 0))
-				run(admin, referenceExec("DROP ROLE role_smoke_unsupported", 0))
+				run(admin, referenceExec("ALTER ROLE role_smoke_unsupported SET application_name TO excluded", 0))
 			} else {
-				want := controlsReferenceDiagnostic("0A000", "unsupported role option")
-				want.Position = "41"
-				run(admin, referenceErrorDiagnostic("CREATE ROLE role_smoke_unsupported WITH SUPERUSER", want))
-				run(admin, roleReferenceError("DROP ROLE role_smoke_unsupported", "42704", `role "role_smoke_unsupported" does not exist`, "", false, "execute"))
+				want := controlsReferenceDiagnostic("0A000", "statement is unsupported")
+				want.Position = "1"
+				run(admin, referenceErrorDiagnostic("ALTER ROLE role_smoke_unsupported SET application_name TO excluded", want))
 			}
+			run(admin, referenceExec("DROP ROLE role_smoke_unsupported", 0))
 			for _, q := range []string{"CREATE USER role_smoke_owner", "CREATE USER role_smoke_reader", "SET SESSION AUTHORIZATION role_smoke_owner", "CREATE TABLE secret(id INT)"} {
 				run(admin, referenceExec(q, 0))
 			}

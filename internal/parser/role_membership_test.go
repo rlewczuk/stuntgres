@@ -26,16 +26,16 @@ func TestMembershipSymbolicGrammar(t *testing.T) {
 	if !add.Alias || add.Revoke || add.Targets[0].Identity != "current" || !drop.Alias || !drop.Revoke || drop.Members[0].Identity != "session" {
 		t.Fatal(add, drop)
 	}
-	statements, err = Parse("CREATE ROLE n LOGIN IN GROUP p USER m ADMIN a")
+	statements, err = Parse("CREATE ROLE n LOGIN CREATEDB NOINHERIT CONNECTION LIMIT 2 PASSWORD NULL VALID UNTIL 'infinity' IN GROUP p USER m ADMIN a")
 	if err != nil {
 		t.Fatal(err)
 	}
 	create := statements[0].(*CreateRole)
 	var kinds []string
-	for _, option := range create.Options {
+	for _, option := range create.Options.InitialMemberships {
 		kinds = append(kinds, option.Kind)
 	}
-	if !create.Login || !reflect.DeepEqual(kinds, []string{"login", "in", "role", "admin"}) {
+	if !create.Options.Login || !create.Options.CreateDB || create.Options.Inherit || create.Options.ConnectionLimit != 2 || !create.Options.PasswordNull || create.Options.ValidUntil != "infinity" || create.Options.Present != RoleLogin|RoleCreateDB|RoleInherit|RoleConnectionLimit|RolePassword|RoleValidUntil || !reflect.DeepEqual(kinds, []string{"in", "role", "admin"}) {
 		t.Fatal(create)
 	}
 	// Unknown and repeated option names remain ordered for execution validation.
@@ -58,7 +58,7 @@ func TestMembershipGrammarDiagnostics(t *testing.T) {
 			t.Fatal(tc.query, statements, err, want)
 		}
 	}
-	for _, q := range []string{"CREATE ROLE earlier; GRANT r TO $1", "GRANT r TO 'm'", "REVOKE r FROM m WITH ADMIN TRUE", "ALTER GROUP r DROP USER m GRANTED BY g"} {
+	for _, q := range []string{"CREATE ROLE earlier; GRANT r TO $1", "GRANT r TO 'm'", "REVOKE r FROM m WITH ADMIN TRUE", "ALTER GROUP r DROP USER m GRANTED BY g", "ALTER ROLE r IN ROLE m", "ALTER USER r ADMIN m"} {
 		statements, err := Parse(q)
 		var diagnostic *sqlstate.Error
 		if statements != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {

@@ -48,8 +48,10 @@ remain unchanged, and imported views check current owner/invoker read privileges
 rather than retaining bootstrap read authority.
 
 ```text
-CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]
+CREATE {ROLE | USER | GROUP} name [WITH] [attribute ...]
     [IN {ROLE | GROUP} names] [{ROLE | USER} names] [ADMIN names]
+ALTER {ROLE | USER} {name | CURRENT_ROLE | CURRENT_USER | SESSION_USER}
+    [WITH] [attribute ...]
 GRANT roles TO members [WITH option {TRUE | FALSE | OPTION} [, ...]]
     [GRANTED BY role]
 REVOKE [{ADMIN | INHERIT | SET} OPTION FOR] roles FROM members
@@ -68,10 +70,19 @@ ROLE/GROUP default NOLOGIN; USER defaults LOGIN. Duplicate options fail `42601`
 at execution, duplicate names `42710`, missing DROP targets `42704`. DROP is
 statement-atomic across its list, rejects owner/ACL/persistent dependencies
 (`2BP01`), and removes membership endpoints through the same immutable authority.
-CREATE/DROP remain superuser-only. New role inheritance defaults to true; role
-attributes, ALTER ROLE/USER, passwords, SQL object GRANT and role metadata catalogs
-remain excluded. Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority,
-with separate checks for SUPERUSER targets and explicit grantor provenance.
+CREATE requires effective SUPERUSER or direct CREATEROLE. ALTER ordinarily requires
+direct CREATEROLE and ADMIN on the target; ADMIN traversal is independent of
+INHERIT and SET. An ordinary creator automatically gets ADMIN=true, INHERIT=false,
+SET=false on its new role, atomically with its attributes and initial memberships.
+PASSWORD-only changes to effective self are allowed without that general authority;
+adding LOGIN or VALID UNTIL requires full ALTER authority. Ordinary actors cannot
+alter superuser targets or either SUPERUSER toggle. Positive CREATEDB, REPLICATION
+and BYPASSRLS on CREATE, and either direction on ALTER, require the actor's matching
+direct attribute. There is no blanket replication-target restriction.
+DROP and COMMENT ON ROLE retain their existing superuser gates. SQL object GRANT,
+role metadata catalogs, role rename and ALTER ROLE SET/RESET remain excluded.
+Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority, with separate
+checks for SUPERUSER targets and explicit grantor provenance.
 Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:
 it fails positioned `0A000` at `IF` before any script statement executes,
 including when every target is absent. Ordinary unquoted or quoted role names
@@ -81,11 +92,40 @@ Role names reuse PostgreSQL's ordinary column-name keyword categories;
 nonreserved `local`, `session` and `role` remain names. Reserved `WITH` is
 only an optional option introducer, not a role name or a repeated option.
 
+### Role attributes
+
+Supported attributes are SUPERUSER/NOSUPERUSER, CREATEDB/NOCREATEDB,
+CREATEROLE/NOCREATEROLE, LOGIN/NOLOGIN, INHERIT/NOINHERIT,
+REPLICATION/NOREPLICATION, BYPASSRLS/NOBYPASSRLS, CONNECTION LIMIT signed_int4,
+PASSWORD string/NULL, ENCRYPTED PASSWORD string and VALID UNTIL string.
+Defaults are all negative flags except INHERIT, limit -1 (unlimited), NULL password
+and absent expiry; USER alone defaults LOGIN. ALTER USER is an ALTER ROLE alias,
+not a LOGIN reset. Every omitted attribute, password verifier, expiry, identity,
+comment and existing membership is retained. Empty options and bare WITH are valid.
+Attributes themselves never follow membership paths; INHERIT edges still supply
+object privileges/owner authority and SET edges still control identity selection.
+
+Plain passwords become SCRAM-SHA-256 verifiers with 4096 iterations, a random
+16-byte salt and derived stored/server keys, using PostgreSQL-style SASLprep or
+original-byte fallback. Recognized preencoded MD5/SCRAM values are retained;
+NULL/empty passwords clear metadata, with corresponding notices/warnings.
+VALID UNTIL uses captured timestamptz input settings and preserves finite/infinite
+values separately from absence. It is password expiry, not role expiry: trusted
+native admission ignores passwords and expiry. No password-verification handshake,
+password_encryption/scram_iterations setting or pg_roles/pg_authid projection is
+introduced. LOGIN and CONNECTION LIMIT still govern new physical admission; see
+[driver admission](DRIVER.md#trusted-role-admission-and-physical-limits).
+CREATE/ALTER and other cluster-role utilities remain native explicit-transaction
+0A000 boundaries; read-only Execute rejects modifying utilities with25006 before
+lookup or authority. Prepared execution resolves fresh authority without caching it.
+
 ### Membership options and provenance
 
 Membership identity is `(role, member, grantor)`: independent origins survive
-revocation of another origin. New edges default ADMIN=false, INHERIT=true,
-SET=true. Updating an existing origin preserves every omitted option; OPTION
+revocation of another origin. New edges default ADMIN=false, SET=true and INHERIT
+to the member role's current INHERIT attribute (normally true). Explicit edge
+INHERIT overrides that default; changing the role attribute never rewrites old
+edges. Updating an existing origin preserves every omitted option; OPTION
 means true and repeated GRANT options use the last value. Identical GRANT emits
 NOTICE00000; missing attributed REVOKE emits WARNING01000. Utilities affect zero
 rows and protocol Prepare neither resolves roles nor changes authority.

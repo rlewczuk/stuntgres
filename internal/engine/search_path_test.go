@@ -52,7 +52,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	e.nextPrincipal++
 	roles := cloneRoles(e.roles)
 	roles.names["reader"] = reader
-	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "reader", Login: true}
+	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1}
 	e.roles = roles
 	e.mu.Unlock()
 	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader}, Privileges: UsagePrivilege}}}); err != nil {

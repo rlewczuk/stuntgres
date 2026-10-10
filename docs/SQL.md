@@ -12,9 +12,9 @@ Detailed contracts are grouped by topic:
   a contains-row diagnostic without DML's failing-row Detail.
 - [SQL types and Go values](TYPES.md): codecs, metadata and adapter differences.
 - [Identifiers and literals](LEXICAL.md): names, strings and numeric syntax.
-- [Roles, authorization and schemas](AUTHORIZATION.md): ownership, role membership
-  GRANT/REVOKE options and origins, CREATE initial memberships, ALTER GROUP,
-  schema lookup and search path.
+- [Roles, authorization and schemas](AUTHORIZATION.md): CREATE/ALTER role attributes,
+  ownership, role membership GRANT/REVOKE options and origins, CREATE initial
+  memberships, ALTER GROUP, schema lookup and search path.
 - [Transactions and locks](TRANSACTIONS.md) and [session settings](SETTINGS.md).
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
@@ -39,6 +39,40 @@ casts reuse ordinary truncation/padding; typed character assignment remains deni
 See [syntax, diagnostics, metadata and persistence](TYPES.md#jsonpath-typed-input--change-note).
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`;
 pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`.
+
+## Roles and attributes
+
+```text
+CREATE {ROLE | USER | GROUP} name [WITH] [attribute ...]
+  [IN {ROLE | GROUP} names] [{ROLE | USER} names] [ADMIN names]
+ALTER {ROLE | USER} {name | CURRENT_ROLE | CURRENT_USER | SESSION_USER}
+  [WITH] [attribute ...]
+attribute := SUPERUSER | NOSUPERUSER | CREATEDB | NOCREATEDB
+  | CREATEROLE | NOCREATEROLE | LOGIN | NOLOGIN | INHERIT | NOINHERIT
+  | REPLICATION | NOREPLICATION | BYPASSRLS | NOBYPASSRLS
+  | CONNECTION LIMIT signed_int4 | PASSWORD string_or_NULL
+  | ENCRYPTED PASSWORD string | VALID UNTIL string
+```
+
+ROLE/GROUP default NOLOGIN and USER LOGIN; other flags default false except
+INHERIT=true, limit=-1, NULL password and absent expiry. ALTER preserves every
+omission, including ALTER USER's LOGIN state. Initial memberships remain CREATE-only
+and publish atomically with the role and ordinary creator's ADMIN-only edge.
+Role attributes use direct effective authority, not membership inheritance;
+membership still provides independent ADMIN, object INHERIT and identity SET paths.
+New membership INHERIT defaults from its member's attribute without changing old
+edges. See [attribute and membership authority](AUTHORIZATION.md#role-attributes).
+
+PASSWORD stores real fixed-default SCRAM metadata or recognized encoded values;
+NULL/empty clears it. VALID UNTIL is password-expiry timestamptz metadata, not
+trusted admission expiry. LOGIN and CONNECTION LIMIT govern physical admission
+against the original authenticator, with idle counting, reuse without extra slots,
+physical-close release, superuser limit exemption and NOLOGIN FATAL28000.
+See [physical admission](DRIVER.md#trusted-role-admission-and-physical-limits).
+Native explicit-transaction role utilities remain0A000, and read-only Execute
+uses25006 before lookup. DROP/COMMENT keep existing superuser gates. Rename,
+ALTER ROLE SET/RESET, password handshake/settings, pg_roles/pg_authid and SQL
+object grants remain excluded; integrated role GRANT/REVOKE is unchanged.
 
 ## Period overlap
 

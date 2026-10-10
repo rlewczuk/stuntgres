@@ -19,7 +19,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	e, view, d := generatedUnitDescriptor(t)
 	admin, adminDone := roleOperation(t, e, "postgres")
 	t.Cleanup(adminDone)
-	if _, err := e.executeRole(admin, &parser.CreateRole{Name: parser.Identifier{Text: "generated_actor"}, Login: true}, 0); err != nil {
+	if _, err := e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "generated_actor"}, DefaultLogin: true}, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	d.owner = admin.RoleState().CurrentUser

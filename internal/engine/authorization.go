@@ -15,10 +15,14 @@ type PrincipalRef struct {
 func (r PrincipalRef) ID() uint64 { return r.id }
 
 type RoleDescriptor struct {
-	Ref              PrincipalRef
-	Name             string
-	Login, Superuser bool
-	Comment          string
+	Ref                                                                     PrincipalRef
+	Name                                                                    string
+	Login, Superuser, CreateDB, CreateRole, Inherit, Replication, BypassRLS bool
+	ConnectionLimit                                                         int32
+	Password                                                                string // Empty is SQL NULL; verifiers are immutable strings.
+	ValidUntil                                                              int64  // Typed timestamptz microseconds, including infinities.
+	HasValidUntil                                                           bool
+	Comment                                                                 string
 }
 type Membership struct {
 	Role, Member, Grantor PrincipalRef
@@ -100,6 +104,48 @@ func (r RoleRead) inheritsRole(actor, target PrincipalRef) (bool, error) {
 	}
 	return false, nil
 }
+
+// ADMIN traverses all memberships, not just INHERIT or SET edges. Only the
+// edge into the target must carry ADMIN; membership in the target is not ADMIN.
+func (r RoleRead) adminOfRole(actor, target PrincipalRef) (bool, error) {
+	d, err := r.Descriptor(actor)
+	if err != nil {
+		return false, err
+	}
+	if _, err = r.Descriptor(target); err != nil {
+		return false, err
+	}
+	if d.Superuser {
+		return true, nil
+	}
+	if actor == target {
+		return false, nil
+	}
+	seen := map[PrincipalRef]bool{actor: true}
+	queue := []PrincipalRef{actor}
+	for len(queue) > 0 {
+		member := queue[0]
+		queue = queue[1:]
+		for _, edge := range r.state.edges {
+			if edge.Member != member {
+				continue
+			}
+			for _, ref := range [...]PrincipalRef{edge.Role, edge.Member, edge.Grantor} {
+				if _, err = r.Descriptor(ref); err != nil {
+					return false, err
+				}
+			}
+			if edge.Role == target && edge.Admin {
+				return true, nil
+			}
+			if !seen[edge.Role] {
+				seen[edge.Role] = true
+				queue = append(queue, edge.Role)
+			}
+		}
+	}
+	return false, nil
+}
 func (e *Engine) Roles() RoleRead {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -111,7 +157,7 @@ func (e *Engine) ResolveLogin(name string) (PrincipalRef, error) {
 		return PrincipalRef{}, fmt.Errorf("stuntgres: authenticated role %q does not exist", name)
 	}
 	if !d.Login {
-		return PrincipalRef{}, fmt.Errorf("stuntgres: role %q is not permitted to log in", name)
+		return PrincipalRef{}, roleLoginError(name)
 	}
 	return d.Ref, nil
 }
@@ -133,7 +179,7 @@ func advanceRoleRevision(r *roleCatalog) *roleCatalog {
 func (e *Engine) initializeRoles() {
 	ref := PrincipalRef{e, 10}
 	e.nextPrincipal = 11
-	e.roles = &roleCatalog{revision: 1, roles: map[PrincipalRef]RoleDescriptor{ref: {Ref: ref, Name: "postgres", Login: true, Superuser: true}}, names: map[string]PrincipalRef{"postgres": ref}}
+	e.roles = &roleCatalog{revision: 1, roles: map[PrincipalRef]RoleDescriptor{ref: {Ref: ref, Name: "postgres", Login: true, Superuser: true, CreateDB: true, CreateRole: true, Inherit: true, Replication: true, BypassRLS: true, ConnectionLimit: -1}}, names: map[string]PrincipalRef{"postgres": ref}}
 }
 
 // SetRoleReferences publishes copied persistent dependencies owned by another

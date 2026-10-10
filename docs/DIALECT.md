@@ -4593,14 +4593,53 @@ mutable identities. SQL membership administration is supported; authentication r
 GRANT/REVOKE role memberships support ADMIN, INHERIT and SET, omitted-option
 preservation, grantor-specific origins, cycle prevention and dependent
 CASCADE/RESTRICT. CREATE ROLE/USER/GROUP initial IN ROLE/ROLE/ADMIN clauses and
-ALTER GROUP ADD/DROP USER share the same atomic authority. New INHERIT/SET
-defaults are true and ADMIN false; role-level attributes remain excluded.
+ALTER GROUP ADD/DROP USER share the same atomic authority. New SET defaults true,
+ADMIN false, and INHERIT follows the member's current role attribute; explicit
+edge options override defaults and old edges are not rewritten by ALTER.
 INHERIT paths supply ordinary object ACL and owner rights; special attributes
 are never inherited. See [membership contracts](AUTHORIZATION.md#membership-options-and-provenance).
 Membership utilities Prepare without lookup or permission caching, affect zero
 rows and reject explicit native transactions0A000. Read-only Execute uses
 GRANT ROLE/REVOKE ROLE/ALTER ROLE tags and25006 before lookup. SQL object grants,
 membership catalogs and transactional cluster-role publication remain excluded.
+
+### Role attributes — change note
+
+CREATE ROLE/USER/GROUP and ALTER ROLE/USER support SUPERUSER, CREATEDB, CREATEROLE,
+LOGIN, INHERIT, REPLICATION and BYPASSRLS positive/negative flags, CONNECTION LIMIT
+signed_int4, PASSWORD string/NULL, ENCRYPTED PASSWORD string and VALID UNTIL string.
+ALTER targets include CURRENT_ROLE/CURRENT_USER/SESSION_USER. Empty options/WITH
+are valid; duplicate canonical attributes fail42601, limits below -1 fail22023,
+malformed timestamp values use22007–22009, and missing ALTER targets use42704.
+ROLE/GROUP default NOLOGIN, USER LOGIN; otherwise flags default false except
+INHERIT=true, limit=-1, password=NULL and absent expiry. ALTER retains omissions.
+
+CREATE uses direct effective SUPERUSER/CREATEROLE; ordinary creators atomically
+receive ADMIN=true with INHERIT=false/SET=false. Ordinary ALTER normally requires
+direct CREATEROLE plus ADMIN; PASSWORD-only effective-self changes are the exception.
+SUPERUSER targets/toggles require SUPERUSER; selected CREATEDB/REPLICATION/BYPASSRLS
+changes require matching direct attributes, never inherited membership power.
+See [complete attribute authority](AUTHORIZATION.md#role-attributes).
+
+Passwords become real fixed SCRAM-SHA-256/4096 metadata with random salt and
+derived keys; recognized encoded passwords retain their bytes and NULL/empty clears
+them. VALID UNTIL is captured-setting timestamptz metadata with absent/finite/infinite
+states, not trusted role expiry. Native authentication remains host-asserted.
+Derivation checks operation cancellation throughout supplied iteration counts:
+valid preencoded secrets are not capped or reclassified. Cancellation preserves
+the prior descriptor and permits same-owner recovery and physical teardown.
+The contextual attribute words remain ordinary unquoted names in membership lists.
+Physical limits count original authenticators, including idle pools; -1 is
+unlimited, 0 denies ordinary admission, close releases and reuse adds no slot.
+Superusers bypass limits but not NOLOGIN; new NOLOGIN admission fails FATAL28000.
+Role rename, ALTER ROLE SET/RESET, password handshake/settings and pg_roles/pg_authid
+remain excluded; no database, replication or RLS executor is added. DROP/COMMENT
+retain existing superuser gates. CREATE/ALTER role utilities remain native
+explicit-transaction0A000 boundaries, with read-only25006 before lookup.
+Observed public smoke reached creator ADMIN, omission, expired trusted admission,
+physical release, NOLOGIN and fresh held authority; repeat with
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$' VERBOSE=0`
+and the same command with `REFERENCE=1`.
 
 
 Feature smoke: `go test -count=1 -run '^TestSessionIdentitySmoke$' ./smoke`.

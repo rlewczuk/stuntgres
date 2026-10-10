@@ -1261,15 +1261,16 @@ type Show struct {
 func (*Show) statement() {}
 
 type CreateRole struct {
-	Name    Identifier
-	Login   bool
-	Options []CreateRoleOption
+	Name         Identifier
+	DefaultLogin bool
+	Options      RoleOptions
 }
 
-type CreateRoleOption struct {
+type InitialRoleMembership struct {
 	Kind    string
 	Pos     Position
 	Members []RoleSpec
+	raw     string
 }
 
 type RoleSpec struct {
@@ -1296,6 +1297,14 @@ type RoleMembership struct {
 
 func (*RoleMembership) statement() {}
 
+type AlterRole struct {
+	Name     Identifier
+	Identity string
+	Options  RoleOptions
+}
+
+func (*AlterRole) statement() {}
+
 func (*CreateRole) statement() {}
 
 type DropRole struct{ Names []string }
@@ -1318,22 +1327,103 @@ type RoleSelection struct {
 
 func (*RoleSelection) statement() {}
 
-type roleOptionState struct {
-	options  []CreateRoleOption
-	login    bool
-	hasLogin bool
+type RoleField uint16
+
+const (
+	RoleSuperuser RoleField = 1 << iota
+	RoleCreateDB
+	RoleCreateRole
+	RoleLogin
+	RoleInherit
+	RoleReplication
+	RoleBypassRLS
+	RoleConnectionLimit
+	RolePassword
+	RoleValidUntil
+)
+
+type RoleOptions struct {
+	Present                                                                 RoleField
+	Superuser, CreateDB, CreateRole, Login, Inherit, Replication, BypassRLS bool
+	ConnectionLimit                                                         int32
+	Password                                                                string
+	PasswordNull                                                            bool
+	ValidUntil                                                              string
+	Duplicate                                                               Position
+	Positions                                                               [10]Position // First occurrence, indexed by the RoleField bit.
+	InitialMemberships                                                      []InitialRoleMembership
 }
 
-func (s roleOptionState) add(tok lexeme, login bool) roleOptionState {
-	s.options = append(s.options, CreateRoleOption{Kind: "login", Pos: tok.pos})
-	s.login = login
-	s.hasLogin = true
+func (s RoleOptions) add(field RoleField, pos Position) RoleOptions {
+	if s.Present&field != 0 && s.Duplicate == (Position{}) {
+		s.Duplicate = pos
+	}
+	if s.Present&field == 0 {
+		for i := range len(s.Positions) {
+			if field == RoleField(1)<<i {
+				s.Positions[i] = pos
+				break
+			}
+		}
+	}
+	s.Present |= field
 	return s
 }
 
-func (s roleOptionState) members(kind string, tok lexeme, members []RoleSpec) roleOptionState {
-	s.options = append(s.options, CreateRoleOption{Kind: kind, Pos: tok.pos, Members: members})
+func (s RoleOptions) members(kind string, tok lexeme, members []RoleSpec) RoleOptions {
+	for _, option := range s.InitialMemberships {
+		if option.Kind == kind && s.Duplicate == (Position{}) {
+			s.Duplicate = tok.pos
+			break
+		}
+	}
+	s.InitialMemberships = append(s.InitialMemberships, InitialRoleMembership{Kind: kind, Pos: tok.pos, Members: members, raw: tok.raw})
 	return s
+}
+
+func (s RoleOptions) alter(sqllex sqlLexer) bool {
+	if len(s.InitialMemberships) == 0 {
+		return true
+	}
+	option := s.InitialMemberships[0]
+	sqllex.(*lexer).syntax(lexeme{raw: option.raw, pos: option.Pos})
+	return false
+}
+
+func (s RoleOptions) toggle(tok lexeme) (RoleOptions, bool) {
+	word := tok.text
+	value := true
+	if len(word) > 2 && word[:2] == "no" {
+		word = word[2:]
+		value = false
+	}
+	var field RoleField
+	switch word {
+	case "superuser":
+		field = RoleSuperuser
+		s.Superuser = value
+	case "createdb":
+		field = RoleCreateDB
+		s.CreateDB = value
+	case "createrole":
+		field = RoleCreateRole
+		s.CreateRole = value
+	case "login":
+		field = RoleLogin
+		s.Login = value
+	case "inherit":
+		field = RoleInherit
+		s.Inherit = value
+	case "replication":
+		field = RoleReplication
+		s.Replication = value
+	case "bypassrls":
+		field = RoleBypassRLS
+		s.BypassRLS = value
+	default:
+		return s, false
+	}
+	return s.add(field, tok.pos), true
 }
 
 type Reset struct {

@@ -16,6 +16,8 @@ type lexer struct {
 	current            lexeme
 	// Scanner/lookahead reuse current; this records only tokens returned to yacc.
 	previousToken int
+	// Contextual role payload words are not global SQL keywords.
+	roleHead int
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField bool
 	err          error
@@ -1041,6 +1043,39 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		case int(')'):
 			l.formatDepth--
 		}
+	}
+	if l.roleHead == 3 && token.lexeme.keyword != nil {
+		switch token.lexeme.text {
+		case "password":
+			token.code = ROLE_PASSWORD
+		case "connection":
+			token.code = ROLE_CONNECTION
+		case "valid":
+			token.code = ROLE_VALID
+		case "encrypted":
+			token.code = ROLE_ENCRYPTED
+		case "unencrypted":
+			token.code = ROLE_UNENCRYPTED
+		}
+	}
+	switch l.roleHead {
+	case 0:
+		if token.code == CREATE || token.code == ALTER {
+			l.roleHead = 1
+		} else {
+			l.roleHead = -1
+		}
+	case 1:
+		if token.code == ROLE || token.code == USER || token.code == GROUP {
+			l.roleHead = 2
+		} else {
+			l.roleHead = -1
+		}
+	case 2:
+		l.roleHead = 3
+	}
+	if token.code == int(';') {
+		l.roleHead = 0
 	}
 	l.extractField = token.code == int('(') && l.previousToken == EXTRACT
 	l.current = token.lexeme

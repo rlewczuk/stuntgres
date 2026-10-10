@@ -221,10 +221,14 @@ func TestReferenceRoleTrustedConnectorAdmissionAndOpaqueIsolation(t *testing.T) 
 				if err == nil {
 					t.Fatal("invalid authenticator admitted", name)
 				}
-				if !backend.pg {
+				if !backend.pg && name == "trusted_nolog" {
+					want := referenceDiagnostic{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "28000", Message: `role "trusted_nolog" is not permitted to log in`}
+					referenceAssertDiagnostic(t, err, &want)
+				} else if !backend.pg {
+					// Missing and miscased trusted names retain ordinary host errors.
 					var state interface{ SQLState() string }
 					if errors.As(err, &state) {
-						t.Fatal("host admission SQLSTATE", err)
+						t.Fatal("missing-name host admission SQLSTATE", err)
 					}
 				}
 			}

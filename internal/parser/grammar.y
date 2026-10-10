@@ -53,7 +53,7 @@ package parser
  collation *ObjectName
  settingValues settingList
  settingValue settingAtom
- roleOptions roleOptionState
+ roleOptions RoleOptions
  roleSpec RoleSpec
  roleSpecs []RoleSpec
  membershipOptions []MembershipOption
@@ -172,6 +172,7 @@ package parser
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
+%token <tok> ROLE_PASSWORD ROLE_CONNECTION ROLE_VALID ROLE_ENCRYPTED ROLE_UNENCRYPTED
 %token <tok> INDEX REINDEX
 %token <tok> CONCURRENTLY
 %token <tok> INCLUDE TABLESPACE
@@ -238,7 +239,7 @@ package parser
 %type <orderKeys> window_order
 %type <tok> window_name
 %type <tok> window_frame
-%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
 %type <queryTable> query_table_target
@@ -391,6 +392,8 @@ package parser
 %type <settingValue> setting_value
 %type <desc> role_kind
 %type <roleOptions> role_options
+%type <integer> role_limit
+%type <tok> alter_role_target
 %type <tables> schema_tables
 %type <table> schema_table
 %type <tok> schema_owner
@@ -453,14 +456,12 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | ALTER ROLE { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | ALTER USER { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
 sequence_persistence: /* empty */ { $$="logged" } | TEMP { $$="temporary" } | UNLOGGED { $$="unlogged" } ;
 sequence_create_head: CREATE sequence_persistence SEQUENCE relation_name { $$=&CreateSequence{Name:$4,Persistence:$2,Pos:$1.pos} }
@@ -1546,6 +1547,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE | FILTER
  | membership_keyword
+ | ROLE_PASSWORD | ROLE_CONNECTION | ROLE_VALID | ROLE_ENCRYPTED | ROLE_UNENCRYPTED
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
  | GROUPING | SETS | ROLLUP | CUBE
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
@@ -1660,20 +1662,28 @@ role_membership: GRANT membership_role_names TO membership_role_specs membership
  } ;
 role_kind: ROLE { $$=false } | USER { $$=true } | GROUP { $$=false } ;
 optional_with: /* empty */ | WITH ;
-role_options: /* empty */ { $$=roleOptionState{} }
+role_options: /* empty */ { $$=RoleOptions{} }
  | role_options role_option_word {
-   switch fold($2.raw) {
-   case "login": $$=$1.add($2,true)
-   case "nologin": $$=$1.add($2,false)
-   default:
-    if unsupportedRoleOptions[fold($2.raw)] { sqllex.(*lexer).failAt("0A000","unsupported role option",$2.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1
+   var ok bool; $$,ok=$1.toggle($2)
+   if !ok {
+    l:=sqllex.(*lexer)
+    if unsupportedRoleOptions[$2.text] { l.failAt("0A000","unsupported role option",$2.pos.Offset) } else if $2.keyword!=nil && !$2.keyword.columnName() { l.syntax($2) } else { l.failAt("42601","unrecognized role option \""+$2.text+"\"",$2.pos.Offset) }; return 1
    }
  }
  | role_options IN ROLE membership_role_names { $$=$1.members("in",$2,$4) }
  | role_options IN GROUP membership_role_names { $$=$1.members("in",$2,$4) }
  | role_options ROLE membership_role_names { $$=$1.members("role",$2,$3) }
  | role_options USER membership_role_names { $$=$1.members("role",$2,$3) }
- | role_options ADMIN membership_role_names { $$=$1.members("admin",$2,$3) } ;
+ | role_options ADMIN membership_role_names { $$=$1.members("admin",$2,$3) }
+ | role_options ROLE_PASSWORD STRING { $$=$1.add(RolePassword,$2.pos); $$.Password=$3.text; $$.PasswordNull=false }
+ | role_options ROLE_PASSWORD NULL { $$=$1.add(RolePassword,$2.pos); $$.Password=""; $$.PasswordNull=true }
+ | role_options ROLE_ENCRYPTED ROLE_PASSWORD STRING { $$=$1.add(RolePassword,$2.pos); $$.Password=$4.text; $$.PasswordNull=false }
+ | role_options ROLE_UNENCRYPTED ROLE_PASSWORD STRING { sqllex.(*lexer).failDiagnostic("0A000","UNENCRYPTED PASSWORD is no longer supported","Remove UNENCRYPTED to store the password in encrypted form instead.",$2.pos.Offset); return 1 }
+ | role_options ROLE_CONNECTION LIMIT role_limit { $$=$1.add(RoleConnectionLimit,$2.pos); $$.ConnectionLimit=int32($4) }
+ | role_options ROLE_VALID role_option_word STRING { if $3.text!="until" {sqllex.(*lexer).syntax($3);return 1}; $$=$1.add(RoleValidUntil,$2.pos); $$.ValidUntil=$4.text } ;
+role_limit: NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$1,""); if !ok{return 1} }
+ | '-' NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$2,"-");if !ok{return 1} }
+ | '+' NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$2,"");if !ok{return 1} } ;
 /* WITH is a reserved introducer, never a role option after optional_with. */
 /* Attribute words are contextual identifiers. Do not include the membership
  * introducers ADMIN/IN/ROLE/USER in this alternative: their list productions
@@ -1686,10 +1696,25 @@ role_name: name {
  | SESSION_USER { sqllex.(*lexer).failAt("42939","SESSION_USER cannot be used as a role name here",$1.pos.Offset); return 1 }
  | CURRENT_ROLE { sqllex.(*lexer).failAt("42939","CURRENT_ROLE cannot be used as a role name here",$1.pos.Offset); return 1 } ;
 create_role: CREATE role_kind role_name optional_with role_options {
- login:=$2
- if $5.hasLogin { login=$5.login }
- $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Login:login,Options:$5.options}
+ $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},DefaultLogin:$2,Options:$5}
  } ;
+alter_role_target: name | CURRENT_ROLE | CURRENT_USER | SESSION_USER ;
+alter_role: ALTER ROLE alter_role_target optional_with role_options {
+ if !$5.alter(sqllex) {return 1}
+ identity:=""; if $3.keyword!=nil && ($3.text=="current_role" || $3.text=="current_user" || $3.text=="session_user") {identity=$3.text}
+ $$=&AlterRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Identity:identity,Options:$5}
+ }
+ | ALTER USER alter_role_target optional_with role_options {
+ if !$5.alter(sqllex) {return 1}
+ identity:=""; if $3.keyword!=nil && ($3.text=="current_role" || $3.text=="current_user" || $3.text=="session_user") {identity=$3.text}
+ $$=&AlterRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Identity:identity,Options:$5}
+ }
+ | ALTER ROLE alter_role_target SET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER ROLE alter_role_target RESET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER ROLE alter_role_target RENAME {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER USER alter_role_target SET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER USER alter_role_target RESET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER USER alter_role_target RENAME {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1} ;
 /* IF remains a name unless followed by EXISTS; that lookahead cannot continue
  * an ordinary comma-list. Defer exclusion so malformed suffixes stay 42601. */
 drop_role: DROP role_kind names { $$=&DropRole{Names:$3} }

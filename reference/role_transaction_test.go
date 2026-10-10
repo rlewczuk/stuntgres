@@ -4,7 +4,7 @@ import "testing"
 
 func TestReferenceRoleTransactionMutationBoundary(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
-		for _, q := range []string{"CREATE ROLE tx_created", "DROP ROLE tx_retained", "SET SESSION AUTHORIZATION tx_reader", "RESET SESSION AUTHORIZATION"} {
+		for _, q := range []string{"CREATE ROLE tx_created", "ALTER ROLE tx_retained LOGIN", "ALTER USER tx_retained CREATEDB", "DROP ROLE tx_retained", "SET SESSION AUTHORIZATION tx_reader", "RESET SESSION AUTHORIZATION"} {
 			t.Run(q+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				roleReferenceCleanup(t, []string{"tx_created", "tx_retained", "tx_reader"})
 				p := newReferenceScenario(t)
@@ -66,6 +66,9 @@ func TestReferenceRoleTransactionMutationBoundary(t *testing.T) {
 						var id int
 						if err := c.QueryRowContext(p.ctx, "SELECT id FROM tx_sentinel").Scan(&id); err != nil || id != 7 {
 							t.Fatal(id, err)
+						}
+						if backend.pg {
+							roleAttributesFacts(t, p, "tx_retained", roleAttributesDefaults(false))
 						}
 						roleScenarioCommand(t, c, "CREATE ROLE tx_created", 0, false)
 						roleScenarioCommand(t, c, "DROP ROLE tx_retained,tx_created", 0, false)

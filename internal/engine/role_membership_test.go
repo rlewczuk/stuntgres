@@ -93,6 +93,45 @@ func TestMembershipInitialFailureFences(t *testing.T) {
 	}
 }
 
+func TestMembershipInitialAttributeCutover(t *testing.T) {
+	e := New()
+	admin, done := roleOperation(t, e, "postgres")
+	defer done()
+	roleExecute(t, e, admin, "CREATE ROLE parent")
+	roleExecute(t, e, admin, "CREATE USER creator CREATEROLE")
+	actor, closeActor := roleOperation(t, e, "creator")
+	defer closeActor()
+	before := e.Roles()
+	next := e.nextPrincipal
+	_, err := e.Execute(actor, statement(t, "CREATE ROLE failed LOGIN NOINHERIT CONNECTION LIMIT 2 PASSWORD 'secret' ROLE absent"), 0, nil)
+	state(t, err, "42704")
+	if e.roles != before.state || e.nextPrincipal != next {
+		t.Fatal("initial membership failure published attributes, creator ADMIN or allocator")
+	}
+	roleExecute(t, e, admin, "CREATE ROLE child NOINHERIT IN ROLE parent CONNECTION LIMIT 2 PASSWORD NULL VALID UNTIL 'infinity'")
+	child, _ := e.Roles().Lookup("child")
+	parent, _ := e.Roles().Lookup("parent")
+	if child.Inherit || child.ConnectionLimit != 2 || child.Password != "" || !child.HasValidUntil {
+		t.Fatal("combined attributes lost", child)
+	}
+	edge := e.Roles().Memberships()[0]
+	if edge.Role != parent.Ref || edge.Member != child.Ref || edge.Inherit || !edge.Set || edge.Admin {
+		t.Fatal("initial edge ignored NOINHERIT", edge)
+	}
+	roleExecute(t, e, admin, "ALTER ROLE child INHERIT")
+	if e.Roles().Memberships()[0] != edge {
+		t.Fatal("ALTER attribute rewrote old initial membership")
+	}
+	roleExecute(t, e, actor, "CREATE ROLE owned NOINHERIT ROLE child")
+	owned, _ := e.Roles().Lookup("owned")
+	creator, _ := e.Roles().Lookup("creator")
+	edges := e.Roles().Memberships()
+	if len(edges) != 3 || edges[1] != (Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.names["postgres"], Admin: true}) || edges[2].Role != owned.Ref || edges[2].Member != child.Ref || !edges[2].Inherit || !edges[2].Set {
+		t.Fatal("creator ADMIN and initial membership were not combined", edges)
+	}
+	roleExecute(t, e, actor, "ALTER ROLE owned LOGIN")
+}
+
 func TestMembershipReferenceValidationAndRevision(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE ROLE r")

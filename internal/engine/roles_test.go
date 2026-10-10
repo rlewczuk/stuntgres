@@ -119,7 +119,7 @@ func TestRoleAuthorityAndSurface(t *testing.T) {
 	long := strings.Repeat("a", 62) + "é"
 	roleExecute(t, e, op, `CREATE ROLE "`+long+`"`)
 	roleError(t, e, op, `CREATE ROLE "`+strings.Repeat("a", 62)+`"`, "42710", `role "`+strings.Repeat("a", 62)+`" already exists`, "")
-	for _, query := range []string{"CREATE ROLE nope WITH SUPERUSER", "CREATE ROLE nope PASSWORD 'secret'"} {
+	for _, query := range []string{"CREATE ROLE nope WITH ADMIN", "CREATE ROLE nope SYSID 12"} {
 		if _, err := parser.Parse(query); err == nil {
 			t.Fatal(query)
 		}

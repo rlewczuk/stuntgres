@@ -569,10 +569,26 @@ Change note: role membership GRANT/REVOKE supports ADMIN/INHERIT/SET options,
 independent grantor origins, source-aware CASCADE/RESTRICT and cycle prevention.
 CREATE initial IN ROLE/ROLE/ADMIN and ALTER GROUP ADD/DROP USER publish atomically.
 INHERIT paths supply real object privileges and owner authority, including fresh
-prepared reads after revocation. CREATE stays superuser-only with default role
-inheritance true; attributes, object-GRANT SQL and role metadata remain excluded.
-Membership utilities remain autocommit-only natively; Reset/Restore preserve
-membership while Dump omits cluster-role DDL.
+prepared reads after revocation. CREATE/ALTER ROLE and USER support SUPERUSER,
+CREATEDB, CREATEROLE, LOGIN, INHERIT, REPLICATION, BYPASSRLS, CONNECTION LIMIT,
+PASSWORD and VALID UNTIL. Defaults, omitted ALTER retention and direct (never
+inherited) attribute authority follow PostgreSQL18; ordinary creators receive
+ADMIN without INHERIT/SET. Passwords are meaningful fixed-default SCRAM metadata,
+not a native authentication handshake; expiry does not block trusted admission.
+SCRAM derivation observes cancellation, including encoded high-iteration
+empty-password checks; cancellation publishes no attribute change and releases
+the physical-session operation. Contextual attribute words remain valid member
+names in initial memberships and ALTER GROUP lists.
+Physical connections count against their original authenticator's limit, including
+idle pool entries; reuse adds no slot and physical close releases one. Superusers
+bypass limits, not NOLOGIN (FATAL28000). Role utilities remain autocommit-only
+natively; Reset/Restore preserve roles and membership while Dump omits cluster-role
+DDL. Rename, role settings, object-GRANT SQL and role metadata catalogs remain
+excluded; existing DROP/COMMENT superuser gates are unchanged.
+Observed public smoke exercised creator ADMIN, ALTER USER omission, expired trusted
+admission, limit release, NOLOGIN and held authority refresh. Repeatable smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$' VERBOSE=0`;
+add `REFERENCE=1` for the pinned PostgreSQL counterpart.
 Ordered GRANT targets use preceding private changes for authority; REVOKE uses
 statement-entry authority and rows, then publishes once. Repeated REVOKE targets
 that change the same original tuple fail XX000 and roll back the statement;

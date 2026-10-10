@@ -364,8 +364,8 @@ var unsupportedCreateObjects = wordSet("temporary temp unlogged view index uniqu
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning group having window for using primary unique check references default constraint collate in")
 var unsupportedCommentKinds = wordSet("type database index view collation conversion extension language publication subscription tablespace trigger policy rule statistics")
 
-// LOGIN attributes are contextual role-option words, not PostgreSQL keywords.
-var unsupportedRoleOptions = wordSet("superuser nosuperuser createrole nocreaterole createdb nocreatedb inherit noinherit replication noreplication bypassrls nobypassrls password connection valid group granted by")
+// Initial membership clauses are supported; legacy role options remain excluded.
+var unsupportedRoleOptions = wordSet("group granted by sysid")
 
 func (l *lexer) capability(tok lexeme, words map[string]bool, message string) {
 	if tok.keyword != nil && words[tok.text] {

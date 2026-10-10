@@ -846,6 +846,32 @@ make quickcheck PACKAGES=./reference RUN='^TestReference(Regtype|Role|ControlTra
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)' VERBOSE=0
 ```
 
+Role-attribute oracle findings are encoded in the untagged shared
+`TestReferenceRoleAttributes...` scenarios; discovery filters/unresolved reports
+are removed. Root-observed selected native and pinned gates passed before this
+documentation cutover. A separate actual public Go smoke reached creator ADMIN,
+ALTER USER omission, expired trusted admission, physical limit release, NOLOGIN
+and held authority refresh. Those observations do not replace the remaining
+full quickcheck, fresh affected selectors, review or post-merge fullcheck.
+
+Run the exact changed reference definitions in both modes before review, each
+with a900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRole(Attributes(DefaultsAndAliases|Authority|DiagnosticsAndAtomicity|ConnectionAdmission|PasswordAndValidity|RetentionAndControls|FeatureSmoke)|MigratedSmokeControls|TransactionMutationBoundary|TrustedConnectorAdmissionAndOpaqueIsolation)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole(Attributes(DefaultsAndAliases|Authority|DiagnosticsAndAtomicity|ConnectionAdmission|PasswordAndValidity|RetentionAndControls|FeatureSmoke)|MigratedSmokeControls|TransactionMutationBoundary|TrustedConnectorAdmissionAndOpaqueIsolation)$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^Test(Role(Attributes(DefaultsAndRetention|Authority|MembershipNonInheritanceAndAdminTraversal|ConnectionLimitLifecycle|ConnectionLimitRaces|PasswordStorage|PasswordSASLprep|ValidityInput|PublicationAndSnapshots|ControlsRetention)|AuthorityAndSurface)|FormatEncodingCurrentRoleAndResetAll)$' VERBOSE=0
+```
+
+The format fixture uses the canonical attribute executor with a real captured
+StatementScope. Trusted connector NOLOGIN specifically asserts FATAL28000 with
+complete diagnostics; missing/miscased native names remain ordinary host errors.
+All other opaque-key, Driver isolation, authenticator and replacement witnesses
+remain selected by the broader role family above. Privileged pg_roles/pg_authid
+observations remain PostgreSQL-only; membership GRANT/REVOKE authority witnesses
+run on native too. Native controls and explicit-transaction exclusions are
+independent capability phases, never discovery filters.
+
 Each invocation has a900-second deadline. Existing Array/Domain/Enum,
 SearchPathStoredViewRuntime, StringCoreReviewRestore and
 TableCoreAuthorizationAndOwnershipCleanup reference definitions also exercise
@@ -1812,7 +1838,7 @@ authority over another role's sequence from sequence-owner-only ALTER rights.
 Type ownership uses supported DROP DOMAIN; excluded DROP/ALTER TYPE is not
 enabled merely to provide a membership witness.
 Keyword-promotion regression checks retain the existing CHECK/NOT NULL
-`NO INHERIT` consumers and failure-only unsupported CREATE ROLE attributes.
+`NO INHERIT` consumers and genuinely unsupported role options, not selected attributes.
 Class-mask units stage immutable type ACL descriptors through catalog validation,
 as existing domain fixtures do, without extending the production ACL setter;
 they include invalid-mask nonpublication and explicit-empty inherited-owner
@@ -2085,3 +2111,47 @@ coverage; they must not recreate SQL-through-internal-engine tests. Native
 resource-accounting units use injected limits rather than claiming a portable
 PostgreSQL complexity cutoff. Final fullcheck belongs to the root after merge
 under one 1800-second deadline.
+
+## Role attribute coverage and feature smoke
+
+The `TestReferenceRoleAttributes` R1–R7 family covers CREATE/ALTER ROLE and
+USER defaults/aliases, direct attribute authority, replication-target and
+special-attribute matrices, diagnostics/atomicity, physical admission,
+password verifier mathematics/SASLprep and expiry metadata, omission/control
+retention and a composed feature smoke. Shared public membership actions show
+special attributes are not inherited, transitive ADMIN works independently of
+INHERIT/SET, and changing member INHERIT only changes future default edges.
+Privileged PostgreSQL pg_authid/pg_roles/pg_auth_members queries supplement these
+witnesses without adding native catalog projections. Internal units independently
+check complete descriptors, immutable snapshots, verifier keys and lifecycle races.
+`TestReferenceRoleAttributesContextualMembershipNames` additionally covers all
+five contextual payload words in initial and ALTER GROUP comma-list positions.
+`TestReferenceRoleAttributesSelfPasswordCancellation` exercises ordinary effective
+self-PASSWORD with a valid high-iteration verifier: PostgreSQL statement timeout
+reports57014, native returns its context deadline, both recover the same owner
+and release the limit-one physical slot. Native units interrupt after a known
+derivation step and assert unchanged roots/allocator plus RequestEnd completion.
+
+The current `RUN='^TestReferenceRole'` selector covers every affected role
+definition, including the two review regressions and trusted-connector boundary;
+run it in both native and pinned modes before review. Each quickcheck has a
+900-second deadline. Final fullcheck remains the post-merge gate under one
+1800-second deadline.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$' VERBOSE=0
+```
+
+Expected smoke: a CREATEROLE actor creates and alters its target through automatic
+creator ADMIN; ALTER USER retains omitted attributes/password/expiry. Limit1
+admits one physical handle, denies the second FATAL53300 and physical close permits
+a replacement. Unrelated ALTER fails42501 and held ALTER immediately loses authority
+after CREATEROLE revocation. NOLOGIN denies new physical admission FATAL28000 without
+terminating the incumbent. Native trusted expired-password admission is independent
+of PostgreSQL password authentication; it is not a password handshake parity claim.
+Limit0/-1, idle/reuse/original-authenticator accounting and superuser exemption
+are covered by admission/lifecycle scenarios, not inferred solely from smoke.
+Role rename/settings, password handshake and catalogs remain adjacent omissions;
+native explicit transactions and existing DROP/COMMENT gates remain bounded.
+
