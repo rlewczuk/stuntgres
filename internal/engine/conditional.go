@@ -158,9 +158,9 @@ func conditionalCollationError() error {
 // commonExpressionUsage is also the VALUES authority. The caller supplies the
 // release candidate order; unknown remains analysis state, never runtime data.
 func commonExpressionUsage(operands []comparisonOperand, text sqltype.Usage, label string) (sqltype.Usage, error) {
-	return selectCommonUsage(len(operands), func(i int) comparisonOperand { return operands[i] }, text, label)
+	return selectCommonUsage(len(operands), func(i int) comparisonOperand { return operands[i] }, text, label, (*sqltype.Descriptor).DiagnosticName)
 }
-func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqltype.Usage, label string) (sqltype.Usage, error) {
+func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqltype.Usage, label string, typeName func(*sqltype.Descriptor) string) (sqltype.Usage, error) {
 	var domain *sqltype.Descriptor
 	allDomain := count > 0
 	for i := range count {
@@ -201,7 +201,7 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 			continue
 		}
 		if typeCategory(candidate.Type) != typeCategory(u.Type) {
-			return sqltype.Usage{}, expressionError("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, candidate.Type.DiagnosticName(), u.Type.DiagnosticName()), commonOperandStart(o))
+			return sqltype.Usage{}, expressionError("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(candidate.Type), typeName(u.Type)), commonOperandStart(o))
 		}
 		if !preferredType(candidate.Type) {
 			_, forward := sqltype.PlanCoercion(candidate.Type.Usage(), u.Type.Usage(), sqltype.Implicit)
@@ -240,7 +240,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	}
 	plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.usage, sqltype.Implicit)
 	if err != nil {
-		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, node.ResultUsage().Type.DiagnosticName(), target.Type.DiagnosticName()), commonOperandStart(o))
+		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
 	info.properties = coercionProperties(node, plan)
 	return coercionExpression{info, node, plan, sqltype.Implicit}, nil

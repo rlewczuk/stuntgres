@@ -16,7 +16,7 @@ func absentLockedSource(source *querySource, locks *queryLockContext) bool {
 }
 func absentLockedQuery(node LogicalNode, inputs *querySource, locks *queryLockContext) bool {
 	switch n := node.(type) {
-	case *distinctNode, *aggregateNode:
+	case *distinctNode, *aggregateNode, *setNode:
 		return false // Materialized tuples no longer carry physical absence.
 	case *derivedNode:
 		return absentLockedQuery(n.query.Root, inputs, locks)

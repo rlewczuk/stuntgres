@@ -322,6 +322,8 @@ func canSimplifyExists(query *BoundQuery) bool {
 	}
 	for node := project.child; node != nil; {
 		switch n := node.(type) {
+		case *setNode:
+			return false // Set keys determine presence, not just projected payload.
 		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode:
 			return true // FROM inputs retain their own demand and clause fences.
 		case *aggregateNode:

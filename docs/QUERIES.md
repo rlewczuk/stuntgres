@@ -2504,10 +2504,12 @@ ROW SHARE relation locks. Prepare is row-lock-free and does not check executor
 UPDATE privileges; Execute refreshes candidates and authority. A clause reaching
 GROUP BY, HAVING, aggregates or DISTINCT produces mode-specific0A000 using the
 first actual clause mode. With locking, DISTINCT ON retains source/column/ORDER analysis;
-its expressions must match the initial ORDER keys. Structured set-operation
-result or arm marks reject0A000 before result arity/common typing. DISTINCT ON
-and UNION/INTERSECT/EXCEPT gain no execution provider; ordinary DISTINCT retains
-its existing source-typed projected-tuple materialization.
+its expressions must match the initial ORDER keys. Set-operation result or arm
+marks reject0A000 before result arity/common typing; inline derived sets reject
+enclosing row marks too. Stored set views have opaque copy-valued output, so an
+outer FOR UPDATE may read them without manufacturing physical arm row identities.
+UNION/INTERSECT/EXCEPT execute with the common-typed tuple semantics below;
+ordinary DISTINCT retains source-typed projected-tuple materialization.
 Without locking, DISTINCT ON remains a parser capability boundary after complete
 syntax validation, including shared INSERT SELECT and stored definitions.
 Expanded GROUP BY/HAVING/aggregate view marks are checked at Execute after a
@@ -2604,12 +2606,96 @@ Restore still rejects query INSERT sources before publication, and failed
 Restore leaves the prior engine intact. Eager results own metadata and exported
 cells across subsequent Reset/Restore; public Next does not execute SQL.
 
-LATERAL, CTEs, set operations and FROM functions remain excluded. Derived SELECT
-and admitted outer joins use the shared FROM dispatcher. Destination-context
-INSERT VALUES/SELECT retain their assignment typing within that same pipeline.
+LATERAL, CTEs and FROM functions remain excluded. SELECT and VALUES compose with
+UNION/INTERSECT/EXCEPT; derived SELECT and admitted outer joins use the shared FROM
+dispatcher. Destination assignment follows set-source common typing and dedup,
+while ordinary INSERT VALUES/SELECT retain their existing assignment contexts.
 
 Independent coverage: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
 
+
+## Set operations — change note (changelog)
+
+`UNION`, `INTERSECT` and `EXCEPT` combine SELECT or VALUES queries of matching
+width with compatible corresponding types. Default and explicit `DISTINCT`
+remove duplicate whole tuples; `ALL` retains multiplicity. With left/right tuple
+counts m/n, UNION ALL emits m+n, INTERSECT ALL emits min(m,n), and EXCEPT ALL emits
+max(m−n,0). DISTINCT emits one tuple for union presence, shared presence or
+left-only presence, respectively. NULLs compare not-distinct for these operations;
+every column participates, including the empty tuple in zero-target queries.
+Unordered results are bags, never an append-order promise.
+
+INTERSECT binds tighter than UNION/EXCEPT; UNION and EXCEPT associate left.
+Parentheses override this and retain arm-local ORDER BY/LIMIT/OFFSET.
+Unparenthesized trailing ORDER/bounds apply to the complete result. Set ORDER BY
+accepts result names or ordinals, not arbitrary expressions/functions; use an
+outer SELECT for those. Labels come from the leftmost arm, never a right-only
+alias or input table namespace.
+
+Each binary operation resolves corresponding types **pairwise**, before tuple
+comparison. All-unknown SELECT pairs become TEXT, so
+`SELECT NULL UNION SELECT NULL UNION SELECT 1` fails TEXT/integer matching;
+`SELECT NULL UNION (SELECT NULL UNION SELECT 1)` yields INT4. VALUES resolves its
+own columns first: `VALUES(NULL) UNION SELECT 1` is also a TEXT/integer mismatch.
+INT4 mixed with REAL resolves REAL, not arithmetic's DOUBLE PRECISION promotion.
+Same-domain operands can retain domain identity; mixed base/unknown inputs flatten
+domains. Common typmods survive only when compatible. Synthetic output metadata
+does not inherit a physical arm's NOT NULL promise.
+Dropping a VARCHAR typmod means unbounded character length: native metadata
+reports `(MaxInt64,true)` and actual lib/pq reports `(-5,true)`, including empty
+results. Neither adapter's descriptor is normalized to the other's.
+
+UNION ALL does not require tuple equality: JSON payloads are admitted there.
+Every other set operation, including INTERSECT ALL/EXCEPT ALL and empty inputs,
+requires the existing grouping/equality capability. No new type/collation provider
+is added. UNION ALL may retain indeterminate implicit collation; a demanded ORDER
+comparison then fails at execution, even empty, after successful Prepare.
+
+Derived/scalar/EXISTS and correlated queries use the same set result. Scalar
+cardinality errors occur at execution; INTERSECT/EXCEPT targets cannot be removed
+just because EXISTS needs only presence. INSERT common typing and dedup precede
+destination assignment: distinct NUMERIC1.1 and1.2 can insert two integer1s.
+Assignment changes only the destination projection schema, not the common source
+schema used by tuple validation, equality or local ORDER/bounds. BIGINT source
+values outside the INTEGER destination range report22003 `integer out of range`
+at assignment rather than an internal source-value validation error.
+Late source/assignment failure publishes no native rows, successful count or
+partial write batch. LIMIT0 avoids runtime targets but still analyzes/admit sources
+and parameters from both arms. Public eager rows and metadata remain retained
+through writes and native Reset/Restore.
+Every pure INSERT VALUES source retains its existing restricted scalar/DEFAULT
+cell grammar, including ORDER/bounds and nested parentheses. Query-only
+expressions in genuine set-query VALUES operands do not widen that syntax.
+Decorated DEFAULT cells remain syntactically admitted but report42601
+`DEFAULT is not allowed in this context` during source binding, as before.
+Locking-bearing VALUES wrappers remain intact through INSERT and derived-source
+conversion: all four row-lock modes report0A000 `FOR <mode> cannot be applied to
+VALUES`. Destination admission and VALUES cell analysis retain their diagnostic
+precedence; a malformed trailing statement rejects the entire input before any
+prefix write is published.
+
+Stored views retain the binary tree, labels, typed literals, current renamed
+source identities and every arm dependency. Dump emits replayable SQL; foreign
+Restore reowns enum/domain/array grouping and leaves the prior catalog intact on
+invalid or canceled replacement. Set result/arm and inline-derived row marks
+remain prohibited; stored set views are opaque copy-valued lock-lineage barriers.
+Inherited outer marks stop at the stored set boundary during source acquisition,
+kind checks, authorization and source capture, not only during row production.
+Thus readable catalog/sequence arms and SELECT-only base tables do not acquire
+inherited row-lock or UPDATE requirements. Locally stored descendant marks still
+apply, and every arm retains its used-column SELECT and dependency admission,
+including empty or LIMIT0 reads. Ordinary non-set views remain transparent to
+inherited marks; inline-derived set output still rejects enclosing marks.
+TABLE, CTE, LATERAL and DISTINCT ON remain outside this change.
+
+Independent public API coverage and smoke (both modes required):
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOps' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOps' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0
+```
 
 ## Subqueries and derived SELECT — change note (changelog)
 

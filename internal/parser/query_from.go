@@ -8,10 +8,11 @@ func (*TableReference) fromItem() {}
 
 // ValuesQuery is a finite query source, not destination-context INSERT input.
 type ValuesQuery struct {
-	Rows [][]Expr
-	Order *Order
+	Rows   [][]Expr
+	Order  *Order
 	Bounds *QueryBounds
-	Pos Position
+	Pos    Position
+	rowEnd int // Closing row token, independent of parser lookahead.
 }
 
 func (*ValuesQuery) fromItem() {}

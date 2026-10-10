@@ -615,10 +615,16 @@ LIMIT0 guarantees remain independently tested across backends.
 An unmarked upper aggregate may consume a marked view: input locks precede
 grouping/HAVING, so an empty HAVING result does not release them. A FOR clause
 reaching GROUP BY/HAVING/aggregate or DISTINCT output fails mode-specific0A000.
-Plain DISTINCT retains its existing projected-tuple execution provider. DISTINCT
-ON and UNION/INTERSECT/EXCEPT are structurally recognized only for rejection:
-malformed syntax wins, and result-level set locking rejects before arity/common
-typing. They do not gain execution providers. Sequences fail42809
+Plain DISTINCT retains its existing projected-tuple execution provider.
+UNION/INTERSECT/EXCEPT execute with DISTINCT/ALL bag semantics and pairwise common
+typing; direct/result/arm set locking rejects before arity/common typing. Inline
+derived sets also reject enclosing row marks. Stored set views remain opaque
+copy-valued outputs: outer row marks do not propagate to arm row identities,
+relation-lock modes or UPDATE authority, including catalog and sequence sources.
+Every arm still requires its ordinary SELECT admission; locally stored marks
+inside a descendant view retain their own authority and locking behavior.
+DISTINCT ON remains structurally recognized for rejection
+after full syntax validation and does not gain an execution provider. Sequences fail42809
 at Execute even as unselected reference-mark siblings of a marked query, without
 new UPDATE requirements or physical grants on such siblings. Selected virtual
 catalog marks reject0A000 `row locking is not supported for virtual catalog relations`,

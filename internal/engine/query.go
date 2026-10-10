@@ -106,6 +106,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
+	case *setNode:
+		return preflightSet(c, n)
 	case *distinctNode:
 		return preflightDistinct(c, n)
 	case *derivedNode:
@@ -308,6 +310,9 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		}
 		var keys []sortKey
 		for i, key := range n.keys {
+			if key.expression.CollationIndeterminate() {
+				return nil, setOrderCollationError()
+			}
 			folded, changed, err := preflightCoercions(c, key.expression)
 			if err != nil {
 				return nil, err
@@ -714,6 +719,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *setNode:
+		return openSetNode(ctx, state, n)
 	case *limitNode:
 		return openLimitNode(ctx, state, n)
 	case *evaluationNode:

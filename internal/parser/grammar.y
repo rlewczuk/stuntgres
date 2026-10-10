@@ -93,6 +93,8 @@ package parser
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
 %token <tok> DATE_MODIFIER_NUMBER
+/* Private bounded replay entry for destination-context INSERT cells. */
+%token <tok> INSERT_SCALAR_VALUES
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
@@ -238,8 +240,11 @@ package parser
 %type <fromItem> optional_from
 %type <row> row_fields
 %type <tok> quantifier
-%type <valuesQuery> query_values parenthesized_values
+%type <valuesQuery> query_values
 %type <rows> query_rows
+%type <rows> insert_scalar_rows
+%type <row> insert_scalar_row insert_scalar_cells
+%type <expr> insert_scalar_cell
 %type <row> query_row query_cells
 %type <expr> query_cell
 %type <stmt> update
@@ -293,12 +298,11 @@ package parser
 %type <dropTarget> drop_target
 %type <tok> alter_action
 %type <names> names
-%type <rows> rows
-%type <row> row values call_args function_values insert_values sequence_args sequence_values
+%type <row> values call_args function_values sequence_args sequence_values
 %type <row> group_keys group
 %type <expr> having
 %type <value> value
-%type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument insert_value
+%type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
 %type <expr> aggregate_call aggregate_application
 %type <tok> like_operator
 %type <expr> target_escape
@@ -370,6 +374,7 @@ optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+ | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -903,23 +908,25 @@ delete_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 }
 like_operator: LIKE | ILIKE ;
 target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
-insert_input: VALUES rows order bounds { $$=&InsertSource{Values:&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos}} }
- | insert_select { $$=&InsertSource{Select:$1} }
+insert_input: insert_select {
+   if $1.Values!=nil {
+      if !sqllex.(*lexer).validateInsertValues($1.Values) {return 1}
+      if len($1.Locking)==0 {$$=&InsertSource{Values:$1.Values}} else {$$=&InsertSource{Select:$1}}
+   } else {$$=&InsertSource{Select:$1}}
+ }
  | '(' insert_input ')' { $$=$2 } ;
 insert_select: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
-rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
-row: '(' insert_values ')' { $$ = $2 } ;
 values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
-insert_value: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
-insert_values: insert_value { $$=[]Expr{$1} } | insert_values ',' insert_value { $$=append($1,$3) } ;
 query_values: VALUES query_rows order bounds { $$=&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos} } ;
-parenthesized_values: '(' query_values ')' { $$=$2 }
- | '(' parenthesized_values ')' { $$=$2 } ;
 query_rows: query_row { $$=[][]Expr{$1} } | query_rows ',' query_row { $$=append($1,$3) } ;
-query_row: '(' query_cells ')' { $$=$2 } ;
+query_row: '(' query_cells ')' { sqllex.(*lexer).queryRowEnd=$3.pos.Offset+1;$$=$2 } ;
 query_cells: query_cell { $$=[]Expr{$1} } | query_cells ',' query_cell { $$=append($1,$3) } ;
 query_cell: scalar_projection { $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
+insert_scalar_rows: insert_scalar_row { $$=[][]Expr{$1} } | insert_scalar_rows ',' insert_scalar_row { $$=append($1,$3) } ;
+insert_scalar_row: '(' insert_scalar_cells ')' { $$=$2 } ;
+insert_scalar_cells: insert_scalar_cell { $$=[]Expr{$1} } | insert_scalar_cells ',' insert_scalar_cell { $$=append($1,$3) } ;
+insert_scalar_cell: scalar { if !sqllex.(*lexer).scalarInput($1) {return 1};$$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 scalar: scalar_atom { $$=$1 }
  | scalar GENERATION_OVER '(' generation_window_spec ')' { restriction:=GenerationRestriction{Code:"42P20",Message:"window functions are not allowed in column generation expressions",Pos:$1.SourcePosition()};l:=sqllex.(*lexer);if l.generationRestriction==nil {l.generationRestriction=&restriction} else {*l.generationRestriction=restriction};if l.generationDepth==0 {l.generationCompletedRestriction=l.generationRestriction};$$=ForbiddenGenerationExpr{restriction} }
  | select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryScalar,Query:$1.Query,Pos:$1.Pos} }
@@ -1055,9 +1062,8 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
 /* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
-/* Set-operation syntax is structural, but its execution remains excluded.
- * Parenthesized operands preserve arm-local decorations separately from the
- * result-level ORDER/bounds/locking tail. */
+/* Parenthesized set operands preserve arm-local decorations separately from
+ * the result-level ORDER/bounds/locking tail. */
 select_projection: projection { $$=$1 }
  | DISTINCT projection { $2.Distinct=&DistinctClause{Pos:$1.pos};$$=$2 }
  | DISTINCT ON '(' group_keys ')' projection { $6.Distinct=&DistinctClause{On:$4,Pos:$1.pos};$$=$6 } ;
@@ -1067,23 +1073,23 @@ select_core: SELECT select_projection optional_from where group having { $2.From
  * category; these category reductions stay below ')' shift precedence. */
 select_with_parens: '(' query_select ')' { $$=parenthesizedQuery{Query:$2,Pos:$1.pos} }
  | '(' select_with_parens ')' { $2.Pos=$1.pos;$$=$2 } ;
-select_operand: select_core { $$=$1 } | select_with_parens %prec NAME_LIST { $1.Query.Parenthesized=true;$$=$1.Query } ;
+select_operand: select_core { $$=$1 }
+ | VALUES query_rows { $$=&Select{Values:&ValuesQuery{Rows:$2,Pos:$1.pos,rowEnd:sqllex.(*lexer).queryRowEnd},Pos:$1.pos} }
+ | select_with_parens %prec NAME_LIST { $1.Query.Parenthesized=true;$$=$1.Query } ;
 set_modifier: /* empty */ { $$=false } | ALL { $$=true } | DISTINCT { $$=false } ;
 query_set: query_intersection { $$=$1 }
  | query_set UNION set_modifier query_intersection { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} }
  | query_set EXCEPT set_modifier query_intersection { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
-query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};$$=$1 } ;
+query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 } ;
 select_query: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
  | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
-select: select_query { $$=$1 }
- | query_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} }
- | parenthesized_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} } ;
+select: select_query { $$=$1 } ;
 optional_from: /* empty */ %prec NAME_LIST { $$=nil } | FROM from_list { $$=$2 } ;
 row_fields: scalar_projection { $$=[]Expr{$1} } | row_fields ',' scalar_projection { $$=append($1,$3) } ;
 quantifier: ANY | SOME | ALL ;
@@ -1201,14 +1207,13 @@ inner_join: /* empty */ { $$=JoinInner } | INNER { $$=JoinInner }
  | FULL optional_outer { $$=JoinFull } ;
 optional_outer: /* empty */ { $$=false } | OUTER { $$=true } ;
 from_base: relation_name { $$=&TableReference{Name:$1} }
- | select_with_parens %prec NAME_LIST { $$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos} }
+ | select_with_parens %prec NAME_LIST { if $1.Query.Values!=nil && len($1.Query.Locking)==0 {$$=$1.Query.Values} else {$$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos}} }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {
        if _,values:=alias.Input.(*ValuesQuery);values {sqllex.(*lexer).syntax($<tok>3);return 1}
     }
     $$=$2
-   }
- | parenthesized_values %prec NAME_LIST { $$=$1 } ;
+   } ;
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;

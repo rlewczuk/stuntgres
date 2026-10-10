@@ -268,6 +268,52 @@ Held-resource timeout Context includes genuine PostgreSQL physical tuple
 coordinates only on PostgreSQL; native independently asserts its absent Context.
 
 
+The set-operation feature smoke exercises all nine operator/modifier bags and
+Exec counts, NULL multiplicities, precedence/parentheses, VALUES, local/global
+bounds, pairwise unknown/REAL typing, SAME held parameters, derived/scalar/EXISTS
+and correlated consumers, dedup-before-INSERT assignment, width/UTF8/ORDER/lock
+diagnostics, stored views, foreign Restore and retained results. It executes the
+actual native Dump stream on PostgreSQL; it never substitutes reconstructed SQL.
+Native controls explicitly cover invalid trailing and EOF-canceled set-view
+restoration, two foreign restores, destination-owned enum/domain/array grouping
+after source Reset, and retained rows/schema across destination Reset/Restore.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$' VERBOSE=0
+```
+
+Each invocation has a900-second deadline. The complete family selector is
+`RUN='^TestReferenceQuerySetOps'` in both modes; smoke does not replace it or
+ordinary quickcheck/post-merge fullcheck. Lifecycle checks row-dependent late
+source/assignment failures, zero-demand runtime suppression with all-arm analysis
+and argument admission, ordinary native pre-cancellation, genuine observed
+PostgreSQL server admission/cancellation, and SAME owner/preheld set recovery.
+PostgreSQL cancellation uses the existing admitted pg_sleep helper, not a new
+native function or a timing-only assertion that a fast set query was interrupted.
+Pinned PostgreSQL18.0 observations ground the additional consumer rows, exact
+late source/assignment diagnostics and all-arm zero-demand analysis positions.
+Successful discovery does not replace completed dual-mode acceptance runs.
+
+Stored set-view lock-boundary regression smoke covers all four modes on catalog
+and sequence sources, reader-owned security_invoker/nested catalog views, and
+inline-derived rejection. PostgreSQL fixture-only GRANT controls additionally
+exercise ordinary SELECT-only base readers, local stored marks and revoked SELECT
+under LIMIT0; native private ACL units exercise the same authority boundary
+without introducing public SQL GRANT support. Run each command within900 seconds:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestQuerySetStored(InheritedMarks|LockAuthority|ReferenceKinds|RelationModes)$' VERBOSE=0
+```
+
+The private units retain local wait/strength/diagnostic recipes, ordinary-view
+inheritance, all-arm admission, sequence reference-kind checks and actual acquired
+relation modes. They do not duplicate public adapter scenarios. The stored-set
+barrier changes inherited marks only, never ordinary SELECT/dependency traversal.
 
 ## How the dual-mode fixture works
 

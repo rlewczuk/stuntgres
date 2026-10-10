@@ -312,6 +312,23 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					}
 				}
 			}
+		case *setNode:
+			width := len(n.Schema())
+			if n.left == nil || n.right == nil || len(n.left.Schema()) != width || len(n.right.Schema()) != width || len(n.leftExpressions) != width || len(n.rightExpressions) != width {
+				return fmt.Errorf("stuntgres: invalid stored set width")
+			}
+			if n.operation != "union" && n.operation != "intersect" && n.operation != "except" {
+				return fmt.Errorf("stuntgres: invalid stored set operation")
+			}
+			grouped := !(n.operation == "union" && n.all)
+			if grouped && len(n.grouping) != width || !grouped && len(n.grouping) != 0 {
+				return fmt.Errorf("stuntgres: invalid stored set grouping")
+			}
+			for i, column := range n.Schema() {
+				if n.leftExpressions[i] == nil || n.rightExpressions[i] == nil || n.leftExpressions[i].ResultUsage() != column.Usage || n.rightExpressions[i].ResultUsage() != column.Usage {
+					return fmt.Errorf("stuntgres: invalid stored set coercion")
+				}
+			}
 		case *limitNode:
 			for _, expr := range []BoundExpr{n.offset, n.count} {
 				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expressionUsesFrame(expr, frame)) {

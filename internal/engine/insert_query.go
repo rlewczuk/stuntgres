@@ -69,6 +69,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[width].Pos)
 		}
 	}
+	schemaDetached := false
 	for i, expr := range project.expressions {
 		target := out.relation.columns[out.targets[i]]
 		if _, generated := out.relation.generations[out.relation.attributes[out.targets[i]]]; generated {
@@ -94,7 +95,15 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			return err
 		}
 		project.expressions[i] = assigned
-		project.querySchema[i].Usage = assigned.ResultUsage()
+		if usage := assigned.ResultUsage(); usage != project.querySchema[i].Usage {
+			// The output schema may share backing with source nodes. Assignment
+			// owns only the final projection, never source validation or set keys.
+			if !schemaDetached {
+				project.querySchema = append(querySchema(nil), project.querySchema...)
+				schemaDetached = true
+			}
+			project.querySchema[i].Usage = usage
+		}
 	}
 	// Analysis and parameter inference above remain complete. Only unused pure
 	// USER identity projections lose runtime demand, before coercion preflight.
@@ -160,7 +169,7 @@ func commonValuesUsage(nodes [][]BoundExpr, raw [][]parser.Expr, column int, tex
 			operand.raw = raw[i][column]
 		}
 		return operand
-	}, text, "VALUES")
+	}, text, "VALUES", (*sqltype.Descriptor).DiagnosticName)
 }
 func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*BoundQuery, error) {
 	oldFrame := b.queryFrame
@@ -457,6 +466,8 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 		expression = coercion.child
 	}
 	switch n := node.(type) {
+	case *setNode:
+		return n, false // Every set retains source output/key/cardinality demand.
 	case *distinctNode:
 		return n, false // Every projected slot participates in source cardinality.
 	case *limitNode:

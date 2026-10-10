@@ -356,6 +356,16 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		if s == nil {
 			return fmt.Errorf("stuntgres: missing stored query syntax")
 		}
+		if s.Set != nil {
+			set, ok := viewFromRoot(project).(*setNode)
+			if !ok || set.left == nil || set.right == nil || set.left.syntax != s.Set.Left || set.right.syntax != s.Set.Right || set.operation != s.Set.Operator || set.all != s.Set.All {
+				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
+			}
+			left, right := v.queries[s.Set.Left], v.queries[s.Set.Right]
+			if left == nil || right == nil || left.frame != set.left.frame || right.frame != set.right.frame {
+				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
+			}
+		}
 		validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
 			ordinal := 0
 			return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, target: target}, &ordinal, &count, &columnCount)
@@ -394,14 +404,16 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		if err := validate(s.Having, viewHavingLiteral, 0); err != nil {
 			return err
 		}
-		if s.Order != nil {
+		// VALUES owns its decorations' source-ordinal literal paths even when
+		// the SELECT syntax wrapper also exposes those same tail pointers.
+		if s.Values == nil && s.Order != nil {
 			for i, key := range s.Order.Keys {
 				if err := validate(key.Expr, viewOrderLiteral, i); err != nil {
 					return err
 				}
 			}
 		}
-		if s.Bounds != nil {
+		if s.Values == nil && s.Bounds != nil {
 			if err := validate(s.Bounds.Offset, viewOffsetLiteral, 0); err != nil {
 				return err
 			}

@@ -284,6 +284,35 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		next = &derivedNode{querySchema: schema, query: &query}
 	case *projectNode:
 		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax}
+	case *setNode:
+		copy := *n
+		copy.querySchema = schema
+		if err == nil {
+			var left LogicalNode
+			left, err = m.nested(n.left)
+			if err == nil {
+				copy.left = left.(*projectNode)
+			}
+		}
+		if err == nil {
+			var right LogicalNode
+			right, err = m.nested(n.right)
+			if err == nil {
+				copy.right = right.(*projectNode)
+			}
+		}
+		copy.leftExpressions = expressions(n.leftExpressions)
+		copy.rightExpressions = expressions(n.rightExpressions)
+		copy.grouping = nil
+		if !(copy.operation == "union" && copy.all) {
+			copy.grouping = make([]sqltype.Grouping, len(schema))
+			for i, column := range schema {
+				if err == nil {
+					copy.grouping[i], err = sqltype.BindGrouping(column.Usage)
+				}
+			}
+		}
+		next = &copy
 	case *distinctNode:
 		copy := *n
 		copy.querySchema = schema
@@ -306,7 +335,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.outputs = expressions(n.outputs)
 		for i, key := range copy.keys {
 			copy.keys[i].expression = expression(key.expression)
-			if err == nil {
+			if err == nil && !copy.keys[i].expression.CollationIndeterminate() {
 				copy.keys[i].comparison, err = sqltype.BindOrdering(copy.keys[i].expression.ResultUsage())
 			}
 		}

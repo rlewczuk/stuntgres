@@ -196,7 +196,7 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 	out := producingStage(&child, n.Schema())
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		if finite && count == 0 {
-			return false, nil
+			return false, child.Close()
 		}
 		for {
 			i, present, err := child.nextOccurrence(ctx)

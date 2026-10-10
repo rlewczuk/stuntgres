@@ -61,6 +61,26 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 	return l.statements, nil
 }
 
+// The complete INSERT source frontier distinguishes pure VALUES from genuine
+// set operands. Replay only the bounded rows through the restricted grammar,
+// retaining parentheses and ORDER/bounds on the original source. Set arms keep
+// query expressions; original input, options and absolute positions stay authoritative.
+func (l *lexer) validateInsertValues(values *ValuesQuery) bool {
+	replay := &lexer{input: l.input, offset: values.Pos.Offset + len("values"), options: l.options,
+		backslashEscapes: l.backslashEscapes, insertScalarEntry: true, insertScalarEnd: values.rowEnd}
+	if sqlParse(replay) != 0 || replay.err != nil {
+		l.err = replay.err
+		return false
+	}
+	if replay.pendingMessage != "" {
+		replay.failAt("0A000", replay.pendingMessage, replay.pendingOffset)
+		l.err = replay.err
+		return false
+	}
+	values.Rows = replay.statements[0].(*Insert).Rows
+	return true
+}
+
 // Run only at the complete statement-query frontier: an enclosing set tail can
 // supply the locking clause that requires retaining an arm's DISTINCT ON syntax.
 func deferDistinctOnBoundary(l *lexer, s *Select) {

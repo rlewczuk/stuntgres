@@ -22,7 +22,7 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 		return queryTreeOccurrences(n.child, inputs, dst)
 	case *sortNode:
 		return queryTreeOccurrences(n.child, inputs, dst)
-	case *aggregateNode, *distinctNode:
+	case *aggregateNode, *distinctNode, *setNode:
 		return dst
 	case *rowLockNode:
 		return queryTreeOccurrences(n.child, inputs, dst)

@@ -71,6 +71,16 @@ export remain excluded. See [prepared transactions](docs/TRANSACTIONS.md#prepare
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`.
 
+Change note: `UNION`, `INTERSECT` and `EXCEPT` support default/explicit
+`DISTINCT` and `ALL`, full-tuple NULL equality and multiset counts. Parentheses
+preserve local ORDER/bounds; INTERSECT binds tighter than UNION/EXCEPT.
+Corresponding columns resolve common types pairwise, with leftmost output labels;
+unordered results have no implicit sequence guarantee. Derived/scalar/EXISTS,
+INSERT sources and stored views share these semantics, including native
+Dump/Restore. TABLE, CTE and LATERAL are not added.
+See [set operations](docs/QUERIES.md#set-operations--change-note-changelog).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0`.
 
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and

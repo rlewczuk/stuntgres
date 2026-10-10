@@ -51,6 +51,15 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 	}
 	var out LogicalNode
 	switch n := node.(type) {
+	case *setNode:
+		left, right := child(n.left), child(n.right)
+		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)
+		if changed && err == nil {
+			copy := *n
+			copy.left, copy.right = left.(*projectNode), right.(*projectNode)
+			copy.leftExpressions, copy.rightExpressions = leftExpressions, rightExpressions
+			out = &copy
+		}
 	case *sourceNode, *singletonNode:
 		return node, nil
 	case *projectNode:

@@ -9,6 +9,8 @@ import (
 // explicit subquery boundaries, preserving lexical frames and leaf occurrences.
 func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 	switch n := node.(type) {
+	case *setNode:
+		return n.left, n.right
 	case *projectNode:
 		return n.child, nil
 	case *filterNode:
@@ -40,6 +42,9 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 		}
 	}
 	switch n := node.(type) {
+	case *setNode:
+		args(n.leftExpressions)
+		args(n.rightExpressions)
 	case *projectNode:
 		args(n.expressions)
 	case *filterNode:

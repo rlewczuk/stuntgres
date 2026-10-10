@@ -148,6 +148,13 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		}
 	}
 	switch n := node.(type) {
+	case *setNode:
+		// Inline inherited sets were rejected at analysis. A stored set
+		// source is opaque to an outer row mark, but all arms still plan.
+		if err := validateMarkedQueryJoin(c, n.left, catalog, nil, queryRowMark{}, emptyInput, nil); err != nil {
+			return err
+		}
+		return validateMarkedQueryJoin(c, n.right, catalog, nil, queryRowMark{}, emptyInput, nil)
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
 		if d, ok := catalog.state.descriptors[n.ref.Address].(*relationDescriptor); ok && d.view != nil {

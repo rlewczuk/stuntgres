@@ -511,7 +511,7 @@ type Select struct {
 	Bounds        *QueryBounds
 	Distinct      *DistinctClause
 	Set           *SetQuery
-	Parenthesized bool // Rejection-only top-level SELECT grouping.
+	Parenthesized bool // Explicit query operand grouping.
 }
 
 func (*Select) statement() {}
@@ -539,7 +539,6 @@ const (
 )
 
 // DISTINCT retains plain execution syntax and rejection-only ON positions.
-// Set shapes retain real syntax without introducing an execution provider.
 type DistinctClause struct {
 	On  []Expr
 	Pos Position

@@ -28,6 +28,11 @@ func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
 			if ordinal == n.viewOrdinal {
 				return n
 			}
+		case *setNode:
+			if found := visit(n.left); found != nil {
+				return found
+			}
+			return visit(n.right)
 		case *joinNode:
 			if found := visit(n.left); found != nil {
 				return found

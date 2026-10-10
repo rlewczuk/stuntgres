@@ -125,18 +125,22 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 	computed := 0
 	for i := range keys {
 		key := &keys[i]
-		provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
-		if err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
-				positioned := *diagnostic
-				if key.position > 0 {
-					positioned.Position = strconv.Itoa(key.position)
+		if !key.expression.CollationIndeterminate() {
+			provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
+			if err != nil {
+				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
+					positioned := *diagnostic
+					if key.position > 0 {
+						positioned.Position = strconv.Itoa(key.position)
+					}
+					return nil, &positioned
 				}
-				return nil, &positioned
+				return nil, err
 			}
-			return nil, err
+			key.comparison = provider
 		}
-		key.comparison = provider
+		// Indeterminate set collations reject during execution preflight.
+		// They still participate in the ordinary output/cache equivalence.
 		key.slot = -1
 		switch e := key.expression.(type) {
 		case columnExpression:

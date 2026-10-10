@@ -25,6 +25,14 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 }
 
 func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode) (string, error) {
+	var columns []ColumnDescriptor
+	if s == renderer.viewDefinition.syntax {
+		columns = renderer.presentation.columns
+	}
+	return renderer.selectQueryColumnsSQL(ctx, catalog, s, project, columns, false)
+}
+
+func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
 	if project == nil {
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
@@ -32,12 +40,60 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.frame
 	defer func() { renderer.query, renderer.frame, renderer.simple = previous, previousFrame, previousSimple }()
 	presentation := renderer.presentation
-	if s != renderer.viewDefinition.syntax {
-		presentation.columns = nil
-	}
+	presentation.columns = columns
 	_, renderer.simple = s.From.(*parser.TableReference)
 	renderer.simple = renderer.simple && presentation.deparse
 	v := renderer
+	if s.Set != nil {
+		set, ok := viewFromRoot(project).(*setNode)
+		if !ok || set.left == nil || set.right == nil {
+			return "", fmt.Errorf("stuntgres: missing frozen set query")
+		}
+		if columns == nil {
+			columns = set.Schema()
+		}
+		left, err := renderer.selectQueryColumnsSQL(ctx, catalog, s.Set.Left, set.left, columns, true)
+		if err != nil {
+			return "", err
+		}
+		right, err := renderer.selectQueryColumnsSQL(ctx, catalog, s.Set.Right, set.right, columns, true)
+		if err != nil {
+			return "", err
+		}
+		// Preserve the exact binary tree, as well as any operand-local tail.
+		// Undecorated leaves need no parentheses, matching ordinary view display.
+		if viewSetOperandParentheses(s.Set.Left) {
+			left = "(" + left + ")"
+		}
+		if viewSetOperandParentheses(s.Set.Right) {
+			if presentation.deparse && s.Set.Right.Set != nil {
+				right = "(\n        " + strings.ReplaceAll(right, "\n", "\n        ") + "\n)"
+			} else {
+				right = "(" + right + ")"
+			}
+		}
+		separator := " "
+		if presentation.deparse {
+			separator = "\n"
+		}
+		operator := strings.ToUpper(set.operation)
+		if set.all {
+			operator += " ALL"
+		}
+		text := left + separator + operator + separator + right
+		if presentation.deparse && s.Set.Right.Set != nil {
+			text = left + separator + operator + " " + right
+		}
+		// Set ORDER names refer to synthetic output slots. Emit ordinals so
+		// current view column overrides and duplicate labels cannot change
+		// their binding when this structural SQL is replayed.
+		slots := make(map[int]string, len(set.Schema()))
+		for i := range set.Schema() {
+			slots[i] = strconv.Itoa(i + 1)
+		}
+		renderer.slots[set] = slots
+		return renderer.selectQueryTailSQL(ctx, catalog, s, text, presentation, setOperand)
+	}
 	if s.Values != nil {
 		values, ok := viewFromRoot(project).(*valuesNode)
 		if !ok {
@@ -58,6 +114,16 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 			labels[i] = quoteIdentifier(name)
 			renamed = renamed || name != fmt.Sprintf("column%d", i+1)
 		}
+		if presentation.deparse && setOperand {
+			targets := make([]string, len(labels))
+			for i, column := range columns {
+				targets[i] = "\"*VALUES*\"." + pgIdentifier(fmt.Sprintf("column%d", i+1))
+				if column.Name != fmt.Sprintf("column%d", i+1) {
+					targets[i] += " AS " + pgIdentifier(column.Name)
+				}
+			}
+			return viewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") \"*VALUES*\"", nil
+		}
 		if renamed {
 			if presentation.deparse {
 				targets := make([]string, len(labels))
@@ -75,12 +141,30 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 		return text, nil
 	}
 	var from string
+	var setSourceColumns []viewRenderColumn
 	if s.From != nil {
 		source, err := renderer.fromSQL(ctx, catalog, s.From)
 		if err != nil {
 			return "", err
 		}
 		from = source.text
+		if setOperand && renderer.simple {
+			root, ok := source.root.(*sourceNode)
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing simple set-view source")
+			}
+			relation, ok := catalog.state.descriptors[root.ref.Address].(*relationDescriptor)
+			if !ok {
+				return "", ErrCatalogReplaced
+			}
+			// PostgreSQL qualifies simple source slots inside set operands.
+			// Keep natural attribute labels separate from their displayed
+			// qualification so unchanged labels still omit redundant AS.
+			setSourceColumns = source.columns
+			for _, column := range source.columns {
+				source.slots[column.slot] = pgIdentifier(relation.name) + "." + pgIdentifier(column.name)
+			}
+		}
 	}
 	var targets []string
 	for i, expr := range s.Targets {
@@ -113,10 +197,19 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 		if renderer.simple {
 			// Simple source slots carry current attribute names, not frozen
 			// aliases; omit AS only when it does not change the result label.
-			for _, name := range renderer.slots[viewFromRoot(v.query.Root)] {
-				if targets[i] == name {
-					natural = name
-					break
+			if setOperand {
+				for _, column := range setSourceColumns {
+					if targets[i] == renderer.slots[viewFromRoot(v.query.Root)][column.slot] {
+						natural = pgIdentifier(column.name)
+						break
+					}
+				}
+			} else {
+				for _, name := range renderer.slots[viewFromRoot(v.query.Root)] {
+					if targets[i] == name {
+						natural = name
+						break
+					}
 				}
 			}
 		}
@@ -165,11 +258,33 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 		}
 		text += clause + "HAVING " + part
 	}
+	return renderer.selectQueryTailSQL(ctx, catalog, s, text, presentation, setOperand)
+}
+
+func viewSetOperandParentheses(s *parser.Select) bool {
+	return s.Set != nil || s.Order != nil || s.Bounds != nil || len(s.Locking) != 0 ||
+		s.Values != nil && (s.Values.Order != nil || s.Values.Bounds != nil)
+}
+
+func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, text string, presentation viewPresentation, setOperand bool) (string, error) {
+	clause := " "
+	if presentation.deparse {
+		clause = "\n  "
+	}
 	if s.Order != nil {
 		keys := make([]string, len(s.Order.Keys))
 		for i, key := range s.Order.Keys {
 			path := viewLiteralPath{clause: viewOrderLiteral, target: i}
-			name, err := renderer.expressionSQL(ctx, catalog, key.Expr, path)
+			var name string
+			var err error
+			if ordinal, ok := key.Expr.(parser.LiteralExpr); presentation.deparse && setOperand && s.Set == nil && ok && ordinal.Value.Kind == parser.IntegerValue {
+				// Stored syntax freezes output references as ordinals. A local
+				// SELECT arm displays that occurrence's original target, not its
+				// projection-cache slot or an overridden result label.
+				name, err = renderer.selectOutputSQL(ctx, catalog, int(ordinal.Value.Integer)-1)
+			} else {
+				name, err = renderer.expressionSQL(ctx, catalog, key.Expr, path)
+			}
 			if err != nil {
 				return "", err
 			}
@@ -187,6 +302,10 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 		text += clause + "ORDER BY " + strings.Join(keys, ", ")
 	}
 	if s.Bounds != nil {
+		boundClause := clause
+		if presentation.deparse && (setOperand || s.Set != nil) {
+			boundClause = "\n "
+		}
 		for _, bound := range []struct {
 			expr   parser.Expr
 			clause viewLiteralClause
@@ -202,7 +321,7 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 			if err != nil {
 				return "", err
 			}
-			text += clause + bound.name + " " + part
+			text += boundClause + bound.name + " " + part
 		}
 	}
 	for _, mark := range s.Locking {
@@ -226,6 +345,40 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 		}
 	}
 	return text, nil
+}
+
+func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog CatalogRead, slot int) (string, error) {
+	project, ok := renderer.query.Root.(*projectNode)
+	if !ok || project.syntax == nil || slot < 0 || slot >= len(project.Schema()) {
+		return "", fmt.Errorf("stuntgres: missing view ORDER output occurrence")
+	}
+	ordinal := slot + 1
+	for target, raw := range project.syntax.Targets {
+		path := viewLiteralPath{query: project.frame, clause: viewTargetLiteral, target: target}
+		if _, star := raw.(parser.StarExpr); star {
+			columns := renderer.stars[path]
+			if slot < len(columns) {
+				column := columns[slot]
+				owner := renderer.frames[column.frame]
+				if owner == nil {
+					return "", fmt.Errorf("stuntgres: missing frozen star frame")
+				}
+				return renderer.slotSQL(ctx, catalog, viewFromRoot(owner), column.slot)
+			}
+			slot -= len(columns)
+			continue
+		}
+		if slot == 0 {
+			if _, literal := raw.(parser.LiteralExpr); literal {
+				// A bare rendered constant can be reparsed as a different
+				// ordinal (or an invalid noninteger ORDER constant).
+				return strconv.Itoa(ordinal), nil
+			}
+			return renderer.expressionSQL(ctx, catalog, raw, path)
+		}
+		slot--
+	}
+	return "", fmt.Errorf("stuntgres: missing view ORDER target expression")
 }
 
 // Measure complete target bytes, never split identifiers, literals or expressions.
@@ -385,6 +538,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text, err := v.slotSQL(ctx, catalog, root, column.slot)
 			if err != nil {
 				return "", err
+			}
+			if strings.HasPrefix(text, pgIdentifier(relation.name)+".") {
+				return text, nil
 			}
 			return pgIdentifier(relation.name) + "." + text, nil
 		}

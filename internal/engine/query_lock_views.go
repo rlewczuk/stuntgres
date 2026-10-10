@@ -139,7 +139,34 @@ func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 	return visit(d)
 }
 func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
+	if queryHasSetOutput(d.query.Root) {
+		return nil // A stored set view is an opaque physical-lineage boundary.
+	}
 	return queryRowLockLegality(d.query.Root, mode)
+}
+
+// Only the stored query's output boundary stops inherited reference-kind
+// context. Ordinary joins/derived queries retain their existing legality and
+// sibling checks; a nested stored set view applies this boundary on its entry.
+func queryHasSetOutput(node LogicalNode) bool {
+	for {
+		switch n := node.(type) {
+		case *projectNode:
+			node = n.child
+		case *sortNode:
+			node = n.child
+		case *limitNode:
+			node = n.child
+		case *evaluationNode:
+			node = n.child
+		case *filterNode:
+			node = n.child
+		case *setNode:
+			return true
+		default:
+			return false
+		}
+	}
 }
 
 func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
@@ -152,6 +179,8 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 	}
 	suffix := ""
 	switch {
+	case project.syntax.Set != nil:
+		suffix = "UNION/INTERSECT/EXCEPT"
 	case project.syntax.Distinct != nil:
 		suffix = "DISTINCT clause"
 	case len(project.syntax.GroupBy) != 0:
@@ -216,6 +245,9 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	var visit func(*relationDescriptor, queryRowMark, bool) error
 	visit = func(d *relationDescriptor, inherited queryRowMark, referenceMarked bool) error {
 		if d.view != nil {
+			if queryHasSetOutput(d.view.query.Root) {
+				referenceMarked = false
+			}
 			referenceMarked = referenceMarked || queryRootRowMode(d.view.query.Root) != 0
 			marked = marked || queryRootRowMode(d.view.query.Root) != 0
 			if err := viewRowLockLegality(d.view, queryRowDiagnostic(inherited)); err != nil {
@@ -321,7 +353,7 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	switch n := node.(type) {
 	case *limitNode:
 		return queryLockRecheckWidth(n.child, inputs)
-	case *aggregateNode, *distinctNode:
+	case *aggregateNode, *distinctNode, *setNode:
 		return 0 // Its input marks/provenance have already been consumed.
 	case *evaluationNode:
 		return queryLockRecheckWidth(n.child, inputs)
@@ -410,7 +442,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		return recheckLockedSource(evaluation.query.derived[n], rows, evaluation, scratch, offset)
 	case *valuesNode:
 		return frozen, true, nil
-	case *distinctNode:
+	case *distinctNode, *setNode:
 		return frozen, true, nil // Its source marks were settled during materialization.
 	case *limitNode:
 		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
@@ -656,20 +688,25 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	return out, nil
 }
 
-func queryContainsSource(node LogicalNode, occurrence int) bool {
+// Inherited marks follow physical lineage, unlike general source/dependency
+// traversal: a materialized set still reads both arms but exposes neither's rows.
+func queryRowMarkReachesSource(node LogicalNode, occurrence int) bool {
 	if node == nil {
+		return false
+	}
+	if _, ok := node.(*setNode); ok {
 		return false
 	}
 	if source, ok := node.(*sourceNode); ok {
 		return source.occurrence == occurrence
 	}
 	left, right := queryInputs(node)
-	return queryContainsSource(left, occurrence) || queryContainsSource(right, occurrence)
+	return queryRowMarkReachesSource(left, occurrence) || queryRowMarkReachesSource(right, occurrence)
 }
 
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited queryRowMark) queryRowMark {
 	mark := view.sources[occurrence].mark
-	if inherited.mode != 0 && queryContainsSource(view.query.Root, occurrence) {
+	if inherited.mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
 		mark = mergeQueryRowMark(inherited, mark)
 	}
 	return mark

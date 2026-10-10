@@ -27,8 +27,8 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundEx
 	return b.bind(raw, expressionPolicy{context: projectionContext})
 }
 
-// bindSelect is shared by public SELECT and the internal INSERT producer.
-// Only the latter defers output unknowns to destination assignment.
+// bindSelect is shared by public SELECT, set operands and INSERT producers.
+// Contextual outputs defer unknown fallback until their consuming boundary.
 func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
 	return b.bindSelectScoped(s, contextual, false)
 }
@@ -47,7 +47,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if mode := firstSetRowClause(s); mode != "" {
 			return nil, sqlError("0A000", mode+" is not allowed with UNION/INTERSECT/EXCEPT")
 		}
-		return nil, sqlError("0A000", "set operations are unsupported")
+		if mode := b.inheritedDerivedSetMode(s); mode != "" {
+			return nil, sqlError("0A000", mode+" is not allowed with UNION/INTERSECT/EXCEPT")
+		}
+		return b.bindSet(s)
 	}
 	if len(s.Locking) != 0 {
 		b.queryRowDiagnosticMode = queryRowMode(s.Locking[0].Mode)
@@ -64,14 +67,17 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		})
 	}
 	if s.Values != nil {
-		if s.Locking != nil {
+		query, err := b.bindValues(s.Values, false)
+		if err != nil {
+			return nil, err
+		}
+		// VALUES cell analysis precedes row-lock legality; retain the wrapper
+		// through INSERT and derived conversion so this owner sees every clause.
+		if len(s.Locking) != 0 {
 			return nil, sqlError("0A000", s.Locking[0].Mode+" cannot be applied to VALUES")
 		}
-		query, err := b.bindValues(s.Values, false)
-		if err == nil {
-			project := query.Root.(*projectNode)
-			project.frame, project.syntax = b.frameID(), s
-		}
+		project := query.Root.(*projectNode)
+		project.frame, project.syntax = b.frameID(), s
 		return query, err
 	}
 	root, namespace, err := b.bindFrom(s.From)
@@ -129,7 +135,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 			}
 		} else {
-			expr, err := b.bindOutput(raw, contextual)
+			expr, err := b.bindOutput(raw, contextual && !plainDistinct)
 			if err != nil {
 				return nil, err
 			}
@@ -314,7 +320,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 			projection[i] = expr
 		}
-		if b.noParameters && literalTargets[i] >= 0 {
+		if b.noParameters && literalTargets[i] >= 0 && expr.ResultUsage().Type != nil {
 			target := literalTargets[i]
 			if err := b.captureViewLiterals(s.Targets[target], expr, viewTargetLiteral, target); err != nil {
 				return nil, err

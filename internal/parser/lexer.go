@@ -18,7 +18,11 @@ type lexer struct {
 	previousToken int
 	err           error
 	statements    []Statement
-	options       Options
+	// Exact grammar row-end evidence bounds private INSERT scalar replay.
+	queryRowEnd       int
+	insertScalarEntry bool
+	insertScalarEnd   int
+	options           Options
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -649,6 +653,13 @@ func (l *lexer) nextRaw() rawToken {
 
 func (l *lexer) Lex(v *sqlSymType) int {
 	if l.err != nil {
+		return 0
+	}
+	if l.insertScalarEntry {
+		l.insertScalarEntry = false
+		return INSERT_SCALAR_VALUES
+	}
+	if l.insertScalarEnd != 0 && !l.hasLookahead && l.offset >= l.insertScalarEnd {
 		return 0
 	}
 	token := l.nextRaw()
