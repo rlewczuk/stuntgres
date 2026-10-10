@@ -17,6 +17,24 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+## Selected age and finite predicate calls
+
+```sql
+SELECT age(TIMESTAMP '2004-06-01', TIMESTAMP '2004-04-30'); -- 1 mon 1 day
+SELECT age(TIMESTAMP '0001-01-01 AD', TIMESTAMP '0001-01-01 BC'); -- 1 year
+SELECT age(CURRENT_DATE::timestamp); -- zero at transaction-local midnight
+SELECT isfinite(DATE '2000-01-01'), isfinite(TIMESTAMP 'infinity'),
+       isfinite(INTERVAL '-infinity'), isfinite(NULL::interval);
+-- true, false, false, NULL
+```
+
+Use explicit selected input types for unary calls: untyped NULL, string literals
+and parameters are ambiguous in PostgreSQL's wider overload set. Prepared calls
+can use `age($1::timestamp,$2::timestamp)` and `isfinite($3::interval)`;
+an exact TIMESTAMP binary argument also infers the other UNKNOWN argument.
+These positional calls have no declared argument labels. See
+[symbolic semantics and bounded resolution](DIALECT.md#age-and-finite-predicates--change-note).
+
 ## Selected datetime constructor calls
 
 `make_date`, `make_time`, `make_timestamp`, `make_timestamptz` and

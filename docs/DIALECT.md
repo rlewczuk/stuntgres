@@ -307,6 +307,48 @@ adds selected operators separately; justify/extract, wire protocol and physical
 storage remain excluded. Selected constructors are documented below.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
+### Age and finite predicates — change note
+
+Selected strict signatures are `age(timestamp) -> interval`,
+`age(timestamp,timestamp) -> interval`, and
+`isfinite(date|timestamp|interval) -> boolean`. Binary age subtracts civil
+fields, borrowing a partial month's days from the original earlier timestamp's
+month. Thus June1 minus April30 is `1 mon 1 day`, not an elapsed-day interval
+or `1 mon 2 days`. Months, days and microseconds remain separate; reverse age
+negates each component. BC uses astronomical year0 for1BC, so1BC to1AD is1year.
+No justify/extract, new temporal casts or excluded executable overloads are added.
+
+Unary age subtracts from transaction-current local DATE at midnight. It is
+STABLE and responds to Execute-time TimeZone and transaction start; binary
+plain-timestamp age and all selected isfinite overloads are IMMUTABLE.
+Finite predicates reject both infinity signs, not extreme finite components.
+Age propagates signed infinity; subtracting equal-sign infinities reports
+22008 `interval out of range`. Strict typed NULL returns a typed NULL; child
+analysis/input and reached sibling errors retain their existing precedence.
+IntervalStyle is captured by the output codec, not the arithmetic.
+
+Calls compose through existing queries, writes, DEFAULT/CHECK, aggregates,
+views and native Dump/Reset/Restore. Immutable selected calls may appear in
+generated columns and expression indexes; unary STABLE age may not.
+Ordinary, quoted lowercase and `pg_catalog` names retain namespace visibility.
+UNKNOWN unary arguments remain PostgreSQL ambiguities (42725), even though
+native implements fewer signatures. Binary age with an exact TIMESTAMP argument
+accepts UNKNOWN/DATE via existing inference/coercion. All-UNKNOWN binary age,
+DATE-only age and mixed TIMESTAMP/TIMESTAMPTZ resolve PostgreSQL's excluded
+timezone overload and report native0A000 `age with time zone is unsupported`.
+Explicit TIMESTAMPTZ isfinite reports0A000 `isfinite with time zone is unsupported`.
+PG's TIME-to-INTERVAL implicit route retains native0A000
+`time to interval conversion is unsupported`; TIMETZ is a wrong signature.
+Explicit xid casts retain the existing native type-admission boundary:
+0A000 `unsupported column type` at the type token, before function selection.
+The diagnostic-only xid candidate
+still participates in unary UNKNOWN age ambiguity. No raw-syntax bypass or
+fake type/function catalog registration is provided. Wrong types/arity preserve
+42883 English diagnostics, hints and character-based function positions.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeAgeFiniteFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeAgeFiniteFeatureSmoke$' VERBOSE=0`.
+
 ### Datetime constructors — change note
 
 The selected signatures return exact unsized values:

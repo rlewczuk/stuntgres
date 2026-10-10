@@ -36,6 +36,14 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringPa
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringPadFeatureSmoke$' VERBOSE=0`.
 See [padding and reversal](docs/DIALECT.md#string-padding-repetition-and-reversal--change-note).
 
+Change note: PostgreSQL 18 `age(timestamp[,timestamp])` returns symbolic
+intervals with earlier-month borrowing, BC/AD and infinity semantics;
+`isfinite(date|timestamp|interval)` returns a strict BOOL predicate.
+Unary age uses transaction-current local midnight, not Prepare time.
+See [age and finite predicates](docs/DIALECT.md#age-and-finite-predicates--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeAgeFiniteFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeAgeFiniteFeatureSmoke$' VERBOSE=0`.
+
 Change note: PostgreSQL 18 `make_date`, `make_time`, `make_timestamp`,
 `make_timestamptz` and `make_interval` construct exact typed temporal values.
 These selected calls accept positional or named `=>`/`:=` arguments; interval

@@ -70,6 +70,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case indexPropertyExpression:
 		args(e.children())
+	case datetimeAgeFiniteExpression:
+		args(e.children())
 	case datetimeMakeExpression:
 		args(e.children())
 	case datetimeFormattingExpression:

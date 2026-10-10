@@ -1297,6 +1297,24 @@ Native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTime[A
 Real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`;
 the tagged optional-date complement remains real-oracle coverage only.
 
+## Age and finite predicate results — change note
+
+Selected age calls return the existing unsized INTERVAL1186 descriptor
+(typmod-1), preserving symbolic months, days and microseconds independently.
+Input TIMESTAMP precision does not constrain the result. Selected isfinite
+calls return BOOL16, including typed NULL and zero-row direct/prepared cursors.
+Computed metadata has unknown Length, DecimalSize and Nullable; aliases or
+the default `age`/`isfinite` names are retained after cursor closure.
+
+Native INTERVAL ScanType/export is string/nil, while pinned lib/pq describes
+interface{} and exports []byte/nil. BOOL describes and exports bool/nil in both
+modes. Existing output snapshots own IntervalStyle, including held prepared
+execution and retained native rows. Infinity uses the existing reserved temporal
+sentinels and entire interval tuples; a finite interval component at its integer
+limit is not itself infinity. BC arithmetic uses astronomical civil years, not
+display years. See [calls](SQL.md#selected-age-and-finite-predicate-calls) and
+[semantics](DIALECT.md#age-and-finite-predicates--change-note).
+
 ## Constructed datetime values — change note
 
 The five selected numeric constructors return the existing DATE1082, TIME1083,

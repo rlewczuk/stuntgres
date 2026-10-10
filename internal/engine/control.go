@@ -775,6 +775,7 @@ func restoreScalar(raw parser.Expr) error {
 		}
 		switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
+		case "age", "isfinite":
 		case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
 		case "format":
 		case "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
