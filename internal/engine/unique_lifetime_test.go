@@ -92,24 +92,42 @@ func TestUniqueClaimDeadlock(t *testing.T) {
 	first, _ := uniqueAsyncUnit(t, a, "INSERT INTO t VALUES(2)")
 	lockPending(t, e, 1)
 	second, _ := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
-	var victim deleteOutcome
-	var survivor <-chan deleteOutcome
-	select {
-	case victim = <-first:
-		survivor = second
-	case victim = <-second:
-		survivor = first
-	case <-time.After(5 * time.Second):
-		t.Fatal("unique cycle did not resolve")
+	// Victim cleanup can wake the survivor before the victim reports its error.
+	// Own both outcomes before identifying the victim by its actual error.
+	var firstResult, secondResult deleteOutcome
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for first != nil || second != nil {
+		select {
+		case firstResult = <-first:
+			first = nil
+		case secondResult = <-second:
+			second = nil
+		case <-deadline.C:
+			t.Fatal("unique cycle workers did not terminate")
+		}
+	}
+	if (firstResult.err == nil) == (secondResult.err == nil) {
+		t.Fatal("want exactly one deadlock victim and one successful inserter", firstResult, secondResult)
+	}
+	victim, survivor := firstResult, secondResult
+	if firstResult.err == nil {
+		victim, survivor = secondResult, firstResult
 	}
 	var diagnostic *sqlstate.Error
-	if !errors.As(victim.err, &diagnostic) || diagnostic.Code != "40P01" || diagnostic.Message != "deadlock detected" || diagnostic.Hint != "See server log for query details." || diagnostic.Position != "" || diagnostic.Context != "" || diagnostic.Schema != "" || diagnostic.Table != "" || !strings.Contains(diagnostic.Detail, "waits for UniqueKey on relation ") || !strings.Contains(diagnostic.Detail, " unique key") {
-		t.Fatal(victim.err, diagnostic)
+	if !errors.As(victim.err, &diagnostic) {
+		t.Fatal(victim.err)
+	}
+	expected := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40P01", Message: "deadlock detected", Hint: "See server log for query details.", Detail: diagnostic.Detail}
+	if !reflect.DeepEqual(*diagnostic, expected) || !strings.Contains(diagnostic.Detail, "waits for UniqueKey on relation ") || !strings.Contains(diagnostic.Detail, " unique key") {
+		t.Fatal(diagnostic)
 	}
 	if victim.result.Count != 0 || victim.result.Rows != nil {
 		t.Fatal("victim exposed effects", victim.result)
 	}
-	deleteAwait(t, survivor, 1, nil)
+	if survivor.err != nil || survivor.result.Count != 1 || survivor.result.Rows != nil {
+		t.Fatal("successful inserter", survivor)
+	}
 	transactionEnd(t, a, ar, false)
 	transactionEnd(t, b, br, false)
 	uniqueClaimsEmpty(t, e)

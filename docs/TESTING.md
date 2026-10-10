@@ -41,6 +41,9 @@ This is the authoritative test-placement and implementation workflow.
   Victim cleanup can also wake a successful survivor before the victim reports
   its result. Join both workers under a bounded deadline and retain the exact
   victim, survivor and side-effect assertions.
+  `TestUniqueClaimDeadlock` collects both outcomes under one five-second deadline,
+  requires exactly one error, and assigns victim/survivor assertions by that error;
+  its worker cleanup cancels and joins on assertion-failure paths as well.
 - Catalog discovery fixtures MUST use scenario-specific object names when
   asserting a complete database-wide candidate bag. The shared PostgreSQL
   fixture resets `public`, not every nonpublic schema; unrelated same-name
