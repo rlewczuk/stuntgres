@@ -222,6 +222,55 @@ capability errors have explicit backend expectations; ICU is policy only.
 Ordinary quickcheck and the single post-integration 1800-second fullcheck remain
 required. Commands above are acceptance instructions, not claims they passed.
 
+### JSONPath typed-input reference contracts
+
+The JSONPath family uses cohesive, independently expected case tables for
+canonical grammar output, input-time regular-expression syntax, complete logical
+diagnostics and their direct/prepared literal-versus-bind phases. Consumer
+scenarios cover held inferred INSERT/UPDATE/CAST parameters, repeated slots,
+owned bytes, SQL NULL versus path `null`, recovery and failed-write atomicity.
+Character IO asserts TEXT/VARCHAR canonical output, explicit VARCHAR/BPCHAR
+truncation, multibyte character sizing, BPCHAR padding and SQL NULL. Encoding
+errors assert the full protocol diagnostic, including portal Context without a
+parameter value; malformed paths assert the measured slot-specific Context.
+
+Catalog OIDs are checked separately from driver metadata: lib/pq exposes blank
+type names and interface{} ScanType for JSONPath results, whereas native results
+must expose JSONPATH (or _JSONPATH) and string ScanType. The shared helper asserts
+each backend's metadata and raw representation before normalization. Composition
+also retains native-only Dump/Restore phases and emitted-SQL replay on PostgreSQL.
+These are input/representation contracts, not path or regex evaluation claims.
+
+JSONPath fixture IDs are unconstrained INT values made unique by the scenarios;
+these tests do not exercise primary-key syntax or constraint enforcement.
+Scalar/array catalog and attribute identities use separate equality-filtered
+queries on PostgreSQL, retaining every independently expected OID, typmod,
+collation and domain-base field without relying on unsupported IN expressions.
+Native explicitly asserts that the two named relations `pg_catalog.pg_type` and
+`pg_catalog.pg_attribute` remain absent (42P01, exact English message and original
+relation Position), in both direct and prepared representation setup. Other
+implemented catalog views do not imply these inquiry relations exist. Exact native
+descriptor4072/4073 and reciprocal array identities remain covered by provider
+units; all shared native JSONPATH/_JSONPATH metadata, IO, composition and controls
+remain asserted without a skip. Equality, ordering and grouping
+must reject rather than compare canonical output; grouping diagnostics retain
+the declared scalar, array or domain name and original SQL source position.
+
+Run all changed definitions in both modes, with a 900-second deadline per command:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPath' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPath' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0
+```
+
+The feature smoke expects inferred repeated-slot insertion, strict indexed-path
+and regex-flag canonicalization, exact regex diagnostics, unchanged data after
+bad UPDATE/late bad INSERT, subsequent valid recovery, and distinct NULL/path-null
+rows. No discovery filter, success logging or observation fallback is retained.
+Change note: JSONPath oracle-discovery envelopes are replaced with quiet shared
+reference assertions; quick-mode failure precedes production implementation.
 
 The serial/identity inquiry family is selected with
 `RUN='^TestReferenceSerialIdentity(Ownership|Lifecycle|Names|Nulls|Diagnostics|Consumers|Controls|FeatureSmoke|SystemColumns)$'`.

@@ -120,8 +120,8 @@ Native Dump/Restore retains exact JSON bytes, typed stored expressions and
 captured cursor ownership; invalid late Restore leaves the live catalog intact.
 Ordinary SELECT DISTINCT rejects JSON keys, including JSON domain/array keys,
 with 42883 because JSON has no equality provider.
-No jsonpath, JSON operators/functions, SQL/JSON constructor `json(...)`
-or pg_type catalog projections are introduced.
+No JSON operators/functions, SQL/JSON constructor `json(...)`
+or additional pg_type catalog projections are introduced by JSON storage.
 
 Feature smoke (each invocation has a 900-second deadline):
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`
@@ -178,6 +178,88 @@ Feature smoke (900-second deadline per invocation):
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`.
 The same two modes with `RUN='^TestReference(JSON|TypeCore|Numeric|PGDescription)'` cover the
 complete affected reference families and migrated source execution routes.
+
+## JSONPath typed input — change note
+
+`JSONPATH` is a concrete noncollatable scalar (OID4072, associated array4073).
+The existing codec validates complete PostgreSQL18 input and retains an immutable
+syntax tree: mode, exact numbers, variables, accessor chains, index/range
+expressions, filters, predicates, methods and regex pattern/flags. Output is cached
+canonical text; copying a value or reminting its descriptor shares the parsed
+payload rather than reparsing it. SQL NULL exports nil; nonnull path `null`
+exports the string `null`.
+
+Input supports default lax/explicit strict mode, scalar/root/variable expressions,
+arithmetic and top-level predicates; quoted/unquoted/escaped keys, wildcards,
+recursive descent bounds, expression subscripts/ranges and nested filters.
+Current-item `@` is allowed inside filters; `last` is limited to array-subscript
+descendants. Exact decimals preserve display scale and NUMERIC limits, including
+radix integers, separators and exponent input. Comments and decoded ECMAScript-like
+escapes canonicalize; surrogate pairs combine, zero escapes and invalid Unicode
+fail, and raw quoted controls reescape on output. All released18 methods and their
+syntactic argument forms are admitted, not PostgreSQL20 string methods.
+
+LIKE_REGEX validates the PostgreSQL ARE/ERE/BRE syntax at input time, including
+directors, embedded options, lookaround, capture/backreference closure, brackets,
+classes/collating names and bounded repetition. It does not use Go RE2 or match
+anything. Flags canonicalize to `ismxq`; duplicates collapse. All flags validate
+before regex compilation; x without q reports0A000, while q admits literal regex
+text and retains other flags. Regex numeric escapes follow regex character-code
+rules, separately from JSONPath string Unicode decoding.
+BRE escaped bounds allow an omitted lower count as zero (`\{\}`, `\{,2\}`,
+`\{,\}`); this does not change ARE/ERE's digit-gated bound admission.
+Malformed counts and unfinished bounds retain distinct repetition-count and
+unbalanced-brace diagnostics through the released numeric token boundary:
+accumulation stops at255 with one token of lookahead. Thus unfinished `a{2550`
+reports an invalid repetition count without requesting EOF beyond the pending
+digit, while `a{255` and `a{256` encounter EOF first and report unbalanced braces.
+This applies to lower and upper counts, including BRE and expanded-mode
+whitespace/comments; it is not a global count-before-EOF diagnostic priority.
+Bracket validation follows the released lexical/
+semantic boundary: one lexical token is read after the current named construct
+before its name is resolved, without consuming or resolving a following named
+construct. Competing lexical and semantic errors therefore retain construction
+order rather than a global diagnostic priority.
+
+Standard/postfix CAST, `jsonpath '...'` and `pg_catalog.jsonpath '...'`, columns,
+defaults and views use central type IO. Explicit TEXT/VARCHAR/BPCHAR IO casts are
+supported; output modifiers truncate/pad by characters using ordinary explicit
+character sizing. Typed character assignment to a path column remains rejected,
+as do integer/Boolean/JSON/JSONB SQL casts. Protocol scalar parameters instead use
+the inferred destination's text input. Held INSERT/UPDATE and CAST parameters infer
+4072 before import, including repeated slots. Byte arguments detach once during
+normalization; typed-nil bytes are NULL, nonnil empty bytes are invalid input.
+Late bad binds publish no writes and held statements remain usable.
+
+Scanner/grammar diagnostics normally report42601; empty input22P02, escaped
+zero22P05, numeric overflow22003 and invalid regex2201B retain PostgreSQL English
+messages/Detail. Literal Position is the original SQL character position (including
+Unicode prefixes), never an inner-path offset. Bind errors have no Position and
+use the existing redacted unnamed-portal parameter Context. Raw invalid UTF8/NUL
+is22021 with portal-only Context. Input, traversal and rendering check cancellation;
+no partial parsed datum is published.
+
+Native DatabaseTypeName is `JSONPATH` (`_JSONPATH` for arrays), ScanType string,
+and raw nonnull output string. Pinned lib/pq omits these OID metadata names,
+reports interface{} ScanType and returns bytes; shared reference scenarios assert
+each backend's metadata independently rather than hide identity with text casts.
+PostgreSQL independently supplies scalar/array OID, attribute typmod/collation
+and domain-base inquiry witnesses. Native `pg_catalog.pg_type` and
+`pg_catalog.pg_attribute` relations remain absent (42P01), despite other
+implemented catalog views; exposing JSONPath's concrete4072/4073 descriptors and
+typed results does not implement these adjacent inquiry relations. Reference
+setup asserts this exact native boundary rather than skipping type behavior,
+while provider units retain exact descriptor and reciprocal array identities.
+Generic arrays/domains, logical Dump/Restore and retained cursors reuse existing
+ownership. There is no typmod, collation, SQL equality/order/group/hash or B-tree
+provider. Path evaluation, JSON query functions/operators, SQL/JSON query forms,
+GIN and regex matching remain separate and unsupported: valid `1/0` or `.time(99)`
+input is not a successful evaluation claim.
+
+Full definitions (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPath' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPath' VERBOSE=0`.
+Feature smoke uses `RUN='^TestReferenceJSONPathFeatureSmoke$'` in both modes.
 
 ## Regclass relation identifiers — change note
 

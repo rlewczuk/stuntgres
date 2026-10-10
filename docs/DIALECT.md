@@ -626,7 +626,7 @@ Missing default B-tree classes report42704 with the existing Hint for both direc
 and expression keys, including atomic ALTER TYPE reconstruction. Explicit
 incompatible classes retain42804. JSON INCLUDE payloads require no comparator
 and support row maintenance and native dump replay under a supported ordered key.
-jsonpath, JSON operators/functions and SQL/JSON `json(...)` construction
+JSON operators/functions and SQL/JSON `json(...)` construction
 are excluded. See [JSON storage and metadata](TYPES.md#json-textual-storage--change-note).
 Native Dump/Restore and stored defaults retain exact text/type identity.
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`;
@@ -642,11 +642,36 @@ Ordinary comparison, grouping, DISTINCT, UNIQUE and generic B-tree keys use
 structural equality (numeric scale ignored) and the released `jsonb_ops` class.
 Explicit TEXT↔JSONB and assignment/explicit JSON↔JSONB IO casts, array/domain
 associations, metadata and logical native persistence reuse central providers.
-JSON operators/functions, GIN, jsonpath and scalar constructors remain excluded.
+JSON operators/functions, GIN and scalar constructors remain excluded.
 See [JSONB storage](TYPES.md#jsonb-normalized-storage--change-note).
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`;
 pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`.
 
+
+### JSONPath typed IO — change note
+
+JSONPATH columns, typed and pg_catalog-qualified literals, standard/postfix casts
+and destination-inferred binds validate the full PostgreSQL18 grammar and retain
+an immutable reusable syntax tree. Canonical output quotes keys/variables,
+preserves strict mode and exact numeric scale, and normalizes parentheses,
+comments, escapes and regex flags. The private input-time ARE/ERE/BRE validator
+admits released regex syntax, not Go's RE2 subset; it has no matching API.
+Scanner/grammar errors, Unicode failures, numeric overflow and2201B regex errors
+use central English diagnostics with original SQL literal Position or existing
+redacted portal Context for binds. Owned bytes, NULL, arrays/domains, defaults,
+views and atomic native persistence use existing providers. Explicit character
+IO casts size canonical output with ordinary character modifiers; typed character
+assignment and incompatible SQL casts stay rejected. Native JSONPATH/string
+metadata is independently asserted despite lib/pq's blank name/interface{} metadata.
+No typmod, collation, comparison/group/hash/B-tree provider, path evaluator,
+JSON query function/operator, SQL/JSON query form or GIN is introduced.
+Unsupported SQL comparison, ordering and grouping reject through the existing
+capability guards; canonical datum identity is only for stored representations.
+Array/domain composition does not grant these SQL capabilities, and diagnostics
+retain the logical type name and source position.
+See [JSONPath contract](TYPES.md#jsonpath-typed-input--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`.
 
 ### Interval values — change note
 

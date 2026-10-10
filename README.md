@@ -415,6 +415,20 @@ See [JSONB types](docs/TYPES.md#jsonb-normalized-storage--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`.
 
+Change note: JSONPath (OID4072, array4073) now has typed literal/bind IO,
+full PostgreSQL18 path grammar and input-time ARE/ERE/BRE regex validation.
+An immutable parsed representation retains mode, expressions and accessors;
+output is canonical, not evaluated. INSERT/UPDATE destinations and explicit
+CAST infer bound path types before import. SQL NULL differs from path `null`.
+Native metadata is JSONPATH/string; lib/pq reports an empty type name and
+interface{} ScanType, with raw bytes. Defaults, views, arrays/domains and native
+Dump/Restore reuse existing providers. JSON query functions/operators, path
+evaluation, regex matching and GIN remain excluded.
+See [JSONPath typed IO](docs/TYPES.md#jsonpath-typed-input--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`.
+
+
 
 Change note: PostgreSQL 18 datetime templates support `to_char(timestamp,text)`,
 `to_char(timestamptz,text)`, `to_char(interval,text)`, `to_date(text,text)` and

@@ -419,7 +419,7 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 	case "TEXT", "CHAR", "BPCHAR", "VARCHAR":
 		// pq textDecode returns BPCHAR as string despite its any ScanType.
 		want = reflect.TypeFor[string]()
-	case "BIT", "VARBIT", "NUMERIC", "UUID", "NAME", "INTERVAL", "REGCLASS", "VOID", "_NAME", "PG_NODE_TREE", "JSON", "JSONB":
+	case "BIT", "VARBIT", "NUMERIC", "UUID", "NAME", "INTERVAL", "REGCLASS", "VOID", "_NAME", "PG_NODE_TREE", "JSON", "JSONB", "JSONPATH":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[[]byte]()
@@ -447,7 +447,7 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 		}
 	case "BYTEA":
 		want = reflect.TypeFor[[]byte]()
-	case "_BOOL", "_BYTEA", "_INT2", "_INT4", "_INT8", "_TEXT", "_OID", "_BPCHAR", "_VARCHAR", "_FLOAT4", "_FLOAT8", "_NUMERIC", "_DATE", "_TIME", "_TIMETZ", "_TIMESTAMP", "_TIMESTAMPTZ", "_INTERVAL", "_UUID", "_REGCLASS", "_JSON", "_JSONB", "_ENUM":
+	case "_BOOL", "_BYTEA", "_INT2", "_INT4", "_INT8", "_TEXT", "_OID", "_BPCHAR", "_VARCHAR", "_FLOAT4", "_FLOAT8", "_NUMERIC", "_DATE", "_TIME", "_TIMETZ", "_TIMESTAMP", "_TIMESTAMPTZ", "_INTERVAL", "_UUID", "_REGCLASS", "_JSON", "_JSONB", "_JSONPATH", "_ENUM":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[[]byte]()

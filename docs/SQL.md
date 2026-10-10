@@ -19,6 +19,27 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+## JSONPath typed IO — change note
+
+```sql
+CREATE TABLE paths(id INT,p jsonpath);
+INSERT INTO paths VALUES(1,jsonpath 'strict $.a[0]?(@.x >= 1)');
+SELECT p FROM paths; -- strict $."a"[0]?(@."x" >= 1)
+SELECT pg_catalog.jsonpath '$a.b'; -- $"a"."b"
+SELECT CAST('$.a'::text AS jsonpath); -- $."a"
+```
+
+Prepared `INSERT INTO paths VALUES($1,$2)`, `UPDATE paths SET p=$1 WHERE id=$2`
+and `SELECT CAST($1 AS jsonpath)` infer path inputs before execution. String,
+owned byte and protocol scalar inputs use the destination codec; nil/typed-nil
+bytes are SQL NULL, distinct from nonnull path `null`. Complete PG18 syntax and
+input-time ARE/ERE/BRE validation produce canonical output, without evaluating
+paths or introducing JSON query functions/operators. Explicit character IO
+casts reuse ordinary truncation/padding; typed character assignment remains denied.
+See [syntax, diagnostics, metadata and persistence](TYPES.md#jsonpath-typed-input--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`.
+
 ## Period overlap
 
 ```sql

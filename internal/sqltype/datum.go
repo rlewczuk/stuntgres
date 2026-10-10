@@ -36,6 +36,8 @@ func SameDatum(a, b Value) bool {
 		return true
 	}
 	switch a.typ.BaseType().id {
+	case JSONPath:
+		return a.jsonpath != nil && b.jsonpath != nil && a.text == b.text
 	case JSONB:
 		if a.jsonb == nil || b.jsonb == nil {
 			return false

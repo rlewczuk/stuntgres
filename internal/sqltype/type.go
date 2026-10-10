@@ -48,6 +48,7 @@ const (
 	Void        ID = 2278
 	UUID        ID = 2950
 	JSONB       ID = 3802
+	JSONPath    ID = 4072
 )
 
 type CollationDerivation uint8
@@ -157,6 +158,7 @@ func Builtins() []*Descriptor {
 		{id: Xid, name: "xid", sql: "XID", database: "XID"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
+		{id: JSONPath, name: "jsonpath", sql: "JSONPATH", database: "JSONPATH", associatedArray: 4073},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
 		{id: BPChar, name: "bpchar", sql: "BPCHAR", database: "BPCHAR", associatedArray: 1014},
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
@@ -200,6 +202,7 @@ type Value struct {
 	treeKey         bool // text is an immutable prepared structural equality/output key.
 	array           *arrayPayload
 	jsonb           *jsonbPayload
+	jsonpath        *jsonpathPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -222,6 +225,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && d.BaseType().id == JSONB && v.jsonb == nil {
 		return Value{}, fmt.Errorf("missing JSONB payload")
+	}
+	if !v.null && d.BaseType().id == JSONPath && v.jsonpath == nil {
+		return Value{}, fmt.Errorf("missing JSONPath payload")
 	}
 	if v.typ == d {
 		if !v.null && d.BaseType().IsArray() && v.array == nil {
@@ -395,7 +401,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB {
+	if IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := validateCharacterInput(text); err != nil {
 			return Value{}, err
 		}
@@ -412,6 +418,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.jsonInput(ctx, text)
 	case JSONB:
 		return d.jsonInput(ctx, text)
+	case JSONPath:
+		return d.jsonpathInput(ctx, text)
 	case Oid, Xid:
 		return d.oidInput(text)
 	case Char:
@@ -684,6 +692,11 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return "", fmt.Errorf("missing JSONB payload")
 		}
 		return v.text, nil
+	case JSONPath:
+		if v.jsonpath == nil {
+			return "", fmt.Errorf("missing JSONPath payload")
+		}
+		return v.text, nil
 	case Bool:
 		if v.boolean {
 			return "t", nil
@@ -758,7 +771,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
 	case Text, BPChar, VarChar, Name, Regclass, JSON:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
-	case JSONB:
+	case JSONB, JSONPath:
 		text, err := d.Output(ctx, v)
 		if err != nil {
 			return "", err
@@ -931,7 +944,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, Regtype:
+		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype:
 		return true
 	}
 	return false
@@ -1007,6 +1020,16 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 			return p, nil
 		}
 		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
+	if source.Type.id == JSONPath || target.Type.id == JSONPath {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) {
 			p.method = viaIO
 			return p, nil
 		}
@@ -1208,6 +1231,9 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 			// semantics after captured presentation, rather than input sizing.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
+		if p.source.Type.id == JSONPath && IsCharacter(p.target.Type.id) {
+			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, p.context == Explicit)
+		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
 	case booleanText:
 		// Boolean string conversion uses true/false rather than boolout's t/f.
@@ -1234,8 +1260,8 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
-	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON {
-		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.BaseType().DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
+	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath {
+		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
@@ -1281,7 +1307,7 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 		_, err := BindComparison(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == Xid || right.id == Xid {
+	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == Xid || right.id == Xid {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if dateTimestampType(left.id) && dateTimestampType(right.id) {

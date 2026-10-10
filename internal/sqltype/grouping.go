@@ -36,6 +36,11 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		elementUsage.Collation = usage.Collation
 		element, err := BindGrouping(elementUsage)
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
+				copy := *diagnostic
+				copy.Message = "could not identify an equality operator for type " + usage.Type.DiagnosticName()
+				return Grouping{}, &copy
+			}
 			return Grouping{}, err
 		}
 		g.element, g.prepare = &element, element.prepare
@@ -54,7 +59,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 	switch base.id {
 	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, Regtype, JSONB:
 	default:
-		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + base.DiagnosticName()}
+		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + usage.Type.DiagnosticName()}
 	}
 	comparison, err := BindComparison(usage.Type, usage.Type)
 	if err != nil {

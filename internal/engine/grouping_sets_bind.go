@@ -99,9 +99,12 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 		}
 		family, err := sqltype.BindGrouping(key.ResultUsage())
 		if err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && key.ResultUsage().Type.BaseType().ID() == sqltype.JSON {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 				copy := *diagnostic
-				copy.Position = fmt.Sprint(item.Expr.SourcePosition().Character)
+				copy.Message = "could not identify an equality operator for type " + b.diagnosticTypeName(key.ResultUsage().Type)
+				if pos := item.Expr.SourcePosition(); pos.Character > 0 {
+					copy.Position = fmt.Sprint(pos.Character)
+				}
 				return out, &copy
 			}
 			return out, err
