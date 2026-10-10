@@ -27,28 +27,6 @@ func (s *NumericAvgState) Add(v Value) error {
 	return nil
 }
 
-// numericAvgLeading reads the normalized base-10000 weight/leading digit
-// directly from coefficient digits, without building padded numeric output.
-func numericAvgLeading(digits string, exponent int64) (int64, int64) {
-	if digits == "" {
-		return 0, 0
-	}
-	position := int64(len(digits)) + exponent
-	weight := (position - 1) / 4
-	if position-1 < 0 && (position-1)%4 != 0 {
-		weight--
-	}
-	width := position - 4*weight
-	first := int64(0)
-	for i := int64(0); i < width; i++ {
-		first *= 10
-		if i < int64(len(digits)) {
-			first += int64(digits[i] - '0')
-		}
-	}
-	return weight, first
-}
-
 func (s *NumericAvgState) Result(d *Descriptor) (Value, error) {
 	if s == nil || d == nil || d.id != Numeric {
 		return Value{}, fmt.Errorf("invalid numeric average descriptor or state")
@@ -58,22 +36,7 @@ func (s *NumericAvgState) Result(d *Descriptor) (Value, error) {
 		return v, err
 	}
 	s.numerator.Abs(&s.sum)
-	weight, first := numericAvgLeading(v.text, v.exponent)
-	countWeight, countFirst := numericAvgLeading(s.count.String(), 0)
-	qweight := weight - countWeight
-	if first <= countFirst {
-		qweight--
-	}
-	scale := int64(16) - 4*qweight
-	if scale < 0 {
-		scale = 0
-	}
-	if scale < s.scale {
-		scale = s.scale
-	}
-	if scale > 1000 {
-		scale = 1000
-	}
+	scale := numericDivisionScale(v.text, v.exponent, s.scale, s.count.String(), 0, 0)
 	if s.sum.Sign() == 0 {
 		return Value{typ: d, scale: scale}, nil
 	}

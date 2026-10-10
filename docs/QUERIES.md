@@ -2106,14 +2106,18 @@ computed arithmetic arguments into the bounded null-count functions. Cast
 families and BYTEA capabilities remain unchanged.
 Composition smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedCastSmoke$' VERBOSE=0`.
 
-Exact NUMERIC-only and other nonnumeric arithmetic remain
-unsupported. Floating operators use fixed REAL/DOUBLE widths and PostgreSQL
-mixed numeric resolution; see [floating arithmetic](DIALECT.md#floating-arithmetic--change-note).
-Previously supported signed NUMERIC literal input, such as `+1.5`, remains a
-literal identity operation, not a NUMERIC arithmetic provider.
-Selected mathematical `mod` functions separately support SMALLINT, INTEGER,
-BIGINT and exact NUMERIC remainders through the existing expression consumers;
-this does not admit NUMERIC arithmetic operators. Selected round/scale/
+Exact NUMERIC `+`, unary `+`, `-`, unary `-`, `*`, `/`, `%` and `^` use
+the shared typed operator path; integer peers widen to NUMERIC without losing
+fractional or large-integer precision. Both integer and fractional power retain
+PostgreSQL-selected decimal precision; `^` remains left-associative.
+Computed results expose NUMERIC/string/unknown DecimalSize independently from
+constrained operands. Signed literal input retains its existing normalization.
+See [numeric arithmetic](DIALECT.md#numeric-arithmetic--change-note).
+Floating operators still use fixed REAL/DOUBLE widths and PostgreSQL mixed
+resolution; floating `%` remains missing. See
+[floating arithmetic](DIALECT.md#floating-arithmetic--change-note).
+Selected mathematical `mod` functions and NUMERIC `%` share exact remainder
+semantics. Selected round/scale/
 trunc/sign calls compose with existing projections, grouping by projection
 ordinal, UPDATE and INSERT SELECT. They may wrap existing CASE scalar arms and
 count-star aggregates, but do not add selected function CASE result leaves or

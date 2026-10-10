@@ -1321,3 +1321,46 @@ control replay with retained metadata. Root runs selective checks under separate
 900-second deadlines after generation/formatting, and fullcheck only after merge
 under one1800-second deadline.
 
+## Numeric arithmetic oracle-first contract
+
+The `TestReferenceNumericArithmetic` family exercises exact decimal `+`, unary
+`+`, `-`, unary `-`, `*`, `/`, `%` and integer/fractional `^`, with independent
+finite strings, published PostgreSQL 18 special matrices, pinned high-precision
+power strings, full diagnostics, direct/held inputs, computed NUMERIC metadata,
+statement/TX atomicity, precancellation and symbolic native control replay.
+`TestReferenceArithmeticBoundaries` migrates the former numeric exclusions to
+shared direct/prepared successes. These test definitions do not themselves
+claim native support.
+
+The permanent expectations include observed PostgreSQL18.0 precision/scale and
+complete binding/input diagnostics. The general-power guard success asserts the
+full 2609-byte result through SHA256, plus exact scale/weight/prefix/suffix.
+Unknown results were resolved in oracle-first discovery; no backend filters,
+observation failures or numeric tolerances remain. Deparsed DEFAULT/view
+expressions are replayed to assert left64/right512 semantically rather than
+pinning incidental SQL whitespace. Both backends expose the actual unnamed
+portal parameter Context for invalid numeric binds.
+Zero-argument native Query retains its existing42P08 parameter-typing record;
+pq's simple-query protocol reports42P02 instead. Supplied-argument direct and
+Prepare routes independently require42P08, not protocol emulation.
+
+Root runs each invocation under a separate 900-second deadline:
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^Test(NumericArithmetic|NumericPower|NumericAvg|MathScalar)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestExpressionNumericArithmetic' VERBOSE=0
+```
+
+The composed feature smoke demands exact0.3, large integer9223372036854775809,
+product2.76000, division2.5000000000000000, remainder−1.00, typed left64/right512
+with NUMERIC metadata, published fractional18.379173679952560, fresh held input
+scales/NULLs, domain/zero/format-overflow diagnostics and unchanged destinations
+after late failures. Its native phase additionally checks deterministic
+Dump/Reset/Restore, preserved cursors and symbolic DEFAULT/view/CHECK grouping.
+

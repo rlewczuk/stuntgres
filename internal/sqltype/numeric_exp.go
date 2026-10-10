@@ -7,11 +7,9 @@ import (
 	"strconv"
 )
 
-// expDecimal and expScratch are operation-local. No mutable coefficient escapes
-// into a Value. These are only the decimal operations needed by exp, not a new
-// SQL arithmetic API. The precision schedule follows PostgreSQL REL_18_0
-// numeric.c exp_var: exact power-of-two reduction, guarded Taylor terms, then
-// squaring at a scale chosen from each intermediate base-10000 weight.
+// expDecimal and expScratch are operation-local exact decimal arithmetic used
+// by exp and numeric power. No mutable coefficient escapes into a Value.
+// Precision schedules follow PostgreSQL REL_18_0 numeric.c.
 type expDecimal struct {
 	coefficient big.Int
 	exponent    int64
@@ -38,6 +36,13 @@ func (w *expScratch) round(out *expDecimal, n *big.Int, exponent, scale int64) {
 	if cut <= 0 {
 		out.coefficient.Set(n)
 		out.exponent = exponent
+		return
+	}
+	// A conservative digit upper bound makes far-underflow rounding constant
+	// space; do not expand thousands of virtual zeros for a tiny coefficient.
+	if n.Sign() == 0 || cut > int64(float64(n.BitLen())*0.301029995663982)+1 {
+		out.coefficient.SetInt64(0)
+		out.exponent = -scale
 		return
 	}
 	sign := n.Sign()
@@ -140,12 +145,36 @@ func numericExp(ctx context.Context, a Value) (Value, error) {
 	if a.text == "" {
 		return Value{typ: a.typ, text: "1", scale: scale}, nil
 	}
-	var x, result, term expDecimal
-	x.coefficient.SetString(a.text, 10)
-	if a.negative {
-		x.coefficient.Neg(&x.coefficient)
+	var x, result expDecimal
+	x.setValue(a)
+	if err := decimalExp(ctx, &x, &result, scale); err != nil {
+		return Value{}, err
 	}
-	x.exponent = a.exponent
+	return numericDecimalResult(ctx, a.typ, &result, scale)
+}
+
+// decimalExp consumes operation-local x and computes exp(x) at the requested
+// scale. SQL exp and general power share this exact kernel, not rounded SQL
+// results. Estimates select precision only; all result arithmetic is decimal.
+func decimalExp(ctx context.Context, x, result *expDecimal, scale int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	estimate := decimalEstimate(x)
+	if estimate >= 6000 {
+		return failure("22003", "value overflows numeric format")
+	}
+	if estimate <= -6000 {
+		result.coefficient.SetInt64(0)
+		result.exponent = -scale
+		return ctx.Err()
+	}
+	if x.coefficient.Sign() == 0 {
+		result.coefficient.SetInt64(1)
+		result.exponent = 0
+		return ctx.Err()
+	}
+	var term expDecimal
 	var w expScratch
 	k := int64(0)
 	for math.Abs(estimate) > 0.01 {
@@ -160,7 +189,7 @@ func numericExp(ctx context.Context, a Value) (Value, error) {
 		x.exponent -= k
 	}
 	if err := ctx.Err(); err != nil {
-		return Value{}, err
+		return err
 	}
 	dweight := int64(math.Trunc(estimate * math.Ldexp(1, int(k)) * 0.434294481903252))
 	// Eight guard digits protect Taylor rounding and its amplification
@@ -168,22 +197,23 @@ func numericExp(ctx context.Context, a Value) (Value, error) {
 	significant := max(int64(0), 1+dweight+scale+int64(float64(k)*0.301029995663981)) + 8
 	localScale := significant - 1
 	result.coefficient.SetInt64(1)
-	w.add(&result, &x)
-	w.multiply(&term, &x, &x, localScale)
+	result.exponent = 0
+	w.add(result, x)
+	w.multiply(&term, x, x, localScale)
 	w.divideInt(&term, &term, 2, localScale)
 	for divisor := int64(3); term.coefficient.Sign() != 0; divisor++ {
 		if err := ctx.Err(); err != nil {
-			return Value{}, err
+			return err
 		}
-		w.add(&result, &term)
-		w.multiply(&term, &term, &x, localScale)
+		w.add(result, &term)
+		w.multiply(&term, &term, x, localScale)
 		w.divideInt(&term, &term, divisor, localScale)
 	}
 	// |x| <= .01 guarantees decaying terms. Termination is at the decimal
 	// precision selected above, not a float epsilon or arbitrary term cap.
 	for range k {
 		if err := ctx.Err(); err != nil {
-			return Value{}, err
+			return err
 		}
 		decimalWeight := w.digits(&result.coefficient) + result.exponent - 1
 		baseWeight := decimalWeight / 4
@@ -191,17 +221,17 @@ func numericExp(ctx context.Context, a Value) (Value, error) {
 			baseWeight-- // mathematical floor, not Go's truncation
 		}
 		localScale = max(int64(0), significant-2*baseWeight*4)
-		w.multiply(&result, &result, &result, localScale)
+		w.multiply(result, result, result, localScale)
 	}
-	w.round(&result, &result.coefficient, result.exponent, scale)
-	if err := ctx.Err(); err != nil {
-		return Value{}, err
+	w.round(result, &result.coefficient, result.exponent, scale)
+	return ctx.Err()
+}
+
+func decimalEstimate(x *expDecimal) float64 {
+	if x.coefficient.Sign() == 0 {
+		return 0
 	}
-	negative := result.coefficient.Sign() < 0
-	result.coefficient.Abs(&result.coefficient)
-	digits := result.coefficient.String()
-	if err := ctx.Err(); err != nil {
-		return Value{}, err
-	}
-	return normalizeNumeric(Value{typ: a.typ, text: digits, exponent: result.exponent, scale: scale, negative: negative}), nil
+	text := x.coefficient.String() + "e" + strconv.FormatInt(x.exponent, 10)
+	estimate, _ := strconv.ParseFloat(text, 64)
+	return estimate
 }

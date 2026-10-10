@@ -1080,12 +1080,13 @@ display scale (finite modulo infinity retains its original scale).
 These function results are unconstrained NUMERIC/string with unknown native
 DecimalSize, not the source column's typmod. See
 [selected mathematical signatures](DIALECT.md#scale-and-rounding-functions--change-note);
-this does not add NUMERIC operators or general casts.
+those functions do not themselves add operators or general casts. Exact operators
+are covered by [numeric arithmetic](DIALECT.md#numeric-arithmetic--change-note).
 
 Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
 settings' quoted numeric codecs retain their separate units/prefix behavior.
-No serial, NUMERIC arithmetic, general functions/operator syntax or
-SELECT-without-FROM expansion is introduced. Standard/postfix annotations reuse
+Numeric type input does not itself introduce serial, general functions/operator
+syntax or SELECT-without-FROM expansion. Standard/postfix annotations reuse
 same-type scalar usages and existing directional numeric coercion edges;
 known-TEXT input conversion and function-cast boundaries remain unchanged.
 Integer arithmetic includes SMALLINT: typed `32767::smallint+1::smallint`
@@ -2195,7 +2196,9 @@ REAL widens from its stored binary32 value. Float AVG uses the complete
 Youngs–Cramer transition, including Sxx overflow checks (22003, `value out of
 range: overflow`), even though final output uses only Sx/N. Final division
 permits IEEE underflow/signed zero. No unordered floating evaluation order is
-promised. General numeric arithmetic is not added by this bounded aggregate.
+promised. Scalar exact numeric arithmetic uses the same division-scale convention
+but validates each operator result, unlike an aggregate's transient subtotal.
+See [numeric arithmetic](DIALECT.md#numeric-arithmetic--change-note).
 Public contracts:
 `make quickcheck PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.

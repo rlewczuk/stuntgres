@@ -1,7 +1,7 @@
 package sqltype
 
-// ArithmeticSignature describes a PostgreSQL candidate, including excluded
-// providers. Resolution must not discard NUMERIC merely to select FLOAT8.
+// ArithmeticSignature describes a PostgreSQL candidate. Resolution retains
+// NUMERIC candidates rather than routing exact decimal operands through FLOAT8.
 type ArithmeticSignature struct{ Left, Right, Result ID }
 
 var arithmeticNumericSignatures = [...]ArithmeticSignature{

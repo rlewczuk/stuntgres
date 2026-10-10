@@ -24,12 +24,12 @@ type Arithmetic struct {
 }
 
 func BindArithmetic(operator ArithmeticOperator, left, right, result *Descriptor) (Arithmetic, error) {
-	if left == nil || result == nil || operator > ArithmeticPower || result.id == Numeric {
+	if left == nil || result == nil || operator > ArithmeticPower {
 		return Arithmetic{}, fmt.Errorf("invalid arithmetic signature")
 	}
 	if right == nil {
 		if operator > ArithmeticSubtract || result.id != left.id ||
-			left.id != Int2 && left.id != Int4 && left.id != Int8 && !isFloat(left.id) &&
+			left.id != Int2 && left.id != Int4 && left.id != Int8 && left.id != Numeric && !isFloat(left.id) &&
 				!(left.id == Interval && operator == ArithmeticSubtract) {
 			return Arithmetic{}, fmt.Errorf("invalid unary arithmetic signature")
 		}
@@ -63,6 +63,13 @@ func (p Arithmetic) Unary(ctx context.Context, a Value, input InputEnvironment) 
 	}
 	if a.null {
 		return Null(p.result), nil
+	}
+	if p.left.id == Numeric {
+		a.typ = p.result
+		if p.operator == ArithmeticSubtract {
+			a = numericNegate(a)
+		}
+		return a, nil
 	}
 	if p.left.id == Interval {
 		return negateInterval(a, p.result)
@@ -98,6 +105,10 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value, input InputEnvironme
 	}
 	if isFloat(p.result.id) {
 		return p.floatingBinary(a.floating, b.floating)
+	}
+	if p.result.id == Numeric {
+		a.typ, b.typ = p.result, p.result
+		return numericArithmetic(ctx, p.operator, a, b)
 	}
 	x, y := a.integer, b.integer
 	var n int64

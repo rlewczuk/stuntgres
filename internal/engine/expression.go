@@ -2301,9 +2301,6 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, operatorExpressionError(err, lt, rt, raw)
 	}
 	typ := b.typ(signature.Result)
-	if signature.Result == sqltype.Numeric {
-		return nil, expressionError("0A000", fmt.Sprintf("arithmetic for %s operands is unsupported", typ.DiagnosticName()), raw.Pos)
-	}
 	leftType := b.typ(signature.Left)
 	var rightType *sqltype.Descriptor
 	if len(raw.Args) == 2 {

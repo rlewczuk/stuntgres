@@ -343,10 +343,21 @@ Known integer/NUMERIC operands mixed with REAL widen to DOUBLE; unknown
 inputs retain REAL. Power is left-associative (`2^3^2=64`) and FLOAT8-selected
 integer power is supported. IEEE specials, checked range/domain diagnostics,
 stored expressions and native replacement use the existing execution seams.
-Exact NUMERIC-only arithmetic and floating `%` remain unavailable.
+Floating `%` remains unavailable; exact NUMERIC operators are documented below.
 See [floating arithmetic](docs/DIALECT.md#floating-arithmetic--change-note).
 Feature smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
+Change note: NUMERIC `+`, unary `+`, `-`, unary `-`, `*`, `/`, `%` and `^`
+use immutable exact decimal values, retained display scales and PostgreSQL
+rounding. Integer and fractional power share guarded decimal computation,
+not binary FLOAT8 results; power remains left-associative. Direct/prepared
+inputs, computed NUMERIC metadata, stored grouping and native Dump/Restore
+reuse existing binding, execution and atomic publication.
+See [numeric arithmetic](docs/DIALECT.md#numeric-arithmetic--change-note) and
+[the design](docs/design/PG18-FUNC-MATH-ARITHMETIC-NUMERIC.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0`.
 
 Change note: index/view introspection supports all seven PostgreSQL 18 signatures:
 `pg_get_indexdef(oid)` and `(oid, integer, boolean)`;

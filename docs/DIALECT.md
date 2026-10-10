@@ -2518,9 +2518,10 @@ preflight applies math simplification even without a conditional wrapper,
 including selected-call singleton queries. Existing execution conditional
 pruning/folding, grouping by projection ordinal, UPDATE/INSERT SELECT atomicity,
 ACLs, view capture and
-native replacement remain the shared consumers. No general function registry,
-numeric arithmetic operators, new WHERE/DEFAULT/INSERT VALUES
-or setting admission, or general SELECT-without-FROM is introduced.
+native replacement remain the shared consumers. These bounded functions do not
+introduce a general function registry, new WHERE/DEFAULT/INSERT VALUES or setting
+admission, or general SELECT-without-FROM. Exact operators are covered separately
+by [numeric arithmetic](#numeric-arithmetic--change-note).
 Dump/Restore stores exact results and replays supported view syntax, not private
 function state.
 Selected calls remain projection/nested-call roots, not new CASE result leaves
@@ -2916,8 +2917,8 @@ types, including small BIGINT constants and typed numeric NULLs, and retain
 existing detached rows/metadata. Compact/pretty deparse acceptance is semantic
 replay, not incidental whitespace/parentheses; actual emitted Dump SQL must replay
 on PostgreSQL. Stateless builtins need no separate serialization. No pg_proc
-expansion, general numeric arithmetic, additional cast edge or physical-size
-counter implementation is implied.
+expansion, additional cast edge or physical-size counter implementation is
+implied. Scalar operators are covered by [numeric arithmetic](#numeric-arithmetic--change-note).
 
 COUNT and SUM with size-expression arguments and grouped size calls use the
 existing aggregate path; SUM of BIGINT bytes produces exact NUMERIC results.
@@ -2969,8 +2970,8 @@ Computed results expose `?column?` and INT2/INT4/INT8 metadata, including empty
 and NULL results, with native int64 ScanType and no physical origin.
 Parameter widths follow SQL signature resolution, never Go argument kinds.
 Unary unknown plus and unknown power select FLOAT8; unknown-only binary +/−/*
-and unary minus are ambiguous (`42725`). Exact NUMERIC-only arithmetic remains
-a native capability exclusion; floating `%` is missing (`42883`).
+and unary minus are ambiguous (`42725`). Exact NUMERIC operators use the shared
+typed seam described below; floating `%` is still missing (`42883`).
 Existing baseline scalar casts compose with arithmetic without adding cast
 families. Postfix `::` binds before unary signs; operand casts can widen arithmetic,
 but result casts cannot prevent narrower overflow. Frame-only cast conversions
@@ -3013,8 +3014,8 @@ Native REAL exports exact widened binary32 values as float64; pq parses the
 server's shortest REAL text as float64 and advertises float32 ScanType.
 
 Power selects DOUBLE/DOUBLE, including integer-only inputs and REAL with
-NUMERIC. Exact NUMERIC-selected power remains unsupported, not silently
-converted to approximate floating arithmetic. `^` associates left and binds
+NUMERIC. NUMERIC-only power uses [exact decimal arithmetic](#numeric-arithmetic--change-note),
+not approximate floating arithmetic. `^` associates left and binds
 above multiplication/division but below unary signs: `2^3^2=64`,
 `2^(3^2)=512`, `-2^2=4`. Qualified `OPERATOR(pg_catalog.^)` retains generic
 operator precedence. Adjacent `^-` is a single unavailable operator.
@@ -3037,10 +3038,70 @@ analysis/Prepare with `42883`, full signature, cast Hint and operator Position.
 Floating DEFAULT/CHECK/view replay preserves each typed input leaf and power
 grouping. Query finalization, DML Finish and isolated Restore installation
 retain existing atomic failure/cancellation and held-snapshot contracts.
-No new power() function, exact NUMERIC arithmetic, general no-FROM SELECT,
-types, cast families or storage mechanisms are introduced.
+The floating cutover introduces no new power() function, general no-FROM SELECT,
+types, cast families or storage mechanisms. Exact NUMERIC is covered separately below.
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`;
 pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic' VERBOSE=0`.
+
+### Numeric arithmetic — change note
+
+NUMERIC `+`, unary `+`, `-`, unary `-`, `*`, `/`, `%` and `^` use the
+same typed operator resolution, immutable decimal payload and row evaluator as
+existing consumers. Integer peers widen to NUMERIC; mixed REAL/NUMERIC retains
+DOUBLE PRECISION resolution. Computation never routes NUMERIC-only results
+through binary FLOAT8.
+
+Addition/subtraction retain the maximum operand display scale and exact
+coefficients. Unary signs preserve scale and canonical positive zero.
+Multiplication computes the full product at the combined scale, then rounds
+half away from zero at the stored scale cap16383. Division selects at least
+16 significant digits from normalized base10000 leading digits, retains operand
+scale where possible, caps calculated scale at1000 and rounds half away from
+zero. `1.0/1.0` therefore has20 fractional places while `5.0/2` has16.
+Remainder is exact `a-trunc(a/b)*b`, follows the dividend sign and retains
+maximum scale; it shares the selected SQL `mod` implementation.
+
+Power remains left-associative: typed `2::numeric^3::numeric^2::numeric` is
+`64.0000000000000000`; explicit right grouping gives512. Raw integer2^3^2
+still selects FLOAT8=64. Integral int32 exponents use guarded decimal squaring;
+fractional and larger integral exponents use private decimal ln/sqrt and the
+same explicit-scale exponential kernel as SQL exp. Result scale is selected
+from PostgreSQL's precision schedule, capped at1000; this does not add SQL
+power(), ln() or sqrt() functions. Huge exponent parity is read from exact
+decimal digits, not floating conversion. Irrational outputs are rounded decimal
+results at the selected precision, not infinitely exact real numbers.
+
+NaN propagates, except NaN^0 and1^NaN are canonical1. Opposite infinities added,
+equal infinities subtracted and infinity multiplied by zero produce NaN.
+Finite/infinity division is canonical0; finite%infinity retains the finite
+input scale. NaN/0 andNaN%0 are NaN; other zero divisors fail22012
+`division by zero`. Zero to a negative exponent fails2201F
+`zero raised to a negative power is undefined`; negative bases to finite
+nonintegral exponents fail2201F
+`a negative number raised to a non-integer power yields a complex result`.
+Strict typed NULL does not evaluate provider payloads but does not suppress
+errors from eagerly evaluated children.
+
+Each operator validates its packed result, including intermediate results before
+later cancellation. Physical numeric overflow and power's general-path range
+guard fail22003 `value overflows numeric format`; very small calculated values
+round to scale1000 zero rather than raising floating underflow. Destination
+typmod sizing is separate and retains its numeric-field-overflow Detail.
+
+Computed metadata is NUMERIC/OID1700/typmod−1, native string ScanType,
+unknown DecimalSize/nullability and no physical origin, including empty/NULL
+results and constrained inputs. Parameters obtain Numeric slots from SQL
+resolution, not Go argument kinds. Held string/bytes/int64/NULL inputs retain
+fresh scales. Existing DEFAULT/CHECK/view capture preserves typed leaves and
+power grouping; deparsed expressions and native Dump/Restore replay actual
+numeric behavior. Query finalization, statement Finish and isolated catalog
+installation preserve atomic failure/cancellation and held snapshots.
+Cancellation is checked between convergence/squaring stages and publication
+fences, not claimed inside an indivisible big.Int primitive.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0`.
+
 
 
 Character declarations add CHAR/CHARACTER/BPCHAR(n) and VARCHAR/CHARACTER
@@ -3826,7 +3887,7 @@ Trusted Restore INSERT and database-local COMMENT use local validated captured-b
 Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported defaults/identity, CREATE SEQUENCE, INSERT with supported parameter-free scalar/default-request forms (including integer arithmetic and SYSTEM identity override), database-local COMMENT, generated sequence OWNED BY associations, numeric/persistence configuration of internally owned identity sequences, SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
 
 The parameter-free scalar inventory includes the selected string functions,
-floating arithmetic and power with typed leaves and preserved grouping,
+floating and exact numeric arithmetic/power with typed leaves and preserved grouping,
 LIKE escape normalization and `crc32`, `crc32c`, `md5(bytea)`, `sha224`,
 `sha256`, `sha384`, `sha512`. Hash operands use normal signature/inference
 validation, recursively reject parameters and preserve Restore atomicity;
