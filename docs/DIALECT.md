@@ -2715,6 +2715,68 @@ pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 provider units: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestBinaryHash' VERBOSE=0`.
 
 
+### Size parsing and formatting — change note
+
+The selected signatures are `pg_size_bytes(text) -> bigint`,
+`pg_size_pretty(bigint) -> text` and `pg_size_pretty(numeric) -> text`.
+They are strict and immutable, using existing typed expression, catalog,
+coercion, metadata and staged-write paths, not adapter-local conversions.
+
+`pg_size_bytes` accepts decimal/scientific numbers and case-insensitive ASCII
+units `bytes`, `B`, `kB`, `MB`, `GB`, `TB`, `PB` (or no suffix), with C ASCII
+whitespace around the number/unit. Units scale by powers of 1024; exact scaling
+precedes integral rounding, with ties away from zero. Thus `1 MB` is 1048576,
+`.00048828125 kB` is 1, and `-.1kb` is -102. No float conversion, radix syntax,
+digit separators, KiB/EB, or NaN/infinity size strings are accepted.
+Invalid sizes use 22023 with original input; invalid units additionally retain
+the trimmed-unit Detail and valid-units Hint. Signed overflow uses 22003
+`bigint out of range`; excessive numeric format uses 22003
+`value overflows numeric format`. Consumed malformed numeric exponents retain
+22P02 and their extracted numeric spelling. Providers have no source Position;
+eager child/input errors retain the existing analysis/portal diagnostics.
+
+Pretty retains bytes below magnitude 10240, including `1024 bytes`.
+Promotion uses signed truncation by 512 initially, then 1024, before one final
+half-unit rounding away from zero. The next-unit threshold is 20479 in those
+half-unit intermediates. INT64_MIN formats as `-8192 PB`; the final PB unit
+never promotes to EB. Pretty is lossy: positive BIGINT max formats to `8192 PB`,
+which overflows when parsed back. Numeric bytes preserve original fractional
+scale (`10.5000 bytes`); larger values truncate at each promotion before the
+final half rounding. Numeric remains exact beyond BIGINT; NaN and infinities
+format as `NaN PB`, `Infinity PB`, and `-Infinity PB`.
+
+BIGINT/NUMERIC (including existing domains) select their exact pretty overload.
+SMALLINT, INTEGER and unknown literal/NULL/parameter inputs remain ambiguous
+(42725), requiring an explicit cast. Bytes infers TEXT for unknowns and admits
+existing implicit textual conversions; Go kinds never select SQL signatures.
+Known wrong types/names/arity use 42883 with the standard English cast Hint,
+quoted case and character-based function Position. Fixed scalar VARIADIC is
+accepted; named arguments fail without losing their labels. Child errors
+precede the 100-argument limit. Strictness does not hide invalid signatures.
+
+Query/conditional/grouping/aggregate/write/default/CHECK/view/generated/index
+consumers share the existing scalar carrier. Failed writes and Restore publish
+no prefix. Native Dump/Reset/Restore reconstruct selected overloads with symbolic
+types, including small BIGINT constants and typed numeric NULLs, and retain
+existing detached rows/metadata. Compact/pretty deparse acceptance is semantic
+replay, not incidental whitespace/parentheses; actual emitted Dump SQL must replay
+on PostgreSQL. Stateless builtins need no separate serialization. No pg_proc
+expansion, general numeric arithmetic, additional cast edge or physical-size
+counter implementation is implied.
+
+COUNT and SUM with size-expression arguments and grouped size calls use the
+existing aggregate path; SUM of BIGINT bytes produces exact NUMERIC results.
+INSERT size expressions expose exact affected counts and subsequent
+state reads; UPDATE RETURNING is supported, but INSERT RETURNING is not added.
+Internal `"char"` input has no native implicit TEXT cast, so its bytes call
+reports 42883 where PostgreSQL converts and parses it. These do not change the
+three selected signatures or authorize adjacent aggregate/cast/write features.
+
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0`.
+Complete reference family: `RUN='^TestReferenceSize'` in both modes.
+
 Integral bitwise operators `& | # ~ << >>` now use a separate SMALLINT/
 INTEGER/BIGINT provider in existing general scalar consumers: queries,
 predicates, grouped/aggregate expressions, writes, conditional expressions,

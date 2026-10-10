@@ -103,6 +103,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindLikeEscape(raw, visible)
 	case "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512":
 		return b.bindBinaryFunction(raw, visible)
+	case "pg_size_bytes", "pg_size_pretty":
+		return b.bindSize(raw, visible)
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		return b.bindMath(raw, visible)
 	case "random", "random_normal", "setseed":
@@ -287,7 +289,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 	// only, the argument limit still precedes exact-name signature resolution.
 	if len(raw.Args) > 100 && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		for _, selected := range [...]string{"to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512"} {
+		for _, selected := range [...]string{"to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "pg_size_bytes", "pg_size_pretty"} {
 			if len(name) != len(selected) || !strings.EqualFold(name, selected) {
 				continue
 			}

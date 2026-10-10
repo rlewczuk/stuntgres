@@ -313,6 +313,17 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid stored math provider")
 		}
+		if n.plan.Name() == "pg_size_pretty" {
+			text, err := r.sql(ctx, view, n.args[0])
+			if err != nil {
+				return "", err
+			}
+			declaration, err := catalogTypeDeclaration(view, usages[0])
+			if err != nil {
+				return "", err
+			}
+			return "pg_catalog.pg_size_pretty(CAST(" + text + " AS " + declaration + "))", nil
+		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
 	case nullCountExpression:
 		if len(n.args) == 0 || len(n.args) > 100 || u.Type.ID() != sqltype.Int4 {

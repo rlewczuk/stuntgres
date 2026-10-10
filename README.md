@@ -594,6 +594,20 @@ Feature smoke in both modes:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0`;
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0`.
 
+Size conversion supports `pg_size_bytes(text) -> bigint` and
+`pg_size_pretty(bigint|numeric) -> text` with exact binary units through PB.
+Parsing scales before rounding to integral bytes, with ties away from zero and
+signed BIGINT range checks. Pretty keeps values below 10240 in bytes:
+`pg_size_pretty(1024::bigint)` is `1024 bytes`, not `1 kB`. Numeric bytes retain
+fractional scale, and numeric pretty accepts values beyond BIGINT and NaN/infinity.
+SMALLINT/INTEGER/unknown pretty inputs are ambiguous; cast explicitly.
+Strict NULLs, stored consumers, native controls and symbolic selected overloads
+reuse the existing typed path. See the
+[size contract](docs/DIALECT.md#size-parsing-and-formatting--change-note).
+Feature smoke in both modes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0`.
+
 Change note: core strings support `||` string overloads, `btrim`/`ltrim`/`rtrim`,
 SQL `TRIM`, `normalize` and `IS [NOT] [form] NORMALIZED`. Character operands
 convert to TEXT, removing BPCHAR trailing spaces; mixed concatenation uses the

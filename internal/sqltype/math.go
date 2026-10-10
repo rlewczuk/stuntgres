@@ -39,6 +39,10 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 2 && id == Numeric && args[1] == args[0]
 	case "factorial":
 		valid = len(args) == 1 && id == Int8
+	case "pg_size_bytes":
+		valid = len(args) == 1 && id == Text
+	case "pg_size_pretty":
+		valid = len(args) == 1 && (id == Int8 || id == Numeric)
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		valid = len(args) == 1 && (id == Numeric || id == Float8)
 	case "mod":
@@ -52,6 +56,10 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		resultID = Int4
 	} else if name == "factorial" {
 		resultID = Numeric
+	} else if name == "pg_size_bytes" {
+		resultID = Int8
+	} else if name == "pg_size_pretty" {
+		resultID = Text
 	}
 	if !result.Valid() || result != result.Type.Usage() || result.Type.id != resultID {
 		return p, fmt.Errorf("invalid math result usage")
@@ -78,6 +86,17 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 	}
 	id := a.typ.id
 	switch p.name {
+	case "pg_size_bytes":
+		return sizeBytes(ctx, p.result, a.text)
+	case "pg_size_pretty":
+		if id == Int8 {
+			return String(p.result.Type, sizePrettyInt(a.integer)), nil
+		}
+		text, err := sizePrettyNumeric(ctx, a)
+		if err != nil {
+			return Value{}, err
+		}
+		return String(p.result.Type, text), nil
 	case "abs":
 		if id == Numeric {
 			a.negative = false

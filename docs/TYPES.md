@@ -819,6 +819,24 @@ Stored base calls preserve their selected integer descriptor during SQL
 reconstruction: even a small BIGINT value or typed NULL replays with its
 original overload, rather than being reinferred as INTEGER or unknown.
 
+`pg_size_bytes(text)` produces unconstrained INT8 with raw `int64` values,
+including exact values beyond float's integral precision. Its result has no
+Length or DecimalSize. `pg_size_pretty(bigint|numeric)` produces unconstrained
+TEXT with raw strings, Length MaxInt64 and no DecimalSize. Typed NULL retains
+the result descriptor; metadata is available before NULL-only/empty iteration.
+Computed nullability is unknown and results have no physical column origin.
+Numeric argument typmods do not become TEXT typmods: bytes output retains its
+numeric input scale, while unit promotion truncates before final half rounding.
+Neither overload narrows numeric through BIGINT or float. Existing domains
+resolve by base type; SMALLINT/INTEGER/unknown pretty arguments require a cast
+because BIGINT and NUMERIC are nonpreferred candidates. Stored reconstruction
+preserves that selected symbolic argument type, even for small BIGINT constants
+and typed NULLs. Native replacement retags descriptors through the existing model.
+
+Size bytes reuses existing native textual coercions, not a new coercion family.
+Internal `"char"` to TEXT is still absent: its bytes call has native 42883
+versus PostgreSQL's converted result. The selected TEXT signature is unchanged.
+
 Results have computed unknown nullability and no physical origin. MD5 TEXT
 reports Length MaxInt64 on both adapters; native CRC/SHA Length is unavailable.
 DecimalSize is unavailable for every result; fixed SHA lengths do not add typmods.

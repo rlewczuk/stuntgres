@@ -547,6 +547,17 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\nEND")
 		return text.String(), nil
 	case mathExpression:
+		if n.plan.Name() == "pg_size_pretty" {
+			text, err := child(n.args[0])
+			if err != nil {
+				return "", err
+			}
+			text, err = r.cast(text, n.args[0].ResultUsage(), false)
+			if err != nil {
+				return "", err
+			}
+			return "pg_size_pretty(" + text + ")", nil
+		}
 		return function(n.plan.Name(), n.args, true)
 	case datetimeJustifyExpression:
 		return function(n.plan.Name(), n.children(), true)

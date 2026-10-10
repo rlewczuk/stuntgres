@@ -175,6 +175,40 @@ pq NULL; do not erase this inherited adapter difference or use Go kinds for
 signature selection. These selectors do not replace ordinary quickcheck or
 post-merge fullcheck.
 
+Size parsing/formatting coverage uses the untagged `TestReferenceSize` family:
+independent exact binary/fractional/signed-limit vectors, every promotion
+boundary, numeric scale/specials, full diagnostics and stages, actual held
+statements and recovery, NULL-only/empty raw metadata, expression consumers and
+write/transaction atomicity. Stored overloads use compact/pretty semantic deparse
+replay rather than incidental formatting goldens. Native controls preserve
+retained rows/metadata and failed replacement atomicity; pinned PostgreSQL
+consumes the actual native-emitted Dump SQL. Every changed definition must run
+in both modes before review, each within the 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSize' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSize' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^Test(Size|Math|Numeric)' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestSize' VERBOSE=0
+```
+
+The smoke expects 1048576 INT8, `1024 bytes`, `-11 kB`, `10.5000 bytes`,
+beyond-BIGINT `10240 PB`, typed TEXT NULL metadata, exact malformed-unit and
+overflow records, held recovery, no failed-write prefix, and faithful stored
+overloads/control replay. The shared MathPlan and numeric codec seams also
+require existing math/numeric regression coverage; selected checks do not
+replace ordinary quickcheck or post-merge fullcheck.
+
+Size consumer witnesses retain the explicit native internal-CHAR coercion
+boundary alongside independent PostgreSQL results; shared COUNT and SUM
+arguments, INSERT affected counts/state reads and UPDATE RETURNING prove the
+supported composition paths. Deparse catalog-query metadata independently checks
+native known-nullable TEXT versus PostgreSQL unknown nullability, without changing
+size-result metadata. Retained descriptors are captured before cursor exhaustion
+and remain asserted after replacement/consumption.
+
 DELETE USING coverage lives in the untagged `TestReferenceDeleteUsing` family:
 physical occurrence/count/output deduplication, actual joined producers, alias/self
 scopes, diagnostics, held parameters/source metadata, privileges, atomicity,

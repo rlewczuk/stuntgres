@@ -56,11 +56,31 @@ func normalizeNumeric(v Value) Value {
 	return v
 }
 func (d *Descriptor) numericInput(original string, typmod int32) (Value, error) {
+	v, err := parseNumeric(original)
+	if err != nil {
+		return Value{}, err
+	}
+	v.typ = d
+	if typmod >= 0 {
+		v, err = sizeNumeric(v, typmod)
+		if err != nil {
+			return Value{}, err
+		}
+	}
+	if err := validateNumericFormat(v); err != nil {
+		return Value{}, err
+	}
+	return v, nil
+}
+
+// parseNumeric returns private descriptor-neutral decimal scratch. Input codecs
+// attach their catalog owner before sizing; exact providers never publish it.
+func parseNumeric(original string) (Value, error) {
 	invalid := func() (Value, error) {
 		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type numeric: \"%s\"", original))
 	}
 	s := trim(original)
-	v := Value{typ: d}
+	v := Value{}
 	switch {
 	case strings.EqualFold(s, "NaN"):
 		v.special = numericNaN
@@ -214,17 +234,14 @@ func (d *Descriptor) numericInput(original string, typmod int32) (Value, error) 
 		}
 		v = normalizeNumeric(v)
 	}
-	var err error
-	if typmod >= 0 {
-		v, err = sizeNumeric(v, typmod)
-		if err != nil {
-			return Value{}, err
-		}
-	}
-	if v.special == numericFinite && (v.scale > 16383 || v.text != "" && int64(len(v.text))+v.exponent > 131072) {
-		return Value{}, failure("22003", "value overflows numeric format")
-	}
 	return v, nil
+}
+
+func validateNumericFormat(v Value) error {
+	if v.special == numericFinite && (v.scale > 16383 || v.text != "" && int64(len(v.text))+v.exponent > 131072) {
+		return failure("22003", "value overflows numeric format")
+	}
+	return nil
 }
 func numericCoefficient(s string, total int) string {
 	if !strings.ContainsRune(s, '_') {

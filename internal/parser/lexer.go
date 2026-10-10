@@ -761,7 +761,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (sizeFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
@@ -1289,7 +1289,7 @@ func binaryScalarFunction(name string) bool {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
 		return true
 	}
-	return binaryHashFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
+	return sizeFunction(name) || binaryHashFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
 }
 
 // Admission recognizes quoted hash spellings without normalizing the AST.
@@ -1309,6 +1309,10 @@ func binaryHashFunction(name string) bool {
 
 func stringNumericBaseFunction(name string) bool {
 	return strings.EqualFold(name, "to_bin") || strings.EqualFold(name, "to_oct") || strings.EqualFold(name, "to_hex")
+}
+
+func sizeFunction(name string) bool {
+	return strings.EqualFold(name, "pg_size_bytes") || strings.EqualFold(name, "pg_size_pretty")
 }
 
 // Admission preserves quoted case in the AST; routine resolution stays exact.
