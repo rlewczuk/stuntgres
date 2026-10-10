@@ -780,6 +780,15 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
+	// Keep qualified keyword identifiers distinct from actual call syntax.
+	// The grammar admits qualified OVERLAPS calls without erasing its category.
+	if token.code == OVERLAPS && l.previousToken != int(')') && l.previousToken != int('.') {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = SELECTED_FUNC
+		}
+	}
 	if token.code == IDENT && (sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
@@ -1365,7 +1374,7 @@ func indexPropertyCallName(name string) bool {
 // Recognize quoted spellings for admission without changing exact resolution.
 func datetimeFunctionName(name string) bool {
 	return strings.EqualFold(name, "extract") || strings.EqualFold(name, "date_part") ||
-		strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") ||
+		strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") || strings.EqualFold(name, "overlaps") ||
 		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
 		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || strings.EqualFold(name, "to_number") ||

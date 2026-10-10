@@ -154,6 +154,19 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case datetimeExtractExpression:
 		o, ok := other.(datetimeExtractExpression)
 		return ok && e.plan.Name() == o.plan.Name() && e.plan.InputID() == o.plan.InputID() && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1])
+	case datetimeOverlapsExpression:
+		o, ok := other.(datetimeOverlapsExpression)
+		if !ok || e.plan != o.plan || e.wrapperContext != o.wrapperContext {
+			return false
+		}
+		// Folded endpoints are a deterministic derivative of the physical
+		// literal arguments below, not another SQL child or signature.
+		for i, arg := range e.args {
+			if !same(arg, o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case datetimeAgeFiniteExpression:
 		o, ok := other.(datetimeAgeFiniteExpression)
 		if !ok || e.plan.Name() != o.plan.Name() || e.plan.InputID() != o.plan.InputID() || e.count != o.count {
@@ -474,6 +487,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case datetimeOverlapsExpression:
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case datetimeAgeFiniteExpression:
 		for i := range e.children() {
 			e.args[i] = rewrite(e.args[i])
@@ -646,6 +665,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case datetimeJustifyExpression:
 		walk(e.arg)
 	case datetimeExtractExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case datetimeOverlapsExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

@@ -785,6 +785,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return text + ending, nil
 	case parser.FunctionExpr:
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if name == "overlaps" {
+			ordinary := "pg_catalog.overlaps"
+			if v.presentation.deparse {
+				ordinary = quoteIdentifier(name)
+			}
+			return renderOverlapsCall(e.Syntax, e.Args, ordinary, func(_ int, arg parser.Expr) (string, error) { return child(arg) })
+		}
 		if parser.IdentityFunctionName(name) && len(e.Args) == 0 {
 			// A bound identity call is a pg_catalog builtin. In particular,
 			// decoded quoted keyword names cannot be replayed unqualified.

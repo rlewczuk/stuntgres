@@ -311,6 +311,22 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case datetimeOverlapsExpression:
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i], changed = node, true
+			}
+		}
+		next, did, failure := simplifyOverlapsRoute(c, e)
+		if failure != nil {
+			return nil, false, failure
+		}
+		e, changed = next, changed || did
+		expression = e
 	case datetimeAgeFiniteExpression:
 		for i, old := range e.children() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -640,6 +656,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.arg)
 	case datetimeExtractExpression:
 		return literal(e.args[0]) && literal(e.args[1])
+	case datetimeOverlapsExpression:
+		for _, arg := range e.args {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
 	case datetimeAgeFiniteExpression:
 		for _, arg := range e.children() {
 			if !literal(arg) {

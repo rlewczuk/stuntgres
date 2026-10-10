@@ -573,6 +573,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return "EXTRACT(" + n.field + " FROM " + source + ")", nil
+	case datetimeOverlapsExpression:
+		return n.publicSQL(ctx, r, child)
 	case datetimeAgeFiniteExpression:
 		return function(n.plan.Name(), n.children(), true)
 	case datetimeMakeExpression:

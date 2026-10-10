@@ -76,6 +76,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.arg)
 	case datetimeExtractExpression:
 		args(e.children())
+	case datetimeOverlapsExpression:
+		args(e.children())
 	case datetimeAgeFiniteExpression:
 		args(e.children())
 	case datetimeMakeExpression:

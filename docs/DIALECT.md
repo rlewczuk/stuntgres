@@ -467,6 +467,61 @@ Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyF
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`.
 The complete shared family selector is `^TestReferenceDatetimeJustify`.
 
+### Period overlap — change note
+
+`OVERLAPS` retains its type/function keyword category: ordinary calls,
+explicit `AS overlaps` labels and qualified identifiers such as
+`public.overlaps` or `t.overlaps` are accepted. It does not become an unquoted
+bare relation/column name or bare output label. Qualification followed by `(`
+does not turn a CREATE TABLE relation name into a function call.
+
+`(start,end) OVERLAPS (start,end)` accepts two-field implicit or explicit ROW
+pairs. Each complete pair is ordered independently; nonzero periods are
+half-open `[start,end)`, so touching boundaries do not overlap. Equal endpoints
+denote a single instant: it overlaps a period at its start or interior, but not
+at its end. Reversed duration/endpoints are ordinary normalized periods.
+
+For each of TIME, TIMESTAMP and TIMESTAMPTZ, the four-argument overload accepts
+endpoints, a duration in the second slot, a duration in the fourth slot, or both
+durations. TIMETZ supports endpoints only: thirteen executable signatures in
+total, also callable as `pg_catalog.overlaps(a,b,c,d)` or quoted lowercase
+`"overlaps"`. DATE has no exact overload; existing implicit conversions and
+PostgreSQL's preferred TIMESTAMPTZ selection apply before duration arithmetic.
+All-DATE periods therefore depend on the Execute-time zone; a known TIMESTAMP
+can select the plain timestamp signature. Zoned calendar days and elapsed hours
+retain existing DST behavior. TIMETZ ordering includes its displacement tie-break.
+
+OVERLAPS is non-strict. A partial pair has one known endpoint; against a complete
+period it proves TRUE only when that endpoint is strictly interior, otherwise
+the result is NULL. Two partial pairs or a both-NULL pair yield NULL. Duration
+addition remains strict: a NULL start yields no effective known endpoint;
+a known start plus NULL duration retains that start. Reached sibling errors are
+not suppressed by a NULL endpoint.
+
+Resolution is one four-slot function decision, not independent pair promotion.
+All-UNKNOWN inputs are ambiguous (42725). Known TIMESTAMP inputs can resolve
+UNKNOWN endpoints through the final same-known fallback; known TIME starts with
+UNKNOWN second slots remain ambiguous because clocks also implicitly convert
+to durations. OVERLAPS alone supports local TIME-to-INTERVAL conversion in
+selected duration slots, preserving the raw 24:00 clock. No general TIME cast,
+age/isfinite/justify boundary or arithmetic signature is expanded. Clock
+addition wraps modulo one day and ignores interval calendar fields; the resulting
+endpoints are normalized, not interpreted as a cyclic overnight period.
+
+The result is BOOL (OID16, typmod-1), normally labelled `overlaps`, including
+empty/prepared results. Queries, grouping, joins, writes, DEFAULT/CHECK, views,
+immutable generated/index expressions and native Dump/Reset/Restore share the
+same bound expression. Zoned duration/coercion expressions retain STABLE
+admission rules. Public deparse preserves SQL versus ordinary-call provenance;
+SQL-form DATE/clock pairs hide their implicit casts, while native logical
+replay retains executable original clock arguments. Wrapper and inlined
+arithmetic errors preserve their observed PostgreSQL Context fields; child
+input/evaluation failures keep their own diagnostics.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`.
+The complete shared family selector is `^TestReferenceDatetimeOverlaps`.
+
 ### Age and finite predicates — change note
 
 Selected strict signatures are `age(timestamp) -> interval`,

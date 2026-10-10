@@ -390,7 +390,7 @@ var keywords = [...]keyword{
 	{"out", ColumnName, true, 0},
 	{"outer", TypeFunctionName, true, OUTER},
 	{"over", Unreserved, false, 0},
-	{"overlaps", TypeFunctionName, false, 0},
+	{"overlaps", TypeFunctionName, false, OVERLAPS},
 	{"overlay", ColumnName, true, 0},
 	{"overriding", Unreserved, true, OVERRIDING},
 	{"owned", Unreserved, true, OWNED},

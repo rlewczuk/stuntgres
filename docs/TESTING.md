@@ -340,6 +340,44 @@ make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGShDescript
 make quickcheck PACKAGES=./internal/engine RUN='^TestPGShDescription' VERBOSE=0
 ```
 
+### Period overlap reference coverage
+
+The shared `TestReferenceDatetimeOverlaps*` family independently covers all13
+signatures, half-open/instant boundaries, reversed endpoints, the16-mask NULL
+matrix, local clock durations, DATE preferred selection and DST, actual held
+parameters, full diagnostics/metadata, query/stored consumers and native controls.
+`ParameterDiagnostics` pins bound/imported constant wrapper errors;
+`InliningDiagnostics` pins a constant duration body against table-column endpoints.
+`InlineSafetyDiagnostics` pins ten/eleven surviving NULLIF comparisons,
+weighted function-backed/IO coercion thresholds, duplicated scalar subqueries,
+actual volatile duplicated versus single-use arguments and STABLE zoned literal
+arithmetic. NULLIF contributes its equality operation; CASE/COALESCE structural
+control remains zero overhead. Every reached body failure has direct/prepared
+full diagnostics and independent recovery assertions.
+No PostgreSQL-only discovery filters remain in the completed definitions.
+Computed BOOL projections strictly assert unknown nullability in both backends.
+Stored view/generated columns independently assert native `(nullable=true,known=true)`
+versus lib/pq's unknown pair. `StoredDeparse` keeps its main SQL/deparse body
+shared; an explicit PostgreSQL `pg_attribute` capability phase pins OID16 and
+typmod-1, while a separate native empty/direct/prepared public driver phase pins
+BOOL name/scan/length/decimal/nullability metadata. Native exports no public
+OID/typmod hook and this family does not implement adjacent catalog relations.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlaps' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlaps' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0
+```
+
+Each invocation has a900-second deadline. Supplementary parser, sqltype and
+engine units use `RUN='^TestDatetimeOverlaps'` with the matching
+`PACKAGES=./internal/parser`, `./internal/sqltype` or `./internal/engine`.
+These selective checks do not replace ordinary quickcheck or the single
+1800-second post-merge fullcheck. The feature smoke asserts actual period
+results `(true,false,true,true,NULL)`, held reuse, Denver day/hour differences,
+diagnostic recovery and native stored-clock-duration replay.
+
 ### Sequence definition catalog discovery
 
 The shared `TestReferencePGSequence` family covers the eight-column

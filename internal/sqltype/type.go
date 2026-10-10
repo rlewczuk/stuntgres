@@ -824,6 +824,22 @@ func (p CoercionPlan) RequiresCatalogOutput() bool {
 	return p.method == viaIO && p.source.Type.ContainsCatalogIdentifier()
 }
 
+// EvaluationFunctionCount exposes only the existing coercion representation:
+// a relabel, one cast function, or the output/input pair of an IO coercion.
+// OVERLAPS uses it for the released duplicated-argument inline threshold.
+func (p CoercionPlan) EvaluationFunctionCount() int {
+	if p.method == viaIO {
+		return 2
+	}
+	if p.method == identity {
+		if p.target.Typmod >= 0 && p.target.Typmod != p.source.Typmod {
+			return 1
+		}
+		return 0
+	}
+	return 1
+}
+
 type castSpec struct {
 	source, target ID
 	minimum        CoercionContext

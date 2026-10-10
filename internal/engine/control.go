@@ -871,6 +871,7 @@ func restoreScalar(raw parser.Expr) error {
 		case "to_bin", "to_oct", "to_hex":
 		case "pg_size_bytes", "pg_size_pretty":
 		case "age", "isfinite":
+		case "overlaps":
 		case "justify_days", "justify_hours", "justify_interval":
 		case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
 		case "gen_random_uuid", "uuidv4", "uuidv7":

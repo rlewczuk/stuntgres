@@ -145,6 +145,7 @@ package parser
 %token <tok> GENERATION_OVER GENERATION_PARTITION
 %token <tok> OVERLAY POSITION SUBSTRING PLACING
 %token <tok> EXTRACT
+%token <tok> OVERLAPS
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
@@ -159,7 +160,7 @@ package parser
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
-%nonassoc BETWEEN NOT NOT_IN_LA
+%nonassoc BETWEEN NOT NOT_IN_LA OVERLAPS
 /* ESCAPE shifts after a complete pattern, but cannot become a cast type tail. */
 %nonassoc ESCAPE
 %left SYMBOLIC_OPERATOR OPERATOR
@@ -250,6 +251,7 @@ package parser
 %type <expr> scalar_projection
 %type <fromItem> optional_from
 %type <row> row_fields
+%type <expr> overlaps_row
 %type <tok> quantifier
 %type <valuesQuery> query_values
 %type <rows> query_rows
@@ -981,9 +983,13 @@ scalar: scalar_atom { $$=$1 }
  | scalar GENERATION_OVER '(' generation_window_spec ')' { restriction:=GenerationRestriction{Code:"42P20",Message:"window functions are not allowed in column generation expressions",Pos:$1.SourcePosition()};l:=sqllex.(*lexer);if l.generationRestriction==nil {l.generationRestriction=&restriction} else {*l.generationRestriction=restriction};if l.generationDepth==0 {l.generationCompletedRestriction=l.generationRestriction};$$=ForbiddenGenerationExpr{restriction} }
  | select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryScalar,Query:$1.Query,Pos:$1.Pos} }
  | EXISTS select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryExists,Query:$2.Query,Pos:$1.pos} }
- | ROW '(' ')' { $$=RowExpr{Explicit:true,Pos:$1.pos} }
- | ROW '(' row_fields ')' { $$=RowExpr{Fields:$3,Explicit:true,Pos:$1.pos} }
- | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | overlaps_row %prec NAME_LIST { $$=$1 }
+ | overlaps_row OVERLAPS overlaps_row {
+   left,right:=$1.(RowExpr),$3.(RowExpr)
+   if len(left.Fields)!=2 {sqllex.(*lexer).failAt("42601","wrong number of parameters on left side of OVERLAPS expression",left.Pos.Offset);return 1}
+   if len(right.Fields)!=2 {sqllex.(*lexer).failAt("42601","wrong number of parameters on right side of OVERLAPS expression",right.Pos.Offset);return 1}
+   $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$2.pos},{Text:"overlaps",Pos:$2.pos}}},Args:[]Expr{left.Fields[0],left.Fields[1],right.Fields[0],right.Fields[1]},Syntax:SQLFunctionSyntax,Pos:$2.pos}
+ }
  | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 && len($3.ArrayBounds)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
@@ -1010,6 +1016,9 @@ scalar: scalar_atom { $$=$1 }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | scalar qualified_operator quantifier select_with_parens %prec OPERATOR {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,$2,kind,$4.Query,false,$2.Parts[0].Pos)}
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
+overlaps_row: ROW '(' ')' { $$=RowExpr{Explicit:true,Pos:$1.pos} }
+ | ROW '(' row_fields ')' { $$=RowExpr{Fields:$3,Explicit:true,Pos:$1.pos} }
+ | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | ARRAY '[' sequence_args ']' { $$=ArrayExpr{Elements:$3,Pos:$1.pos,Spelling:$1.raw} }
  | string_function { $$=$1 }
@@ -1213,7 +1222,8 @@ projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
  * leaves. Their arguments remain ordinary operands or nested selected calls. */
 function_argument: operand { $$=$1 } | function { $$=$1 } ;
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} } ;
+ | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
+ | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list { $$=$1 }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
@@ -1396,14 +1406,14 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
- | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | FILTER ;
+ | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | FILTER | OVERLAPS ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
- | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER ;
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | OVERLAPS ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
@@ -1421,7 +1431,7 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
- | UNION | INTERSECT | EXCEPT ;
+ | UNION | INTERSECT | EXCEPT | OVERLAPS ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;
 where_predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | CONSTRAINT ;

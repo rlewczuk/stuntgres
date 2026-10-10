@@ -17,6 +17,29 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+## Period overlap
+
+```sql
+SELECT (DATE '2001-01-01', DATE '2001-01-03')
+       OVERLAPS (DATE '2001-01-02', DATE '2001-01-04'); -- true
+SELECT (TIMESTAMP '2001-01-01', TIMESTAMP '2001-01-02')
+       OVERLAPS (TIMESTAMP '2001-01-02', TIMESTAMP '2001-01-03'); -- false
+SELECT (TIME '02:00', TIME '02:00')
+       OVERLAPS (TIME '02:00', TIME '03:00'); -- true: single instant at start
+SELECT (TIMESTAMP '2001-01-03', INTERVAL '-2 days')
+       OVERLAPS (TIMESTAMP '2001-01-02', TIMESTAMP '2001-01-02'); -- true
+SELECT (NULL::timestamp, TIMESTAMP '2001-01-02')
+       OVERLAPS (TIMESTAMP '2001-01-01', TIMESTAMP '2001-01-03'); -- true
+SELECT (TIMESTAMP '2001-01-01', TIME '01:00')
+       OVERLAPS (TIMESTAMP '2001-01-01', TIME '02:00'); -- true: local clock duration
+```
+
+Use `($1,TIMESTAMP '2001-01-03') OVERLAPS
+($2,TIMESTAMP '2001-01-04')` for inferred timestamp start parameters, or explicitly
+type all four parameters when the signature must be fixed. All-UNKNOWN inputs
+are ambiguous. Ordinary `pg_catalog.overlaps(a,b,c,d)` uses the same overloads.
+See [normalization, NULL and bounded resolution](DIALECT.md#period-overlap--change-note).
+
 ## Selected age and finite predicate calls
 
 ```sql

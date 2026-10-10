@@ -48,6 +48,18 @@ See [binary conversion](docs/DIALECT.md#binary-conversion--change-note).
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0`.
 
+Change note: SQL `(start,end) OVERLAPS (start,end)` and start-plus-INTERVAL
+pairs normalize reversed endpoints and use half-open periods, with equal
+endpoints representing a single instant. Thirteen TIME/TIMESTAMP/TIMESTAMPTZ/
+TIMETZ signatures share existing arithmetic and ordering; non-strict NULL
+can establish overlap only from a known endpoint strictly inside a complete
+period. DATE selection, Execute-time zones, stored definitions and native
+Dump/Restore use the existing typed seams. TIME durations are converted only
+inside OVERLAPS, not through a new global cast.
+See [period overlap](docs/DIALECT.md#period-overlap--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`.
+
 Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
 `unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
 providers. `ascii` returns the first UTF8 codepoint (empty text returns0);
