@@ -32,12 +32,9 @@ func TestReferenceDatetimeFormattingSignaturesOwnerBoundary(t *testing.T) {
 	arrayBoundary := datetimeFormattingDiagnostic("42601", `syntax error at or near "ARRAY"`, "", "")
 	arrayBoundary.Position = "25"
 	cases = append(cases, datetimeFormattingCase{name: "to_date(VARIADIC ARRAY['2000','YYYY'])", expression: "to_date(VARIADIC ARRAY['2000','YYYY'])", nativeDiagnostic: arrayBoundary})
-	// Numeric and epoch signatures belong to other catalog owners. Real PG is
-	// independently successful; native must report the explicit capability edge.
+	// Numeric signatures now route to the numeric formatting provider.
 	for _, typ := range []string{"smallint", "integer", "bigint", "numeric", "real", "double precision"} {
-		d := datetimeFormattingDiagnostic("0A000", "numeric to_char is unsupported", "", "")
-		d.Position = "8"
-		cases = append(cases, datetimeFormattingCase{name: "numeric owner/" + typ, expression: "to_char(12::" + typ + ",'FM999')", want: "12", nativeDiagnostic: d})
+		cases = append(cases, datetimeFormattingCase{name: "numeric owner/" + typ, expression: "to_char(12::" + typ + ",'FM999')", want: "12"})
 	}
 	d := datetimeFormattingDiagnostic("0A000", "epoch to_timestamp is unsupported", "", "")
 	d.Position = "8"

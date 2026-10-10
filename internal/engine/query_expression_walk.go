@@ -82,6 +82,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.children())
 	case datetimeFormattingExpression:
 		args(e.args[:])
+	case numericFormattingExpression:
+		args(e.args[:])
 	case mathExpression:
 		args(e.args)
 	case deparseExpression:

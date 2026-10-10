@@ -192,6 +192,8 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			}
 		case datetimeFormattingExpression:
 			return children(r.Args, n.args[:])
+		case numericFormattingExpression:
+			return children(r.Args, n.args[:])
 		case stringExpression:
 			return children(r.Args, n.args)
 		case bitwiseExpression:
@@ -343,6 +345,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return nil
 		}
 		if n, ok := bound.(datetimeFormattingExpression); ok {
+			return children(r.Args, n.args[:])
+		}
+		if n, ok := bound.(numericFormattingExpression); ok {
 			return children(r.Args, n.args[:])
 		}
 		if n, ok := bound.(stringExpression); ok {

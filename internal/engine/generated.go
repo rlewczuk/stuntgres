@@ -173,6 +173,8 @@ func generationImmutable(node BoundExpr) bool {
 		return !n.plan.SessionDependent() && args(n.children())
 	case datetimeFormattingExpression:
 		return false
+	case numericFormattingExpression:
+		return false
 	case stringExpression:
 		return !n.plan.SessionDependent() && args(n.args)
 	case mathExpression:
@@ -281,6 +283,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case datetimeMakeExpression:
 		return args(n.children())
 	case datetimeFormattingExpression:
+		return args(n.args[:])
+	case numericFormattingExpression:
 		return args(n.args[:])
 	case stringExpression:
 		return args(n.args)
@@ -488,6 +492,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case datetimeMakeExpression:
 		return args(n.children())
 	case datetimeFormattingExpression:
+		return args(n.args[:])
+	case numericFormattingExpression:
 		return args(n.args[:])
 	case stringExpression:
 		return args(n.args)

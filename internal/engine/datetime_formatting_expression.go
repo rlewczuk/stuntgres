@@ -91,7 +91,10 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		}
 		id := d.BaseType().ID()
 		if numeric(id) {
-			return nil, expressionError("0A000", "numeric to_char is unsupported", raw.Pos)
+			if id == sqltype.Int2 {
+				id = sqltype.Float8
+			}
+			return b.numericFormattingOperands(raw, operands, b.typ(id))
 		}
 		switch id {
 		case sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:

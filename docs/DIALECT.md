@@ -744,8 +744,9 @@ input fallback first demands `upper()`. Earlier parse/interval errors and
 unvisited names take precedence, and NULL/infinite output does not demand names.
 Returned values and metadata retain their original execution snapshot.
 
-Numeric `to_char`, `to_number` and one-argument epoch `to_timestamp` remain
-outside this datetime family; native numeric/epoch ownership reports 0A000.
+Numeric formatting is a separate implemented family described below.
+One-argument epoch `to_timestamp` remains outside this datetime family and
+native reports 0A000 `epoch to_timestamp is unsupported`.
 PostgreSQL's implicit TIME-to-INTERVAL formatting route depends on a cast not
 provided by the current native temporal substrate; native reports 0A000
 `time to interval conversion is unsupported`. This does not implement that
@@ -756,6 +757,70 @@ visibility retain the existing overload rules. No temporal arithmetic,
 new general casts, wire protocol or locale provider is added.
 Independent acceptance: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormatting' VERBOSE=0`;
 the pinned PostgreSQL counterpart adds `REFERENCE=1`.
+
+### Numeric formatting — change note
+
+The strict STABLE signatures are
+`to_char(integer|bigint|numeric|real|double precision,text) -> text` and
+`to_number(text,text) -> numeric`. SMALLINT chooses the preferred FLOAT8
+overload; known types and domain bases retain their exact overload. Unknown
+first arguments to `to_char` remain ambiguous. Result metadata is unrestricted
+TEXT/NUMERIC, independent of the mask or first returned value.
+
+Numeric masks recognize `9`, `0`, period/comma, `D`, `G`, `L`, `S`, `MI`,
+`PL`, `SG`, `PR`, `RN`/`rn`, `TH`/`th`, `V`, `EEEE` and global `FM`.
+Fixed UTF8/C output uses period, comma, plus/minus and an ASCII currency
+space, not a dollar sign. Repeated `FM` sets rather than toggles fill mode;
+mixed-case spellings remain literals. Quotes and escapes follow PostgreSQL
+templates, including unmatched quoted text and the `SP` token collision.
+Descriptor-order validation preserves accepted nonstandard token placements.
+No numeric or monetary locale-setting provider is added.
+
+Integer and NUMERIC values retain exact coefficients; NUMERIC rounding is
+half away from zero. REAL/DOUBLE PRECISION use binary rounding, six/fifteen
+precision caps and signed zero. Roman output rounds first (float ties use
+nearest/even), pads to fifteen characters unless FM, and emits fifteen hashes
+outside 1–3999. Roman input reads a case-insensitive valid prefix.
+Scientific output preserves large numeric exponents; NUMERIC/BIGINT mantissa
+rounding carry does not renormalize the original exponent; INTEGER scientific
+output instead uses printf-style binary rounding after exact promotion.
+INTEGER `V` follows the pinned 32-bit conversion/product behavior; BIGINT
+`V` checks the power conversion and product and reports22003 on overflow.
+NUMERIC `V` output shifts exact decimal digits. `V` input multiplies by the
+already-rounded power factor with calculation display scale capped at1000:
+an underflowed factor remains zero even for a large input magnitude.
+Input's private encoded precision/scale follows release sizing, without
+mistaking the public declaration precision limit1000 for a long-mask limit.
+
+`to_number` consumes template actions permissively: groups need not be present,
+fraction scale follows consumed digits, literals skip source codepoints, and
+trailing source can remain unused. It does not strip all nondigits or enforce
+full-source width. Empty output masks produce empty TEXT; empty input masks
+produce NUMERIC NULL. EEEE input reports 0A000. Mask and numeric/Roman parsing
+errors retain PostgreSQL English diagnostics and an empty runtime Position.
+Valid Prepare defers invalid masks to Execute; strict NULL bypasses formatting
+only after both demanded children evaluate. Unreachable CASE arms stay
+unreached. Malformed typed numeric inputs retain existing conversion precedence.
+
+Queries, stored DEFAULT/CHECK/view definitions, existing writes, introspection
+and native Dump/Reset/Restore use the same provider and expression walkers.
+Closed DEFAULT compositions containing the selected UUID generators recurse
+through both numeric-provider arguments using the existing admission walker.
+For example, `to_char(num_nulls(uuidv4()),'FM9')` and
+`to_number(format('%s',num_nulls(uuidv4())),'9')` produce TEXT/NUMERIC0 for each
+new row. Dump/Restore retains symbolic definitions and reevaluates them for
+new DEFAULT VALUES. This does not admit arbitrary volatile descendants,
+parameters, row/stage dependence or volatile UUID shift expressions.
+STABLE calls remain illegal in generated columns and expression indexes.
+The inherited repeated-parameter `to_char($1::numeric,$1::text)` NUMERIC→TEXT
+conversion still reports native 0A000; separate typed parameters and existing
+supported casts are unchanged. This narrow adjacent cast boundary is not an
+alternative formatting overload.
+Independent acceptance:
+`make quickcheck PACKAGES=./reference RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)' VERBOSE=0`;
+the pinned counterpart adds `REFERENCE=1`. Feature smoke selects
+`^TestReferenceNumericFormattingFeatureSmoke$` in both modes.
+
 
 FROM supports comma products, CROSS JOIN, INNER/LEFT/RIGHT/FULL JOIN ON or USING,
 optional OUTER for non-inner kinds, and NATURAL variants, chains and parentheses. Table/whole-join aliases with or

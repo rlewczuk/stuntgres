@@ -130,13 +130,19 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		}
 	}
 	integer := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
+	bound, err := b.bindDatetimeFormatting(raw("to_char", integer, text("FM9")), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := bound.(numericFormattingExpression); !ok {
+		t.Fatal("numeric overload did not route to its owner", bound)
+	}
 	for _, c := range []struct {
 		call    parser.FunctionExpr
 		visible bool
 		code    string
 	}{
 		{raw("to_char", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, text("YYYY")), true, "42725"},
-		{raw("to_char", integer, text("YYYY")), true, "0A000"},
 		{raw("to_char", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "time"}, Text: "12:00"}, text("HH24")), true, "0A000"},
 		{raw("to_timestamp", integer), true, "0A000"},
 		{raw("to_date", integer, text("YYYY")), true, "42883"},

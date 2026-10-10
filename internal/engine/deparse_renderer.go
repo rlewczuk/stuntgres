@@ -569,6 +569,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}, pgIdentifier)
 	case datetimeFormattingExpression:
 		return function(n.plan.Name(), n.args[:], true)
+	case numericFormattingExpression:
+		return function(n.plan.Name(), n.args[:], true)
 	case stringExpression:
 		if n.plan.Name() == "||" {
 			return binary(n.args[0], n.args[1], "||", 5, parent)

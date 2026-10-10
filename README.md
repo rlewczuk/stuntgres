@@ -23,6 +23,20 @@ Finite shifts reuse session-zone calendar arithmetic and must fit the exact
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
 
+Change note: numeric `to_char(integer|bigint|numeric|real|double precision,text)`
+and `to_number(text,text)` use strict STABLE typed providers. Exact decimal and
+integer values retain their precision; binary floats retain their rounding and
+signed zero. Numeric masks support global `FM`, signs, fixed C decimal/group
+and currency-space tokens, Roman numerals, ordinals, `V` and scientific output.
+Parsing is template-driven and permissive, not a whole-input numeric cast.
+Invalid constant masks fail only when execution demands a non-NULL call.
+Closed UUID-generator DEFAULT trees compose through both numeric providers;
+symbolic Dump/Restore keeps them execution-owned, without admitting unrelated
+volatile defaults.
+See [numeric formatting](docs/DIALECT.md#numeric-formatting--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0`.
+
 Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
 `unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
 providers. `ascii` returns the first UTF8 codepoint (empty text returns0);
@@ -242,8 +256,9 @@ Change note: PostgreSQL 18 datetime templates support `to_char(timestamp,text)`,
 `to_timestamp(text,text)`. Templates use PostgreSQL tokens, not Go layouts or
 ordinary casts; prepared executions capture the current session zone. The five
 strict STABLE functions compose in queries, writes, DEFAULT/CHECK and views,
-including native Dump/Restore. Numeric formatting and epoch `to_timestamp`
-remain unsupported. See [datetime formatting](docs/DIALECT.md#datetime-formatting--change-note).
+including native Dump/Restore. Epoch `to_timestamp` remains unsupported;
+numeric overloads are covered by [numeric formatting](docs/DIALECT.md#numeric-formatting--change-note).
+See [datetime formatting](docs/DIALECT.md#datetime-formatting--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`.
 

@@ -157,6 +157,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case datetimeFormattingExpression:
 		out.WriteString("Datetime " + n.plan.Name())
 		err = args(n.args[:])
+	case numericFormattingExpression:
+		out.WriteString("NumericFormatting " + n.plan.Name())
+		err = args(n.args[:])
 	case stringExpression:
 		out.WriteString("String " + n.plan.Name())
 		err = args(n.args)

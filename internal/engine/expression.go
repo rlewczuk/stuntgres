@@ -622,6 +622,30 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
+	case numericFormattingExpression:
+		anyChanged := false
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.args[i] = folded
+				anyChanged = true
+			}
+		}
+		if template, ok := e.args[1].(literalExpression); ok {
+			plan, changed, err := e.plan.WithConstantTemplate(c.Context, template.value)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.plan = plan
+				anyChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
 	case stringExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {

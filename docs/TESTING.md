@@ -105,6 +105,51 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+The numeric-formatting family independently asserts the five numeric
+`to_char` overloads, preferred FLOAT8 SMALLINT route, `to_number`, exact/binary
+rounding, C currency space, global FM, signs, Roman/ordinal/V/scientific
+semantics, permissive parsing, complete diagnostics and deferred mask demand.
+Metadata, consumers, atomicity, stored definitions and actual native control
+replay use the shared fixture. The temporal ownership boundary now expects
+numeric success; epoch/TIME/ARRAY boundaries remain unchanged. Negative
+numeric setup uses signed numeric string casts, not adjacent unary arithmetic.
+The repeated-parameter NUMERIC→TEXT conversion gap keeps independently
+specified native 0A000 and PostgreSQL success rather than widening cast scope.
+Consumer TEXT composition uses `to_char(to_number(...),'FM99')`, not an
+unowned general NUMERIC→TEXT cast. Stored-definition inquiries retain their
+exact SQL text and reuse deparse's own backend metadata contract; numeric
+computed metadata remains unchanged. Default catalog lookup joins matching
+OID columns instead of requiring an adjacent OID=REGCLASS operator. Failed
+native Restore reaches an invalid Roman DEFAULT through a scalar INSERT
+that omits its column, then asserts unchanged complete catalog/data, retained
+cursors and held statements; it does not expand the scalar Restore importer.
+The UUID-default regression covers rebased closed-tree admission through both
+numeric providers: non-NULL UUID generators make `num_nulls` return0, so
+`to_char` and `to_number(format(...))` independently return TEXT/NUMERIC0.
+Direct/prepared DEFAULTs, reused held inserts, new DEFAULT VALUES after actual
+Dump/Restore and emitted SQL replay retain symbolic execution. The numeric
+feature smoke reuses the same scenario body. Package admission units preserve
+unrelated volatility and row/parameter/stage rejection.
+
+Run all changed definitions in both modes under separate 900-second deadlines:
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestNumericFormatting' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^Test(NumericFormatting|DatetimeFormattingBindingAuthority)' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestNumericFormatting' VERBOSE=0
+```
+Smoke independently expects exact BIGINT9007199254740993, PR `<485>`,
+Roman `CDLXXXV`, scientific ` 4.86e-04`, and V input
+`1234.560000000000000000`, plus C/SMALLINT precision, NULL/error recovery,
+late-write atomicity and stored default/view replay. Package units supplement
+these public contracts with exhaustive canonical Roman1–3999, V factor-first
+underflow, immutable plan/diagnostic ownership, Retag and cancellation.
+The smoke also demands numeric/UUID defaults before and after native replacement;
+these defaults must return0 rather than fail the closed UUID admission walker.
+
 The integer-base/TEXT-MD5 family asserts independent 32/64-bit two's-complement
 vectors, RFC/UTF8 digest constants, unknown-TEXT versus known-BYTEA selection,
 held parameter recovery and retained TEXT metadata, complete diagnostics,
