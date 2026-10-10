@@ -173,6 +173,30 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					add(d.address, parent, 'n')
 				}
 			}
+			if d.membership != nil {
+				add(d.address, d.membership.parent, 'a')
+			}
+			if d.partition != nil {
+				refs := pgDependRefs{ctx: ctx, catalog: catalog}
+				for _, key := range d.partition.keys {
+					if key.attribute != 0 {
+						refs.add(attribute(d.address, key.attribute))
+					}
+					if key.derived != nil {
+						refs.expression(key.derived.definition)
+					}
+					refs.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(key.usage.Type.ID())})
+					refs.add(ObjectAddress{ClassID: CollationClassID, ObjectID: OID(key.collation)})
+					refs.add(ObjectAddress{ClassID: CollationClassID, ObjectID: OID(key.usage.Collation.ID)})
+				}
+				addresses, err := refs.finish()
+				if err != nil {
+					return nil, err
+				}
+				for _, referenced := range addresses {
+					add(d.address, referenced, 'n')
+				}
+			}
 			for i, column := range d.columns {
 				if err := ctx.Err(); err != nil {
 					return nil, err

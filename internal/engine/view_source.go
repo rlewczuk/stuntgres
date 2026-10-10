@@ -22,6 +22,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		e.mu.Unlock()
 		return nil, err
 	}
+	if hierarchyRelation(d) && mark.mode != 0 {
+		e.mu.Unlock()
+		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
+	}
 	switch d.relationKind {
 	case catalogRelation:
 		switch d.address.ObjectID {
@@ -172,6 +176,19 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}
 		}
 		return bridge, nil
+	case partitionedRelation:
+		var leaves [1]queryLeaf
+		leaves[0] = queryLeaf{ref: ref, relation: d}
+		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves[:], false, invoker, mark, locks)
+		e.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		if err = selectQuerySources(ctx, source); err != nil {
+			source.close()
+			return nil, err
+		}
+		return source, nil
 	case tableRelation, materializedViewRelation:
 		if d.relationKind == materializedViewRelation && !d.populated {
 			e.mu.Unlock()

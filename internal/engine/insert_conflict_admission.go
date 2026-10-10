@@ -8,7 +8,7 @@ func bindingForConflict(ref ObjectRef, parent *relationDescriptor, action *bound
 func (s *StatementScope) admitInsertRow(ref ObjectRef, row []sqltype.Value, prefix [][]sqltype.Value) (bool, error) {
 	action := s.insertConflict
 	if action == nil {
-		return true, s.checkUniqueRow(ref, row, nil, prefix)
+		return true, s.checkInsertUniqueRow(ref, row, prefix)
 	}
 	manager := s.op.session.Engine().locks
 	if action.statementKeys == nil {

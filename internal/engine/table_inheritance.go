@@ -127,6 +127,12 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			d.Detail = "This operation is not supported for composite types."
 			return nil, nil, nil, d
 		}
+		if source.partition != nil {
+			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partitioned table "%s"`, source.name))
+		}
+		if source.membership != nil {
+			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.name))
+		}
 		if source.relationKind != tableRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.name))
 		}

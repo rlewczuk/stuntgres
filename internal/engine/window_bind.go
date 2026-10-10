@@ -67,6 +67,9 @@ func (owner argumentWindowOwner) nestingError() error {
 }
 
 func (b *expressionBinder) windowAllowed(pos parser.Position) error {
+	if b.partitionConsumer != "" {
+		return b.partitionExpressionError("42P20", "window functions are not allowed in "+b.partitionContextPlural(), pos)
+	}
 	clause := b.aggregateClause
 	if b.checkConsumer {
 		clause = "check constraints"

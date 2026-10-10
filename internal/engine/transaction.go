@@ -280,6 +280,8 @@ type StatementScope struct {
 	exclusionStarted      bool
 	exclusionCandidates   map[ObjectAddress][]rowVersion
 	insertConflict        *boundInsertConflict
+	partitionInsert       *partitionInsertState
+	partitionRelations    map[ObjectAddress]*relationDescriptor
 	Expected              *StatementDescription
 	implicit              bool
 	input                 sqltype.InputEnvironment

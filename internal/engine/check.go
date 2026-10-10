@@ -26,7 +26,7 @@ type checkConstraint struct {
 	visibilitySnapshot bool
 }
 
-func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment) error {
+func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment, inherited map[string]checkConstraint) error {
 	var raw []*parser.CheckConstraint
 	for _, element := range syntax.Elements {
 		if element.Check != nil {
@@ -40,10 +40,10 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 			}
 		}
 	}
-	return e.bindColumnChecks(op, auth, raw, d, input, false)
+	return e.bindColumnChecks(op, auth, raw, d, input, false, inherited)
 }
 
-func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *relationDescriptor, input sqltype.InputEnvironment, altering bool) error {
+func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *relationDescriptor, input sqltype.InputEnvironment, altering bool, inherited map[string]checkConstraint) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -108,6 +108,18 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 		if current[name] {
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
+		}
+		if ancestor, ok := inherited[name]; ok {
+			equality := expressionBinder{checkDefinitionEquality: true}
+			if !equality.sameGroupExpression(node, ancestor.expression) {
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
+			}
+			if c.NoInherit {
+				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
+			}
+			current[name] = true
+			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging constraint "%s" with inherited definition`, name)})
+			continue
 		}
 		if installed[name] {
 			if !altering && d.inheritance != nil {

@@ -160,6 +160,8 @@ func (s *StatementScope) Finish(err error) error {
 	s.ownWrites = nil
 	s.uniqueBinding = nil
 	s.insertConflict = nil
+	s.partitionInsert = nil
+	s.partitionRelations = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
 	s.indexMaintenance = nil

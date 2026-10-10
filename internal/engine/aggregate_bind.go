@@ -22,7 +22,12 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
-	if a.ResultUsage() != other.ResultUsage() || a.CollationIndeterminate() != other.CollationIndeterminate() || (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
+	checkDefinitionEquality := b != nil && b.checkDefinitionEquality
+	leftUsage, rightUsage := a.ResultUsage(), other.ResultUsage()
+	if checkDefinitionEquality {
+		leftUsage.Collation.Derivation = rightUsage.Collation.Derivation
+	}
+	if leftUsage != rightUsage || a.CollationIndeterminate() != other.CollationIndeterminate() || !checkDefinitionEquality && (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
 		return false
 	}
 	same := b.sameGroupExpression
@@ -74,10 +79,10 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return true
 	case identityExpression:
 		o, ok := other.(identityExpression)
-		return ok && e.kind == o.kind
+		return ok && e.kind == o.kind && (!checkDefinitionEquality || e.ordinaryCall == o.ordinaryCall)
 	case currentDateTimeExpression:
 		o, ok := other.(currentDateTimeExpression)
-		return ok && e.kind == o.kind && e.hasPrecision == o.hasPrecision
+		return ok && e.kind == o.kind && e.hasPrecision == o.hasPrecision && (!checkDefinitionEquality || e.precision == o.precision)
 	case transactionTimeExpression:
 		o, ok := other.(transactionTimeExpression)
 		return ok && e.kind == o.kind
@@ -150,7 +155,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return ok && same(e.child, o.child)
 	case coercionExpression:
 		o, ok := other.(coercionExpression)
-		return ok && e.plan.Equal(o.plan) && e.mode == o.mode && same(e.child, o.child)
+		return ok && e.plan.Equal(o.plan) && (checkDefinitionEquality || e.mode == o.mode) && same(e.child, o.child)
 	case bitwiseExpression:
 		o, ok := other.(bitwiseExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)

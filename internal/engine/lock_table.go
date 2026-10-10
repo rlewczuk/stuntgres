@@ -29,7 +29,7 @@ func explicitLockMode(mode parser.TableLockMode) relationLockMode {
 }
 
 func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescriptor, mode relationLockMode) error {
-	if d.relationKind != tableRelation && d.relationKind != viewRelation {
+	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != viewRelation {
 		return tableKind(d, "lock")
 	}
 	rights, err := auth.Effective(ref, false)
@@ -44,6 +44,9 @@ func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescrip
 		alternatives |= SelectPrivilege
 	}
 	if rights&alternatives != 0 {
+		if hierarchyRelation(d) {
+			return sqlError("0A000", "locking partition hierarchies is unsupported")
+		}
 		return nil
 	}
 	kind := "table"
@@ -159,7 +162,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 		if child.relationKind == materializedViewRelation {
 			return tableKind(child, "lock")
 		}
-		if child.relationKind != tableRelation && child.relationKind != viewRelation {
+		if child.relationKind != tableRelation && child.relationKind != partitionedRelation && child.relationKind != viewRelation {
 			continue
 		}
 		if err := s.acquireExplicitRelation(stmt, source.ref, child.Name(), mode, policy, principal, invoker, ancestors, false); err != nil {

@@ -137,7 +137,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
 		return err
 	}
-	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
+	if err := e.bindCreateChecks(op, auth, s, d, input, nil); err != nil {
 		return err
 	}
 	if err := e.stageLikeChecks(op, auth, d, b.createLikes); err != nil {
@@ -215,6 +215,16 @@ func (e *Engine) newTableDescriptorLocked(ns ObjectAddress, name string, owner P
 func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	if schema, ok := stmt.(*parser.CreateSchema); ok {
+		for _, table := range schema.Tables {
+			if table.PartitionOf != nil {
+				return Result{}, expressionError("0A000", "partition definitions in CREATE SCHEMA are unsupported", table.PartitionOf.Pos)
+			}
+			if table.PartitionBy != nil {
+				return Result{}, expressionError("0A000", "partition definitions in CREATE SCHEMA are unsupported", table.PartitionBy.Pos)
+			}
+		}
 	}
 	e.mu.Lock()
 	stage, err := e.stageSchemaLocked(op, stmt, input)

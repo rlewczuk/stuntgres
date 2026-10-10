@@ -41,7 +41,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 	droppedColumns := make(map[ObjectAddress]bool)
 	for a, d := range stage.base.state.descriptors {
 		r, ok := d.(*relationDescriptor)
-		if !ok || r.relationKind != tableRelation && r.relationKind != compositeRelation {
+		if !ok || r.relationKind != tableRelation && r.relationKind != partitionedRelation && r.relationKind != compositeRelation {
 			continue
 		}
 		for i, c := range r.columns {
@@ -78,6 +78,15 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				}
 			}
 		}
+		if relation, ok := stage.base.state.descriptors[target].(*relationDescriptor); ok && relation.partition != nil {
+			for _, child := range relation.partition.children {
+				if _, removed := stage.removals[child]; removed {
+					if err := visit(child, root); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		var direct []domainDependency
 		for a, descriptor := range stage.base.state.descriptors {
 			// Owned indexes are closure roots even if an earlier pass already
@@ -101,6 +110,13 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			case *relationDescriptor:
 				if replacement, ok := stage.descriptors[a].(*relationDescriptor); ok {
 					d = replacement
+				}
+				if d.membership != nil && d.membership.parent == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
+				}
+				if partitionDependsOn(d, target) {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, label: "table " + dependencyRelationName(stage.base, d, stage.dependencyPath)})
+					continue
 				}
 				if d.sqlIndex != nil {
 					depends, automatic := false, false
@@ -130,7 +146,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					}
 					continue
 				}
-				if d.relationKind != tableRelation && d.relationKind != compositeRelation {
+				if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != compositeRelation {
 					continue
 				}
 				name := dependencyRelationName(stage.base, d, stage.dependencyPath)
@@ -219,10 +235,10 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 	return result, nil
 }
 
-func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency) error {
+func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency, originalRootCount int) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
 	var primary ObjectAddress
-	for _, target := range targets {
+	for i, target := range targets {
 		var owner ObjectAddress
 		switch descriptor := stage.base.state.descriptors[target].(type) {
 		case *typeDescriptor:
@@ -235,6 +251,21 @@ func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []d
 		}
 		if _, removed := stage.removals[owner]; owner != (ObjectAddress{}) && removed {
 			target = owner
+		}
+		// Explicit roots remain distinct; only automatically retired members
+		// share the subject of their removed partition ancestry.
+		if i >= originalRootCount {
+			for {
+				relation, ok := stage.base.state.descriptors[target].(*relationDescriptor)
+				if !ok || relation.membership == nil {
+					break
+				}
+				parent := relation.membership.parent
+				if _, removed := stage.removals[parent]; !removed {
+					break
+				}
+				target = parent
+			}
 		}
 		if primary == (ObjectAddress{}) {
 			primary = target
@@ -278,6 +309,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	if len(roots) == 0 {
 		return nil
 	}
+	originalRootCount := len(roots)
 	// Previously staged whole removals are retirement roots too. Discover their
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.
@@ -303,18 +335,39 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		visible = visible || !edge.automatic
 	}
 	if mode == parser.DropRestrict && visible {
-		return domainRestrictError(stage, roots, edges)
+		return domainRestrictError(stage, roots, edges, originalRootCount)
 	}
 	targets := append([]ObjectAddress(nil), roots...)
 	var relations []*relationDescriptor
+	var hierarchyTargets []ObjectAddress
 	seen := make(map[ObjectAddress]bool)
+	for _, target := range targets {
+		if target.ClassID == RelationClassID && target.SubID == 0 {
+			seen[target] = true
+		}
+	}
 	for _, edge := range edges {
 		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
 			targets = append(targets, edge.address)
+			if edge.address.ClassID == RelationClassID && edge.address.SubID == 0 {
+				seen[edge.address] = true
+			}
 		}
+		if edge.relation != nil && edge.address.SubID == 0 && hierarchyRelation(edge.relation) {
+			hierarchyTargets = append(hierarchyTargets, edge.address)
+		}
+	}
+	for _, edge := range edges {
 		if edge.column != "" && !seen[edge.relation.address] {
 			relations = append(relations, edge.relation)
 			seen[edge.relation.address] = true
+		}
+	}
+	for _, edge := range edges {
+		if scope != nil && edge.relation != nil && edge.address.SubID == 0 && hierarchyRelation(edge.relation) {
+			if err := scope.acquirePartitionDropLocks(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: edge.address}); err != nil {
+				return err
+			}
 		}
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
@@ -467,6 +520,12 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if !edge.automatic {
 			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+edge.label)
 		}
+	}
+	// Newly discovered hierarchy owners are not the caller's original roots.
+	// Stage their AUTO closure after removing them so recursive expression
+	// traversal cannot rediscover the same hierarchy during sequence preparation.
+	if len(hierarchyTargets) != 0 {
+		return stageOwnedExpressionDependencies(ctx, stage, hierarchyTargets, mode, scope, changes, project)
 	}
 	return nil
 }

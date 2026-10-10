@@ -620,7 +620,7 @@ exact persisted rows, never inferred from driver count alone. Native provider427
 versus positive PostgreSQL system identities is explicit; native column ACL units
 supplement real PostgreSQL GRANT, without implementing an adjacent public API.
 Fixtures use supported named UNIQUE constraints with NOT NULL (implicit for
-identity), not unsupported PRIMARY KEY syntax. Native controls receive the unwrapped `p.native` pool;
+identity); they do not depend on PRIMARY KEY support. Native controls receive the unwrapped `p.native` pool;
 wrapped same-DSN peers remain SQL visibility witnesses. Denied PostgreSQL actors
 receive schema USAGE before testing table denial. Admission diagnostics distinguish
 Prepare token positions on both backends from the absent Position on held Execute.
@@ -2049,6 +2049,178 @@ Feature smoke exercises the released six-function projection, held frames,
 bounds/new-bit failure and recovery, retained source, empty/NULL metadata and
 controls replay. These gates do not replace root quickcheck or post-merge
 fullcheck (one 1800-second deadline).
+
+## RANGE partition reference coverage
+
+`reference/range_partition_*_test.go` uses one shared scenario body in both modes.
+Rebase consumer witnesses include genuine direct/prepared ON CONFLICT and MERGE
+hierarchy boundaries (root/intermediate/physical member), full independently
+expected errors, unchanged rows and undemanded defaults. A plain-table conflict
+positive control retains skipped-row and affected-count authority. Genuine
+transactional DECLARE/FETCH/CLOSE consumes the complete hierarchy provider.
+Literal expectations cover scalar and multikey tuple boundaries, sentinels/NULL,
+DEFAULT and nested routing, expression keys/coercion, exact errors and positions,
+catalog identities/dependencies, ACLs, late multi-leaf atomicity, and controls.
+Utility supplied-argument stages preserve zero slots and independently expected
+adapter errors. Complete diagnostic records retain every optional field.
+`TestReferenceRangePartitionACL` runs its entire named-target/leaf authorization
+and missing-key disclosure matrix in both modes and both genuine direct/prepared
+routes, including simple column SELECT, expression-key suppression/table SELECT
+and qualified destination-schema precedence. SchemaGrantExpansion independently
+covers current root/nested/leaf/table/view/materialized-view schema-wide grants,
+explicit virtual grants removed by schema-wide REVOKE, denied subsequent writes,
+future-table and sequence exclusion, complete errors and unchanged stored rows.
+QuotedKeyPrivacy additionally covers mixed-case/space-containing, embedded-quote
+and reserved-word simple keys at root and nested routing failures. Public
+INSERT-only, column SELECT and revoked column SELECT transitions independently
+assert hidden, correctly quoted and hidden-again complete diagnostics, payload
+access denial and unchanged physical rows in direct/prepared execution.
+`TestReferenceRangePartitionConstraintPrivacy` independently covers direct and
+genuine prepared leaf/intermediate errors under INSERT-only, supplied-value,
+column SELECT, all-column SELECT and table SELECT manifests. Both backends use the
+existing public table/column GRANT routes; package ACL units supplement them. Errors
+retain the actual named target, complete optional fields, correct labelled/full
+row disclosure and unchanged data, through one shared ordinary NN/CHECK policy.
+`TestReferenceRangePartitionPhysicalConstraintPrivacy` extends that independent
+matrix to root, intermediate, leaf and ordinary NOT NULL/CHECK producers, with
+single/batch VALUES and direct/prepared INSERT SELECT. It distinguishes named-target
+SELECT authority from physical-leaf diagnostic identity and checks that omitted
+secret defaults remain private, supplied values remain visible, and late failures
+leave every affected leaf unchanged.
+`TestReferenceCollationNativeCollision` additionally uses explicit RANGE-key user
+collation under a real imported-provider/live-TEMP OID collision. Independent
+parent/leaf bags, source immutability, retained TEMP authority, exact dependency
+targets and direct/prepared routing are checked before and after replacement.
+Real mode replays the actual emitted SQL on PostgreSQL and routes further values.
+`TestReferenceRangePartitionCollationDependencies` covers key-only, effective and
+combined collation authority with exact RESTRICT diagnostics, intact rows, normal
+metadata edges and complete CASCADE hierarchy/owned closure. TemporaryDependencies
+checks zero-output nonportable Dump rejection, physical provider cleanup, retained
+rows, peer sentinels and fresh portable Restore.
+`TestReferenceRangePartitionProviderRetirement` exercises full physical-close
+retirement in both backends, with bounded PostgreSQL server-exit acknowledgement
+before unchanged absence assertions. PostgreSQL also executes the full ON COMMIT
+DROP composition; native explicitly asserts its existing transactional permanent
+CREATE boundary and rollback atomicity. Private Retirement units exercise actual
+nil-scope staging and COMMIT preparation/installation from validated owned catalog
+state, two real leaf write roots and a committed provider deletion. They require
+unchanged original roots and complete root/leaf-owned storage/index/generator cleanup.
+`TestReferenceRangePartitionLeafExclusion` and the existing Controls body reuse
+ordinary physical exclusion producers, enforcing exact direct/prepared conflicts,
+late cross-leaf atomicity and genuine Dump/Restore/SQL replay. Virtual exclusions
+retain the explicit execution boundary; no adjacent constraint rollout is inferred.
+`TestReferenceRangePartitionFailureOrder` composes both arity preflights, lower
+NULL, lower/later volatile demand, malformed upper expressions and finite
+transformation failures after MIN/MAX. Complete diagnostics, nonrewinding sequence
+state/next draw, child/type/index/constraint absence and DEFAULT data are asserted.
+`TestReferenceRangePartitionOrderedDiagnostics` deliberately reverses sibling
+creation order and covers later-component reversal, full finite equality-last,
+equal-lower overlap-first and spanning gap/inside overlaps. Witness and Position
+follow the actual typed ordered endpoint search's last comparison; unchanged
+topology/data and subsequent gap/sibling routing remain asserted.
+PRIMARY KEY syntax now uses the integrated ordinary producer: virtual declarations
+fail the execution-time constraint-combination boundary in both routes, not an
+obsolete positioned parser/Prepare rejection. Physical leaf constraints use the
+existing local construction/enforcement authority.
+Named inherited CHECK cases distinguish structural equality, commuted operands,
+added arithmetic, NO INHERIT conflicts and duplicate actual child declarations.
+Inherited enum/domain USAGE and revoked type-schema USAGE are separate witnesses;
+fresh qualified child expressions retain normal namespace denial.
+Discovery uses admitted equality/OR predicates and explicit OID coercion, not
+adjacent IN/operator capabilities. Inherited domain authority uses a plain domain;
+its fresh USAGE and stored namespace identity are independent of domain constraints.
+Schema and owner discovery uses the existing `pg_tables` provider (including
+virtual roots/intermediates) with `pg_class`, not unavailable native
+`pg_roles`/`pg_namespace` catalogs. Manual ownership combines
+`pg_get_serial_sequence(...,'payload')` with exact `pg_depend.refobjsubid = 2`,
+plus a separate manually owned root key sequence with stable subID1 and matching
+column inquiry. This avoids ambiguous multiple sequences on the same column
+without changing production lookup semantics. Exact schema/table identities
+remain asserted; discovery does not require an unowned `pg_attribute`.
+Internal catalog character fields are projected directly with CHAR metadata,
+not unsupported internal-char-to-TEXT casts. Window context uses admitted
+ROW_NUMBER with PARTITION BY/ORDER BY and independent ordinals1,2; standalone SUM
+remains in the aggregate consumer witnesses.
+Failed embedded CREATE SCHEMA additionally proves namespace absence by successful
+recreation of that exact name, followed by cleanup.
+Adjacent CREATE SCHEMA partition definitions assert PostgreSQL success versus native
+positioned0A000 before any schema/table publication or bound sequence demand, on
+both direct and genuinely prepared utility execution routes.
+Manual root/intermediate sequence ownership independently asserts live column
+inquiry, AUTO dependencies, routed defaults, actual unmodified Dump replay,
+deterministic redump and complete subtree/owned-sequence DROP closure.
+
+Native Reset/Dump/Restore phases use the public control APIs, guarded only because
+PostgreSQL has no corresponding API. The actual emitted stream is consumed
+unmodified by the real PostgreSQL connection, with typed rows, owners, dependencies
+and current defaults asserted afterward. Cross-owner replay provisions only
+temporary inherited role membership and importing namespace rights in PostgreSQL;
+ordinary ownership denials execute before that provisioning. Deferred hierarchy
+defaults exercise importer-only replay and failed replay preserving the old target.
+The deferred graph is a genuine cycle of REGCLASS defaults on the virtual parent
+and an ordinary table, using the existing ordinary SET DEFAULT producer rather
+than unsupported ALTER ADD CHECK syntax. Mixed-owner schema setup is performed
+under the genuine bootstrap principal with explicit AUTHORIZATION owners.
+`TestReferenceRangePartitionSelfRestoreControls` additionally restores directly
+into the same open database without Reset: held statements, retained cursors,
+expression/nested keys, local UNIQUE, views, inherited CHECK, sequence ownership
+and ordinary coupled defaults must retain their semantic contracts. Internal
+self-catalog replacement also retains exact live TEMP sequence/table/index
+descriptors, stores, index roots, generator/cache and held demand. Existing
+TEMP DEFAULT/CHECK/generated/partial-index definitions retain their own authority;
+the permanent candidate is fully remapped before the existing exact TEMP overlay.
+The TEMP regression keeps both a supported column partial UNIQUE index (with
+duplicate enforcement) and a separate ordinary expression/predicate index (with
+exact descriptor/root retention). Childless and populated hierarchy sources pin
+the same real catalog/data-view authority as ordinary retained query sources.
+Cancellation/reset observers wrap the actual leased operation context: Acquire's
+WithCancel wrapper does not forward the original caller's Err callbacks.
+All temporary roles/schema rights are cleaned up under bounded deadlines.
+Every actual native SQL replay on PostgreSQL registers bounded same-session
+RESET ROLE / RESET SESSION AUTHORIZATION / RESET search_path cleanup before
+replay, ahead of schema recreation or role-grant teardown. The shared PostgreSQL
+body therefore retains its authenticated fixture owner, not the stream's final
+named owner.
+
+The former `smoke/table_test.go` behavioral/API union is now
+`TestReferenceRangePartitionMigratedTableCoreSmoke`, not a native-only duplicate.
+Integrated LIKE INCLUDING ALL / EXCLUDING CONSTRAINTS now share their successful
+copy, empty typed/NOT NULL metadata, enforcement, DROP and absence assertions in
+both modes. Actual native Dump must exist before the PostgreSQL replay lifecycle;
+an earlier native failure is never treated as an empty successful replay stream.
+The cohesive `TestReferenceRangePartitionFeatureSmoke` includes ordinary table
+definitions, real routing, nested/default bounds, metadata and persistent controls.
+No discovery filters belong in final definitions.
+Raw sentinel scenarios cover mixed-case keywords, quoted lowercase names and
+redundant parentheses; quoted uppercase, qualified/cast/operator wrappers retain
+the independent column-reference bound error. Finite TEXT casts stay finite.
+TEMP hierarchy definitions are a separately positioned native0A000 boundary,
+including implicit qualified pg_temp destinations; ordinary TEMP/ON COMMIT
+capabilities retain their integrated baseline implementation.
+
+Run the same completed reference definitions in both modes, with a separate
+900-second deadline for every invocation:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$' VERBOSE=0
+make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestRangePartition' VERBOSE=0
+make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestRangePartition(Concurrency|Publication|Capture|Remap)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^Test(CheckInsertPrivilegeDisclosure|RangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|Retirement|RemapExplicitCollation))' VERBOSE=0
+```
+
+Package-function witnesses inspect owned descriptors, cooked type/row identities,
+private importer provenance, real lock queues, multi-leaf transaction stages and
+complete self-catalog expression remapping with retained old cursors. They supplement
+the shared public reference routes. The root generates/formats the parser and runs
+verification only after all edits pause; the post-integration fullcheck runs once
+under a single 3600-second deadline, with actual failures remedied separately.
 
 ## How the dual-mode fixture works
 

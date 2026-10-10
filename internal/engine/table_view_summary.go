@@ -100,7 +100,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 			builtinDefinition = representedSummaryViewDefinition(relation.address.ObjectID)
 		}
 		if source.address.ObjectID == 12003 {
-			if relation.relationKind != tableRelation && !builtinTable {
+			if relation.relationKind != tableRelation && relation.relationKind != partitionedRelation && !builtinTable {
 				continue
 			}
 		} else if source.address.ObjectID == 12006 {

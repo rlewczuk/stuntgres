@@ -412,6 +412,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if err = partitionWriteExtensionBoundary(stmt, b.relation); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	tag := modifyingTag(stmt)
 	selection, selecting := stmt.(*parser.Select)
 	if declaration, ok := stmt.(*parser.DeclareCursor); ok {
@@ -557,6 +561,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+		if err := scope.capturePartitionInsertLocked(e, auth, b.relation); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 		if s.Source != nil {
 			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Source.Select != nil && len(b.querySources) == 0)
 			if sourceErr != nil {
@@ -576,7 +584,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			count, err := scope.Writes().applyInsertValidated(b.ref, rows)
+			count, err := scope.applyInsertValidated(b.ref, rows)
 			if err != nil {
 				return Result{}, err
 			}
@@ -675,7 +683,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		count, err := scope.Writes().applyInsertValidated(b.ref, rows)
+		count, err := scope.applyInsertValidated(b.ref, rows)
 		if err != nil {
 			return Result{}, err
 		}
@@ -746,6 +754,15 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 // A complete projected row is constrained before another identity source row
 // is demanded. This does not publish rows: the caller still stages one batch.
 func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema string, row []sqltype.Value, evaluation *EvalContext) error {
+	if scope.partitionInsert != nil {
+		return scope.validatePartitionInsert(b, row, evaluation)
+	}
+	return e.validatePhysicalInsertRow(scope, b, &b, schema, row, evaluation)
+}
+
+// Physical constraints own evaluation and error identity; the original named
+// target owns disclosure authority. The named binding is read-only.
+func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, named *binding, schema string, row []sqltype.Value, evaluation *EvalContext) error {
 	if err := evaluation.Context.Err(); err != nil {
 		return err
 	}
@@ -754,7 +771,11 @@ func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema stri
 	}
 	for j, column := range b.relation.columns {
 		if row[j].IsNull() && !column.Nullable {
-			return notNullError(schema, b.relation.name, column.Name, row, scope.output)
+			detail, err := e.rowConstraintDetail(scope, named, row)
+			if err != nil {
+				return err
+			}
+			return notNullDetailError(schema, b.relation.name, column.Name, detail)
 		}
 	}
 	if len(b.relation.checkConstraints) != 0 {
@@ -763,7 +784,11 @@ func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema stri
 			return err
 		}
 		if constraint != nil {
-			return e.rowConstraintError(scope, b, schema, "", constraint.Name, row)
+			detail, err := e.rowConstraintDetail(scope, named, row)
+			if err != nil {
+				return err
+			}
+			return checkDetailError(schema, b.relation.name, constraint.Name, detail)
 		}
 	}
 	return nil

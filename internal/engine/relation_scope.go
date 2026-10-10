@@ -74,6 +74,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	viewReplacement := false
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
+	case *parser.CreateTable:
+		if !execute || v.PartitionOf == nil {
+			return nil
+		}
+		name, mode, ownerOnly = v.PartitionOf.Name, accessExclusive, true
 	case *parser.CreateIndex:
 		if !execute {
 			return nil
@@ -174,6 +179,13 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return ErrCatalogReplaced
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
+	parentAuth := auth
+	if creation, ok := stmt.(*parser.CreateTable); ok && err == nil {
+		parentAuth, err = e.partitionParentAuthorization(s.op, auth, creation)
+		if err == nil {
+			err = s.checkPartitionCreationNamespaceLocked(auth, creation)
+		}
+	}
 	var ref ObjectRef
 	if err == nil {
 		if viewReplacement {
@@ -201,7 +213,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			ref, err = e.resolveReference(auth, name)
 		} else {
 			_, indexBuild := stmt.(*parser.CreateIndex)
-			ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive || rename || indexBuild)
+			_, partitionCreate := stmt.(*parser.CreateTable)
+			ref, err = e.resolveRelationReference(parentAuth, name, mode == shareUpdateExclusive || rename || indexBuild || partitionCreate)
 		}
 	}
 	if rename && ifExists && renameMissing(err) {
@@ -229,11 +242,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		if ownerOnly && !viewReplacement && err == nil {
 			if ref.owner != nil {
-				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 			}
 			if tableRename && ref.owner != nil && err == nil {
 				err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: auth.catalog.state.descriptors[ref.Address].Namespace()})
 			}
+		}
+		if err == nil && ref.owner != nil {
+			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
 		}
 	}
 	e.mu.Unlock()
@@ -248,6 +264,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	if rename && ref.owner == nil {
 		return nil
+	}
+	if err = s.acquirePartitionAncestors(ref); err != nil {
+		return err
 	}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
@@ -277,6 +296,26 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		return err
+	}
+	e.mu.Lock()
+	if ref.owner != nil {
+		err = s.observePartitionRelationLocked(e, ref)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	switch creation := stmt.(type) {
+	case *parser.CreateTable:
+		if !creation.PartitionOf.Bound.Default {
+			if err = s.acquirePartitionDefinitionDefault(ref); err != nil {
+				return err
+			}
+		}
+	case *parser.Select, *parser.Insert:
+		if err = s.acquirePartitionDescendants(ref, accessShare); err != nil {
+			return err
+		}
 	}
 	s.owner.mu.Lock()
 	implicit := s.owner.state == TxImplicit
@@ -347,7 +386,17 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return nil
 	}
 	if ownerOnly {
-		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		parentAuth = auth
+		if creation, ok := stmt.(*parser.CreateTable); ok {
+			parentAuth, err = e.partitionParentAuthorization(s.op, auth, creation)
+			if err != nil {
+				return err
+			}
+			if err := s.checkPartitionCreationNamespaceLocked(auth, creation); err != nil {
+				return err
+			}
+		}
+		if err := parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if tableRename {
@@ -369,10 +418,15 @@ func (s *StatementScope) refreshRelationGrantsLocked(e *Engine) error {
 }
 
 func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources bool) error {
-	if len(s.querySources) == 0 && s.lockedRef.owner == nil {
+	if len(s.querySources) == 0 && s.lockedRef.owner == nil && len(s.partitionRelations) == 0 {
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
+	for address, captured := range s.partitionRelations {
+		if catalog.state.descriptors[address] != captured {
+			return ErrCatalogReplaced
+		}
+	}
 	for i, source := range s.querySources {
 		current, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, source)
 		if err != nil {
@@ -419,4 +473,21 @@ func sameRelationRowShape(a, b *relationDescriptor) bool {
 		}
 	}
 	return true
+}
+
+// Called under Engine.mu after partitionParentAuthorization validates any
+// trusted importer provenance. Destination rights belong to the named child
+// principal, never the parent's private restore authorization.
+func (s *StatementScope) checkPartitionCreationNamespaceLocked(auth AuthorizationView, creation *parser.CreateTable) error {
+	if creation.Persistence == "temporary" {
+		return nil
+	}
+	ns, deferredTemp, err := s.op.session.Engine().creationNamespaceDestination(auth, creation.Name, false)
+	if err == nil && !deferredTemp && !s.op.restoreTableDestination {
+		err = auth.CheckCreate(ns)
+	}
+	if err != nil {
+		return creationError(err, creation.Name)
+	}
+	return nil
 }

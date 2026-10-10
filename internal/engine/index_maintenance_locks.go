@@ -61,7 +61,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 					return indexWrongKind(d, false)
 				}
 				parent = auth.catalog.state.descriptors[d.sqlIndex.parent].(*relationDescriptor)
-			} else if d.relationKind != tableRelation {
+			} else if d.relationKind != tableRelation && d.relationKind != partitionedRelation {
 				return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.name))
 			}
 			rights, err := auth.Effective(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.address}, false)
@@ -70,6 +70,9 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 			}
 			if rights&MaintainPrivilege == 0 {
 				return sqlError("42501", fmt.Sprintf("permission denied for %s %s", s.Kind.Text, d.name))
+			}
+			if parent.partition != nil {
+				return sqlError("0A000", "partitioned indexes are unsupported")
 			}
 		}
 	}
@@ -102,7 +105,7 @@ func indexWrongKind(d *relationDescriptor, drop bool) error {
 	diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is not an index`, d.name)).(*sqlstate.Error)
 	if drop {
 		switch d.relationKind {
-		case tableRelation:
+		case tableRelation, partitionedRelation:
 			diagnostic.Hint = "Use DROP TABLE to remove a table."
 		case sequenceRelation:
 			diagnostic.Hint = "Use DROP SEQUENCE to remove a sequence."

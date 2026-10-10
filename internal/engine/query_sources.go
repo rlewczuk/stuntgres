@@ -225,7 +225,16 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	}
 	var view *VisibilityView
 	var err error
-	if len(refs) != 0 {
+	needsView := len(refs) != 0
+	if !needsView {
+		for _, leaf := range leaves {
+			if leaf.relation.relationKind == partitionedRelation {
+				needsView = true
+				break
+			}
+		}
+	}
+	if needsView {
 		view, err = scope.acquireDataViewsLocked(e, refs)
 		if err != nil {
 			return nil, err
@@ -248,6 +257,13 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				err = materializedViewReadError(leaf.relation)
 			} else {
 				source, err = captureQueryPrefix(view, leaf.ref)
+			}
+		case partitionedRelation:
+			if mark.mode != 0 {
+				source = nil
+				err = sqlError("0A000", "row locking partition hierarchies is unsupported")
+			} else {
+				source, err = capturePartitionQueryPrefix(scope.commentCatalog, view, leaf.ref, leaf.relation)
 			}
 		case tableRelation:
 			source, err = captureQueryPrefix(view, leaf.ref)
@@ -299,6 +315,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 
 func selectQuerySources(ctx context.Context, source *querySource) error {
 	selectOne := func(source *querySource) error {
+		if source.partitions != nil {
+			return source.selectPartitionPrefixes(ctx)
+		}
 		if source.view == nil {
 			return ctx.Err()
 		}

@@ -21,7 +21,7 @@ type boundMergeInsert struct {
 }
 
 func mergeRelationKind(relation *relationDescriptor) error {
-	if relation.relationKind == tableRelation {
+	if relation.relationKind == tableRelation || relation.relationKind == partitionedRelation {
 		return nil
 	}
 	if relation.relationKind == viewRelation {
@@ -53,7 +53,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		return err
 	}
 	out.storage = e.authorizationStorageLocked(auth, ref.Address)
-	if out.storage == nil {
+	if out.storage == nil && out.relation.relationKind != partitionedRelation {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	binder.relation, binder.ref = out.relation, ref

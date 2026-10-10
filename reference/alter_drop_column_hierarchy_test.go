@@ -38,16 +38,12 @@ func TestReferenceAlterDropColumnExternalHierarchy(t *testing.T) {
 	run(referenceSelect("SELECT * FROM only_child", []string{"b"}, []string{"INT4"}, nil))
 	run(referenceSelect("SELECT attislocal,attinhcount FROM pg_attribute WHERE attrelid='only_child'::regclass AND attname='b'", []string{"attislocal", "attinhcount"}, []string{"BOOL", "INT2"}, [][]any{{true, int64(0)}}))
 	run(referenceExec("ALTER TABLE only_child DROP b", 0))
+	// RANGE definition/routing/key-safety assertions now live in the untagged
+	// TestReferenceRangePartitionHierarchyKeySafety. Retain this external-only
+	// recursive non-key propagation witness alongside ordinary INHERITS.
 	run(referenceExec("CREATE TABLE partitioned(k INT,b TEXT) PARTITION BY RANGE(k)", 0))
 	run(referenceExec("CREATE TABLE part PARTITION OF partitioned FOR VALUES FROM(0) TO(10)", 0))
 	run(referenceExec("INSERT INTO partitioned VALUES(1,'keep')", 1))
-	failure = referenceImplicitError("ALTER TABLE ONLY partitioned DROP b", referenceDiagnostic{Code: "42P16", Message: "cannot drop column from only the partitioned table when partitions exist", Hint: "Do not specify the ONLY keyword."})
-	failure.errorStage = "execute"
-	run(failure)
-	failure = referenceImplicitError("ALTER TABLE partitioned DROP k CASCADE", referenceDiagnostic{Code: "42P16", Message: `cannot drop column "k" because it is part of the partition key of relation "partitioned"`})
-	failure.errorStage = "execute"
-	run(failure)
-	run(referenceSelect("SELECT * FROM partitioned", []string{"k", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "keep"}}))
 	run(referenceExec("ALTER TABLE partitioned DROP b", 0))
 	run(referenceSelect("SELECT * FROM part", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
 }

@@ -133,6 +133,7 @@ type Operation struct {
 	restoreInsertAuthority  bool
 	restoreCommentAuthority bool
 	materializedPopulation  bool // Operation-local execution path, never session settings.
+	restoreDefaultReplay    bool
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {

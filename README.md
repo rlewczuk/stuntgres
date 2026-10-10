@@ -145,6 +145,25 @@ and lock introspection remain unsupported. See
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0`.
 
+Change note: RANGE table definitions now retain typed, lexicographic tuple bounds,
+MINVALUE/MAXVALUE, DEFAULT complements and nested partition keys. INSERT routes
+through real physical leaves; SELECT and views capture the whole hierarchy.
+Inherited defaults and CHECKs retain admitted identities, while fresh child
+expressions and inherited user types retain their ordinary authorization checks.
+Key collation identities, comparison capabilities and dependency closure remain
+aligned across native Restore, provider DROP and TEMP-provider retirement.
+Physical leaves may own enforced local UNIQUE/PRIMARY KEY/EXCLUDE constraints and indexes.
+Named-target partition errors disclose supplied or SELECT-authorized columns,
+not inaccessible omitted defaults. Bounds transform each finite datum, lower tuple
+then upper; failed definitions retain reached sequence draws and select
+positions/overlap witnesses by typed bound order. Native mutation, row-locking,
+virtual-index and virtual constraint-combination safety boundaries remain explicit.
+Existing schema-wide table GRANT/REVOKE includes virtual roots and intermediates;
+missing-key details use PostgreSQL expression and identifier quoting after privilege checks.
+See [RANGE partitions](docs/TABLES.md#range-partition-definitions--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
 table/name, NULL default tablespace and compact reconstructable definition.
 Access method appears in CREATE INDEX text, not a sixth field. Native visibility
@@ -2014,8 +2033,8 @@ make fullcheck  # after merge: generate/build, quick + native/reference race, be
 ```
 
 Each quickcheck invocation enforces a 900-second wall-clock deadline and is quiet by default.
-Final fullcheck runs after merge under one 1800-second total deadline; commit failure remedies
-separately. Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection,
+Final fullcheck runs once after merge under one 3600-second total deadline; commit failure
+remedies separately and repeat only after a failed fullcheck. Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection,
 `PACKAGES=./internal/parser` for package scope, and `RACE=1` for the race detector.
 Every changed/new reference definition requires selected native and real pinned PostgreSQL
 validation before review/integration; it cannot wait for final fullcheck:

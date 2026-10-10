@@ -14,6 +14,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
+	originalCatalog := auth.catalog
 	persistence := s.Persistence
 	if persistence == "" {
 		persistence = "logged"
@@ -41,6 +42,19 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, creationError(err, s.Name)
 	}
 	temporary := persistence == "temporary"
+	if temporary && (s.PartitionBy != nil || s.PartitionOf != nil) {
+		e.mu.Unlock()
+		pos := s.PartitionBy
+		if s.PartitionOf != nil {
+			return Result{}, expressionError("0A000", "temporary partition definitions are unsupported", s.PartitionOf.Pos)
+		}
+		return Result{}, expressionError("0A000", "temporary partition definitions are unsupported", pos.Pos)
+	}
+	if !temporary {
+		// Permanent CREATE does not need the TEMP namespace overlay. Preserve
+		// its admitted catalog identity for the existing importer/publication fences.
+		auth.catalog = originalCatalog
+	}
 	if !temporary && s.OnCommit != parser.OnCommitUnspecified {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", "ON COMMIT can only be used on temporary tables")
@@ -58,13 +72,25 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		}
 		return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
+	if s.PartitionBy != nil && len(s.Parents) != 0 {
+		e.mu.Unlock()
+		return Result{}, sqlError("42P17", "cannot create partitioned table as inheritance child")
+	}
 	base := auth.catalog
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
-	err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.state.CurrentUser, scope.input)
+	var partition *pendingPartitionDefinition
+	if s.PartitionBy != nil || s.PartitionOf != nil {
+		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
+	} else {
+		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.state.CurrentUser, scope.input)
+	}
 	e.mu.Unlock()
 	if err != nil {
+		return Result{}, err
+	}
+	if err = partition.finish(scope); err != nil {
 		return Result{}, err
 	}
 	if err = scope.acquireDefinitionProviders(stage); err != nil {

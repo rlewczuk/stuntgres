@@ -171,6 +171,94 @@ No native MVCC/OID provider, fake NULL carrier, generic GRANT implementation or
 external durability/network/pg_dump/native-ABI promise is added.
 See [matching and lifecycle semantics](QUERIES.md#merge-insertion--change-note).
 
+### RANGE table partitions — change note
+
+`CREATE TABLE ... PARTITION BY RANGE (...)` and `CREATE TABLE ... PARTITION OF ...`
+with typed `FOR VALUES FROM (...) TO (...)` or DEFAULT support nested keys and real
+baseline INSERT routing/SELECT demand. Tuple ordering is lexicographic and half-open;
+MINVALUE/MAXVALUE are sentinels, while SQL NULL keys require DEFAULT. Existing scalar
+types, coercion and ordering providers define admission; no new type or operator-class
+family is implied. See [partition definitions](TABLES.md#range-partition-definitions--change-note)
+for inherited constraints, authorization, catalog metadata and persistent controls.
+Explicit and effective key collations retain their existing catalog-backed
+authority. Provider RESTRICT/CASCADE includes the complete hierarchy and owned
+sequences; native Restore remaps explicit identity and comparison together before
+preserving exact live TEMP overlays. Persistent keys depending on a TEMP collation
+cannot be dumped as portable state.
+
+
+Both bound arities preflight before demand. Lower then upper tuples transform
+left-to-right: each finite datum binds, coerces, evaluates and rejects NULL before
+the next datum is transformed. Each tuple's sentinel suffix is checked only after
+its datums transform, before the next tuple begins. Expression/provider evaluation
+runs outside Engine.mu; a later failure cannot rewind an already reached sequence
+draw, but cannot publish a child or auxiliary definition.
+Empty-range Position follows the deciding component (the last component for full
+finite equality, or the terminating infinity component). Overlap diagnostics use
+typed ordered endpoints and the final binary-search comparison, not sibling
+creation order; an equal lower endpoint retains its first-component position.
+Ancestor errors retain the actual named INSERT target; physical NN/CHECK errors
+retain the actual failing leaf's diagnostic identity. Both use the original named
+INSERT target's disclosure policy for VALUES and INSERT SELECT: table SELECT permits
+the whole row; otherwise supplied and named-column SELECT-authorized values are
+labelled in physical order, without revealing inaccessible omitted defaults.
+Existing `ALL TABLES IN SCHEMA` GRANT/REVOKE includes virtual roots and nested
+members, without granting future relations or sequences. Missing-partition-key
+expression Detail uses PostgreSQL deparse only with named-target table SELECT;
+column-only SELECT exposes simple authorized keys, not expression keys.
+Partition-child Execute checks destination CREATE rights before parent ownership,
+including positioned qualified-schema failures; Prepare remains effect-free.
+
+Native hierarchy consumers intentionally reject UPDATE, DELETE, row marks, unsafe
+ALTER and explicit hierarchy LOCK with ERROR/0A000 and respectively
+`updating partition hierarchies is unsupported`, `deleting from partition hierarchies is unsupported`,
+`row locking partition hierarchies is unsupported`, `altering partition hierarchies is unsupported`
+and `locking partition hierarchies is unsupported`. LOCK first requires a genuine
+transaction; ordinary25P01 outside-transaction admission is unchanged.
+The newly integrated ON CONFLICT and MERGE mutation forms reject virtual and
+physical hierarchy targets after ordinary analysis/rights and before row demand:
+native0A000 `ON CONFLICT on partition hierarchies is unsupported` and
+`merging partition hierarchies is unsupported`, with all optional fields empty.
+Ordinary nonpartitioned conflict admission/revalidation/counts are preserved;
+cursor SELECT continues through the ordinary complete hierarchy provider.
+Virtual CREATE INDEX/REINDEX report `partitioned indexes are unsupported`;
+excluded parsed constraint combinations report
+`partitioned table constraint combination is unsupported`. These diagnostics have
+empty optional fields. Earlier actual malformed key/bound/type/owner diagnostics
+remain authoritative. Integrated PRIMARY KEY syntax parses normally; a virtual
+PRIMARY KEY declaration reaches the same execution-time constraint-combination
+0A000, not a parser/Prepare rejection. Physical leaves retain ordinary local
+UNIQUE/PRIMARY KEY/EXCLUDE/index construction and enforcement through existing producers.
+Manual sequence OWNED BY logical root/intermediate columns retains ordinary
+owner/schema/live-attribute authority, AUTO dependencies and symbolic controls;
+this does not widen virtual serial/identity creation combinations.
+
+Partition definitions nested in CREATE SCHEMA retain an explicit adjacent boundary:
+native utility execution reports0A000 `partition definitions in CREATE SCHEMA are unsupported`,
+Position at the first nested PARTITION token, before any element is staged or bound
+expression demanded. Utility Prepare remains metadata-only; PostgreSQL can execute
+this combination. Ordinary CREATE SCHEMA elements are unchanged.
+TEMP partition definitions are an adjacent native boundary: utility execution
+reports0A000 `temporary partition definitions are unsupported` at the first
+PARTITION token, before hierarchy staging. This also applies when qualified
+pg_temp destinations select temporary persistence. Ordinary TEMP tables and
+ON COMMIT semantics are unchanged; PostgreSQL supports same-session TEMP trees.
+Permanent hierarchy CREATE inside an explicit native transaction retains the
+existing0A000 utility boundary. Native physical provider retirement still removes
+dependent persistent hierarchies and their owned closure atomically, preserving
+peer TEMP state and retained cursor prefixes. Internal COMMIT staging uses its real
+scopeless lifecycle authority, not a fabricated SQL statement scope.
+
+
+
+Utility statements retain their existing zero-parameter contract. Genuine Prepare
+with a supplied argument reports `sql: expected 0 arguments, got 1`; native direct
+admission reports `stuntgres: got 1 arguments, want 0`. A no-argument utility containing
+`$1` retains semantic42P02 instead of acquiring an invented bind slot.
+Private Restore exceptions are scoped to actual importer provenance, not a SQL role
+or authenticated superuser generally. PostgreSQL SQL control witnesses explicitly
+provide importer rights while replaying the unmodified native stream.
+
 ### Datetime truncation — change note
 
 `date_trunc(text,timestamp)`, `date_trunc(text,timestamptz)`,

@@ -84,6 +84,16 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	for _, ref := range refs {
+		e.mu.Lock()
+		d, _ := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+		unsupported := d != nil && hierarchyRelation(d) && modes[ref] != 0
+		e.mu.Unlock()
+		if unsupported {
+			return sqlError("0A000", "row locking partition hierarchies is unsupported")
+		}
+		if err := s.acquirePartitionAncestors(ref); err != nil {
+			return err
+		}
 		mode := accessShare
 		if modes[ref] != 0 {
 			mode = relationRowShare
@@ -97,6 +107,9 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 			err = request.wait()
 		}
 		if err != nil {
+			return err
+		}
+		if err := s.acquirePartitionDescendants(ref, accessShare); err != nil {
 			return err
 		}
 		s.owner.mu.Lock()

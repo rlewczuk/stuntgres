@@ -17,6 +17,7 @@ const (
 	indexRelation
 	compositeRelation
 	materializedViewRelation
+	partitionedRelation
 )
 
 func (k relationKind) stored() bool {

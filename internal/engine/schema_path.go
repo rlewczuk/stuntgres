@@ -300,11 +300,21 @@ func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectNam
 }
 
 func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser.ObjectName, system bool) (ObjectRef, error) {
+	ref, deferredTemp, err := e.creationNamespaceDestination(auth, name, system)
+	if err == nil && deferredTemp {
+		return ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
+	}
+	return ref, err
+}
+
+// Resolve creation without establishing a deferred temporary namespace.
+// Callers requiring an existing namespace retain the rejecting policy above.
+func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parser.ObjectName, system bool) (ObjectRef, bool, error) {
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
-		return ObjectRef{}, err
+		return ObjectRef{}, false, err
 	}
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
-		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
+		return ObjectRef{}, false, fmt.Errorf("stuntgres: invalid relation name")
 	}
 	var a ObjectAddress
 	if len(name.Parts) == 2 {
@@ -312,31 +322,31 @@ func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser
 		if n == "pg_temp" {
 			ns, ok := auth.catalog.state.descriptors[auth.stagedTemporary].(*namespaceDescriptor)
 			if !ok || auth.session == nil || ns.temporary != auth.session.token {
-				return ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
+				return ObjectRef{}, true, nil
 			}
 			a = ns.address
 		} else {
 			var ok bool
 			a, ok = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: n}]
 			if !ok {
-				return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
+				return ObjectRef{}, false, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
 			}
 		}
 	} else {
 		path, temp, err := e.explicitPath(auth)
 		if err != nil {
-			return ObjectRef{}, err
+			return ObjectRef{}, false, err
 		}
 		if temp {
-			return ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
+			return ObjectRef{}, true, nil
 		}
 		if len(path) == 0 {
-			return ObjectRef{}, sqlError("3F000", "no schema has been selected to create in")
+			return ObjectRef{}, false, sqlError("3F000", "no schema has been selected to create in")
 		}
 		a = path[0]
 	}
 	if !system && a.ObjectID == PGCatalogNamespaceOID {
-		return ObjectRef{}, sqlError("0A000", "system schema creation is unsupported")
+		return ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
 	}
-	return ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}, nil
+	return ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}, false, nil
 }

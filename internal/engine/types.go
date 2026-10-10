@@ -419,7 +419,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 // Existing row-bearing relations reserve their reciprocal type identity.
 func relationTypeNameOccupied(view CatalogRead, namespace ObjectAddress, name string) bool {
 	for _, address := range view.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}) {
-		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
+		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
 			return true
 		}
 	}

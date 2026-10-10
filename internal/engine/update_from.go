@@ -39,6 +39,13 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 				}
 			}
 		}
+		if relation.partition != nil {
+			for _, address := range relation.partition.children {
+				if err := collect(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}); err != nil {
+					return err
+				}
+			}
+		}
 		if relation.relationKind.stored() {
 			for _, prior := range refs {
 				if prior == ref {

@@ -40,14 +40,14 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 		}
 		return statements[0].(*parser.CreateTable).Elements[0].Check
 	}
-	if err := e.bindColumnChecks(scope.op, auth, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, old, scope.input, true); err != nil {
+	if err := e.bindColumnChecks(scope.op, auth, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, old, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	old.checkConstraints[0].ordinal = 7
 	next := *old
 	next.checkConstraints = slices.Clone(old.checkConstraints)
 	checks := []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT z_first CHECK(a>1))"), raw("CREATE TABLE t(CONSTRAINT a_second CHECK(a<9))")}
-	if err := e.bindColumnChecks(scope.op, auth, checks, &next, scope.input, true); err != nil {
+	if err := e.bindColumnChecks(scope.op, auth, checks, &next, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	ordered := orderedChecks(&next)

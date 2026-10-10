@@ -113,6 +113,8 @@ type relationDescriptor struct {
 	populated            bool // Independent of stored row count, including populated-empty MVs.
 	virtualView          bool
 	sqlIndex             *indexDefinition
+	partition          *partitionDefinition
+	membership         *partitionMembership
 	rowType              sqltype.ID
 }
 
@@ -219,7 +221,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.populated && r.relationKind != materializedViewRelation || r.view != nil && r.relationKind != viewRelation && r.relationKind != materializedViewRelation {
 		return fmt.Errorf("stuntgres: invalid stored definition kind")
 	}
-	if r.relationKind.stored() || r.relationKind == viewRelation || r.relationKind == compositeRelation {
+	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation {
 		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
@@ -267,8 +269,11 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.relationKind == indexRelation {
 		return validateIndexDefinition(v, r)
 	}
-	if r.relationKind != tableRelation && len(r.checkConstraints) != 0 {
+	if r.relationKind != tableRelation && r.relationKind != partitionedRelation && len(r.checkConstraints) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
+	}
+	if err := validatePartitionDescriptor(v, r); err != nil {
+		return err
 	}
 	if r.relationKind == sequenceRelation {
 		if r.sequencePlanStamp == 0 || r.sequence == nil || len(r.columns) != 3 || r.columns[0].Name != "last_value" || r.columns[1].Name != "log_cnt" || r.columns[2].Name != "is_called" || r.columns[0].Usage.Type.ID() != sqltype.Int8 || r.columns[1].Usage.Type.ID() != sqltype.Int8 || r.columns[2].Usage.Type.ID() != sqltype.Bool {
@@ -284,7 +289,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.state.descriptors[tableAddress].(*relationDescriptor)
-			if !ok || table.relationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.owner != r.owner || table.namespace != r.namespace {
+			if !ok || table.relationKind != tableRelation && table.relationKind != partitionedRelation || !table.hasAttribute(owned.SubID) || table.owner != r.owner || table.namespace != r.namespace {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
 			if r.sequence.identity {
@@ -445,6 +450,7 @@ type CatalogStage struct {
 	touched              map[NameKey]ObjectAddress
 	removals             map[ObjectAddress]catalogRemoval
 	rowShapes            map[ObjectAddress]catalogRowShape
+	partitionReads       []partitionReadFence
 	indexRebuilds        map[ObjectAddress]*relationDescriptor
 	indexCandidates      map[ObjectAddress]indexRootCandidate
 	indexParents         map[ObjectAddress]*relationDescriptor
@@ -719,6 +725,11 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 			}
 		}
 	}
+	if relation, ok := d.(*relationDescriptor); ok {
+		if err := s.removePartitionHierarchyLocked(relation); err != nil {
+			return err
+		}
+	}
 	if r, ok := d.(*relationDescriptor); ok && r.rowType != 0 {
 		row, ok := s.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}].(*typeDescriptor)
 		if !ok || row.owningRelation != r.address {
@@ -785,6 +796,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 			}
 			break
 		}
+	}
+	if !e.partitionReadsValidLocked(s) {
+		e.mu.Unlock()
+		return nil, CatalogConflict{}
 	}
 	if err := s.validateIndexMaintenance(e.state); err != nil {
 		e.mu.Unlock()
@@ -953,6 +968,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
+		}
+		if !e.partitionReadsValidLocked(s) {
+			e.mu.Unlock()
+			return ChangeSet{}, CatalogConflict{}
 		}
 		for a, shape := range s.rowShapes {
 			if currentStorage[a] != shape.original || len(shape.original.versions) != shape.observedLength || shape.original.generation != shape.generation || shape.original.ends != shape.observedEnds {
@@ -1130,6 +1149,13 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			e.mu.Unlock()
 			continue
+		}
+		if !e.partitionReadsValidLocked(s) {
+			if op != nil {
+				op.session.mu.Unlock()
+			}
+			e.mu.Unlock()
+			return ChangeSet{}, CatalogConflict{}
 		}
 		for a, shape := range s.rowShapes {
 			if e.storage[a] != shape.original || len(shape.original.versions) != shape.observedLength || shape.original.generation != shape.generation || shape.original.ends != shape.observedEnds {
@@ -1309,7 +1335,11 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	}
 	var next *catalogState
 	relationAddresses := make([]ObjectAddress, 0, len(replacement.state.descriptors))
+	hasHierarchy := false
 	for a, d := range replacement.state.descriptors {
+		if relation, ok := d.(*relationDescriptor); ok && hierarchyRelation(relation) {
+			hasHierarchy = true
+		}
 		if r, ok := d.(*relationDescriptor); ok && r.relationKind.stored() {
 			relationAddresses = append(relationAddresses, a)
 		}
@@ -1390,6 +1420,16 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		}
 		if e.commitSeq == CommitSeq(^uint64(0)) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
+		}
+		if hasHierarchy {
+			candidate := CatalogRead{e, next}
+			for _, descriptor := range next.descriptors {
+				if relation, ok := descriptor.(*relationDescriptor); ok && hierarchyRelation(relation) {
+					if err := validatePartitionDescriptor(candidate, relation); err != nil {
+						return ChangeSet{}, err
+					}
+				}
+			}
 		}
 		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, storage)
 		if err != nil {

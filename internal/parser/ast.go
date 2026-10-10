@@ -206,6 +206,30 @@ type CreateTable struct {
 	Persistence string
 	OnCommit    OnCommitAction
 	OnCommitPos Position
+	PartitionBy *PartitionKey
+	PartitionOf *PartitionParent
+}
+
+// Partition keys reuse the existing positioned scalar, collation and class
+// names; bounds retain sentinels separately from SQL NULL expressions.
+type PartitionKey struct {
+	Keys []IndexKey
+	Pos  Position
+}
+type PartitionDatum struct {
+	Expression Expr
+	Kind       int8 // -1 MINVALUE, 0 finite expression, +1 MAXVALUE
+	Pos        Position
+}
+type PartitionBound struct {
+	Default      bool
+	Lower, Upper []PartitionDatum
+	Pos          Position
+}
+type PartitionParent struct {
+	Name  ObjectName
+	Bound PartitionBound
+	Pos   Position
 }
 
 func (*CreateTable) statement() {}

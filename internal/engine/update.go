@@ -515,9 +515,20 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	return Result{Count: int64(len(rows))}, nil
 }
 
-// Only the immutable authority snapshot is captured under metadata locks.
-// Provider output runs after unlocking, with the completed simultaneous row.
 func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column, check string, row []sqltype.Value) error {
+	detail, err := e.rowConstraintDetail(s, &b, row)
+	if err != nil {
+		return err
+	}
+	if check != "" {
+		return checkDetailError(schema, b.relation.name, check, detail)
+	}
+	return notNullDetailError(schema, b.relation.name, column, detail)
+}
+
+// Capture only immutable authority under metadata locks. Provider output runs
+// unlocked; disclosure uses the named target's supplied-column manifest.
+func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
 	var auth AuthorizationView
@@ -526,28 +537,24 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return err
+		return "", err
 	}
 	whole, err := auth.Effective(b.ref, false)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if whole&SelectPrivilege != 0 {
-		if check == "" {
-			return notNullError(schema, b.relation.name, column, row, s.output)
-		}
-		detail, err := failingRowDetail(row, s.output, nil, nil)
-		if err != nil {
-			return err
-		}
-		return checkDetailError(schema, b.relation.name, check, detail)
+		return failingRowDetail(row, s.output, nil, nil)
 	}
-	// Target order is assignment order; disclosure order is physical order.
-	// Match the existing small/wide stable-column manifest convention.
+	// Preserve the small/wide supplied-column manifest convention. Assignment
+	// order can differ from physical order, which governs diagnostic disclosure.
 	var small uint64
 	var modified []uint64
+	var visibleColumns [64]int
+	visible := visibleColumns[:0]
 	if len(b.relation.columns) > 64 {
 		modified = make([]uint64, (len(b.relation.columns)+63)/64)
+		visible = make([]int, 0, len(b.relation.columns))
 	}
 	for _, index := range b.targets {
 		word := &small
@@ -556,7 +563,6 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 		}
 		*word |= uint64(1) << uint(index%64)
 	}
-	visible := make([]int, 0, len(b.relation.columns))
 	for index, attribute := range b.relation.attributes {
 		word := small
 		if modified != nil {
@@ -570,18 +576,11 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 		ref.Address.SubID = attribute
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if rights&SelectPrivilege != 0 {
 			visible = append(visible, index)
 		}
 	}
-	detail, err := failingRowDetail(row, s.output, b.relation.columns, visible)
-	if err != nil {
-		return err
-	}
-	if check != "" {
-		return checkDetailError(schema, b.relation.name, check, detail)
-	}
-	return notNullDetailError(schema, b.relation.name, column, detail)
+	return failingRowDetail(row, s.output, b.relation.columns, visible)
 }

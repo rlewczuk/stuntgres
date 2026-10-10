@@ -184,7 +184,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			for _, check := range next.checkConstraints {
 				before[check.ordinal] = true
 			}
-			err = e.bindColumnChecks(op, auth, raw, next, scope.input, true)
+			err = e.bindColumnChecks(op, auth, raw, next, scope.input, true, nil)
 			if err == nil {
 				for _, check := range orderedChecks(next) {
 					if !before[check.ordinal] {

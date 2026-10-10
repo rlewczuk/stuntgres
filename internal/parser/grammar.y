@@ -128,6 +128,10 @@ package parser
  alterCollation *AlterCollation
  collationOptions []CollationOption
  collationOption CollationOption
+ partitionKey *PartitionKey
+ partitionBound PartitionBound
+ partitionDatum PartitionDatum
+ partitionData []PartitionDatum
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -321,6 +325,14 @@ package parser
 %type <insertConflict> insert_conflict conflict_target
 %type <tok> conflict_open
 %type <expr> conflict_predicate
+%type <partitionKey> partition_by
+%type <partitionBound> partition_bound
+%type <partitionDatum> partition_datum
+%type <partitionData> partition_data
+%type <indexKeys> partition_keys
+%type <indexKey> partition_key
+%type <elements> partition_options partition_elements
+%type <element> partition_element
 %type <viewOptions> index_options index_option_list
 %type <viewOption> index_option
 %type <tok> index_option_value
@@ -763,10 +775,14 @@ set_name: setting_word { $$=settingName{first:$1} }
  * parameter names, and ROLE stays name-eligible everywhere else. */
 local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
-create_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Parents:$7, Pos:$1.pos,Persistence:"logged",OnCommit:$8.action,OnCommitPos:$8.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Parents:$10, Pos:$1.pos, IfNotExists:true,Persistence:"logged",OnCommit:$11.action,OnCommitPos:$11.pos} }
- | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Parents:$8, Pos:$1.pos,Persistence:"temporary",OnCommit:$9.action,OnCommitPos:$9.pos} }
- | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Parents:$11, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$12.action,OnCommitPos:$12.pos} } ;
+create_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Parents:$7, Pos:$1.pos,Persistence:"logged",PartitionBy:$8,OnCommit:$9.action,OnCommitPos:$9.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Parents:$10, Pos:$1.pos,IfNotExists:true,Persistence:"logged",PartitionBy:$11,OnCommit:$12.action,OnCommitPos:$12.pos} }
+ | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Parents:$8, Pos:$1.pos,Persistence:"temporary",PartitionBy:$9,OnCommit:$10.action,OnCommitPos:$10.pos} }
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents partition_by table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Parents:$11, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",PartitionBy:$12,OnCommit:$13.action,OnCommitPos:$13.pos} }
+ | CREATE TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$3,Elements:$7,Pos:$1.pos,Persistence:"logged",PartitionOf:&PartitionParent{Name:$6,Bound:$8,Pos:$4.pos},PartitionBy:$9,OnCommit:$10.action,OnCommitPos:$10.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$6,Elements:$10,Pos:$1.pos,IfNotExists:true,Persistence:"logged",PartitionOf:&PartitionParent{Name:$9,Bound:$11,Pos:$7.pos},PartitionBy:$12,OnCommit:$13.action,OnCommitPos:$13.pos} }
+ | CREATE TEMP TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$4,Elements:$8,Pos:$1.pos,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$7,Bound:$9,Pos:$5.pos},PartitionBy:$10,OnCommit:$11.action,OnCommitPos:$11.pos} }
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$7,Elements:$11,Pos:$1.pos,IfNotExists:true,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$10,Bound:$12,Pos:$8.pos},PartitionBy:$13,OnCommit:$14.action,OnCommitPos:$14.pos} } ;
 table_parents: /* empty */ { $$=nil } | INHERITS '(' relation_names ')' { $$=$3 } ;
 table_on_commit: /* empty */ { $$=onCommitClause{} }
  | ON COMMIT DROP { $$=onCommitClause{action:OnCommitDrop,pos:$1.pos} }
@@ -774,6 +790,37 @@ table_on_commit: /* empty */ { $$=onCommitClause{} }
  | ON COMMIT table_preserve table_rows { $$=onCommitClause{action:OnCommitPreserve,pos:$1.pos} } ;
 table_preserve: KW_U { if $1.text!="preserve" {sqllex.(*lexer).syntax($1);return 1}; $$=$1 } ;
 table_rows: FRAME_UNIT { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1}; $$=$1 } ;
+partition_by: /* empty */ {$$=nil}
+ | PARTITION BY FRAME_UNIT '(' partition_keys ')' {
+ if $3.text!="range" {sqllex.(*lexer).deferUnsupported($3,"partition strategy is unsupported")}
+ $$=&PartitionKey{Keys:$5,Pos:$1.pos}
+ } ;
+partition_keys: partition_key {$$=[]IndexKey{$1}}
+ | partition_keys ',' partition_key {$$=append($1,$3)} ;
+partition_key: index_atom column_collation index_class {$$=$1;$$.Collation=$2;$$.Opclass=$3.Opclass;$$.Options=$3.Options} ;
+partition_bound: DEFAULT {$$=PartitionBound{Default:true,Pos:$1.pos}}
+ | FOR VALUES FROM '(' partition_data ')' TO '(' partition_data ')' {$$=PartitionBound{Lower:$5,Upper:$9,Pos:$1.pos}} ;
+partition_data: partition_datum {$$=[]PartitionDatum{$1}}
+ | partition_data ',' partition_datum {$$=append($1,$3)} ;
+/* MINVALUE/MAXVALUE already reduce as unreserved column names. Classify their
+ * single-name raw expression here, rather than competing with that reduction. */
+partition_datum: target_or {
+ $$=PartitionDatum{Expression:$1,Pos:$1.SourcePosition()}
+ if column,ok:=$1.(ColumnExpr);ok && len(column.Name.Parts)==1 {
+  switch column.Name.Parts[0].Text {
+  case "minvalue": $$=PartitionDatum{Kind:-1,Pos:$1.SourcePosition()}
+  case "maxvalue": $$=PartitionDatum{Kind:1,Pos:$1.SourcePosition()}
+  }
+ }
+ } ;
+partition_options: /* empty */ {$$=nil}
+ | '(' partition_elements ')' {$$=$2} ;
+partition_elements: partition_element {$$=[]TableElement{$1}}
+ | partition_elements ',' partition_element {$$=append($1,$3)} ;
+partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$2,Pos:$1.pos};$$=TableElement{Column:&c,Pos:$1.pos}}
+ | check_constraint {$$=TableElement{Check:$1,Pos:$1.Pos}}
+ | unique_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
+ | exclusion_constraint {$$=TableElement{Exclusion:$1,Pos:$1.Pos}} ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
  | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
@@ -1997,8 +2044,7 @@ excluded_role: SET ROLE excluded_role_assignment excluded_role_target { if $4.ke
 excluded_role_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
 excluded_role_target: name | STRING | DEFAULT ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
-schema_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents { $$=&CreateTable{Name:$3,Elements:$5,Parents:$7,Pos:$1.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents { $$=&CreateTable{Name:$6,Elements:$8,Parents:$10,Pos:$1.pos,IfNotExists:true} }
+schema_table: create_table { $$=$1.(*CreateTable) }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 schema_tables: /* empty */ { $$=nil } | schema_tables schema_table { $$=append($1,$2) }
  | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 }

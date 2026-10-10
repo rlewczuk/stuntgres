@@ -411,7 +411,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		storage := e.storage[a]
-		if storage == nil {
+		if storage == nil && r.partition == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
@@ -426,6 +426,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				predecessors = append(predecessors, predecessor)
 			}
+		}
+		predecessors, err = partitionDumpPredecessors(catalog, r, predecessors)
+		if err != nil {
+			e.mu.Unlock()
+			return err
 		}
 		for _, check := range r.checkConstraints {
 			if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, check.expression, func(address ObjectAddress) error {
@@ -523,7 +528,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequence := e.state.descriptors[identity.sequence].(*relationDescriptor)
 			linked[identity.sequence] = dumpSequence{owner: principal.Name, schema: ns.name, name: sequence.name, options: *sequence.sequence, state: *e.sequences[identity.sequence], comment: sequence.comment}
 		}
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
+		var versions []rowVersion
+		var ends *deletionRoot
+		if storage != nil {
+			versions, ends = storage.versions, storage.ends
+		}
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
 	domainNodes := make(map[OID]*typeDescriptor, len(domains))
@@ -694,142 +704,158 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		var line strings.Builder
-		line.WriteString("CREATE TABLE " + qualified + " (")
-		localElements := 0
-		for i, c := range t.columns {
-			provenance := inheritedColumn{local: true, explicitDefault: true, explicitGeneration: true}
-			if t.descriptor.inheritance != nil {
-				provenance = t.descriptor.inheritance.columns[t.attributes[i]]
-			}
-			if !provenance.local {
-				continue
-			}
-			if localElements > 0 {
-				line.WriteString(", ")
-			}
-			localElements++
-			declaration, err := catalogTypeDeclaration(catalog, c.Usage)
-			if err != nil {
-				return err
-			}
-			line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
-			if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
-				name := collationSQLName(catalog, c.Usage.Collation.ID)
-				if name == "" {
-					return fmt.Errorf("stuntgres: unsupported stored collation")
+		if t.descriptor.membership == nil {
+			line.WriteString("CREATE TABLE " + qualified + " (")
+			localElements := 0
+			for i, c := range t.columns {
+				provenance := inheritedColumn{local: true, explicitDefault: true, explicitGeneration: true}
+				if t.descriptor.inheritance != nil {
+					provenance = t.descriptor.inheritance.columns[t.attributes[i]]
 				}
-				line.WriteString(" COLLATE " + name)
-			}
-			if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.explicitDefault && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
-				text, err := defaultSQL(ctx, catalog, definition.expression)
-				if err != nil {
-					return err
-				}
-				line.WriteString(" DEFAULT " + text)
-			}
-			if provenance.explicitDefault && t.descriptor.inheritance != nil {
-				if _, exists := t.defaults[t.attributes[i]]; !exists {
-					line.WriteString(" DEFAULT NULL")
-				}
-			}
-			if definition, exists := t.descriptor.generations[t.attributes[i]]; exists && provenance.explicitGeneration {
-				text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
-				if err != nil {
-					return err
-				}
-				line.WriteString(" GENERATED ALWAYS AS (" + text + ") STORED")
-			}
-			if identity, exists := t.identities[t.attributes[i]]; exists {
-				mode := "ALWAYS"
-				if identity.mode == parser.IdentityByDefault {
-					mode = "BY DEFAULT"
-				}
-				sequence := t.identitySequences[identity.sequence]
-				line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + quoteIdentifier(sequence.schema) + "." + quoteIdentifier(sequence.name))
-				if !identityDumpDivergent(sequence.options, c.Usage.Type.ID()) {
-					line.WriteString(" " + sequenceNumericSQL(sequence.options))
-				}
-				line.WriteString(")")
-			}
-			if !c.Nullable && (t.descriptor.inheritance == nil || t.descriptor.inheritance.notNull[t.attributes[i]].local) {
-				for _, constraint := range t.notNullConstraints {
-					if constraint.Attribute == t.attributes[i] {
-						line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
-						break
-					}
-				}
-			}
-		}
-		if graph := t.descriptor.inheritance; graph != nil {
-			for _, constraint := range t.notNullConstraints {
-				if graph.columns[constraint.Attribute].local || !graph.notNull[constraint.Attribute].local {
+				if !provenance.local {
 					continue
 				}
 				if localElements > 0 {
 					line.WriteString(", ")
 				}
 				localElements++
-				slot := t.descriptor.indexForAttribute(constraint.Attribute)
-				line.WriteString("CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name))
+				declaration, err := catalogTypeDeclaration(catalog, c.Usage)
+				if err != nil {
+					return err
+				}
+				line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
+				if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
+					name := collationSQLName(catalog, c.Usage.Collation.ID)
+					if name == "" {
+						return fmt.Errorf("stuntgres: unsupported stored collation")
+					}
+					line.WriteString(" COLLATE " + name)
+				}
+				if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.explicitDefault && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
+					text, err := defaultSQL(ctx, catalog, definition.expression)
+					if err != nil {
+						return err
+					}
+					line.WriteString(" DEFAULT " + text)
+				}
+				if provenance.explicitDefault && t.descriptor.inheritance != nil {
+					if _, exists := t.defaults[t.attributes[i]]; !exists {
+						line.WriteString(" DEFAULT NULL")
+					}
+				}
+				if definition, exists := t.descriptor.generations[t.attributes[i]]; exists && provenance.explicitGeneration {
+					text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
+					if err != nil {
+						return err
+					}
+					line.WriteString(" GENERATED ALWAYS AS (" + text + ") STORED")
+				}
+				if identity, exists := t.identities[t.attributes[i]]; exists {
+					mode := "ALWAYS"
+					if identity.mode == parser.IdentityByDefault {
+						mode = "BY DEFAULT"
+					}
+					sequence := t.identitySequences[identity.sequence]
+					line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + quoteIdentifier(sequence.schema) + "." + quoteIdentifier(sequence.name))
+					if !identityDumpDivergent(sequence.options, c.Usage.Type.ID()) {
+						line.WriteString(" " + sequenceNumericSQL(sequence.options))
+					}
+					line.WriteString(")")
+				}
+				if !c.Nullable && (t.descriptor.inheritance == nil || t.descriptor.inheritance.notNull[t.attributes[i]].local) {
+					for _, constraint := range t.notNullConstraints {
+						if constraint.Attribute == t.attributes[i] {
+							line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
+							break
+						}
+					}
+				}
 			}
-		}
-		for _, c := range orderedChecks(t.descriptor) {
-			if t.descriptor.inheritance != nil && !t.descriptor.inheritance.checks[c.Name].local {
-				continue
+			if graph := t.descriptor.inheritance; graph != nil {
+				for _, constraint := range t.notNullConstraints {
+					if graph.columns[constraint.Attribute].local || !graph.notNull[constraint.Attribute].local {
+						continue
+					}
+					if localElements > 0 {
+						line.WriteString(", ")
+					}
+					localElements++
+					slot := t.descriptor.indexForAttribute(constraint.Attribute)
+					line.WriteString("CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name))
+				}
 			}
-			text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
-			if err != nil {
-				return err
-			}
-			if localElements > 0 {
-				line.WriteString(", ")
-			}
-			localElements++
-			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " CHECK (" + text + ")")
-			if c.NoInherit {
-				line.WriteString(" NO INHERIT")
-			}
-		}
-		for _, c := range t.descriptor.uniqueConstraints {
-			text, err := uniqueConstraintSQL(t.descriptor, &c)
-			if err != nil {
-				return err
-			}
-			if localElements > 0 {
-				line.WriteString(", ")
-			}
-			localElements++
-			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
-		}
-		for _, c := range t.descriptor.exclusionConstraints {
-			index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing exclusion dump index")
-			}
-			text, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{dump: true, exclusion: true})
-			if err != nil {
-				return err
-			}
-			if localElements > 0 {
-				line.WriteString(", ")
-			}
-			localElements++
-			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
-		}
-		line.WriteString(")")
-		if graph := t.descriptor.inheritance; graph != nil {
-			line.WriteString(" INHERITS (")
-			for i, address := range graph.parents {
-				if i > 0 {
+			for _, c := range orderedChecks(t.descriptor) {
+				if t.descriptor.inheritance != nil && !t.descriptor.inheritance.checks[c.Name].local {
+					continue
+				}
+				text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
+				if err != nil {
+					return err
+				}
+				if localElements > 0 {
 					line.WriteString(", ")
 				}
-				parent := catalog.state.descriptors[address].(*relationDescriptor)
-				namespace := catalog.state.descriptors[parent.namespace].Name()
-				line.WriteString(quoteIdentifier(namespace) + "." + quoteIdentifier(parent.name))
+				localElements++
+				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " CHECK (" + text + ")")
+				if c.NoInherit {
+					line.WriteString(" NO INHERIT")
+				}
+			}
+			for _, c := range t.descriptor.uniqueConstraints {
+				text, err := uniqueConstraintSQL(t.descriptor, &c)
+				if err != nil {
+					return err
+				}
+				if localElements > 0 {
+					line.WriteString(", ")
+				}
+				localElements++
+				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
+			}
+			for _, c := range t.descriptor.exclusionConstraints {
+				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				if !ok {
+					return fmt.Errorf("stuntgres: missing exclusion dump index")
+				}
+				text, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{dump: true, exclusion: true})
+				if err != nil {
+					return err
+				}
+				if localElements > 0 {
+					line.WriteString(", ")
+				}
+				localElements++
+				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 			}
 			line.WriteString(")")
+			if graph := t.descriptor.inheritance; graph != nil {
+				line.WriteString(" INHERITS (")
+				for i, address := range graph.parents {
+					if i > 0 {
+						line.WriteString(", ")
+					}
+					parent := catalog.state.descriptors[address].(*relationDescriptor)
+					namespace := catalog.state.descriptors[parent.namespace].Name()
+					line.WriteString(quoteIdentifier(namespace) + "." + quoteIdentifier(parent.name))
+				}
+				line.WriteString(")")
+			}
+		} else {
+			var deferred map[int32]bool
+			if deferDefaults {
+				deferred = t.deferredDefinitions
+			}
+			definition, err := partitionChildSQL(ctx, catalog, t.descriptor, qualified, deferred)
+			if err != nil {
+				return err
+			}
+			line.WriteString(definition)
 		}
-		line.WriteString(";\n")
+		key, err := partitionKeySQL(ctx, catalog, t.descriptor)
+		if err != nil {
+			return err
+		}
+		line.WriteString(key + ";\n")
 		if err := emit(line.String()); err != nil {
 			return err
 		}
@@ -951,6 +977,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	defer op.Done()
+	defer func() { op.restoreDefaultReplay = false }()
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
 		case *parser.CreateTable:
@@ -1082,8 +1109,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if _, ok := stmt.(*parser.Comment); ok {
 			op.restoreCommentAuthority = true
 		}
+		_, replayDefault := stmt.(*parser.AlterTableDefault)
+		op.restoreDefaultReplay = replayDefault
 		var result Result
 		result, err = stage.Execute(op, stmt, 0, nil)
+		op.restoreDefaultReplay = false
 		if result.Rows != nil {
 			closeErr := result.Rows.Close()
 			if err == nil {

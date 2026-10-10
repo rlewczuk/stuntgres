@@ -51,25 +51,32 @@ func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, col
 		if i != 0 {
 			b.WriteString(", ")
 		}
-		if value.IsNull() {
-			b.WriteString("null")
-			continue
-		}
-		text, err := value.Type().OutputWithEnvironment(context.Background(), value, output)
-		if err != nil {
+		if err := writeDiagnosticValue(context.Background(), &b, value, output); err != nil {
 			return "", err
-		}
-		if len(text) > 64 {
-			n := 64
-			for !utf8.RuneStart(text[n]) {
-				n--
-			}
-			b.WriteString(text[:n])
-			b.WriteString("...")
-		} else {
-			b.WriteString(text)
 		}
 	}
 	b.WriteString(").")
 	return b.String(), nil
+}
+
+func writeDiagnosticValue(ctx context.Context, b *strings.Builder, value sqltype.Value, output sqltype.OutputEnvironment) error {
+	if value.IsNull() {
+		b.WriteString("null")
+		return nil
+	}
+	text, err := value.Type().OutputWithEnvironment(ctx, value, output)
+	if err != nil {
+		return err
+	}
+	if len(text) > 64 {
+		n := 64
+		for !utf8.RuneStart(text[n]) {
+			n--
+		}
+		b.WriteString(text[:n])
+		b.WriteString("...")
+	} else {
+		b.WriteString(text)
+	}
+	return nil
 }

@@ -234,6 +234,8 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				kind = "i"
 			} else if relation.relationKind == compositeRelation {
 				kind = "c"
+			} else if relation.relationKind == partitionedRelation {
+				kind = "p"
 			}
 			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated)})
 		case 2618:

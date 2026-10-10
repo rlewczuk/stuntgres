@@ -29,6 +29,9 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
+	if hierarchyRelation(old) && !partitionDefaultReplayAllowed(e, op, auth, s) {
+		return fail(sqlError("0A000", "altering partition hierarchies is unsupported"))
+	}
 	if err := tableKind(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
 		return fail(err)
 	}
@@ -103,10 +106,15 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	original := e.storage[ref.Address]
-	if original == nil {
+	if original == nil && old.partition == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}
-	length, generation, ends := len(original.versions), original.generation, original.ends
+	var length int
+	var generation uint64
+	var ends *deletionRoot
+	if original != nil {
+		length, generation, ends = len(original.versions), original.generation, original.ends
+	}
 	next := *old
 	next.revision++
 	capacity := len(old.defaults)
@@ -133,7 +141,12 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.alterRelation(op.Context(), ref, &next, original, original, length, generation, ends); err != nil {
+	if original == nil {
+		err = stage.Replace(&next)
+	} else {
+		err = stage.alterRelation(op.Context(), ref, &next, original, original, length, generation, ends)
+	}
+	if err != nil {
 		return Result{}, err
 	}
 	if err := scope.acquireDefinitionProviders(stage); err != nil {

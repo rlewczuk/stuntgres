@@ -1074,6 +1074,8 @@ type expressionBinder struct {
 	checkConsumer              bool
 	indexConsumer              bool
 	indexPredicateConsumer     bool
+	partitionConsumer          string
+	checkDefinitionEquality    bool
 	generatedOwner             *relationDescriptor
 	visibilitySnapshot         bool
 	catalogSnapshot            bool // Demanded inquiry nodes after STRICT folding.
@@ -1358,6 +1360,27 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	}
 	if raw == nil {
 		return nil, fmt.Errorf("stuntgres: missing scalar expression")
+	}
+	if b.partitionConsumer != "" {
+		switch r := raw.(type) {
+		case parser.ColumnExpr:
+			if b.partitionConsumer == "partition bound" {
+				return nil, expressionError("0A000", "cannot use column reference in partition bound expression", r.Pos)
+			}
+		case parser.IndexSubqueryExpr:
+			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
+		case parser.SubqueryExpr:
+			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
+		case parser.AggregateExpr:
+			if r.Window == nil && r.Name != "row_number" {
+				for _, arg := range r.Args {
+					if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
+						return nil, err
+					}
+				}
+				return nil, b.partitionExpressionError("42803", "aggregate functions are not allowed in "+b.partitionContextPlural(), r.Pos)
+			}
+		}
 	}
 	var node BoundExpr
 	switch r := raw.(type) {

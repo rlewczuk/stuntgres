@@ -406,6 +406,8 @@ type querySource struct {
 	scope                *StatementScope
 	authority            *queryAuthority
 	sources              []*querySource
+	partitions           []*querySource
+	partitionEnds        []int
 	flat                 []sqltype.Value
 	flatWidth, flatCount int
 	materialized         bool
@@ -465,6 +467,12 @@ func (s *querySource) count() int {
 	if s.visible != nil {
 		return len(s.visible)
 	}
+	if s.partitions != nil {
+		if len(s.partitionEnds) == 0 {
+			return 0
+		}
+		return s.partitionEnds[len(s.partitionEnds)-1]
+	}
 	return len(s.committed) + len(s.own)
 }
 func (s *querySource) row(i int) []sqltype.Value {
@@ -521,6 +529,9 @@ func (s *querySource) row(i int) []sqltype.Value {
 	if s.singleton {
 		return nil
 	}
+	if s.partitions != nil {
+		return s.partitionRow(i)
+	}
 	return s.versionAt(s.rawIndex(i)).values
 }
 func (s *querySource) rawIndex(i int) int {
@@ -535,6 +546,9 @@ func (s *querySource) rawIndex(i int) int {
 func (s *querySource) versionAt(i int) rowVersion {
 	if i == absentQueryIndex {
 		return rowVersion{}
+	}
+	if s.partitions != nil {
+		return s.partitionVersion(i)
 	}
 	if i < len(s.committed) {
 		return s.committed[i]
@@ -559,6 +573,10 @@ func (s *querySource) close() {
 			child.close()
 		}
 	}
+	for _, child := range s.partitions {
+		child.close()
+	}
+	s.partitions, s.partitionEnds = nil, nil
 	s.flat = nil
 	s.windowValues, s.windowIndices = nil, nil
 	s.windowCount, s.windowWidth, s.window = 0, 0, false

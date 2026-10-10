@@ -366,7 +366,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
 	unique := len(b.relation.uniqueConstraints) != 0
-	if scope != nil {
+	if scope != nil && scope.partitionInsert == nil {
 		bound, err := scope.bindUniqueWrite(b.ref)
 		if err != nil {
 			return nil, err
@@ -439,6 +439,16 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				}
 			}
 		}
+		if scope != nil && scope.partitionInsert != nil {
+			if err := scope.op.session.Engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+				return nil, err
+			}
+			if err := scope.checkInsertUniqueRow(b.ref, row, rows); err != nil {
+				return nil, err
+			}
+			rows = append(rows, row)
+			continue
+		}
 		if err := evaluateGenerations(ctx, b.relation, row, &evaluation); err != nil {
 			return nil, err
 		}
@@ -447,7 +457,10 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, err
 			}
 			if row[j].IsNull() && !c.Nullable {
-				return nil, notNullError(schema, b.relation.name, c.Name, row, output)
+				if scope == nil {
+					return nil, fmt.Errorf("stuntgres: NOT NULL disclosure requires statement authority")
+				}
+				return nil, scope.op.session.token.owner.rowConstraintError(scope, b, schema, c.Name, "", row)
 			}
 		}
 		if len(b.relation.checkConstraints) != 0 {

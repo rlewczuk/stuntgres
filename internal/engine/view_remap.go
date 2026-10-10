@@ -11,15 +11,19 @@ import (
 func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int) (BoundExpr, error) {
 	return remapBoundExpressionWithQuery(node, ref, slots, func(root LogicalNode) (LogicalNode, error) {
 		return (&viewQueryRemapper{ref: ref, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).query(root)
-	})
+	}, nil)
 }
 
-func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
-	return remapScalarExpression(node, ref, ref, slots, queryMapper)
+func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error), rowRef func(ObjectRef) ObjectRef) (BoundExpr, error) {
+	if rowRef == nil {
+		rowRef = ref
+	}
+	return remapScalarExpression(node, ref, rowRef, slots, queryMapper)
 }
 
 // Row copies retain explicit object constants and external calls. Replacement
-// callers map both roles, whereas LIKE supplies a distinct owner-row mapper.
+// callers map both roles, whereas LIKE and partition inheritance supply a
+// distinct owner-row mapper.
 func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
 	if node == nil {
 		return nil, nil
@@ -365,7 +369,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				return old
 			}
 		}
-		next, err = remapBoundExpressionWithQuery(next, ref, nil, m.nested)
+		next, err = remapBoundExpressionWithQuery(next, ref, nil, m.nested, nil)
 		return next
 	}
 	expressions := func(old []BoundExpr) []BoundExpr {
@@ -645,6 +649,24 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		if predicate := d.sqlIndex.predicate; predicate != nil {
 			expression(predicate.definition)
 			expression(predicate.execution)
+		}
+	}
+	if d.partition != nil {
+		for _, key := range d.partition.keys {
+			changed = changed || key.usage.Type != typ(key.usage.Type)
+			if key.derived != nil {
+				expression(key.derived.definition)
+				expression(key.derived.execution)
+			}
+		}
+	}
+	if d.membership != nil {
+		for _, tuple := range [][]partitionDatum{d.membership.lower, d.membership.upper} {
+			for _, datum := range tuple {
+				if datum.kind == 0 {
+					changed = changed || datum.value.Type() != typ(datum.value.Type())
+				}
+			}
 		}
 	}
 	if d.view != nil {

@@ -186,6 +186,14 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			d = &copy
 			next.descriptors[address] = d
 		}
+		if hierarchyRelation(d) {
+			var err error
+			d, err = remapPartitionDescriptor(view, d, ref, typ, mapping, typesOnly, collation)
+			if err != nil {
+				return err
+			}
+			next.descriptors[address] = d
+		}
 		if d.view == nil {
 			continue
 		}

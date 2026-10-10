@@ -418,9 +418,10 @@ Semantic ALTER default diagnostics have no source Position; syntax errors retain
 their character positions and CREATE diagnostics retain their existing positions.
 Owner-only execution takes the existing AX grant and publishes one fenced
 metadata-only catalog stage. Qualified/quoted targets, optional COLUMN, ONLY,
-ONLY(...) and trailing `*` work for standalone tables. Graph participants reject
-the inheritance ALTER capability boundary above; PostgreSQL-only reference tests
-specify recursive SET/DROP and ONLY behavior without claiming native parity.
+ONLY(...) and trailing `*` work for standalone tables. Ordinary inheritance graph
+participants reject the inheritance ALTER capability boundary above; RANGE
+participants retain their partition-hierarchy ALTER boundary. PostgreSQL-only
+recursive/ONLY witnesses specify behavior without claiming native ALTER parity.
 Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
 Native explicit transactions exclude standalone SET/DROP DEFAULT, not selected
 ADD COLUMN/TYPE/nullability/DROP COLUMN lists; read-only ALTER fails25006 before lookup.
@@ -996,6 +997,164 @@ See [design](design/PG18-DDL-EXCLUSION.md). Shared feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`;
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`.
 
+## RANGE partition definitions — change note
+
+```sql
+CREATE TABLE events (tenant INTEGER, stamp INTEGER, payload TEXT)
+  PARTITION BY RANGE (tenant, stamp);
+CREATE TABLE early PARTITION OF events
+  FOR VALUES FROM (1, MINVALUE) TO (2, MAXVALUE);
+CREATE TABLE remaining PARTITION OF events DEFAULT
+  PARTITION BY RANGE (stamp);
+CREATE TABLE remaining_leaf PARTITION OF remaining DEFAULT;
+INSERT INTO events VALUES (1, 20, 'early'), (3, 20, 'default');
+SELECT tenant, stamp, payload FROM events ORDER BY tenant, stamp;
+```
+
+One to 32 column or supported immutable row-dependent expression keys use the
+existing scalar/coercion, collation and B-tree ordering authorities. Bounds are
+typed tuples, compared lexicographically; lower bounds are inclusive and upper
+bounds exclusive. MINVALUE/MAXVALUE are unbounded sentinels, not SQL NULL or
+floating infinity, and each sentinel requires the same sentinel in the remaining
+tuple positions. Any NULL key misses explicit ranges and can reach DEFAULT.
+Bound expressions are closed, parameter-free scalar expressions assigned through
+the existing key-type authority. Both tuple arities preflight before demand.
+Transformation proceeds lower then upper, left-to-right: each finite datum binds,
+coerces, evaluates once and rejects NULL before the next datum is transformed.
+Sentinel suffix validation follows transformation of that entire tuple, before
+the next tuple begins. Thus lower NULL precedes a malformed upper expression, and
+a lower nextval reached before a later failure remains consumed. Binding retains
+the admitted provider/authorization frontier; expression/provider evaluation runs
+outside Engine.mu. Table/catalog publication remains atomic, with no sequence
+rewinding or partially published child/auxiliary.
+An empty or overlapping bound fails before publication. DEFAULT is the live
+complement of explicit siblings; a new sibling validates every physical leaf
+under DEFAULT before installation. Nested members can have their own key.
+Empty-range Position uses the comparison's deciding component: a later differing
+component for reversed bounds, the last component for full finite equality, or the
+terminating component for matching infinity. Overlap diagnostics search a transient
+typed ordered endpoint projection of admitted siblings, not creation order or a
+second mutable hierarchy. Exclusive upper endpoints precede inclusive lower ties.
+The containing lower-endpoint partition, or the next partition in a gap, supplies
+the witness; the final endpoint-search comparison supplies the diagnostic
+component, with first-component Position for an equal lower endpoint.
+
+Explicit and effective key collations use the existing live catalog authority.
+Both produce the same deduplicated dependency on a nondefault provider. RESTRICT
+preserves its dependent hierarchy and data; CASCADE removes that hierarchy,
+indexes and root/descendant-owned sequences. Missing or inconsistent providers
+cannot publish. Native replacement remaps explicit key identity and comparison
+capability together before preserving exact live TEMP descriptors; source catalogs
+remain unchanged. Persistent keys using a TEMP collation reject portable Dump
+before output.
+
+Virtual roots and intermediate members own descriptors, not phantom heaps.
+Physical leaves own ordinary storage, local UNIQUE/PRIMARY KEY/EXCLUDE constraints and indexes.
+Direct and prepared INSERT, including INSERT SELECT, route all rows through one
+write stage. Late CHECK/NOT NULL/UNIQUE/EXCLUDE, bound, or routing failures publish no
+earlier destination rows. Explicit child targets must satisfy every ancestor
+bound. Omitted-column defaults come from the named INSERT target, not whichever
+leaf happens to receive the row. SELECT and stored views capture all physical
+descendant prefixes at one frontier; old cursors retain their captured topology.
+An explicitly named intermediate validates its own ancestor partition constraint
+before descending: failure identifies that actual logical INSERT target, not a
+leaf that was never reached. Ordinary root routing retains real physical-leaf
+constraint diagnostics.
+
+Ancestor, routed physical-leaf and ordinary NOT NULL/CHECK errors use the
+original named INSERT binding's disclosure authority, for VALUES and INSERT SELECT.
+Physical constraint errors retain the actual leaf's schema, table, column and
+constraint identity; unrelated leaf SELECT rights do not reveal omitted defaults.
+Table SELECT on the named target permits a whole-row Detail. Otherwise the
+physical-order union of explicitly supplied columns and named-target column SELECT
+privileges is labelled. Grant admission and permission capture remain protected by
+Engine.mu; effective-authority and provider output callbacks run outside that lock.
+Schema-wide table GRANT/REVOKE reaches current virtual roots, intermediate members
+and physical leaves through the existing ACL authority. It does not include
+sequences or grant subsequently created tables. Revoking root rights denies
+named-root scans and routed INSERT even when leaf rights differ. Missing-key
+expression details use PostgreSQL identifier quoting only after disclosure
+authorization. Destination schema CREATE admission precedes partition-parent
+ownership, retaining current authorization after waits and source positions.
+
+Existing `pg_tables` metadata includes virtual roots and
+intermediates with their genuine schema and owner, alongside physical leaves.
+
+PARTITION OF requires parent ownership and destination schema authority.
+Inherited columns retain their stored type identity, typmod and collation, and
+require fresh user-type USAGE. Cooked inherited defaults and CHECKs are reowned,
+not rendered and rebound through freshly qualified names. This does not require
+fresh type-schema USAGE solely for those inherited identities. Actual child
+defaults/CHECKs, qualified casts, nested keys and bound expressions use ordinary
+named-user binding and authorization. Children can strengthen NOT NULL and add
+inheritable CHECKs or override defaults without changing the row shape.
+An identical, explicitly named inherited CHECK merges with one stored constraint
+and a merging NOTICE; structural differences, including reordered or added
+arithmetic, retain the duplicate-constraint error instead of logical simplification.
+
+`pg_class` reports virtual members as `p` and physical leaves as `r`;
+column metadata, row types, local constraints/indexes and `pg_depend` retain real
+identities and membership dependencies. DROP removes a root's contained subtree
+atomically, or unlinks an explicitly dropped leaf from its surviving parent.
+External RESTRICT/CASCADE dependents retain the ordinary dependency policy.
+Manual sequence OWNED BY can target a live virtual root/intermediate column using
+the existing same-owner, same-schema and stable-attribute checks. This is a real
+AUTO metadata dependency, not a virtual heap or new serial/identity declaration;
+the symbolic ownership, inquiry, remapping and subtree DROP closure are preserved.
+Native UPDATE, DELETE, row marks, explicit hierarchy LOCK inside a transaction,
+unsafe ALTER and virtual CREATE INDEX/REINDEX fail with explicit0A000 boundaries.
+An outside-transaction LOCK retains its ordinary25P01 admission error.
+ON CONFLICT and MERGE also retain explicit hierarchy boundaries, including direct
+physical members: native0A000 `ON CONFLICT on partition hierarchies is unsupported`
+and `merging partition hierarchies is unsupported`. Normal analysis and target
+rights precede rejection; no omitted-default, source/route demand or write is
+published. Ordinary ON CONFLICT skip/revalidation/affected counts remain unchanged.
+SQL cursor SELECT reuses the same complete hierarchy provider and metadata.
+Virtual UNIQUE/PRIMARY KEY/EXCLUDE and parsed generated/identity/serial constraint
+combinations fail execution with0A000
+`partitioned table constraint combination is unsupported`, with optional fields
+empty. Integrated PRIMARY KEY syntax is accepted by the ordinary parser and
+utility Prepare; physical leaves retain ordinary local constraint/index producers.
+LIST/HASH, ATTACH/DETACH and row movement are not implemented. Existing ordinary
+INHERITS definitions do not permit a partitioned inheritance child or inheritance
+from a virtual partitioned parent or physical partition member.
+Nested partition definitions inside CREATE SCHEMA are an adjacent unsupported
+combination: native execution reports0A000 `partition definitions in CREATE SCHEMA are unsupported`
+at the nested PARTITION token before staging any schema element or demanding bounds.
+Ordinary CREATE SCHEMA elements and top-level RANGE definitions are unchanged.
+Temporary partition definitions are likewise explicitly bounded: native execution
+reports0A000 `temporary partition definitions are unsupported` at the first
+PARTITION token before structural/provider staging. Destination persistence is
+resolved first, so qualified pg_temp forms cannot silently create ordinary heaps.
+This does not change ordinary TEMP table/ON COMMIT behavior or native replacement
+retention of live TEMP table descriptors, stores, generators and index roots.
+Permanent hierarchy CREATE inside an explicit native transaction remains the
+ordinary0A000 utility boundary. Physical TEMP-provider retirement can still remove
+dependent persistent hierarchies through existing scopeless lifecycle staging.
+The whole contained and owned closure is removed atomically, while peer TEMP
+roots and already-retained cursors survive. Outer-COMMIT private staging preserves
+the caller's original write/delete roots until installation and clears removed
+leaf storage, indexes and generators without taking SQL locks through a nil scope.
+
+
+Dump orders parents before children and explicit siblings before DEFAULT, emits
+typed symbolic bounds and local child definition differences, and preserves
+owners, data and scalar dependencies. Restore uses isolated, fenced staging.
+Only that trusted importer may replay whitelisted deferred SET DEFAULT and open
+a differently owned parent through its authenticated bootstrap principal.
+The named child owner and type/expression authority are never elevated; ordinary
+SQL, even from a superuser, cannot use those private exceptions. Failed or canceled
+replay leaves the target unchanged. A same-engine hierarchy catalog replacement
+reowns the complete coupled catalog expression graph before atomic installation.
+Actual emitted SQL is also replayed unmodified on PostgreSQL in the reference
+tests; cross-owner replay explicitly provisions temporary inherited role membership
+and importing schema rights there, then revokes and removes them.
+
+Shared feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0`.
+The former table-core smoke now lives in the same dual-mode reference area:
+`RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'`.
+
 ## UNIQUE constraints — change note
 
 CREATE TABLE supports `[CONSTRAINT name] UNIQUE [NULLS [NOT] DISTINCT]`
@@ -1247,7 +1406,8 @@ removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
 participate in selected TYPE/nullability/DROP COLUMN/constraint lists in explicit
 transactions. Pass order is DROP, TYPE, SET NOT NULL, ADD NOT NULL. Mixing these
 with standalone DEFAULT, SET SCHEMA or rename is unsupported. Graph shape changes
-and partition propagation remain unsupported.
+and recursive ALTER mutation/propagation through inheritance or partition
+hierarchies remain unsupported; their supported CREATE-time definitions are distinct.
 The table's effective owner or superuser is required; unlike DROP TABLE, schema
 ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
 waits for existing readers/writers; utility Prepare is metadata-only. Cancellation

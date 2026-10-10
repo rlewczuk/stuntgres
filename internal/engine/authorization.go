@@ -621,6 +621,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		kind = "sequence"
 	}
+	if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
+		kind = "view"
+	}
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
 		kind = "materialized view"
 	}

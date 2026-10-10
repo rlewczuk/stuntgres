@@ -34,7 +34,7 @@ func sequenceKind(d *relationDescriptor) error {
 	return nil
 }
 func tableKind(d *relationDescriptor, operation string) error {
-	if d.relationKind == tableRelation {
+	if d.relationKind == tableRelation || d.relationKind == partitionedRelation {
 		return nil
 	}
 	if d.relationKind == compositeRelation {
@@ -160,7 +160,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if !ok {
 		return ObjectAddress{}, ErrCatalogReplaced
 	}
-	if r.relationKind != tableRelation {
+	if r.relationKind != tableRelation && r.relationKind != partitionedRelation {
 		return ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.name))
 	}
 	if r.owner != d.owner {
