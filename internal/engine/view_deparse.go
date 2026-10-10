@@ -376,7 +376,11 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog Ca
 			if err != nil {
 				return "", err
 			}
-			text += boundClause + bound.name + " " + part
+			if s.Bounds.WithTies && bound.name == "LIMIT" {
+				text += boundClause + "FETCH FIRST (" + part + ") ROWS WITH TIES"
+			} else {
+				text += boundClause + bound.name + " " + part
+			}
 		}
 	}
 	for _, mark := range s.Locking {

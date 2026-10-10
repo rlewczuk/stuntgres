@@ -276,6 +276,9 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		return nil, err
 	}
 	if bounds != nil {
+		bounds.finishTies(root)
+	}
+	if bounds != nil {
 		bounds.querySchema, bounds.child = root.Schema(), root
 		root = bounds
 	}

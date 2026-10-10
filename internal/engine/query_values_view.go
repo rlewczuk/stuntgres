@@ -121,7 +121,11 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog CatalogRead, sourc
 			if err != nil {
 				return "", err
 			}
-			text += " " + bound.name + " " + part
+			if source.Bounds.WithTies && bound.name == "LIMIT" {
+				text += " FETCH FIRST (" + part + ") ROWS WITH TIES"
+			} else {
+				text += " " + bound.name + " " + part
+			}
 		}
 	}
 	return text, nil

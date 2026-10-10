@@ -8,9 +8,9 @@ import (
 )
 
 func TestQueryLimitRequiredClose(t *testing.T) {
-	for _, bounded := range []bool{false, true} {
+	for _, mode := range []string{"all", "one", "ties"} {
 		for _, primary := range []bool{false, true} {
-			t.Run(map[bool]string{false: "all", true: "one"}[bounded]+map[bool]string{false: "/close veto", true: "/primary preserved"}[primary], func(t *testing.T) {
+			t.Run(mode+map[bool]string{false: "/close veto", true: "/primary preserved"}[primary], func(t *testing.T) {
 				e, query, input := queryCoreFixture(t, "SELECT id FROM t")
 				project := query.Root.(*projectNode)
 				cleanup := errors.New("required inner close")
@@ -22,8 +22,17 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				}
 				bridge := &querySource{ref: input.ref, nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
 				var child LogicalNode = &sourceNode{querySchema: project.Schema(), ref: input.ref}
-				if bounded {
-					child = &limitNode{querySchema: project.Schema(), child: child, count: queryLimitBound(t, e, 1)}
+				if mode != "all" {
+					limit := &limitNode{querySchema: project.Schema(), child: child, count: queryLimitBound(t, e, 1)}
+					if mode == "ties" {
+						comparison, err := sqltype.BindOrdering(project.Schema()[0].Usage)
+						if err != nil {
+							t.Fatal(err)
+						}
+						limit.withTies = true
+						limit.peerKeys = []sortKey{{slot: 0, cache: -1, comparison: comparison}}
+					}
+					child = limit
 				}
 				outer := &projectNode{querySchema: project.Schema(), child: child, expressions: project.expressions}
 				rows, n, err := finalizeQuery(context.Background(), outer, bridge, nil)

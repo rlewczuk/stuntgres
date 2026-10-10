@@ -1274,13 +1274,17 @@ See [distinct projected rows](docs/QUERIES.md#distinct-projected-rows--change-no
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
 
 SELECT, shared INSERT SELECT and decorated VALUES support LIMIT/OFFSET and
-FETCH FIRST/NEXT ROW/ROWS ONLY. Counts use BIGINT assignment conversion; zero
+FETCH FIRST/NEXT ROW/ROWS ONLY or WITH TIES. WITH TIES requires local ORDER BY,
+retains complete-key peers (including equal NULLs), and forbids SKIP LOCKED.
+Finite ties consumes the first nonpeer lookahead; its effects/locks can occur
+without returning that row. Counts use BIGINT assignment conversion; zero
 suppresses producing children without bypassing typing, authorization or bound
 errors. Nonblocking views/filters/joins produce only demanded occurrences;
 sorting/grouping remain blockers. Local rowmarks settle at effect frontiers,
 not across a local count boundary. See [count and demand](docs/QUERIES.md#limit-offset-and-fetch--change-note-changelog).
-Feature checks: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimitSmoke$' VERBOSE=0`
-and `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLimitMigratedLockSmoke$' VERBOSE=0`.
+Feature checks: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryTies(FeatureSmoke|PersistenceSmoke)$' VERBOSE=0`
+and `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLimitMigrated(Smoke|LockSmoke)$' VERBOSE=0`.
+Run these same selectors with `REFERENCE=1` for the pinned PostgreSQL oracle.
 
 Change note: SELECT (including existing joins, persistent scalar views and INSERT
 SELECT sources) accepts repeated adjacent `FOR KEY SHARE`, `FOR SHARE`,

@@ -280,10 +280,29 @@ actual cursor; generic row helpers alone do not prove typed Scan or sizing.
 Table-backed and no-FROM SELECT, stored view definitions, the shared INSERT SELECT
 producer and standalone/FROM/decorated VALUES accept `LIMIT expression`,
 `LIMIT ALL`, `OFFSET expression [ROW | ROWS]`, and
-`FETCH FIRST | NEXT [count] ROW | ROWS ONLY`. Omitted FETCH count is1.
-OFFSET and LIMIT/FETCH may appear in either order, after ORDER BY. One admitted
-locking clause may precede or follow the count decoration.
-WITH TIES and comma-style `LIMIT n,m` remain excluded.
+`FETCH FIRST | NEXT [count] ROW | ROWS {ONLY | WITH TIES}`. Omitted FETCH count is1.
+OFFSET and LIMIT/FETCH may appear in either order, after ORDER BY. The complete
+locking clause list may precede or follow the count decoration.
+Comma-style `LIMIT n,m` remains excluded.
+
+Change note: WITH TIES returns every additional peer of the last quota row,
+using equality of the **complete resolved ORDER BY** with its owned type and
+collation semantics. Two NULL keys are peers; NULL and nonNULL are not. Hidden,
+computed, alias and ordinal keys retain the existing ORDER cache (volatile keys
+are not reevaluated). Payload/projection equality does not define peers.
+ORDER BY must belong to this query, not an ordered subquery/view. Missing ORDER
+gives42601 at WITH; SKIP LOCKED is incompatible, while FOR UPDATE/NOWAIT is legal.
+Keys1,2,2,3 with count2 return1,2,2. OFFSET2/count1 returns one2, not the skipped peer.
+Raw NULL (including grouped NULL) count gives2201W under ties; parenthesized
+expressions/casts and parameter counts evaluating NULL remain unlimited.
+Raw-NULL SELECT analysis occurs at Prepare; native CREATE VIEW also analyzes eagerly
+at Prepare, while PostgreSQL defers that utility analysis to Execute. Both reject
+the same raw-NULL count with the complete2201W diagnostic.
+
+Eligible presence-only EXISTS queries with a proven positive literal count retain
+the analyzed bounds/ORDER dependency graph but bypass its bounds and peer/cache
+production. Ignored computed or volatile ORDER keys are not evaluated merely to
+answer presence. Zero and parameterized counts keep ordinary bounds decisions.
 
 ```sql
 SELECT id FROM t ORDER BY id OFFSET 1 FETCH NEXT 2 ROWS ONLY;
@@ -329,6 +348,13 @@ frontier, so OFFSET consumes their effects; an ORDER-referenced target shares
 its existing cache instead of drawing again. Public execution remains eager and
 atomic: `Rows.Next` never resumes SQL work or exposes a successful prefix.
 
+ONLY stops without pulling a tail row. Finite positive WITH TIES instead pulls
+the first nonpeer before stopping, so that excluded lookahead can execute source
+projection effects or acquire a rowmark. Errors/cancellation on it still veto
+the complete result; no successful prefix is published. A fresh projected
+nextval over keys1,2,2,3/count2 returns draws1,2,3 and leaves the next draw5.
+Count0 pulls no child; all-peer EOF needs no additional occurrence.
+
 The selected time functions follow this same demand boundary: now() and
 transaction_timestamp() share a transaction instant, statement_timestamp() is
 one command instant, and clock_timestamp()/timeofday() draw per demanded
@@ -350,6 +376,11 @@ requalified-away candidates refill without spending count. See
 Unmarked view siblings retain execution-local occurrence and lineage identity
 for replacement recheck without inheriting an otherwise absent lock mode.
 Grouped sibling outputs are frozen values, not aliases of physical input rows.
+Locked replacements keep the original sorted rank, but WITH TIES compares current
+replacement keys. Hidden computed peer keys refresh through the existing ORDER
+cache owner once per shared cache identity, under the same dependency/volatility
+rules as visible keys. Peer comparison itself never evaluates expressions.
+Ordinary ONLY does not acquire new hidden-key replacement demand.
 
 INSERT retains common source typing, all-source ACL and destination validation
 even at0, including existing destination constant/default simplification. A
@@ -358,11 +389,18 @@ LIMIT0; zero does not suppress an admission failure. Only selected destination
 rows undergo runtime assignment/default/constraint work, and one complete batch
 reaches WriteStage. Stored bounds persist typed
 definitions/dependencies, survive renames and native Dump/Restore, and may
-canonicalize FETCH to LIMIT and ALL to NULL. Held public exports remain stable
-through later execution, Close and Reset/Restore.
+canonicalize FETCH ONLY to LIMIT and ALL to NULL. WITH TIES retains
+`FETCH FIRST (<count>) ROWS WITH TIES` in both structural SQL and view definition
+presentation, so replay and Dump/Restore preserve peer semantics. Held public
+exports remain stable through later execution, Close and Reset/Restore.
+Exported definitions are checked by executable replay and independently expected
+peer rows, not identical whitespace, aliases or ORDER ordinal presentation.
+Cancellation witnesses wait for database/sql's asynchronous PostgreSQL cursor
+closure before testing sticky Next; native eager cursors reject immediately.
+Canceled-before-execution queries are checked on both backends and cause no effects.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
-Independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryLimit' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(Ties(FeatureSmoke|PersistenceSmoke)|LimitMigrated(Smoke|LockSmoke))$' VERBOSE=0`.
+Independent oracle: run the same command with `REFERENCE=1`.
 
 ## Query labels and relation aliases — diagnostic fidelity change note
 

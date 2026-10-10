@@ -437,6 +437,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err != nil {
 		return nil, err
 	}
+	if bounds != nil {
+		bounds.finishTies(root)
+	}
 	root = b.scheduleQueryProjection(root, projection, bounds != nil)
 	if len(s.Locking) != 0 {
 		admission := b.queryLockAdmission.queries[s]

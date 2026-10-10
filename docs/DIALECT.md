@@ -1393,15 +1393,20 @@ Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 
 Table and ordinary no-FROM SELECT, standalone/FROM VALUES, shared INSERT
 SELECT/decorated VALUES and stored views accept LIMIT/ALL, OFFSET [ROW/ROWS] and FETCH
-FIRST/NEXT [count] ROW/ROWS ONLY. OFFSET and LIMIT/FETCH accept either order;
+FIRST/NEXT [count] ROW/ROWS ONLY or WITH TIES. OFFSET and LIMIT/FETCH accept either order;
 FETCH defaults to1. Bounds use BIGINT assignment conversion and evaluate once,
 OFFSET first. NULL OFFSET is0, NULL LIMIT/ALL unlimited; negative bounds give
 2201X/2201W. LIMIT0 skips producing children but retains full analysis, source/
 destination authorization, metadata and bound diagnostics. Nonblocking predicates/
 views/joins are demand-driven; Sort/aggregate and local count are effect/lock
-frontiers. WITH TIES and comma LIMIT remain excluded.
+frontiers. WITH TIES requires this query's ORDER BY and forbids SKIP LOCKED;
+all complete-key peers at the quota boundary are retained using type/collation
+comparison, with NULLs equal. Finite ties pulls the first nonpeer before stopping.
+Raw NULL count under ties gives2201W; runtime expression/parameter NULL is unlimited.
+Comma LIMIT remains excluded.
 See [demand and persistence](QUERIES.md#limit-offset-and-fetch--change-note-changelog).
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(Ties(FeatureSmoke|PersistenceSmoke)|LimitMigrated(Smoke|LockSmoke))$' VERBOSE=0`.
+Use the identical selector with `REFERENCE=1` as well.
 
 
 Table SELECT and shared INSERT SELECT also support scalar/multiple GROUP BY

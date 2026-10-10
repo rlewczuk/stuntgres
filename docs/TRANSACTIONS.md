@@ -840,8 +840,16 @@ Unmarked sibling aggregation never consumes another sibling's pending marks.
 Public results are still complete before exposure; public Next performs no lock
 wait, recheck, predicate or view production.
 
-Feature checks: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimitSmoke$' VERBOSE=0`
-and `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLimitMigratedLockSmoke$' VERBOSE=0`.
+Finite WITH TIES also holds the first nonreturned nonpeer lookahead; count0
+still holds no producing rows. SKIP LOCKED and WITH TIES cannot be combined.
+After a qualifying row-lock replacement, ties uses the replacement's complete
+ORDER keys (physical or computed, including hidden keys) while preserving the
+frozen sort rank. Initial keys1,2,3,4 with quota2 and a blocked third row changed
+from3 to2 return IDs1,2,3 after the updater commits; the following nonpeer remains
+lookahead-only. Existing shared ORDER cache identity owns computed-key refresh.
+Feature checks: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLimitMigrated(Smoke|LockSmoke)$' VERBOSE=0`
+and `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryTies(FeatureSmoke|PersistenceSmoke|Locks)$' VERBOSE=0`.
+Run both selectors with `REFERENCE=1` too.
 
 
 REPEATABLE READ KEY SHARE can lock a live chain only if no UNIQUE key datum

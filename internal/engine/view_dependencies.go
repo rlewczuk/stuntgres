@@ -396,6 +396,16 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					return fmt.Errorf("stuntgres: invalid stored view bound")
 				}
 			}
+			if n.withTies {
+				if n.count == nil || len(n.peerKeys) == 0 {
+					return fmt.Errorf("stuntgres: invalid stored WITH TIES keys")
+				}
+				for _, key := range n.peerKeys {
+					if key.expression == nil || key.cache < -1 || key.cache < 0 && (key.slot < 0 || key.slot >= len(n.Schema())) {
+						return fmt.Errorf("stuntgres: invalid stored WITH TIES slot")
+					}
+				}
+			}
 		case *sourceNode:
 			if n.occurrence < 0 || n.occurrence >= len(seen) {
 				return fmt.Errorf("stuntgres: invalid view source occurrence")

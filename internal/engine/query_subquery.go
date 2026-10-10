@@ -488,12 +488,9 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 		copy.child = child
 		return &copy
 	case *limitNode:
-		child := presenceQueryInput(n.child)
-		if child == n.child {
-			return node
-		}
 		copy := *n
-		copy.child = child
+		copy.child = presenceQueryInput(n.child)
+		copy.presenceOnly = true
 		return &copy
 	default:
 		return node

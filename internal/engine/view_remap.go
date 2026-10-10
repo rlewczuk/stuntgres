@@ -358,7 +358,11 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		next = &valuesNode{querySchema: schema, rows: rows, viewOrdinal: n.viewOrdinal, identityOrderDemand: append([]bool(nil), n.identityOrderDemand...)}
 	case *limitNode:
-		next = &limitNode{querySchema: schema, child: child(n.child), offset: expression(n.offset), count: expression(n.count)}
+		copy := &limitNode{querySchema: schema, child: child(n.child), offset: expression(n.offset), count: expression(n.count), withTies: n.withTies, presenceOnly: n.presenceOnly}
+		if err == nil {
+			copy.finishTies(copy.child)
+		}
+		next = copy
 	case *evaluationNode:
 		next = &evaluationNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), base: n.base}
 	case *rowLockNode:

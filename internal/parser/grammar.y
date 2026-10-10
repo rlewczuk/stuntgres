@@ -1064,7 +1064,7 @@ insert_input: insert_select {
 insert_select: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
-query_values: VALUES query_rows order bounds { $$=&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos} } ;
+query_values: VALUES query_rows order bounds { if !sqllex.(*lexer).validateTies($4,$3,nil) {return 1};$$=&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos} } ;
 query_rows: query_row { $$=[][]Expr{$1} } | query_rows ',' query_row { $$=append($1,$3) } ;
 query_row: '(' query_cells ')' { sqllex.(*lexer).queryRowEnd=$3.pos.Offset+1;$$=$2 } ;
 query_cells: query_cell { $$=[]Expr{$1} } | query_cells ',' query_cell { $$=append($1,$3) } ;
@@ -1267,7 +1267,7 @@ query_set: query_intersection { $$=$1 }
  | query_set EXCEPT set_modifier query_intersection { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
-query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 } ;
+query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if !sqllex.(*lexer).validateTies($1.Bounds,$1.Order,$1.Locking) {return 1};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 } ;
 select_query: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
@@ -1481,11 +1481,13 @@ bounds: /* empty */ { $$=nil } | nonempty_bounds { $$=$1 } ;
 nonempty_bounds: limit_clause { $$=$1 }
  | offset_clause { $$=$1 }
  | limit_clause offset_clause { $1.Offset=$2.Offset;$$=$1 }
- | offset_clause limit_clause { $1.Count=$2.Count;$$=$1 } ;
+ | offset_clause limit_clause { $2.Offset=$1.Offset;$$=$2 } ;
 limit_clause: LIMIT limit_value { $$=&QueryBounds{Count:$2} }
  | LIMIT limit_value ',' target_or { sqllex.(*lexer).failDiagnostic("42601","LIMIT #,# syntax is not supported","Use separate LIMIT and OFFSET clauses.",$1.pos.Offset);return 1 }
  | FETCH fetch_direction fetch_count count_rows ONLY { $$=&QueryBounds{Count:$3} }
- | FETCH fetch_direction count_rows ONLY { $$=&QueryBounds{Count:LiteralExpr{Value:Value{Kind:IntegerValue,Integer:1,Pos:$1.pos}}} } ;
+ | FETCH fetch_direction count_rows ONLY { $$=&QueryBounds{Count:LiteralExpr{Value:Value{Kind:IntegerValue,Integer:1,Pos:$1.pos}}} }
+ | FETCH fetch_direction fetch_count count_rows WITH KW_U { if $6.text!="ties" {sqllex.(*lexer).syntax($6);return 1};$$=&QueryBounds{Count:$3,WithTies:true,WithPosition:$5.pos} }
+ | FETCH fetch_direction count_rows WITH KW_U { if $5.text!="ties" {sqllex.(*lexer).syntax($5);return 1};$$=&QueryBounds{Count:LiteralExpr{Value:Value{Kind:IntegerValue,Integer:1,Pos:$1.pos}},WithTies:true,WithPosition:$4.pos} } ;
 limit_value: scalar_projection { $$=$1 } | ALL { $$=LiteralExpr{Value:Value{Kind:NullValue,Pos:$1.pos}} } ;
 offset_clause: OFFSET scalar_projection optional_count_rows { $$=&QueryBounds{Offset:$2} } ;
 fetch_direction: KW_U { if $1.text!="first" && $1.text!="next" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;

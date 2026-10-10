@@ -709,6 +709,8 @@ type SetQuery struct {
 // QueryBounds retains decoration presence even for LIMIT ALL/NULL.
 type QueryBounds struct {
 	Offset, Count Expr
+	WithTies      bool
+	WithPosition  Position
 }
 
 // WindowSpec preserves the input-key namespace and specification caret owner.

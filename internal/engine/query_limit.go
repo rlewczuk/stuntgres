@@ -11,13 +11,16 @@ type limitNode struct {
 	querySchema
 	child         LogicalNode
 	offset, count BoundExpr
+	withTies      bool
+	peerKeys      []sortKey
+	presenceOnly  bool // Eligible EXISTS retains analysis, not bounds/peer production.
 }
 
 func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiterals bool) (*limitNode, error) {
 	if raw == nil {
 		return nil, nil
 	}
-	n := &limitNode{}
+	n := &limitNode{withTies: raw.WithTies}
 	var err error
 	old := b.aggregateClause
 	defer func() { b.aggregateClause = old }()
@@ -28,6 +31,11 @@ func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiter
 	}
 	b.aggregateClause = "LIMIT"
 	n.count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral, captureLiterals)
+	if err == nil && raw.WithTies {
+		if literal, ok := raw.Count.(parser.LiteralExpr); ok && literal.Value.Kind == parser.NullValue {
+			return nil, sqlError("2201W", "row count cannot be null in FETCH FIRST ... WITH TIES clause")
+		}
+	}
 	return n, err
 }
 

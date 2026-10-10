@@ -163,6 +163,9 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 }
 
 func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexedStage, error) {
+	if n.presenceOnly {
+		return openQueryNode(ctx, state, n.child)
+	}
 	offset, _, err := queryBoundValue(ctx, state, n.offset, "OFFSET")
 	if err != nil {
 		return indexedStage{}, err
@@ -194,8 +197,12 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 		return child, nil
 	}
 	out := producingStage(&child, n.Schema())
+	var boundary []sqltype.Value
+	if finite && n.withTies {
+		boundary = make([]sqltype.Value, len(n.peerKeys))
+	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		if finite && count == 0 {
+		if finite && count == 0 && !n.withTies {
 			return false, child.Close()
 		}
 		for {
@@ -207,9 +214,21 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 				offset--
 				continue
 			}
+			if finite && count == 0 {
+				peer, err := queryTiesPeer(ctx, &child, i, n.peerKeys, boundary, state.input)
+				if err != nil {
+					return false, err
+				}
+				if !peer {
+					return false, child.Close()
+				}
+			}
 			retainOccurrence(out, &child, i)
-			if finite {
+			if finite && count > 0 {
 				count--
+				if count == 0 && n.withTies {
+					captureQueryTiesBoundary(&child, i, n.peerKeys, boundary)
+				}
 			}
 			return true, ctx.Err()
 		}

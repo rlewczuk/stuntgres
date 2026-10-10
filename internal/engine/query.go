@@ -61,6 +61,7 @@ type sortKey struct {
 	slot, cache      int
 	desc, nullsFirst bool
 	output           bool // This cache slot supplies a visible projection.
+	peerDemand       bool // WITH TIES needs this cache identity after locked replacement.
 }
 type sortNode struct {
 	querySchema

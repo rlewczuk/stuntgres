@@ -11,7 +11,7 @@ func TestReferenceQueryLimitRawMetadata(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO meta VALUES(1,12.30,'abc')", 1))
 	for _, backend := range p.backends() {
 		for _, prepared := range []bool{false, true} {
-			for _, suffix := range []string{"LIMIT 1", "LIMIT 0", "OFFSET 99"} {
+			for _, suffix := range []string{"LIMIT 1", "LIMIT 0", "OFFSET 99", "FETCH FIRST ROW WITH TIES", "FETCH FIRST 0 ROWS WITH TIES", "OFFSET 99 FETCH FIRST ROW WITH TIES"} {
 				func() {
 					rows, closeQuery, err := transactionQuery(p.ctx, backend.db, "SELECT id AS ident,n,s,id+1 AS computed FROM meta ORDER BY id "+suffix, prepared)
 					if closeQuery != nil {
@@ -75,7 +75,7 @@ func TestReferenceQueryLimitRawMetadata(t *testing.T) {
 						}
 					}
 					want := 0
-					if suffix == "LIMIT 1" {
+					if suffix == "LIMIT 1" || suffix == "FETCH FIRST ROW WITH TIES" {
 						want = 1
 					}
 					if rows.Err() != nil || count != want {
