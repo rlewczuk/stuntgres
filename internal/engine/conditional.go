@@ -237,7 +237,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if node.ResultUsage().Type == target.Type {
 		return node, nil
 	}
-	info, err := collatedInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), node)
+	info, err := b.collatedInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), node)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +339,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	if comparison.SessionDependent() {
 		properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
 	}
-	info, err := collatedInfo(b.info(usage, raw.Pos, properties), args...)
+	info, err := b.collatedInfo(b.info(usage, raw.Pos, properties), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -422,12 +422,12 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 	info := b.info(usage.Type.Usage(), raw.Pos, properties)
 	info.usage.Typmod = usage.Typmod
 	for _, arm := range arms {
-		info, err = collatedInfo(info, arm.result)
+		info, err = b.collatedInfo(info, arm.result)
 		if err != nil {
 			return nil, err
 		}
 	}
-	info, err = collatedInfo(info, otherwiseNode)
+	info, err = b.collatedInfo(info, otherwiseNode)
 	if err != nil {
 		return nil, err
 	}

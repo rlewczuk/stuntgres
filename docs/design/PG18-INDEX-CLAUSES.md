@@ -81,11 +81,13 @@ Adaptation uses immutable inline values without text I/O, storage mutation or
 allocation per comparison. All remaining owned comparisons delegate the existing
 provider. These rules do not alter ordinary signed SQL ORDER BY or TEXT ordering.
 
-Admitted collations are default100, C950, POSIX951, pg_c_utf8 811 and
-pg_unicode_fast6411. They share existing deterministic UTF8 byte/codepoint
-comparators but retain distinct identities. Pattern classes use the owned byte
-or padding comparator only under these admitted collations; coincident output
-is not a promise of pattern-family inequality/search acceleration. Source evidence:
+Admitted collations include default100, C950, POSIX951, pg_c_utf8 811,
+pg_unicode_fast6411 and genuine registered user identities backed by the same
+validated libc/builtin capabilities. They share existing deterministic UTF8
+byte/codepoint comparators but retain distinct catalog identities; arbitrary OIDs
+and unavailable provider data are not admitted. Pattern classes use the owned
+byte or padding comparator only under these capabilities; coincident output is
+not a promise of pattern-family inequality/search acceleration. Source evidence:
 [released casts](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_cast.dat),
 [classes](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_opclass.dat),
 [pattern comparator](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/varlena.c),

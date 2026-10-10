@@ -437,7 +437,7 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 			return spec, err
 		}
 		if expr.CollationIndeterminate() {
-			_, err := bindDistinctGrouping(expr)
+			_, err := b.bindDistinctGrouping(expr)
 			return spec, err
 		}
 		comparison, err := sqltype.BindOrdering(expr.ResultUsage())
@@ -471,7 +471,7 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 		if err != nil {
 			return spec, err
 		}
-		grouping, err := bindDistinctGrouping(expr)
+		grouping, err := b.bindDistinctGrouping(expr)
 		if err != nil {
 			return spec, err
 		}

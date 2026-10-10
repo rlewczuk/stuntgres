@@ -28,8 +28,10 @@ func pgDependPinned(catalog CatalogRead, address ObjectAddress) bool {
 			return !ok || relation.relationKind == catalogRelation
 		}
 		return !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsDomain())
-	case *collationDescriptor, *conversionDescriptor:
-		return true // Only fixed builtin providers are represented.
+	case *collationDescriptor:
+		return d.seeded()
+	case *conversionDescriptor:
+		return true
 	case *relationDescriptor:
 		return d.relationKind == catalogRelation
 	}
@@ -69,6 +71,10 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			return nil, err
 		}
 		switch d := descriptor.(type) {
+		case *collationDescriptor:
+			if !d.seeded() {
+				add(d.Address(), d.Namespace(), 'n')
+			}
 		case *typeDescriptor:
 			if pgDependPinned(catalog, d.Address()) {
 				continue
@@ -83,6 +89,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(d.Address(), d.Namespace(), 'n')
 				if d.typ.IsDomain() {
 					add(d.Address(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.DomainBase().Type.ID())}, 'n')
+					add(d.Address(), ObjectAddress{ClassID: CollationClassID, ObjectID: OID(d.typ.DomainBase().Collation.ID)}, 'n')
 				}
 			}
 		case *relationDescriptor:

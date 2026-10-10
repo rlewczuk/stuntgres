@@ -28,6 +28,12 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"abbrev", sqltype.Text}, {"utc_offset", sqltype.Interval}, {"is_dst", sqltype.Bool}}},
+		{3456, "pg_collation", []struct {
+			name string
+			typ  sqltype.ID
+		}{
+			{"oid", sqltype.Oid}, {"collname", sqltype.Name}, {"collnamespace", sqltype.Oid}, {"collowner", sqltype.Oid}, {"collprovider", sqltype.Char}, {"collisdeterministic", sqltype.Bool}, {"collencoding", sqltype.Int4}, {"collcollate", sqltype.Text}, {"collctype", sqltype.Text}, {"colllocale", sqltype.Text}, {"collicurules", sqltype.Text}, {"collversion", sqltype.Text},
+		}},
 		{2605, "pg_cast", []struct {
 			name string
 			typ  sqltype.ID
@@ -95,6 +101,9 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if spec.oid == 3456 {
+				d.columns[i].Nullable = i >= 7
+			}
 			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 {
 				d.columns[i].Nullable = false
 			}
@@ -126,6 +135,9 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 3456 {
+		return capturePGCollation(ctx, catalog, ref, source)
+	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
 	}

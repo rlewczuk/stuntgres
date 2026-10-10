@@ -254,7 +254,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	}
 	typ := n.Schema()[0].Usage.Type
 	destination := *typ
-	mapped, err := remapViewQuery(project, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := remapViewQuery(New().CatalogRead(), project, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == typ {
 			return &destination
 		}

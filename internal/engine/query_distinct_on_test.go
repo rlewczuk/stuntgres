@@ -21,7 +21,7 @@ func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	root, err := remapViewQuery(query.Root, func(r ObjectRef) ObjectRef { return r }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	root, err := remapViewQuery(New().CatalogRead(), query.Root, func(r ObjectRef) ObjectRef { return r }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil {
 		t.Fatal(err)
 	}

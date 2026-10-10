@@ -137,7 +137,9 @@ func newRelationLockManager(e *Engine) *relationLockManager {
 func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if ref.owner != m.engine || ref.id == 0 || ref.epoch == 0 || ref.attachment == nil || ref.session.owner != m.engine || ref.session.id == 0 {
+	if ref.owner != m.engine || ref.id == 0 || ref.epoch == 0 || ref.attachment == nil || ref.session.owner != m.engine ||
+		ref.session.id == 0 && (ref.session.private == nil || ref.attachment.session != ref.session.private || ref.session.private.token != ref.session) ||
+		ref.session.id != 0 && ref.session.private != nil {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
 	if ref.epoch < m.epoch {

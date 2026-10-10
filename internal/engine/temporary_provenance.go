@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/sqltype"
+
 // Stored definitions retain their immutable reference manifests across native
 // replacement. This is contextual authority, never general ObjectRef validity.
 // Object addresses are nonreused; physical namespace tokens cannot be revived.
@@ -35,6 +37,18 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		// generation. Native replacement retains these builtin descriptors, not
 		// user-defined/domain generations under this exception.
 		return ref.Address.SubID == 0 && !target.typ.IsUserDefined() && !target.typ.IsDomain() && !(target.typ.IsArray() && target.typ.Element().IsDomain())
+	case *collationDescriptor:
+		if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || namespace.temporary.owner != view.owner || view.state.descriptors[consumer.Address()] != consumer {
+			return false
+		}
+		if capability, err := target.usage(); err != nil || !capability.Valid() {
+			return false
+		}
+		if target.seeded() {
+			return pgDependPinned(view, ref.Address) && (collationProvider{}).Validate(view, target) == nil
+		}
+		ns, ok := view.state.descriptors[target.Namespace()].(*namespaceDescriptor)
+		return ok && ns.temporary == namespace.temporary && (collationProvider{}).Validate(view, target) == nil
 	}
 	return false
 }
@@ -79,6 +93,41 @@ func (r scalarRenderer) recordStoredType(view CatalogRead, ref ObjectRef) {
 	}
 	for _, old := range r.capturedChecks {
 		if old.ref.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old.ref) {
+			r.record(old.ref)
+			return
+		}
+	}
+	r.record(ref)
+}
+
+func storedCollationReferenceValid(view CatalogRead, consumer *relationDescriptor, ref ObjectRef, capability sqltype.CollationRef) bool {
+	if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || OID(capability.ID) != ref.Address.ObjectID || !storedReferenceEpochValid(view, consumer, ref) {
+		return false
+	}
+	target, ok := view.Descriptor(ref.Address)
+	if !ok {
+		return false
+	}
+	collation, ok := target.(*collationDescriptor)
+	if !ok {
+		return false
+	}
+	actual, err := collation.usage()
+	return err == nil && actual == capability
+}
+
+// The concrete node Usage has already been checked against the live provider.
+// Retained definitions must serialize the same lawful captured manifest epoch,
+// rather than manufacture a fresh reference that disagrees with that manifest.
+func (r scalarRenderer) recordStoredCollation(view CatalogRead, ref ObjectRef, capability sqltype.CollationRef) {
+	for _, old := range r.capturedManifest {
+		if old.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old, capability) {
+			r.record(old)
+			return
+		}
+	}
+	for _, old := range r.capturedChecks {
+		if old.ref.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old.ref, capability) {
 			r.record(old.ref)
 			return
 		}

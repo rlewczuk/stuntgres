@@ -46,7 +46,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
 		}
-		rebound, changed, err := retagBoundTypes(selected, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+		rebound, changed, err := retagBoundTypes(New().CatalogRead(), selected, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
@@ -86,7 +86,7 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacements[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+	rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

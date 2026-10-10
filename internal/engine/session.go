@@ -14,8 +14,9 @@ import (
 
 type SessionID uint64
 type SessionToken struct {
-	owner *Engine
-	id    SessionID
+	owner   *Engine
+	id      SessionID
+	private *Session
 }
 
 func (t SessionToken) ID() SessionID { return t.id }
@@ -141,6 +142,18 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	if start.ID == 0 {
 		return nil, errors.New("stuntgres: zero session identity")
 	}
+	return e.startSession(ctx, start, false)
+}
+
+// Private maintenance sessions have genuine resources and leases, but a separate
+// pointer identity domain that cannot collide with the driver's public IDs.
+func (e *Engine) startSession(ctx context.Context, start SessionStart, private bool) (*Session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if start.ID == 0 && !private {
+		return nil, errors.New("stuntgres: zero session identity")
+	}
 	e.mu.Lock()
 	authenticated := start.Authenticated
 	if authenticated == (PrincipalRef{}) {
@@ -159,7 +172,10 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{token: SessionToken{e, start.ID}, countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{token: SessionToken{owner: e, id: start.ID}, countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	if private {
+		s.token.private = s
+	}
 	s.databaseName, _ = database.Text()
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(ctx, true)
@@ -444,6 +460,11 @@ func (s *Session) end() {
 		s.resources[kind] = nil
 		s.mu.Unlock()
 		err := entry.owner.EndSession(s.token, s.reason)
+		if kind == Transaction {
+			// The transaction callback has returned and released its admission
+			// lock. Maintenance never runs inside a SessionResource callback.
+			err = errors.Join(err, s.token.owner.endTemporaryCollations(s))
+		}
 		s.mu.Lock()
 		s.removed[entry.handle] = true
 		if err != nil {

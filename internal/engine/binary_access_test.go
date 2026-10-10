@@ -88,7 +88,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			t.Fatal(err)
 		}
 		original := binaryExpression{expressionInfo: expressionInfo{usage: types[result].Usage()}, plan: p, args: args}
-		rebound, changed, err := retagBoundTypes(original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
 		}

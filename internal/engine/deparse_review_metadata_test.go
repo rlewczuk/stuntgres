@@ -88,7 +88,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal("unknown and concrete NULL conflated")
 		}
 		target := New()
-		retagged, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, _ := target.CatalogRead().LookupType(d.ID())
 			return typ
 		})

@@ -2299,13 +2299,25 @@ equality with PostgreSQL or before Restore. Rediscover after Restore and reapply
 the session search_path. This does not require a pg_namespace query source,
 OID/regclass comparison or explicit regclass-to-oid cast.
 
-The native fixed identity surface is bounded: all25 seeded type descriptors,
-seven fixed collations and128 fixed conversions. Collation eligibility uses UTF8
-encoding6/exact-before-fallback inside each namespace; conversion shadowing uses
-name, not encoding pair. Inquiry-only identities do not expand comparison or
-encoding conversion execution, DDL or system catalog query sources.
+The native seeded identity surface includes all25 type descriptors, seven fixed
+collations and128 fixed conversions. Registered user collation definitions also
+participate in visibility and the read-only pg_collation query source. Collation
+eligibility uses UTF8 encoding6/exact-before-fallback inside each namespace;
+conversion shadowing uses name, not encoding pair. Inquiry-only seed identities
+do not expand comparison or encoding conversion execution.
+
+User metadata/version inquiry uses the same captured catalog authority:
+```sql
+SELECT collname,collprovider,collencoding,collversion,
+       pg_collation_actual_version(oid) AS actual
+FROM pg_catalog.pg_collation
+WHERE collname = 'user_collation';
+```
+NULL recorded/actual libc C/POSIX versions remain NULL; registered builtin actual
+version is1. pg_collation is read-only. Discover backend-local OIDs rather than
+assuming allocator equality or preserving generated numbers across Restore.
 See [dialect details and boundaries](DIALECT.md#search-path-visibility-inquiries--change-note).
-Public smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
+Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCollationLegacyVisibility$' VERBOSE=0`.
 Real PostgreSQL18.0 evidence: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceVisibilityInquiry.*$' VERBOSE=0`.
 
 ## Integer arithmetic

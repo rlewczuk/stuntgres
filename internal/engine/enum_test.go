@@ -131,7 +131,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 		if typ == wrapped.typ {
 			destination = newWrapped
 		}
-		mapped, err := reownDomainDatum(value, destination)
+		mapped, err := reownDomainDatum(value, destination, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

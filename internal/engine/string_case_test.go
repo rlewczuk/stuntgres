@@ -35,7 +35,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 			plan:           plan, textual: [4]bool{true}, syntax: parser.OrdinaryStringSyntax,
 			args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "ß")}},
 		}
-		rebound, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
 				return replacement
 			}
@@ -90,7 +90,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	if err != nil || textErr != nil || s != "i" || !reflect.DeepEqual(order, []int{0}) || node.ResultUsage() != usage || node.ResultUsage().Typmod != -1 {
 		t.Fatal("once-only selected case", s, order, err, textErr)
 	}
-	info, err := collatedInfo(expressionInfo{usage: usage}, node)
+	info, err := collatedInfo(New().CatalogRead(), expressionInfo{usage: usage}, node)
 	if err != nil || info.usage.Collation.ID != 811 || info.collationConflict {
 		t.Fatal("nested authority", info, err)
 	}

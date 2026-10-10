@@ -10,7 +10,7 @@ import (
 // are reminted together. Syntax and frozen layouts are immutable and shared.
 func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int) (BoundExpr, error) {
 	return remapBoundExpressionWithQuery(node, ref, slots, func(root LogicalNode) (LogicalNode, error) {
-		return remapViewQuery(root, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+		return (&viewQueryRemapper{ref: ref, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).query(root)
 	})
 }
 
@@ -153,33 +153,13 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		next = n
 	case similarExpression:
 		n.left, n.right = child(n.left), child(n.right)
-		if err == nil {
-			var collation expressionInfo
-			collation, err = collatedInfo(expressionInfo{usage: n.left.ResultUsage(), pos: n.pos}, n.left, n.right)
-			if err == nil {
-				n.provider, err = sqltype.BindSimilar(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), n.usage, collation.usage.Collation, collation.collationConflict)
-			}
-		}
 		next = n
 	case similarEscapeExpression:
 		n.pattern, n.escape = child(n.pattern), child(n.escape)
-		if err == nil {
-			n.expressionInfo, err = collatedInfo(n.expressionInfo, n.pattern, n.escape)
-			if err == nil {
-				n.provider, err = sqltype.BindSimilarEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), n.usage)
-			}
-		}
 		next = n
 	case similarSubstringExpression:
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
-		}
-		if err == nil {
-			n.expressionInfo, err = collatedInfo(n.expressionInfo, n.args[:]...)
-			if err == nil {
-				usages := [3]sqltype.Usage{n.args[0].ResultUsage(), n.args[1].ResultUsage(), n.args[2].ResultUsage()}
-				n.provider, err = sqltype.BindSimilarSubstring(usages, n.usage, n.provider.WrapperContext())
-			}
 		}
 		next = n
 	case comparisonExpression:
@@ -303,14 +283,21 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	return next, err
 }
 
-func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor) (LogicalNode, error) {
-	return (&viewQueryRemapper{ref: ref, typ: typ}).query(node)
+func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+	var collation collationRemapper
+	if len(collations) != 0 {
+		collation = collations[0]
+	}
+	return (&viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}).query(node)
 }
 
 type viewQueryRemapper struct {
-	ref    func(ObjectRef) ObjectRef
-	typ    func(*sqltype.Descriptor) *sqltype.Descriptor
-	frames map[uint32]LogicalNode
+	ref            func(ObjectRef) ObjectRef
+	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
+	frames         map[uint32]LogicalNode
+	collation      collationRemapper
+	catalog        CatalogRead
+	referencesOnly bool
 }
 
 func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
@@ -337,12 +324,26 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	schema := append(querySchema(nil), node.Schema()...)
 	for i := range schema {
 		schema[i].Usage.Type = typ(schema[i].Usage.Type)
+		if m.collation != nil {
+			capability, err := m.collation(schema[i].Usage.Collation)
+			if err != nil {
+				return nil, err
+			}
+			schema[i].Usage.Collation = capability
+		}
 		if schema[i].OriginTable != 0 {
 			origin := ref(ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(schema[i].OriginTable)}})
 			schema[i].OriginTable = uint32(origin.Address.ObjectID)
 		}
 	}
 	var err error
+	usage := func(old sqltype.Usage) sqltype.Usage {
+		old.Type = typ(old.Type)
+		if m.collation != nil && err == nil {
+			old.Collation, err = m.collation(old.Collation)
+		}
+		return old
+	}
 	child := func(old LogicalNode) LogicalNode {
 		if err != nil {
 			return old
@@ -355,10 +356,14 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		if err != nil {
 			return old
 		}
-		next, _, failure := retagBoundTypesWithQuery(old, typ, nil)
-		if failure != nil {
-			err = failure
-			return old
+		next := old
+		if !m.referencesOnly {
+			var failure error
+			next, _, failure = retagBoundTypesWithQuery(m.catalog, old, typ, nil, m.collation)
+			if failure != nil {
+				err = failure
+				return old
+			}
 		}
 		next, err = remapBoundExpressionWithQuery(next, ref, nil, m.nested)
 		return next
@@ -517,50 +522,50 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			copy.calls[i] = call
 			switch p := call.provider.(type) {
 			case countProvider:
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case booleanAggregateProvider:
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case intervalAvgProvider:
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case numericAvgProvider:
 				p.input = typ(p.input)
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case floatAvgProvider:
 				p.input = typ(p.input)
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case integralSumProvider:
 				p.input = typ(p.input)
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case numericSumProvider:
 				p.input = typ(p.input)
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case floatSumProvider:
 				p.input = typ(p.input)
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case anyValueProvider:
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case extremaProvider:
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				if err == nil {
 					p.comparison, err = sqltype.BindComparison(p.usage.Type, p.usage.Type)
 				}
 				copy.calls[i].provider = p
 			case stringAggregateProvider:
-				p.usage.Type = typ(p.usage.Type)
+				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case *arrayAggregateProvider:
 				provider := *p
 				provider.argument = typ(p.argument)
-				provider.usage.Type = typ(p.usage.Type)
+				provider.usage = usage(p.usage)
 				copy.calls[i].provider = &provider
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
@@ -656,233 +661,6 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 
 func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
 	return e.reownCatalogExpressions(next, mapping, false)
-}
-
-func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress, typesOnly bool) error {
-	ref := func(old ObjectRef) ObjectRef {
-		if old == (ObjectRef{}) || typesOnly {
-			return old
-		}
-		address := old.Address
-		address.SubID = 0
-		if target, ok := mapping[address]; ok {
-			target.SubID = old.Address.SubID
-			old.Address = target
-		}
-		old.owner = e.owner
-		old.Epoch = next.epoch
-		return old
-	}
-	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if old == nil {
-			return nil
-		}
-		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.ID())}
-		if target, ok := mapping[address]; ok {
-			address = target
-		}
-		if d, ok := next.descriptors[address].(*typeDescriptor); ok {
-			return d.typ
-		}
-		return old
-	}
-	for address, descriptor := range next.descriptors {
-		d, ok := descriptor.(*relationDescriptor)
-		if !ok {
-			continue
-		}
-		if typesOnly && !catalogExpressionTypesChanged(d, typ) {
-			continue
-		}
-		if len(d.defaults) != 0 {
-			copy := *d
-			copy.defaults = make(map[int32]columnDefault, len(d.defaults))
-			for attribute, definition := range d.defaults {
-				node, _, err := retagBoundTypes(definition.expression, typ)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				definition.expression = node
-				definition.dependencies = append([]ObjectRef(nil), definition.dependencies...)
-				for i := range definition.dependencies {
-					definition.dependencies[i] = ref(definition.dependencies[i])
-				}
-				copy.defaults[attribute] = definition
-			}
-			d = &copy
-			next.descriptors[address] = d
-		}
-		if len(d.generations) != 0 {
-			copy := *d
-			copy.generations = make(map[int32]columnGeneration, len(d.generations))
-			for attribute, definition := range d.generations {
-				node, _, err := retagBoundTypes(definition.expression, typ)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				definition.expression = node
-				planned, _, err := retagBoundTypes(definition.planned, typ)
-				if err != nil {
-					return err
-				}
-				planned, err = remapBoundExpression(planned, ref, nil)
-				if err != nil {
-					return err
-				}
-				definition.planned = planned
-				definition.dependencies = append([]ObjectRef(nil), definition.dependencies...)
-				for i := range definition.dependencies {
-					definition.dependencies[i] = ref(definition.dependencies[i])
-				}
-				copy.generations[attribute] = definition
-			}
-			d = &copy
-			next.descriptors[address] = d
-		}
-		if len(d.checkConstraints) != 0 {
-			copy := *d
-			copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
-			for i := range copy.checkConstraints {
-				c := &copy.checkConstraints[i]
-				node, _, err := retagBoundTypes(c.expression, typ)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				c.expression = node
-				c.dependencies = append([]expressionDependency(nil), c.dependencies...)
-				for j := range c.dependencies {
-					c.dependencies[j].ref = ref(c.dependencies[j].ref)
-				}
-			}
-			d = &copy
-			next.descriptors[address] = d
-		}
-		if d.sqlIndex != nil {
-			copy := *d
-			definition := *d.sqlIndex
-			definition.keys = append([]indexKey(nil), definition.keys...)
-			for i, key := range definition.keys {
-				if key.derived == nil {
-					continue
-				}
-				derived := *key.derived
-				node, _, err := retagBoundTypes(derived.definition, typ)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				derived.definition = node
-				node, _, err = retagBoundTypes(derived.execution, typ)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				derived.execution = node
-				derived.dependencies = append([]ObjectRef(nil), derived.dependencies...)
-				for j := range derived.dependencies {
-					derived.dependencies[j] = ref(derived.dependencies[j])
-				}
-				definition.keys[i].derived = &derived
-			}
-			if predicate := definition.predicate; predicate != nil {
-				p := *predicate
-				node, _, err := retagBoundTypes(p.definition, typ)
-				if err != nil {
-					return err
-				}
-				p.definition, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				node, _, err = retagBoundTypes(p.execution, typ)
-				if err != nil {
-					return err
-				}
-				p.execution, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				p.dependencies = append([]ObjectRef(nil), p.dependencies...)
-				for j := range p.dependencies {
-					p.dependencies[j] = ref(p.dependencies[j])
-				}
-				definition.predicate = &p
-			}
-			copy.sqlIndex = &definition
-			d = &copy
-			next.descriptors[address] = d
-		}
-		if d.view == nil {
-			continue
-		}
-		definition := *d.view
-		// Namespace metadata has only labels, occurrence/frame slots and stable
-		// attribute SubIDs. It is immutable and has no catalog-generation refs
-		// or type pointers; the remapped leaves/tree supply its new identities.
-		definition.sources = append([]viewLeaf(nil), definition.sources...)
-		for i := range definition.sources {
-			definition.sources[i].ref = ref(definition.sources[i].ref)
-		}
-		if len(d.view.literals) != 0 {
-			definition.literals = make(map[viewLiteralPath]literalExpression, len(d.view.literals))
-			for path, literal := range d.view.literals {
-				node, _, err := retagBoundTypes(literal, typ)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				definition.literals[path] = node.(literalExpression)
-			}
-		}
-		if len(d.view.castUsages) != 0 {
-			definition.castUsages = make(map[viewLiteralPath]sqltype.Usage, len(d.view.castUsages))
-			for path, usage := range d.view.castUsages {
-				usage.Type = typ(usage.Type)
-				definition.castUsages[path] = usage
-			}
-		}
-		definition.sequenceRefs = make(map[int]ObjectRef, len(d.view.sequenceRefs))
-		for offset, old := range d.view.sequenceRefs {
-			definition.sequenceRefs[offset] = ref(old)
-		}
-		definition.dependencies = append([]expressionDependency(nil), definition.dependencies...)
-		for i := range definition.dependencies {
-			definition.dependencies[i].ref = ref(definition.dependencies[i].ref)
-		}
-		root, err := remapViewQuery(definition.query.Root, ref, typ)
-		if err != nil {
-			return err
-		}
-		query := *definition.query
-		query.Root = root
-		definition.query = &query
-		definition.frames, definition.queries = collectQueryFrames(root)
-		copy := *d
-		copy.view = &definition
-		next.descriptors[address] = &copy
-	}
-	return nil
 }
 
 // Imported rules have identities outside the descriptor address map. Reserve

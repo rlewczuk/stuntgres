@@ -443,6 +443,8 @@ func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 		return d.owner, d.acl, d.columnACL
 	case *typeDescriptor:
 		return d.owner, d.acl, nil
+	case *collationDescriptor:
+		return d.owner, ACLValue{}, nil
 	}
 	return PrincipalRef{}, ACLValue{}, nil
 }
@@ -574,6 +576,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		}
 		if d.Kind() == NamespaceObject {
 			kind = "schema"
+		} else if d.Kind() == CollationObject {
+			kind = "collation"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 			kind = "sequence"
 		}
@@ -633,7 +637,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return nil
 		}
-	case *collationDescriptor, *conversionDescriptor:
+	case *conversionDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
@@ -684,7 +688,7 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return nil
 		}
-	case *collationDescriptor, *conversionDescriptor:
+	case *conversionDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)

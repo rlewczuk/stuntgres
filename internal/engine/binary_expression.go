@@ -243,7 +243,7 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 	if name == "convert" || name == "convert_from" || name == "convert_to" {
 		info.properties.Volatility = max(info.properties.Volatility, Stable)
 	}
-	inputInfo, err := collatedInfo(b.info(b.typ(sqltype.Text).Usage(), pos, properties), args...)
+	inputInfo, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), pos, properties), args...)
 	if err != nil {
 		return nil, err
 	}

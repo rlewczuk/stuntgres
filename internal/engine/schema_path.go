@@ -254,7 +254,15 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, nil
 	}
 	ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
-	if ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
+	foreignTemporary := ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token)
+	if foreignTemporary && kind == collationLookup {
+		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		if err != nil {
+			return namespaceSelection{}, err
+		}
+		foreignTemporary = !actor.Superuser
+	}
+	if foreignTemporary {
 		if kind == relationLookup {
 			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.name))
 		}
@@ -288,6 +296,10 @@ func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKin
 	return false, nil
 }
 func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
+	return e.creationNamespaceWithSystem(auth, name, false)
+}
+
+func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser.ObjectName, system bool) (ObjectRef, error) {
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
 		return ObjectRef{}, err
 	}
@@ -323,7 +335,7 @@ func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectNam
 		}
 		a = path[0]
 	}
-	if a.ObjectID == PGCatalogNamespaceOID {
+	if !system && a.ObjectID == PGCatalogNamespaceOID {
 		return ObjectRef{}, sqlError("0A000", "system schema creation is unsupported")
 	}
 	return ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}, nil

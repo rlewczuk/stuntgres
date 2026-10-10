@@ -8,10 +8,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func bindDistinctGrouping(expression BoundExpr) (sqltype.Grouping, error) {
+func (b *expressionBinder) bindDistinctGrouping(expression BoundExpr) (sqltype.Grouping, error) {
 	if expression.CollationIndeterminate() {
 		left, right, position := expression.ImplicitCollationConflict()
-		d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, builtinCollationName(left.ID), builtinCollationName(right.ID)), position).(*sqlstate.Error)
+		d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
 		d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
 		return sqltype.Grouping{}, d
 	}

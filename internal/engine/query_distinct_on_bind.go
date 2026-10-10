@@ -78,7 +78,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	}
 	families := make([]sqltype.Grouping, len(on))
 	for i, k := range on {
-		families[i], err = bindDistinctGrouping(k.expression)
+		families[i], err = b.bindDistinctGrouping(k.expression)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok {
 				copy := *d

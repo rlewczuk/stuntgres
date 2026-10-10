@@ -929,7 +929,7 @@ declarations, visible values, NULL and empty tables; retained cursors keep their
 original descriptor/data, and failed staged Restore does not replace the target.
 
 PostgreSQL's physical64-byte padded representation, binary
-`namerecv`/`namesend`, non-C collations and wire serving are external-only.
+`namerecv`/`namesend`, unregistered locale providers and wire serving are external-only.
 Bounded NAME[] textual input/storage is described in the domain section above;
 general array operations are not implied.
 Binary NAME receive rejects64 bytes with42622 `identifier too long`, rather
@@ -1637,8 +1637,8 @@ these casts on either side within the existing comparison/logical surface.
 BPCHAR/BPCHAR and BPCHAR/VARCHAR comparisons ignore ASCII tails; BPCHAR/TEXT
 trims only BPCHAR, while TEXT/VARCHAR tails remain significant. An unknown string
 literal next to BPCHAR follows BPCHAR semantics. Ordering uses the same nonnull
-providers, with UTF8/C byte ordering only: no locale-general, ICU, collation or
-general string-function claims.
+providers, with deterministic UTF8 byte/codepoint ordering under seeded and
+registered user collations: no locale-general or ICU comparison is invented.
 
 Expression ORDER BY validates the bounded provider/collation before reading rows.
 REGCLASS's internal canonical OID text compares as unsigned32 numeric identity,
@@ -1712,6 +1712,10 @@ does not normalize. These deterministic collations retain byte/codepoint
 comparison, BPCHAR tail semantics, immutable expression authority and stored
 Dump/Restore identity. NonNULL indeterminate case collation produces42P22; strict
 NULL bypasses classification.
+Registered user collations inherit their admitted immutable ASCII/Simple/Full
+capability, while preserving their own identity through domains/arrays, coercions,
+defaults, CHECKs, views and native Dump/Restore. Provider-equivalent objects are
+not identity-equivalent and still produce ordinary collation conflicts.
 
 
 Normalization data is pinned to Unicode **16.0.0** in
@@ -2569,7 +2573,7 @@ code point; BYTEA `_` advances one octet, so c3a9 matches `__`, not `_`.
 ILIKE folds ASCII A–Z only under default/C/POSIX; no Unicode folding is implied.
 Supported implicit column collation identities remain distinct and conflicting
 C/POSIX matching produces demanded42P22. Explicit scalar COLLATE also supports
-pg_c_utf8/pg_unicode_fast; annotations override implicit identity or indeterminacy,
+pg_c_utf8/pg_unicode_fast and registered user identities; annotations override implicit identity or indeterminacy,
 and distinct explicit identities fail analysis with42P21. Plain LIKE remains
 case-sensitive under the Unicode identities; effective Unicode-collation ILIKE
 is rejected with positioned native0A000. Explicit C on either operand can

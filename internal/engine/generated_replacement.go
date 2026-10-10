@@ -56,7 +56,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return err
 	}
 	if op == nil {
-		session, err := stage.StartSession(ctx, SessionStart{ID: 1})
+		session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: PrincipalRef{stage, 10}})
 		if err != nil {
 			return err
 		}

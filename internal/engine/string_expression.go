@@ -60,7 +60,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 		// Search/prefix demand input collation despite a noncollatable result.
 		inputInfo = b.info(b.typ(sqltype.Text).Usage(), pos, p)
 	}
-	inputInfo, err := collatedInfo(inputInfo, args...)
+	inputInfo, err := b.collatedInfo(inputInfo, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -130,6 +130,27 @@ There is at most one Transaction attachment. It delegates EndSession to future `
 
 Terminal cleanup after lease/Detach drain is **Transaction → Cursors → PreparedSQL → Temporary → AdvisorySession → Settings → Authorization** for remaining owners. All callbacks run outside Driver, Engine and lifecycle locks and may not reenter Acquire/Attach/Detach/Done or synchronously WaitEnd. They must complete in-process resource release without external I/O. Scheduling/blocking algorithms remain feature-owned. Continue after errors, collect with `errors.Join` (including prior Detach callback errors), then release admission/remove the exact token/mark Ended. WaitEnd cancellation stops that waiter only. Admission remains counted through drain and callbacks.
 
+**Collation cleanup amendment:** after the Transaction resource callback returns
+and releases its admission lock, the elected runner may perform bounded owned
+temporary-collation cleanup before completing the remaining resources. This is
+not callback reentry into the ending session. The runner captures exact owned
+namespace addresses, full tokens and child addresses, then uses a genuinely
+initialized engine-private Session with a separate pointer-token discriminator
+(public numeric IDs unchanged). It authenticates the stable actual bootstrap
+PrincipalRef10 through normal RoleRead/Login checks and uses boot defaults, never
+the ending session's settings or external default-provider callbacks.
+Normal Acquire/StartStatement, command gate, real implicit TxRef/ticket and
+relation ACCESS EXCLUSIVE locks precede one CatalogStage publication containing
+namespace, all exact children and durable dependency/storage projections.
+Descriptor/token and namespace-child completeness fences reject concurrent changes;
+ordinary epoch/generation exhaustion/conflict errors propagate. No lifecycle lock
+is held over lock admission; no fake operation/owner/ticket or generic-delete
+fallback is allowed. Finish/Done and private physical end complete before the
+original runner stores joined errors and marks Ended. The no-collation sequence
+fast path is unchanged; private maintenance cannot create TEMP or recursively
+enter this runner path. Borrower release and public/default callbacks remain
+unchanged.
+
 Detach and terminal sweep share an exact-entry claim, so only one invokes each transferred owner. Old tokens cannot affect a newer session or database incarnation. Close/termination/abandonment races elect one runner and one admission release. Initialization failure after partial transfer uses the same ordering; owners whose Attach failed remain caller-owned. RequestEnd during initialization cancels/drains its private lease before cleanup, preventing late publication or callbacks against actively initialized state.
 
 ### Clean close versus abandoned state

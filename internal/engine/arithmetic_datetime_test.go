@@ -80,7 +80,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Rebinding must own the target registry result, not a source operand descriptor.
-	rebound, changed, err := retagBoundTypes(node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := retagBoundTypes(target.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(old.ID())
 		return next
 	})

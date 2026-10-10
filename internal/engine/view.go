@@ -26,6 +26,7 @@ type viewDefinition struct {
 	namespaces        []viewNamespace
 	barrier, invoker  bool
 	rule              OID
+	collations map[viewLiteralPath]uint32
 }
 
 // Persistent leaves contain identities and frozen layout, never live storage or
@@ -260,7 +261,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	var oid, rule OID
 	if old != nil {
-		if err := checkViewPrefix(old.columns, b.query.Root.Schema()); err != nil {
+		if err := checkViewPrefix(auth.catalog, old.columns, b.query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -345,7 +346,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	return Result{}, err
 }
 
-func checkViewPrefix(old, next []ColumnDescriptor) error {
+func checkViewPrefix(catalog CatalogRead, old, next []ColumnDescriptor) error {
 	if len(next) < len(old) {
 		return sqlError("42P16", "cannot drop columns from view")
 	}
@@ -367,7 +368,7 @@ func checkViewPrefix(old, next []ColumnDescriptor) error {
 			return sqlError("42P16", fmt.Sprintf(`cannot change data type of view column "%s" from %s to %s`, column.Name, oldType, newType))
 		}
 		if a.Collation.ID != b.Collation.ID {
-			return sqlError("42P16", fmt.Sprintf(`cannot change collation of view column "%s" from "%s" to "%s"`, column.Name, builtinCollationName(a.Collation.ID), builtinCollationName(b.Collation.ID)))
+			return sqlError("42P16", fmt.Sprintf(`cannot change collation of view column "%s" from "%s" to "%s"`, column.Name, collationName(catalog, a.Collation.ID), collationName(catalog, b.Collation.ID)))
 		}
 	}
 	return nil

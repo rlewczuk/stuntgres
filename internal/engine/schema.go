@@ -218,6 +218,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	case *parser.DropDomain:
 		domainMode = s.Mode
 		cascade = s.Mode == parser.DropCascade
+	case *parser.DropCollation:
+		domainMode = s.Mode
+		cascade = s.Mode == parser.DropCascade
 	case *parser.DropSchema:
 		cascade = s.Cascade
 	}
@@ -252,6 +255,11 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err == nil {
+		for _, descriptor := range stage.descriptors {
+			if ns, ok := descriptor.(*namespaceDescriptor); ok && ns.temporary == op.session.token {
+				op.session.temporaryNamespace = ns.address
+			}
+		}
 		if cascade {
 			details := stage.schemaCascadeNames
 			if len(details) > 0 {
@@ -307,6 +315,18 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	switch s := stmt.(type) {
 	case *parser.CreateComposite:
 		if err = e.stageCreateCompositeLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.CreateCollation:
+		if err = e.stageCreateCollationLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterCollation:
+		if err = e.stageAlterCollationLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropCollation:
+		if err = e.stageDropCollationLocked(op, auth, stage, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateEnum:
@@ -449,7 +469,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			schemas = append(schemas, d)
 		}
 		var dependent []*relationDescriptor
-		var domains []*typeDescriptor
+		var domains []Descriptor
 		for _, d := range auth.catalog.state.descriptors {
 			if !seen[d.Namespace()] {
 				continue
@@ -464,6 +484,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				dependent = append(dependent, r)
 			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.state.descriptors[t.owningRelation].(*relationDescriptor).relationKind == compositeRelation) {
 				domains = append(domains, t)
+			} else if c, ok := d.(*collationDescriptor); ok {
+				domains = append(domains, c)
 			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type
 			} else {

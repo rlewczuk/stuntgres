@@ -119,7 +119,7 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	}
 	properties := mergeExpressionProperties(value.Properties(), separator.Properties())
 	properties.StageDependent = true
-	info, err := collatedInfo(b.info(value.ResultUsage().Type.Usage(), raw.Pos, properties), value, separator)
+	info, err := b.collatedInfo(b.info(value.ResultUsage().Type.Usage(), raw.Pos, properties), value, separator)
 	if err != nil {
 		return nil, err
 	}

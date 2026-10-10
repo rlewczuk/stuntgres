@@ -221,7 +221,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal("view child identity/slot remap", mappedColumn)
 		}
 		types := formatUnitTypes()
-		retained, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+		retained, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(retained, changed, err)
 		}

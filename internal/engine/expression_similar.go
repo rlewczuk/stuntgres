@@ -121,7 +121,7 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 	if err != nil {
 		return nil, err
 	}
-	collation, err := collatedInfo(b.info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
+	collation, err := b.collatedInfo(b.info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr
 			return nil, err
 		}
 	}
-	info, err := collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, likeProperties(pattern, escape)), pattern, escape)
+	info, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, likeProperties(pattern, escape)), pattern, escape)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operand
 			wrapper = true
 		}
 	}
-	info, err := collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, props), args[:]...)
+	info, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, props), args[:]...)
 	if err != nil {
 		return nil, err
 	}

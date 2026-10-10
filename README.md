@@ -1263,10 +1263,18 @@ lookup and OID inference/coercion. Missing child columns therefore take preceden
 over missing explicit schemas, including in over-limit direct/prepared calls.
 Native inquiries cover all25 seeded types, seven fixed PostgreSQL18 collations
 and all128 fixed conversions. Comparison supports default/C/POSIX plus
-`pg_c_utf8`/`pg_unicode_fast`; `ucs_basic`/`unicode` remain inquiry-only,
-and no encoding conversion executes.
-Dump/Restore rebuilds these immutable identities without inventing owners or
-ACLs, including empty restores and imports into an independent Driver.
+`pg_c_utf8`/`pg_unicode_fast` and independently owned user collations backed by
+the same registered libc/builtin semantics. Raw `ucs_basic`/`unicode` seeds remain
+inquiry-only; no encoding conversion executes. CREATE/ALTER/DROP COLLATION,
+read-only pg_collation and pg_collation_actual_version expose truthful metadata.
+Dump emits legal pinned-seed metadata deltas and lossless user definitions;
+Reset restores canonical seed metadata and genuine bootstrap ownership. Restore
+rebuilds actual owners/capabilities, including independent Driver imports.
+Explicit pg_temp collation creation follows physical session lifetime; durable
+consumers cascade atomically at physical owner end, not pool return. Temporary
+definitions are omitted from portable dumps; durable temporary-provider references
+fail before output. Controls preserve live target TEMP, including imported OID
+collisions; SET SCHEMA into/out of TEMP remains0A000.
 Inquiry catalog/path capture is demand-driven, including nested views,
 RETURNING and transformed ALTER CHECK validation; unrelated statements do not
 retain a visibility snapshot. Stored inquiry CHECKs support compact/pretty
@@ -1278,9 +1286,12 @@ support RETURNING. Discover backend-local numeric relation identities by project
 requiring exactly two distinct positive candidate OIDs, one visible candidate,
 and the same identity bag after reversal. No pg_namespace query source or
 explicit regclass-to-oid cast is needed.
-CREATE TYPE forms other than AS ENUM, CREATE COLLATION/CONVERSION and materialized/foreign
-table creation remain excluded. See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
+CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
+table creation remain excluded; permanent materialized views have a
+[bounded supported surface](docs/SQL.md#materialized-views--change-note), without
+temporary materializations/sources, MV ALTER/index or REFRESH.
+See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCollationLegacyVisibility$' VERBOSE=0`.
 Index identity/path/control witnesses:
 `make quickcheck PACKAGES=. RUN='^TestVisibilityInquiryIndexRelations$' VERBOSE=0`;
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceVisibilityInquiryIndexRelations$' VERBOSE=0`.
@@ -1370,9 +1381,11 @@ keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards
 advance UTF8 code points; existing BYTEA LIKE advances octets. BPCHAR left
 operands retain physical padding. Supported default/C/POSIX ILIKE folds ASCII
 only; C and POSIX remain distinct collation identities. Scalar COLLATE also
-supports `pg_c_utf8`/`pg_unicode_fast`, with case-sensitive LIKE but a positioned
-0A000 ILIKE boundary. Explicit C on either operand overrides implicit Unicode
-collation and permits ASCII ILIKE. Arbitrary locales and public POSIX regex APIs remain excluded.
+supports `pg_c_utf8`/`pg_unicode_fast` and user collations registered with the
+same truthful provider capabilities, with case-sensitive LIKE but a positioned
+0A000 ILIKE boundary for Unicode providers. Explicit C on either operand
+overrides implicit Unicode collation and permits ASCII ILIKE. Unavailable
+libc/ICU locales and public POSIX regex APIs remain excluded.
 Collatable wrappers retain identity and demanded conflicts; indeterminate TEXT
 view outputs are rejected before publication, while BOOL matching views replay.
 See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
@@ -1380,7 +1393,7 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceLikeLega
 
 `SIMILAR TO` and `NOT SIMILAR TO` independently implement full-string SQL
 regular expressions: `%`/`_`, alternation, groups, quantifiers, brackets,
-fixed builtin collation classes, escapes and separator capture/backreferences.
+registered provider collation classes, escapes and separator capture/backreferences.
 SQL punctuation `.`, `^`, `$` is literal outside brackets. Wildcards advance
 UTF8 code points and include newlines. BPCHAR predicate sources retain padding.
 `substring(s SIMILAR p ESCAPE e)`, `substring(s FROM p FOR e)` and the
@@ -1550,9 +1563,9 @@ are independently coerced; dependent CHECKs are reparsed from their original
 definitions against the final types. Each completed transformed row passes
 NOT NULL and affected CHECK validation before the next row is converted, with
 no partial publication on failure. Dependent views block the change.
-Column COLLATE supports real pg_catalog default/C/POSIX and
-`pg_c_utf8`/`pg_unicode_fast` identities under deterministic UTF8 byte/codepoint
-ordering; native Dump/Restore retains them.
+Column COLLATE supports default/C/POSIX, `pg_c_utf8`/`pg_unicode_fast` and
+registered user identities under deterministic UTF8 byte/codepoint ordering.
+Native Dump/Restore preserves provider properties and independent definitions.
 Fresh results expose the new type/typmod; held prepared results reject changed
 type/typmod/collation while eager rows retain their original metadata and values.
 Identity TYPE also migrates the existing internal sequence to the integral target,

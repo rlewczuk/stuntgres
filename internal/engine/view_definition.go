@@ -20,6 +20,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
 	definition.similarSubstrings = b.viewSimilarSubstrings
+	definition.collations = b.viewCollations
 	definition.columns, definition.stars = b.viewColumns, b.viewStars
 	definition.frames, definition.queries = collectQueryFrames(b.query.Root)
 	definition.namespaces = b.viewNamespaces

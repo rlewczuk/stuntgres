@@ -170,11 +170,11 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles RoleRead, 
 	}
 	collation := ""
 	if base.Collation != base.Type.Usage().Collation {
-		name := builtinCollationName(base.Collation.ID)
+		name := collationSQLName(view, base.Collation.ID)
 		if name == "" {
 			return dumpDomain{}, fmt.Errorf("stuntgres: unsupported domain collation")
 		}
-		collation = " COLLATE " + quoteIdentifier(view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}].Name()) + "." + quoteIdentifier(name)
+		collation = " COLLATE " + name
 	}
 	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + ";\n"}, nil
 }

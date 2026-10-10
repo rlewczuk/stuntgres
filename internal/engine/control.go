@@ -87,7 +87,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
 	domainRoles := RoleRead{e, e.roles}
+	if err := e.validateTemporaryCollationDump(ctx, catalog); err != nil {
+		e.mu.Unlock()
+		return err
+	}
 	var domains []*typeDescriptor
+	var collations []*collationDescriptor
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
 	var sequences []dumpSequence
@@ -190,6 +195,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for a, d := range e.state.descriptors {
+		if ns, ok := e.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+			continue
+		}
 		r, ok := d.(*relationDescriptor)
 		if !ok {
 			switch t := d.(type) {
@@ -206,7 +214,16 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: dump cannot serialize unsupported user type")
 				}
 				continue
-			case *collationDescriptor, *conversionDescriptor:
+			case *collationDescriptor:
+				if err := (collationProvider{}).Validate(catalog, t); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if !t.seeded() {
+					collations = append(collations, t)
+				}
+				continue
+			case *conversionDescriptor:
 				continue
 			}
 			if d.Kind() == NamespaceObject {
@@ -532,6 +549,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			inlinePredecessors[id] = inline
 		}
 	}
+	collationStatements, err := collationDumpStatements(ctx, catalog, domainRoles, collations)
+	if err != nil {
+		return err
+	}
+	seedStatements, err := collationSeedDumpStatements(ctx, catalog, domainRoles)
+	if err != nil {
+		return err
+	}
 	if deferDefaults {
 		for oid, predecessors := range inlinePredecessors {
 			viewDependencies[oid] = predecessors
@@ -576,6 +601,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	for _, line := range seedStatements {
+		if err := emit(line); err != nil {
+			return err
+		}
+	}
 	sort.Slice(schemaComments, func(i, j int) bool { return schemaComments[i].name < schemaComments[j].name })
 	for _, c := range schemaComments {
 		literal := "NULL"
@@ -593,6 +623,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	currentOwner := ""
+	for _, declaration := range collationStatements {
+		if declaration.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = declaration.owner
+		}
+		if err := emit(declaration.sql); err != nil {
+			return err
+		}
+	}
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
 	for _, oid := range viewOrder {
@@ -654,11 +695,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
 			if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
-				name := builtinCollationName(c.Usage.Collation.ID)
+				name := collationSQLName(catalog, c.Usage.Collation.ID)
 				if name == "" {
 					return fmt.Errorf("stuntgres: unsupported stored collation")
 				}
-				line.WriteString(" COLLATE \"pg_catalog\"." + quoteIdentifier(name))
+				line.WriteString(" COLLATE " + name)
 			}
 			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
 				text, err := defaultSQL(ctx, catalog, definition.expression)
@@ -827,7 +868,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	// The isolated role snapshot retains exact target identities for final remapping.
-	session, err := stage.StartSession(ctx, SessionStart{ID: 1})
+	session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: PrincipalRef{stage, 10}})
 	if err != nil {
 		return err
 	}
@@ -867,7 +908,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 					}
 				}
 			}
-		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain:
+		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation:
 		case *parser.CreateView:
 		case *parser.CreateQueryTable:
 			if s.Form != parser.CreateMaterializedView || !s.NoData {
@@ -945,6 +986,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			op.restoreTableDestination = true
 		}
 		if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateCollation); ok {
 			op.restoreTableDestination = true
 		}
 		op.restoreInsertAuthority = false

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 type domainDependency struct {
@@ -30,7 +31,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 	for changed := true; changed; {
 		changed = false
 		for a, d := range stage.base.state.descriptors {
-			if t, ok := d.(*typeDescriptor); ok && !domains[a] && (t.typ.IsDomain() && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.DomainBase().Type.ID())}] || t.typ.IsArray() && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.Element().ID())}]) {
+			if t, ok := d.(*typeDescriptor); ok && !domains[a] && (t.typ.IsDomain() && (domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.DomainBase().Type.ID())}] || domains[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(t.typ.DomainBase().Collation.ID)}]) || t.typ.IsArray() && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.Element().ID())}]) {
 				domains[a] = true
 				changed = true
 			}
@@ -43,7 +44,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			continue
 		}
 		for i, c := range r.columns {
-			if domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}] {
+			if domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}] || domains[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(c.Usage.Collation.ID)}] {
 				column := a
 				column.SubID = r.attributes[i]
 				droppedColumns[column] = true
@@ -90,7 +91,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			}
 			switch d := descriptor.(type) {
 			case *typeDescriptor:
-				if d.typ.IsDomain() && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.DomainBase().Type.ID())}) {
+				if d.typ.IsDomain() && usageDependsOn(d.typ.DomainBase(), target) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(stage.base, d, stage.dependencyPath)})
 				}
 				if d.typ.IsArray() && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}) {
@@ -103,6 +104,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				if d.sqlIndex != nil {
 					depends, automatic := false, false
 					for _, key := range d.sqlIndex.keys {
+						depends = depends || target == (ObjectAddress{ClassID: CollationClassID, ObjectID: OID(key.collation)})
 						if key.derived != nil {
 							for _, dep := range key.derived.dependencies {
 								depends = depends || dep.Address == target
@@ -134,7 +136,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				for i, c := range d.columns {
 					column := a
 					column.SubID = d.attributes[i]
-					if target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}) {
+					if usageDependsOn(c.Usage, target) {
 						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, relation: d, column: c.Name})
 					}
 					if droppedColumns[column] {
@@ -392,10 +394,10 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	}
 	e.mu.Lock()
 	for i, target := range targets {
-		if target.ClassID != TypeClassID && i < len(roots) {
+		if target.ClassID != TypeClassID && target.ClassID != CollationClassID && i < len(roots) {
 			continue
 		}
-		if target.ClassID == TypeClassID || target.ClassID == RelationClassID && target.SubID == 0 {
+		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == RelationClassID && target.SubID == 0 {
 			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
 				break
 			}
@@ -414,7 +416,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	return nil
 }
 
-func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*namespaceDescriptor, relations []*relationDescriptor, domains []*typeDescriptor, cascade bool) error {
+func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*namespaceDescriptor, relations []*relationDescriptor, domains []Descriptor, cascade bool) error {
 	var contained []Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)
@@ -460,4 +462,8 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		}
 	}
 	return nil
+}
+
+func usageDependsOn(u sqltype.Usage, target ObjectAddress) bool {
+	return target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}) || target == (ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)})
 }

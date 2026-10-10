@@ -87,7 +87,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}

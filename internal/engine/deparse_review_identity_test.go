@@ -73,7 +73,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(serialized, wantTree, err)
 			}
 			target := New()
-			retagged, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			retagged, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 				typ, _ := target.CatalogRead().LookupType(d.ID())
 				return typ
 			})

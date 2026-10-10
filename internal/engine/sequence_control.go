@@ -186,6 +186,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.address = target
 				d = &n
+			case *collationDescriptor:
+				n := *r
+				n.oid = target.ObjectID
+				if dest, ok := mapping[n.Namespace()]; ok {
+					n.namespace = dest
+				}
+				d = &n
 			case *relationDescriptor:
 				n := *r
 				n.address = target

@@ -209,6 +209,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		}
 	case parser.CollateExpr:
 		if n, ok := bound.(collationExpression); ok {
+			if b.viewCollations == nil {
+				b.viewCollations = make(map[viewLiteralPath]uint32)
+			}
+			b.viewCollations[path] = n.usage.Collation.ID
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
@@ -377,7 +381,7 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 					return err
 				}
 				return children(r.Args, node.(indexPropertyExpression).children())
-			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible":
+			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version":
 				structure, err := b.bindVisibilityInquiryStructure(r)
 				if err != nil {
 					return err
@@ -649,6 +653,9 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			if !usage.Valid() || literal.value.Type() != usage.Type {
 				return fmt.Errorf("stuntgres: invalid view literal usage")
 			}
+			if err := validateUsageCollation(catalog, usage); err != nil {
+				return err
+			}
 			typ, ok := catalog.LookupType(usage.Type.ID())
 			if !ok || typ != usage.Type {
 				return fmt.Errorf("stuntgres: foreign view literal type")
@@ -743,6 +750,17 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		}
 		return nil
 	case parser.CollateExpr:
+		id, ok := v.collations[path]
+		if !ok {
+			return fmt.Errorf("stuntgres: missing frozen view collation")
+		}
+		d, ok := catalog.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}].(*collationDescriptor)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing view collation identity")
+		}
+		if _, err := d.usage(); err != nil {
+			return fmt.Errorf("stuntgres: invalid view collation provider")
+		}
 		return child(r.Child)
 	case parser.CastExpr:
 		return child(r.Child)

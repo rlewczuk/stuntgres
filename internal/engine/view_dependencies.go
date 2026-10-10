@@ -89,6 +89,22 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 	if t, ok := catalog.state.descriptors[base].(*typeDescriptor); ok {
 		return "type " + typeDiagnosticNameAt(catalog, t, path)
 	}
+	if d, ok := catalog.state.descriptors[base].(*collationDescriptor); ok {
+		name := dependencyIdentifier(d.name)
+		if path != nil {
+			visible := false
+			for _, ns := range path {
+				if a, ok := catalog.state.names[NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
+					visible = a == d.Address()
+					break
+				}
+			}
+			if !visible {
+				name = dependencyIdentifier(catalog.state.descriptors[d.Namespace()].Name()) + "." + name
+			}
+		}
+		return "collation " + name
+	}
 	d := catalog.state.descriptors[base].(*relationDescriptor)
 	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
 	if target.SubID != 0 {
@@ -265,6 +281,9 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 		if !ok || actual != usage.Type || !usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid view cast authority")
 		}
+		if err := validateUsageCollation(v, usage); err != nil {
+			return err
+		}
 	}
 	if err := definition.validateLiterals(v); err != nil {
 		return err
@@ -325,6 +344,9 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 	checkUsage := func(usage sqltype.Usage) error {
 		if !usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid view query usage")
+		}
+		if err := validateUsageCollation(catalog, usage); err != nil {
+			return err
 		}
 		typ, ok := catalog.LookupType(usage.Type.ID())
 		if !ok || typ != usage.Type {

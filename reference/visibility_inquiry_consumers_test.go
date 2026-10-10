@@ -129,6 +129,25 @@ func TestReferenceVisibilityInquiryBoundaries(t *testing.T) {
 							run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 							continue
 						}
+						if strings.HasPrefix(q, "CREATE COLLATION") {
+							run(referenceSelect(q, nil, nil, [][]any{}))
+							witness := referenceSelect("SELECT upper('é' COLLATE c) AS value", []string{"value"}, []string{"TEXT"}, [][]any{{"é"}})
+							witness.nonContext = source
+							referenceRunStep(t, p.ctx, executor, backend.recorder, witness)
+							run(referenceExec("DROP COLLATION c", 0))
+							held, err := executor.PrepareContext(p.ctx, q)
+							if err != nil {
+								t.Fatal(err)
+							}
+							missing := referenceImplicitError("SELECT 'a' COLLATE c", referenceDiagnostic{Code: "42704", Message: `collation "c" for encoding "UTF8" does not exist`, Position: "12"})
+							missing.nonContext, missing.selectRows = source, true
+							referenceRunStep(t, p.ctx, executor, backend.recorder, missing)
+							result, err := held.ExecContext(p.ctx)
+							held.Close()
+							deleteReferenceCount(t, result, err, 0)
+							referenceRunStep(t, p.ctx, executor, backend.recorder, witness)
+							continue
+						}
 						if backend.pg {
 							s := referenceExec(q, 0)
 							if strings.HasPrefix(q, "CREATE FOREIGN") {

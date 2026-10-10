@@ -105,7 +105,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 			t.Fatal(tree, err)
 		}
 		target := New()
-		retagged, changed, err := retagBoundTypes(leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := retagBoundTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := target.CatalogRead().LookupType(d.ID())
 			return next
 		})

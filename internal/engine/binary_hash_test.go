@@ -49,7 +49,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			// Stored replay changes descriptor owners but preserves payload/properties
 			// and rebuilds the same BinaryPlan rather than another expression family.
 			expr.args[0] = literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}
-			rebound, changed, err := retagBoundTypes(expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
+			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

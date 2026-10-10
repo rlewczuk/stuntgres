@@ -114,7 +114,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8} {
 		provider, input := avgUnitProvider(source, id)
 		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
-		mapped, err := remapViewQuery(node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, ok := restored.CatalogRead().LookupType(old.ID())
 			if !ok {
 				t.Fatalf("missing restored type %v", old.ID())

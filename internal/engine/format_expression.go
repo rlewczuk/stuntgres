@@ -146,7 +146,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		if err != nil {
 			return nil, err
 		}
-		info, err := collatedInfo(b.info(target, args[0].SourcePosition(), coercionProperties(args[0], plan)), args[0])
+		info, err := b.collatedInfo(b.info(target, args[0].SourcePosition(), coercionProperties(args[0], plan)), args[0])
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 			b.regclassConcat = true
 		}
 	}
-	info, err := collatedInfo(b.info(text, raw.Pos, properties), args...)
+	info, err := b.collatedInfo(b.info(text, raw.Pos, properties), args...)
 	if err != nil {
 		return nil, err
 	}

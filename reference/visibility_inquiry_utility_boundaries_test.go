@@ -57,6 +57,11 @@ func TestReferenceVisibilityInquiryUtilityBoundaries(t *testing.T) {
 					run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 					continue
 				}
+				if strings.HasPrefix(q, "CREATE COLLATION") {
+					run(referenceSelect(q, nil, nil, [][]any{}))
+					run(referenceSelect("SELECT upper('é' COLLATE c) AS value", []string{"value"}, []string{"TEXT"}, [][]any{{"é"}}))
+					continue
+				}
 				if backend.pg {
 					switch {
 					case strings.HasPrefix(q, "CREATE FOREIGN"):

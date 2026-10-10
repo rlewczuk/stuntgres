@@ -84,7 +84,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		}
 		if expression.CollationIndeterminate() {
 			left, right, position := expression.ImplicitCollationConflict()
-			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, builtinCollationName(left.ID), builtinCollationName(right.ID)), position).(*sqlstate.Error)
+			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
 			d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
 			return nil, d
 		}
@@ -135,7 +135,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 				continue
 			}
 			pos := parser.ExpressionStart(raw.Args[i])
-			grouping, err := bindDistinctGrouping(arg)
+			grouping, err := b.bindDistinctGrouping(arg)
 			if d, ok := err.(*sqlstate.Error); ok && d.Code != "42P21" {
 				copy := *d
 				copy.Position = fmt.Sprint(pos.Character)

@@ -19,6 +19,7 @@ type indexKey struct {
 	desc, nullsFirst bool
 	derived          *derivedIndexKey
 	collation        uint32
+	collationRef     sqltype.CollationRef
 	class            sqltype.IndexClass
 	explicitClass    bool
 }

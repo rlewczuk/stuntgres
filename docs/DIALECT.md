@@ -2972,9 +2972,10 @@ the word start rather than capitalizing its next letter. Fullwidth digits are
 word members only in the full mode. Scans, including sigma lookahead, check
 cancellation during bounded work; unchanged strings are borrowed.
 
-All five collation identities use deterministic UTF8 byte/codepoint ordering.
-No CREATE COLLATION, arbitrary libc/ICU locale, nondeterministic comparison or
-new native encoding setting is added. Native text remains UTF8. The real
+These seeded and registered user collation identities use deterministic UTF8
+byte/codepoint ordering. CREATE COLLATION admits truthful libc C/POSIX and builtin
+providers, not arbitrary libc/ICU locales or nondeterministic comparison. No new
+native encoding setting is added. Native text remains UTF8. The real
 PostgreSQL LATIN1 control rejects nonNULL casefold, including empty text, with
 42601; strict NULL bypasses that restriction. Unicode-collation ILIKE is a
 documented native0A000 boundary, not silently ASCII matching; plain LIKE works.
@@ -4216,12 +4217,14 @@ never executed: it creates no metadata and does not broaden ordinary SQL admissi
 
 Column COLLATE (also in final CREATE declarations for Restore) resolves
 `pg_catalog."default"`100, `"C"`950, `"POSIX"`951, `pg_c_utf8`811 and
-`pg_unicode_fast`6411 with namespace authority, deterministic UTF8 byte/codepoint
-comparison and distinct stored identities. Omission resets to the target type's
-intrinsic default. Missing names/noncollatable types fail; arbitrary locale/ICU
-providers remain excluded. Scalar annotations use the same fixed identities.
+`pg_unicode_fast`6411 and registered user descriptors with namespace authority,
+deterministic UTF8 byte/codepoint comparison and distinct stored identities.
+Omission resets to the target type's intrinsic default. Missing names,
+noncollatable types and unavailable providers fail; no fallback to C is invented.
+Scalar annotations use the same catalog identity/provider authority.
 Dump emits final type/typmod/nondefault collation/default/NOT NULL/CHECK declarations,
-not ALTER history; Restore retains its CREATE/INSERT whitelist and atomic replay.
+not ALTER history; Restore admits collation definitions before their consumers
+and retains atomic replay.
 
 Fresh direct/new prepared results expose updated metadata. Held prepared results
 whose type/typmod/collation changes fail0A000 `cached plan must not change result
@@ -4558,25 +4561,104 @@ authority. Stored inquiry CHECKs support compact/pretty pg_get_constraintdef
 and pg_get_expr rendering and replay; native conbin is structural data, not
 PostgreSQL nodeToString. DEFAULT admission still rejects these inquiries.
 
-All25 native type descriptors, seven fixed collations (100,950,951,962,963,811,6411)
-and all128 fixed conversions (4402–4449,4452–4531) have real inquiry metadata.
+All25 native type descriptors, seven fixed collations (100,950,951,962,963,811,6411),
+user collation descriptors and all128 fixed conversions (4402–4449,4452–4531)
+have real inquiry metadata.
 Collation lookup is namespace-first, then UTF8 encoding6 before encoding-1
 fallback inside each namespace. A wrong-encoding existing collation is false.
 An earlier namespace fallback beats a later exact encoding. Conversion lookup
 uses name/namespace, not encoding pair/default/procedure privilege:4402 is visible
 despite having no UTF8 side. Metadata does not enable conversion execution,
-general locale comparison, imported OS collations or broader catalogs/DDL.
-Comparison supports default/C/POSIX and pg_c_utf8/pg_unicode_fast. Ordinary B-tree indexes participate in
-relation visibility, including same-name cross-kind shadowing, and their
-definitions roundtrip through native Dump/Restore. CREATE TYPE forms other than
-AS ENUM or AS (...), CREATE COLLATION/CONVERSION and materialized/foreign tables
-retain their native exclusion boundaries. Builtin/catalog row identities stay
-lookup-only; supported user rows have concrete codecs. TEMP tables use the ordinary table path.
+general locale comparison or imported OS collations. Registered user collations
+support the same truthful C/POSIX/builtin capabilities as supported seeds.
+Ordinary B-tree indexes participate in relation visibility, including same-name
+cross-kind shadowing, and their definitions roundtrip through native Dump/Restore.
+CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
+table creation remain excluded; permanent materialized views follow the
+[bounded supported surface](SQL.md#materialized-views--change-note), without
+temporary materializations/sources, MV ALTER/index or REFRESH.
+Builtin/catalog row identities stay lookup-only; supported user rows have
+concrete codecs. TEMP tables use the ordinary table path.
 
-Fixed identities rebuild on New/Reset/Restore without separate serialization.
+Fixed identities rebuild on New/Reset; Restore replays legal collation seed metadata deltas.
 Supported user objects/views/CHECK definitions roundtrip through existing SQL;
 restored generated OIDs must be rediscovered. Session search_path is not dumped.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCollationLegacyVisibility$' VERBOSE=0`.
+
+### User collations — change note (changelog)
+
+CREATE COLLATION supports FROM copies and PROVIDER/DETERMINISTIC/LOCALE/
+LC_COLLATE/LC_CTYPE/RULES/VERSION attributes. Option spelling and positions are
+retained through quiet Prepare; validation/provider loading and publication occur
+only at execution. Copies receive independent identities and recompute actual
+version; they do not depend on the source descriptor.
+
+The registered execution boundary is libc C/POSIX and builtin C, C.UTF-8
+(alias C.UTF8), PG_UNICODE_FAST. These preserve ASCII, Unicode simple and Unicode
+full case semantics respectively. Distinct identities conflict even when their
+providers agree. ICU reports0A000 `ICU is not supported in this build`; other libc
+locales report0A000 `libc locale provider data is not available in this engine`.
+No provider is silently replaced by byte ordering or ASCII case behavior.
+
+ALTER COLLATION RENAME/SET SCHEMA/OWNER TO retains identity and owned dependencies;
+REFRESH VERSION compares recorded/actual values, emits notices, and changes only
+recorded metadata. User definitions own namespace/role dependencies. Domains,
+columns, defaults, CHECKs, indexes and views retain collation identity and
+participate in atomic RESTRICT/CASCADE closure. Seed bootstrap identities remain
+pinned. Ordinary ownership, eligible SET ROLE and target schema CREATE authority
+apply to owner transfer; superuser bypass follows PostgreSQL.
+
+Pinned seeds also permit ordinary rename, permanent schema moves and owner
+transfer. Their OID, pin and registered provider properties remain immutable;
+DROP still reports2BP01. Initial/canonical seed ownership uses the genuine
+bootstrap principal, not whichever role later has the name `postgres`.
+Public role rename remains outside the existing native surface; package identity
+regressions exercise role-name reuse without adding that role-rename SQL feature.
+Native collation utilities retain the existing explicit-transaction0A000 boundary.
+
+Read-only pg_catalog.pg_collation exposes provider/category/locale/rules,
+determinism, encoding, owner and nullable recorded version.
+pg_collation_actual_version(oid) reports actual registered provider version:
+libc C/POSIX NULL; builtin1. Missing OIDs fail42704. Missing recorded versions
+are distinct from empty versions; differing recorded builtin versions issue the
+PostgreSQL version warning instead of changing comparison semantics.
+
+Dump emits qualified collation definitions before domains/tables/views/indexes
+and selects their named owners. Options reconstruct ordinary definitions;
+immutable bootstrap FROM reconstructs exceptional encoding metadata (libc
+all-encoding copies and builtin encoding6 copies). User-source FROM links are
+never persisted, and no dependency on the bootstrap source is invented. Restore
+replays privately and publishes atomically, retaining roles, existing held-row
+snapshots and truthful provider capability; failed/canceled imports leave the
+destination unchanged. Named owners must already exist. Its guarded private
+collation destination authority handles independent schema/object ownership
+without adding grants to ordinary SQL.
+
+Dump emits changed seed name/schema/owner metadata before user definitions,
+using current qualified bootstrap names for lossless FROM reconstruction.
+Reset restores canonical seed metadata; repeated Restore restores the emitted
+metadata and actual owners without reminting pinned objects.
+
+Explicit CREATE COLLATION pg_temp.name initializes the owned temporary namespace.
+Temporary collations are excluded from ordinary collation search-path lookup;
+own alias/physical qualification works, and only genuine superusers may qualify
+another physical session's temporary namespace. Ordinary same-role peers are
+not the owning session. SET SCHEMA into or out of temporary namespaces fails
+0A000 `cannot move objects into or out of temporary schemas` without mutation.
+Physical owner end atomically cascades actual durable consumers using ordinary
+dependency/storage projection and a genuine private cleanup session. Borrower
+return does not end this lifetime. Namespace/children and dependent storage
+publish together; lock/conflict/exhaustion failures leave the candidate unpublished
+and are joined into the physical close error, never replaced by generic deletion.
+Dump omits temporary definitions, rejecting durable temporary-provider references
+before writing output. Reset/Restore removes durable consumers while preserving
+the exact live target temporary descriptors and capabilities. Imported dynamic
+OID collisions are reidentified throughout domains, arrays, expressions, frozen
+views, index keys and dependencies; source snapshots and target TEMP are unchanged.
+
+Feature smoke in both modes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceCollation.*$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCollation.*$' VERBOSE=0`.
 
 
 COMMENT supports TABLE/COLUMN/SCHEMA/ROLE only, with decoded literals and NULL/empty removal (whitespace persists). Store text in immutable descriptors, column maps keyed by stable SubID, or shared RoleDescriptor values; never name-keyed side storage or adjacent SQL description functions. Lookup and live ownership precede mutation; COLUMN nonowner says relation, TABLE says table. Ordinary roles cannot self-comment; CREATEROLE/ADMIN expansion is excluded. Explicit-TX COMMENT remains native 0A000. Rename/owner transfer retains text; drop/recreate clears it. Plain LIKE excludes text; INCLUDING COMMENTS copies admitted column comments, never the table comment. Database Dump excludes shared role comments, Reset/Restore retain them.
@@ -4698,6 +4780,11 @@ without restarting owned sequences, and DROP removes the real dependency closure
 Rollback/savepoints restore descriptors/actions/roots; physical end removes owner
 TEMP, not pooled borrowing. Native persistent Dump excludes TEMP; Reset/Restore
 preserves exact live TEMP and bounded stored-reference provenance.
+Retained text DEFAULT/CHECK/generated expressions keep lawful captured collation
+manifest epochs: exact live physical-owner TEMP capabilities or validated pinned
+seeds only, never a general stale-reference waiver. Ordinary subsequent DDL and
+mutations still validate those manifests. Stored expression metadata does not
+retain historical catalog roots for diagnostic name lookup.
 Foreign TEMP creation fails42P16; native qualified peer lookup retains42501.
 Permanent transactional CREATE/DROP, TEMP views and GLOBAL/LOCAL remain excluded.
 TEMP-source SET SCHEMA fails0A000 `cannot move objects into or out of temporary schemas`.
@@ -5220,15 +5307,15 @@ Escape normalization precedes ASCII-only ILIKE folding under admitted
 default/C/POSIX collations. Thus É/é do not match case-insensitively. C and POSIX
 are distinct identities: conflicting implicit nondefault operands, including an
 escape operand, raise 42P22 when matching non-NULL values. Implicit default yields
-to a nondefault identity. Scalar COLLATE also admits pg_c_utf8/pg_unicode_fast;
+to a nondefault identity. Scalar COLLATE also admits registered user descriptors;
 an explicit annotation, including default, wins over implicit conflicts.
 Equal explicit identities combine; different explicit identities fail analysis
 and Prepare with 42P21 at the second conflicting COLLATE, even for NULL or empty
 input. Collatable casts, conditional results and supported string outputs retain
 this expression authority. Stored view columns expose implicit physical identity.
 Other locale/nondeterministic providers remain excluded.
-Plain LIKE supports both Unicode identities. ILIKE/NOT ILIKE (`~~*`/`!~~*`)
-with effective pg_c_utf8 or pg_unicode_fast collation fails native0A000,
+Plain LIKE supports both Unicode capabilities. ILIKE/NOT ILIKE (`~~*`/`!~~*`)
+with effective pg_c_utf8/pg_unicode_fast semantics (including user copies) fails native0A000,
 `ILIKE is unsupported for this collation`, positioned at the operator during
 analysis/Prepare. The guard uses the combined collation, including the RHS and
 escape wrapper, after explicit-conflict resolution. Explicit C on either side
@@ -5286,8 +5373,12 @@ a final alternative bypassing that capture clears it to NULL. Greedy/lazy
 partition choices follow the release's hierarchical subexpression preferences,
 not first-success backtracking or a post-match capture heuristic.
 
-Predicate classes use existing default/C/POSIX/pg_c_utf8/pg_unicode_fast
-collation identities and pinned Unicode16 data, never host Unicode tables.
+Predicate classes use the immutable provider capability of default/C/POSIX/
+pg_c_utf8/pg_unicode_fast and registered user collations, not an object's OID.
+Copies retain the same ASCII/C.UTF-8/PG_UNICODE_FAST class distinctions and
+pinned Unicode16 data, never host Unicode tables. The independent copied-provider
+witness is `RUN='^TestReferenceCollationSimilarCopiedUnicode$'` in both quickcheck
+modes.
 The SQL substring wrapper's inner matcher uses database-default C even if
 arguments carry explicit Unicode builtin identity; output collation metadata
 still follows the established binder contract. Explicit conflicts fail in

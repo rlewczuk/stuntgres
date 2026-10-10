@@ -132,7 +132,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 			}
 			info := b.info(targetUsage, argument.SourcePosition(), coercionProperties(argument, plan))
 			if target.ID() == sqltype.Text {
-				info, err = collatedInfo(info, argument)
+				info, err = b.collatedInfo(info, argument)
 				if err != nil {
 					return nil, err
 				}
@@ -153,7 +153,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		result = b.typ(sqltype.Timestamptz).Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	collated, err := collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
+	collated, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
 	if err != nil {
 		return nil, err
 	}

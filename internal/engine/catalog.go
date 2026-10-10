@@ -241,6 +241,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if !exists || typ != c.Usage.Type || !typ.Concrete() || !c.Usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
+		if err := validateUsageCollation(v, c.Usage); err != nil {
+			return err
+		}
 	}
 	if r.relationKind == compositeRelation {
 		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 {
@@ -671,6 +674,10 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		t := d.(*typeDescriptor)
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
+		}
+	case *collationDescriptor:
+		if d.(*collationDescriptor).seeded() {
+			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
 		}
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")

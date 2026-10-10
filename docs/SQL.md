@@ -165,6 +165,13 @@ standalone table markers do not add unsupported inheritance. Prepare is
 metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACTIONS.md#relation-locks).
 
 ```text
+CREATE COLLATION [IF NOT EXISTS] [schema.]name FROM [schema.]source
+CREATE COLLATION [IF NOT EXISTS] [schema.]name (option = value [, ...])
+ALTER COLLATION [schema.]name REFRESH VERSION
+ALTER COLLATION [schema.]name RENAME TO name
+ALTER COLLATION [schema.]name SET SCHEMA schema
+ALTER COLLATION [schema.]name OWNER TO role
+DROP COLLATION [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]
 DROP DOMAIN [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
@@ -353,7 +360,8 @@ Unquoted `normalize` uses a form keyword; qualified or quoted ordinary calls
 accept a TEXT form value. SQL TRIM lowers to btrim/ltrim/rtrim, not a `trim()`
 function alias. See [core strings](DIALECT.md#core-string-functions--change-note).
 The four unary case calls return TEXT with inherited collation. Scalar/column
-COLLATE supports default/C/POSIX, pg_c_utf8 and pg_unicode_fast; see the core
+COLLATE supports default/C/POSIX, pg_c_utf8/pg_unicode_fast and registered user
+collation identities; see the core
 string rules for simple/full Unicode16 mapping, PostgreSQL18.0's original-input
 sigma-prefix boundary and the Unicode ILIKE boundary. Stored expression/CHECK
 deparsing retains TEXT conversion and required identifier quoting; its returned
@@ -457,9 +465,9 @@ an older definition used it. Existing outputs must be a positional prefix with
 the same names, type identities, typmods and collation identities. Trailing
 columns may be appended; dropping, renaming, reordering or changing the type or
 collation of existing columns fails42P16 without publication. Scalar COLLATE
-annotations support only the existing `pg_catalog.default`, `"C"` and `"POSIX"`
-identities in projections, predicates and ordering; they do not convert values or
-introduce new comparison behavior. Existing dependent views retain their frozen
+annotations support registered user descriptors and executable seeded identities
+in projections, predicates and ordering; identity is separate from the immutable
+provider capability, not value conversion. Existing dependent views retain their frozen
 attribute layout while reading the current replacement definition, even when its
 row has appended columns.
 Visibility inquiry demand follows the current definitions throughout the view
@@ -1500,7 +1508,7 @@ TIMESTAMP/TIMESTAMPTZ result types.
 CREATE INDEX builds on populated ordinary tables with at least one simple or
 same-table scalar expression key. The limit is 32 total key plus INCLUDE
 attributes; repeated keys/payload are legal. Default/explicit btree supports
-per-key direction, NULL placement, owned built-in collation overrides and operator
+per-key direction, NULL placement, registered collation overrides and operator
 classes. INCLUDE has storage/projection semantics only, is not compared and does
 not affect uniqueness. Its type needs no ordering provider. Names are unqualified
 and belong to the target table's schema, not the first creation schema in
@@ -1545,9 +1553,9 @@ through the same enforcement; see
 [concurrent index publication](design/PG18-INDEX-CONCURRENT.md).
 Hash equality indexes and ordinary maintenance are described below.
 No unique-index attachment, planner, physical index-only scan or physical tree
-claim is made. Admitted collations are default, C, POSIX, pg_c_utf8 and
-pg_unicode_fast; class/provider inventory and directional binary compatibility
-are documented in the clause design.
+claim is made. Admitted collations are default, C, POSIX, pg_c_utf8,
+pg_unicode_fast and user descriptors backed by the same registered semantics;
+class inventory and directional binary compatibility remain unchanged.
 
 ## Hash equality indexes
 

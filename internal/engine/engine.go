@@ -66,6 +66,7 @@ type binding struct {
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewSimilarSubstrings map[viewLiteralPath]bool
+	viewCollations        map[viewLiteralPath]uint32
 	viewColumns           map[viewLiteralPath]viewColumn
 	viewStars             map[viewLiteralPath][]viewColumn
 	viewNamespaces        []viewNamespace
@@ -173,7 +174,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}
 	for i := range builtinCollations {
-		d := &builtinCollations[i]
+		d := new(collationDescriptor)
+		*d = builtinCollations[i]
+		d.owner = PrincipalRef{e, 10}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}
@@ -278,7 +281,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.AlterView, *parser.DropView:
 		return StatementDescription{}, nil
-	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
+	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return StatementDescription{}, nil
 	case *parser.RoleMembership:
 		return StatementDescription{}, nil
@@ -735,6 +738,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
+	b.viewCollations = binder.viewCollations
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
 	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })

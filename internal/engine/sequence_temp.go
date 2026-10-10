@@ -33,10 +33,14 @@ func temporaryNamespace(auth AuthorizationView) ObjectAddress {
 	return ObjectAddress{}
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ObjectRef, error) {
+	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
+}
+
+func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name parser.ObjectName, temp bool, c *catalogChanges, system bool) (ObjectRef, error) {
 	if len(name.Parts) == 2 && name.Parts[0].Text != "pg_temp" {
-		return e.creationNamespace(auth, name)
+		return e.creationNamespaceWithSystem(auth, name, system)
 	}
-	temp := persistence == "temporary" || len(name.Parts) == 2
+	temp = temp || len(name.Parts) == 2
 	if !temp {
 		var err error
 		_, temp, err = e.explicitPath(auth)
@@ -44,8 +48,11 @@ func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name pa
 			return ObjectRef{}, err
 		}
 		if !temp {
-			return e.creationNamespace(auth, name)
+			return e.creationNamespaceWithSystem(auth, name, system)
 		}
+	}
+	if auth.session == nil || auth.session.token.private != nil {
+		return ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}
 	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
@@ -60,6 +67,11 @@ func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name pa
 		return ObjectRef{}, err
 	}
 	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.id), revision: rev, owner: auth.state.CurrentUser, temporary: auth.session.token}
+	if c.originals == nil {
+		c.originals = make(map[ObjectAddress]Descriptor)
+		c.descriptors = make(map[ObjectAddress]Descriptor)
+		c.names = make(map[NameKey]ObjectAddress)
+	}
 	e.catalogChangeLocked(c, ns.address, ns)
 	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, nil
 }
@@ -100,9 +112,21 @@ func adjustRelationCreationPersistence(auth AuthorizationView, ref ObjectRef, re
 // physical backend exit preserves pg_namespace and cleans only temp relations.
 // Keep peer analysis generation/epoch unchanged, including at scalar exhaustion.
 func (e *Engine) endTemporarySession(s *Session) {
+	if s.token.private != nil {
+		return
+	}
 	for {
 		e.mu.Lock()
 		base := CatalogRead{e, e.state}
+		for _, d := range base.state.descriptors {
+			if _, ok := d.(*collationDescriptor); !ok {
+				continue
+			}
+			if ns, ok := base.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary == s.token {
+				e.mu.Unlock()
+				return
+			}
+		}
 		var namespaces, targets []ObjectAddress
 		for a, d := range base.state.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {

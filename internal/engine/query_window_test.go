@@ -372,7 +372,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if oldEnum == newEnum || oldDomain == newDomain || newDomain.BaseType() != newEnum {
 		t.Fatal("descriptors not replaced")
 	}
-	mapped, err := remapViewQuery(definition.query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == oldEnum {
 			return newEnum
 		}

@@ -43,5 +43,5 @@ func TestReferenceAlterTypeNondefaultLocaleBoundary(t *testing.T) {
 		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec(`ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."C.utf8"`, 0))
 	}
 	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE TABLE t(c TEXT)", 0))
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError(`ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."C.utf8"`, referenceDiagnostic{Code: "0A000", Message: "collation is unsupported", Position: "33"}))
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError(`ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."C.utf8"`, referenceDiagnostic{Code: "42704", Message: `collation "pg_catalog.C.utf8" for encoding "UTF8" does not exist`, Position: "33"}))
 }

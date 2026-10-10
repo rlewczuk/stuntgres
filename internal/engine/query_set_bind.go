@@ -96,7 +96,7 @@ func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
 		if operands[0].descriptor() == nil && operands[1].descriptor() != nil {
 			position = commonOperandStart(operands[1])
 		}
-		info, err := collatedInfo(b.info(common, position, ExprProperties{RowDependent: true}), l, r)
+		info, err := b.collatedInfo(b.info(common, position, ExprProperties{RowDependent: true}), l, r)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +122,7 @@ func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
 		projection[i] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
 		if n.grouping != nil {
-			n.grouping[i], err = bindDistinctGrouping(projection[i])
+			n.grouping[i], err = b.bindDistinctGrouping(projection[i])
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 					copy := *diagnostic

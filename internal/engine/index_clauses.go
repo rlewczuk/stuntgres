@@ -10,6 +10,9 @@ import (
 func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
 	if key.collation != 0 {
 		u.Collation = sqltype.CollationRef{ID: key.collation, Derivation: sqltype.Default}
+		if key.collationRef.Valid() && key.collationRef.ID == key.collation {
+			u.Collation = key.collationRef
+		}
 	}
 	return u
 }
@@ -22,6 +25,7 @@ func reconstructIndexKey(key indexKey, oldUsage, newUsage sqltype.Usage, method 
 	}
 	if key.collation == oldUsage.Collation.ID {
 		key.collation = 0
+		key.collationRef = sqltype.CollationRef{}
 	}
 	return key
 }
@@ -63,6 +67,11 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
 		}
 		key.collation = id
+		d := auth.catalog.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}].(*collationDescriptor)
+		key.collationRef, err = d.usage()
+		if err != nil {
+			return key, err
+		}
 	}
 	c, exists := method.defaultClass(u.Type)
 	if raw.Opclass != nil {

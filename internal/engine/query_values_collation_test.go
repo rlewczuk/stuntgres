@@ -18,7 +18,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
 		return literalExpression{expressionInfo: b.info(u, parser.Position{Character: position}, ExprProperties{}), value: sqltype.Null(text)}
 	}
-	info, err := collatedInfo(b.info(usage, parser.Position{Character: 40}, ExprProperties{}), operand(950, 59), operand(951, 64))
+	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, ExprProperties{}), operand(950, 59), operand(951, 64))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("group", grouped)
-	retagged, _, err := retagBoundTypes(base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
+	retagged, _, err := retagBoundTypes(b.bindingCatalog(), base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,13 +69,13 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 			t.Fatal(err, diagnostic, want)
 		}
 	}
-	defaultC, err := collatedInfo(b.info(usage, parser.Position{}, ExprProperties{}), operand(100, 1), operand(950, 2))
+	defaultC, err := b.collatedInfo(b.info(usage, parser.Position{}, ExprProperties{}), operand(100, 1), operand(950, 2))
 	if err != nil || defaultC.collationConflict || defaultC.usage.Collation.ID != 950 {
 		t.Fatal(defaultC, err)
 	}
 	explicit := operand(950, 80).(literalExpression)
 	explicit.collationExplicit = parser.Position{Character: 80}
-	overridden, err := collatedInfo(info, explicit)
+	overridden, err := b.collatedInfo(info, explicit)
 	if err != nil || overridden.collationConflict || overridden.collationLeft.ID != 0 || overridden.collationRight.ID != 0 || overridden.collationConflictPos != (parser.Position{}) || overridden.usage.Collation.ID != 950 {
 		t.Fatal(overridden, err)
 	}

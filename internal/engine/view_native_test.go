@@ -106,7 +106,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	previous := definition.sources[0].ref
 	definition.sources[0].ref = wref
-	root, err := remapViewQuery(definition.query.Root, func(ref ObjectRef) ObjectRef {
+	root, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ObjectRef) ObjectRef {
 		if ref.Address.ClassID == RelationClassID && ref.Address.ObjectID == previous.Address.ObjectID {
 			ref.Address.ObjectID = wref.Address.ObjectID
 		}

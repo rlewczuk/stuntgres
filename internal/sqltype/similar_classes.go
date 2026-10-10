@@ -152,13 +152,14 @@ func (s *similarParser) bracket() (similarNode, error) {
 func (p *SimilarProgram) classMember(r rune, k similarClassKind) bool {
 	alpha := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
 	digit := r >= '0' && r <= '9'
-	unicodeMode := p.collation.ID == 811 || p.collation.ID == 6411
+	mode := p.collation.CaseMode()
+	unicodeMode := mode != unicode16.ASCII
 	if unicodeMode {
 		switch k {
 		case similarAlphaClass, similarAlnumClass, similarWordClass:
 			alpha = unicode16.RegexProperty(r, unicode16.RegexAlphabetic)
 		}
-		if p.collation.ID == 6411 && (k == similarDigitClass || k == similarAlnumClass || k == similarWordClass) {
+		if mode == unicode16.Full && (k == similarDigitClass || k == similarAlnumClass || k == similarWordClass) {
 			digit = unicode16.RegexProperty(r, unicode16.RegexDecimal)
 		}
 	}
@@ -206,7 +207,7 @@ func (p *SimilarProgram) classMember(r rune, k similarClassKind) bool {
 		return r >= 32 && r <= 126
 	case similarPunctClass:
 		if unicodeMode {
-			if p.collation.ID == 811 {
+			if mode == unicode16.Simple {
 				return unicode16.RegexProperty(r, unicode16.RegexPunctOrSymbol) && !unicode16.RegexProperty(r, unicode16.RegexAlphabetic)
 			}
 			return unicode16.RegexProperty(r, unicode16.RegexPunctuation)

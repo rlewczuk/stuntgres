@@ -93,7 +93,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 			replacement = d
 		}
 	}
-	rebound, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == text {
 			return replacement
 		}
@@ -236,7 +236,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 			replacement = d
 		}
 	}
-	rebound, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == sqltype.Bytea {
 			return replacement
 		}

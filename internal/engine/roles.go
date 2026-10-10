@@ -223,6 +223,11 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = "type "
 		name = typeDiagnosticNameAt(view, typ, path)
 	}
+	if c, ok := d.(*collationDescriptor); ok {
+		path, _ := auth.engine.referencePath(auth)
+		kind = "collation "
+		name = strings.TrimPrefix(dependencyObject(view, c.Address(), path), "collation ")
+	}
 	prefix := "privileges for "
 	if dep.kind == 'o' {
 		prefix = "owner of "

@@ -438,7 +438,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		text += " COLLATE " + pgIdentifier(builtinCollationName(n.usage.Collation.ID))
+		text += " COLLATE " + collationDisplayName(r.view, n.usage.Collation.ID, r.path)
 		if r.pretty && parent.functionArgument {
 			return text, nil
 		}

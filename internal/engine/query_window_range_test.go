@@ -17,7 +17,7 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	mapped, err := remapViewQuery(query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	mapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil || mapped == query.Root {
 		t.Fatal(mapped, err)
 	}

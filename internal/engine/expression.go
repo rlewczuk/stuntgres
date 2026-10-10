@@ -80,7 +80,8 @@ func (e expressionInfo) ImplicitCollationConflict() (sqltype.CollationRef, sqlty
 // Preserve diagnostic provenance when an existing wrapper copies metadata.
 func boundExpressionInfo(node BoundExpr) expressionInfo {
 	left, right, position := node.ImplicitCollationConflict()
-	return expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation(), collationLeft: left, collationRight: right, collationConflictPos: position}
+	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation(), collationLeft: left, collationRight: right, collationConflictPos: position}
+	return info
 }
 func evaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
@@ -1114,6 +1115,7 @@ type expressionBinder struct {
 	viewStars             map[viewLiteralPath][]viewColumn
 	viewJoinCount         int
 	viewNamespaces        []viewNamespace
+	viewCollations        map[viewLiteralPath]uint32
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -1154,17 +1156,27 @@ func (b *expressionBinder) dependency(ref ObjectRef, revision DefinitionRevision
 	}
 	b.dependencies = append(b.dependencies, expressionDependency{ref, revision})
 }
-func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {
-	view := CatalogRead{owner: b.engine, state: b.engine.state}
+func (b *expressionBinder) bindingCatalog() CatalogRead {
 	if b.queryAuth != nil {
-		view = b.queryAuth.catalog
+		return b.queryAuth.catalog
 	}
+	return CatalogRead{owner: b.engine, state: b.engine.state}
+}
+
+func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {
+	view := b.bindingCatalog()
 	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}
 	revision := DefinitionRevision(1)
 	if descriptor, ok := view.Descriptor(address); ok {
 		revision = descriptor.Revision()
 	}
 	b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, revision)
+	if u.Collation.ID != 0 {
+		address := ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}
+		if d, ok := view.Descriptor(address); ok {
+			b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, d.Revision())
+		}
+	}
 	return expressionInfo{usage: u, pos: pos, properties: p}
 }
 func expressionError(code, message string, pos parser.Position) error {
@@ -1804,7 +1816,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if plan.RequiresCatalogOutput() {
 			b.regclassConcat = true
 		}
-		info, err := collatedInfo(b.info(policy.expected, raw.SourcePosition(), coercionProperties(node, plan)), node)
+		info, err := b.collatedInfo(b.info(policy.expected, raw.SourcePosition(), coercionProperties(node, plan)), node)
 		if err != nil {
 			return nil, err
 		}
@@ -1974,7 +1986,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if start := child.SourcePosition(); start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
 		pos = start
 	}
-	info, err := collatedInfo(b.info(target, pos, coercionProperties(child, plan)), child)
+	info, err := b.collatedInfo(b.info(target, pos, coercionProperties(child, plan)), child)
 	if err != nil {
 		return nil, err
 	}
@@ -2453,6 +2465,9 @@ func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, opera
 	}
 	l, r, err = b.coerceComparisonOperands(l, r)
 	if err != nil {
+		return nil, err
+	}
+	if _, err = b.collatedInfo(b.info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r); err != nil {
 		return nil, err
 	}
 	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool))

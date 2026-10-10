@@ -341,7 +341,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		distinctFamilies = make([]sqltype.Grouping, width)
 		for i, expression := range projection {
-			distinctFamilies[i], err = bindDistinctGrouping(expression)
+			distinctFamilies[i], err = b.bindDistinctGrouping(expression)
 			if err != nil {
 				return nil, err
 			}

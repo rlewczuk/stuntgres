@@ -328,13 +328,7 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 				Hint:    "Use the COLLATE clause to set the collation explicitly.",
 			}
 		}
-		mode := unicode16.ASCII
-		switch p.result.Collation.ID {
-		case 811:
-			mode = unicode16.Simple
-		case 6411:
-			mode = unicode16.Full
-		}
+		mode := p.result.Collation.CaseMode()
 		text, err := unicode16.ConvertCase(ctx, texts[0], p.caseOp, mode)
 		if err != nil {
 			return Value{}, err

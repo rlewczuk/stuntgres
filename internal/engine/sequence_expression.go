@@ -216,7 +216,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 	if err != nil {
 		return nil, ObjectRef{}, err
 	}
-	info, err := collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, plan)), node)
+	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, plan)), node)
 	if err != nil {
 		return nil, ObjectRef{}, err
 	}

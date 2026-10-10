@@ -153,6 +153,9 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 	case *typeDescriptor:
 		if d.typ.IsDomain() {
 			base := d.typ.DomainBase()
+			if err := validateUsageCollation(view, base); err != nil {
+				return err
+			}
 			actual, ok := view.LookupType(base.Type.ID())
 			if !ok || actual != base.Type {
 				return CatalogConflict{}
@@ -166,6 +169,9 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 		}
 	case *relationDescriptor:
 		for _, c := range d.columns {
+			if err := validateUsageCollation(view, c.Usage); err != nil {
+				return err
+			}
 			actual, ok := view.LookupType(c.Usage.Type.ID())
 			if !ok || actual != c.Usage.Type {
 				return CatalogConflict{}

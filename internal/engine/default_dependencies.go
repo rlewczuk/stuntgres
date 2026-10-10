@@ -49,6 +49,10 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 						return fmt.Errorf("stuntgres: foreign temporary default provider")
 					}
 				}
+			} else if provider.Kind() == CollationObject {
+				if err := validateCollationProvider(view, ref); err != nil {
+					return err
+				}
 			} else if provider.Kind() != TypeObject {
 				return fmt.Errorf("stuntgres: invalid default provider kind")
 			}

@@ -45,11 +45,11 @@ func compositeDumpStatement(ctx context.Context, view CatalogRead, roles RoleRea
 		}
 		sql.WriteString(quoteIdentifier(c.Name) + " " + declaration)
 		if c.Usage.Collation != c.Usage.Type.Usage().Collation {
-			name := builtinCollationName(c.Usage.Collation.ID)
+			name := collationSQLName(view, c.Usage.Collation.ID)
 			if name == "" {
 				return dumpDomain{}, fmt.Errorf("stuntgres: unsupported composite member collation")
 			}
-			sql.WriteString(" COLLATE " + quoteIdentifier(view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}].Name()) + "." + quoteIdentifier(name))
+			sql.WriteString(" COLLATE " + name)
 		}
 	}
 	sql.WriteString(");\n")

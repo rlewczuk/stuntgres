@@ -233,7 +233,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 				return nil, err
 			}
 			nodes[i][j] = node
-			info, err = collatedInfo(info, node)
+			info, err = b.collatedInfo(info, node)
 			if err != nil {
 				return nil, err
 			}

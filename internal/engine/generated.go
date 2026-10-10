@@ -424,8 +424,13 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*relationDescriptor)
-			if !ok || provider.Kind() != TypeObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) {
+			if !ok || provider.Kind() != TypeObject && provider.Kind() != CollationObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) {
 				return fmt.Errorf("stuntgres: invalid generation provider")
+			}
+			if provider.Kind() == CollationObject {
+				if err := validateCollationProvider(view, ref); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -445,6 +450,9 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	typ, exists := view.LookupType(usage.Type.ID())
 	if !exists || typ != usage.Type || !usage.Valid() {
 		return fmt.Errorf("stuntgres: invalid generation plan type")
+	}
+	if err := validateUsageCollation(view, usage); err != nil {
+		return err
 	}
 	child := func(n BoundExpr) error { return validateGenerationPlan(view, d, n) }
 	pair := func(a, b BoundExpr) error {

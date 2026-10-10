@@ -74,7 +74,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindCurrentSchemas(raw)
 	}
 	switch name {
-	case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible":
+	case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version":
 		return b.bindVisibilityInquiry(raw)
 	case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 		return b.bindIndexProperty(raw)

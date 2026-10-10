@@ -82,10 +82,14 @@ func likeCollation(a, b sqltype.Usage) (sqltype.CollationRef, bool) {
 	return sqltype.CollationRef{ID: 100, Derivation: sqltype.Default}, true
 }
 
+func (b *expressionBinder) collatedInfo(info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+	return collatedInfo(b.bindingCatalog(), info, inputs...)
+}
+
 // Collation identity is valid Usage metadata; indeterminacy is expression
 // state. Preserve both across collatable wrappers without inventing an invalid
 // stored collation or evaluating branches merely to choose their collation.
-func collatedInfo(info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+func collatedInfo(view CatalogRead, info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
 	if info.usage.Collation.ID == 0 {
 		return info, nil
 	}
@@ -96,7 +100,7 @@ func collatedInfo(info expressionInfo, inputs ...BoundExpr) (expressionInfo, err
 		}
 		if explicit.Character > 0 {
 			if info.collationExplicit.Character > 0 && info.usage.Collation.ID != u.Collation.ID {
-				return info, expressionError("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, builtinCollationName(info.usage.Collation.ID), builtinCollationName(u.Collation.ID)), explicit)
+				return info, expressionError("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, collationName(view, info.usage.Collation.ID), collationName(view, u.Collation.ID)), explicit)
 			}
 			info.usage.Collation = u.Collation
 			if info.collationExplicit.Character == 0 {
@@ -137,7 +141,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	info, err := collatedInfo(b.info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
+	info, err := b.collatedInfo(b.info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
 	if err != nil {
 		return nil, err
 	}
@@ -203,12 +207,12 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	if err != nil {
 		return nil, err
 	}
-	collation, err := collatedInfo(b.info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
+	collation, err := b.collatedInfo(b.info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
 	if err != nil {
 		return nil, err
 	}
 	if !collation.collationConflict && (operator == "~~*" || operator == "!~~*") &&
-		(collation.usage.Collation.ID == 811 || collation.usage.Collation.ID == 6411) {
+		collation.usage.Collation.Unicode() {
 		return nil, expressionError("0A000", "ILIKE is unsupported for this collation", raw.Pos)
 	}
 	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.typ(sqltype.Bool).Usage(), collation.collationConflict)
@@ -269,7 +273,7 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 		return nil, err
 	}
 	u := target.Usage()
-	info, err := collatedInfo(b.info(u, raw.Pos, likeProperties(pattern, escape)), pattern, escape)
+	info, err := b.collatedInfo(b.info(u, raw.Pos, likeProperties(pattern, escape)), pattern, escape)
 	if err != nil {
 		return nil, err
 	}

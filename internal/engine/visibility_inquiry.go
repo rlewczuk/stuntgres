@@ -14,6 +14,7 @@ const (
 	typeVisibility
 	collationVisibility
 	conversionVisibility
+	collationVersionInquiry
 )
 
 func (k visibilityInquiryKind) name() string {
@@ -26,6 +27,8 @@ func (k visibilityInquiryKind) name() string {
 		return "pg_collation_is_visible"
 	case conversionVisibility:
 		return "pg_conversion_is_visible"
+	case collationVersionInquiry:
+		return "pg_collation_actual_version"
 	}
 	return ""
 }
@@ -35,7 +38,7 @@ func (k visibilityInquiryKind) class() OID {
 		return RelationClassID
 	case typeVisibility:
 		return TypeClassID
-	case collationVisibility:
+	case collationVisibility, collationVersionInquiry:
 		return CollationClassID
 	case conversionVisibility:
 		return ConversionClassID
@@ -55,7 +58,7 @@ func (b *expressionBinder) bindVisibilityInquiry(raw parser.FunctionExpr) (Bound
 		return nil, err
 	}
 	if literal, ok := n.arg.(literalExpression); ok && literal.value.IsNull() {
-		typ := b.typ(sqltype.Bool)
+		typ := n.usage.Type
 		return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
 	}
 	b.visibilitySnapshot = true
@@ -109,6 +112,8 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 		kind = collationVisibility
 	case "pg_conversion_is_visible":
 		kind = conversionVisibility
+	case "pg_collation_actual_version":
+		kind = collationVersionInquiry
 	default:
 		return visibilityInquiryExpression{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}
@@ -129,7 +134,11 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 	}
 	properties := arg.Properties()
 	properties.Volatility = max(Stable, properties.Volatility)
-	return visibilityInquiryExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), kind, arg}, nil
+	result := b.typ(sqltype.Bool).Usage()
+	if kind == collationVersionInquiry {
+		result = b.typ(sqltype.Text).Usage()
+	}
+	return visibilityInquiryExpression{b.info(result, raw.Pos, properties), kind, arg}, nil
 }
 func namedObjectVisible(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
@@ -143,7 +152,7 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.kind.class() == 0 || e.arg == nil || e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool {
+	if e.kind.class() == 0 || e.arg == nil || e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool && e.kind != collationVersionInquiry {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}
 	value, err := e.arg.Eval(c)
@@ -163,7 +172,20 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	scope := c.liveScope()
 	d, exists := scope.visibilityCatalog.Descriptor(ObjectAddress{ClassID: e.kind.class(), ObjectID: OID(oid)})
 	if !exists {
+		if e.kind == collationVersionInquiry {
+			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("collation with OID %d does not exist", oid))
+		}
 		return sqltype.Null(e.usage.Type), nil
+	}
+	if e.kind == collationVersionInquiry {
+		version, err := collationActualVersion(d.(*collationDescriptor))
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if version == nil {
+			return sqltype.Null(e.usage.Type), nil
+		}
+		return sqltype.String(e.usage.Type, *version), nil
 	}
 	path := scope.visibilityRelationPath
 	if e.kind == collationVisibility || e.kind == conversionVisibility {

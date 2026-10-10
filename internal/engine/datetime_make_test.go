@@ -105,7 +105,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacement[d.ID()] = d
 		}
-		next, changed, err := retagBoundTypes(e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+		next, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, next, changed, err)
 		}

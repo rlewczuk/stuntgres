@@ -156,7 +156,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 		t.Fatal("ordered argument identity")
 	}
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := retagBoundTypes(b.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -185,7 +185,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	}
 	node := bound.(formatExpression)
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := retagBoundTypes(b.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

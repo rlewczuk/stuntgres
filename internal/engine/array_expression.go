@@ -118,7 +118,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 		elements[i] = node
 		properties = mergeExpressionProperties(properties, node.Properties())
 	}
-	info, err := collatedInfo(b.info(target, raw.Pos, properties), elements...)
+	info, err := b.collatedInfo(b.info(target, raw.Pos, properties), elements...)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (BoundExpr, e
 	if !slice {
 		usage.Type = usage.Type.Element()
 	}
-	info, err := collatedInfo(b.info(usage, raw.Pos, properties), base)
+	info, err := b.collatedInfo(b.info(usage, raw.Pos, properties), base)
 	if err != nil {
 		return nil, err
 	}

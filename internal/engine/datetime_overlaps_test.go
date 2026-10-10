@@ -61,7 +61,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			for _, d := range sqltype.Builtins() {
 				replacements[d.ID()] = d
 			}
-			rebound, changed, err := retagBoundTypes(e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+			rebound, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(rebound, changed, err)
 			}
@@ -284,7 +284,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacements[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(folded, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+	rebound, changed, err := retagBoundTypes(New().CatalogRead(), folded, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}

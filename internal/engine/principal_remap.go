@@ -64,7 +64,28 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.descriptors[addr] = &n
-		case *collationDescriptor, *conversionDescriptor:
+		case *collationDescriptor:
+			n := *d
+			var err error
+			if d.seeded() && d.owner == (PrincipalRef{source.owner, 10}) {
+				if _, err = source.Descriptor(d.owner); err != nil {
+					return nil, err
+				}
+				n.owner = PrincipalRef{e, 10}
+				if _, err = targetSnapshot.Descriptor(n.owner); err != nil {
+					return nil, err
+				}
+				if _, err = (RoleRead{e, e.roles}).Descriptor(n.owner); err != nil {
+					return nil, err
+				}
+			} else {
+				n.owner, err = remap(d.owner)
+			}
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
+		case *conversionDescriptor:
 			// Immutable builtin identities have no principal references to remap.
 		case *namespaceDescriptor:
 			n := *d

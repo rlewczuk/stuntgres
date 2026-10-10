@@ -10,6 +10,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 	visited := make(map[ObjectAddress]bool)
 	active := make(map[ObjectAddress]bool)
 	changed := false
+	collation := remappedCollationCapabilities(next, mapping)
 	var visit func(ObjectAddress) error
 	visit = func(address ObjectAddress) error {
 		if visited[address] {
@@ -87,6 +88,13 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 				}
 				usage := c.Usage
 				usage.Type = next.descriptors[child].(*typeDescriptor).typ
+				if collation != nil {
+					mapped, err := collation(usage.Collation)
+					if err != nil {
+						return err
+					}
+					usage.Collation = mapped
+				}
 				member := sqltype.CompositeMember{Attribute: relation.attributes[i], Name: c.Name, Usage: usage}
 				if !rebuild && d.typ.CompositeMember(i) != member {
 					rebuild = true
@@ -95,6 +103,13 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 					members = compositeMembers(relation)
 					for j := range i {
 						members[j].Usage.Type = next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(members[j].Usage.Type.ID())}].(*typeDescriptor).typ
+						if collation != nil {
+							mapped, err := collation(members[j].Usage.Collation)
+							if err != nil {
+								return err
+							}
+							members[j].Usage.Collation = mapped
+						}
 					}
 				}
 				if members != nil {
@@ -157,6 +172,15 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 			return err
 		}
 		base.Type = next.descriptors[baseAddress].(*typeDescriptor).typ
+		collationChanged := false
+		if collation != nil {
+			mapped, err := collation(base.Collation)
+			if err != nil {
+				return err
+			}
+			collationChanged = mapped != base.Collation
+			base.Collation = mapped
+		}
 		target := address
 		if destination, ok := mapping[address]; ok {
 			target = destination
@@ -183,7 +207,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 		if destination, ok := mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(associated)}]; ok {
 			associated = sqltype.ID(destination.ObjectID)
 		}
-		if base.Type != previous || target != address || namespace != d.Namespace() || d.typ.IsDomain() && declaration != d.typ.SQLName() || associated != d.array {
+		if collationChanged || base.Type != previous || target != address || namespace != d.Namespace() || d.typ.IsDomain() && declaration != d.typ.SQLName() || associated != d.array {
 			var typ *sqltype.Descriptor
 			var err error
 			if d.typ.IsArray() {
@@ -226,14 +250,18 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
-func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.Value, error) {
+func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper) (sqltype.Value, error) {
 	if value.Type().BaseType().IsComposite() && target.BaseType().IsComposite() {
-		return value.MapComposite(target, reownDomainDatum)
+		return value.MapComposite(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
+			return reownDomainDatum(v, t, collation)
+		})
 	}
 	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
-		return value.MapArray(target, reownDomainDatum)
+		return value.MapArray(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
+			return reownDomainDatum(v, t, collation)
+		})
 	}
-	if value.Type().ID() == target.ID() && value.Type().BaseType().ID() == target.BaseType().ID() {
+	if value.Type().ID() == target.ID() && value.Type().BaseType().ID() == target.BaseType().ID() && (!value.Type().IsDomain() || value.Type().Usage().BaseUsage().Collation == target.Usage().BaseUsage().Collation) {
 		return value.Retag(target)
 	}
 	if value.Type().IsEnum() && target.IsEnum() {
@@ -243,6 +271,13 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported scalar identity")
 	}
 	from, to := value.Type().Usage().BaseUsage(), target.Usage().BaseUsage()
+	if collation != nil {
+		mapped, err := collation(from.Collation)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		from.Collation = mapped
+	}
 	if (!from.Type.IsEnum() && !from.Type.IsComposite() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
@@ -250,7 +285,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	physical, err = reownDomainDatum(physical, to.Type)
+	physical, err = reownDomainDatum(physical, to.Type, collation)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -258,6 +293,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.
 }
 
 func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*relationStorage, mapping map[ObjectAddress]ObjectAddress) error {
+	collation := remappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.ID())}].(*typeDescriptor); ok {
 			return d.typ
@@ -281,11 +317,20 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 			if target == nil {
 				return fmt.Errorf("stuntgres: missing imported column type")
 			}
-			if target != c.Usage.Type {
+			capability := c.Usage.Collation
+			if collation != nil {
+				var err error
+				capability, err = collation(capability)
+				if err != nil {
+					return err
+				}
+			}
+			if target != c.Usage.Type || capability != c.Usage.Collation {
 				if columns == nil {
 					columns = append([]ColumnDescriptor(nil), d.columns...)
 				}
 				columns[i].Usage.Type = target
+				columns[i].Usage.Collation = capability
 			}
 		}
 		if columns != nil {
@@ -307,7 +352,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 				changed := target != value.Type()
 				var err error
 				if changed {
-					rebound, err = reownDomainDatum(value, target)
+					rebound, err = reownDomainDatum(value, target, collation)
 					if err != nil {
 						return err
 					}

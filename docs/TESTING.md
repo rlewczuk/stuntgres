@@ -586,6 +586,134 @@ bad UPDATE/late bad INSERT, subsequent valid recovery, and distinct NULL/path-nu
 rows. No discovery filter, success logging or observation fallback is retained.
 Change note: JSONPath oracle-discovery envelopes are replaced with quiet shared
 reference assertions; quick-mode failure precedes production implementation.
+The collation-object family covers independent C/builtin identity, provider
+metadata and execution modes, validation, version notices, authenticated
+ownership, rename/schema/dependency transitions, and native persistence with
+PostgreSQL emitted-SQL replay. External ICU/libc data boundaries are explicit;
+native never substitutes C for an unavailable provider. Run every changed
+definition in both modes, each under a 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceTemporaryTable.*|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceTemporaryTable.*|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
+```
+
+The cohesive feature selector is
+`RUN='^TestReferenceCollation(Identity|Provider|Version|SeedAlterLifecycle|SeedTemporaryLifecycle|SeedNativeReplay|Lifecycle|Dependencies|NativeLifecycle|NativeCollision|CompositeNativeCollision|TemporaryLifecycle|TemporaryQualification|TemporaryRetainedConsumers|SimilarCopiedUnicode|ExternalBoundary)$'`.
+Expected observations include independent object OIDs, real ASCII/Simple/Full
+case behavior, NULL versus version `1`, stable permanent moves and mutable pinned
+seed metadata, actual owner relationships without a pg_roles fixture dependency,
+seed delta Dump/Reset/Restore and actual PostgreSQL emitted replay, column-cascade
+surviving data, and repeated independent native Restore. TEMP witnesses cover
+fresh creation, same-role/other-role foreign qualification42501, physical owner
+end's atomic durable cascade, into/out-of-TEMP moves0A000 without mutation, portable
+omission or fail-before-output, and actual import/target OID collisions across all
+provider usages. Native control phases remain explicitly native-only.
+Provider encoding is independently checked across actual PostgreSQL replay:
+direct builtin `C` uses-1, while direct `C.UTF-8`/`PG_UNICODE_FAST` use UTF8 encoding6.
+FROM copies retain source encoding; libc `C`/`POSIX` copies use-1 versus direct
+libc options6, and copied builtin `C` from `ucs_basic` uses6 versus direct builtin
+`C`-1. Only exceptional copies need immutable bootstrap FROM reconstruction.
+
+The copied-provider SQL-regex consumer witness independently distinguishes
+ASCII, C.UTF-8 and PG_UNICODE_FAST alphabetic, decimal and punctuation classes,
+with source/pattern explicit COLLATE, direct/prepared context and non-context
+routes, BOOL metadata and implicit copied identities in stored views. Run:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceCollationSimilarCopiedUnicode$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCollationSimilarCopiedUnicode$' VERBOSE=0
+```
+
+Change note: SIMILAR class dispatch now follows the registered immutable provider
+capability rather than bootstrap object OIDs; seed class semantics are unchanged.
+
+The TEMP lifecycle witness also retains a real TEMP table, SERIAL-owned sequence
+and index across native Reset/Restore, then asserts their physical-end cleanup
+alongside the durable dependent-column projection. DEFAULT, CHECK and generated
+provider manifests retain genuine collation dependencies through both private
+validation and final publication fences. Native absent `pg_catalog."C.utf8"`
+lookup is42704; explicitly requesting its unavailable libc provider remains0A000,
+while the PostgreSQL witness uses its installed libc locale without substitution.
+
+Change note: retained TEMP DEFAULT, CHECK and generated manifests preserve their
+lawful captured collation references across repeated Reset/Restore. Older epochs
+are admitted only for the exact live physical-owner consumer and its same-owner
+TEMP provider, or an actual validated pinned seed, with exact class/SubID and
+matching immutable capability. Subsequent DDL, default INSERT, prepared UPDATE,
+failed CHECK atomicity, dependency identity and physical cleanup are exercised by
+`TestReferenceCollationTemporaryRetainedConsumers`. After each catalog replacement,
+ALTER of a separate seed default republishes that exact retained relation; new
+inserts observe the changed default while the other explicit-COLLATE definitions
+and their captured provider manifests survive unchanged.
+
+`TestReferenceCollationCompositeNativeCollision` covers existing supported
+composite member collations, composite domains/defaults/data and stored views:
+Dump uses qualified live provider names, genuine target TEMP collisions remap
+member capabilities over repeated native Restore, and emitted SQL is replayed
+against PostgreSQL. Composite-array column admission remains unchanged and is
+not claimed by this witness.
+
+Stored scalar metadata no longer retains binding catalog roots. Name resolution
+uses the actual ephemeral binding or private-candidate retag context; pure
+reference/slot remapping preserves already validated provider metadata. Genuine
+package regressions are `TestCollationRetainedProviderProvenance` (foreign,
+stale/missing, class/SubID, physical owner and capability negatives plus full
+DEFAULT/CHECK/generated serializer manifests, including captured epochs) and
+`TestCollationStoredExpressionMetadataRetention` (repeated
+real view/default replacement and legitimate held old definitions).
+
+The generalized ARRAY constructor and subscript binders use that same actual
+binding context; their existing retag visitor forwards the private candidate
+and provider remapper. The obsolete REGCLASS-only array visitor is removed,
+not retained as a second array authority. Shared ordinary/materialized-view
+freezing captures collation identities once alongside the other definition facts.
+
+Change note: array-aggregate providers remap their complete result Usage,
+including the registered collation capability, alongside their argument type;
+the copied provider never changes retained source authority.
+`TestArrayAggregateCollationViewRemap` compares complete provider/schema Usage
+for genuine scalar/array Full-to-ASCII capability mapping and source immutability.
+`TestReferenceCollationNativeCollision` independently checks collated stored
+`array_agg` rows/metadata, propagated subscript case behavior, repeated genuine
+TEMP-collision Restore, source isolation and emitted-SQL PostgreSQL replay.
+
+Change note: explicit COLLATE serialization uses the common captured-aware
+provider record only; it must not append a second current-epoch reference for an
+older lawful retained definition. Provider validation reads structural catalog
+snapshots only. Owner/ACL validation remains at the synchronized shared stage and
+final publication fences, rather than rereading mutable roles inside the provider.
+`TestCollationProviderConcurrentRolePublication` overlaps genuine session role
+publication with snapshot provider validation. Its race gate is:
+
+```sh
+make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestCollationProviderConcurrentRolePublication$' VERBOSE=0
+```
+
+The already integrated `TestReferenceLikeLegacyMigration` and its stage/namespace
+scenarios remain the single owner of the former LIKE smoke assertion union; the
+duplicate collation-named migration is removed. Required final selective gates
+also explicitly include the three changed non-collation-named scenarios:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceLikeLegacyMigration|TestReferenceLikeLegacyStageConsumers|TestReferenceLikeLegacyMissingNamespace|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceLikeLegacyMigration|TestReferenceLikeLegacyStageConsumers|TestReferenceLikeLegacyMissingNamespace|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
+```
+
+Each invocation has a 900-second deadline. Complete-suite passes do not replace
+these selective dual-mode gates.
+
+Owned TEMP targets are excluded from the private stage before projecting surviving
+dependents, so a dropped TEMP table never also publishes a replacement row shape.
+
+Supplemental genuine package regressions include
+`TestCollationBootstrapPrincipalNameReuse`, `TestCollationPrivateSessionIdentity`
+and `TestCollationTemporaryCleanup(AX|CompletenessFence|Exhaustion)`. The baseline
+has no public role-rename SQL: the name-reuse fixture clones and coherently
+publishes the actual role catalog under existing live authority, retaining real
+identities/attributes/memberships, then creates the replacement through real DDL.
+It exercises real metadata capture, owner denial, Reset/Restore and private cleanup;
+it does not bypass owners/pins or advertise ALTER ROLE support.
 
 Table definition-copy coverage uses
 `RUN='^TestReference(Table(Like|Core)|SchemaTableIntegration|IdentitySerialAndNativeBoundaries|NotNullExternalInheritance)'`

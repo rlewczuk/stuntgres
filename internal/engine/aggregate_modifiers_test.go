@@ -310,7 +310,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	remapped, err := remapViewQuery(node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	remapped, err := remapViewQuery(New().CatalogRead(), node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil || remapped == node {
 		t.Fatal(remapped, err)
 	}

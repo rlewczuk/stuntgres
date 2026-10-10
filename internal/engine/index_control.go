@@ -115,9 +115,10 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		if presented.collation != 0 {
 			sql.WriteString(" COLLATE ")
 			if presentation.dump {
-				sql.WriteString(quoteIdentifier("pg_catalog") + ".")
+				sql.WriteString(collationSQLName(catalog, presented.collation))
+			} else {
+				sql.WriteString(collationDisplayName(catalog, presented.collation, presentation.path))
 			}
-			sql.WriteString(identifier(builtinCollationName(presented.collation)))
 		}
 		if presented.explicitClass {
 			sql.WriteByte(' ')

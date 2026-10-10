@@ -460,7 +460,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						info, err := collatedInfo(b.info(usage, pos, coercionProperties(value, plan)), value)
+						info, err := b.collatedInfo(b.info(usage, pos, coercionProperties(value, plan)), value)
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}

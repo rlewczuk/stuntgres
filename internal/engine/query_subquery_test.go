@@ -496,7 +496,7 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 	if !queryDescriptorsChanged(q.Root, types) {
 		t.Fatal("nested type change invisible")
 	}
-	mapped, err := remapViewQuery(q.Root, refs, types)
+	mapped, err := remapViewQuery(New().CatalogRead(), q.Root, refs, types)
 	if err != nil {
 		t.Fatal(err)
 	}

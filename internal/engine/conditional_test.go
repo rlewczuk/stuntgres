@@ -394,7 +394,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 		}
 		return old
 	}
-	retagged, changed, err := retagBoundTypes(node, retained)
+	retagged, changed, err := retagBoundTypes(New().CatalogRead(), node, retained)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -413,7 +413,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	if _, err := defaultSQL(context.Background(), target.CatalogRead(), retagged); err != nil {
 		t.Fatal("retagged serialization provider ownership", err)
 	}
-	_, changed, err = retagBoundTypes(retagged, retained)
+	_, changed, err = retagBoundTypes(New().CatalogRead(), retagged, retained)
 	if err != nil || changed {
 		t.Fatal("unchanged tree copied", changed, err)
 	}
@@ -487,7 +487,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 				t.Fatal("original stored rendering", err)
 			}
 			assertValue(bind(source, rendered), oldDomain, tc.label, tc.null)
-			next, changed, err := retagBoundTypes(node, retained)
+			next, changed, err := retagBoundTypes(New().CatalogRead(), node, retained)
 			if err != nil || !changed {
 				t.Fatal("stored extrema reownership", changed, err)
 			}
@@ -531,7 +531,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			if _, err := defaultSQL(ctx, source.CatalogRead(), node); err != nil {
 				t.Fatal("original stored ownership changed", err)
 			}
-			unchanged, changed, err := retagBoundTypes(next, retained)
+			unchanged, changed, err := retagBoundTypes(New().CatalogRead(), next, retained)
 			if err != nil || changed {
 				t.Fatal("unchanged stored tree reminted", changed, err)
 			}

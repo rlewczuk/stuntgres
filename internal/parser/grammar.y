@@ -116,6 +116,10 @@ package parser
  groupItems []GroupItem
  groupItem GroupItem
  cursorFetch *FetchCursor
+ createCollation *CreateCollation
+ alterCollation *AlterCollation
+ collationOptions []CollationOption
+ collationOption CollationOption
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -170,6 +174,8 @@ package parser
 %token <tok> ILIKE ESCAPE SIMILAR
 %token <tok> COMMENT COLUMN IS
 %token <tok> COLLATE
+%token <tok> COLLATION
+%token <tok> REFRESH VERSION
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
 %token <tok> CONSTRAINT ADD INHERITS
 %token <tok> CHECK
@@ -227,7 +233,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
 %nonassoc GENERATION_OVER
@@ -272,6 +278,12 @@ package parser
 %type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
 %type <stmt> create_domain drop_domain create_enum create_composite
+%type <stmt> create_collation alter_collation drop_collation
+%type <createCollation> collation_create_head
+%type <alterCollation> collation_alter_head
+%type <collationOptions> collation_options
+%type <collationOption> collation_option
+%type <tok> collation_name_word
 %type <enumLabels> enum_labels enum_label_list
 %type <columns> composite_members composite_member_list
 %type <col> composite_member
@@ -499,6 +511,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | drop_domain
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql
+ | alter_collation | drop_collation
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -787,6 +800,7 @@ create: create_table { $$=$1 }
  | create_view { $$=$1 }
  | create_index { $$=$1 }
  | create_domain { $$=$1 }
+ | create_collation { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
  | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
@@ -817,6 +831,31 @@ domain_constraints: /* empty */ {$$=nil}
  | column_suffix {sqllex.(*lexer).capability($1,unsupportedSuffixes,"domain constraints are unsupported");return 1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
+collation_create_head: CREATE COLLATION relation_name {$$=&CreateCollation{Name:$3,Pos:$1.pos}}
+ | CREATE COLLATION IF NOT EXISTS relation_name {$$=&CreateCollation{Name:$6,IfNotExists:true,Pos:$1.pos}} ;
+create_collation: collation_create_head FROM relation_name {$1.From=&$3;$$=$1}
+ | collation_create_head '(' collation_options ')' {$1.Options=$3;$$=$1} ;
+collation_options: collation_option {$$=[]CollationOption{$1}}
+ | collation_options ',' collation_option {$$=append($1,$3)} ;
+collation_option: col_label '=' relation_name {value:=$3.Parts[0].Text;for _,p:=range $3.Parts[1:]{value+="."+p.Text};source:=$3;$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:value,Source:&source}}
+ | col_label '=' STRING {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text}}
+ | col_label '=' NUMBER {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text,Numeric:true}}
+ | col_label '=' '-' NUMBER {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"-"+$4.text,Numeric:true}}
+ | col_label '=' '+' NUMBER {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$4.text,Numeric:true}}
+ | col_label '=' TRUE {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text}}
+ | col_label '=' FALSE {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text}}
+ | col_label '=' NULL {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text}}
+ | col_label '=' ON {$$=CollationOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text}} ;
+collation_alter_head: ALTER COLLATION relation_name {$$=&AlterCollation{Name:$3,Pos:$1.pos}} ;
+alter_collation: collation_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | collation_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | collation_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
+ | collation_alter_head REFRESH VERSION {$1.Action="refresh";$$=$1} ;
+/* Dedicated clause terminals avoid SET SCHEMA competing with two arbitrary
+ * names. Their released unreserved identifier legality remains unchanged. */
+collation_name_word: REFRESH | VERSION ;
+drop_collation: DROP COLLATION relation_names drop_mode {$$=&DropCollation{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP COLLATION IF EXISTS relation_names drop_mode {$$=&DropCollation{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 /* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
  * so malformed option syntax fails before any earlier statement can execute. */
 maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;
@@ -1677,6 +1716,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | cursor_word
+ | collation_name_word
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
@@ -1704,10 +1744,12 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | NAMES
  | cursor_word
  | membership_keyword
+ | collation_name_word
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
  | SIMILAR
+ | COLLATION
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;
@@ -1716,6 +1758,8 @@ generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | NAMES
+ | COLLATION
+ | collation_name_word
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | membership_keyword
  | SIMILAR
@@ -1732,6 +1776,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | COLLATE { $$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+ | COLLATION { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | UNIQUE { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | PRIMARY {$$=$1}
@@ -1744,7 +1789,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
  | SIMILAR
- | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO | GRANT | PRIMARY ;
+ | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO | GRANT | PRIMARY | COLLATION ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;
 where_predicate_suffix: KW_T | KW_R | UNIQUE | PRIMARY | INTO | DEFAULT | ALL | ON | WITH | USER | CONSTRAINT ;

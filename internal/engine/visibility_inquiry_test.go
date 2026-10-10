@@ -30,8 +30,8 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	// name candidates, without admitting unsupported native collation DDL.
 	a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20001}
 	b := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20002}
-	first := &collationDescriptor{1, "same", -1}
-	second := &collationDescriptor{2, "same", 6}
+	first := &collationDescriptor{oid: 1, name: "same", encoding: -1}
+	second := &collationDescriptor{oid: 2, name: "same", encoding: 6}
 	state := &catalogState{descriptors: map[ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, names: map[NameKey]ObjectAddress{
 		{ClassID: CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: CollationClassID, Namespace: b, Name: "same"}: second.Address(),

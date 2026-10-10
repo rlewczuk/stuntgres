@@ -60,8 +60,10 @@ const (
 )
 
 type CollationRef struct {
-	ID         uint32
-	Derivation CollationDerivation
+	ID           uint32
+	Derivation   CollationDerivation
+	provider     uint32
+	registeredID uint32
 }
 
 type Usage struct {

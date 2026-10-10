@@ -648,7 +648,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return "", err
 		}
-		return "(" + text + " COLLATE pg_catalog." + quoteIdentifier(e.Name.Parts[len(e.Name.Parts)-1].Text) + ")", nil
+		id, ok := v.collations[path]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing analyzed view collation")
+		}
+		name := collationSQLName(catalog, id)
+		if v.presentation.deparse {
+			name = collationDisplayName(catalog, id, v.presentation.path)
+		}
+		return "(" + text + " COLLATE " + name + ")", nil
 	case parser.CastExpr:
 		literalPath := path
 		literalPath.node = *ordinal
