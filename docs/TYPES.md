@@ -2009,7 +2009,12 @@ analysis. Parameters, column casts/comparisons and AT LOCAL read execution setti
 Held cursors retain captured presentation and metadata across settings changes
 and native replacement. Dump uses canonical ISO/UTC timestamptz and stored timetz
 offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
-No timezone catalog views are added. Selected [INTERVAL arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) uses these existing codecs.
+The [timezone lookup views](DIALECT.md#timezone-lookup-views--change-note) now
+reuse these codecs: unrestricted TEXT labels, INTERVAL offsets (zero months/days,
+exact seconds east of UTC) and BOOL daylight flags. Native interval ScanType is
+string; pinned pq advertises interface{} and returns interval bytes. Declared
+view columns have known nullable=true natively; pq exposes unknown nullability.
+Selected [INTERVAL arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) uses these existing codecs.
 The five [SQL current date/time producers](DIALECT.md#sql-current-date-and-time--change-note)
 use these same codecs/settings and remain dynamic under held prepared execution.
 

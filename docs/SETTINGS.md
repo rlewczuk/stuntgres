@@ -320,6 +320,15 @@ filesystem Detail/Hint and without changing the previous table.
 Native TimeZone defaults to UTC, the pinned fixture environment to Etc/UTC;
 PostgreSQL's compile-time default is GMT. These are intentionally distinct
 default names, not a change to the native environment contract.
+
+The [timezone lookup views](DIALECT.md#timezone-lookup-views--change-note) expose
+the same captured authority: pg_timezone_names depends on the transaction instant,
+not session TimeZone/table changes. pg_timezone_abbrevs depends on both settings,
+with session-zone labels shadowing the selected table and dynamic labels retaining
+their historical matched daylight flag. Fixed D entries do not track current
+season. SET LOCAL/savepoint/rollback/RESET and physical-session isolation apply
+through the existing settings owner. Held prepared execution sees new settings;
+already admitted native rows retain old facts and IntervalStyle.
 Public feature smoke (also run with `REFERENCE=1`):
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`.
 

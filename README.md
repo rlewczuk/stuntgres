@@ -23,6 +23,16 @@ See [table/view summaries](docs/SQL.md#table-and-view-summaries--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0`.
 
+Change note: read-only `pg_catalog.pg_timezone_names` and
+`pg_catalog.pg_timezone_abbrevs` expose typed installed-provider lookup facts:
+TEXT labels, INTERVAL offsets east of UTC and BOOL daylight flags. Names use the
+captured transaction-start instant; abbreviations use that instant plus the
+execution's TimeZone and Default/Australia/India table. Enumeration uses the
+existing embedded IANA2025b provider, not host files or arbitrary accepted POSIX
+expressions. See [timezone lookup views](docs/DIALECT.md#timezone-lookup-views--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneViewsFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezoneViewsFeatureSmoke$' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
 table/name, NULL default tablespace and compact reconstructable definition.
 Access method appears in CREATE INDEX text, not a sixth field. Native visibility

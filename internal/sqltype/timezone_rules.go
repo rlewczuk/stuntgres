@@ -57,6 +57,8 @@ var zones struct {
 	once          sync.Once
 	archive       *zip.Reader
 	members       map[string]*zip.File
+	names         []string
+	abbrevEntries [3][]timezoneViewAbbreviation
 	cache         sync.Map
 	abbreviations [3]map[string]zoneAbbreviation
 }
@@ -68,12 +70,23 @@ func initializeZones() {
 	}
 	zones.archive = r
 	zones.members = make(map[string]*zip.File, len(r.File))
+	zones.names = make([]string, 0, len(r.File))
 	for _, f := range r.File {
 		zones.members[strings.ToLower(f.Name)] = f
+		zones.names = append(zones.names, f.Name)
 	}
 	zones.abbreviations[TimezoneAbbreviationsDefault] = stockAbbreviations(defaultZoneAbbreviations, nil)
 	zones.abbreviations[TimezoneAbbreviationsAustralia] = stockAbbreviations(australiaZoneAbbreviations, zones.abbreviations[TimezoneAbbreviationsDefault])
 	zones.abbreviations[TimezoneAbbreviationsIndia] = stockAbbreviations(indiaZoneAbbreviations, zones.abbreviations[TimezoneAbbreviationsDefault])
+	sort.Strings(zones.names)
+	for set, table := range zones.abbreviations {
+		entries := make([]timezoneViewAbbreviation, 0, len(table))
+		for name, entry := range table {
+			entries = append(entries, timezoneViewAbbreviation{timezoneASCIIUpper(name), entry})
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].label < entries[j].label })
+		zones.abbrevEntries[set] = entries
+	}
 }
 func FixedZone(name string, east int32) *Zone {
 	return &Zone{name: name, types: []zoneType{{east: east, abbreviation: name}}, fixed: true}

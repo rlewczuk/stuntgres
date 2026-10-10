@@ -19,3 +19,12 @@ go run ./internal/sqltype/tzdata/generate -source /absolute/path/to/acquired-evi
 It sorts names, uses uncompressed ZIP entries with fixed 1980 timestamps and read-only permissions, preserves TZif bytes, and emits `SHA256SUMS`. Generation reads only the explicitly supplied acquisition directory; runtime uses the embedded archive and abbreviation snapshot, never the host timezone database, network, or operating-system local timezone. The root ran this command successfully for the pinned image acquisition.
 
 `tzdata-copyright` preserves the image's Debian/IANA license and provenance notices. `PostgreSQL-COPYRIGHT` preserves the PostgreSQL license applicable to the three abbreviation snapshots and release-source-derived timezone algorithms. See [PostgreSQL REL_18_0 COPYRIGHT](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/COPYRIGHT).
+
+Timezone lookup view enumeration uses the canonical member spellings in this
+runtime-loaded archive, including aliases, not ResolveZone's request/POSIX cache.
+The inventory is the supported installed Z/L set, not PostgreSQL's entire
+filesystem enumeration. No unsupported names, offsets or daylight flags are
+fabricated. Labels and flags come from actual TZif types at the captured
+transaction-start second; stock abbreviations additionally retain their fixed D
+flags and dynamic historical meanings. All inventory, alias and abbreviation
+behavior is version-sensitive to these assets.

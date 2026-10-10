@@ -16,6 +16,14 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{12005, "pg_timezone_names", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"name", sqltype.Text}, {"abbrev", sqltype.Text}, {"utc_offset", sqltype.Interval}, {"is_dst", sqltype.Bool}}},
+		{12004, "pg_timezone_abbrevs", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"abbrev", sqltype.Text}, {"utc_offset", sqltype.Interval}, {"is_dst", sqltype.Bool}}},
 		{2605, "pg_cast", []struct {
 			name string
 			typ  sqltype.ID
@@ -71,6 +79,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
+		d.virtualView = spec.oid == 12005 || spec.oid == 12004
 		d.attributeHighWater = int32(len(d.attributes))
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
@@ -187,7 +196,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			kind := "r"
 			if relation.relationKind == sequenceRelation {
 				kind = "S"
-			} else if relation.relationKind == viewRelation {
+			} else if relation.relationKind == viewRelation || relation.virtualView {
 				kind = "v"
 			} else if relation.relationKind == indexRelation {
 				kind = "i"

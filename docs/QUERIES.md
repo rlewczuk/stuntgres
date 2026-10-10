@@ -2,6 +2,25 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Timezone lookup sources — change note
+
+The [timezone lookup views](DIALECT.md#timezone-lookup-views--change-note)
+use normal name resolution, filters, projections, ordering, joins and stored
+user-view consumers. Empty results retain their exact declared schema.
+Without ORDER BY treat results as bags, including independent name aliases;
+never infer portable archive or abbreviation iteration order.
+Each execution materializes immutable typed facts from captured transaction/session
+authority outside the catalog mutex. Repeated leaves use one transaction instant.
+PUBLIC SELECT does not confer writes: semantically valid INSERT, UPDATE and DELETE
+fail with55000, no affected count or successful result. Existing supported
+semantic analysis still precedes read-only rejection: target, predicate, assignment,
+source-query and UPDATE/DELETE RETURNING errors are not suppressed. No write
+expression is evaluated. Nil text/typed INTERVAL/BOOL comparison operands obey
+SQL three-valued logic and produce empty results with unchanged metadata.
+Existing scalar VALUES column-reference and INSERT RETURNING exclusions remain.
+Row locking remains unsupported for virtual catalog sources. No timezone SRFs
+or stored rewrite/deparse surface is added.
+
 ## Column-default catalog — change note
 
 `pg_catalog.pg_attrdef` is readable through direct and prepared SELECT, including

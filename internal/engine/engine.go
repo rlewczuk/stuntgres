@@ -505,9 +505,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if op != nil && op.restoreInsertAuthority && len(b.relation.identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
-		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-		if b.storage == nil && b.relation.relationKind == tableRelation {
-			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		if !b.relation.virtualView {
+			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			if b.storage == nil && b.relation.relationKind == tableRelation {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
 		}
 		if len(s.Targets) == 0 && s.Source == nil {
 			width := len(s.Rows[0])
@@ -680,9 +682,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
-		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-		if b.storage == nil && b.relation.relationKind == tableRelation {
-			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		if !b.relation.virtualView {
+			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			if b.storage == nil && b.relation.relationKind == tableRelation {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
 		}
 		binder.relation, binder.ref = b.relation, b.ref
 		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
@@ -730,12 +734,14 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		if b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation {
+		if !b.relation.virtualView && (b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation) {
 			return b, tableKind(b.relation, "change")
 		}
-		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-		if b.storage == nil {
-			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		if !b.relation.virtualView {
+			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			if b.storage == nil {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
 		}
 		binder.queryAuth = &auth
 		if err = e.bindUpdate(&b, binder, s); err != nil {
@@ -767,6 +773,19 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if len(b.querySources) != 0 && view == nil {
 		if _, err := validateViewReadGraph(auth.catalog, b.querySources); err != nil {
 			return b, err
+		}
+	}
+	// Function-backed lookup views still undergo the existing semantic
+	// analysis. Reject only after predicates, assignments, RETURNING and
+	// parameters have bound, without ever requiring storage or evaluating writes.
+	if b.relation != nil && b.relation.virtualView {
+		switch stmt.(type) {
+		case *parser.Insert:
+			return b, timezoneViewWriteError(b.relation, "insert")
+		case *parser.Update:
+			return b, timezoneViewWriteError(b.relation, "update")
+		case *parser.Delete:
+			return b, timezoneViewWriteError(b.relation, "delete")
 		}
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies

@@ -20,6 +20,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	}
 	switch d.relationKind {
 	case catalogRelation:
+		if d.virtualView {
+			input := scope.input
+			e.mu.Unlock()
+			return captureTimezoneSource(ctx, ref, d, input)
+		}
 		if d.address.ObjectID == 2396 {
 			source, err := capturePGShDescription(ctx, scope.commentRoles, ref, d)
 			e.mu.Unlock()

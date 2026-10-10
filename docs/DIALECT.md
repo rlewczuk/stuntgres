@@ -6,6 +6,50 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Timezone lookup views — change note
+
+`pg_catalog.pg_timezone_names` exposes `name TEXT, abbrev TEXT,
+utc_offset INTERVAL, is_dst BOOL`; `pg_catalog.pg_timezone_abbrevs` exposes
+`abbrev TEXT, utc_offset INTERVAL, is_dst BOOL`. Both grant PUBLIC SELECT and
+support ordinary direct/prepared lookup queries and stored user-view consumers.
+Offsets are seconds east of Greenwich, encoded as an interval with zero months
+and days. Emitted values are nonnull; declared view columns remain nullable.
+Names include canonical installed aliases independently, with no promised order.
+
+Names use the transaction-start instant captured once by existing execution
+authority, including repeated source occurrences. Prepared execution captures
+fresh settings/instant; Prepare never freezes view rows. Abbreviations expose
+selected stock entries plus actually used alphabetic uppercase session-zone
+labels; session labels shadow stock entries. Numeric zone labels remain valid
+in names but are excluded from abbreviations. Fixed daylight entries such as EDT
+are present in winter too. Dynamic/historical matching preserves the matched
+label's daylight flag, not a guess based on current season.
+
+Runtime enumerates the existing embedded installed IANA2025b Zone/Link archive,
+not the host timezone database or PostgreSQL's complete filesystem tree.
+Accepted POSIX zone expressions do not become names rows. Customized files,
+leap-second/right/posix trees and unrelated SQL timezone SRFs are not added.
+Aliases, stock table entries, historical meanings and DST rules are version-sensitive;
+see [provider provenance](../internal/sqltype/tzdata/README.md).
+
+`pg_class` identifies these sources as views with four/three attributes.
+Native does not add pg_attribute, pg_views definitions, pg_rewrite rules or
+pg_get_viewdef for them: these are typed virtual sources, not stored SQL rewrites.
+Semantically valid INSERT/UPDATE/DELETE reject with55000 and operation-specific
+English diagnostics; abbrevs reports its UNION non-updatability, names its
+nonsingle-table source. Existing supported target/expression/predicate/assignment
+and UPDATE/DELETE RETURNING analysis, including parameter finalization, precedes
+that rejection. Invalid supported writes retain their normal42703/42804/42883
+diagnostics without evaluating expressions, requiring physical storage or writing.
+Existing scalar VALUES column references remain unsupported natively (0A000
+`column references are unsupported in scalar inputs`), unlike PostgreSQL's
+missing-column42703; this part does not add general scalar column references.
+INSERT RETURNING remains outside the existing grammar. Other catalog mutation,
+DDL and row-lock restrictions remain unchanged.
+Native Dump skips builtins and serializes user-view references symbolically;
+Reset/Restore recreate builtins without storing timezone facts or session settings.
+Admitted native results retain prior values, schema and presentation after replacement.
+
 ### Datetime truncation — change note
 
 `date_trunc(text,timestamp)`, `date_trunc(text,timestamptz)`,

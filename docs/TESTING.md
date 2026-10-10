@@ -49,6 +49,19 @@ This is the authoritative test-placement and implementation workflow.
   fixture resets `public`, not every nonpublic schema; unrelated same-name
   objects can legitimately remain outside the scenario's search path.
 
+Timezone lookup coverage uses `RUN='^TestReferenceTimezoneViews'` in both
+`make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds per invocation).
+Its smoke selector is `RUN='^TestReferenceTimezoneViewsFeatureSmoke$'` in both
+modes. Independent rows/types, full55000/42703/42804/42883 diagnostics, declared
+metadata, nil/typed NULL predicate parameters, session/transaction capture,
+PUBLIC SELECT and symbolic native controls are asserted before backend comparison.
+WriteAnalysis and InsertAnalysis preserve existing supported semantic errors before
+read-only rejection; VALUES column-reference0A000 is an explicit native capability
+boundary, not a PostgreSQL parity claim. Smoke includes nil-bound empty metadata
+and semantic-error savepoint recovery. Provider units exercise DST transitions,
+negative DST, historical matching, inventory and cancellation without public SQL.
+
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control
 phases and independently specified PostgreSQL SQL outcomes where applicable.

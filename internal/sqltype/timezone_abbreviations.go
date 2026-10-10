@@ -77,26 +77,32 @@ func (s zoneSpecification) offsetInstant(second int64) int32 {
 		east, _ := s.zone.OffsetAt(second)
 		return east
 	}
-	z := s.zone
+	if t, found := s.zone.abbreviationTypeAt(s.abbreviation, second); found {
+		return t.east
+	}
+	east, _ := s.zone.OffsetAt(second)
+	return east
+}
+
+func (z *Zone) abbreviationTypeAt(abbreviation string, second int64) (zoneType, bool) {
 	// PostgreSQL uses the latest matching interval at/before the probe, then
 	// prehistory, then the first matching future interval, not current DST.
 	cutoff := sort.Search(len(z.transitions), func(i int) bool { return z.transitions[i].second > second })
 	for i := cutoff - 1; i >= 0; i-- {
 		tr := z.transitions[i]
 		t := z.types[tr.kind]
-		if strings.EqualFold(t.abbreviation, s.abbreviation) {
-			return t.east
+		if strings.EqualFold(t.abbreviation, abbreviation) {
+			return t, true
 		}
 	}
-	if t := z.types[z.defaultType]; strings.EqualFold(t.abbreviation, s.abbreviation) {
-		return t.east
+	if t := z.types[z.defaultType]; strings.EqualFold(t.abbreviation, abbreviation) {
+		return t, true
 	}
 	for _, tr := range z.transitions[cutoff:] {
 		t := z.types[tr.kind]
-		if strings.EqualFold(t.abbreviation, s.abbreviation) {
-			return t.east
+		if strings.EqualFold(t.abbreviation, abbreviation) {
+			return t, true
 		}
 	}
-	east, _ := z.OffsetAt(second)
-	return east
+	return zoneType{}, false
 }

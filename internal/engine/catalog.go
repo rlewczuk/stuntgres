@@ -107,6 +107,7 @@ type relationDescriptor struct {
 	hasIndexes         bool // Sticky publication history; removing an index does not clear it.
 	sequence           *sequenceOptions
 	view               *viewDefinition
+	virtualView        bool
 	sqlIndex           *indexDefinition
 	rowType            sqltype.ID
 }
@@ -204,6 +205,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	found := v.Lookup(NameKey{ClassID: RelationClassID, Namespace: r.namespace, Name: r.name})
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
+	}
+	if r.virtualView && r.relationKind != catalogRelation {
+		return fmt.Errorf("stuntgres: virtual view requires a catalog source")
 	}
 	if r.relationKind == tableRelation || r.relationKind == viewRelation {
 		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
