@@ -208,12 +208,12 @@ func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *cat
 	return captured
 }
 func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, current, next *catalogState, prepared, previous map[ObjectAddress]*logicalIndexRoot) bool {
-	if len(prepared) == 0 {
+	if len(prepared) == 0 && len(captured) == 0 {
 		return true
 	}
 	for address, d := range next.descriptors {
 		index, ok := d.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || prepared[address] == previous[address] {
+		if !ok || index.sqlIndex == nil || prepared != nil && prepared[address] == previous[address] {
 			continue
 		}
 		a := index.sqlIndex.parent
@@ -235,35 +235,76 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
 func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor) (map[ObjectAddress]*logicalIndexRoot, error) {
+	return e.prepareIndexPublication(ctx, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true)
+}
+
+func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool) (map[ObjectAddress]*logicalIndexRoot, error) {
 	var result map[ObjectAddress]*logicalIndexRoot
 	for a, d := range next.descriptors {
 		index, ok := d.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
-		if result == nil {
+		if materialize && result == nil {
 			result = make(map[ObjectAddress]*logicalIndexRoot, len(roots))
 		}
 		root := roots[a]
 		old, _ := current.descriptors[a].(*relationDescriptor)
-		if root == nil || old == nil || rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil || !sameIndexKeySemantics(old, index) {
+		parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		var entries []logicalIndexEntry
+		if root != nil {
+			entries = root.entries
+		}
+		rebuild := root == nil || old == nil || rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil || !sameIndexKeySemantics(old, index)
+		if rebuild {
 			if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
 				return nil, err
 			}
-			parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+			// Sorting/evaluating keys is required validation scratch, not an
+			// installation root. A validation-only call returns no root map.
 			var err error
-			root, err = buildIndexRoot(ctx, parent, index.sqlIndex, storage[parent.address])
+			entries, err = buildIndexEntries(ctx, parent, index.sqlIndex, storage[parent.address])
 			if err != nil {
 				return nil, err
 			}
+			root = nil
 			if index.sqlIndex.unique != nil {
+				// Namespace metadata belongs to UNIQUE diagnostics, not ordinary
+				// key construction. Replacement also accepts reduced validated
+				// parent/index catalogues for nonunique roots.
 				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
-				if err := validateUniqueRoot(ctx, parent, index.sqlIndex, root, namespace.name, true); err != nil {
+				// The rebuilt predecessor must satisfy its own uniqueness before
+				// the staged delta is checked, matching ordinary publication.
+				ordering, err := bindIndexOrdering(parent, index.sqlIndex)
+				if err != nil {
+					return nil, err
+				}
+				if err := validateUniqueEntries(ctx, parent, index.sqlIndex, entries, namespace.name, true, ordering); err != nil {
 					return nil, err
 				}
 			}
 		}
-		result[a] = root
+		for i := range publications {
+			if publications[i].address != parent.address {
+				continue
+			}
+			var err error
+			schema := ""
+			if index.sqlIndex.unique != nil {
+				schema = next.descriptors[parent.namespace].(*namespaceDescriptor).name
+			}
+			root, err = mergeIndexRoot(ctx, parent, index.sqlIndex, entries, &publications[i], materialize, schema)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+		if materialize {
+			if rebuild && root == nil {
+				root = &logicalIndexRoot{entries: entries}
+			}
+			result[a] = root
+		}
 	}
 	return result, nil
 }

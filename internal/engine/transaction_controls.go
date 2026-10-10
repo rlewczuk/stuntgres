@@ -225,6 +225,13 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	state, ref := t.state, t.ref
 	t.mu.Unlock()
 	var err error
+	if control.Kind == parser.KindPrepareTransaction || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared {
+		err = s.executePrepared(control, state, ref)
+		if err == nil {
+			s.controlOutcome = controlExecuted
+		}
+		return Result{}, err
+	}
 	if control.Kind == parser.KindStart {
 		if state == TxIdle {
 			_, err = e.beginAdmitted(s.op, t)

@@ -458,9 +458,9 @@ transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,P
  | RELEASE SAVEPOINT name { $$=&SavepointControl{Kind:ReleaseSavepoint,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | rollback_start TO name { $$=&SavepointControl{Kind:RollbackSavepoint,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | rollback_start TO SAVEPOINT name { $$=&SavepointControl{Kind:RollbackSavepoint,Name:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos} }
- | PREPARE TRANSACTION STRING { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
- | COMMIT PREPARED STRING { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
- | ROLLBACK PREPARED STRING { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil } ;
+ | PREPARE TRANSACTION STRING { $$=&TransactionControl{Kind:KindPrepareTransaction,GID:$3.text,Pos:$1.pos} }
+ | COMMIT PREPARED STRING { $$=&TransactionControl{Kind:KindCommitPrepared,GID:$3.text,Pos:$1.pos} }
+ | ROLLBACK PREPARED STRING { $$=&TransactionControl{Kind:KindRollbackPrepared,GID:$3.text,Pos:$1.pos} } ;
 transaction_start: BEGIN opt_transaction { $$=$1 } | START TRANSACTION { $$=$1 } ;
 commit_word: COMMIT | END ;
 /* Share the entire ROLLBACK [WORK|TRANSACTION] prefix before choosing an

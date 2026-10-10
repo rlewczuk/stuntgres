@@ -22,7 +22,9 @@ type serializableTransaction struct {
 	frontier                                            CommitSeq
 	snapshotOrder, order                                uint64
 	commitFrontier                                      CommitSeq
+	commitOrder                                         uint64
 	didWrite, doomed, committed, ended, aborted, exempt bool
+	finalized, prepared                                 bool
 	reads                                               map[ObjectAddress]struct{}
 	writes                                              map[ObjectAddress]map[serializableWriteKey]serializableWrite
 	incoming, outgoing                                  map[*serializableTransaction]struct{}
@@ -81,14 +83,16 @@ func serializableRelevant(node *serializableTransaction) bool {
 	return node != nil && node.captured && !node.aborted && !node.exempt
 }
 func serializableReadOnly(node *serializableTransaction) bool {
-	return !node.didWrite && (node.readOnly || node.committed)
+	return !node.didWrite && (node.readOnly || node.finalized)
 }
 func serializableOverlap(a, b *serializableTransaction) bool {
-	return serializableRelevant(a) && serializableRelevant(b) && a != b && a.ref.epoch == b.ref.epoch && (!a.committed || a.order > b.snapshotOrder) && (!b.committed || b.order > a.snapshotOrder)
+	// Preparation orders dangerous structures but does not end overlap. A
+	// snapshot taken while an entry is prepared still overlaps its later commit.
+	return serializableRelevant(a) && serializableRelevant(b) && a != b && a.ref.epoch == b.ref.epoch && (!a.committed || a.commitOrder > b.snapshotOrder) && (!b.committed || b.commitOrder > a.snapshotOrder)
 }
 
-// This is REL_18_0 OnConflict_CheckForSerializationFailure, without summarized
-// old-cohort branches or SQL prepared transactions. Finalized nodes are immune.
+// REL_18_0 OnConflict_CheckForSerializationFailure. Finalized nodes are immune;
+// prepared finalization orders conflicts without resolving committed outcome.
 func (e *Engine) serializableEdgeLocked(current, reader, writer *serializableTransaction) error {
 	if !serializableOverlap(reader, writer) || reader.doomed || writer.doomed {
 		return nil
@@ -101,14 +105,14 @@ func (e *Engine) serializableEdgeLocked(current, reader, writer *serializableTra
 		if !serializableRelevant(out) || out.doomed {
 			continue
 		}
-		if out.committed && (!reader.committed || out.order <= reader.order) && (!writer.committed || out.order <= writer.order) && (!serializableReadOnly(reader) || out.order <= reader.snapshotOrder) {
+		if out.finalized && (!reader.finalized || out.order <= reader.order) && (!writer.finalized || out.order <= writer.order) && (!serializableReadOnly(reader) || out.order <= reader.snapshotOrder) {
 			failure = true
 			break
 		}
 	}
-	if !failure && writer.committed && !serializableReadOnly(reader) {
+	if !failure && writer.finalized && !serializableReadOnly(reader) {
 		for in := range reader.incoming {
-			if serializableRelevant(in) && !in.doomed && (!in.committed || in.order >= writer.order) && (!serializableReadOnly(in) || in.snapshotOrder >= writer.order) {
+			if serializableRelevant(in) && !in.doomed && (!in.finalized || in.order >= writer.order) && (!serializableReadOnly(in) || in.snapshotOrder >= writer.order) {
 				failure = true
 				break
 			}
@@ -119,7 +123,7 @@ func (e *Engine) serializableEdgeLocked(current, reader, writer *serializableTra
 			writer.doomed = true
 			return serializableError("Canceled on identification as a pivot, during write.")
 		}
-		if writer.committed {
+		if writer.finalized {
 			return serializableError(fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", writer.ref.diagnostic))
 		}
 		writer.doomed = true
@@ -140,13 +144,26 @@ func (e *Engine) serializablePrecommitLocked(ref TxRef) error {
 	if e.serializable.order == ^uint64(0) {
 		return errors.New("stuntgres: serialization finalization order exhausted")
 	}
-	// Validate all potential vetoes before selecting any peer victim.
+	if node.finalized {
+		return nil
+	}
 	for pivot := range node.incoming {
-		if !serializableRelevant(pivot) || pivot.committed || pivot.doomed {
+		if !serializableRelevant(pivot) || !pivot.prepared || pivot.doomed {
 			continue
 		}
 		for in := range pivot.incoming {
-			if in == node || serializableRelevant(in) && !in.committed && !serializableReadOnly(in) && !in.doomed {
+			if in == node || serializableRelevant(in) && !in.finalized && !serializableReadOnly(in) && !in.doomed {
+				return serializableError("Canceled on commit attempt with conflict in from prepared pivot.")
+			}
+		}
+	}
+	// Validate all potential vetoes before selecting any peer victim.
+	for pivot := range node.incoming {
+		if !serializableRelevant(pivot) || pivot.finalized || pivot.doomed {
+			continue
+		}
+		for in := range pivot.incoming {
+			if in == node || serializableRelevant(in) && !in.finalized && !serializableReadOnly(in) && !in.doomed {
 				pivot.doomed = true
 				break
 			}
@@ -162,10 +179,24 @@ func (e *Engine) serializableCommittedLocked(ref TxRef, frontier CommitSeq) {
 		return
 	}
 	e.serializable.order++
-	node.order = e.serializable.order
+	node.commitOrder = e.serializable.order
+	if !node.finalized {
+		node.order = node.commitOrder
+		node.finalized = true
+	}
 	node.commitFrontier = frontier
 	node.committed = true
 	e.resolveSerializableCandidatesLocked(node)
+}
+
+func (e *Engine) serializablePreparedLocked(ref TxRef) {
+	node := e.serializable.nodes[ref]
+	if !serializableRelevant(node) {
+		return
+	}
+	e.serializable.order++
+	node.order = e.serializable.order
+	node.finalized, node.prepared = true, true
 }
 
 func (e *Engine) resolveSerializableCandidatesLocked(writer *serializableTransaction) {

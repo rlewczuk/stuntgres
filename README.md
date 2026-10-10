@@ -57,6 +57,21 @@ or bit casts/operators/arrays are introduced. See
 Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0`.
 
+Change note: `PREPARE TRANSACTION 'gid'`, `COMMIT PREPARED 'gid'` and
+`ROLLBACK PREPARED 'gid'` support process-local two-phase transaction state.
+Preparation detaches private writes and held locks from the session; physical
+origin close does not discard them. Only the exact preparing principal or a
+current superuser can finish them. `pg_catalog.pg_prepared_xacts` exposes
+`transaction XID, gid TEXT, prepared TIMESTAMPTZ, owner NAME, database NAME`.
+Native preparation is always enabled per Engine, without crash persistence,
+cluster-wide databases or a capacity setting. Reset/Restore refuse while entries
+exist; Dump remains committed-only. Executed TEMP sequence access prohibits
+preparation; unsupported SQL cursors, TEMP TABLE, notifications and snapshot
+export remain excluded. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`.
+
+
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
 `pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL

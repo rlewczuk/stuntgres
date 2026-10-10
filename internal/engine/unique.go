@@ -273,18 +273,28 @@ func validateUniqueRoot(ctx context.Context, parent *relationDescriptor, d *inde
 	if err != nil {
 		return err
 	}
-	for i := 1; i < len(root.entries); i++ {
-		key := root.entries[i].keys
-		if !d.unique.NullsNotDistinct && uniqueHasNull(key) {
-			continue
-		}
-		cmp, err := ordering.compareKeys(ctx, root.entries[i-1], root.entries[i])
-		if err != nil {
+	return validateUniqueEntries(ctx, parent, d, root.entries, schema, building, ordering)
+}
+
+func validateUniqueEntries(ctx context.Context, parent *relationDescriptor, d *indexDefinition, entries []logicalIndexEntry, schema string, building bool, ordering indexOrdering) error {
+	for i := 1; i < len(entries); i++ {
+		if err := validateUniquePair(ctx, parent, d, entries[i-1], entries[i], schema, building, ordering); err != nil {
 			return err
 		}
-		if cmp == 0 {
-			return uniqueDiagnostic(ctx, parent, d.unique, key, schema, sqltype.OutputEnvironment{}, true, building)
-		}
+	}
+	return nil
+}
+
+func validateUniquePair(ctx context.Context, parent *relationDescriptor, d *indexDefinition, previous, current logicalIndexEntry, schema string, building bool, ordering indexOrdering) error {
+	if d.unique == nil || !d.unique.NullsNotDistinct && uniqueHasNull(current.keys) {
+		return nil
+	}
+	cmp, err := ordering.compareKeys(ctx, previous, current)
+	if err != nil {
+		return err
+	}
+	if cmp == 0 {
+		return uniqueDiagnostic(ctx, parent, d.unique, current.keys, schema, sqltype.OutputEnvironment{}, true, building)
 	}
 	return nil
 }

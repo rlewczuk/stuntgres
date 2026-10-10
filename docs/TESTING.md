@@ -196,6 +196,79 @@ selector covers every new definition; see [the inquiry design](design/PG18-FUNC-
 for the shared-coercion consumer risk selectors. Smoke does not replace those
 identical dual-mode selective runs, ordinary quickcheck or post-merge fullcheck.
 
+The prepared-transaction family independently asserts state/diagnostics,
+ownership and five-column XID metadata, physical-origin-close survival,
+SESSION/LOCAL and TEMP restrictions, held resources, coupled existing-index/
+ALTER/data/sequence publication, SSI finalization and native replacement guards:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransaction' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransaction' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0
+```
+
+Bound each invocation to900 seconds. Smoke expects private7 invisible to both
+origin/peer, one correctly typed stable prepared row, survival after actual
+physical origin exit, peer commit publishing7, and rollback9 preserving7.
+Register bounded GID-specific ROLLBACK PREPARED cleanup before each prepare-capable
+operation, ahead of schema/pool/role cleanup; never blanket-clean unrelated GIDs.
+sql.Conn.Close only returns a borrower. Dispose the isolated pool/raw driver
+connection to witness physical origin end. All worker cancellation/join paths
+remain bounded. The pinned fixture enables max_prepared_transactions100 at
+startup; native has no matching capacity/configuration surface.
+
+Prepared deferrable coverage distinguishes real admission from goroutine start:
+PostgreSQL's genuine SafeSnapshot observer asserts admitted predecessor0 across
+PREPARE/origin close and either final outcome. Native has no public readiness
+catalog/notice; package-function tests admit a real candidate through the existing
+tracker barrier and assert retained original roots/frontier and predecessor0.
+The shared both-backend synchronous statement-timeout companion proves a prepared
+writer remains unresolved, then verifies exact fresh commit1/rollback0 after
+actual completion. No scheduling sleeps or0-or1 tolerance substitute for admission.
+
+Private `TestPreparedPopulatedReplaceCatalogGuards`,
+`TestPreparedPopulatedCompetingCompletionAndRetry`,
+`TestPreparedCompetingGIDDisposesWholeLoser`,
+`TestPreparedLateCancellationAndWaiterObservePublication` and
+`TestPreparedValidationOmitsInstallationRoots` use real admitted AST statements
+and populated surviving UPDATE plus insert/deletion/catalogue/index/generator/
+SSI/ticket state. They cover same-owner and foreign-owner replacement refusal,
+actual competing claims, outside-metadata expression barriers, cancellation and
+independent final counter veto retaining the exact UPDATE/base/version, committed
+heads, original ticket, other roots and all Engine counters; whole losing-GID/
+settings disposal; successful retry exactly once; and publication visible to a
+real resource waiter before late cancellation. The validation-only structural
+regression checks genuine live UPDATE predecessors and rejects wrong base
+versions and already-ended predecessors in both phases. Validation-only work
+produces no replacement heads/slot arrays; materializing work produces a separate
+head and the exact update-slot manifest without installing it during validation.
+These package tests issue no public SQL and add no production hooks.
+Every concurrent boundary scenario registers cleanup before launching workers:
+arrival/outcome waits have deadlines, cleanup releases admission/expression
+barriers once, cancels outstanding operation/request contexts and joins every
+launched worker through bounded waits, including assertion-failure paths.
+Admitted AST fixtures specify parser-established provider defaults explicitly
+(for example, CREATE INDEX uses `Method: "btree"`); an empty method is not an
+engine default. The existing changed-predecessor publication regression keeps
+its original canonical `mergeIndexRoot` preparation boundary and all unchanged-
+state, real-peer retry, final-veto and exact row/index/SSI outcome assertions.
+`TestIndexClausesReplacement` and `TestIndexClausesValidationOnlyReplacement`
+also preserve the canonical nonunique replacement contract for reduced valid
+parent/index catalogues: ordering/provider/shape checks require no namespace
+descriptor. Namespace binding remains required when constructing UNIQUE
+diagnostics. Invalid key definitions still fail both validation-only and
+materializing phases.
+
+```sh
+make quickcheck PACKAGES=./internal/engine RUN='^TestPrepared' VERBOSE=0
+```
+
+Held-resource timeout Context includes genuine PostgreSQL physical tuple
+coordinates only on PostgreSQL; native independently asserts its absent Context.
+
+
+
 ## How the dual-mode fixture works
 
 `newReferenceScenario(t)` creates a fresh native engine, a middleware-wrapped

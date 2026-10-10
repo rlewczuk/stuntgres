@@ -69,28 +69,29 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
-	admission       sync.Mutex
-	ticket          *relationTicket
-	mu              sync.Mutex
-	session         *Session
-	state           TxState
-	ref             TxRef
-	next            TxID
-	command         CommandID
-	writes          map[ObjectAddress][]rowVersion
-	deletes         map[ObjectAddress]*privateDeletionRoot
-	start           time.Time
-	isolation       Isolation
-	readOnly        bool
-	deferrable      bool
-	entryIsolation  Isolation
-	entryReadOnly   bool
-	entryDeferrable bool
-	snapshotSet     bool
-	frontier        CommitSeq
-	roots           map[ObjectAddress]transactionRoot
-	catalog         *catalogChanges
-	savepoints      []savepointMark
+	admission         sync.Mutex
+	ticket            *relationTicket
+	mu                sync.Mutex
+	session           *Session
+	state             TxState
+	ref               TxRef
+	next              TxID
+	command           CommandID
+	writes            map[ObjectAddress][]rowVersion
+	deletes           map[ObjectAddress]*privateDeletionRoot
+	start             time.Time
+	isolation         Isolation
+	readOnly          bool
+	deferrable        bool
+	entryIsolation    Isolation
+	entryReadOnly     bool
+	entryDeferrable   bool
+	snapshotSet       bool
+	frontier          CommitSeq
+	roots             map[ObjectAddress]transactionRoot
+	catalog           *catalogChanges
+	savepoints        []savepointMark
+	accessedTemporary bool
 }
 
 func (t *transactionOwner) clear() {
@@ -106,6 +107,7 @@ func (t *transactionOwner) clear() {
 	t.catalog = nil
 	clear(t.savepoints)
 	t.savepoints = nil
+	t.accessedTemporary = false
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
@@ -346,7 +348,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		if err := s.op.session.Engine().endPreflight(s.op); err != nil {
 			return err
 		}
-		if control.Kind == parser.KindStart && s.owner.state == TxAborted {
+		if (control.Kind == parser.KindStart || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared) && s.owner.state == TxAborted {
 			return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 		}
 		return nil
@@ -621,9 +623,9 @@ func (s *StatementScope) Finish(err error) error {
 		// A control has no stage/view. In particular, do not advance or recheck
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
-		s.result = nil
+		s.result = err
 		s.owner.admission.Unlock()
-		return nil
+		return err
 	}
 	t := s.owner
 	e := s.op.session.Engine()

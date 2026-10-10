@@ -108,6 +108,7 @@ func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode, r
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
 		return ErrCatalogReplaced
 	}
+	e.markTemporaryAccessLocked(s, ref)
 	return nil
 }
 func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
@@ -212,6 +213,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
+		}
+		if nsd, ok := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor); ok && nsd.temporary == op.session.token {
+			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
 		key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}

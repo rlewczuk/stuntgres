@@ -162,10 +162,15 @@ func TestIndexClausesSystemIdentity(t *testing.T) {
 	if class.AcceptsID(27) {
 		t.Fatal("integer class accepted tid")
 	}
-	// Diagnostic-only identities never enter the set of concrete builtin types.
+	// TID/CID remain diagnostic-only; catalog XID is concrete but never an index key.
 	for _, d := range Builtins() {
-		if d.ID() == 27 || d.ID() == 28 || d.ID() == 29 {
+		if d.ID() == 27 || d.ID() == 29 {
 			t.Fatal("system diagnostic added a storage type", d)
+		}
+		if d.ID() == Xid {
+			if _, exists := DefaultIndexClassID(d.ID()); exists {
+				t.Fatal("narrow catalog XID acquired a storage operator class")
+			}
 		}
 	}
 }

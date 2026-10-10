@@ -238,7 +238,7 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void {
+	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void || d.ID() == sqltype.Xid {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()

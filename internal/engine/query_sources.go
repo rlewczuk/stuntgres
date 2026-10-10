@@ -211,6 +211,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		var source *querySource
 		switch leaf.relation.relationKind {
 		case sequenceRelation:
+			e.markTemporaryAccessLocked(scope, leaf.ref)
 			source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
 		case tableRelation:
 			source, err = captureQueryPrefix(view, leaf.ref)

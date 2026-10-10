@@ -1254,7 +1254,6 @@ func referenceLockOperation(t *testing.T, ctx context.Context, call func(context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	done := make(chan relationOutcome, 1)
 	joined := false
-	go func() { done <- call(ctx) }()
 	t.Cleanup(func() {
 		cancel()
 		if !joined {
@@ -1267,6 +1266,7 @@ func referenceLockOperation(t *testing.T, ctx context.Context, call func(context
 			}
 		}
 	})
+	go func() { done <- call(ctx) }()
 	return func() relationOutcome {
 		t.Helper()
 		o := referenceLockResult(t, done)

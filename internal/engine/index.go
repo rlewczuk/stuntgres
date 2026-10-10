@@ -269,6 +269,14 @@ func (o indexOrdering) sort(ctx context.Context, entries []logicalIndexEntry) er
 	return nil
 }
 func buildIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, store *relationStorage) (*logicalIndexRoot, error) {
+	entries, err := buildIndexEntries(ctx, parent, d, store)
+	if err != nil {
+		return nil, err
+	}
+	return &logicalIndexRoot{entries: entries}, nil
+}
+
+func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *indexDefinition, store *relationStorage) ([]logicalIndexEntry, error) {
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return nil, err
@@ -293,9 +301,9 @@ func buildIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 	if err := o.sort(ctx, entries); err != nil {
 		return nil, err
 	}
-	return &logicalIndexRoot{entries: entries}, nil
+	return entries, nil
 }
-func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, old *logicalIndexRoot, p *rowPublication) (*logicalIndexRoot, error) {
+func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, old []logicalIndexEntry, p *rowPublication, materialize bool, schema string) (*logicalIndexRoot, error) {
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return nil, err
@@ -338,9 +346,26 @@ func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 	if err := o.sort(ctx, added); err != nil {
 		return nil, err
 	}
-	entries := make([]logicalIndexEntry, 0, len(old.entries)+len(added))
+	var entries []logicalIndexEntry
+	if materialize {
+		entries = make([]logicalIndexEntry, 0, len(old)+len(added))
+	}
+	var previous logicalIndexEntry
+	havePrevious := false
+	accept := func(entry logicalIndexEntry) error {
+		if havePrevious {
+			if err := validateUniquePair(ctx, parent, d, previous, entry, schema, false, o); err != nil {
+				return err
+			}
+		}
+		previous, havePrevious = entry, true
+		if materialize {
+			entries = append(entries, entry)
+		}
+		return nil
+	}
 	j := 0
-	for _, entry := range old.entries {
+	for _, entry := range old {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -355,12 +380,23 @@ func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 			if c > 0 {
 				break
 			}
-			entries = append(entries, added[j])
+			if err := accept(added[j]); err != nil {
+				return nil, err
+			}
 			j++
 		}
-		entries = append(entries, entry)
+		if err := accept(entry); err != nil {
+			return nil, err
+		}
 	}
-	entries = append(entries, added[j:]...)
+	for ; j < len(added); j++ {
+		if err := accept(added[j]); err != nil {
+			return nil, err
+		}
+	}
+	if !materialize {
+		return nil, ctx.Err()
+	}
 	return &logicalIndexRoot{entries: entries}, ctx.Err()
 }
 

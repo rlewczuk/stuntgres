@@ -25,6 +25,7 @@ const (
 	Int4        ID = 23
 	Text        ID = 25
 	Oid         ID = 26
+	Xid         ID = 28
 	JSON        ID = 114
 	PgNodeTree  ID = 194
 	Float4      ID = 700
@@ -147,6 +148,7 @@ func Builtins() []*Descriptor {
 		{id: Int4, name: "int4", sql: "INTEGER", database: "INT4", associatedArray: 1007},
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
+		{id: Xid, name: "xid", sql: "XID", database: "XID"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
@@ -406,7 +408,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.jsonInput(ctx, text)
 	case JSONB:
 		return d.jsonInput(ctx, text)
-	case Oid:
+	case Oid, Xid:
 		return d.oidInput(text)
 	case Char:
 		if len(text) == 4 && text[0] == '\\' && text[1] >= '0' && text[1] <= '7' && text[2] >= '0' && text[2] <= '7' && text[3] >= '0' && text[3] <= '7' {
@@ -615,7 +617,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return v.tree.value.StructuralOutput(ctx)
 	case Void:
 		return "", nil
-	case Oid:
+	case Oid, Xid:
 		return strconv.FormatUint(uint64(v.oid), 10), nil
 	case Bytea:
 		return byteaOutput(v.text, env.ByteaOutput)
@@ -734,7 +736,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
-	case Oid, Float4, Float8, Numeric:
+	case Oid, Xid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
 			return "", err
@@ -1203,7 +1205,7 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 		_, err := BindComparison(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON {
+	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == Xid || right.id == Xid {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if dateTimestampType(left.id) && dateTimestampType(right.id) {

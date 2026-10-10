@@ -87,6 +87,26 @@ controls retain their ordinary precanceled context-error contract.
 Complete dual-mode family: `RUN='^TestReferenceStringEncoding'`; feature smoke:
 `RUN='^TestReferenceStringEncodingFeatureSmoke$'` under both quickcheck modes.
 
+### Prepared transaction SQL — change note
+
+`PREPARE TRANSACTION STRING`, `COMMIT PREPARED STRING` and
+`ROLLBACK PREPARED STRING` are complete-input utility controls. Prepare is
+metadata-only for driver statements; execution captures current actor/state.
+Private writes and original relation/row/unique locks survive preparation and
+physical origin exit, then publish once on commit or discard on rollback.
+Exact principal ownership, GID byte limits/uniqueness, full-failure rollback,
+SESSION/LOCAL finishing, sticky TEMP sequence access and retained SSI dependencies
+share existing transaction seams. `pg_prepared_xacts` exposes five exact types,
+including a narrow distinct XID scalar, without enabling XID column syntax,
+casts/functions/ordering or arrays.
+
+Native state is always-enabled and process-local per Engine, not crash durable
+or cluster-wide. Reset/Restore/ReplaceCatalog refuse while any entry remains;
+Dump records committed state only. TEMP TABLE, SQL WITH HOLD cursors,
+notifications and exported snapshots retain their preexisting exclusions.
+Ordinary driver Rows and prepared statements do not prohibit preparation.
+See [transaction lifecycle and diagnostics](TRANSACTIONS.md#prepared-transactions).
+
 ### SQL current date and time — change note
 
 `CURRENT_DATE` returns DATE; `CURRENT_TIME[(p)]` returns TIMETZ;

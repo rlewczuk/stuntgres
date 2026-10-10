@@ -39,6 +39,7 @@ func (e *Engine) sequenceCreationNamespaceLocked(auth AuthorizationView, s *pars
 			return e.creationNamespace(auth, s.Name)
 		}
 	}
+	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
 		return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}, nil
 	}

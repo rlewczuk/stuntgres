@@ -75,8 +75,83 @@ REPEATABLE READ | SERIALIZABLE`, `READ ONLY`, `READ WRITE`, `DEFERRABLE` and
 `NOT DEFERRABLE` assignments, comma-separated or juxtaposed. `SET TRANSACTION`
 changes current characteristics; `SET SESSION CHARACTERISTICS AS TRANSACTION`
 changes next-transaction defaults. Malformed clauses/suffixes retain `42601`.
-Two-phase PREPARE TRANSACTION/COMMIT PREPARED/ROLLBACK PREPARED fail `0A000`
-without effects.
+Two-phase SQL controls are described below; their driver Prepare phase is
+metadata-only and never reserves a GID or changes transaction state.
+
+## Prepared transactions
+
+`PREPARE TRANSACTION 'gid'` ends the complete current transaction, including
+surviving savepoints, and transfers its private row/deletion/catalog/generator
+roots and original relation/row/unique tickets to the Engine registry. The
+origin becomes Idle and may immediately start independent work. Neither it nor
+peers see prepared writes until `COMMIT PREPARED 'gid'`; `ROLLBACK PREPARED`
+discards them. Closing the physical origin session, Rows or SQL statements does
+not release prepared holds. Completion publishes before waking resource waiters.
+
+Preparation and completion share the canonical optimistic publisher and final
+authority/catalogue/counter/SSI checks. Preparation validates row predecessors,
+deletions, projected shapes and ordered/unique index deltas without constructing
+replacement row heads, deletion maps, slot arrays, storage/generator maps or
+logical index installation roots. Expression keys and sorted rebuilt entries
+remain necessary validation scratch. Completion revalidates the retained private
+roots against current predecessors and materializes installation payloads only
+for the actual commit. Validation-only index work retains its captured-storage
+optimistic fence; it is not a separate, weaker publication path.
+Surviving UPDATE writes retain their original row/base/version identities.
+Validation-only preparation checks that the exact base is present and live,
+without building a replacement head or slot manifest; completion rechecks those
+predecessors before installing the retained updates alongside inserts, deletions
+and supported catalogue/index/generator changes.
+
+GIDs are decoded, case-sensitive byte strings: empty is valid, at most199 bytes;
+200 or more fails22023. Outstanding duplicates fail42710; unknown completion
+fails42704. Either outcome frees the name. Completion requires the exact
+preparing principal or a current superuser (42501 with
+`Must be superuser or the user that prepared the transaction.`); role membership
+or recreating a dropped owner's name confers no authority. Concurrent claimed
+completion fails55000 busy; denied, canceled or failed completion retains the
+entry and holds. COMMIT/ROLLBACK PREPARED inside a healthy block fail25001 before
+lookup; an already-aborted block retains25P02.
+
+Successful preparation keeps SET SESSION candidates and expires SET LOCAL.
+Any admitted failing preparation rolls back the entire transaction and setting
+journal, even with savepoints. Preparing an aborted block rolls back successfully
+without registering it. Idle PREPARE succeeds with WARNING25P01
+`there is no transaction in progress`. All three utilities return affected0,
+no result columns and no arguments. READ ONLY preparation and outside-block
+completion with a read-only default are permitted. Completion changes neither
+the origin nor finishing session's settings. Old Go transaction references are
+stale after detach and cannot complete the entry or the origin's next transaction.
+
+Actual TEMP sequence/object/namespace use is sticky across savepoint rollback
+and fails0A000 `cannot PREPARE a transaction that has operated on temporary objects`.
+An unused temporary sequence from an earlier transaction is allowed. Persistent
+nextval/currval/setval/lastval memory is allowed; consumed draws remain
+nontransactional. TEMP TABLE, DECLARE/WITH HOLD cursors, LISTEN/UNLISTEN/NOTIFY
+and pg_export_snapshot retain their existing unsupported syntax/function
+boundaries, not executable native restriction parity. Ordinary Go Rows/Stmt
+handles are not SQL WITH HOLD cursors.
+
+`pg_catalog.pg_prepared_xacts` (also unqualified through pg_catalog lookup) is a
+read-only PUBLIC SELECT source with exactly five columns in order:
+`transaction XID`, `gid TEXT`, `prepared TIMESTAMPTZ`, `owner NAME`, `database NAME`.
+The nonzero four-byte unsigned XID is stable, distinct from OID, and exported as
+decimal bytes; this narrow catalog scalar adds no XID casts, ordering classes,
+arrays, functions or column-type syntax. Prepare time is stable UTC microsecond
+time, not BEGIN time. Dropped owners project NULL without changing retained
+completion authority. Database equals the Engine's current_database/current_catalog
+NAME display of its exact opaque DSN. Eager rows own a coherent registry snapshot.
+
+Registry scope is the existing Engine: exact DSN within one Driver shares it;
+other Engines/DSNs/Drivers do not. Native preparation is always enabled, unlike
+PostgreSQL's default max_prepared_transactions0. There is no native capacity
+setting, cross-database cluster emulation, replication, WAL or crash persistence.
+Native Reset/Restore/ReplaceCatalog reject at final installation with ordinary
+error `stuntgres: cannot replace catalog while prepared transactions exist`,
+including Restore reader-I/O overlap. Refusal preserves epochs/data/resources.
+Dump stays committed-only and never serializes private writes or GIDs. Complete
+all entries before replacement; abandoned entries require explicit completion.
+
 
 ## Serializable snapshot isolation
 
@@ -132,10 +207,14 @@ Accepted creation and ending evidence have distinct identities even for the
 same row version. Rolling back an own DELETE after a saved INSERT discards only
 the ending; its surviving insertion remains visible to SSI dependency checks.
 
-The PostgreSQL prepared-pivot commit branch requires SQL two-phase commit, which
-is unsupported here. Final dependency validation and installation share Engine.mu:
-there is no observable finalized-but-uncommitted state. Finalized-pivot read
-failures and active-pivot commit failures retain their actual dependency behavior.
+Successful PREPARE performs SSI final validation and orders an immune prepared
+node without declaring it committed or resolving safe-snapshot candidates.
+Prepared pivots cannot be doomed later. A current commit with a dangerous
+incoming conflict from a prepared pivot fails40001 with Detail
+`Reason code: Canceled on commit attempt with conflict in from prepared pivot.`
+Read-site conflicts with immune prepared writers report the retained diagnostic
+XID. Origin close retains dependency evidence. COMMIT/ROLLBACK PREPARED resolve
+actual outcomes and deferrable candidates, then reclaim safe graph cohorts.
 
 Reference feature smoke (both modes):
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceSerializable' VERBOSE=0`
@@ -488,7 +567,8 @@ before invoking a healthy driver Commit. Raw driver Rollback is still available
 after BeginTx caller cancellation. Borrower `sql.Conn.Close`, stmt.Close and
 healthy ResetSession reuse are **not** physical transaction termination. Physical
 close, termination and best-effort abandonment drain operations and discard only
-that session's private effects. Committed data and peer settings survive.
+that session's attached private effects, never detached prepared entries.
+Committed data and peer settings survive.
 
 Dump serializes committed versions only, never transaction overlays.
 Reset/Restore waits for admitted implicit row work, including transaction birth,

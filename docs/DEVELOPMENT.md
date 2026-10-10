@@ -23,6 +23,13 @@ normal exits and catchable termination signals clean up the temporary directory.
 The original input/output basenames preserve the generated header and format.
 Never hand-edit `grammar_gen.go`; continue to use `make generate`.
 
+Prepared transaction oracle scenarios use the existing pinned PostgreSQL18.0
+UTF8/C fixture with startup `max_prepared_transactions=100`, preserving its
+existing fsync option. Startup checks assert100. This is fixture capacity, not
+a native settings API: native two-phase state is always enabled per Engine and
+process-local. Every scenario cleans its own prepared GIDs before schema teardown.
+
+
 The private copy isolates this generation's input after staging; atomic output
 publication does not freeze other source files or the integration tip. Verification
 must still compare its starting and ending integration tips and rerun on the

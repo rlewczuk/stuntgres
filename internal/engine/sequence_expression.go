@@ -431,6 +431,9 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err = sequenceKind(d); err != nil {
 		return sqltype.Value{}, err
 	}
+	if ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == scope.op.session.token {
+		scope.owner.accessedTemporary = true
+	}
 	mask := UsagePrivilege | SelectPrivilege
 	if x.name == "nextval" {
 		mask = UsagePrivilege | UpdatePrivilege

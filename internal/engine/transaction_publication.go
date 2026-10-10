@@ -29,6 +29,11 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 }
 
 func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority) error {
+	return e.publishRowsPrepared(op, ref, writes, deletes, c, authority, nil)
+}
+
+func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication) error {
+	materialize := phase == nil || !phase.preparing
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -43,10 +48,18 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		if err := e.catalogAuthorityPreflightLocked(authority); err != nil {
 			return err
 		}
+		if err := e.preparedPublicationPreflightLocked(op, phase); err != nil {
+			return err
+		}
 		if err := e.serializablePrecommitLocked(ref); err != nil {
 			return err
 		}
+		if phase != nil && phase.preparing {
+			e.installPreparedLocked(phase)
+			return nil
+		}
 		e.serializableCommittedLocked(ref, e.commitSeq)
+		e.finishPreparedLocked(phase)
 		return nil
 	}
 	for {
@@ -81,13 +94,15 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				e.mu.Unlock()
 				return err
 			}
-			nextSequences = make(map[ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
-			for a, g := range e.sequences {
-				nextSequences[a] = g
-			}
-			nextStorage = make(map[ObjectAddress]*relationStorage, len(e.storage))
-			for a, store := range e.storage {
-				nextStorage[a] = store
+			if materialize {
+				nextSequences = make(map[ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
+				for a, g := range e.sequences {
+					nextSequences[a] = g
+				}
+				nextStorage = make(map[ObjectAddress]*relationStorage, len(e.storage))
+				for a, store := range e.storage {
+					nextStorage[a] = store
+				}
 			}
 		}
 		capture := func(a ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
@@ -125,10 +140,12 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		}
 		if c != nil {
 			for a, shape := range c.storage {
-				nextStorage[a] = shape.replacement
+				if materialize {
+					nextStorage[a] = shape.replacement
+				}
 			}
 			for a, d := range c.descriptors {
-				if d == nil {
+				if d == nil && materialize {
 					delete(nextSequences, a)
 					delete(nextStorage, a)
 				}
@@ -137,9 +154,11 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 					nextCatalog = &detached
 				}
 			}
-			for a, g := range c.generators {
-				if nextCatalog.descriptors[a] != nil {
-					nextSequences[a] = g
+			if materialize {
+				for a, g := range c.generators {
+					if nextCatalog.descriptors[a] != nil {
+						nextSequences[a] = g
+					}
 				}
 			}
 			for a, d := range c.descriptors {
@@ -152,96 +171,8 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			}
 		}
 		for i := range prepared {
-			p := &prepared[i]
-			inserts, replacements := 0, 0
-			for _, row := range p.writes {
-				if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.columns) {
-					return errors.New("stuntgres: invalid private row version")
-				}
-				if row.base == 0 {
-					inserts++
-				} else {
-					replacements++
-				}
-			}
-			size := len(p.root) + inserts
-			if replacements == 0 && size <= cap(p.root) {
-				p.next = p.root[:size]
-			} else {
-				capacity := max(size, cap(p.root)*2)
-				if replacements != 0 {
-					capacity = size
-				}
-				p.next = make([]rowVersion, size, capacity)
-				copy(p.next, p.root)
-			}
-			if replacements != 0 {
-				var index map[RowID]int
-				if replacements > 1 {
-					index = make(map[RowID]int, len(p.root))
-					for slot, row := range p.root {
-						index[row.row] = slot
-					}
-				}
-				if len(p.writes) > 1 {
-					p.slots = make([]int, len(p.writes))
-				}
-				tail := len(p.root)
-				for j, row := range p.writes {
-					if row.base == 0 {
-						p.slots[j] = tail
-						tail++
-						continue
-					}
-					var predecessor rowVersion
-					var slot int
-					var found bool
-					if index != nil {
-						slot, found = index[row.row]
-						if found {
-							predecessor = p.root[slot]
-						}
-					} else {
-						predecessor, slot, found = rowByID(p.root, row.row, -1)
-					}
-					if !found || predecessor.version != row.base || !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
-						return errors.New("stuntgres: stale update predecessor")
-					}
-					if p.slots == nil {
-						p.singleSlot = slot
-					} else {
-						p.slots[j] = slot
-					}
-				}
-			}
-			if p.deletion != nil {
-				count := len(p.deletion.rows)
-				if p.ends != nil {
-					count += len(p.ends.rows)
-				}
-				p.nextEnds = &deletionRoot{rows: make(map[RowID]rowEnd, count)}
-				if p.ends != nil {
-					for id, end := range p.ends.rows {
-						p.nextEnds.rows[id] = end
-					}
-				}
-				for id, candidate := range p.deletion.rows {
-					if candidate.ref.owner != e.owner || candidate.ref.Epoch != ref.epoch || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
-						return ErrCatalogReplaced
-					}
-					predecessors := p.root
-					if candidate.own {
-						predecessors = p.writes
-					}
-					predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
-					if !found || predecessor.version != candidate.version || len(predecessor.values) != len(p.relation.columns) {
-						return errors.New("stuntgres: invalid deletion predecessor")
-					}
-					if !candidate.own && !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
-						return errors.New("stuntgres: deletion predecessor already ended")
-					}
-					p.nextEnds.rows[id] = rowEnd{version: candidate.version}
-				}
+			if err := e.prepareRowPublication(&prepared[i], ref, materialize); err != nil {
+				return err
 			}
 		}
 		indexCatalog := nextCatalog
@@ -264,29 +195,9 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				}
 			}
 			var indexErr error
-			indexRoots, indexErr = e.prepareIndexCatalog(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, nil)
+			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, nil, prepared, materialize)
 			if indexErr != nil {
 				return indexErr
-			}
-			for i := range prepared {
-				p := &prepared[i]
-				for a, d := range indexCatalog.descriptors {
-					index, ok := d.(*relationDescriptor)
-					if !ok || index.sqlIndex == nil || index.sqlIndex.parent != p.address {
-						continue
-					}
-					root, err := mergeIndexRoot(op.Context(), p.relation, index.sqlIndex, indexRoots[a], p)
-					if err != nil {
-						return err
-					}
-					if index.sqlIndex.unique != nil {
-						namespace := indexCatalog.descriptors[p.relation.namespace].(*namespaceDescriptor)
-						if err := validateUniqueRoot(op.Context(), p.relation, index.sqlIndex, root, namespace.name, false); err != nil {
-							return err
-						}
-					}
-					indexRoots[a] = root
-				}
 			}
 		}
 		session := op.session
@@ -323,6 +234,9 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		if err == nil {
 			err = e.catalogAuthorityPreflightLocked(authority)
 		}
+		if err == nil {
+			err = e.preparedPublicationPreflightLocked(op, phase)
+		}
 		if err != nil {
 			session.mu.Unlock()
 			e.mu.Unlock()
@@ -334,7 +248,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			continue
 		}
 		nextRevision := e.nextRevision
-		if c != nil {
+		if c != nil && materialize {
 			for _, d := range c.descriptors {
 				if d != nil {
 					if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -350,6 +264,12 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			session.mu.Unlock()
 			e.mu.Unlock()
 			return err
+		}
+		if phase != nil && phase.preparing {
+			e.installPreparedLocked(phase)
+			session.mu.Unlock()
+			e.mu.Unlock()
+			return nil
 		}
 		// No callback, allocation or failure remains after this point.
 		for _, p := range prepared {
@@ -392,6 +312,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		e.indexRoots = indexRoots
 		e.commitSeq++
 		e.serializableCommittedLocked(ref, e.commitSeq)
+		e.finishPreparedLocked(phase)
 		session.mu.Unlock()
 		e.mu.Unlock()
 		return nil

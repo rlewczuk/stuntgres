@@ -34,6 +34,7 @@ type Engine struct {
 	commitSeq           CommitSeq
 	diagnosticTx        uint32
 	serializable        serializableTracker
+	prepared            map[string]*preparedTransaction
 	roles               *roleCatalog
 	nextPrincipal       uint64
 	importTargets       map[PrincipalRef]PrincipalRef
@@ -808,6 +809,11 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	}
 	if _, ok := view.state.descriptors[a].(*relationDescriptor); !ok {
 		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
+	}
+	if d := view.state.descriptors[a].(*relationDescriptor); auth.session != nil {
+		if ns, ok := view.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
+			auth.session.transactions.accessedTemporary = true
+		}
 	}
 	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: a}, nil
 }

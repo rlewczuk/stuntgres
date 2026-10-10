@@ -684,6 +684,9 @@ const (
 	KindStart TransactionControlKind = iota
 	KindCommit
 	KindRollback
+	KindPrepareTransaction
+	KindCommitPrepared
+	KindRollbackPrepared
 )
 
 type TransactionIsolation uint8
@@ -717,6 +720,7 @@ type TransactionControl struct {
 	Chain bool
 	Pos   Position
 	Modes []TransactionMode
+	GID   string
 }
 
 func (*TransactionControl) statement() {}

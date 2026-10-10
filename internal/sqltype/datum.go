@@ -46,7 +46,7 @@ func SameDatum(a, b Value) bool {
 		return a.tree == b.tree
 	case Interval:
 		return a.months == b.months && a.days == b.days && a.integer == b.integer
-	case Oid:
+	case Oid, Xid:
 		return a.oid == b.oid
 	case Bool:
 		return a.boolean == b.boolean

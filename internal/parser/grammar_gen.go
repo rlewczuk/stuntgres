@@ -5634,20 +5634,17 @@ sqldefault:
 	case 140:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[1].tok, "statement is unsupported")
-			sqlVAL.stmt = nil
+			sqlVAL.stmt = &TransactionControl{Kind: KindPrepareTransaction, GID: sqlDollar[3].tok.text, Pos: sqlDollar[1].tok.pos}
 		}
 	case 141:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[1].tok, "statement is unsupported")
-			sqlVAL.stmt = nil
+			sqlVAL.stmt = &TransactionControl{Kind: KindCommitPrepared, GID: sqlDollar[3].tok.text, Pos: sqlDollar[1].tok.pos}
 		}
 	case 142:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[1].tok, "statement is unsupported")
-			sqlVAL.stmt = nil
+			sqlVAL.stmt = &TransactionControl{Kind: KindRollbackPrepared, GID: sqlDollar[3].tok.text, Pos: sqlDollar[1].tok.pos}
 		}
 	case 143:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]

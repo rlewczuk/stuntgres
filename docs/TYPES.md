@@ -18,6 +18,14 @@ DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, times
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
+`pg_prepared_xacts.transaction` has a distinct narrow XID descriptor (OID28,
+four-byte unsigned storage, database/SQL name XID, category U). Decimal output
+exports fresh owned `[]byte`, matching the pinned pq raw representation, not
+OID's `int64`. Scalar ownership/equality and grouping retain XID identity.
+It has no collation, typmod or associated array. This catalog projection does
+not enable XID column declarations, casts to OID/regclass/numerics, ordering/
+index classes or XID functions. See [prepared transactions](TRANSACTIONS.md#prepared-transactions).
+
 ## Bit strings — change note
 
 `BIT(n)` stores exactly n bits; `BIT VARYING(n)`/`VARBIT(n)` store at most n.

@@ -1108,6 +1108,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		defer e.replacementMu.Unlock()
 		e.mu.Lock()
 		defer e.mu.Unlock()
+		if len(e.prepared) != 0 {
+			return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
+		}
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
@@ -1196,6 +1199,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	defer e.replacementMu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if len(e.prepared) != 0 {
+		return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
+	}
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err
 	}

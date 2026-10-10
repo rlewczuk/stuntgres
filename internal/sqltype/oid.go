@@ -53,17 +53,20 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 		i++
 	}
 	if overflow {
-		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type oid", text))
+		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, d.name))
 	}
 	if i == 0 || trim(s[i:]) != "" {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type oid: \"%s\"", text))
+		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", d.name, text))
 	}
 	if negative {
 		n = -n
 	}
 	low := uint32(n)
 	if n != uint64(low) && n != uint64(int64(int32(low))) {
-		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type oid", text))
+		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, d.name))
+	}
+	if d.id == Xid {
+		return XIDValue(d, low)
 	}
 	return OIDValue(d, low)
 }

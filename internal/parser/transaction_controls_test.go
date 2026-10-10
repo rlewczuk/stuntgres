@@ -25,9 +25,20 @@ func TestTransactionControlsGrammar(t *testing.T) {
 			}
 		}
 	}
-	for _, q := range []string{"PREPARE TRANSACTION 'x'", "COMMIT PREPARED 'x'", "ROLLBACK PREPARED 'x'"} {
-		controlParseError(t, q, "0A000", "statement is unsupported", "1")
-		controlParseError(t, q+" junk", "42601", "", "")
+	for _, tc := range []struct {
+		q    string
+		kind TransactionControlKind
+	}{
+		{"PREPARE TRANSACTION 'x''y'", KindPrepareTransaction},
+		{"COMMIT PREPARED 'x''y'", KindCommitPrepared},
+		{"ROLLBACK PREPARED 'x''y'", KindRollbackPrepared},
+	} {
+		controlParse(t, tc.q, tc.kind, false)
+		statements, err := Parse(tc.q)
+		if err != nil || statements[0].(*TransactionControl).GID != "x'y" {
+			t.Fatal(statements, err)
+		}
+		controlParseError(t, tc.q+" junk", "42601", "", "")
 	}
 	for _, q := range []string{"START", "START WORK", "START TRANSACTION TRANSACTION", "BEGIN READ", "BEGIN ISOLATION LEVEL", "BEGIN ISOLATION LEVEL READ", "BEGIN ISOLATION LEVEL REPEATABLE", "BEGIN NOT", "BEGIN READ WRITE,", "SAVEPOINT", "RELEASE", "ROLLBACK TO", "PREPARE TRANSACTION", "COMMIT PREPARED", "ROLLBACK PREPARED"} {
 		controlParseError(t, q, "42601", "", "")

@@ -33,7 +33,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(got, want)
 	}
 	publication := &rowPublication{writes: []rowVersion{{row: 6, version: 6, values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := mergeIndexRoot(context.Background(), parent, d, root, publication)
+	next, err := mergeIndexRoot(context.Background(), parent, d, root.entries, publication, true, "")
 	if err != nil {
 		t.Fatal(err)
 	}

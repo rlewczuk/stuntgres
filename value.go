@@ -204,6 +204,9 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
+	case sqltype.Xid:
+		text, err := v.Type().Output(ctx, v)
+		return []byte(text), err
 	case sqltype.Oid:
 		n, err := v.OID()
 		return int64(n), err
@@ -252,7 +255,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
-	case sqltype.Bytea:
+	case sqltype.Bytea, sqltype.Xid:
 		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp, sqltype.Timestamptz:
 		return reflect.TypeFor[time.Time]()

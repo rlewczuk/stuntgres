@@ -44,12 +44,6 @@ func serializableUnitCaptureWorker(t *testing.T, scope *StatementScope) func() e
 	t.Helper()
 	done := make(chan error, 1)
 	joined := false
-	go func() {
-		scope.owner.mu.Lock()
-		err := scope.acquireSerializableSnapshot()
-		scope.owner.mu.Unlock()
-		done <- err
-	}()
 	t.Cleanup(func() {
 		if !joined {
 			scope.op.session.RequestEnd(CleanClose)
@@ -60,11 +54,17 @@ func serializableUnitCaptureWorker(t *testing.T, scope *StatementScope) func() e
 			}
 		}
 	})
+	go func() {
+		scope.owner.mu.Lock()
+		err := scope.acquireSerializableSnapshot()
+		scope.owner.mu.Unlock()
+		done <- err
+	}()
 	return func() error {
 		t.Helper()
-		joined = true
 		select {
 		case err := <-done:
+			joined = true
 			return err
 		case <-time.After(5 * time.Second):
 			t.Fatal("safe capture did not return")

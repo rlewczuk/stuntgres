@@ -40,6 +40,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"schemaname", sqltype.Name}, {"viewname", sqltype.Name}, {"viewowner", sqltype.Name}, {"definition", sqltype.Text}}},
+		{12001, "pg_prepared_xacts", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"transaction", sqltype.Xid}, {"gid", sqltype.Text}, {"prepared", sqltype.Timestamptz}, {"owner", sqltype.Name}, {"database", sqltype.Name}}},
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
@@ -71,6 +75,9 @@ func (e *Engine) initializeCatalogSources() error {
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.address.ObjectID == 2609 {
 		return capturePGDescription(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 12001 {
+		return e.capturePreparedSourceLocked(ctx, ref, source)
 	}
 	var relations []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {

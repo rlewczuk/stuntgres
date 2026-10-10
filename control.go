@@ -45,6 +45,7 @@ func withEngine(ctx context.Context, db *sql.DB, fn func(*engine.Engine) error) 
 
 // Reset atomically clears persistent objects, retaining database identity,
 // roles, session settings and live session-private temporary sequences.
+// Prepared transactions prevent replacement without consuming their state.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -56,6 +57,7 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // explicitly selects its session authorization, including the bootstrap owner;
 // all tables precede sequence OWNED BY associations that depend on them.
 // Session-private temporary objects and pending session caches are not serialized.
+// Only committed data is serialized, never prepared private writes or GIDs.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -80,6 +82,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // authority without changing named owner directives, session identity or ordinary
 // SQL authorization. Neither command stamps ownership or synthesizes ACL grants.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
+// Final installation refuses while prepared transactions exist, including entries
+// prepared during reader I/O; refusal preserves the target catalog and resources.
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {
 		return errors.New("stuntgres: nil restore reader")

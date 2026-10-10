@@ -36,6 +36,7 @@ func referenceStart() error {
 	referenceContainer, err = postgres.Run(ctx, referenceImage,
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
+		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100"),
 		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}))
 	if err != nil {
 		return fmt.Errorf("container: %w", err)
@@ -67,12 +68,12 @@ func referenceInitialize(ctx context.Context) (err error) {
 	if err = referenceAdmin.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping: %w", err)
 	}
-	var version, encoding, locale string
-	if err = referenceAdmin.QueryRowContext(ctx, "SELECT current_setting('server_version_num'), current_setting('server_encoding'), datcollate FROM pg_database WHERE datname = current_database()").Scan(&version, &encoding, &locale); err != nil {
+	var version, encoding, locale, preparedCapacity string
+	if err = referenceAdmin.QueryRowContext(ctx, "SELECT current_setting('server_version_num'), current_setting('server_encoding'), datcollate, current_setting('max_prepared_transactions') FROM pg_database WHERE datname = current_database()").Scan(&version, &encoding, &locale, &preparedCapacity); err != nil {
 		return fmt.Errorf("configuration: %w", err)
 	}
-	if version != "180000" || encoding != "UTF8" || locale != "C" {
-		return fmt.Errorf("configuration mismatch: version=%q encoding=%q locale=%q", version, encoding, locale)
+	if version != "180000" || encoding != "UTF8" || locale != "C" || preparedCapacity != "100" {
+		return fmt.Errorf("configuration mismatch: version=%q encoding=%q locale=%q max_prepared_transactions=%q", version, encoding, locale, preparedCapacity)
 	}
 	// Native dumps name their bootstrap owner postgres, independently of initdb.
 	if _, err = referenceAdmin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {

@@ -71,7 +71,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	successor.base = 1
 	successor.version = 4
 	successor.values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(ctx, parent, index.sqlIndex, root, &rowPublication{writes: []rowVersion{successor}})
+	merged, err := mergeIndexRoot(ctx, parent, index.sqlIndex, root.entries, &rowPublication{writes: []rowVersion{successor}}, true, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,6 +342,34 @@ func TestIndexClausesReplacement(t *testing.T) {
 	}
 	if e.nextRow != 100 || e.nextVersion != 200 {
 		t.Fatal("failed replacement published allocator")
+	}
+}
+
+func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
+	parent, index, catalog, types := indexClausesFixture(t)
+	one, err := sqltype.Integer(types[sqltype.Int4], 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := map[ObjectAddress]*relationStorage{parent.address: {versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}}
+	e := New()
+	// This is a deliberately reduced but valid key-construction catalogue:
+	// namespace descriptors are needed for UNIQUE diagnostics, not nonunique
+	// ordering/provider/shape validation or replacement materialization.
+	roots, err := e.prepareIndexPublication(context.Background(), catalog, catalog, storage, nil, nil, nil, nil, false)
+	if err != nil || roots != nil {
+		t.Fatal("validation-only replacement required unrelated namespace metadata or materialized roots", roots, err)
+	}
+	broken := *index
+	definition := *index.sqlIndex
+	definition.keys = append([]indexKey(nil), index.sqlIndex.keys...)
+	definition.keys[0].attribute = 999
+	broken.sqlIndex = &definition
+	invalid := &catalogState{descriptors: map[ObjectAddress]Descriptor{parent.address: parent, index.address: &broken}}
+	for _, materialize := range []bool{false, true} {
+		if _, err := e.prepareIndexPublication(context.Background(), catalog, invalid, storage, nil, nil, nil, nil, materialize); err == nil {
+			t.Fatal("phase switch weakened actual index definition validation", materialize)
+		}
 	}
 }
 
