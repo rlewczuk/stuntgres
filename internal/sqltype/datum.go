@@ -16,6 +16,24 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsEnum() {
+		d := a.typ.BaseType()
+		return a.integer >= 0 && a.integer < int64(len(d.enum.labels)) && a.integer == b.integer
+	}
+	if a.typ.BaseType().IsComposite() {
+		if !a.validCompositePayload() || !b.validCompositePayload() {
+			return false
+		}
+		if a.composite == b.composite {
+			return true
+		}
+		for i, field := range a.composite.fields {
+			if !SameDatum(field, b.composite.fields[i]) {
+				return false
+			}
+		}
+		return true
+	}
 	if a.typ.BaseType().IsArray() {
 		if a.array == nil || b.array == nil {
 			return false

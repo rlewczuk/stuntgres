@@ -1181,11 +1181,8 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 	info := ParameterInfo{Count: len(keys), Types: make([]sqltype.Usage, len(keys))}
 	for i, n := range keys {
 		info.Types[i] = b.parameters[n]
-		if info.Types[i].Type.BaseType().IsEnum() {
-			if info.DiagnosticNames == nil {
-				info.DiagnosticNames = make([]string, len(keys))
-			}
-			info.DiagnosticNames[i] = b.diagnosticTypeName(info.Types[i].Type.BaseType())
+		if err := b.captureTypeDiagnosticInput(info.Types[i].Type); err != nil {
+			return ParameterInfo{}, err
 		}
 	}
 	return info, nil
@@ -1710,6 +1707,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
 	if !policy.deferAssignment && (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
+		if err := b.captureTypeDiagnosticInput(policy.expected.Type); err != nil {
+			return nil, err
+		}
 		if policy.expected.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
 				return nil, err
@@ -1817,6 +1817,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if unsupportedTarget && !b.datetimeZoneOperands {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
+	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
+		return nil, err
+	}
 	if target.Type.ContainsCatalogIdentifier() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err
@@ -1872,7 +1875,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !b.datetimeZoneOperands && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !b.datetimeZoneOperands && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -1980,7 +1983,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
@@ -2031,6 +2034,9 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 	return temporalConstant{}, false, nil
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
+	if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
+		return sqltype.Value{}, err
+	}
 	if u.Type.ID() == sqltype.Regtype {
 		return b.regtypeConstant(text, pos)
 	}
@@ -2041,8 +2047,8 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return node.(literalExpression).value, nil
 	}
-	if u.Type.BaseType().IsArray() {
-		if u.Type.ContainsRegtype() {
+	if u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() {
+		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}
 		c, found, err := b.captured(pos.Offset, u)
@@ -2073,15 +2079,6 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			b.temporals[i] = temporalConstant{offset: pos.Offset, typmod: u.Typmod, typeID: u.Type.ID(), value: value}
 		}
 		return value, nil
-	}
-	if u.Type.IsEnum() {
-		value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
-		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "22P02" {
-			copy := *diagnostic
-			copy.Message = fmt.Sprintf("invalid input value for enum %s: \"%s\"", b.diagnosticTypeName(u.Type), text)
-			return sqltype.Value{}, &copy
-		}
-		return value, err
 	}
 	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)

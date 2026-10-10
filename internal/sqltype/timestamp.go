@@ -30,6 +30,9 @@ type InputEnvironment struct {
 	Regclass                                  RegclassResolver
 	Regtype                                   RegtypeResolver
 	NumericLocale, MonetaryLocale, TimeLocale Locale
+	// TypeDiagnosticName captures coherent catalog visibility for child input
+	// errors. A nil callback or empty spelling uses immutable descriptor naming.
+	TypeDiagnosticName func(ID) string
 }
 
 type RegclassResolver interface {

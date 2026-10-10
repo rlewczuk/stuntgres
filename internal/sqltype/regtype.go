@@ -33,6 +33,13 @@ func (d *Descriptor) ContainsRegtype() bool {
 	if physical.IsArray() {
 		return physical.element.ContainsRegtype()
 	}
+	if physical.IsComposite() {
+		for _, member := range physical.composite.members {
+			if member.Usage.Type.ContainsRegtype() {
+				return true
+			}
+		}
+	}
 	return physical.id == Regtype
 }
 

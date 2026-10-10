@@ -222,6 +222,9 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 	return candidate, nil
 }
 func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype.Usage, label string) (BoundExpr, error) {
+	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
+		return nil, err
+	}
 	if target.Type.ContainsCatalogIdentifier() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err

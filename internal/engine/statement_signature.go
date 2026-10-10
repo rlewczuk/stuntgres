@@ -9,12 +9,33 @@ func sameStatementUsage(a, b sqltype.Usage) bool {
 	return a.Type.ID() == b.Type.ID() && a.Typmod == b.Typmod && a.Collation == b.Collation
 }
 
+func statementCatalogType(t *sqltype.Descriptor) bool {
+	if t == nil {
+		return false
+	}
+	if t.IsUserDefined() {
+		return true
+	}
+	return t.IsArray() && statementCatalogType(t.Element())
+}
+
 func checkStatementSignature(expected, actual StatementDescription) error {
+	lifetimeChanged := expected.catalogOwner != nil && (expected.catalogOwner != actual.catalogOwner || expected.catalogEpoch != actual.catalogEpoch)
+	// Binding a catalog-owned parameter from a replaced lifetime must fail
+	// before exposing or validating its result, matching the existing enum and
+	// domain prepared-input fences.
+	if lifetimeChanged {
+		for _, t := range expected.Parameters.Types {
+			if statementCatalogType(t.Type) {
+				return sqlError("0A000", "cached plan must not change parameter type")
+			}
+		}
+	}
 	changed := len(expected.Results) != len(actual.Results)
 	if !changed {
 		for i, c := range expected.Results {
 			a := actual.Results[i]
-			if c.Name != a.Name || !sameStatementUsage(c.Usage, a.Usage) {
+			if c.Name != a.Name || !sameStatementUsage(c.Usage, a.Usage) || lifetimeChanged && statementCatalogType(c.Usage.Type) {
 				changed = true
 				break
 			}

@@ -425,6 +425,80 @@ domain/schema dependency diagnostics. Stored defaults and constraints retain the
 actual definition-allocation chronology.
 Public TEMP-table creation is still unsupported; TEMP sequences are unchanged.
 
+## Composites — change note
+
+`CREATE TYPE [schema.]name AS (member type [COLLATE collation], ...)` creates
+a distinct named composite, including zero members. Prepare is quiet; execution
+atomically publishes its type, reciprocal nonstorage backing relation, stable
+attributes and lookup-only associated array. Declarations follow existing
+identifier clipping, search_path, collision, type/typmod and collation rules.
+Duplicate members, unsupported child types and table constraint syntax fail
+without partial publication. Builtin/catalog row identities remain lookup-only.
+
+Supported user tables and views expose the same concrete row codec. Members
+may be existing supported scalars, plain domains, composites and executable
+scalar arrays. Plain domains over composites retain their own logical identity.
+Composite arrays and arrays of composite domains remain nonexecutable, even
+for NULL values. Existing domain DEFAULT/CHECK/NOT NULL exclusions are unchanged.
+
+Unknown literals and inferred parameters accept PostgreSQL record text: outer
+parentheses, comma-separated members, quoting/doubled quotes/backslashes, and
+empty unquoted fields as typed NULL. `()` is a nonNULL empty zero-member record;
+an empty record field is not an empty TEXT string. Nested values use their child
+codec recursively; errors preserve immediate child-conversion versus arity
+precedence. Output quotes/doubles record delimiters and whitespace and passes
+the statement's captured catalog, date/time/interval and bytea presentation to
+children. Structural errors retain original decoded input and exact Detail.
+Child failures are not replaced with generic record errors.
+Nested enum failures use the input statement's captured catalog and current
+search_path: a visible enum is unqualified, while an invisible or shadowed enum
+retains its schema qualification, including through plain domains and deeper
+records. This does not mutate type descriptors or change child admission.
+Already-admitted retained defaults and generation plans use the consuming
+statement's naming capture for recursive TEXT input, rather than declaration-time
+visibility. A record computed by a default has neither literal Position nor
+parameter Context, even when another column's integer parameter is bound.
+For a zero-member record, an input consisting only of `(` fails with `22P02`
+and `Too many columns.` Detail; EOF while scanning a real member instead
+retains `Unexpected end of input.`.
+
+Explicit TEXT-to-composite and composite-to-TEXT IO casts are supported.
+Typed TEXT does not implicitly assign to a composite. Existing composite-to-
+character assignment uses ordinary destination length/typmod behavior.
+Distinct equal-shaped named types are never structurally interchangeable.
+Physical source CHECK/NOT NULL constraints do not constrain row values stored
+outside that table or inside a named wrapper.
+Existing CREATE TABLE CHECK constraints supply this standalone-row witness.
+ALTER TABLE ADD CHECK remains unsupported natively; composite execution does
+not add that adjacent DDL capability.
+
+Stable attributes project current values across supported source ADD COLUMN
+(new members become NULL), DROP COLUMN and RENAME COLUMN; source/view renames
+and namespace moves preserve identity. Type changes, including same-type
+changes, and nonNULL ADD defaults that rewrite a stored row type fail with
+the actual stored consumer's PostgreSQL0A000 diagnostic. Existing dependency
+RESTRICT/CASCADE traversals include named members: CASCADE drops the dependent
+member, not its containing named type or holder table. A surviving zero-member
+value renders `()`. Held eager results keep their old immutable shape, while
+current statements/prepared executions use the new generation.
+
+Native exports canonical strings (nil for NULL), string ScanType, empty
+DatabaseTypeName, no Length/DecimalSize and known declaration nullability.
+Pinned pq exposes raw []byte, interface{} ScanType and unknown Nullable.
+Literal diagnostics carry source Position; bound decoded inputs use the existing
+opaque `unnamed portal parameter $n = '...'` Context (`''` for empty input).
+Native Dump orders scalar declarations, named composites, domains, tables and
+views through one captured provider topology. Restore recursively reowns types,
+members, nested values and catalog-valued children without mutating old cursors.
+Failed/canceled restore remains atomic; old prepared identities cannot retarget
+by name after lifetime replacement.
+
+ROW constructors, field extraction/expansion/assignment, comparisons/hashing/key
+operations, ALTER/DROP TYPE and other new composite DDL are not added.
+Verification selectors (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceComposite' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceComposite' VERBOSE=0`.
+
 ## Enums — change note
 
 `CREATE TYPE [schema.]name AS ENUM ('sad','ok','happy')` publishes an immutable
@@ -486,8 +560,8 @@ Dump/Restore emits qualified enum declarations before dependent domains/tables,
 preserving label order, canonical escaping, owner remapping and stored defaults,
 CHECKs and views. Changed type ACLs are refused rather than silently discarded.
 Restore remains atomic on parse/input/owner/read/cancellation failures.
-ALTER TYPE, DROP TYPE, pg_enum queries, enum arrays and other CREATE TYPE forms
-remain excluded. Public verification:
+ALTER TYPE, DROP TYPE, pg_enum queries and enum arrays remain excluded.
+Named AS (...) composites are documented separately above. Public verification:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceEnum.*$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceEnum.*$' VERBOSE=0`.
 Focused stored-extrema verification uses
@@ -498,7 +572,7 @@ and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceEnumSto
 
 Domains are immutable catalog-owned logical types, not aliases or per-value boxed
 objects. `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` accepts supported
-stored scalar bases, another domain, and supported arrays. Immediate-base identity,
+stored scalar bases, another domain, supported arrays and executable composites. Immediate-base identity,
 inherited typmod/collation, namespace, owner and distinct type ID remain represented.
 VOID, UNKNOWN and RECORD are not valid bases. Domain DEFAULT/CHECK/NOT NULL and
 ALTER DOMAIN are excluded; omitted values and bound nil remain typed NULL.
@@ -2400,11 +2474,11 @@ type search path. Explicit schema lookup checks USAGE; numeric input needs no
 existing referent. Lookup alone does not require type USAGE.
 
 All 621 released/initialized identities are represented, including catalog row
-types, information_schema domains and associated arrays. Unsupported values
-remain unsupported: an identity does not authorize storage, NULL construction,
-composite execution, extra catalog projections or adjacent DDL. User table/view
-row identities and their arrays publish, rename, move and drop with their actual
-owning relation. Ordinary sequences and indexes have no row type.
+types, information_schema domains and associated arrays. Unsupported builtin
+values remain unsupported: lookup identity alone does not authorize storage,
+NULL construction, extra catalog projections or adjacent DDL. Supported user
+table/view row codecs and their lookup-only arrays publish, rename, move and drop
+with the actual owning relation. Ordinary sequences and indexes have no row type.
 
 INT2/INT4/INT8→REGTYPE and OID↔REGTYPE are implicit; REGTYPE→INT4/INT8
 are assignment casts. INT4 preserves unsigned bits; INT8 checks range.

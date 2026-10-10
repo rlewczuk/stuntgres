@@ -42,7 +42,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		}
 		if stage.base.state.descriptors[address] == nil {
 			stage.descriptors[address] = descriptor
-		} else if err := stage.Replace(descriptor); err != nil {
+		} else if err := stage.replaceDescriptor(descriptor, false); err != nil {
 			return err
 		}
 	}

@@ -39,7 +39,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 	droppedColumns := make(map[ObjectAddress]bool)
 	for a, d := range stage.base.state.descriptors {
 		r, ok := d.(*relationDescriptor)
-		if !ok || r.relationKind != tableRelation {
+		if !ok || r.relationKind != tableRelation && r.relationKind != compositeRelation {
 			continue
 		}
 		for i, c := range r.columns {
@@ -127,7 +127,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					}
 					continue
 				}
-				if d.relationKind != tableRelation {
+				if d.relationKind != tableRelation && d.relationKind != compositeRelation {
 					continue
 				}
 				name := dependencyRelationName(stage.base, d, stage.dependencyPath)
@@ -135,7 +135,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					column := a
 					column.SubID = d.attributes[i]
 					if target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}) {
-						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d, column: c.Name})
+						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, relation: d, column: c.Name})
 					}
 					if droppedColumns[column] {
 						continue
@@ -322,6 +322,12 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 			return er
 		}
 		next.revision = revision
+		if old.relationKind == compositeRelation {
+			if err = stage.Replace(next); err != nil {
+				return err
+			}
+			continue
+		}
 		if project != nil {
 			if err = project(old, next); err != nil {
 				return err

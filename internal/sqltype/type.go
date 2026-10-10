@@ -85,6 +85,7 @@ type Descriptor struct {
 	associatedArray     ID
 	delimiter           byte
 	enum                *enumDefinition
+	composite           *compositeDefinition
 	lookupOnly          bool
 	namespace           string
 }
@@ -201,6 +202,7 @@ type Value struct {
 	tree            *treePayload
 	treeKey         bool // text is an immutable prepared structural equality/output key.
 	array           *arrayPayload
+	composite       *compositePayload
 	jsonb           *jsonbPayload
 	jsonpath        *jsonpathPayload
 }
@@ -229,6 +231,12 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if !v.null && d.BaseType().id == JSONPath && v.jsonpath == nil {
 		return Value{}, fmt.Errorf("missing JSONPath payload")
 	}
+	if v.typ.BaseType().IsComposite() != d.BaseType().IsComposite() {
+		return Value{}, fmt.Errorf("incompatible composite declaration")
+	}
+	if !v.null && v.typ.BaseType().IsComposite() && !v.validCompositePayload() {
+		return Value{}, fmt.Errorf("invalid composite payload")
+	}
 	if v.typ == d {
 		if !v.null && d.BaseType().IsArray() && v.array == nil {
 			return Value{}, fmt.Errorf("missing array payload")
@@ -237,6 +245,17 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if v.typ.BaseType().IsArray() {
 		return v.MapArray(d, func(element Value, target *Descriptor) (Value, error) { return element.Retag(target) })
+	}
+	if v.typ.BaseType().IsComposite() {
+		for _, member := range d.BaseType().composite.members {
+			if at, found := v.typ.BaseType().composite.attributes[member.Attribute]; found {
+				old := v.typ.BaseType().composite.members[at].Usage
+				if old.Typmod != member.Usage.Typmod || old.Collation != member.Usage.Collation {
+					return Value{}, fmt.Errorf("incompatible composite member usage")
+				}
+			}
+		}
+		return v.MapComposite(d, func(field Value, target *Descriptor) (Value, error) { return field.Retag(target) })
 	}
 	v.typ = d
 	return v, nil
@@ -398,6 +417,12 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		}
 		return d.arrayInput(ctx, text, typmod, env)
 	}
+	if d.IsComposite() {
+		if err := validateCompositeInput(ctx, text); err != nil {
+			return Value{}, err
+		}
+		return d.compositeInput(ctx, text, env)
+	}
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
@@ -409,7 +434,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	if d.IsEnum() {
-		return d.enumInput(text)
+		return d.enumInput(text, env)
 	}
 	switch d.id {
 	case Bit, VarBit:
@@ -622,6 +647,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsArray() {
 		return d.arrayOutput(ctx, v, env)
 	}
+	if d.IsComposite() {
+		return d.compositeOutput(ctx, v, env)
+	}
 	if d.IsEnum() {
 		return d.enumOutput(v)
 	}
@@ -718,6 +746,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	if d.IsDomain() {
 		v.typ = d.BaseType()
 		return v.typ.SQLLiteral(ctx, v)
+	}
+	if d.IsComposite() {
+		text, err := d.compositeOutput(ctx, v, OutputEnvironment{})
+		if err != nil {
+			return "", err
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
 	if d.IsArray() || d.IsEnum() {
 		var text string
@@ -1001,6 +1036,17 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.IsComposite() || target.Type.IsComposite() {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) ||
+			context == Assignment && source.Type.IsComposite() && IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if source.Type.IsEnum() || target.Type.IsEnum() {
 		if source.Type == target.Type {
 			return p, nil

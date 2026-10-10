@@ -72,9 +72,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	arrayName := associatedArrayName(stage, ns.Address, name)
-	array, err := sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)
-	if err != nil {
-		return err
+	var array *sqltype.Descriptor
+	if typ.BaseType().IsComposite() {
+		array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
+	} else {
+		array, err = sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)
+		if err != nil {
+			return err
+		}
 	}
 	if err = stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}); err != nil {
 		return err

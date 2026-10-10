@@ -53,6 +53,71 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 			visited[address] = true
 			return nil
 		}
+		if d.typ.IsComposite() {
+			active[address] = true
+			relation, ok := next.descriptors[d.owningRelation].(*relationDescriptor)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing composite backing relation")
+			}
+			identity, namespace, owner := address, d.namespace, d.owningRelation
+			if to, ok := mapping[identity]; ok {
+				identity = to
+			}
+			if to, ok := mapping[namespace]; ok {
+				namespace = to
+			}
+			if to, ok := mapping[owner]; ok {
+				owner = to
+			}
+			associated := d.array
+			if to, ok := mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(associated)}]; ok {
+				associated = sqltype.ID(to.ObjectID)
+			}
+			ns := next.descriptors[d.namespace]
+			if ns == nil {
+				return fmt.Errorf("stuntgres: missing composite namespace")
+			}
+			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
+			rebuild := identity != address || namespace != d.namespace || owner != d.owningRelation || associated != d.array || declaration != d.typ.SQLName() || d.typ.CompositeLen() != len(relation.columns)
+			var members []sqltype.CompositeMember
+			for i, c := range relation.columns {
+				child := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}
+				if err := visit(child); err != nil {
+					return err
+				}
+				usage := c.Usage
+				usage.Type = next.descriptors[child].(*typeDescriptor).typ
+				member := sqltype.CompositeMember{Attribute: relation.attributes[i], Name: c.Name, Usage: usage}
+				if !rebuild && d.typ.CompositeMember(i) != member {
+					rebuild = true
+				}
+				if rebuild && members == nil {
+					members = compositeMembers(relation)
+					for j := range i {
+						members[j].Usage.Type = next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(members[j].Usage.Type.ID())}].(*typeDescriptor).typ
+					}
+				}
+				if members != nil {
+					members[i] = member
+				}
+			}
+			if rebuild {
+				if members == nil {
+					members = compositeMembers(relation)
+				}
+				typ, err := sqltype.Composite(sqltype.ID(identity.ObjectID), relation.name, declaration, associated, members)
+				if err != nil {
+					return err
+				}
+				copy := *d
+				copy.typ, copy.namespace, copy.owningRelation, copy.array = typ, namespace, owner, associated
+				next.descriptors[address] = &copy
+				changed = true
+			}
+			delete(active, address)
+			visited[address] = true
+			return nil
+		}
 		if d.owningRelation != (ObjectAddress{}) && !d.typ.IsArray() {
 			target, namespace, relation := address, d.Namespace(), d.owningRelation
 			if to, ok := mapping[address]; ok {
@@ -162,6 +227,9 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
 func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.Value, error) {
+	if value.Type().BaseType().IsComposite() && target.BaseType().IsComposite() {
+		return value.MapComposite(target, reownDomainDatum)
+	}
 	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
 		return value.MapArray(target, reownDomainDatum)
 	}
@@ -175,7 +243,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported scalar identity")
 	}
 	from, to := value.Type().Usage().BaseUsage(), target.Usage().BaseUsage()
-	if (!from.Type.IsEnum() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && !from.Type.IsComposite() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()
@@ -298,6 +366,11 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 func remapRegclassDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {
 	if value.IsNull() {
 		return value, nil
+	}
+	if value.Type().BaseType().IsComposite() {
+		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return remapRegclassDatum(member, destination)
+		})
 	}
 	if value.Type().BaseType().IsArray() {
 		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {

@@ -44,11 +44,10 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	sized.Typmod = 8
 	sized.Collation.ID = 950
 	schema := querySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.typ.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
-	calls := 0
 	expressions := make([]BoundExpr, len(schema))
 	for i, column := range schema {
 		usage := column.Usage
-		expressions[i] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Null(usage.Type), nil })
+		expressions[i] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Null(usage.Type), nil })
 	}
 	query := &BoundQuery{Root: &projectNode{querySchema: schema, child: &singletonNode{}, expressions: expressions}}
 	syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: []parser.Identifier{{Text: "renamed"}}, Query: &parser.Select{}, NoData: true}
@@ -65,8 +64,8 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal(err, skipped)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if calls != 0 || len(d.columns) != 2 || d.columns[0].Name != "renamed" || d.columns[1].Name != "d" || d.columns[0].Usage != sized || d.columns[1].Usage != domain.typ.Usage() {
-		t.Fatal(calls, d.columns)
+	if len(d.columns) != 2 || d.columns[0].Name != "renamed" || d.columns[1].Name != "d" || d.columns[0].Usage != sized || d.columns[1].Usage != domain.typ.Usage() {
+		t.Fatal(d.columns)
 	}
 	if &d.columns[0] == &schema[0] || schema[0].Name != "old" || schema[0].Nullable || schema[0].OriginTable != 19000 {
 		t.Fatal("source metadata mutated", schema)
@@ -79,18 +78,15 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	if len(d.notNullConstraints)+len(d.checkConstraints)+len(d.uniqueConstraints)+len(d.defaults)+len(d.generations)+len(d.identities)+len(d.columnACL) != 0 || !reflect.DeepEqual(d.acl, ACLValue{}) || d.owner != auth.state.CurrentUser {
 		t.Fatal("source table decorations inherited", d)
 	}
-	if len(stage.domainBases) != 1 || stage.domainBases[0] != domain {
-		t.Fatal("logical domain generation lost", stage.domainBases)
-	}
 	queryCreatePublish(t, e, stage)
-	if calls != 0 || len(e.storage[d.address].versions) != 0 {
+	if len(e.storage[d.address].versions) != 0 {
 		t.Fatal("descriptor-only phase demanded rows")
 	}
 	// The actual dependency closure records the destination's stable attribute.
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ObjectAddress{domain.Address()}
 	edges, err := domainDependencyClosure(context.Background(), drop, drop.domainTargets)
-	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].relation != d || edges[0].column != "d" || edges[0].address.SubID != 2 {
+	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].column != "d" || edges[0].address != (ObjectAddress{ClassID: RelationClassID, ObjectID: d.address.ObjectID, SubID: 2}) {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}
 }

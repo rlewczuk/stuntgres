@@ -10,6 +10,18 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: `CREATE TYPE name AS (...)` and supported user table/view row types
+now share concrete, immutable composite codecs. Named backing relations are
+nonstorage authorities; member constraints remain confined to physical source
+tables. Text input/output, nesting, plain domains, retained row-shape generations
+and native mixed-type/table/view Dump/Restore are supported, without ROW
+constructors, field operations or composite arrays.
+See [composites](docs/TYPES.md#composites--change-note).
+Feature smoke (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceComposite(FeatureSmoke|MixedControls|ControlLifetime)$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceComposite(FeatureSmoke|MixedControls|ControlLifetime)$' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
 documented eight/four columns with exact current schema/name/owner identities.
 Both disclose underlying objects independent of privileges and search_path, unlike

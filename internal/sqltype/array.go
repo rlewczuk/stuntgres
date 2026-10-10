@@ -38,11 +38,18 @@ func (d *Descriptor) ContainsRegclass() bool {
 	if physical.IsArray() {
 		return physical.element.ContainsRegclass()
 	}
+	if physical.IsComposite() {
+		for _, member := range physical.composite.members {
+			if member.Usage.Type.ContainsRegclass() {
+				return true
+			}
+		}
+	}
 	return physical.ID() == Regclass
 }
 
 func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {
-	if id == 0 || id == Unknown || name == "" || !element.Concrete() || !element.IsDomain() && !StoredScalarCastType(element.ID()) && element.ID() != Regclass {
+	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().IsComposite() || !element.IsDomain() && !StoredScalarCastType(element.ID()) && element.ID() != Regclass {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
 	return &Descriptor{id: id, name: name, sql: element.SQLName() + "[]", database: strings.ToUpper(name), element: element}, nil

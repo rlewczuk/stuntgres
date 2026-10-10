@@ -31,7 +31,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 		op.statementDeadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)
 		op.ctx, op.timerCancel = context.WithDeadlineCause(op.ctx, op.statementDeadline, statementTimeoutCause)
 	}
-	return op, parser.Options{StandardConformingStrings: standard, Context: op.ctx}, nil
+	return op, parser.Options{StandardConformingStrings: standard, Context: op.ctx, Notice: op.parseNotice}, nil
 }
 
 // CommandError translates only cancellation from this command's own timer.

@@ -295,6 +295,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			return nil, queryNamespace{}, err
 		}
 		relation := b.queryAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		if relation.relationKind == compositeRelation {
+			return nil, queryNamespace{}, compositeOpenError(relation, n.Name.Parts[0].Pos)
+		}
 		if relation.relationKind == indexRelation {
 			if b.deleteUsingSources {
 				err := expressionError("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), n.Name.Parts[0].Pos).(*sqlstate.Error)

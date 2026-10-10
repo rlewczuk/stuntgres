@@ -159,13 +159,6 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 			if err != nil {
 				if diagnostic, ok := err.(*Error); ok {
 					copy := *diagnostic
-					if copy.Code == "22P02" && parameters.Types[i].Type.BaseType().IsEnum() && len(parameters.DiagnosticNames) > i {
-						text := fmt.Sprint(raw)
-						if bytes, ok := raw.([]byte); ok {
-							text = string(bytes)
-						}
-						copy.Message = fmt.Sprintf("invalid input value for enum %s: \"%s\"", parameters.DiagnosticNames[i], text)
-					}
 					if copy.Context != "" {
 						copy.Context += "\n"
 					}
@@ -204,7 +197,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 	}
-	if v.Type().IsArray() || v.Type().IsEnum() {
+	if v.Type().IsArray() || v.Type().IsEnum() || v.Type().IsComposite() {
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
@@ -257,7 +250,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
-	if d.BaseType().IsArray() || d.BaseType().IsEnum() {
+	if d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {

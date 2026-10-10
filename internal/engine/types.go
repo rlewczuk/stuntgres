@@ -22,6 +22,9 @@ type ColumnDescriptor struct {
 type StatementDescription struct {
 	Parameters ParameterInfo
 	Results    []ColumnDescriptor
+	// Logical user identities belong to an owner/epoch, not merely a reused OID.
+	catalogOwner *Engine
+	catalogEpoch CatalogEpoch
 	// Temporal captures and public signatures are immutable. The private sequence
 	// cell publishes complete analyzed literal groups under Engine.mu.
 	temporals []temporalConstant
@@ -102,8 +105,21 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		}
 	}
 	if t.typ.IsUserDefined() || t.typ.IsArray() && t.typ.Element().IsUserDefined() {
-		if t.revision == 0 || relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+		if t.revision == 0 || t.owningRelation == (ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
 			return CatalogConflict{}
+		}
+	}
+	if t.typ.IsComposite() {
+		relation, ok := view.state.descriptors[t.owningRelation].(*relationDescriptor)
+		if !ok || len(relation.columns) != t.typ.CompositeLen() {
+			return fmt.Errorf("stuntgres: missing composite backing definition")
+		}
+		for i, column := range relation.columns {
+			member := t.typ.CompositeMember(i)
+			actual, exists := view.LookupType(member.Usage.Type.ID())
+			if !exists || actual != member.Usage.Type || member.Attribute != relation.attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
+				return fmt.Errorf("stuntgres: inconsistent composite member generation")
+			}
 		}
 	}
 	if t.typ.IsDomain() {
@@ -397,10 +413,10 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	return false
 }
 
-// Tables reserve a corresponding type name without synthesizing a row type.
+// Existing row-bearing relations reserve their reciprocal type identity.
 func relationTypeNameOccupied(view CatalogRead, namespace ObjectAddress, name string) bool {
 	for _, address := range view.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}) {
-		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && relation.relationKind == tableRelation {
+		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
 			return true
 		}
 	}

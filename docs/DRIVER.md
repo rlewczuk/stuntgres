@@ -81,6 +81,33 @@ Current source lookup and argument arity still precede cached-contract guards;
 fresh prepares work and eager precontrol rows/metadata remain owned.
 See [enums](TYPES.md#enums--change-note).
 
+## Composite values and retained row shapes
+
+Named composites and supported user table/view row values export canonical record
+strings and string ScanType, with empty DatabaseTypeName and unknown Length/
+DecimalSize. NULL is nil; a zero-member nonNULL value is `()`. Domains retain their
+logical wrapper and expose the same physical composite metadata. Native nullable
+columns report true/known; pinned pq returns raw []byte/interface{} ScanType and
+unknown Nullable. Metadata is available before iteration and for empty results.
+
+Inferred bound parameters and unknown literals use the shared record codec;
+typed TEXT needs an explicit cast. Child conversion failures remain child-owned.
+Enum errors inside records/domains use the input statement's captured search_path
+visibility, just like scalar enum input, without adapter-specific message rewriting.
+Retained defaults/generation plans share that capture when their admitted text IO
+requires it; a computed default error does not acquire unrelated parameter Context.
+Literal Position points to the source opener; decoded bound values use opaque
+portal Context, never an invented rendering of the raw parameter. Record output
+recursively uses the captured presentation/catalog environment, including for
+held results after source rename or catalog replacement.
+
+Supported source shape changes retain stable attributes. Current prepared
+parameter/result generations see the new shape; previously captured literals
+and stored values map retained attributes and append typed NULL members.
+Held eager cursors retain the old shape and metadata. Reset/Restore cannot remap
+old prepared logical IDs by matching a new spelling; use fresh descriptions.
+See [composites](TYPES.md#composites--change-note).
+
 ## Domain values and prepared signatures
 
 Domain results retain a distinct logical engine identity but export their ultimate
@@ -140,6 +167,11 @@ Cancellation detected before a same-name publication-conflict decision remains
 an ordinary context error, not duplicate-table failure or successful skipping;
 the winning table remains intact and the canceled loser emits no notice.
 Long application_name emits NOTICE/42622 with original and clipped text.
+Ordinary SQL identifier clipping emits lexical NOTICE/42622 records with the
+original and UTF8-boundary-clipped name, without Position or synthetic Context.
+They are produced while parsing direct commands or preparing statements and use
+the same captured notice filter/delivery route. Executing an already prepared
+statement does not repeat lexical clipping notices.
 
 SET/SHOW client_min_messages uses the same physical settings route, default
 notice. Case-insensitive values are debug5, debug4, debug3, debug2, debug1, log,

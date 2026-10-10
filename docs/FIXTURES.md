@@ -48,9 +48,10 @@ discarding privileges. Cyclic view definitions are legal catalog state, but
 Dump returns `stuntgres: cyclic view dump dependencies`; repair the definition
 before dumping. These refusals do not narrow ordinary replacement retention.
 Feature roundtrip smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplaceSmokeCycleReplayControls$' VERBOSE=0`.
-Dump orders tables and views through their persistent provider topology.
-Views depend on table/view sources and expression providers; tables depend on
-their CHECK providers. An identity-sequence dependency waits for the owning table
+Dump orders scalar user types, named composites, domains, tables and views through
+one captured persistent provider topology. Composite members depend on their
+child types/owning row relations; tables depend on column types and CHECK providers.
+Views depend on table/view sources and expression providers. An identity-sequence dependency waits for the owning table
 whose inline declaration creates it. A table's own identity CHECK is not a
 self-edge; ordinary standalone sequences remain in the earlier creation prefix.
 Creation addresses break ties between ready objects. Retained TEMP collision
@@ -65,6 +66,17 @@ never relaxed; cycles that remain fail before SQL is emitted.
 Roundtrip and actual pinned replay:
 `make quickcheck PACKAGES=./reference RUN='^TestReferencePGDependReviewCapturedReplay$' VERBOSE=0`;
 the pinned counterpart adds `REFERENCE=1`.
+
+Named composites replay as canonical CREATE TYPE AS declarations, never as
+storage tables. Supported table/view row types are created by their real owner.
+Native replacement remints/reowns reciprocal descriptors, stable member usages,
+nested stored/default values and live REGCLASS/REGTYPE children together, while
+held snapshots remain immutable. Plain domains over rows/composites and mixed
+source-row→named-wrapper→domain→holder/view dependencies replay as ordinary SQL
+on PostgreSQL. No new harness, physical ABI, constrained-domain feature or
+composite-array storage is implied. Composite controls:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceComposite(MixedControls|ControlLifetime)$' VERBOSE=0`
+and the same command with `REFERENCE=1` (900 seconds each).
 The two-retained-sequence, second-Dump/Restore regression and independent
 PostgreSQL nested-view consumers run through the same mode-aware definition:
 

@@ -124,6 +124,9 @@ func (l *lexer) identifierName(s string) string {
 	if clipped != s && l.typeInputNotice != nil {
 		l.typeInputNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: fmt.Sprintf("identifier \"%s\" will be truncated to \"%s\"", s, clipped), Context: fmt.Sprintf("invalid type name \"%s\"", l.input)})
 	}
+	if clipped != s && l.options.Notice != nil {
+		l.options.Notice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: fmt.Sprintf("identifier \"%s\" will be truncated to \"%s\"", s, clipped)})
+	}
 	return clipped
 }
 

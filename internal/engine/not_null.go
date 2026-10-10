@@ -276,6 +276,15 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err != nil {
 		return Result{}, err
 	}
+	rowRewrite := len(transformations) != 0 || volatileAdd
+	for _, fill := range fills {
+		rowRewrite = rowRewrite || !fill.IsNull()
+	}
+	if rowRewrite {
+		if err := rowRewriteError(auth.catalog, old); err != nil {
+			return Result{}, err
+		}
+	}
 	rewrite = rewrite || volatileAdd
 	if rewrite {
 		scope.owner.mu.Lock()
@@ -447,7 +456,16 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		changes.dependencies = append(changes.dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
 	}
 	changes.dependencies = append(changes.dependencies, stage.identityDependencies...)
-	// Record all originals before provider callbacks; Reset cannot restamp them.
+	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
+		return Result{}, err
+	}
+	// Validation closes the type graph before transferring it to private catalog
+	// changes. Include dependent holder stores as well as the directly altered row.
+	for address, rebound := range stage.rowShapes {
+		consumer := stage.descriptors[address].(*relationDescriptor)
+		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
+	}
+	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
 	if ref.Epoch != e.state.epoch {
 		e.mu.Unlock()
@@ -484,9 +502,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	shape.replacement, shape.relation = replacement, next
 	changes.storage[ref.Address] = shape
 	e.mu.Unlock()
-	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
-		return Result{}, err
-	}
 	if err := prepareAlterUniqueRoots(op.Context(), changes, next, replacement, uniqueBaselines); err != nil {
 		return Result{}, err
 	}

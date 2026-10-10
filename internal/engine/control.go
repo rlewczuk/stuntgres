@@ -100,6 +100,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
 	indexIndices := make(map[OID]int)
+	composites := make(map[OID]*relationDescriptor)
 	// Deferral removes only eligible definitions' edges. Inline consumers keep
 	// their prerequisites, including providers shared with deferred defaults.
 	var inlinePredecessors map[OID][]OID
@@ -192,7 +193,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if !ok {
 			switch t := d.(type) {
 			case *typeDescriptor:
-				if t.typ.IsUserDefined() {
+				if t.typ.IsUserDefined() && !t.typ.IsComposite() {
 					domains = append(domains, t)
 				} else if t.typ.IsArray() {
 					if err := (typeProvider{}).Validate(catalog, t); err != nil {
@@ -256,6 +257,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err != nil {
 			e.mu.Unlock()
 			return err
+		}
+		if r.relationKind == compositeRelation {
+			composites[r.address.ObjectID] = r
+			viewDependencies[r.address.ObjectID] = nil
+			continue
 		}
 		if r.sqlIndex != nil {
 			if r.sqlIndex.constraint != nil {
@@ -479,9 +485,38 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
-	domainStatements, err := domainDumpStatements(ctx, catalog, domainRoles, domains)
-	if err != nil {
-		return err
+	domainNodes := make(map[OID]*typeDescriptor, len(domains))
+	for _, d := range domains {
+		id := d.Address().ObjectID
+		domainNodes[id] = d
+		viewDependencies[id] = nil
+		if d.typ.IsDomain() {
+			predecessor, err := dumpPredecessor(catalog, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.DomainBase().Type.ID())}, d.Address())
+			if err != nil {
+				return err
+			}
+			if predecessor != 0 {
+				viewDependencies[id] = []OID{predecessor}
+			}
+		}
+	}
+	for id, predecessors := range viewDependencies {
+		relation, ok := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: id}].(*relationDescriptor)
+		if !ok {
+			continue
+		}
+		columns, err := dumpColumnPredecessors(catalog, relation, predecessors)
+		if err != nil {
+			return err
+		}
+		viewDependencies[id] = columns
+		if inline, ok := inlinePredecessors[id]; ok {
+			inline, err = dumpColumnPredecessors(catalog, relation, inline)
+			if err != nil {
+				return err
+			}
+			inlinePredecessors[id] = inline
+		}
 	}
 	if deferDefaults {
 		for oid, predecessors := range inlinePredecessors {
@@ -496,6 +531,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		viewOrder, err = viewDumpOrder(ctx, viewDependencies)
 		deferDefaults = err == nil
 	}
+	if err != nil {
+		return err
+	}
+	declarations, err := mixedDumpStatements(ctx, catalog, domainRoles, viewOrder, domainNodes, composites)
 	if err != nil {
 		return err
 	}
@@ -533,28 +572,28 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	currentOwner := ""
-	for _, domain := range domainStatements {
-		if domain.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(domain.owner, "'", "''") + "';\n"); err != nil {
-				return err
-			}
-			currentOwner = domain.owner
-		}
-		if err := emit(domain.sql); err != nil {
-			return err
-		}
-	}
 	sequenceCreation, sequenceCompletion := sequenceDumpStatements(sequences)
 	for _, line := range sequenceCreation {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
-	currentOwner = ""
+	currentOwner := ""
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
 	for _, oid := range viewOrder {
+		if declaration, exists := declarations[oid]; exists {
+			if declaration.owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+					return err
+				}
+				currentOwner = declaration.owner
+			}
+			if err := emit(declaration.sql); err != nil {
+				return err
+			}
+			continue
+		}
 		if position, isIndex := indexIndices[oid]; isIndex {
 			index := indexes[position]
 			if index.owner != currentOwner {
@@ -772,7 +811,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
 			}
-		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateEnum, *parser.CreateDomain:
+		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain:
 		case *parser.CreateView:
 		case *parser.CreateIndex:
 		case *parser.CreateSequence:

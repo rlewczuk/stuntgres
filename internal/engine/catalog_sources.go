@@ -200,6 +200,8 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				kind = "v"
 			} else if relation.relationKind == indexRelation {
 				kind = "i"
+			} else if relation.relationKind == compositeRelation {
+				kind = "c"
 			}
 			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil)})
 		case 2618:

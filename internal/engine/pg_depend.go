@@ -23,6 +23,10 @@ func pgDependPinned(catalog CatalogRead, address ObjectAddress) bool {
 	}
 	switch d := d.(type) {
 	case *typeDescriptor:
+		if d.owningRelation != (ObjectAddress{}) {
+			relation, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
+			return !ok || relation.relationKind == catalogRelation
+		}
 		return !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsDomain())
 	case *collationDescriptor, *conversionDescriptor:
 		return true // Only fixed builtin providers are represented.
@@ -71,6 +75,10 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			}
 			if d.typ.IsArray() {
 				add(d.Address(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}, 'i')
+			} else if d.owningRelation != (ObjectAddress{}) && !d.typ.IsComposite() {
+				add(d.Address(), d.owningRelation, 'i')
+			} else if d.typ.IsComposite() && catalog.state.descriptors[d.owningRelation].(*relationDescriptor).relationKind != compositeRelation {
+				add(d.Address(), d.owningRelation, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
 				if d.typ.IsDomain() {
@@ -147,7 +155,11 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 				continue
 			}
-			add(d.address, d.namespace, 'n')
+			if d.relationKind == compositeRelation {
+				add(d.address, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}, 'i')
+			} else {
+				add(d.address, d.namespace, 'n')
+			}
 			for i, column := range d.columns {
 				if err := ctx.Err(); err != nil {
 					return nil, err

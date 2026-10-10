@@ -15,9 +15,19 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
+	if typ, ok := object.(*typeDescriptor); ok {
+		if typ.typ.IsArray() {
+			return dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.typ.Element().ID())}, consumer)
+		}
+		if typ.owningRelation == (ObjectAddress{}) && typ.typ.IsUserDefined() {
+			return typ.Address().ObjectID, nil
+		}
+	}
 	if typ, ok := object.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
 		object, exists = view.Descriptor(typ.owningRelation)
-		if !exists { return 0, fmt.Errorf("stuntgres: missing row type dump owner") }
+		if !exists {
+			return 0, fmt.Errorf("stuntgres: missing row type dump owner")
+		}
 	}
 	source, relation := object.(*relationDescriptor)
 	if !relation || source.relationKind == catalogRelation {

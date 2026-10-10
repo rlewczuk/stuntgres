@@ -893,8 +893,9 @@ controls, not pg_dump, physical storage durability or network protocol support.
 Stored CHECK constraints and supported views have real descriptors/dependencies;
 views continue to reference stable relation/attribute identities through supported
 renames. B-tree/hash keys also retain stable attribute identities, and Dump
-renders current parent/key names without renaming the index itself. Foreign keys,
-automatic row types, inheritance and broader transactional DDL remain excluded.
+renders current parent/key names without renaming the index itself. User table/view
+row codecs retain stable identities through supported renames and moves.
+Foreign keys, inheritance and broader transactional DDL remain excluded.
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh

@@ -37,6 +37,9 @@ func tableKind(d *relationDescriptor, operation string) error {
 	if d.relationKind == tableRelation {
 		return nil
 	}
+	if d.relationKind == compositeRelation {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for composite types."}
+	}
 	if operation == "ADD COLUMN" {
 		kind := ""
 		switch d.relationKind {

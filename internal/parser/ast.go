@@ -31,6 +31,14 @@ type CreateEnum struct {
 
 func (*CreateEnum) statement() {}
 
+type CreateComposite struct {
+	Name    ObjectName
+	Members []Column
+	Pos     Position
+}
+
+func (*CreateComposite) statement() {}
+
 type CreateDomain struct {
 	Name        ObjectName
 	Base        TypeName

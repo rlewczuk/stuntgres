@@ -69,6 +69,9 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			if relation.relationKind == viewRelation {
 				hint = "Use DROP VIEW to remove a view."
 			}
+			if relation.relationKind == compositeRelation {
+				hint = "Use DROP TYPE to remove a type."
+			}
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: hint}
 		}
 		if seen[ref.Address] {

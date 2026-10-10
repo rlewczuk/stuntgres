@@ -22,6 +22,7 @@ func Parse(query string) ([]Statement, error) {
 type Options struct {
 	StandardConformingStrings bool
 	Context                   context.Context
+	Notice                    func(sqlstate.Error)
 }
 
 func ParseWithOptions(query string, options Options) ([]Statement, error) {

@@ -45,9 +45,8 @@ type Engine struct {
 	settingsOrder       []string
 }
 type ParameterInfo struct {
-	Count           int
-	Types           []sqltype.Usage
-	DiagnosticNames []string
+	Count int
+	Types []sqltype.Usage
 }
 type Result struct {
 	Count int64
@@ -91,6 +90,7 @@ type binding struct {
 	regclassInput      sqltype.RegclassResolver
 	regtypeConstants   []regtypeConstant
 	regtypeInput       sqltype.RegtypeResolver
+	typeDiagnosticName func(sqltype.ID) string
 }
 
 func New() *Engine {
@@ -259,7 +259,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	switch s := stmt.(type) {
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.AlterView, *parser.DropView:
 		return StatementDescription{}, nil
-	case *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
+	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
 		return StatementDescription{}, nil
 	case *parser.RoleMembership:
 		return StatementDescription{}, nil
@@ -335,7 +335,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals, sequences: cell, regtypes: regtypes}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, sequences: cell, regtypes: regtypes}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -499,6 +499,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == compositeRelation {
+			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		}
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "insert into")
 		}
@@ -529,6 +532,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == compositeRelation {
+			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		}
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
@@ -581,6 +587,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == compositeRelation {
+			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		}
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "change")
 		}
@@ -620,6 +629,14 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if err != nil {
 		return b, err
 	}
+	switch stmt.(type) {
+	case *parser.Insert, *parser.Update, *parser.Merge:
+		if b.relation != nil {
+			if err := binder.captureRetainedWriteInput(nil, b.relation.generations); err != nil {
+				return b, err
+			}
+		}
+	}
 	if len(b.querySources) != 0 && view == nil {
 		if _, err := validateViewReadGraph(auth.catalog, b.querySources); err != nil {
 			return b, err
@@ -646,6 +663,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.regclassInput = binder.input.Regclass
 	b.regtypeConstants = binder.regtypeConstants
 	b.regtypeInput = binder.input.Regtype
+	b.typeDiagnosticName = binder.input.TypeDiagnosticName
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings

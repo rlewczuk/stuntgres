@@ -57,6 +57,14 @@ func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []Obj
 	if value.IsNull() || !value.Type().ContainsRegclass() {
 		return nil
 	}
+	if value.Type().BaseType().IsComposite() {
+		for i := range value.CompositeLen() {
+			if err := captureRegclassOutputValue(rows, catalog, path, value.CompositeField(i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if value.Type().BaseType().IsArray() {
 		for i := 0; i < value.ArrayLen(); i++ {
 			if err := captureRegclassOutputValue(rows, catalog, path, value.ArrayElement(i)); err != nil {

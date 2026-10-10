@@ -37,7 +37,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
+	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
@@ -150,6 +150,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.regtypeInput != nil {
 		scope.input.Regtype = b.regtypeInput
 	}
+	if b.typeDiagnosticName != nil {
+		scope.input.TypeDiagnosticName = b.typeDiagnosticName
+	}
 	for _, usage := range b.parameters.Types {
 		if usage.Type.ContainsRegclass() && scope.input.Regclass == nil {
 			scope.input.Regclass, err = e.captureRegclassInput(auth)
@@ -178,7 +181,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.returning != nil {
 			results = b.returning.schema
 		}
-		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results}); err != nil {
+		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch()}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

@@ -126,97 +126,57 @@ func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
 	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(descriptor.Name()), nil
 }
 
-func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead, domains []*typeDescriptor) ([]dumpDomain, error) {
-	dependencies := make(map[OID][]OID, len(domains))
-	descriptors := make(map[OID]*typeDescriptor, len(domains))
-	for _, d := range domains {
-		if !defaultDomainACL(d) {
-			return nil, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
-		}
-		id := d.Address().ObjectID
-		descriptors[id] = d
-		dependencies[id] = nil
-		if d.typ.IsDomain() {
-			base := d.typ.DomainBase().Type
-			if base.IsArray() {
-				base = base.Element()
-			}
-			if base.IsUserDefined() {
-				dependencies[id] = []OID{OID(base.ID())}
-			}
-		}
+func domainDumpStatement(ctx context.Context, view CatalogRead, roles RoleRead, d *typeDescriptor, replayNames *domainReplayNames) (dumpDomain, error) {
+	if err := ctx.Err(); err != nil {
+		return dumpDomain{}, err
 	}
-	order, err := viewDumpOrder(ctx, dependencies)
+	if !defaultDomainACL(d) {
+		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
+	}
+	qualified, err := catalogTypeDeclaration(view, d.typ.Usage())
 	if err != nil {
-		return nil, err
+		return dumpDomain{}, err
 	}
-	result := make([]dumpDomain, 0, len(order))
-	replayNames := newDomainReplayNames()
-	for _, id := range order {
-		if err = ctx.Err(); err != nil {
-			return nil, err
-		}
-		d := descriptors[id]
-		if er := replayNames.reserve(d); er != nil {
-			return nil, er
-		}
-		if d.typ.IsEnum() {
-			qualified, er := catalogTypeDeclaration(view, d.typ.Usage())
-			if er != nil {
-				return nil, er
-			}
-			owner, er := roles.Descriptor(d.owner)
-			if er != nil {
-				return nil, er
-			}
-			labels := d.typ.EnumLabels()
-			for i, label := range labels {
-				labels[i] = "'" + strings.ReplaceAll(label, "'", "''") + "'"
-			}
-			result = append(result, dumpDomain{owner.Name, "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"})
-			replayNames.associate(d)
-			continue
-		}
-		base := d.typ.DomainBase()
-		declaration, er := catalogTypeDeclaration(view, base)
-		if er != nil {
-			return nil, er
-		}
-		if base.Type.IsArray() {
-			if d.dimensions == 0 {
-				key, exists := replayNames.names[base.Type.ID()]
-				if !exists || replayNames.arrays[base.Type.Element().ID()] != base.Type.ID() {
-					return nil, fmt.Errorf("stuntgres: missing domain replay array identity")
-				}
-				namespace, exists := view.Descriptor(key.Namespace)
-				if !exists {
-					return nil, fmt.Errorf("stuntgres: missing domain replay array namespace")
-				}
-				declaration = quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(key.Name)
-			} else {
-				declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.dimensions))
-			}
-		}
-		collation := ""
-		if base.Collation != base.Type.Usage().Collation {
-			name := builtinCollationName(base.Collation.ID)
-			if name == "" {
-				return nil, fmt.Errorf("stuntgres: unsupported domain collation")
-			}
-			collation = " COLLATE " + quoteIdentifier(view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}].Name()) + "." + quoteIdentifier(name)
-		}
-		qualified, er := catalogTypeDeclaration(view, d.typ.Usage())
-		if er != nil {
-			return nil, er
-		}
-		owner, er := roles.Descriptor(d.owner)
-		if er != nil {
-			return nil, er
-		}
-		result = append(result, dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + ";\n"})
-		replayNames.associate(d)
+	owner, err := roles.Descriptor(d.owner)
+	if err != nil {
+		return dumpDomain{}, err
 	}
-	return result, nil
+	if d.typ.IsEnum() {
+		labels := d.typ.EnumLabels()
+		for i, label := range labels {
+			labels[i] = "'" + strings.ReplaceAll(label, "'", "''") + "'"
+		}
+		return dumpDomain{owner.Name, "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"}, nil
+	}
+	base := d.typ.DomainBase()
+	declaration, err := catalogTypeDeclaration(view, base)
+	if err != nil {
+		return dumpDomain{}, err
+	}
+	if base.Type.IsArray() {
+		if d.dimensions == 0 {
+			key, exists := replayNames.names[base.Type.ID()]
+			if !exists || replayNames.arrays[base.Type.Element().ID()] != base.Type.ID() {
+				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array identity")
+			}
+			namespace, exists := view.Descriptor(key.Namespace)
+			if !exists {
+				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array namespace")
+			}
+			declaration = quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(key.Name)
+		} else {
+			declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.dimensions))
+		}
+	}
+	collation := ""
+	if base.Collation != base.Type.Usage().Collation {
+		name := builtinCollationName(base.Collation.ID)
+		if name == "" {
+			return dumpDomain{}, fmt.Errorf("stuntgres: unsupported domain collation")
+		}
+		collation = " COLLATE " + quoteIdentifier(view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}].Name()) + "." + quoteIdentifier(name)
+	}
+	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + ";\n"}, nil
 }
 
 func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpression) (string, error) {
@@ -252,7 +212,7 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
-	if u.Type.IsArray() {
+	if u.Type.IsArray() || u.Type.IsComposite() {
 		declaration, err := catalogTypeDeclaration(view, u)
 		if err != nil {
 			return "", err

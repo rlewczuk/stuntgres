@@ -30,6 +30,14 @@ func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return nil
 	}
+	if value.Type().BaseType().IsComposite() {
+		for i := range value.CompositeLen() {
+			if err := r.recordRegtypeReferences(view, value.CompositeField(i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
 			if err := r.recordRegtypeReferences(view, value.ArrayElement(i)); err != nil {
@@ -52,6 +60,11 @@ func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.
 func remapRegtypeDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return value, nil
+	}
+	if value.Type().BaseType().IsComposite() {
+		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return remapRegtypeDatum(member, destination)
+		})
 	}
 	if value.Type().BaseType().IsArray() {
 		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {

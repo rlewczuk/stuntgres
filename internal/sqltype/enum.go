@@ -33,7 +33,7 @@ func Enum(id ID, name, declaration string, labels []string) (*Descriptor, error)
 }
 func (d *Descriptor) IsEnum() bool { return d != nil && d.enum != nil }
 func (d *Descriptor) IsUserDefined() bool {
-	return d != nil && !d.lookupOnly && (d.IsDomain() || d.IsEnum())
+	return d != nil && !d.lookupOnly && (d.IsDomain() || d.IsEnum() || d.IsComposite())
 }
 func (d *Descriptor) EnumLabels() []string {
 	if !d.IsEnum() {
@@ -41,10 +41,16 @@ func (d *Descriptor) EnumLabels() []string {
 	}
 	return slices.Clone(d.enum.labels)
 }
-func (d *Descriptor) enumInput(text string) (Value, error) {
+func (d *Descriptor) enumInput(text string, env InputEnvironment) (Value, error) {
 	ordinal, ok := d.enum.ordinals[text]
 	if !ok {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid input value for enum %s: \"%s\"", d.DiagnosticName(), text))
+		name := d.DiagnosticName()
+		if env.TypeDiagnosticName != nil {
+			if captured := env.TypeDiagnosticName(d.id); captured != "" {
+				name = captured
+			}
+		}
+		return Value{}, failure("22P02", fmt.Sprintf("invalid input value for enum %s: \"%s\"", name, text))
 	}
 	return Value{typ: d, integer: ordinal}, nil
 }

@@ -86,6 +86,9 @@ func (op *Operation) DetachNotices() []sqlstate.Error {
 	op.notices = nil
 	return notices
 }
+func (op *Operation) parseNotice(diagnostic sqlstate.Error) {
+	op.emitNotice(levelNotice, diagnostic)
+}
 func (op *Operation) existingRelationNotice(name string) {
 	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)})
 }

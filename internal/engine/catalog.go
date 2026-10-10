@@ -213,7 +213,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.virtualView && r.relationKind != catalogRelation {
 		return fmt.Errorf("stuntgres: virtual view requires a catalog source")
 	}
-	if r.relationKind == tableRelation || r.relationKind == viewRelation {
+	if r.relationKind == tableRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation {
 		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
@@ -237,6 +237,17 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if !exists || typ != c.Usage.Type || !typ.Concrete() || !c.Usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
+	}
+	if r.relationKind == compositeRelation {
+		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 {
+			return fmt.Errorf("stuntgres: composite backing relation has storage behavior")
+		}
+		for _, c := range r.columns {
+			if !c.Nullable {
+				return fmt.Errorf("stuntgres: composite member has table constraints")
+			}
+		}
+		return nil
 	}
 	if r.sqlIndex != nil && r.relationKind != indexRelation {
 		return fmt.Errorf("stuntgres: index definition requires an index relation")
@@ -521,6 +532,12 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	return nil
 }
 func (s *CatalogStage) Replace(d Descriptor) error {
+	return s.replaceDescriptor(d, true)
+}
+
+// A fully rebuilt immutable type closure is already reciprocal. Installing its
+// members must not synthesize a second projection based on map iteration order.
+func (s *CatalogStage) replaceDescriptor(d Descriptor, synchronize bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil || d == nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -549,7 +566,7 @@ func (s *CatalogStage) Replace(d Descriptor) error {
 	s.touched[newKey] = s.base.state.names[newKey]
 	s.descriptors[d.Address()] = d
 	s.names[newKey] = d.Address()
-	if relation, ok := d.(*relationDescriptor); ok {
+	if relation, ok := d.(*relationDescriptor); ok && synchronize {
 		return s.synchronizeRowType(relation)
 	}
 	return nil
@@ -664,6 +681,13 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		s.removals = make(map[ObjectAddress]catalogRemoval)
 	}
 	s.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
+	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
+		if backing, ok := s.base.state.descriptors[typ.owningRelation].(*relationDescriptor); ok && backing.relationKind == compositeRelation {
+			if err := s.removeObjectLocked(ObjectRef{owner: s.owner.owner, Epoch: s.base.Epoch(), Address: backing.address}, false); err != nil {
+				return err
+			}
+		}
+	}
 	if r, ok := d.(*relationDescriptor); ok && r.rowType != 0 {
 		row, ok := s.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}].(*typeDescriptor)
 		if !ok || row.owningRelation != r.address {
@@ -717,6 +741,20 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
+	for address, descriptor := range s.descriptors {
+		typ, ok := descriptor.(*typeDescriptor)
+		if !ok || !typ.typ.IsComposite() {
+			continue
+		}
+		old, _ := s.base.state.descriptors[address].(*typeDescriptor)
+		if old == nil || old.typ != typ.typ {
+			if err := e.reownStagedTypeGenerationsLocked(s); err != nil {
+				e.mu.Unlock()
+				return nil, err
+			}
+			break
+		}
+	}
 	if err := s.validateIndexMaintenance(e.state); err != nil {
 		e.mu.Unlock()
 		return nil, err

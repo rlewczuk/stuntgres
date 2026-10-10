@@ -5,6 +5,7 @@ package parser
  tok lexeme
  stmt Statement
  col Column
+ columns []Column
  elements []TableElement
  element TableElement
  likeOptions []LikeOption
@@ -250,8 +251,10 @@ package parser
 %type <into> into_clause
 %type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
-%type <stmt> create_domain drop_domain create_enum
+%type <stmt> create_domain drop_domain create_enum create_composite
 %type <enumLabels> enum_labels enum_label_list
+%type <columns> composite_members composite_member_list
+%type <col> composite_member
 %type <tok> enum_word
 %type <tok> check_function_head
 %type <tok> extract_field
@@ -707,6 +710,7 @@ create: create_table { $$=$1 }
  | create_index { $$=$1 }
  | create_domain { $$=$1 }
  | create_enum { $$=$1 }
+ | create_composite { $$=$1 }
  | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
@@ -722,6 +726,11 @@ enum_word: generic_word {
 enum_labels: /* empty */ {$$=nil} | enum_label_list {$$=$1} ;
 enum_label_list: STRING {$$=[]EnumLabel{{Text:$1.text,Pos:$1.pos}}}
  | enum_label_list ',' STRING {$$=append($1,EnumLabel{Text:$3.text,Pos:$3.pos})} ;
+create_composite: CREATE TYPE relation_name AS '(' composite_members ')' { $$=&CreateComposite{Name:$3,Members:$6,Pos:$1.pos} } ;
+composite_members: /* empty */ {$$=nil} | composite_member_list {$$=$1} ;
+composite_member_list: composite_member {$$=[]Column{$1}}
+ | composite_member_list ',' composite_member {$$=append($1,$3)} ;
+composite_member: name type column_collation {$$=Column{Name:$1.text,TypeName:$2,Collation:$3,Pos:$1.pos}} ;
 create_domain: CREATE DOMAIN relation_name domain_as type column_collation domain_constraints { $$=&CreateDomain{Name:$3,Base:$5,Collation:$6,Constraints:$7,Pos:$1.pos} } ;
 domain_as: /* empty */ | AS ;
 domain_constraints: /* empty */ {$$=nil}

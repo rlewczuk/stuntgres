@@ -64,6 +64,9 @@ func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ObjectAddress
 	return nil
 }
 func relationDiagnosticKind(r *relationDescriptor) string {
+	if r.relationKind == compositeRelation {
+		return "composite type"
+	}
 	if r.relationKind == indexRelation {
 		return "index"
 	}

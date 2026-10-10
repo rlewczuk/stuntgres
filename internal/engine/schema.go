@@ -289,6 +289,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	}
 	switch s := stmt.(type) {
+	case *parser.CreateComposite:
+		if err = e.stageCreateCompositeLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateEnum:
 		if err = e.stageCreateEnumLocked(op, auth, stage, s); err != nil {
 			return nil, err
@@ -435,11 +439,14 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				continue
 			}
 			if r, ok := d.(*relationDescriptor); ok {
+				if r.relationKind == compositeRelation {
+					continue
+				}
 				if r.sqlIndex != nil {
 					continue
 				}
 				dependent = append(dependent, r)
-			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() {
+			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.state.descriptors[t.owningRelation].(*relationDescriptor).relationKind == compositeRelation) {
 				domains = append(domains, t)
 			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type

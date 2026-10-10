@@ -87,13 +87,18 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace Ob
 	return true, e.reownStagedTypeGenerationsLocked(stage)
 }
 
-// Relation identity and executable composite capability are independent. The
-// type/array are staged with the owning relation, before its stored definitions.
-func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescriptor) error {
-	if relation.relationKind != tableRelation && relation.relationKind != viewRelation {
-		return nil
+// The executable projection shares one authority with named and supported user
+// rows; catalog/builtin row identities remain lookup-only.
+func compositeMembers(relation *relationDescriptor) []sqltype.CompositeMember {
+	members := make([]sqltype.CompositeMember, len(relation.columns))
+	for i, c := range relation.columns {
+		members[i] = sqltype.CompositeMember{Attribute: relation.attributes[i], Name: c.Name, Usage: c.Usage}
 	}
-	if relation.rowType != 0 {
+	return members
+}
+
+func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescriptor) error {
+	if relation.relationKind != tableRelation && relation.relationKind != viewRelation && relation.relationKind != compositeRelation || relation.rowType != 0 {
 		return nil
 	}
 	arrayID, err := e.allocateOIDLocked()
@@ -104,13 +109,25 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	if err != nil {
 		return err
 	}
-	typ := sqltype.LookupOnly(sqltype.ID(id), relation.name, sqltype.ID(arrayID))
-	array := sqltype.LookupArray(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
-	relation.rowType = typ.ID()
-	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, array: array.ID(), owningRelation: relation.address}); err != nil {
+	ns := stage.descriptors[relation.namespace]
+	if ns == nil {
+		ns = stage.base.state.descriptors[relation.namespace]
+	}
+	declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
+	typ, err := sqltype.Composite(sqltype.ID(id), relation.name, declaration, sqltype.ID(arrayID), compositeMembers(relation))
+	if err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, owningRelation: relation.address})
+	array := sqltype.LookupArray(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
+	relation.rowType = typ.ID()
+	acl := ACLValue{}
+	if relation.relationKind == compositeRelation {
+		acl = ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: relation.owner, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}, {Grantor: relation.owner, Grantee: ACLGrantee{Role: relation.owner}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege}}}
+	}
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, array: array.ID(), owningRelation: relation.address}); err != nil {
+		return err
+	}
+	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, owningRelation: relation.address})
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {
@@ -121,13 +138,39 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 	row, ok := stage.base.state.descriptors[address].(*typeDescriptor)
 	if !ok {
 		return nil
-	} // New relation/type pairs are staged together.
-	if row.Namespace() == relation.namespace && row.owner == relation.owner && row.Name() == relation.name {
+	}
+	if staged, ok := stage.descriptors[address].(*typeDescriptor); ok {
+		row = staged
+	}
+	same := row.Namespace() == relation.namespace && row.owner == relation.owner && row.Name() == relation.name
+	if row.typ.IsComposite() {
+		same = same && row.typ.CompositeLen() == len(relation.columns)
+		if same {
+			for i, column := range relation.columns {
+				member := row.typ.CompositeMember(i)
+				if member.Attribute != relation.attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
+					same = false
+					break
+				}
+			}
+		}
+	}
+	if same {
 		return nil
 	}
 	next := *row
 	next.namespace, next.owner, next.revision = relation.namespace, relation.owner, relation.revision
-	if row.Name() != relation.name {
+	if row.typ.IsComposite() {
+		ns := stage.descriptors[relation.namespace]
+		if ns == nil {
+			ns = stage.base.state.descriptors[relation.namespace]
+		}
+		var err error
+		next.typ, err = sqltype.Composite(row.typ.ID(), relation.name, dependencyIdentifier(ns.Name())+"."+dependencyIdentifier(relation.name), row.array, compositeMembers(relation))
+		if err != nil {
+			return err
+		}
+	} else {
 		next.typ = sqltype.LookupOnly(row.typ.ID(), relation.name, row.array)
 	}
 	if err := stage.Replace(&next); err != nil {
@@ -135,15 +178,17 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 	}
 	if row.array != 0 {
 		array := stage.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
+		if staged, ok := stage.descriptors[array.Address()].(*typeDescriptor); ok {
+			array = staged
+		}
 		copy := *array
 		copy.namespace, copy.owner, copy.revision = relation.namespace, relation.owner, relation.revision
-		if next.typ != row.typ {
-			name := associatedArrayName(stage, relation.namespace, relation.name)
-			copy.typ = sqltype.LookupArray(array.typ.ID(), name, next.typ)
+		arrayName := array.Name()
+		if row.Name() != relation.name {
+			arrayName = associatedArrayName(stage, relation.namespace, relation.name)
 		}
-		if err := stage.Replace(&copy); err != nil {
-			return err
-		}
+		copy.typ = sqltype.LookupArray(array.typ.ID(), arrayName, next.typ)
+		return stage.Replace(&copy)
 	}
 	return nil
 }

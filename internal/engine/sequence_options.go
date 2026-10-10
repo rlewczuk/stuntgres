@@ -15,6 +15,7 @@ const (
 	viewRelation
 	catalogRelation
 	indexRelation
+	compositeRelation
 )
 
 type sequenceOptions struct {

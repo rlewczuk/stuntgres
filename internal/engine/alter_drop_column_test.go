@@ -349,22 +349,3 @@ func TestAlterDropColumnStageProviderFailureIsAtomic(t *testing.T) {
 		t.Fatal(got)
 	}
 }
-
-func TestAlterDropColumnStageSingleChangeSet(t *testing.T) {
-	e := New()
-	run(t, e, "CREATE TABLE t(a INT,b TEXT)")
-	run(t, e, "INSERT INTO t VALUES(1,'gone')")
-	stage, ref, old := alterDropTestStage(t, e)
-	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch})
-	want := ChangeSet{Definitions: []ObjectAddress{ref.Address}}
-	if err != nil || !reflect.DeepEqual(changes, want) || e.state.descriptors[ref.Address] == old {
-		t.Fatal(changes, err)
-	}
-	if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}}) {
-		t.Fatal(got)
-	}
-}

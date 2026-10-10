@@ -439,6 +439,19 @@ Feature smoke uses `RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$'` in both
 `make quickcheck REFERENCE=1 PACKAGES=./reference`, each under 900 seconds.
 
 
+### Composites — change note
+
+`CREATE TYPE [schema.]name AS (member type [COLLATE collation], ...)`, including
+an empty member list, publishes one named type and a reciprocal nonstorage
+backing relation. Supported user table/view rows share the concrete codec.
+Unknown literals/inferred parameters, explicit TEXT IO, nested supported scalar/
+plain-domain/composite/scalar-array children, stable source shape generations,
+dependency cascades and mixed native Dump/Restore are supported.
+Table CHECK/NOT NULL constraints remain physical-source-only. Constrained domains,
+composite arrays, builtin/catalog row execution, ROW constructors, field operations,
+comparison/hash/key operations and new ALTER/DROP TYPE forms remain excluded.
+See [complete type/transport/shape contract](TYPES.md#composites--change-note).
+
 ### Domains — change note
 
 `CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]`
@@ -3919,9 +3932,9 @@ original relation-name occurrence. Cached-plan logical Context is empty on both
 backends; C Routine is not a logical diagnostic field.
 Canonical Dump emits current names/labels/comments/constraints, not ALTER history.
 Stored views preserve stable sources and render current renamed identifiers.
-RENAME CONSTRAINT belongs to constraint metadata work; FK/backing-index, row-type,
-hierarchy and transactional-DDL effects remain PostgreSQL-only witnesses. Simple
-B-tree index names remain unchanged while their stable parent/key identities survive renames.
+RENAME CONSTRAINT belongs to constraint metadata work; FK/backing-index,
+hierarchy and transactional-DDL effects remain PostgreSQL-only witnesses.
+User row codecs retain their identity; simple B-tree index names remain unchanged while their stable parent/key identities survive renames.
 Physical pg_dump/server disk/network mechanisms are outside native Reset/Dump/Restore. Smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1`.
 
@@ -3971,9 +3984,9 @@ a privileged pg_catalog move is independently exercised with rollback. Native
 read-write explicit transactions retain 0A000 `statement is unsupported in an
 explicit transaction`; read-only execution rejects canonical ALTER TABLE first
 with25006. Simple B-tree indexes move atomically with their parent, including
-destination name collisions. Constraint backing-index and row-type/array moves
-remain PostgreSQL-only controls; native named NOT NULL and owned sequences
-are supported. Equal constraint names on unrelated tables
+destination name collisions. User row types and their lookup-only arrays move
+with the actual owning table/view. Constraint backing-index moves remain
+PostgreSQL-only controls; native named NOT NULL and owned sequences are supported. Equal constraint names on unrelated tables
 do not collide. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
@@ -4219,10 +4232,10 @@ despite having no UTF8 side. Metadata does not enable conversion execution,
 general locale comparison, imported OS collations or broader catalogs/DDL.
 Comparison supports default/C/POSIX and pg_c_utf8/pg_unicode_fast. Ordinary B-tree indexes participate in
 relation visibility, including same-name cross-kind shadowing, and their
-definitions roundtrip through native Dump/Restore. CREATE TYPE forms other than AS ENUM, CREATE COLLATION/
-CONVERSION, automatic row types and materialized/foreign tables retain their
-native exclusion boundaries; real PostgreSQL-only reference tests exercise those
-identities rather than fake native support. TEMP tables use the ordinary table path.
+definitions roundtrip through native Dump/Restore. CREATE TYPE forms other than
+AS ENUM or AS (...), CREATE COLLATION/CONVERSION and materialized/foreign tables
+retain their native exclusion boundaries. Builtin/catalog row identities stay
+lookup-only; supported user rows have concrete codecs. TEMP tables use the ordinary table path.
 
 Fixed identities rebuild on New/Reset/Restore without separate serialization.
 Supported user objects/views/CHECK definitions roundtrip through existing SQL;
@@ -5036,8 +5049,8 @@ values are string versus pq raw bytes. Logical type identity remains exact.
 Qualified declarations/owners/ordered labels and stored dependent consumers
 roundtrip through native Dump/Restore and import remapping. Held eager rows
 survive replacement; old prepared logical contracts cannot retarget by name.
-ALTER/DROP TYPE, pg_enum catalogs, enum arrays and other CREATE TYPE forms
-remain excluded. See [types](TYPES.md#enums--change-note).
+ALTER/DROP TYPE, pg_enum catalogs and enum arrays remain excluded.
+AS (...) composites are documented separately. See [types](TYPES.md#enums--change-note).
 
 
 ## Index maintenance — change note
@@ -5132,10 +5145,10 @@ without a notice or column lookup. Accepted modifiers validate/discard; errors
 and warnings keep their provider and literal/frame/runtime diagnostic lifetimes.
 
 Lookup includes the released/initialized builtin inventory and actual user
-table/view row identities with reciprocal arrays. Identity-only entries do not
-enable unsupported codecs, composite values, extra DDL, wire storage, cluster
-connections or additional catalog projection sources. Ordinary sequences and
-indexes have no row type. Existing REGCLASS storage/cast exclusions are unchanged.
+table/view row identities with reciprocal arrays. Identity-only builtin entries
+do not enable unsupported codecs, extra DDL, wire storage, cluster connections
+or additional catalog projection sources; supported user rows are executable
+composites. Ordinary sequences and indexes have no row type.
 See [types](TYPES.md#regtype--change-note), [driver](DRIVER.md#regtype-input-and-held-descriptions)
 and [native replay](FIXTURES.md#regtype-references-and-row-identity).
 
