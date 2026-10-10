@@ -120,6 +120,24 @@ func TestRowLockDeadlock(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
+	var survivor deleteOutcome
+	select {
+	case survivor = <-remaining:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	// Finish releases the victim's locks before its worker reports the error;
+	// the successful survivor may therefore be received first. Join both and
+	// identify the victim by its error, not channel completion order.
+	if outcome.err == nil {
+		outcome, survivor = survivor, outcome
+	}
+	if outcome.result.Rows != nil {
+		defer outcome.result.Rows.Close()
+	}
+	if survivor.result.Rows != nil {
+		defer survivor.result.Rows.Close()
+	}
 	var diagnostic *sqlstate.Error
 	if !errors.As(outcome.err, &diagnostic) || diagnostic.Code != "40P01" || diagnostic.Message != "deadlock detected" || diagnostic.Hint != "See server log for query details." || diagnostic.Position != "" || diagnostic.Context != "" || !strings.Contains(diagnostic.Detail, "waits for KeyShare on relation ") || !strings.Contains(diagnostic.Detail, "waits for Update on relation ") {
 		t.Fatal(outcome.err, diagnostic)
@@ -128,18 +146,13 @@ func TestRowLockDeadlock(t *testing.T) {
 		outcome.result.Rows.Close()
 		t.Fatal("deadlock exposed cursor")
 	}
-	select {
-	case survivor := <-remaining:
-		if survivor.err != nil {
-			t.Fatal(survivor.err)
-		}
-		if survivor.result.Rows == nil {
-			t.Fatal("missing survivor result")
-		}
-		survivor.result.Rows.Close()
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
+	if survivor.err != nil {
+		t.Fatal(survivor.err)
 	}
+	if survivor.result.Rows == nil {
+		t.Fatal("missing survivor result")
+	}
+	survivor.result.Rows.Close()
 	transactionEnd(t, a, ar, false)
 	transactionEnd(t, b, br, false)
 	lockEmpty(t, e)

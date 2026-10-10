@@ -37,9 +37,10 @@ This is the authoritative test-placement and implementation workflow.
   Repeat both selective runs after changes to those tests or their implementation.
   Fullcheck does not replace this pre-review requirement.
 - Concurrency tests MUST identify a deadlock victim from its error outcome, not
-  worker completion order. Victim cleanup can wake a successful survivor before
-  the victim reports its result. Join both workers under a bounded deadline and
-  retain the exact victim, survivor and side-effect assertions.
+  worker completion order: a ready channel select can choose either result.
+  Victim cleanup can also wake a successful survivor before the victim reports
+  its result. Join both workers under a bounded deadline and retain the exact
+  victim, survivor and side-effect assertions.
 - Catalog discovery fixtures MUST use scenario-specific object names when
   asserting a complete database-wide candidate bag. The shared PostgreSQL
   fixture resets `public`, not every nonpublic schema; unrelated same-name
