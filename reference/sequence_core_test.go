@@ -113,12 +113,21 @@ func TestReferenceSequenceCacheBoundsRow(t *testing.T) {
 				for _, n := range []int64{2, 4, 2, 4, 2} {
 					sequenceProbeValue(t, p.ctx, a, "SELECT nextval('bounded_cycle')", n)
 				}
-				sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE typed AS SMALLINT")
-				sequenceProbeExec(t, p.ctx, a, "ALTER SEQUENCE typed AS INTEGER")
-				sequenceProbeValue(t, p.ctx, a, "SELECT seqmax FROM pg_sequence WHERE seqrelid='typed'::regclass", 2147483647)
-				sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE explicit_bound AS SMALLINT MAXVALUE 10")
-				sequenceProbeExec(t, p.ctx, a, "ALTER SEQUENCE explicit_bound AS INTEGER")
-				sequenceProbeValue(t, p.ctx, a, "SELECT seqmax FROM pg_sequence WHERE seqrelid='explicit_bound'::regclass", 10)
+			}
+			for _, tc := range []struct {
+				name, ddl string
+				max       int64
+			}{
+				{"typed", "CREATE SEQUENCE typed AS SMALLINT", 2147483647},
+				{"explicit_bound", "CREATE SEQUENCE explicit_bound AS SMALLINT MAXVALUE 10", 10},
+			} {
+				sequenceProbeExec(t, p.ctx, a, tc.ddl)
+				sequenceProbeExec(t, p.ctx, a, "ALTER SEQUENCE "+tc.name+" AS INTEGER")
+				var oid int64
+				if err := a.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname=$1", tc.name).Scan(&oid); err != nil || oid <= 0 {
+					t.Fatal("sequence identity", oid, err)
+				}
+				referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SELECT seqmax FROM pg_sequence WHERE seqrelid=$1::oid", []string{"seqmax"}, []string{"INT8"}, [][]any{{tc.max}}, oid))
 			}
 		})
 	}
@@ -163,9 +172,13 @@ func TestReferenceSequenceHugeCacheArithmetic(t *testing.T) {
 		t.Run(backend.name, func(t *testing.T) {
 			a := sequenceCoreConn(t, p.ctx, backend.db)
 			sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE huge CACHE 9223372036854775807")
+			var oid int64
+			if err := a.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname='huge'").Scan(&oid); err != nil || oid <= 0 {
+				t.Fatal("huge sequence identity", oid, err)
+			}
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SELECT seqcache FROM pg_sequence WHERE seqrelid=$1::oid", []string{"seqcache"}, []string{"INT8"}, [][]any{{int64(9223372036854775807)}}, oid))
 			if backend.pg {
 				// PostgreSQL reserves iteratively: inspect huge metadata, never draw.
-				sequenceProbeValue(t, p.ctx, a, "SELECT seqcache FROM pg_sequence WHERE seqrelid='huge'::regclass", 9223372036854775807)
 				sequenceProbeExec(t, p.ctx, a, "CREATE SEQUENCE bounded_cache CACHE 1000")
 				sequenceProbeValue(t, p.ctx, a, "SELECT nextval('bounded_cache')", 1)
 				sequenceProbeValue(t, p.ctx, a, "SELECT last_value FROM bounded_cache", 1000)

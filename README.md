@@ -746,6 +746,18 @@ See [catalog contract](docs/SQL.md#pg_description-catalog--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL.
 
+**Sequence catalog change note:** `pg_catalog.pg_sequence` exposes the exact
+eight readonly definition fields, known NOT NULL native metadata and logical
+sequence identity. `seqtypid` is SMALLINT/INTEGER/BIGINT identity; numeric options
+always have INT8 output metadata. START/options are distinct from current value,
+RESTART and cache reservations. PUBLIC catalog reads include private/peer TEMP
+definitions without generator access. RC held prepared scans refresh; RR uses
+the existing transaction snapshot plus own DDL overlay, and old cursors remain
+stable through DDL/native controls. No `pg_sequences` view is implied.
+See [catalog contract](docs/SQL.md#pg_sequence-catalog--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0`,
+and the same command with `REFERENCE=1`.
+
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,
 keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards
 advance UTF8 code points; existing BYTEA LIKE advances octets. BPCHAR left

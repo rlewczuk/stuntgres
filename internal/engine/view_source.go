@@ -20,6 +20,15 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	}
 	switch d.relationKind {
 	case catalogRelation:
+		if d.address.ObjectID == 2224 {
+			base := e.state
+			if scope.owner.sequenceCatalog != nil {
+				base = scope.owner.sequenceCatalog
+			}
+			source, err := capturePGSequence(ctx, base, scope.owner.catalog, ref, d)
+			e.mu.Unlock()
+			return source, err
+		}
 		catalog := e.privateCatalogLocked(scope.owner.catalog)
 		if d.address.ObjectID == 2609 {
 			catalog = scope.commentCatalog

@@ -16,6 +16,10 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{2224, "pg_sequence", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"seqrelid", sqltype.Oid}, {"seqtypid", sqltype.Oid}, {"seqstart", sqltype.Int8}, {"seqincrement", sqltype.Int8}, {"seqmax", sqltype.Int8}, {"seqmin", sqltype.Int8}, {"seqcache", sqltype.Int8}, {"seqcycle", sqltype.Bool}}},
 		{2609, "pg_description", []struct {
 			name string
 			typ  sqltype.ID
@@ -54,7 +58,7 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
-			if spec.oid == 2604 {
+			if spec.oid == 2604 || spec.oid == 2224 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == 2609 {
@@ -73,6 +77,9 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 2224 {
+		return capturePGSequence(ctx, catalog.state, nil, ref, source)
+	}
 	if source.address.ObjectID == 2609 {
 		return capturePGDescription(ctx, catalog, ref, source)
 	}

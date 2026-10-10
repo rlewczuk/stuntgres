@@ -636,6 +636,19 @@ No new COMMENT kinds, inquiry routing, catalog inventories or SQL predicate
 syntax are implied. Native mutation and row locking remain0A000 virtual-source
 boundaries, unlike PostgreSQL physical superuser catalogs.
 See [exact catalog contract and reference smoke](SQL.md#pg_description-catalog--change-note).
+`pg_catalog.pg_sequence` is a readonly exact eight-field definition source:
+`seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`,
+`seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL`.
+Relation2224 has known NOT NULL native metadata and no row `oid` or generator
+state. PUBLIC SELECT exposes definitions even without privileges on a private
+schema/sequence, including peer TEMP definitions by numeric OID; it never opens
+the generator. RC prepared execution refreshes rows; RR retains its existing
+transaction snapshot with current own DDL overlays. Prepare inside BEGIN
+acquires that snapshot, unlike a statement prepared before BEGIN. Savepoint
+rollback restores overlays, not the committed snapshot. Old cursors survive
+ALTER/DROP/native controls; Restore reproduces definitions with reminted OIDs.
+No `pg_sequences`, extra catalog inventories or physical counters are added.
+See [schema, lifetime and feature smoke](SQL.md#pg_sequence-catalog--change-note).
 CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
 comments and dependents while replacing the definition and outgoing dependencies.
 Existing names/types/typmods/collations form a required prefix; trailing columns

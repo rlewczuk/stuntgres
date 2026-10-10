@@ -459,6 +459,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL` |
 | `pg_catalog.pg_rewrite` | `oid OID`, `rulename NAME`, `ev_class OID`, `ev_type CHAR`, `ev_enabled CHAR`, `is_instead BOOL` |
 | `pg_catalog.pg_views` | `schemaname NAME`, `viewname NAME`, `viewowner NAME`, `definition TEXT` |
+| `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
 
 Each user view has one `_RETURN` rule (`ev_type='1'`, `ev_enabled='O'`,
 `is_instead=true`) tied to its real relation OID. OIDs are engine-local, not
@@ -681,6 +682,56 @@ retain all six other native DDL negatives and the default-function exclusion,
 with independent PostgreSQL outcomes. This witness adds no adjacent capability.
 
 
+
+### pg_sequence catalog — change note
+
+`pg_catalog.pg_sequence` is a readonly normal query source (relation OID2224,
+namespace11), also available through ordinary unqualified catalog resolution.
+Its eight columns appear in the order listed above. All are known NOT NULL,
+typmod -1 and collation0; native origins are relation2224/attributes1–8,
+including empty results. pq reports unknown nullability. The two OID columns
+export native int64/pq decimal bytes; five option columns export int64 and
+`seqcycle` exports bool. `seqtypid` is the sequence's SMALLINT21, INTEGER23 or
+BIGINT20 identity, not the type of the five always-INT8 option columns.
+
+Each represented standalone, serial-owned or identity-owned sequence has one
+definition row. `seqrelid` links to its `pg_class` OID; rename, schema move and
+owner change preserve that identity, while drop/recreate obtains a new identity.
+Missing numeric OIDs, table OIDs and NULL predicates yield no rows. Unordered
+results are bags. There is no row `oid`, `last_value`, `is_called` or physical
+counter. Selecting nonexistent columns raises42703 with the ordinary English
+diagnostic and character position.
+
+Rows read immutable definition options, never generators or reserved caches.
+START is configured `seqstart`; nextval, setval, currval and RESTART do not alter
+it. ALTER START and other option changes project the existing DDL authority
+exactly, including AS type-extreme bounds and retained explicit bounds. Even
+CACHE9223372036854775807 is readable without a draw or proportional allocation.
+PUBLIC catalog SELECT does not require schema/sequence privileges on the
+represented object. Other-session TEMP definition rows are visible by numeric
+OID without opening its generator or recording physical temporary access.
+
+Read committed executions, including held prepared statements, capture fresh
+definitions. Repeatable read retains committed definitions and the row bag at
+the existing transaction snapshot acquisition point; current own CREATE/ALTER/
+DROP overlays remain visible, and savepoint rollback restores the private
+overlay without discarding the transaction snapshot. The pinned oracle observes
+Prepare inside BEGIN acquiring this snapshot (start15/cache9 retained after a
+peer ALTER), whereas Prepare before BEGIN leaves the first execution to capture
+start21/cache4. Serializable uses its existing snapshot/candidate lifecycle.
+Only this catalog consumes the retained catalog pointer; other catalog and
+Describe/Execute timing policies are unchanged.
+
+Already-returned cursors keep their captured row and fixed schema after
+ALTER/DROP/native replacement. Native Dump emits actual sequence definitions,
+not virtual catalog INSERTs; Reset empties their rows and Restore remints
+relational identities while reproducing definition properties. Failed/canceled
+operations retain existing atomicity. Native catalog writes and row locking
+remain0A000 virtual-source boundaries, not PostgreSQL physical catalog mutation.
+No `pg_sequences` view or `pg_attribute`/`pg_depend` expansion is implied.
+
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0`,
+and the identical command with `REFERENCE=1` for pinned PostgreSQL.
 
 ## Sequences
 

@@ -39,6 +39,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			}
 		}
 		t.roots, t.frontier = roots, e.commitSeq
+		t.sequenceCatalog = e.state
 		if node.readOnly {
 			for _, writer := range e.serializable.nodes {
 				if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.epoch == node.ref.epoch {
@@ -88,6 +89,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 				close(node.ready)
 			}
 			t.roots = nil
+			t.sequenceCatalog = nil
 			t.frontier = 0
 			e.mu.Unlock()
 			return err
@@ -100,6 +102,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		// Unsafe candidates have exposed neither rows nor analysis handles.
 		// Discard their immutable roots and take a fresh authoritative snapshot.
 		t.roots = nil
+		t.sequenceCatalog = nil
 		t.frontier = 0
 		e.mu.Unlock()
 	}

@@ -37,12 +37,11 @@ func TestReferenceSequenceCreateRestart(t *testing.T) {
 						var value int64
 						err := c.QueryRowContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), "SELECT currval('"+tc.name+"')").Scan(&value)
 						referenceAssertDiagnostic(t, err, &want)
-						if backend.pg {
-							var start int64
-							if err := c.QueryRowContext(p.ctx, "SELECT seqstart FROM pg_sequence WHERE seqrelid=$1::regclass", tc.name).Scan(&start); err != nil || start != 5 {
-								t.Fatal("configured START", start, err)
-							}
+						var oid int64
+						if err := c.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname=$1", tc.name).Scan(&oid); err != nil || oid <= 0 {
+							t.Fatal("sequence identity", oid, err)
 						}
+						referenceRunStep(t, p.ctx, c, backend.recorder, referenceStep{query: "SELECT seqstart FROM pg_sequence WHERE seqrelid=$1::oid", args: []any{oid}, prepared: prepared, selectRows: true, columns: []string{"seqstart"}, types: []string{"INT8"}, rows: [][]any{{int64(5)}}})
 						sequenceRestartValue(t, p, c, backend.recorder, "SELECT nextval('"+tc.name+"')", "nextval", tc.initial)
 						exec("ALTER SEQUENCE " + tc.name + " RESTART")
 						sequenceRestartState(t, p, c, backend.recorder, backend.pg, tc.name, 5, false)

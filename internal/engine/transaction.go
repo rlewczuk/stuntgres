@@ -69,26 +69,28 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
-	admission         sync.Mutex
-	ticket            *relationTicket
-	mu                sync.Mutex
-	session           *Session
-	state             TxState
-	ref               TxRef
-	next              TxID
-	command           CommandID
-	writes            map[ObjectAddress][]rowVersion
-	deletes           map[ObjectAddress]*privateDeletionRoot
-	start             time.Time
-	isolation         Isolation
-	readOnly          bool
-	deferrable        bool
-	entryIsolation    Isolation
-	entryReadOnly     bool
-	entryDeferrable   bool
-	snapshotSet       bool
-	frontier          CommitSeq
-	roots             map[ObjectAddress]transactionRoot
+	admission       sync.Mutex
+	ticket          *relationTicket
+	mu              sync.Mutex
+	session         *Session
+	state           TxState
+	ref             TxRef
+	next            TxID
+	command         CommandID
+	writes          map[ObjectAddress][]rowVersion
+	deletes         map[ObjectAddress]*privateDeletionRoot
+	start           time.Time
+	isolation       Isolation
+	readOnly        bool
+	deferrable      bool
+	entryIsolation  Isolation
+	entryReadOnly   bool
+	entryDeferrable bool
+	snapshotSet     bool
+	frontier        CommitSeq
+	roots           map[ObjectAddress]transactionRoot
+	// Retained with the existing snapshot; consumed only by pg_sequence.
+	sequenceCatalog   *catalogState
 	catalog           *catalogChanges
 	savepoints        []savepointMark
 	accessedTemporary bool
@@ -104,6 +106,7 @@ func (t *transactionOwner) clear() {
 	t.snapshotSet = false
 	t.frontier = 0
 	t.roots = nil
+	t.sequenceCatalog = nil
 	t.catalog = nil
 	clear(t.savepoints)
 	t.savepoints = nil
@@ -756,6 +759,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.writes = nil
 			t.deletes = nil
 			t.roots = nil
+			t.sequenceCatalog = nil
 			t.frontier = 0
 			t.catalog = nil
 			endedTicket = t.ticket

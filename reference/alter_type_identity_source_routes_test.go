@@ -82,13 +82,20 @@ func TestReferenceAlterTypeIdentityTargetsSourceConsumerRoutes(t *testing.T) {
 						referenceRunStep(t, p.ctx, x, b.recorder, referenceExec(x.query, 1))
 						run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{tc.typ}, rows))
 						if b.name == "postgres" {
-							var oid, linkedTable, linkedAttribute, typ, min, max, start, increment, cache int64
+							var oid, linkedTable, linkedAttribute int64
 							var mode, dependency string
-							var notnull, cycle bool
+							var notnull bool
 							if err = c.QueryRowContext(p.ctx, "SELECT s.oid::bigint,d.refobjid::bigint,d.refobjsubid::bigint,d.deptype::text,a.attidentity::text,a.attnotnull FROM pg_class s JOIN pg_depend d ON d.objid=s.oid AND d.deptype='i' JOIN pg_attribute a ON a.attrelid=d.refobjid AND a.attnum=d.refobjsubid WHERE s.oid='t_c_seq'::regclass").Scan(&oid, &linkedTable, &linkedAttribute, &dependency, &mode, &notnull); err != nil || oid != sequence || linkedTable != table || linkedAttribute != attribute || dependency != "i" || mode != tc.mode || !notnull {
 								t.Fatal("identity reciprocal catalog", oid, linkedTable, linkedAttribute, dependency, mode, notnull, err)
 							}
-							if err = c.QueryRowContext(p.ctx, "SELECT seqtypid::bigint,seqmin,seqmax,seqstart,seqincrement,seqcache,seqcycle FROM pg_sequence WHERE seqrelid='t_c_seq'::regclass").Scan(&typ, &min, &max, &start, &increment, &cache, &cycle); err != nil {
+						}
+						{
+							var typ, min, max, start, increment, cache, sequenceOID int64
+							var cycle bool
+							if err = c.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname='t_c_seq'").Scan(&sequenceOID); err != nil || sequenceOID <= 0 {
+								t.Fatal("identity sequence OID", sequenceOID, err)
+							}
+							if err = c.QueryRowContext(p.ctx, "SELECT seqtypid::bigint,seqmin,seqmax,seqstart,seqincrement,seqcache,seqcycle FROM pg_sequence WHERE seqrelid=$1::oid", sequenceOID).Scan(&typ, &min, &max, &start, &increment, &cache, &cycle); err != nil {
 								t.Fatal(err)
 							}
 							wantType := int64(20)
@@ -174,20 +181,21 @@ func TestReferenceAlterTypeIdentityFailuresAndPrephaseSourceConsumerRoutes(t *te
 						var originalSequence int64
 						var originalOptions [6]int64
 						var originalCycle bool
-						if b.name == "postgres" {
-							if err := c.QueryRowContext(p.ctx, "SELECT seqrelid::bigint,seqtypid::bigint,seqmin,seqmax,seqstart,seqincrement,seqcache,seqcycle FROM pg_sequence WHERE seqrelid='t_c_seq'::regclass").Scan(&originalSequence, &originalOptions[0], &originalOptions[1], &originalOptions[2], &originalOptions[3], &originalOptions[4], &originalOptions[5], &originalCycle); err != nil {
-								t.Fatal(err)
-							}
+						if err = c.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname='t_c_seq'").Scan(&originalSequence); err != nil || originalSequence <= 0 {
+							t.Fatal("identity sequence OID", originalSequence, err)
+						}
+						if err = c.QueryRowContext(p.ctx, "SELECT seqrelid::bigint,seqtypid::bigint,seqmin,seqmax,seqstart,seqincrement,seqcache,seqcycle FROM pg_sequence WHERE seqrelid=$1::oid", originalSequence).Scan(&originalSequence, &originalOptions[0], &originalOptions[1], &originalOptions[2], &originalOptions[3], &originalOptions[4], &originalOptions[5], &originalCycle); err != nil {
+							t.Fatal(err)
 						}
 						failure := referenceImplicitError("ALTER TABLE t "+tc.action, tc.want)
 						failure.prepared = prepared
 						run(failure)
 						run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{tc.typ}, tc.rows))
-						if b.name == "postgres" {
+						{
 							var sequence int64
 							var options [6]int64
 							var cycle bool
-							if err := c.QueryRowContext(p.ctx, "SELECT seqrelid::bigint,seqtypid::bigint,seqmin,seqmax,seqstart,seqincrement,seqcache,seqcycle FROM pg_sequence WHERE seqrelid='t_c_seq'::regclass").Scan(&sequence, &options[0], &options[1], &options[2], &options[3], &options[4], &options[5], &cycle); err != nil || sequence != originalSequence || options != originalOptions || cycle != originalCycle {
+							if err := c.QueryRowContext(p.ctx, "SELECT seqrelid::bigint,seqtypid::bigint,seqmin,seqmax,seqstart,seqincrement,seqcache,seqcycle FROM pg_sequence WHERE seqrelid=$1::oid", originalSequence).Scan(&sequence, &options[0], &options[1], &options[2], &options[3], &options[4], &options[5], &cycle); err != nil || sequence != originalSequence || options != originalOptions || cycle != originalCycle {
 								t.Fatal("failed TYPE metadata prefix", sequence, options, cycle, err)
 							}
 						}

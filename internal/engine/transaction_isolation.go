@@ -224,6 +224,7 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 		return err
 	}
 	roots, frontier := t.roots, t.frontier
+	sequenceCatalog := t.sequenceCatalog
 	if !t.snapshotSet && stableIsolation(t.isolation) {
 		roots = make(map[ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
@@ -232,9 +233,11 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 			}
 		}
 		frontier = e.commitSeq
+		sequenceCatalog = e.state
 	}
 	if !needsProjection(roots) {
 		t.roots, t.frontier = roots, frontier
+		t.sequenceCatalog = sequenceCatalog
 		t.snapshotSet = true
 		session.mu.Unlock()
 		e.mu.Unlock()
@@ -255,6 +258,7 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	if err == nil {
 		t.catalog = projected
 		t.roots, t.frontier = roots, frontier
+		t.sequenceCatalog = sequenceCatalog
 		t.snapshotSet = true
 	}
 	session.mu.Unlock()

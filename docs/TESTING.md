@@ -165,6 +165,52 @@ native implementation; final verification uses the same completed bodies in both
 modes. Internal `TestDeleteUsing` parser/engine tests exercise positioned traversal,
 captured identity/authority, successful-only suppression and failure/cleanup seams.
 
+### Sequence definition catalog discovery
+
+The shared `TestReferencePGSequence` family covers the eight-column
+`pg_catalog.pg_sequence` contract, exact definition options rather than generator
+state, catalog identities, transactional visibility, repeatable-read peer
+ALTER/CREATE/DROP, first-Prepare versus first-Execute timing, privileges and
+other-session temporary definitions, full diagnostics, cancellation and actual
+native Dump replay. `TestReferencePGSequenceFeatureSmoke` selects the integrated
+definition lifecycle and control replay witness.
+
+The privilege fixture keeps PostgreSQL's four false `has_schema_privilege` /
+`has_sequence_privilege` assertions. Native mode does not implement those
+predicates: a qualified `nextval` must report private-schema denial, while
+numeric-regclass `nextval`, `currval` and `setval` must independently report
+sequence denial with exact existing diagnostics before the same metadata read.
+Denied `nextval` excludes USAGE/UPDATE and denied `currval` excludes USAGE/SELECT.
+Failed native Restore appends a supported `CREATE SEQUENCE ... CACHE 0` to the
+actual dump, expects option-binding SQLSTATE 22023, and preserves the complete
+original definition bag; arbitrary ALTER is outside Restore's accepted input.
+
+The oracle discovery observed retained RR definitions and row bags. Prepare
+inside BEGIN retained start15/cache9 after peer ALTER; a statement prepared
+before BEGIN captured start21/cache4 at its first execution. Discovery filters
+are removed: both commands run the shared completed scenario. Private-schema
+fixtures use default absent PUBLIC privileges with the independent false
+predicates or denied-operation witnesses above, without native REVOKE support.
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGSequence' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequence' VERBOSE=0
+```
+
+After implementation, include all migrated definition probes in both modes:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(PGSequence|SequenceCacheBoundsRow|SequenceHugeCacheArithmetic|SequenceCreateRestart|AlterTypeIdentityTargets|AlterTypeIdentityFailuresAndPrephase)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(PGSequence|SequenceCacheBoundsRow|SequenceHugeCacheArithmetic|SequenceCreateRestart|AlterTypeIdentityTargets|AlterTypeIdentityFailuresAndPrephase)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestPGSequence' VERBOSE=0
+```
+
+Each quickcheck invocation has a 900-second deadline. The final fullcheck runs
+after merge under its single 1800-second deadline; neither gate replaces the
+selective dual-mode runs.
+
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
 held prepared session-zone changes, full calendar/seconds/zone/signature errors,
