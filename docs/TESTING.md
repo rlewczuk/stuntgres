@@ -227,6 +227,41 @@ Use failure diagnostics or temporary verbose-only observation logging to inspect
 unknown PostgreSQL results, then encode those results as explicit expectations
 and remove discovery scaffolding. `p.step` validates expectations; it does not
 learn or update them. Do not weaken assertions to accommodate native failures.
+
+PG_USER coverage uses `RUN='^TestReferencePGUser'` in both
+`make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference`, with a 900-second deadline
+per invocation. The smoke selector is `RUN='^TestReferencePGUserFeatureSmoke$'`.
+The shared scenarios independently specify the nine-column LOGIN projection,
+OID identity through a separately owned sequence, direct privilege flags,
+PUBLIC readability, constant eight-star masking, typed NULL configuration,
+finite/infinite expiry, full diagnostics and direct/prepared error stages,
+retained snapshots, composition, cancellation and native-control boundaries.
+Password setup is deliberately excluded from the recorder and diagnostic
+failure text. Native Dump replay uses the actual emitted local SQL, not a
+PostgreSQL control substitute.
+Supplemental typed provider/saved-root/cancellation checks use
+`make quickcheck PACKAGES=./internal/engine RUN='^(TestPGUser|TestTableViewSummaryBuiltinIdentity)' VERBOSE=0`.
+Related reference regression uses
+`RUN='^(TestReferencePGUser|TestReferenceTimezoneViews|TestReferenceRegtype|TestReferencePGTableViews)'`
+in both quick and REFERENCE=1 modes (900 seconds per invocation). This preserves
+existing timezone routing, allocated regtype identity expectations and scoped
+summary inventories while checking pg_user view classification.
+
+For initial oracle discovery, temporarily filter native backends in the common
+scenario helper as described above, then run
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGUser' VERBOSE=0`.
+The exact postgres-only subtest selector is
+`RUN='^TestReferencePGUser[^/]*$/^postgres$'`; full diagnostics can be selected
+with `RUN='^TestReferencePGUserDiagnostics$/^postgres$/./^(direct|prepared)$'`.
+`TestReferencePGUserOracleCatalog/postgres` additionally checks release attribute
+types, typmods, collations and relation/rowtype identities, and independently
+asserts the exact `pg_views` definition (differences print under VERBOSE=0).
+These allocator assertions are
+release-only research, not cross-backend role or relation allocator parity.
+Remove the temporary backend filter before recording the missing-feature quick
+regression and before all final dual-mode runs. Preserve the permanent
+PostgreSQL-only `pg_attribute` research guard and native-only control phases.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 

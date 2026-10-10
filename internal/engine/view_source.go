@@ -20,10 +20,19 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	}
 	switch d.relationKind {
 	case catalogRelation:
-		if d.virtualView {
+		switch d.address.ObjectID {
+		case 12004, 12005:
 			input := scope.input
 			e.mu.Unlock()
 			return captureTimezoneSource(ctx, ref, d, input)
+		case 12014:
+			roles := scope.commentRoles
+			e.mu.Unlock()
+			return capturePGUser(ctx, roles, ref, d)
+		}
+		if d.virtualView {
+			e.mu.Unlock()
+			return nil, fmt.Errorf("stuntgres: unknown virtual catalog view")
 		}
 		if d.address.ObjectID == 2396 {
 			source, err := capturePGShDescription(ctx, scope.commentRoles, ref, d)

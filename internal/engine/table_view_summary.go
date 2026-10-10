@@ -162,6 +162,17 @@ func representedSummaryViewDefinition(oid OID) string {
      LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
      LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
   WHERE (c.relkind = 'm'::"char");`
+	case 12014:
+		return ` SELECT usename,
+    usesysid,
+    usecreatedb,
+    usesuper,
+    userepl,
+    usebypassrls,
+    '********'::text AS passwd,
+    valuntil,
+    useconfig
+   FROM pg_shadow;`
 	case 12002:
 		return ` SELECT n.nspname AS schemaname,
     c.relname AS tablename,

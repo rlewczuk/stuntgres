@@ -79,8 +79,11 @@ adding LOGIN or VALID UNTIL requires full ALTER authority. Ordinary actors canno
 alter superuser targets or either SUPERUSER toggle. Positive CREATEDB, REPLICATION
 and BYPASSRLS on CREATE, and either direction on ALTER, require the actor's matching
 direct attribute. There is no blanket replication-target restriction.
-DROP and COMMENT ON ROLE retain their existing superuser gates. SQL object GRANT,
-role metadata catalogs, role rename and ALTER ROLE SET/RESET remain excluded.
+DROP and COMMENT ON ROLE retain their existing superuser gates. `pg_user` grants
+PUBLIC SELECT on every LOGIN role's direct summary, including unrelated users;
+membership does not synthesize its flags. Its password is always `********`.
+SQL object GRANT, `pg_roles`/`pg_authid`/`pg_shadow`, role rename and ALTER ROLE
+SET/RESET remain excluded.
 Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority, with separate
 checks for SUPERUSER targets and explicit grantor provenance.
 Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:

@@ -66,34 +66,34 @@ type binding struct {
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewSimilarSubstrings map[viewLiteralPath]bool
-	viewColumns        map[viewLiteralPath]viewColumn
-	viewStars          map[viewLiteralPath][]viewColumn
-	viewNamespaces     []viewNamespace
-	commandQuery       bool
-	update             *boundUpdate
-	merge              *boundMerge
-	deleteUsing        LogicalNode
-	deleteSourceWidth  int
-	returning          *boundReturning
-	dependencies       []expressionDependency
-	parameters         ParameterInfo
-	expressions        [][]BoundExpr
-	createColumns      []ColumnDescriptor
-	createNotNull      []notNullConstraint
-	createDeclarations []createColumnDeclaration
-	createLikes        []createLikeInput
-	defaults           []BoundExpr
-	identityDiscard    []bool
-	insertProjection   []int
-	conflict           *boundInsertConflict
-	temporals          []temporalConstant
-	predicate          BoundExpr
-	sequenceConstants  []sequenceConstant
-	regclassConcat     bool
-	regclassInput      sqltype.RegclassResolver
-	regtypeConstants   []regtypeConstant
-	regtypeInput       sqltype.RegtypeResolver
-	typeDiagnosticName func(sqltype.ID) string
+	viewColumns           map[viewLiteralPath]viewColumn
+	viewStars             map[viewLiteralPath][]viewColumn
+	viewNamespaces        []viewNamespace
+	commandQuery          bool
+	update                *boundUpdate
+	merge                 *boundMerge
+	deleteUsing           LogicalNode
+	deleteSourceWidth     int
+	returning             *boundReturning
+	dependencies          []expressionDependency
+	parameters            ParameterInfo
+	expressions           [][]BoundExpr
+	createColumns         []ColumnDescriptor
+	createNotNull         []notNullConstraint
+	createDeclarations    []createColumnDeclaration
+	createLikes           []createLikeInput
+	defaults              []BoundExpr
+	identityDiscard       []bool
+	insertProjection      []int
+	conflict              *boundInsertConflict
+	temporals             []temporalConstant
+	predicate             BoundExpr
+	sequenceConstants     []sequenceConstant
+	regclassConcat        bool
+	regclassInput         sqltype.RegclassResolver
+	regtypeConstants      []regtypeConstant
+	regtypeInput          sqltype.RegtypeResolver
+	typeDiagnosticName    func(sqltype.ID) string
 }
 
 func New() *Engine {
@@ -690,17 +690,17 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, err
 		}
 	}
-	// Function-backed lookup views still undergo the existing semantic
+	// Virtual catalog views still undergo the existing semantic
 	// analysis. Reject only after predicates, assignments, RETURNING and
 	// parameters have bound, without ever requiring storage or evaluating writes.
 	if b.relation != nil && b.relation.virtualView {
 		switch stmt.(type) {
 		case *parser.Insert:
-			return b, timezoneViewWriteError(b.relation, "insert")
+			return b, virtualViewWriteError(b.relation, "insert", b.targets)
 		case *parser.Update:
-			return b, timezoneViewWriteError(b.relation, "update")
+			return b, virtualViewWriteError(b.relation, "update", b.targets)
 		case *parser.Delete:
-			return b, timezoneViewWriteError(b.relation, "delete")
+			return b, virtualViewWriteError(b.relation, "delete", nil)
 		}
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies

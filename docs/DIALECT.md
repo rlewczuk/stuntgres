@@ -613,12 +613,35 @@ Native SYSTEM_USER remains typed NULL, but its nontrivial DEFAULT stays stored.
 These consumers do not change identity providers, authority or namespace resolution.
 See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 
+### Safe legacy user view — change note
+
+`pg_user` is a public nine-column LOGIN-only role projection: NAME usename,
+OID usesysid, four direct BOOL privilege flags, constant TEXT passwd `********`,
+typed TIMESTAMPTZ expiry and typed NULL TEXT[] useconfig. Ordinary readers see
+unrelated LOGIN roles; NOLOGIN is the sole role filter. Expired passwords and
+connection limits do not hide users, and membership does not confer projected
+flags. Credentials are never read or exported by the provider.
+
+Role-specific settings remain excluded; NULL useconfig does not promise
+ALTER ROLE SET/RESET or an empty settings array. Exact C950 collation for NAME
+and useconfig follows the pinned oracle without changing generic TEXT[] defaults.
+Saved statement-wide role roots cover stored/derived/join consumers; fresh held
+execution observes changes while already-open native rows and metadata survive
+mutation and Reset/Restore. Timezone rendering is captured per execution.
+
+Normal semantic errors precede readonly rejection. Writes modifying passwd fail
+0A000 regardless of its assigned value; other supported writes fail55000 naming
+pg_shadow with complete PostgreSQL Detail/Hint. pg_shadow is diagnostic/summary
+text only, not an executable catalog. No role settings, locking or utility
+grammar expansion is implied. See [the exact contract](SQL.md#pg_user-safe-user-view--change-note).
+
 ### Table and view summaries — change note
 
 Readonly `pg_tables`/`pg_views` use their documented PostgreSQL18 eight/four
 fields and exact unfiltered underlying-object disclosure, independent of actor
 and search_path. They summarize supported ordinary tables and stored views plus
-the explicitly represented nine system tables/five system views; this does not
+the explicitly represented nine system tables/six system views, including
+pg_matviews and pg_user; this does not
 promise a full PostgreSQL catalog inventory or change `pg_class` kinds.
 Tables retain sticky index-publication history after DROP. Native admitted user
 tables have default NULL tablespace and false rule/trigger/RLS states; no success

@@ -604,6 +604,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_tables` | `schemaname NAME`, `tablename NAME`, `tableowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `hasrules BOOL`, `hastriggers BOOL`, `rowsecurity BOOL` |
 | `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
+| `pg_catalog.pg_user` | `usename NAME`, `usesysid OID`, `usecreatedb BOOL`, `usesuper BOOL`, `userepl BOOL`, `usebypassrls BOOL`, `passwd TEXT`, `valuntil TIMESTAMPTZ`, `useconfig TEXT[]` |
 
 Each user view has one `_RETURN` rule (`ev_type='1'`, `ev_enabled='O'`,
 `is_instead=true`) tied to its real relation OID. OIDs are engine-local, not
@@ -612,6 +613,46 @@ and Dump share identity-aware reconstruction after renames; PostgreSQL pretty
 printing byte equality is not promised. Unsupported columns, including
 `reloptions`, `ev_action` and `ev_qual`, give ordinary42703; no fake pg_node_tree.
 Built-in source output is derived, never persisted as table data.
+
+### pg_user safe user view — change note
+
+`pg_catalog.pg_user`, also available by ordinary unqualified catalog lookup,
+exposes exactly the nine ordered legacy columns above. PUBLIC SELECT includes
+all LOGIN roles, not just self or membership-reachable roles. NOLOGIN roles are
+absent. Expiry, missing passwords and connection limit zero do not filter rows.
+The four flags are direct stored role attributes, never effective inherited
+privileges. `usesysid` is the real represented role identity, not row position.
+`passwd` is non-NULL `********` for administrators and ordinary readers, including
+after absent/replaced passwords. The provider never consults credential material.
+
+`valuntil` is typed NULL when absent, otherwise the stored TIMESTAMPTZ instant or
+infinity. Session timezone controls rendering at execution, not at Prepare.
+`useconfig` is typed NULL TEXT[] for currently reachable roles: role-setting
+persistence and ALTER ROLE SET/RESET are not implemented by this view. It is not
+an empty array or fabricated settings. Native database type names are
+NAME/OID/BOOL/BOOL/BOOL/BOOL/TEXT/TIMESTAMPTZ/_TEXT; all view columns have declared
+nullable metadata and typmod−1. NAME and useconfig carry C collation950, passwd
+default collation100, and remaining columns are noncollatable.
+
+Each execution uses one saved immutable role root, shared with nested stored
+views and repeated source openings. Held prepared reads refresh on later
+executions; already-open native rows and descriptors remain detached across
+ALTER, DROP/recreation and local Reset/Restore. Roles survive native controls,
+while Dump emits local stored-view SQL, not cluster roles, credentials or
+pg_user rows. `pg_views` classifies pg_user as a view with pinned release
+definition text; pg_tables does not classify it as a table. Its metadata mention
+of pg_shadow does not make pg_shadow executable.
+
+Supported mutations undergo normal assignment/WHERE/RETURNING/parameter analysis
+before rejection. INSERT/UPDATE modifying the resolved passwd column report
+0A000 with `cannot insert into column "passwd" of view "pg_user"` or
+`cannot update column "passwd" of view "pg_user"` and the constant-column Detail.
+Other INSERT/UPDATE/DELETE report55000 naming pg_shadow, with PostgreSQL's
+non-updatable-view Detail and operation-specific INSTEAD OF trigger/rule Hint,
+even when WHERE is false. No new role utilities, settings or locking surface
+is added. Independent public coverage and feature smoke use
+`make quickcheck PACKAGES=./reference RUN='^TestReferencePGUser' VERBOSE=0`
+and the same command with `REFERENCE=1`; each invocation has a900-second deadline.
 
 ### Table and view summaries — change note
 
@@ -639,7 +680,7 @@ The represented builtin table inventory is `pg_cast`, `pg_sequence`, `pg_depend`
 hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
 `pg_shdescription`'s `pg_global`. These flags do not invent native system backing
 indexes or physical storage. The represented builtin views are `pg_views`,
-`pg_prepared_xacts`, `pg_indexes`, `pg_tables`. Classification is local to these
+`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_user`. Classification is local to these
 summaries, not a broader `pg_class` schema/kind expansion or full catalog inventory.
 
 User `pg_views.definition` reconstructs the actual immutable stored SELECT using

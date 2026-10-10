@@ -16,6 +16,10 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{12014, "pg_user", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"usename", sqltype.Name}, {"usesysid", sqltype.Oid}, {"usecreatedb", sqltype.Bool}, {"usesuper", sqltype.Bool}, {"userepl", sqltype.Bool}, {"usebypassrls", sqltype.Bool}, {"passwd", sqltype.Text}, {"valuntil", sqltype.Timestamptz}, {"useconfig", sqltype.ID(1009)}}},
 		{12005, "pg_timezone_names", []struct {
 			name string
 			typ  sqltype.ID
@@ -83,7 +87,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
-		d.virtualView = spec.oid == 12005 || spec.oid == 12004
+		d.virtualView = spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014
 		d.attributeHighWater = int32(len(d.attributes))
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
@@ -99,6 +103,9 @@ func (e *Engine) initializeCatalogSources() error {
 				if column.typ == sqltype.Text {
 					d.columns[i].Usage.Collation.ID = 950
 				}
+			}
+			if spec.oid == 12014 && column.name == "useconfig" {
+				d.columns[i].Usage.Collation.ID = 950
 			}
 			d.attributes[i] = int32(i + 1)
 			d.index[column.name] = i
