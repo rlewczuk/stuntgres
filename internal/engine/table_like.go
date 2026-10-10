@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 type tableLikeMask uint16
@@ -58,13 +59,21 @@ func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 }
 
 type createLikeInput struct {
-	ref        ObjectRef
-	source     *relationDescriptor
-	sourceType *typeDescriptor
-	offset     int
-	options    tableLikeMask
-	rowRef     func(ObjectRef) ObjectRef
-	slots      map[int32]int
+	ref         ObjectRef
+	source      *relationDescriptor
+	sourceType  *typeDescriptor
+	offset      int
+	targetSlots []int
+	options     tableLikeMask
+	rowRef      func(ObjectRef) ObjectRef
+	slots       map[int32]int
+}
+
+func (in createLikeInput) targetSlot(slot int) int {
+	if in.targetSlots != nil {
+		return in.targetSlots[slot]
+	}
+	return in.offset + slot
 }
 
 // Captures are transient CREATE inputs. Source rows, authority and object-literal
@@ -73,9 +82,9 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	attributes := make(map[int32]int32, len(in.source.attributes))
 	slots := make(map[int32]int, len(in.source.attributes))
 	for slot, attribute := range in.source.attributes {
-		target := destination.attributes[in.offset+slot]
+		target := destination.attributes[in.targetSlot(slot)]
 		attributes[attribute] = target
-		slots[target] = in.offset + slot
+		slots[target] = in.targetSlot(slot)
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
@@ -139,7 +148,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 			stage.domainBases = append(stage.domainBases, in.sourceType)
 		}
 		for slot, attribute := range in.source.attributes {
-			target := destination.attributes[in.offset+slot]
+			target := destination.attributes[in.targetSlot(slot)]
 			if in.options&likeIdentity != 0 {
 				if identity, ok := in.source.identities[attribute]; ok {
 					sequence, ok := auth.catalog.state.descriptors[identity.sequence].(*relationDescriptor)
@@ -150,10 +159,10 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					options := *sequence.sequence
 					options.persistence = "logged"
 					read := e.stageRead(stage)
-					name := ownedSequenceName(destination.name, destination.columns[in.offset+slot].Name, func(n string) bool {
+					name := ownedSequenceName(destination.name, destination.columns[in.targetSlot(slot)].Name, func(n string) bool {
 						return n == destination.name || len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: destination.namespace, Name: n})) != 0
 					})
-					if err := e.stageIdentitySequence(stage, destination, in.offset+slot, name, identity.mode, options, nil); err != nil {
+					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.mode, options, nil); err != nil {
 						return err
 					}
 				}
@@ -175,10 +184,20 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						destination.defaults = make(map[int32]columnDefault)
 					}
 					destination.defaults[target] = definition
+					if destination.inheritance != nil {
+						provenance := destination.inheritance.columns[target]
+						provenance.explicitDefault = true
+						destination.inheritance.columns[target] = provenance
+					}
 				}
 			}
 			if in.options&likeGenerated != 0 {
 				if old, ok := in.source.generations[attribute]; ok {
+					if _, inherited := destination.generations[target]; inherited {
+						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.columns[in.targetSlot(slot)].Name, destination.name, destination.columns[in.targetSlot(slot)].Name, destination.name)).(*sqlstate.Error)
+						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.columns[in.targetSlot(slot)].Name, destination.name)
+						return diagnostic
+					}
 					node, err := in.remap(old.expression, destination, auth.catalog)
 					if err != nil {
 						return err
@@ -253,6 +272,9 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
 			}
 			destination.checkConstraints = append(destination.checkConstraints, definition)
+			if destination.inheritance != nil {
+				destination.inheritance.checks[definition.Name] = inheritedConstraint{local: true}
+			}
 			names[old.Name] = true
 			ordinal++
 		}

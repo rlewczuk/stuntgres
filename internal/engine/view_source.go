@@ -18,6 +18,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		e.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
+	if err := inheritanceScanGuard(e.privateCatalogLocked(scope.owner.catalog), d); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
 	switch d.relationKind {
 	case catalogRelation:
 		switch d.address.ObjectID {

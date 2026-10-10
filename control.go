@@ -72,6 +72,8 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // roles, session settings, live session-private temporary sequences and held
 // physical-session advisory counts. Old pending lock requests remain epoch-fenced.
 // Prepared transactions prevent replacement without consuming their state.
+// Live temporary tables inheriting persistent parents prevent Reset/Restore
+// replacement; temporary-to-temporary graphs retain their exact identities.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -85,6 +87,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Session-private temporary objects, advisory ownership/counts and pending session
 // caches are not serialized. Stored CHECK/view definitions remain ordinary SQL.
 // Only committed data is serialized, never prepared private writes or GIDs.
+// Inheritance parents precede children; ordered INHERITS and local declaration
+// provenance reconstruct inherited defaults, generated columns, CHECK and NOT NULL.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -115,6 +119,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 // Final installation refuses while prepared transactions exist, including entries
 // prepared during reader I/O; refusal preserves the target catalog and resources.
+// Live temporary-to-persistent inheritance also refuses final replacement,
+// including an edge created during reader I/O, without changing the target.
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {
 		return errors.New("stuntgres: nil restore reader")

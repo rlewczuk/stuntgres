@@ -209,6 +209,26 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if d.view != nil {
 			claimed[d.view.rule] = true
 		}
+		if ns, ok := next.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+			for _, definition := range d.notNullConstraints {
+				claimed[definition.OID] = true
+			}
+			for _, definition := range d.checkConstraints {
+				claimed[definition.OID] = true
+			}
+			for _, definition := range d.uniqueConstraints {
+				claimed[definition.OID] = true
+			}
+			for _, definition := range d.exclusionConstraints {
+				claimed[definition.OID] = true
+			}
+			for _, definition := range d.defaults {
+				claimed[definition.OID] = true
+			}
+			for _, definition := range d.generations {
+				claimed[definition.OID] = true
+			}
+		}
 	}
 	remint := func(id OID) (OID, error) {
 		if id == 0 {
@@ -230,6 +250,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	for _, old := range relations {
+		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+			continue
+		}
 		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.defaults)+len(old.generations) == 0 {
 			continue
 		}

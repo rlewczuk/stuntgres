@@ -417,6 +417,16 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		oid := r.address.ObjectID
 		var predecessors []OID
+		if r.inheritance != nil {
+			for _, parent := range r.inheritance.parents {
+				predecessor, err := dumpPredecessor(catalog, parent, r.address)
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				predecessors = append(predecessors, predecessor)
+			}
+		}
 		for _, check := range r.checkConstraints {
 			if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, check.expression, func(address ObjectAddress) error {
 				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, address, r.address)
@@ -442,7 +452,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		var deferredPredecessors []OID
 		var deferredDefinitions map[int32]bool
 		for attribute, definition := range r.defaults {
-			eligible := defaultReplayDeferrable(definition)
+			eligible := defaultReplayDeferrable(definition) && !inheritanceParticipant(catalog, r)
 			if eligible {
 				if deferredDefinitions == nil {
 					deferredDefinitions = make(map[int32]bool)
@@ -685,10 +695,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		var line strings.Builder
 		line.WriteString("CREATE TABLE " + qualified + " (")
+		localElements := 0
 		for i, c := range t.columns {
-			if i > 0 {
+			provenance := inheritedColumn{local: true, explicitDefault: true, explicitGeneration: true}
+			if t.descriptor.inheritance != nil {
+				provenance = t.descriptor.inheritance.columns[t.attributes[i]]
+			}
+			if !provenance.local {
+				continue
+			}
+			if localElements > 0 {
 				line.WriteString(", ")
 			}
+			localElements++
 			declaration, err := catalogTypeDeclaration(catalog, c.Usage)
 			if err != nil {
 				return err
@@ -701,14 +720,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				line.WriteString(" COLLATE " + name)
 			}
-			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
+			if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.explicitDefault && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
 				text, err := defaultSQL(ctx, catalog, definition.expression)
 				if err != nil {
 					return err
 				}
 				line.WriteString(" DEFAULT " + text)
 			}
-			if definition, exists := t.descriptor.generations[t.attributes[i]]; exists {
+			if provenance.explicitDefault && t.descriptor.inheritance != nil {
+				if _, exists := t.defaults[t.attributes[i]]; !exists {
+					line.WriteString(" DEFAULT NULL")
+				}
+			}
+			if definition, exists := t.descriptor.generations[t.attributes[i]]; exists && provenance.explicitGeneration {
 				text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
 				if err != nil {
 					return err
@@ -727,7 +751,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				line.WriteString(")")
 			}
-			if !c.Nullable {
+			if !c.Nullable && (t.descriptor.inheritance == nil || t.descriptor.inheritance.notNull[t.attributes[i]].local) {
 				for _, constraint := range t.notNullConstraints {
 					if constraint.Attribute == t.attributes[i] {
 						line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
@@ -736,14 +760,31 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
+		if graph := t.descriptor.inheritance; graph != nil {
+			for _, constraint := range t.notNullConstraints {
+				if graph.columns[constraint.Attribute].local || !graph.notNull[constraint.Attribute].local {
+					continue
+				}
+				if localElements > 0 {
+					line.WriteString(", ")
+				}
+				localElements++
+				slot := t.descriptor.indexForAttribute(constraint.Attribute)
+				line.WriteString("CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name))
+			}
+		}
 		for _, c := range orderedChecks(t.descriptor) {
+			if t.descriptor.inheritance != nil && !t.descriptor.inheritance.checks[c.Name].local {
+				continue
+			}
 			text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
 			if err != nil {
 				return err
 			}
-			if len(t.columns) > 0 || line.Len() > len("CREATE TABLE "+qualified+" (") {
+			if localElements > 0 {
 				line.WriteString(", ")
 			}
+			localElements++
 			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " CHECK (" + text + ")")
 			if c.NoInherit {
 				line.WriteString(" NO INHERIT")
@@ -754,7 +795,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if err != nil {
 				return err
 			}
-			line.WriteString(", CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
+			if localElements > 0 {
+				line.WriteString(", ")
+			}
+			localElements++
+			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 		}
 		for _, c := range t.descriptor.exclusionConstraints {
 			index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
@@ -765,9 +810,26 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if err != nil {
 				return err
 			}
-			line.WriteString(", CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
+			if localElements > 0 {
+				line.WriteString(", ")
+			}
+			localElements++
+			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 		}
-		line.WriteString(");\n")
+		line.WriteString(")")
+		if graph := t.descriptor.inheritance; graph != nil {
+			line.WriteString(" INHERITS (")
+			for i, address := range graph.parents {
+				if i > 0 {
+					line.WriteString(", ")
+				}
+				parent := catalog.state.descriptors[address].(*relationDescriptor)
+				namespace := catalog.state.descriptors[parent.namespace].Name()
+				line.WriteString(quoteIdentifier(namespace) + "." + quoteIdentifier(parent.name))
+			}
+			line.WriteString(")")
+		}
+		line.WriteString(";\n")
 		if err := emit(line.String()); err != nil {
 			return err
 		}

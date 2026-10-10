@@ -104,6 +104,7 @@ type relationDescriptor struct {
 	defaults             map[int32]columnDefault
 	generations          map[int32]columnGeneration
 	identities           map[int32]columnIdentity
+	inheritance          *tableInheritance
 	relationKind         relationKind
 	hasIndexes           bool // Sticky publication history; removing an index does not clear it.
 	onCommit             parser.OnCommitAction
@@ -245,6 +246,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if err := validateUsageCollation(v, c.Usage); err != nil {
 			return err
 		}
+	}
+	if err := validateInheritance(v, r); err != nil {
+		return err
 	}
 	if r.relationKind == compositeRelation {
 		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 || len(r.exclusionConstraints) != 0 {
@@ -1078,6 +1082,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 		}
 		for _, descriptor := range next.descriptors {
+			if relation, ok := descriptor.(*relationDescriptor); ok && relation.inheritance != nil {
+				if err := validateInheritance(CatalogRead{owner: e, state: next}, relation); err != nil {
+					return ChangeSet{}, err
+				}
+			}
 			if domainChanged || s.descriptors[descriptor.Address()] != nil {
 				if err := validateTypeProviders(CatalogRead{owner: e, state: next}, descriptor); err != nil {
 					return ChangeSet{}, err
@@ -1336,6 +1345,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
+		if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
+			return ChangeSet{}, err
+		}
 		if replacement.Epoch() != e.state.epoch {
 			return ChangeSet{}, ErrCatalogReplaced
 		}
@@ -1427,6 +1439,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
 	}
 	if err := ctx.Err(); err != nil {
+		return ChangeSet{}, err
+	}
+	if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
 	if e.state.epoch == CatalogEpoch(math.MaxUint64) {

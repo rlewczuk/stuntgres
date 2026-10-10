@@ -49,6 +49,12 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	slot := -1
 	if columnRename {
+		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
+			return fail(err)
+		}
+		if err := inheritanceAlterGuard(auth.catalog, old); err != nil {
+			return fail(err)
+		}
 		if old.relationKind == sequenceRelation {
 			return fail(&sqlstate.Error{
 				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809",

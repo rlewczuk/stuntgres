@@ -77,14 +77,16 @@ type createLikeConstraint struct {
 // Column-local structure is validated as CREATE reaches each typed column,
 // before later elements or any default-expression cooking.
 type createColumnDeclaration struct {
-	columnNotNull bool
-	columnName    string
-	notNull       bool
-	name          string
-	defaultExpr   parser.Expr
-	identity      *parser.IdentityDefinition
-	generation    *parser.GenerationDefinition
-	serial        bool
+	columnNotNull    bool
+	columnName       string
+	notNull          bool
+	name             string
+	defaultExpr      parser.Expr
+	copiedDefault    bool
+	identity         *parser.IdentityDefinition
+	generation       *parser.GenerationDefinition
+	copiedGeneration bool
+	serial           bool
 }
 
 func bindCreateColumnDeclaration(column *parser.Column, table string) (createColumnDeclaration, error) {

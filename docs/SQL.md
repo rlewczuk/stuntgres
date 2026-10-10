@@ -161,7 +161,8 @@ Explicit table locking: `LOCK [TABLE] target [, target ...]
 EXCLUSIVE, SHARE, SHARE ROW EXCLUSIVE, EXCLUSIVE and ACCESS EXCLUSIVE (default).
 Execution requires an explicit transaction, affects zero rows and processes
 targets in order. Views recursively lock bound sources in the same mode;
-standalone table markers do not add unsupported inheritance. Prepare is
+ordinary parent LOCK rejects the inheritance recursion boundary, while ONLY locks
+the named physical table. Prepare is
 metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACTIONS.md#relation-locks).
 
 ```text

@@ -11,7 +11,7 @@ func (in createLikeInput) attribute(destination *relationDescriptor, old int32) 
 	if slot < 0 {
 		return 0, fmt.Errorf("stuntgres: missing LIKE index attribute")
 	}
-	return destination.attributes[in.offset+slot], nil
+	return destination.attributes[in.targetSlot(slot)], nil
 }
 
 // Clone live definitions, not source roots or validity flags. Invalid concurrent

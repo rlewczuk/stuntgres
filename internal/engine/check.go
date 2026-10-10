@@ -110,6 +110,21 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
 		}
 		if installed[name] {
+			if !altering && d.inheritance != nil {
+				if provenance, inherited := d.inheritance.checks[name]; inherited {
+					old := slices.IndexFunc(d.checkConstraints, func(c checkConstraint) bool { return c.Name == name })
+					if old < 0 || !sameGroupExpression(d.checkConstraints[old].expression, node) {
+						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
+					}
+					if c.NoInherit {
+						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
+					}
+					provenance.local = true
+					d.inheritance.checks[name] = provenance
+					current[name], used[name] = true, true
+					continue
+				}
+			}
 			if altering {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
 			}
@@ -135,6 +150,9 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
 		}
 		d.checkConstraints = append(d.checkConstraints, definition)
+		if d.inheritance != nil {
+			d.inheritance.checks[name] = inheritedConstraint{local: true}
+		}
 	}
 	slices.SortFunc(d.checkConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
@@ -298,7 +316,14 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	})
 	e := s.op.session.Engine()
 	for _, ref := range refs {
-		if err := s.acquireSequence(ref, accessShare, true); err != nil {
+		mode := accessShare
+		for _, descriptor := range stage.descriptors {
+			if d, ok := descriptor.(*relationDescriptor); ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, ref.Address) {
+				mode = shareUpdateExclusive
+				break
+			}
+		}
+		if err := s.acquireSequence(ref, mode, true); err != nil {
 			return err
 		}
 		e.mu.Lock()
@@ -315,7 +340,13 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			return err
 		}
 	}
-	return stage.validateLikeSources(e.CatalogRead())
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	auth, err := e.authorizationLocked(s.op)
+	if err != nil {
+		return err
+	}
+	return stage.validateLikeSources(auth.catalog)
 }
 
 func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {
@@ -514,6 +545,9 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 			changed = true
 		}
 		if changed {
+			if err := inheritanceStageAlterGuard(stage, d); err != nil {
+				return nil, err
+			}
 			copy := *d
 			revision, err := stage.cascadeMetadataRevision(copy.revision)
 			if err != nil {

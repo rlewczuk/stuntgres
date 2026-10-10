@@ -55,6 +55,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return fail(err)
 		}
 	}
+	if err := inheritanceAlterActionsGuard(auth.catalog, old, s.Actions); err != nil {
+		return fail(err)
+	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	original := e.storage[ref.Address]
 	store := e.privateStorageLocked(changes, ref.Address)

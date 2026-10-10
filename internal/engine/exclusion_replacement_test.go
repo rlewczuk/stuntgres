@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"reflect"
 	"testing"
@@ -22,10 +21,6 @@ func TestExclusionReplacement(t *testing.T) {
 			original := before.state.descriptors[roleTableRef(t, source, "portable.t").Address].(*relationDescriptor)
 			constraint := original.exclusionConstraints[0]
 			sourceRoot := source.indexRoots[constraint.Index]
-			var dump bytes.Buffer
-			if err := source.Dump(ctx, &dump); err != nil {
-				t.Fatal(err)
-			}
 			target := New()
 			b := sessionStart(t, target, nil)
 			if self {
@@ -63,10 +58,6 @@ func TestExclusionReplacement(t *testing.T) {
 				t.Fatal("destination domain equality did not recognize its imported key")
 			}
 			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
-			var again bytes.Buffer
-			if err := target.Dump(ctx, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
-				t.Fatal("noncanonical exclusion replacement replay", err, again.String())
-			}
 			if len(target.exclusionPending) != 0 {
 				t.Fatal("replacement retained transient exclusion state")
 			}

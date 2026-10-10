@@ -306,6 +306,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			}
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
 		}
+		if err := inheritanceScanGuard(b.queryAuth.catalog, relation); err != nil {
+			return nil, queryNamespace{}, err
+		}
 		leaf := len(b.querySources)
 		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n], deleteReference: b.deleteUsingSources && len(b.queryScopes) == 0})
 		columns := make([]queryColumn, len(relation.columns))

@@ -293,6 +293,18 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return ErrCatalogReplaced
 	}
 	if source {
+		if err := inheritanceScanGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
+			return err
+		}
+	} else {
+		switch stmt.(type) {
+		case *parser.Update, *parser.Delete:
+			if err := inheritanceScanGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
+				return err
+			}
+		}
+	}
+	if source {
 		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref

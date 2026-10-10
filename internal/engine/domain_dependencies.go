@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"stuntgres/internal/parser"
@@ -133,6 +134,14 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					continue
 				}
 				name := dependencyRelationName(stage.base, d, stage.dependencyPath)
+				if d.inheritance != nil {
+					for _, parent := range d.inheritance.parents {
+						if parent == target {
+							direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "table " + name, relation: d})
+							break
+						}
+					}
+				}
 				for i, c := range d.columns {
 					column := a
 					column.SubID = d.attributes[i]
@@ -269,6 +278,22 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	if len(roots) == 0 {
 		return nil
 	}
+	// Previously staged whole removals are retirement roots too. Discover their
+	// complete dependent closure before classifying any surviving-owner mutation.
+	// In particular a schema can remove both a provider and an inheritance parent.
+	var retirementRoots []ObjectAddress
+	for address, removal := range stage.removals {
+		if _, relation := removal.descriptor.(*relationDescriptor); relation && !slices.Contains(roots, address) {
+			retirementRoots = append(retirementRoots, address)
+		}
+	}
+	if len(retirementRoots) != 0 {
+		sort.Slice(retirementRoots, func(i, j int) bool { return retirementRoots[i].ObjectID < retirementRoots[j].ObjectID })
+		roots = append(append([]ObjectAddress(nil), roots...), retirementRoots...)
+	}
+	if err := lockInheritanceDropClosure(scope, stage, roots); err != nil {
+		return err
+	}
 	edges, err := domainDependencyClosure(ctx, stage, roots)
 	if err != nil {
 		return err
@@ -284,7 +309,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	var relations []*relationDescriptor
 	seen := make(map[ObjectAddress]bool)
 	for _, edge := range edges {
-		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && (edge.relation.sqlIndex != nil || edge.relation.view != nil) {
+		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
 			targets = append(targets, edge.address)
 		}
 		if edge.column != "" && !seen[edge.relation.address] {
@@ -301,6 +326,31 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 				return err
 			}
 		}
+		for _, edge := range edges {
+			if edge.relation != nil && edge.address == edge.relation.address && edge.relation.relationKind == tableRelation {
+				ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: edge.address}
+				if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// The complete captured whole-relation closure is retirement authority before
+	// any surviving DEFAULT/CHECK or column mutation is classified. Keep explicit
+	// root removal policy and the original base/edges for discovery, owned objects,
+	// diagnostics and publication fences. Type/collation providers retire later,
+	// after surviving column candidates have finished binding against them.
+	e.mu.Lock()
+	for _, target := range targets[len(roots):] {
+		if target.ClassID == RelationClassID && target.SubID == 0 {
+			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
+				break
+			}
+		}
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return err
 	}
 	noticeStart := len(stage.viewCascadeNames)
 	if err = stageViewDependents(stage, targets, parser.DropCascade); err != nil {
@@ -308,6 +358,11 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	}
 	for _, old := range relations {
 		if _, removed := stage.removals[old.address]; removed {
+			continue
+		}
+		// Whole-relation targets need no standalone shape projection or
+		// surviving-participant capability check.
+		if slices.Contains(targets, old.address) {
 			continue
 		}
 		ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.address}
@@ -328,6 +383,9 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 			slot := next.indexForAttribute(edge.address.SubID)
 			if slot < 0 {
 				continue
+			}
+			if err = inheritanceStageAlterGuard(stage, next); err != nil {
+				return err
 			}
 			next, err = dropColumnCandidate(ctx, stage, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.columns[slot].Name}, Mode: parser.DropCascade}, scope, changes, project)
 			if err != nil {
@@ -393,11 +451,8 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 	}
 	e.mu.Lock()
-	for i, target := range targets {
-		if target.ClassID != TypeClassID && target.ClassID != CollationClassID && i < len(roots) {
-			continue
-		}
-		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == RelationClassID && target.SubID == 0 {
+	for _, target := range targets {
+		if target.ClassID == TypeClassID || target.ClassID == CollationClassID {
 			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
 				break
 			}

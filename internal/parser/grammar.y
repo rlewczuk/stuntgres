@@ -366,7 +366,7 @@ package parser
 %type <likeOptions> like_options
 %type <likeOption> like_option
 %type <tok> like_option_name
-%type <objectNames> relation_names
+%type <objectNames> relation_names table_parents
 %type <objectName> qualified_operator
 %type <tok> operator_symbol
 %type <dropMode> drop_mode
@@ -763,10 +763,11 @@ set_name: setting_word { $$=settingName{first:$1} }
  * parameter names, and ROLE stays name-eligible everywhere else. */
 local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
-create_table: CREATE TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos,Persistence:"logged",OnCommit:$7.action,OnCommitPos:$7.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true,Persistence:"logged",OnCommit:$10.action,OnCommitPos:$10.pos} }
- | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Pos:$1.pos,Persistence:"temporary",OnCommit:$8.action,OnCommitPos:$8.pos} }
- | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$11.action,OnCommitPos:$11.pos} } ;
+create_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Parents:$7, Pos:$1.pos,Persistence:"logged",OnCommit:$8.action,OnCommitPos:$8.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Parents:$10, Pos:$1.pos, IfNotExists:true,Persistence:"logged",OnCommit:$11.action,OnCommitPos:$11.pos} }
+ | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Parents:$8, Pos:$1.pos,Persistence:"temporary",OnCommit:$9.action,OnCommitPos:$9.pos} }
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Parents:$11, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$12.action,OnCommitPos:$12.pos} } ;
+table_parents: /* empty */ { $$=nil } | INHERITS '(' relation_names ')' { $$=$3 } ;
 table_on_commit: /* empty */ { $$=onCommitClause{} }
  | ON COMMIT DROP { $$=onCommitClause{action:OnCommitDrop,pos:$1.pos} }
  | ON COMMIT DELETE table_rows { $$=onCommitClause{action:OnCommitDelete,pos:$1.pos} }
@@ -830,7 +831,6 @@ create: create_table { $$=$1 }
  | create_collation { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
- | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 /* Use a distinct unreserved head token, like DOMAIN, so generic-word
@@ -1997,8 +1997,8 @@ excluded_role: SET ROLE excluded_role_assignment excluded_role_target { if $4.ke
 excluded_role_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
 excluded_role_target: name | STRING | DEFAULT ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
-schema_table: CREATE TABLE relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$3,Elements:$5,Pos:$1.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$6,Elements:$8,Pos:$1.pos,IfNotExists:true} }
+schema_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents { $$=&CreateTable{Name:$3,Elements:$5,Parents:$7,Pos:$1.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_parents { $$=&CreateTable{Name:$6,Elements:$8,Parents:$10,Pos:$1.pos,IfNotExists:true} }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 schema_tables: /* empty */ { $$=nil } | schema_tables schema_table { $$=append($1,$2) }
  | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 }

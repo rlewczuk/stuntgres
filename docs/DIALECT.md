@@ -2095,7 +2095,7 @@ imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
 a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
 PostgreSQL-only witness. Native FKs, triggers, DELETE CURRENT OF,
-CTE/inheritance targets and adjacent unsupported row mechanisms remain excluded.
+CTE and recursive inheritance targets remain excluded; leaf child DELETE works.
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0`;
 reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsing' VERBOSE=0`.
 Migrated baseline expressions: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedExpressions' VERBOSE=0`.
@@ -2316,8 +2316,9 @@ Subsequent omitted/DEFAULT inserts, including held prepared statements, see the 
 definition; DROP twice succeeds and restores implicit NULL without altering NOT NULL.
 ALTER semantic default diagnostics have empty Position; syntax and CREATE positions
 are unchanged. Qualified/quoted targets, ONLY/ONLY(...) and trailing `*` are accepted
-for standalone tables. Inheritance remains rejected: descendant recursion is a
-PostgreSQL-only reference contract. Action lists, IF EXISTS for these actions,
+for standalone tables. CREATE inheritance is supported, but graph default ALTER
+rejects the explicit native propagation boundary described in docs/TABLES.md.
+Action lists and IF EXISTS for these default actions,
 UPDATE DEFAULT, unimplemented expression families and explicit-transaction SET/DROP DEFAULT
 remain excluded. Selected ADD COLUMN/TYPE/nullability/DROP COLUMN lists support
 explicit transactions. Dump serializes current CREATE definitions and explicit rows; Restore's
@@ -4048,9 +4049,9 @@ and int32 ScanType. Retained snapshots keep the original metadata/values.
 Dump captures and emits quoted named NOT NULL declarations, generated names
 included. Restore uses common isolated CREATE/INSERT binding and atomic target
 replacement. Scalar UPDATE uses existing expressions, destination coercions and
-NOT NULL and CHECK enforcement (see below). Inheritance and NOT NULL's
-NOT VALID/VALIDATE/NO INHERIT remain explicit native0A000 boundaries with real
-PostgreSQL-only witnesses.
+NOT NULL and CHECK enforcement (see below). CREATE inheritance merges both;
+NOT NULL's NOT VALID/VALIDATE/NO INHERIT remain explicit native0A000 boundaries
+with real PostgreSQL-only witnesses.
 Selected nullability/named-NOT-NULL actions and existing DROP COLUMN compose
 comma-separated atomic lists, including explicit transactions and savepoints.
 Same-session metadata and DML see successful private definitions; rollback
@@ -4082,10 +4083,17 @@ does not replay ALTER history or add ALTER to the Restore whitelist. Physical
 server/WAL/crash durability, a wire/server process and external pg_dump/archive
 mechanics remain outside the embedded engine.
 
-Native INHERITS failure-only grammar allows one complete parent list on either
-CREATE TABLE form; qualified/quoted/multiple parents and IF NOT EXISTS remain
-0A000 at INHERITS, never a conditional bypass. Malformed/repeated/extra-tail
-input is42601; script prefixes do not execute on these full-input rejections.
+CREATE TABLE admits ordered one/multiple INHERITS parents before ON COMMIT,
+merging compatible columns/defaults/CHECK/NOT NULL with real normal dependencies.
+IF NOT EXISTS skips source resolution for an existing destination. Malformed/
+repeated/extra-tail input remains42601 with no script-prefix effects.
+Native recursive parent scans/DML/ordinary LOCK reject0A000
+`recursive table inheritance is unsupported`; physical INSERT and leaf DML work.
+Graph shape/default/nullability/constraint ALTER rejects0A000
+`ALTER TABLE inheritance operations are unsupported`, with sourced inherited
+column/NOT NULL removal42P16 diagnostics. Whole-table rename/schema move and
+dependency-aware DROP remain supported. See docs/TABLES.md for provenance,
+generated/serial/identity behavior, native control replay and TEMP replacement policy.
 
 Public smoke: `make quickcheck PACKAGES=./smoke RUN='^Test(NotNull(Smoke|ControlsSmoke)|DropNotNullSystemColumnSmoke|DropConstraintOwnedSequenceSmoke)$' VERBOSE=0`.
 
@@ -4169,7 +4177,7 @@ providers. Parameters, aggregates and outside-row references are forbidden.
 ctid/xmin/cmin/xmax/cmax report CHECK-specific42P10; tableoid is PostgreSQL's
 exception but remains undefined in the native ordinary system-column surface.
 Subqueries retain the CHECK-specific semantic exclusion; window calls report
-42P20. SRFs, other CHECK modifiers, inheritance and ALTER ADD CHECK/VALIDATE are not added.
+42P20. SRFs, other CHECK modifiers and ALTER ADD CHECK/VALIDATE are not added.
 
 After defaults/coercions and NOT NULL, the shared completed-row validator admits
 TRUE/NULL and rejects FALSE with23514, actual Schema/Table/Constraint and
@@ -4196,7 +4204,7 @@ existing namespace constraints. CHECKs enforce in alphabetical name order.
 Current-command CHECK duplicates are42710; initial CHECK/NOT NULL name collisions
 are pinned18.0's23505 pg_constraint unique-key diagnostic, with the actual newly
 allocated relation OID, not a fixed allocator value. NO INHERIT persists and
-enforces locally; it does not enable native inheritance.
+enforces locally and is excluded when merging inherited CHECKs.
 
 Dump/Restore retains named typed CHECK definitions, data and NO INHERIT.
 Renames preserve names and render current attribute spellings. DROP CONSTRAINT
@@ -4305,8 +4313,8 @@ Pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestRe
 
 Standalone ALTER TABLE RENAME [COLUMN] old TO new and RENAME TO new support
 relation-level IF EXISTS. Both table and column targets accept qualified/path
-names and t*/ONLY t/ONLY(t) markers for standalone tables. These syntax markers
-do not imply inheritance or partition hierarchy support.
+names and t*/ONLY t/ONLY(t) markers for standalone tables. Graph column rename
+is protected; whole-table rename preserves inheritance identities.
 Destinations are single identifiers. Rename is count-zero OwnerOnly AX, with
 CREATE on the containing namespace additionally required for table rename.
 Prepare has no binding/authorization/lock/notice effects. Missing IF EXISTS
@@ -4487,7 +4495,7 @@ recovers across epochs, including fresh current-epoch ROLLBACK AND CHAIN.
 End Prepare remains effect-free/eligible; retained handles are not deleted.
 
 
-Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, SUE for COMMENT Execute, and owner-authorized AX for selected ALTER utilities. Explicit `LOCK [TABLE]` accepts ordered targets with ONLY/star, all eight table modes (default AX) and NOWAIT in an explicit SQL/driver block, including read-only blocks. Documented table-level ANY-rights privileges apply; ordinary views recurse with owner authority, security_invoker with the original invoker. Native table inheritance remains unsupported. The complete matrix and savepoint restoration contract are in [relation locks](TRANSACTIONS.md#relation-locks). Semantic data Prepare acquires automatic table modes and fixes characteristic/RR snapshot timing before waits; LOCK/COMMENT/ALTER Prepare remain metadata-only. Existing fair compatible cohorts, deadlock resolution, absolute deadlines, typed lock_timeout, caller-context identity, exact grant-time relation identity, replacement fences and publication-before-release are unchanged. UPDATE/DELETE preserve frozen candidate identities, RC/RU recheck and RR40001 behavior. Session advisory locking is supported; transaction-level advisory locking and introspection remain excluded. Feature smokes: `make quickcheck PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes(Matrix|Order|Views|Savepoints)$'`.
+Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, SUE for COMMENT Execute, and owner-authorized AX for selected ALTER utilities. Explicit `LOCK [TABLE]` accepts ordered targets with ONLY/star, all eight table modes (default AX) and NOWAIT in an explicit SQL/driver block, including read-only blocks. Documented table-level ANY-rights privileges apply; ordinary views recurse with owner authority, security_invoker with the original invoker. CREATE inheritance retains parent SUE through publication; ordinary graph-parent LOCK rejects recursion while ONLY remains physical. The complete matrix and savepoint restoration contract are in [relation locks](TRANSACTIONS.md#relation-locks). Semantic data Prepare acquires automatic table modes and fixes characteristic/RR snapshot timing before waits; LOCK/COMMENT/ALTER Prepare remain metadata-only. Existing fair compatible cohorts, deadlock resolution, absolute deadlines, typed lock_timeout, caller-context identity, exact grant-time relation identity, replacement fences and publication-before-release are unchanged. UPDATE/DELETE preserve frozen candidate identities, RC/RU recheck and RR40001 behavior. Session advisory locking is supported; transaction-level advisory locking and introspection remain excluded. Feature smokes: `make quickcheck PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes(Matrix|Order|Views|Savepoints)$'`.
 Lock-timeout55P03 and deadlock40P01 during direct SELECT/INSERT/UPDATE/DELETE relation analysis or semantic Prepare carry the original ObjectName's first token character Position (schema token for qualified names). Cached Execute, SELECT/UPDATE/DELETE row waits and utility errors have no parse-analysis Position;57014 is excluded from this decoration. Do not put source-position policy into manager resources or fabricate Schema/Table fields.
 The canonical manager searches finite stable queue-order constraints to resolve soft cycles without aborting; unavoidable relation/row cycles fail an unspecified actual cycle member with ERROR40P01 `deadlock detected` and Hint `See server log for query details.` Native Detail describes exact logical transaction/session/epoch, mode, relation ObjectRef and optional RowID cycle edges, not physical PostgreSQL PID/XID/ctid identities or tuple Context. Without marks, mandatory Finish discards victim private effects and releases transaction-owned locks, allowing survivors to proceed before explicit victim ROLLBACK. With recoverable marks it restores the newest mark's effects and held-mode checkpoint, releasing failed-level contributions while preserving ancestor holds. Prior session advisory counts are never part of that restoration/release. Explicit victims retain the existing25P02 recovery gate. SSI remains unsupported and is not a blocking dependency.
 Queued work binds the grant-time descriptor of the exact retained ObjectRef; a same-identity definition revision is valid, while epoch changes/removal/recreation remain fenced. Keep subsequent grant-time descriptor pinning and catalog/storage publication guards. Post-drop quoted expression errors use literal decoded identifiers and character positions. Positive qualified ordinary-owner controls use one ordinary schema/table owner; separate distinct-owner Restore/denial/replay witnesses retain the namespace-USAGE and explicit-ACL Dump boundaries without adding native GRANT.

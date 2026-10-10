@@ -98,6 +98,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	d.onCommit = s.OnCommit
 	d.notNullConstraints = b.createNotNull
+	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
+		return err
+	}
 	if err := nameCreateNotNull(d, auth.catalog); err != nil {
 		return err
 	}
@@ -115,6 +118,11 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
 	binder.defaultTemporary = auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor).temporary
+	for slot, declaration := range b.createDeclarations {
+		if declaration.defaultExpr != nil {
+			delete(d.defaults, d.attributes[slot])
+		}
+	}
 	defaults, err := bindCreateDefaults(binder, d.columns, b.createDeclarations)
 	if err != nil {
 		return err
@@ -227,9 +235,6 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	case *parser.DropSchema:
 		cascade = s.Cascade
 	}
-	if err = scope.stageDomainDependents(stage, domainMode); err != nil {
-		return Result{}, err
-	}
 	var removedRelations []ObjectAddress
 	for address, removal := range stage.removals {
 		if _, ok := removal.descriptor.(*relationDescriptor); ok {
@@ -237,6 +242,12 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		}
 	}
 	if err := scope.stageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
+		return Result{}, err
+	}
+	if err = scope.stageDomainDependents(stage, domainMode); err != nil {
+		return Result{}, err
+	}
+	if err := scope.stageOwnedSequences(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)

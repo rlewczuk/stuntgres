@@ -112,6 +112,9 @@ func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode p
 			removed = append(removed, attribute)
 		}
 		if len(removed) != 0 && mode != parser.DropRestrict {
+			if err := inheritanceStageAlterGuard(stage, d); err != nil {
+				return nil, err
+			}
 			copy := *d
 			revision, err := stage.cascadeMetadataRevision(copy.revision)
 			if err != nil {

@@ -71,22 +71,17 @@ func TestNotNullParserBoundaries(t *testing.T) {
 }
 
 func TestNotNullInheritanceCompleteInput(t *testing.T) {
-	for _, tc := range []struct {
-		q, token    string
-		unsupported bool
-	}{
-		{"CREATE TABLE child(a INT) INHERITS(parent)", "INHERITS", true},
-		{"CREATE TABLE IF NOT EXISTS child(a INT) INHERITS(parent)", "INHERITS", true},
-		{`CREATE TABLE "échild"(a INT) INHERITS("s"."p",other,"q"."r")`, "INHERITS", true},
-		{"CREATE TABLE IF NOT EXISTS existing(a INT) INHERITS(parent)", "INHERITS", true},
-		{`CREATE TABLE IF NOT EXISTS "échild"(a INT) INHERITS("s"."p",other,"q"."r")`, "INHERITS", true},
-		{"CREATE TABLE child(a INT) INHERITS()", ")", false},
-		{"CREATE TABLE child(a INT) INHERITS(parent", "", false},
-		{"CREATE TABLE child(a INT) INHERITS(parent,)", ")", false},
-		{"CREATE TABLE child(a INT) INHERITS(parent other)", "other", false},
-		{`CREATE TABLE child(a INT) INHERITS("s".)`, ")", false},
-		{"CREATE TABLE child(a INT) INHERITS(parent) garbage", "garbage", false},
-		{"CREATE TABLE child(a INT) INHERITS(parent) INHERITS(other)", "INHERITS", false},
+	for _, tc := range []struct{ q, token string }{
+		{"CREATE TABLE child(a INT) INHERITS()", ")"},
+		{"CREATE TABLE child(a INT) INHERITS(parent", ""},
+		{"CREATE TABLE child(a INT) INHERITS(parent,)", ")"},
+		{"CREATE TABLE child(a INT) INHERITS(parent other)", "other"},
+		{`CREATE TABLE child(a INT) INHERITS("s".)`, ")"},
+		{"CREATE TABLE child(a INT) INHERITS(parent) garbage", "garbage"},
+		{"CREATE TABLE child(a INT) INHERITS(parent) INHERITS(other)", "INHERITS"},
+		{`CREATE TABLE "échild"(a INT) INHERITS("s"."p",other,)`, ")"},
+		{"CREATE TEMP TABLE child() ON COMMIT DROP INHERITS(parent)", "INHERITS"},
+		{"CREATE TEMP TABLE child() INHERITS(parent) ON COMMIT DROP garbage", "garbage"},
 	} {
 		for _, prefix := range []string{"", "CREATE TABLE prefix(a INT); INSERT INTO keeper VALUES(92); "} {
 			q := prefix + tc.q
@@ -96,12 +91,7 @@ func TestNotNullInheritanceCompleteInput(t *testing.T) {
 				position = utf8.RuneCountInString(q[:strings.LastIndex(q, tc.token)]) + 1
 				message = `syntax error at or near "` + tc.token + `"`
 			}
-			code := "42601"
-			if tc.unsupported {
-				code = "0A000"
-				message = "table inheritance is unsupported"
-			}
-			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(position)}
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: message, Position: strconv.Itoa(position)}
 			statements, err := Parse(q)
 			var got *sqlstate.Error
 			if statements != nil || !errors.As(err, &got) || *got != want {

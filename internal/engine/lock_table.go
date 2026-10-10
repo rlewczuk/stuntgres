@@ -78,9 +78,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 		if err != nil {
 			return err
 		}
-		// Native tables have no inheritance descriptors. ONLY and star therefore
-		// select this standalone table; view definitions always recurse.
-		if err := s.acquireExplicitRelation(stmt, ref, objectNameText(target.Name), mode, policy, invoker, invoker, nil); err != nil {
+		if err := s.acquireExplicitRelation(stmt, ref, objectNameText(target.Name), mode, policy, invoker, invoker, nil, target.Only); err != nil {
 			return err
 		}
 	}
@@ -89,7 +87,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 
 // Bound view sources never repeat namespace lookup. Each grant retains the
 // original identity and rechecks the principal against grant-time metadata.
-func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker PrincipalRef, ancestors []ObjectRef) error {
+func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker PrincipalRef, ancestors []ObjectRef, only bool) error {
 	for _, ancestor := range ancestors {
 		if ancestor == ref {
 			return nil
@@ -108,6 +106,11 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok {
 			return nil, ErrCatalogReplaced
+		}
+		if !only || d.view != nil {
+			if err := inheritanceScanGuard(auth.catalog, d); err != nil {
+				return nil, err
+			}
 		}
 		return d, checkExplicitLock(auth, ref, d, mode)
 	}
@@ -159,7 +162,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 		if child.relationKind != tableRelation && child.relationKind != viewRelation {
 			continue
 		}
-		if err := s.acquireExplicitRelation(stmt, source.ref, child.Name(), mode, policy, principal, invoker, ancestors); err != nil {
+		if err := s.acquireExplicitRelation(stmt, source.ref, child.Name(), mode, policy, principal, invoker, ancestors, false); err != nil {
 			return err
 		}
 	}

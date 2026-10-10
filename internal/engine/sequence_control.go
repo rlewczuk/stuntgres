@@ -54,6 +54,9 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*seq
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
 func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation) error {
+	if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
+		return err
+	}
 	temporary := make(map[ObjectAddress]Descriptor)
 	for a, d := range e.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
@@ -144,23 +147,60 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 		}
 	}
+	// OIDs share one identity space even when their catalog classes differ.
+	// Retained TEMP definitions cannot be reminted to make room for imports.
+	retainedIDs := make(map[OID]bool)
+	for address, descriptor := range temporary {
+		retainedIDs[address.ObjectID] = true
+		if relation, ok := descriptor.(*relationDescriptor); ok {
+			for _, definition := range relation.notNullConstraints {
+				retainedIDs[definition.OID] = true
+			}
+			for _, definition := range relation.checkConstraints {
+				retainedIDs[definition.OID] = true
+			}
+			for _, definition := range relation.uniqueConstraints {
+				retainedIDs[definition.OID] = true
+			}
+			for _, definition := range relation.exclusionConstraints {
+				retainedIDs[definition.OID] = true
+			}
+			for _, definition := range relation.defaults {
+				retainedIDs[definition.OID] = true
+			}
+			for _, definition := range relation.generations {
+				retainedIDs[definition.OID] = true
+			}
+			if relation.view != nil {
+				retainedIDs[relation.view.rule] = true
+			}
+		}
+	}
+	reservedIDs := make(map[OID]bool, len(next.descriptors)+len(retainedIDs))
+	for id := range retainedIDs {
+		reservedIDs[id] = true
+	}
+	for address := range next.descriptors {
+		reservedIDs[address.ObjectID] = true
+	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
-	for a := range temporary {
-		if next.descriptors[a] != nil {
+	for address := range next.descriptors {
+		if !retainedIDs[address.ObjectID] {
+			continue
+		}
+		for {
 			oid, err := e.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
-			dest := a
-			dest.ObjectID = oid
-			for next.descriptors[dest] != nil || temporary[dest] != nil {
-				oid, err = e.allocateOIDLocked()
-				if err != nil {
-					return err
-				}
-				dest.ObjectID = oid
+			if reservedIDs[oid] {
+				continue
 			}
-			mapping[a] = dest
+			destination := address
+			destination.ObjectID = oid
+			mapping[address] = destination
+			reservedIDs[oid] = true
+			break
 		}
 	}
 	domainsChanged, err := reownDomainTypes(next, mapping)
@@ -196,6 +236,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			case *relationDescriptor:
 				n := *r
 				n.address = target
+				if r.inheritance != nil {
+					n.inheritance = remapInheritance(r.inheritance, func(address ObjectAddress) ObjectAddress {
+						if destination, ok := mapping[address]; ok {
+							return destination
+						}
+						return address
+					}, func(origin inheritanceOrigin) OID { return origin.constraint })
+				}
 				if target != a {
 					n.columns = append([]ColumnDescriptor(nil), r.columns...)
 					for i := range n.columns {
@@ -305,10 +353,22 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			sequences[a] = g
 		}
 	}
+	previous := make(map[ObjectAddress]Descriptor, len(next.descriptors))
+	for address, descriptor := range next.descriptors {
+		previous[address] = descriptor
+	}
 	if err := e.remapViewRuleOIDs(next); err != nil {
 		return err
 	}
+	if err := remapInheritanceConstraintOrigins(next, previous); err != nil {
+		return err
+	}
 	for _, descriptor := range next.descriptors {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.inheritance != nil {
+			if err := validateInheritance(CatalogRead{owner: e, state: next}, relation); err != nil {
+				return err
+			}
+		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.view != nil {
 			if err := validateViewDefinition(CatalogRead{owner: e, state: next}, relation); err != nil {
 				return err

@@ -87,6 +87,8 @@ type binding struct {
 	createUniques         []createUniqueConstraint
 	createDeclarations    []createColumnDeclaration
 	createLikes           []createLikeInput
+	createInheritance     []createInheritanceInput
+	createLocalColumns    map[string]bool
 	defaults              []BoundExpr
 	identityDiscard       []bool
 	insertProjection      []int
@@ -526,6 +528,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				}
 			}
 		}
+		var mergeErr error
+		columns, declarations, inherited, mergeErr = e.describeInheritance(op, auth, s, &b, columns, declarations, inherited)
+		if mergeErr != nil {
+			return b, mergeErr
+		}
 		if len(columns) > 1600 {
 			return b, sqlError("54011", "tables can have at most 1600 columns")
 		}
@@ -596,6 +603,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
+		if err := inheritanceScanGuard(auth.catalog, b.relation); err != nil {
+			return b, err
+		}
 		if !b.relation.virtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 			if b.storage == nil && b.relation.relationKind == tableRelation {
@@ -653,6 +663,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 		if !b.relation.virtualView && (b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation) {
 			return b, tableKind(b.relation, "change")
+		}
+		if err := inheritanceScanGuard(auth.catalog, b.relation); err != nil {
+			return b, err
 		}
 		if !b.relation.virtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)

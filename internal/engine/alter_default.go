@@ -32,6 +32,9 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if err := tableKind(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
 		return fail(err)
 	}
+	if err := inheritanceAlterGuard(auth.catalog, old); err != nil {
+		return fail(err)
+	}
 	if isSystemColumn(s.Column.Text) {
 		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
 	}

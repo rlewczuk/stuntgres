@@ -168,6 +168,11 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			} else {
 				add(d.address, d.namespace, 'n')
 			}
+			if d.inheritance != nil {
+				for _, parent := range d.inheritance.parents {
+					add(d.address, parent, 'n')
+				}
+			}
 			for i, column := range d.columns {
 				if err := ctx.Err(); err != nil {
 					return nil, err

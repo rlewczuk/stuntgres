@@ -65,12 +65,13 @@ func TestAlterDefaultBoundaries(t *testing.T) {
 	}
 }
 
-func TestAlterDefaultInheritanceBoundary(t *testing.T) {
-	q := "CREATE TABLE child(i INT) INHERITS(parent)"
-	statements, err := Parse(q)
-	var got *sqlstate.Error
-	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "table inheritance is unsupported", Position: strconv.Itoa(strings.Index(q, "INHERITS") + 1)}
-	if statements != nil || !errors.As(err, &got) || *got != want {
-		t.Fatal(statements, err, got, want)
+func TestAlterDefaultInheritanceAST(t *testing.T) {
+	statements, err := Parse("CREATE TABLE child(i INT DEFAULT 7) INHERITS(parent)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	table := statements[0].(*CreateTable)
+	if len(table.Parents) != 1 || table.Parents[0].Parts[0].Text != "parent" || len(table.Elements) != 1 || table.Elements[0].Column.Constraints[0].Default == nil {
+		t.Fatal(table)
 	}
 }

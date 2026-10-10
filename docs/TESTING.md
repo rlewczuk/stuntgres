@@ -264,6 +264,85 @@ its close callback; malformed/truncated frames, size/read/close errors fail rath
 than accepting partial oracle evidence. This avoids rereading the full accumulated
 suite history through per-frame pipes. All test deadlines remain unchanged.
 
+CREATE inheritance coverage lives in the untagged `TestReferenceInheritance`
+family. It independently asserts merges, diagnostics/notices, direct/prepared
+metadata, nonpropagating keys, dependency/drop lifecycle, generated/serial/identity
+composition, recursive/ALTER capability boundaries and actual native controls.
+Controls use native Dump output, including persistent graph replay beside observed
+live TEMP address collisions and exact live TEMP-to-persistent replacement refusal.
+The controls have no invented PostgreSQL API counterpart; PostgreSQL independently
+executes shared SQL and consumes native emitted streams where applicable.
+
+The retained-exclusion collision regression observes an actual imported parent
+descriptor OID equal to a live TEMP child's local EXCLUDE constraint OID before
+native Restore. Its bounded native-only fixture uses at most 64 real sequence
+allocations and existing regclass OID queries, not allocator constants or an
+unsupported catalog projection. Shared direct/prepared PostgreSQL SQL independently
+asserts graph/default/CHECK/EXCLUDE behavior. After Restore, native assertions
+retain exact TEMP relation/index/constraint identities and rows/enforcement, and
+ordinary CREATE with DEFAULT/NOT NULL/CHECK plus INSERT/query returns INT4 row42.
+The descriptor unit additionally asserts all inheritance-origin remapping, source
+immutability, retained storage and complete combined definition-identity validity.
+Run the completed body in both modes with no discovery filter (900 seconds each):
+```sh
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestInheritanceControlsRetainedExclusionDefinitionCollision$' VERBOSE=0
+```
+
+Root-run selective gates (900 seconds each, after edits and generation finish):
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReference(Inheritance|NotNull|Check|TableLike)' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Inheritance|NotNull|Check|TableLike)' VERBOSE=0
+timeout 900s make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^(TestInheritance|TestNotNull|TestTableLike|TestAlterDefault)' VERBOSE=0
+timeout 900s make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestInheritance(Admission|Graph|Controls)' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceFeatureSmoke$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceFeatureSmoke$' VERBOSE=0
+```
+The standalone public API smoke is supplied as temporary session material, not
+committed scaffolding. Neither selected gates nor smoke replace full quickcheck
+and the post-integration3600-second fullcheck.
+
+The dependency-shape review regressions independently assert PostgreSQL provider
+CASCADE column/definition removal and native atomic inheritance ALTER rejection,
+including consumer recovery and graph enforcement. Run the same completed bodies
+in both modes (900 seconds per invocation):
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$' VERBOSE=0
+```
+
+Retirement authority regressions cover provider schemas containing the sole child
+or the parent, each with typed-column, DEFAULT and CHECK dependencies. Both routes
+assert retained standalone physical rows/metadata/enforcement or complete outside
+descendant retirement, without weakening the surviving-graph boundary above:
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceRetirementAuthority$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceRetirementAuthority$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestInheritanceDependencyAuthority$' VERBOSE=0
+```
+
+Prospective retirement regressions use a parent that is also a regclass provider
+for the retained other parent's DEFAULT or CHECK. CASCADE discovers their shared
+child; the retained parent becomes standalone before its definition is pruned.
+Both direct/prepared routes assert removed relations/edges, retained rows and
+metadata, consumed provider definitions and independent local definitions; native
+held eager child results retain actual original values and metadata. The real-stage
+units use the same q root with actual admission, not a pre-removed child:
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceProspectiveRetirement$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceProspectiveRetirement$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestInheritanceProspectiveRetirement$' VERBOSE=0
+```
+
+`TestReferenceInheritanceLocalExclusionReplay` covers a child with only inherited
+columns and a first local EXCLUDE declaration. It consumes the actual native dump
+through Reset/Restore and pinned PostgreSQL replay, then asserts rows, default
+enforcement and graph edges. Native replacement also retains a live TEMP-to-TEMP
+inheritance graph, its exclusion constraint OID, physical data and enforcement.
+Include `Inheritance|Exclusion` when verifying this integrated composition; do not
+replace these consumer outcomes with dump-string or canonical-byte assertions.
+
 ## Required implementation order
 
 1. **Write the shared reference scenario and run real PostgreSQL first.** Use

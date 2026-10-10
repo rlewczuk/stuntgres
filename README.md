@@ -22,6 +22,24 @@ Feature family (900 seconds per invocation):
 pinned counterpart:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLPrepared' VERBOSE=0`.
 
+Change note: `CREATE TABLE ... INHERITS (parent, ...)` merges compatible parent
+columns, defaults, inheritable CHECK and NOT NULL constraints into a real,
+identity-based graph. UNIQUE/indexes, identity ownership and foreign/primary keys
+do not propagate. Native Dump/Restore retains ordered parents and local declarations;
+DROP CASCADE removes descendants. Recursive scans/DML and graph-shape ALTER remain
+explicit native capability boundaries, not silently physical-only operations.
+Provider CASCADE uses the staged graph: a parent left standalone by complete child
+retirement retains ordinary dependency projection. This includes schema-parent
+retirement and a shared child's newly discovered removal through its other parent,
+before classifying surviving column, DEFAULT or CHECK mutations.
+Restore also makes imported descriptors yield to retained TEMP definition identities,
+including local EXCLUDE constraints, without changing the retained TEMP graph.
+See [table inheritance](docs/TABLES.md#create-time-inheritance--change-note).
+Feature smoke (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceFeatureSmoke$' VERBOSE=0`.
+
 Change note: `CREATE TYPE name AS (...)` and supported user table/view row types
 now share concrete, immutable composite codecs. Named backing relations are
 nonstorage authorities; member constraints remain confined to physical source
@@ -1233,7 +1251,7 @@ DROP of an absent default succeeds and restores implicit NULL. ALTER accepts
 general supported Boolean expressions without CREATE DEFAULT's extra parentheses.
 Dump/Restore preserves the current definition, not ALTER history.
 Standalone `ONLY`, `ONLY(...)`, qualified/quoted targets and trailing `*` are
-supported; inheritance remains unsupported (release recursion is reference-only).
+supported; CREATE inheritance works, but graph default ALTER remains an explicit boundary.
 Action lists and ALTER TABLE IF EXISTS for SET/DROP DEFAULT, UPDATE DEFAULT and
 explicit-transaction SET/DROP DEFAULT remain excluded. Selected ADD COLUMN/
 TYPE/nullability/DROP COLUMN lists support explicit transactions.
@@ -1656,8 +1674,9 @@ contributions are released before client recovery. See
 
 Explicit `LOCK [TABLE]` supports ordered relation lists, per-target ONLY/star,
 all eight table modes (default ACCESS EXCLUSIVE), NOWAIT, documented ANY-rights
-privileges and recursive view locking. Native tables remain standalone; no
-inheritance or SQL GRANT is introduced. Prepare is metadata-only; Execute
+privileges and recursive view locking. CREATE inheritance takes parent SUE;
+ordinary graph-parent LOCK is rejected, while ONLY is physical. SQL GRANT is not introduced.
+Prepare is metadata-only; Execute
 requires an explicit block and affects zero rows. Savepoint rollback restores
 earlier held modes, including incomparable modes, without replacing the ticket.
 Feature checks use the same untagged reference definitions in both modes:

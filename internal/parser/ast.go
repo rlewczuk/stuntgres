@@ -200,6 +200,7 @@ type onCommitClause struct {
 type CreateTable struct {
 	Name        ObjectName
 	Elements    []TableElement
+	Parents     []ObjectName
 	Pos         Position
 	IfNotExists bool
 	Persistence string

@@ -43,6 +43,87 @@ restores schema and frozen definitions with all MVs unpopulated, not native stal
 rows. There is no public DML bypass, REFRESH or reconstruction from current base
 data. See [syntax and exclusions](SQL.md#materialized-views--change-note).
 
+## CREATE-time inheritance — change note
+
+`CREATE TABLE child (local definitions) INHERITS (parent, ...)` supports ordered
+one/multiple plain-table parents, including schema-qualified and quoted names,
+empty local lists and session-owned TEMP parents/children. IF NOT EXISTS skips
+parent resolution when the destination already exists. Malformed lists, repeated
+clauses and extra tails reject the complete input without prefix effects.
+
+Inherited live columns precede local-only columns. Same-name columns merge only
+with identical type identity, typmod and collation. Explicit local redeclarations
+retain their inherited position. Missing defaults are neutral; specified parent
+defaults must have equal cooked trees unless a local DEFAULT (including NULL)
+resolves the conflict. CREATE and Dump never evaluate definitions.
+LIKE defaults are copied after this conflict check: INCLUDING DEFAULTS can replace
+a nonconflicting inherited default, but cannot resolve conflicting parent defaults.
+An explicit same-name column beside LIKE still rejects42701 as a duplicate.
+
+Inheritable CHECKs remap stable parent attributes to the child row. Equal
+same-name definitions merge; unequal expressions reject. NO INHERIT CHECKs stay
+parent-local. NOT NULL is OR by column, not by parent constraint name, and local
+NULL cannot relax it. Constraints receive fresh child identities. Existing STORED
+generated expressions inherit with row remapping; identity ownership does not,
+but its NOT NULL does. SERIAL inherits the original sequence default without
+child ownership. UNIQUE, ordinary indexes, PK and FK do not inherit. Existing
+native PRIMARY KEY support supplies inherited NOT NULL, not a child key;
+foreign-key and foreign-table provider admission retain their independent boundaries.
+Generated/base parent kinds conflict. A local ordinary redeclaration retains an
+inherited generated expression; an explicit local generation expression may
+override it or resolve conflicting parent expressions. A local DEFAULT on an
+inherited generated column, or local generation on an inherited base column,
+rejects42611 with the PostgreSQL English primary/hint.
+INCLUDING GENERATED likewise cannot resolve conflicting inherited generation
+expressions. Copying a LIKE generation expression over an inherited generated
+column rejects2BP01 with PostgreSQL's default-dependency diagnostic; no child is
+published. Plain generated INHERITS and explicit child generation overrides remain
+supported.
+
+Direct child-to-parent normal dependencies are visible in pg_depend. Diamond and
+direct-plus-indirect ancestry are valid; repeated resolved immediate parents are
+not. Leaf DROP retains parents; RESTRICT protects unrequested descendants and
+CASCADE removes the descendant closure with ordinary dependent objects. Whole
+table RENAME/SET SCHEMA preserve graph identities. TEMP cleanup/ON COMMIT DROP
+uses the same closure; ON COMMIT DELETE ROWS clears only the named physical table.
+
+Recursive parent scans, nested/stored source scans, UPDATE/DELETE targets and
+ordinary LOCK on a parent with children reject0A000
+`recursive table inheritance is unsupported`. Physical INSERT and leaf DML work;
+LOCK ONLY is physical. Graph column/default/type/nullability/constraint ALTER
+rejects0A000 `ALTER TABLE inheritance operations are unsupported`, except inherited
+column rename/drop/type and inherited NOT NULL removal use PostgreSQL42P16.
+Dependency-driven column, DEFAULT or CHECK removal on a surviving graph
+participant has the same0A000 ALTER boundary. Survival uses the effective staged
+graph after complete whole-relation retirement is staged, including schema-contained
+parents, their outside descendants, and shared children discovered through another
+retiring parent. DROP SCHEMA CASCADE cannot remove
+domain-dependent columns or definitions while an inheritance relationship
+survives: rejection preserves the provider schema/domain, tables, rows and graph.
+If removal of the sole child leaves its parent standalone, ordinary provider
+projection/removal remains supported and preserves independent physical rows and
+definitions. A retiring parent can also be the regclass provider of a retained
+other parent's DEFAULT or CHECK: CASCADE retires their shared child before pruning
+that newly standalone owner's dependent definition. Independent definitions and
+physical rows remain. Whole-table graph closure removal also remains supported.
+ALTER INHERIT/NO INHERIT, recursive execution, propagation and partitions are not added.
+
+Dump topologically emits ordered INHERITS and only local declarations, preserving
+explicit DEFAULT NULL, equal local CHECK/NN merges and actual data. A plain local
+redeclaration of an inherited generated column remains plain in the stream;
+only an actual local generation override is emitted as GENERATED. Restore imports
+the real graph atomically, including relation and constraint-origin identity
+remapping beside unrelated live TEMP objects. TEMP-to-TEMP graphs retain their
+exact relation, constraint and storage identities.
+Imported descriptors yield to retained TEMP definition OIDs as well as descriptor
+OIDs, including child-local EXCLUDE constraints and their exact backing indexes.
+The retained graph remains usable alongside the imported graph and subsequent
+ordinary CREATE/INSERT operations.
+Reset/Restore with any live TEMP-to-persistent parent edge reject the ordinary control error
+`stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported`
+before replacement; drop/close the TEMP owner first. These controls are not pg_dump
+or filesystem/wire durability APIs.
+
 ## Query-derived tables — change note
 
 ```sql
@@ -337,9 +418,9 @@ Semantic ALTER default diagnostics have no source Position; syntax errors retain
 their character positions and CREATE diagnostics retain their existing positions.
 Owner-only execution takes the existing AX grant and publishes one fenced
 metadata-only catalog stage. Qualified/quoted targets, optional COLUMN, ONLY,
-ONLY(...) and trailing `*` work for standalone tables. Native INHERITS is still
-unsupported, so there are no supported descendants; PostgreSQL-only reference
-tests specify recursive SET/DROP and ONLY behavior without claiming native parity.
+ONLY(...) and trailing `*` work for standalone tables. Graph participants reject
+the inheritance ALTER capability boundary above; PostgreSQL-only reference tests
+specify recursive SET/DROP and ONLY behavior without claiming native parity.
 Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
 Native explicit transactions exclude standalone SET/DROP DEFAULT, not selected
 ADD COLUMN/TYPE/nullability/DROP COLUMN lists; read-only ALTER fails25006 before lookup.
@@ -1068,16 +1149,14 @@ INSERT binder, preserving names/data/nullability/ownership/comments; failed
 declarations or NULL insertion preserve the target. Explicit-ACL Dump rejection
 and ordinary context/I/O errors are unchanged.
 
-Inheritance has no native hierarchy/merge mechanism; NOT NULL's NOT VALID,
-VALIDATE and NO INHERIT remain explicit boundaries, not successful no-ops.
+CREATE inheritance merges inheritable NOT NULL by column (see above). NOT NULL's
+NOT VALID, VALIDATE and NO INHERIT remain explicit boundaries, not successful no-ops.
 Scalar UPDATE enforces NOT NULL and CHECK after destination coercion.
-Native failure-only INHERITS recognition accepts one complete parent list after
-either CREATE TABLE form, including qualified/quoted/multiple parents, and
-rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
-unclosed, malformed or repeated clauses and extra tails are `42601`; complete
-input rejection prevents earlier statements in the same script taking effect.
-Primary/foreign keys, unowned access methods and
-unrelated ALTER actions remain excluded engine capabilities.
+Valid INHERITS lists create the graph above; malformed/repeated clauses and extra
+tails remain42601 complete-input rejections, with no earlier script prefix effects.
+Foreign keys, foreign-table providers, unowned access methods and unrelated ALTER
+actions remain excluded engine capabilities; supported PRIMARY KEY declarations
+do not propagate their uniqueness to inheritance children.
 Concurrent creation inherits the supported B-tree and nonunique hash methods.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
@@ -1096,9 +1175,9 @@ captured live rewrite. Savepoints restore descriptors, storage and own DML
 together. Pure nullability changes never rewrite stored values. Native held
 eager results remain immutable; peer future statements retain the native
 replacement fence rather than simulating PostgreSQL's physical rewrite MVCC.
-PostgreSQL-only tests still witness inherited OR nullability, inherited-drop
-rejection, NOT NULL NO INHERIT and deferred validation. CHECK unknown acceptance
-and UPDATE enforcement are shared native/reference witnesses.
+Shared tests witness inherited OR nullability and inherited-drop rejection;
+PostgreSQL-only phases retain NOT NULL NO INHERIT and deferred validation.
+CHECK unknown acceptance and leaf UPDATE enforcement are shared witnesses.
 
 Public feature smokes:
 
@@ -1151,7 +1230,7 @@ views continue to reference stable relation/attribute identities through support
 renames. B-tree/hash keys also retain stable attribute identities, and Dump
 renders current parent/key names without renaming the index itself. User table/view
 row codecs retain stable identities through supported renames and moves.
-Foreign keys, inheritance and broader transactional DDL remain excluded.
+Foreign keys and broader transactional DDL remain excluded; graph column RENAME is protected.
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
@@ -1167,8 +1246,8 @@ removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
 `ONLY t` and `ONLY(t)` operate on supported standalone tables. DROP COLUMN may
 participate in selected TYPE/nullability/DROP COLUMN/constraint lists in explicit
 transactions. Pass order is DROP, TYPE, SET NOT NULL, ADD NOT NULL. Mixing these
-with standalone DEFAULT, SET SCHEMA or rename is unsupported. Inheritance and
-partition definitions are not supported.
+with standalone DEFAULT, SET SCHEMA or rename is unsupported. Graph shape changes
+and partition propagation remain unsupported.
 The table's effective owner or superuser is required; unlike DROP TABLE, schema
 ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
 waits for existing readers/writers; utility Prepare is metadata-only. Cancellation
@@ -1204,8 +1283,8 @@ Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
 Canonical Dump renders current names and survivor metadata; Reset/Restore
 preserves definitions/data even though replay allocates fresh attribute IDs.
 B-tree/hash indexes mentioning a dropped attribute, including expression dependencies, are removed automatically,
-even with RESTRICT; unaffected indexes survive dense-slot compaction. FK,
-inheritance and partition dependencies remain unsupported.
+even with RESTRICT; unaffected indexes survive dense-slot compaction. FK and
+partition dependencies remain unsupported; graph column removal is protected.
 
 Missing columns fail `42703`, `column "missing" of relation "t" does not exist`;
 IF EXISTS emits a `00000` NOTICE ending `, skipping` with no descriptor or row
@@ -1295,7 +1374,7 @@ Names use distinct referenced columns rather than syntactic placement:
 one attribute yields `table_column_check`, otherwise `table_check`, with
 namespace-aware suffixing and UTF8-safe63-byte clipping. Names remain unchanged
 on rename. Named table clauses, actual scalar trees and NO INHERIT survive
-native Dump/Restore; NO INHERIT enforces locally without adding inheritance.
+native Dump/Restore; NO INHERIT CHECKs are excluded from child inheritance.
 DROP CONSTRAINT removes a CHECK. DROP COLUMN removes local dependent CHECKs
 and remaps survivors. Plain LIKE copies shape/NOT NULL, not CHECK.
 CHECK removal composes with the selected atomic ALTER action lists. Inside an
@@ -1354,7 +1433,7 @@ destination; no CHECK bypass or fake sequence identity is used.
 Parameters/aggregate/outside-row references fail before table publication.
 ctid/xmin/cmin/xmax/cmax are forbidden CHECK system references; PostgreSQL permits
 tableoid but native system-column projection remains outside this surface.
-Subqueries/windows/SRFs, other CHECK modifiers, inheritance, ALTER ADD CHECK
+Subqueries/windows/SRFs, other CHECK modifiers, ALTER ADD CHECK
 and VALIDATE are not supported. The shared row validator is available to later
 existing-data validation work; this change does not implement that traversal.
 

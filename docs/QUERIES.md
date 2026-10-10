@@ -1959,8 +1959,9 @@ Triggers and whole-row records/parenthesized expansion,
 view writes/rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
 transformation/suppression and whole-row controls, not native successful no-ops.
-INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE/inheritance
-remain excluded; no new evaluator, durability or retry path is introduced.
+INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE and recursive inheritance
+remain excluded; leaf inherited-table DML is supported. No new evaluator,
+durability or retry path is introduced.
 
 Feature commands:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)$' VERBOSE=0`,

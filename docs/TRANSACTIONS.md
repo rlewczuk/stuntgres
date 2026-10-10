@@ -463,7 +463,9 @@ it coexists with AS/RX, but conflicts with another owner's SUE and AX.
 `LOCK [TABLE] target [, target ...] [IN lockmode MODE] [NOWAIT]` supports all
 eight PostgreSQL table modes, defaulting to ACCESS EXCLUSIVE. Each target accepts
 an optionally qualified/quoted name, `name *`, `ONLY name` or `ONLY(name)`.
-Native tables are standalone: inheritance/partition hierarchies remain unsupported.
+CREATE inheritance takes parent SHARE UPDATE EXCLUSIVE through publication.
+Ordinary LOCK on a parent with children rejects the recursion boundary; ONLY
+locks just the named physical table. Partition hierarchy execution is not added.
 Targets resolve and acquire in requested order; a blocked first target prevents
 lookup of later targets. Views recursively lock bound table/view sources in
 definition order with the same mode, even with ONLY. Ordinary view sources use

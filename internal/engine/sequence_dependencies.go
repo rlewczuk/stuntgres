@@ -12,6 +12,26 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 
 func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
 	var closure []ObjectAddress
+	extended := false
+	// Include removed hierarchy owners, not unrelated removals staged by an
+	// earlier pass. Ordinary column projection retains its existing ordering.
+	for address, removal := range stage.removals {
+		relation, ok := removal.descriptor.(*relationDescriptor)
+		if !ok || relation.relationKind != tableRelation || !inheritanceParticipant(stage.base, relation) {
+			continue
+		}
+		present := false
+		for _, target := range targets {
+			present = present || target == address
+		}
+		if !present {
+			if !extended {
+				targets = append([]ObjectAddress(nil), targets...)
+				extended = true
+			}
+			targets = append(targets, address)
+		}
+	}
 	return stageOwnedSequenceDependencies(stage, targets, mode, func(ref ObjectRef) error {
 		if closure == nil {
 			closure = make([]ObjectAddress, len(targets)+1)
