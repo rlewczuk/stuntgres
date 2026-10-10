@@ -135,12 +135,12 @@ func TestDeleteUsingSourceAdmissionRefresh(t *testing.T) {
 			for resource, entry := range e.locks.entries {
 				if resource.ObjectRef == target && resource.row == 0 {
 					for _, mode := range entry.holders {
-						targetRX = targetRX || mode&rowExclusive != 0
+						targetRX = targetRX || mode.mode&rowExclusive != 0
 					}
 				}
 				if resource.ObjectRef == source && resource.row == 0 {
 					for _, mode := range entry.holders {
-						sourceAS = sourceAS || mode&accessShare != 0
+						sourceAS = sourceAS || mode.mode&accessShare != 0
 					}
 				}
 				if resource.ObjectRef == blocked && resource.row == 0 {

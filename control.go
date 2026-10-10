@@ -69,7 +69,8 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 }
 
 // Reset atomically clears persistent objects, retaining database identity,
-// roles, session settings and live session-private temporary sequences.
+// roles, session settings, live session-private temporary sequences and held
+// physical-session advisory counts. Old pending lock requests remain epoch-fenced.
 // Prepared transactions prevent replacement without consuming their state.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
@@ -81,7 +82,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Named owners must already exist in the destination. Each relation owner group
 // explicitly selects its session authorization, including the bootstrap owner;
 // all tables precede sequence OWNED BY associations that depend on them.
-// Session-private temporary objects and pending session caches are not serialized.
+// Session-private temporary objects, advisory ownership/counts and pending session
+// caches are not serialized. Stored CHECK/view definitions remain ordinary SQL.
 // Only committed data is serialized, never prepared private writes or GIDs.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
@@ -99,6 +101,9 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // and Dump excludes them. Query INSERT sources are deliberately not Restore
 // syntax; Dump emits canonical literal VALUES.
 // Caller-owned temporary sequences remain live and are excluded by Dump.
+// Held physical-session advisory counts survive successful installation; old
+// pending requests remain epoch-fenced. Direct advisory INSERT scalars remain
+// excluded; stored CHECK replay uses the existing isolated admitted stage session.
 // Its initialized private catalog preserves legacy streams and reconstructs
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
 // Named owners must already exist. Private Restore-stage CREATE TABLE destination

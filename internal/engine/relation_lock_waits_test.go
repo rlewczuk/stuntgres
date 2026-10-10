@@ -39,7 +39,7 @@ func TestRelationLockWaitsNowait(t *testing.T) {
 			}
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: ref}]
-			bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket] != held || conflict && len(b.transactions.ticket.resources) != 0
+			bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket].mode != held || conflict && len(b.transactions.ticket.resources) != 0
 			e.locks.mu.Unlock()
 			if bad {
 				t.Fatal("conditional failure changed holder/queue/journal")
@@ -96,7 +96,7 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.locks.mu.Lock()
-		bad := e.locks.entries[lockResource{ObjectRef: ref}].holders[a.transactions.ticket] != accessShare || len(b.transactions.ticket.resources) != 0 || !ax.terminal || !rx.terminal
+		bad := e.locks.entries[lockResource{ObjectRef: ref}].holders[a.transactions.ticket].mode != accessShare || len(b.transactions.ticket.resources) != 0 || !ax.terminal || !rx.terminal
 		e.locks.mu.Unlock()
 		if bad {
 			t.Fatal("interruption damaged ownership/journal")

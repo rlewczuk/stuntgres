@@ -30,7 +30,7 @@ func TestCheckReviewDependencyCreationGrant(t *testing.T) {
 				lockPending(t, e, 1)
 				e.locks.mu.Lock()
 				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[a.transactions.ticket]&accessExclusive != 0
+				queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[a.transactions.ticket].mode&accessExclusive != 0
 				e.locks.mu.Unlock()
 				if !queued {
 					t.Fatal("CREATE did not queue AS on exact provider")
@@ -90,7 +90,7 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	if held {
 		held = false
 		for _, mode := range entry.holders {
-			held = held || mode&accessShare != 0
+			held = held || mode.mode&accessShare != 0
 		}
 	}
 	e.locks.mu.Unlock()

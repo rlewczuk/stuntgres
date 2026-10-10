@@ -107,7 +107,7 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	e.locks.end(at)
 	e.locks.end(bt)
 	e.locks.mu.Lock()
-	held := e.locks.entries[x].holders[next]&accessExclusive != 0 && e.locks.entries[y].holders[next]&accessExclusive != 0
+	held := e.locks.entries[x].holders[next].mode&accessExclusive != 0 && e.locks.entries[y].holders[next].mode&accessExclusive != 0
 	e.locks.mu.Unlock()
 	if !held {
 		t.Fatal("old end affected fresh incarnation")

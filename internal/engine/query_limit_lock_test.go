@@ -160,7 +160,7 @@ func queryLimitGrants(t *testing.T, e *Engine, ticket *relationTicket, tables ma
 	e.locks.mu.Lock()
 	got := make(map[lockResource]bool)
 	for resource, entry := range e.locks.entries {
-		if resource.row != 0 && entry.holders[ticket] != 0 {
+		if resource.row != 0 && entry.holders[ticket].mode != 0 {
 			got[resource] = true
 		}
 	}

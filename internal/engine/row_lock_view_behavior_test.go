@@ -66,7 +66,7 @@ func rowLockViewGrants(t *testing.T, e *Engine, ticket *relationTicket, table st
 	defer e.locks.mu.Unlock()
 	got := make(map[lockResource]bool)
 	for resource, entry := range e.locks.entries {
-		if resource.row != 0 && entry.holders[ticket] != 0 {
+		if resource.row != 0 && entry.holders[ticket].mode != 0 {
 			got[resource] = true
 		}
 	}

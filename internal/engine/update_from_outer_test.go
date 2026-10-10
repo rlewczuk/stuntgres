@@ -133,13 +133,13 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: ref, row: original.row}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == noKeyUpdate && entry.holders[holder.transactions.ticket] == noKeyUpdate
+			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == noKeyUpdate && entry.holders[holder.transactions.ticket].mode == noKeyUpdate
 			sourcesHeld := false
 			if queued {
 				ticket := entry.pending[0].ticket
 				left := e.locks.entries[lockResource{ObjectRef: leftRef}]
 				right := e.locks.entries[lockResource{ObjectRef: rightRef}]
-				sourcesHeld = left != nil && right != nil && left.holders[ticket]&accessShare != 0 && right.holders[ticket]&accessShare != 0
+				sourcesHeld = left != nil && right != nil && left.holders[ticket].mode&accessShare != 0 && right.holders[ticket].mode&accessShare != 0
 			}
 			e.locks.mu.Unlock()
 			if !queued || !sourcesHeld {

@@ -48,6 +48,16 @@ The complete implicit INSERT smoke union now lives in the external shared
 `TestReferenceInsertImplicitShort` family, including
 `TestReferenceInsertImplicitShortFeatureSmoke`; no native-only duplicate remains.
 
+Change note: the thirteen session advisory lock signatures support bigint and
+integer-pair keys, shared/exclusive modes, counted reentry, try and explicit unlock.
+Ownership belongs to the physical connection: rollback and borrower/statement
+close do not release it; actual session close does. Native Reset/Restore retain
+held counts, while Dump excludes live ownership. Transaction-level advisory calls
+and lock introspection remain unsupported. See
+[session advisory locks](docs/DIALECT.md#session-advisory-locks--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
 table/name, NULL default tablespace and compact reconstructable definition.
 Access method appears in CREATE INDEX text, not a sixth field. Native visibility
@@ -252,7 +262,7 @@ pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 
 Change note: `PREPARE TRANSACTION 'gid'`, `COMMIT PREPARED 'gid'` and
 `ROLLBACK PREPARED 'gid'` support process-local two-phase transaction state.
-Preparation detaches private writes and held locks from the session; physical
+Preparation detaches private writes and transaction-owned locks from the session; physical
 origin close does not discard them. Only the exact preparing principal or a
 current superuser can finish them. `pg_catalog.pg_prepared_xacts` exposes
 `transaction XID, gid TEXT, prepared TIMESTAMPTZ, owner NAME, database NAME`.

@@ -100,6 +100,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case randomExpression:
 		args(e.args)
+	case advisoryExpression:
+		args(e.args)
 	case uuidGenerationExpression:
 		args(e.args)
 	case sequenceCallExpression:

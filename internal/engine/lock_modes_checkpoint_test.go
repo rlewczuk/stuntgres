@@ -43,9 +43,9 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.locks.mu.Lock()
-	modes := e.locks.entries[table].holders[ta]
-	rowMode := e.locks.entries[row].holders[ta]
-	newMode := e.locks.entries[next].holders[ta]
+	modes := e.locks.entries[table].holders[ta].mode
+	rowMode := e.locks.entries[row].holders[ta].mode
+	newMode := e.locks.entries[next].holders[ta].mode
 	e.locks.mu.Unlock()
 	if modes != shareUpdateExclusive|relationShare || rowMode != keyShare || newMode != 0 {
 		t.Fatal(modes, rowMode, newMode)

@@ -33,7 +33,7 @@ func TestRelationDeadlockGraphFeeder(t *testing.T) {
 	e.locks.mu.Lock()
 	for i, resource := range []lockResource{y, x} {
 		entry := e.locks.entries[resource]
-		r := &relationRequest{ticket: tickets[i], ctx: ctx, mode: accessExclusive, done: make(chan struct{}), ref: resource, entry: entry}
+		r := &relationRequest{ticket: tickets[i], provenance: tickets[i].ref, ctx: ctx, mode: accessExclusive, done: make(chan struct{}), ref: resource, entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[i].resources[resource] = struct{}{}
 		pending[i] = r

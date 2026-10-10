@@ -178,6 +178,14 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		r.uuidShiftIntervalNulls = len(n.args) != 0
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
+	case advisoryExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: volatile stored default")
+		}
+		if !n.validStored() {
+			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
 	case randomExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -1066,6 +1074,22 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		n.expressionInfo = info
 		rebound = n
 	case randomExpression:
+		var args []BoundExpr
+		for i, old := range n.args {
+			next := child(old)
+			if changed && args == nil {
+				args = append([]BoundExpr(nil), n.args...)
+			}
+			if args != nil {
+				args[i] = next
+			}
+		}
+		if args != nil {
+			n.args = args
+		}
+		n.expressionInfo = info
+		rebound = n
+	case advisoryExpression:
 		var args []BoundExpr
 		for i, old := range n.args {
 			next := child(old)

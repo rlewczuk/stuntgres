@@ -137,6 +137,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	}
 	t.session.settings.finishTransaction(true)
 	t.mu.Unlock()
+	e.locks.detachPrepared(entry.ticket)
 	return nil
 }
 

@@ -29,7 +29,7 @@ func rowLockQueued(t *testing.T, e *Engine, holder *relationTicket, mode relatio
 		e.locks.mu.Lock()
 		found := false
 		for resource, entry := range e.locks.entries {
-			if resource.row == 0 || entry.holders[holder] == 0 {
+			if resource.row == 0 || entry.holders[holder].mode == 0 {
 				continue
 			}
 			for _, request := range entry.pending {
@@ -111,7 +111,7 @@ func TestRowLockManagerMatrix(t *testing.T) {
 		var held relationLockMode
 		for resource, entry := range e.locks.entries {
 			if resource.row != 0 {
-				held |= entry.holders[a.transactions.ticket]
+				held |= entry.holders[a.transactions.ticket].mode
 			}
 		}
 		e.locks.mu.Unlock()

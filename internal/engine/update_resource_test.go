@@ -50,7 +50,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	}
 	e.locks.mu.Lock()
 	entry := e.locks.entries[resource]
-	held := entry.holders[a.transactions.ticket]
+	held := entry.holders[a.transactions.ticket].mode
 	pending := len(entry.pending)
 	e.locks.mu.Unlock()
 	if held != noKeyUpdate || pending != 0 {

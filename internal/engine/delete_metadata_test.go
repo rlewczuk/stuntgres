@@ -39,7 +39,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				if entry != nil && len(entry.pending) == 1 {
 					request = entry.pending[0]
 				}
-				queued := request != nil && request.ticket == waiter && request.ref == resource && request.mode == rowUpdate && !request.terminal && entry.holders[a.transactions.ticket] == rowUpdate
+				queued := request != nil && request.ticket == waiter && request.ref == resource && request.mode == rowUpdate && !request.terminal && entry.holders[a.transactions.ticket].mode == rowUpdate
 				e.locks.mu.Unlock()
 				if !queued {
 					t.Fatal("DELETE not actually queued on the original row resource")

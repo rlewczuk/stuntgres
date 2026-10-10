@@ -114,7 +114,7 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 		e.locks.mu.Lock()
 		held := false
 		for _, entry := range e.locks.entries {
-			if entry.holders[ticket] != 0 {
+			if entry.holders[ticket].mode != 0 {
 				held = true
 			}
 		}
@@ -170,7 +170,7 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		e.locks.mu.Lock()
 		held := relationLockMode(0)
 		if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
-			held = entry.holders[b.transactions.ticket]
+			held = entry.holders[b.transactions.ticket].mode
 		}
 		e.locks.mu.Unlock()
 		if err != nil && held != 0 {

@@ -1803,6 +1803,62 @@ make quickcheck PACKAGES=./reference RUN='^TestReference(Role|SessionIdentity|Vi
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Role|SessionIdentity|ViewReplace)' VERBOSE=0
 ```
 
+## Session advisory lock reference contract
+
+The untagged `TestReferenceAdvisorySession` family uses the same completed public
+definitions in both modes. It enumerates thirteen signatures through direct
+Query/Exec and genuinely held prepared handles; validates raw VOID/BOOL/NULL and
+metadata; and independently checks disjoint keys, mode/count matrices, complete
+warnings, rollback/pooling/physical close, wait/cancel/timeout/deadlock, CHECK
+runtime demand and native Reset/Dump/Restore staging. Stored CHECK/view SQL is not
+live ownership serialization, and Restore's direct scalar allowlist stays closed.
+
+`TestReferenceAdvisorySessionReviewCheckPreparation` distinguishes constant-NULL
+suppression from runtime-column-NULL demand across writes, held prepared statements,
+ALTER rewrites and native staged replay. It checks quiet complete warning capture,
+peer-held blocking keys, unchanged counted ownership and execution-stage immutable
+child errors before any volatile CHECK runs. `...ReviewQuotedArgumentLimit` asserts
+all seven quoted nonexact spellings and qualification through direct/real Prepare,
+including complete54023 diagnostics and earlier bad-child42703 source positions.
+Private `TestAdvisorySessionCheckPreparationCache` and
+`...CheckPrepareAllBeforeEvaluation` supplement the public outcomes with command/
+descriptor cache isolation, copy-on-change syntax preservation, row-frame restoration
+and complete immutable-child diagnostics. `TestCheckAbsentValidatorHasNoAllocation`
+retains the no-CHECK allocation regression.
+
+Root first resolves any new unknown result on pinned PostgreSQL18.0, then runs
+both complete modes after changes. Discovery filters/logging are temporary only;
+native controls are explicit native phases, not invented PostgreSQL equivalents.
+Exact PostgreSQL pending evidence uses a narrow advisory `pg_locks` observer and
+`pg_blocking_pids`. Native public outcomes are paired with private exact under-mutex
+queue/fence tests; worker-start or elapsed sleep is never registration proof.
+Every worker owns cancellation and bounded join before physical/schema cleanup.
+Prior advisory holds survive deadlock/timeout/rollback; cleanup must explicitly
+unlock or close them before requiring a blocked survivor to finish.
+
+Each quickcheck invocation has a900second deadline:
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionCheckConsumers' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySession' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySession' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySessionReview' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionReview' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceCheck(VolatileEffects|ScalarConstants|CompleteRowAndAtomicity|CorePreparedFrames|Controls|ExplicitTransactionAndSavepoint|PreparedExecutionOutputEnvironment|AlterCandidates|AlterCandidateTransactions|ReviewReplayHistory|ReviewReplayOwnedSequence|Review2OrderLogicalRoundtrip)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCheck(VolatileEffects|ScalarConstants|CompleteRowAndAtomicity|CorePreparedFrames|Controls|ExplicitTransactionAndSavepoint|PreparedExecutionOutputEnvironment|AlterCandidates|AlterCandidateTransactions|ReviewReplayHistory|ReviewReplayOwnedSequence|Review2OrderLogicalRoundtrip)' VERBOSE=0
+make quickcheck PACKAGES='./internal/engine ./internal/parser' RUN='^TestAdvisorySession' VERBOSE=0
+make quickcheck RACE=1 PACKAGES='./internal/engine ./internal/parser' RUN='^Test(AdvisorySession|RelationLock|RelationDeadlock)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0
+```
+
+The feature smoke requires double prepared acquisition42, rollback survival,
+peer exclusion until the second matching decrement, exact unmatched warning,
+shared pair coexistence and bigint independence, real timeout/wake outcomes and
+empty unlock-all. Native phases additionally require retained counts and data
+through actual controls. Private ownership/graph/binding/parser tests supplement,
+not replace, the identical public contract. Final fullcheck runs only after merge
+under one1800second deadline.
 
 
 ## BYTEA access oracle-first contract

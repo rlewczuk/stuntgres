@@ -33,7 +33,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: seq}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.transactions.ticket]&accessExclusive != 0
+			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.transactions.ticket].mode&accessExclusive != 0
 			e.locks.mu.Unlock()
 			if !queued {
 				t.Fatal("ADD did not queue AS against exact provider")
@@ -130,7 +130,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				}
 				e.locks.mu.Lock()
 				entry := e.locks.entries[lockResource{ObjectRef: seq}]
-				held := entry != nil && entry.holders[scope.ticket]&accessShare != 0
+				held := entry != nil && entry.holders[scope.ticket].mode&accessShare != 0
 				e.locks.mu.Unlock()
 				if !held {
 					t.Fatal("provider hold retired before Finish")

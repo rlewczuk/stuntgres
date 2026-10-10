@@ -57,7 +57,7 @@ func TestRelationLockIdentity(t *testing.T) {
 	e.locks.fence(tref.Epoch)
 	e.locks.end(ticket)
 	e.locks.mu.Lock()
-	held := e.locks.entries[lockResource{ObjectRef: newref}].holders[a.transactions.ticket]
+	held := e.locks.entries[lockResource{ObjectRef: newref}].holders[a.transactions.ticket].mode
 	e.locks.mu.Unlock()
 	if held != accessExclusive {
 		t.Fatal("delayed old cleanup released newer epoch")

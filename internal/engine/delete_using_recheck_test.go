@@ -61,14 +61,14 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 	var targetMode, sourceMode relationLockMode
 	for resource, entry := range e.locks.entries {
 		if resource.ObjectRef == target && resource.row == 0 {
-			targetMode = entry.holders[writer.transactions.ticket]
+			targetMode = entry.holders[writer.transactions.ticket].mode
 		}
 		if resource.ObjectRef == source {
 			if resource.row != 0 {
 				e.locks.mu.Unlock()
 				t.Fatal("ordinary source tuple write grant", resource)
 			}
-			sourceMode = entry.holders[writer.transactions.ticket]
+			sourceMode = entry.holders[writer.transactions.ticket].mode
 		}
 	}
 	e.locks.mu.Unlock()

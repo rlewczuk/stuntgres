@@ -94,7 +94,7 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				lockAwait(t, done, nil)
 				e.locks.mu.Lock()
 				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				retained := entry != nil && entry.holders[b.transactions.ticket]&accessShare != 0
+				retained := entry != nil && entry.holders[b.transactions.ticket].mode&accessShare != 0
 				e.locks.mu.Unlock()
 				if !retained {
 					t.Fatal("ownership table AS not retained to transaction end")
@@ -274,7 +274,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			dropRequest := ownedLockQueued(t, e, sequence, accessExclusive, dropping)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: table}]
-			cycle := entry != nil && entry.holders[dropRequest.ticket]&accessExclusive != 0
+			cycle := entry != nil && entry.holders[dropRequest.ticket].mode&accessExclusive != 0
 			e.locks.mu.Unlock()
 			if !cycle {
 				t.Fatal("drop did not retain table AX while waiting for sequence")

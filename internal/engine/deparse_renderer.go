@@ -670,6 +670,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function(pgIdentifier(n.plan.Name()), n.args, true)
 	case randomExpression:
 		return function(n.name, n.args, true)
+	case advisoryExpression:
+		return function(n.name, n.args, true)
 	case uuidGenerationExpression:
 		return function(n.name, n.args, true)
 	case nullCountExpression:

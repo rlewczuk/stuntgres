@@ -64,7 +64,7 @@ func deadlockPublicationRun(t *testing.T, e *Engine, request *relationRequest, o
 // regression. This isolates detector observations from startAcquire/settle.
 func deadlockPublicationPending(e *Engine, ticket *relationTicket, ref lockResource, mode relationLockMode, ctx context.Context) *relationRequest {
 	entry := e.locks.entries[ref]
-	r := &relationRequest{ticket: ticket, ctx: ctx, mode: mode, done: make(chan struct{}), ref: ref, entry: entry}
+	r := &relationRequest{ticket: ticket, provenance: ticket.ref, ctx: ctx, mode: mode, done: make(chan struct{}), ref: ref, entry: entry}
 	ticket.resources[ref] = struct{}{}
 	entry.pending = append(entry.pending, r)
 	return r
@@ -140,7 +140,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			}
 			e.locks.mu.Lock()
 			collateral := later.terminal
-			holds := e.locks.entries[ref].holders[at] == accessShare && e.locks.entries[ref].holders[bt] == accessShare
+			holds := e.locks.entries[ref].holders[at].mode == accessShare && e.locks.entries[ref].holders[bt].mode == accessShare
 			e.locks.mu.Unlock()
 			if collateral || !holds {
 				t.Errorf("collateral terminal=%v, original holds retained=%v", collateral, holds)
@@ -185,7 +185,7 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 	// Actual arrival graph: B->A hard, C->B soft, A->C hard.
 	// Moving compatible C-AS ahead of B-AX resolves it without revoking A-AS.
 	queue := e.locks.entries[x].pending
-	topology := len(queue) == 2 && queue[0] == rb && queue[1] == rc && e.locks.entries[x].holders[at] == accessShare && e.locks.entries[y].holders[ct] == accessExclusive
+	topology := len(queue) == 2 && queue[0] == rb && queue[1] == rc && e.locks.entries[x].holders[at].mode == accessShare && e.locks.entries[y].holders[ct].mode == accessExclusive
 	e.locks.mu.Unlock()
 	if !topology {
 		t.Fatal("missing resolvable soft topology")
@@ -198,7 +198,7 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 		t.Errorf("compatible follower must grant from fresh live queues: %v", err)
 	}
 	e.locks.mu.Lock()
-	fresh := len(e.locks.entries[x].pending) == 0 && e.locks.entries[x].holders[at] == accessShare && e.locks.entries[x].holders[ct] == accessShare && !ra.terminal
+	fresh := len(e.locks.entries[x].pending) == 0 && e.locks.entries[x].holders[at].mode == accessShare && e.locks.entries[x].holders[ct].mode == accessShare && !ra.terminal
 	e.locks.mu.Unlock()
 	if !fresh {
 		t.Error("stale proposal, collateral victim, or missing compatible follower grant")
@@ -278,7 +278,7 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			}
 			e.locks.mu.Lock()
 			collateral := later.terminal
-			holds := e.locks.entries[ref].holders[at] == accessShare && e.locks.entries[ref].holders[bt] == accessShare
+			holds := e.locks.entries[ref].holders[at].mode == accessShare && e.locks.entries[ref].holders[bt].mode == accessShare
 			e.locks.mu.Unlock()
 			if collateral || !holds {
 				t.Errorf("deadline caused collateral terminal=%v or released holds=%v", collateral, !holds)

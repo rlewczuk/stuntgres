@@ -33,11 +33,11 @@ func TestQueryLockConditionalRowManager(t *testing.T) {
 				}
 				e.locks.mu.Lock()
 				entry := e.locks.entries[resource]
-				bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket] != held
+				bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket].mode != held
 				if conflict {
-					bad = bad || entry.holders[b.transactions.ticket] != 0 || len(b.transactions.ticket.resources) != before
+					bad = bad || entry.holders[b.transactions.ticket].mode != 0 || len(b.transactions.ticket.resources) != before
 				} else {
-					bad = bad || entry.holders[b.transactions.ticket] != requested
+					bad = bad || entry.holders[b.transactions.ticket].mode != requested
 				}
 				e.locks.mu.Unlock()
 				if bad {
@@ -81,7 +81,7 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	}
 	e.locks.mu.Lock()
 	entry := e.locks.entries[resource]
-	bad := len(entry.pending) != 1 || entry.pending[0] != waiter || entry.holders[a.transactions.ticket] != (keyShare|rowShare) || len(c.transactions.ticket.resources) != before
+	bad := len(entry.pending) != 1 || entry.pending[0] != waiter || entry.holders[a.transactions.ticket].mode != (keyShare|rowShare) || len(c.transactions.ticket.resources) != before
 	e.locks.mu.Unlock()
 	if bad {
 		t.Fatal("conditional probe altered queue/journal/self contributions")

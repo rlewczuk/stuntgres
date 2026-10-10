@@ -479,8 +479,12 @@ Utility diagnostics have no Position or synthetic Schema/Table fields.
 Command feature checks: `make quickcheck VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes'`. See the
 [command change note](#lock-table-command--change-note) for discovery and coverage.
-Advisory locking and lock introspection
-remain unsupported. DELETE's row UPDATE and UPDATE's
+Session advisory locking supports counted shared/exclusive bigint and integer-pair
+keys through the [thirteen session signatures](DIALECT.md#session-advisory-locks--change-note).
+Held counts belong to the physical session, survive transaction/savepoint rollback,
+and are not transferred by PREPARE TRANSACTION. Matching explicit unlock,
+unlock-all or actual physical close releases them. Transaction-level advisory
+functions and lock introspection remain unsupported. DELETE's row UPDATE and UPDATE's
 NO KEY UPDATE holds are distinct mutually conflicting modes on the same logical
 row resource; distinct rows arbitrate independently and ordinary SELECT does not
 wait on those holds. READ COMMITTED/UNCOMMITTED freeze candidates after relation

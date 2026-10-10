@@ -32,7 +32,7 @@ func checkReview2SchemaQueued(t *testing.T, e *Engine, holder *Session, ref Obje
 	for {
 		e.locks.mu.Lock()
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
-		queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.transactions.ticket]&accessExclusive != 0
+		queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.transactions.ticket].mode&accessExclusive != 0
 		e.locks.mu.Unlock()
 		if queued {
 			lockPending(t, e, 1)

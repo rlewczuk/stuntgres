@@ -96,7 +96,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	entry := e.locks.entries[newResource]
 	held := relationLockMode(0)
 	if entry != nil {
-		held = entry.holders[newTicket]
+		held = entry.holders[newTicket].mode
 	}
 	oldJournal := len(oldTicket.resources)
 	e.locks.mu.Unlock()

@@ -111,7 +111,7 @@ func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relation
 		resource := lockResource{ObjectRef: ref, key: found}
 		entry := m.entries[resource]
 		if entry == nil {
-			entry = &relationEntry{holders: make(map[*relationTicket]relationLockMode)}
+			entry = &relationEntry{holders: make(map[*relationTicket]relationHold)}
 			m.entries[resource] = entry
 		}
 		entry.pins++

@@ -133,7 +133,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 			}
 			if victim >= 0 {
 				for i, resource := range resources {
-					if e.locks.entries[resource].holders[tickets[i]] == 0 {
+					if e.locks.entries[resource].holders[tickets[i]].mode == 0 {
 						t.Error("manager released held lock before Finish")
 					}
 				}
@@ -187,7 +187,7 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 		t.Fatal("resolvable soft cycle must not abort", err)
 	}
 	e.locks.mu.Lock()
-	ah := e.locks.entries[x].holders[a.transactions.ticket]
+	ah := e.locks.entries[x].holders[a.transactions.ticket].mode
 	bt := rb.terminal
 	e.locks.mu.Unlock()
 	if ah != accessShare || bt {

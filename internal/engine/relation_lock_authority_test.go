@@ -88,7 +88,7 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	// Grant state is installed by end, independently of the sleeping caller.
 	e.locks.end(ta)
 	e.locks.mu.Lock()
-	held := e.locks.entries[lockResource{ObjectRef: ref}].holders[tb]
+	held := e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].mode
 	e.locks.mu.Unlock()
 	if held != accessShare {
 		t.Fatal("grant not journaled before wake", held)
@@ -111,7 +111,7 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	e.locks.end(old)
 	e.locks.fence(ref.Epoch)
 	e.locks.mu.Lock()
-	held = e.locks.entries[lockResource{ObjectRef: ref}].holders[tb]
+	held = e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].mode
 	e.locks.mu.Unlock()
 	if held != rowExclusive {
 		t.Fatal("old cleanup removed new hold")

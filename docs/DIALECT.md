@@ -3637,6 +3637,75 @@ input is42601; script prefixes do not execute on these full-input rejections.
 
 Public smoke: `make quickcheck PACKAGES=./smoke RUN='^Test(NotNull(Smoke|ControlsSmoke)|DropNotNullSystemColumnSmoke|DropConstraintOwnedSequenceSmoke)$' VERBOSE=0`.
 
+### Session advisory locks — change note
+
+The selected PostgreSQL18 session functions expose thirteen signatures:
+
+| Function | Arguments | Result |
+|---|---|---|
+| `pg_advisory_lock` | `bigint` or `integer, integer` | `VOID` |
+| `pg_advisory_lock_shared` | `bigint` or `integer, integer` | `VOID` |
+| `pg_try_advisory_lock` | `bigint` or `integer, integer` | `BOOL` |
+| `pg_try_advisory_lock_shared` | `bigint` or `integer, integer` | `BOOL` |
+| `pg_advisory_unlock` | `bigint` or `integer, integer` | `BOOL` |
+| `pg_advisory_unlock_shared` | `bigint` or `integer, integer` | `BOOL` |
+| `pg_advisory_unlock_all` | none | `VOID` |
+
+Bigint and pair keys are disjoint value domains, with signed arguments encoded
+as their exact high/low uint32 bit patterns. Shared owners coexist; exclusive
+requests conflict with other owners. Every successful blocking or try acquisition
+adds one mode-specific count, including reentry. Matching unlock removes exactly
+one count and returns true; wrong-mode, stranger, absent or exhausted unlock
+returns false with one `WARNING`/`01000`, `you don't own a lock of type
+ExclusiveLock` or `ShareLock`, without aborting the transaction. Unlock-all clears
+only this physical session's advisory counts, never ordinary transaction locks.
+
+These calls are strict, volatile ordinary scalar functions. Acquisition and
+unlock-all return nonnull empty textual VOID; try/unlock return BOOL. Typed NULL
+produces typed NULL without a request or warning. Demanded child analysis and
+immutable simplification precede literal-NULL folding; runtime NULL still demands
+both executable pair arguments, once, left-to-right. Prepare/Describe has no lock,
+wait, count or notice effect. Supported query/write/view/CHECK consumers reuse
+their current expression and admitted execution contexts. Volatility does not
+widen DEFAULT, immutable generated/index expressions or Restore's direct scalar
+INSERT allowlist. Stored CHECK/view syntax remains replayable; CHECK recomputation
+uses the existing isolated Restore-stage session/manager, not live target locks.
+Quoted nonexact spellings retain exact-name resolution, but more than100 arguments
+still reports54023 after child analysis; an invalid child keeps its earlier error.
+
+Counts survive commit, rollback, savepoint restoration and later statement errors,
+even when failed row writes publish nothing. Returning a pooled borrower and
+closing statements/rows do not end physical ownership. Matching unlock, unlock-all
+or actual physical session end releases it. PREPARE TRANSACTION retains ordinary
+transaction locks as a distinct detached participant; session advisory counts stay
+with the origin and disappear on its physical close.
+
+One canonical wait/deadlock manager arbitrates ordinary and advisory resources.
+Live transient and persistent tickets collapse by physical session; detached
+prepared tickets retain exact transaction identity. Reentry has owner priority,
+new conflicting requests cannot barge, and compatible cohorts/soft-cycle search
+remain intact. Advisory lock timeout55P03, statement timeout57014 and deadlock40P01
+have no relation-analysis Position. Caller cancellation retains native context
+identity. Deadlock failure does not release prior session counts: explicitly
+unlock or close the owning session before demanding a blocked survivor finish.
+Native advisory Detail uses unsigned key words and space1/2 with physical-session
+cycle edges; ordinary edges keep their transaction/session/epoch convention.
+
+Successful native Reset/Restore retains held advisory counts while terminating
+old pending requests with ordinary `stuntgres: catalog replaced before publication`.
+A real transfer before fenced readmission remains counted even though that command
+fails. Fresh current-epoch admission reuses the same physical owner. Failed/canceled
+staging preserves the target catalog and ownership. Dump emits stored definitions
+and committed rows, never live advisory ownership. Transaction-level advisory
+functions, `pg_locks` and other new lock introspection remain excluded.
+
+Feature checks, each bounded to900seconds:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySession' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySession' VERBOSE=0`.
+The same family includes exact signatures/metadata, counts/warnings, lifecycle,
+wait/cancel/deadlock, CHECK and native staged-replay witnesses; private tests supply
+deterministic queue/fence barriers without adding a public inspection API.
+
 ### CHECK constraints — change note
 
 CREATE TABLE admits ordered column/table `[CONSTRAINT name] CHECK (expression)`
@@ -3656,6 +3725,17 @@ privilege-filtered physical-order failing-row Detail. All VALUES/default/query
 INSERT and simultaneous UPDATE routes stage a whole successful batch before
 publication. Sequence/random/session effects retain their existing
 nontransactional semantics; row rollback does not rewind them.
+
+On the first consumed row, execution prepares every CHECK's immutable expressions
+before running any volatile CHECK provider. Detached executable nodes are cached
+only in that command's evaluation context; stored syntax and dependencies remain
+unchanged, including through ALTER rewrites and symbolic replay. Demanded immutable
+child errors precede strict constant-NULL simplification: a CHECK containing
+`pg_try_advisory_lock(NULL::integer,1/0)` binds at CREATE and prepares its INSERT
+successfully, but INSERT execution fails22012 before earlier volatile CHECKs run.
+Constant NULL suppresses volatile sibling lock/unlock/warning/wait effects;
+runtime column NULL still demands executable siblings. The no-CHECK path does not
+allocate preparation state.
 
 Automatic names use distinct referenced attributes (`table_column_check` for
 one, `table_check` otherwise), UTF8-safe63-byte clipping and current-command
@@ -3951,9 +4031,9 @@ recovers across epochs, including fresh current-epoch ROLLBACK AND CHAIN.
 End Prepare remains effect-free/eligible; retained handles are not deleted.
 
 
-Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, SUE for COMMENT Execute, and owner-authorized AX for selected ALTER utilities. Explicit `LOCK [TABLE]` accepts ordered targets with ONLY/star, all eight table modes (default AX) and NOWAIT in an explicit SQL/driver block, including read-only blocks. Documented table-level ANY-rights privileges apply; ordinary views recurse with owner authority, security_invoker with the original invoker. Native table inheritance remains unsupported. The complete matrix and savepoint restoration contract are in [relation locks](TRANSACTIONS.md#relation-locks). Semantic data Prepare acquires automatic table modes and fixes characteristic/RR snapshot timing before waits; LOCK/COMMENT/ALTER Prepare remain metadata-only. Existing fair compatible cohorts, deadlock resolution, absolute deadlines, typed lock_timeout, caller-context identity, exact grant-time relation identity, replacement fences and publication-before-release are unchanged. UPDATE/DELETE preserve frozen candidate identities, RC/RU recheck and RR40001 behavior. Advisory locking/introspection remain excluded. Feature smokes: `make quickcheck PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes(Matrix|Order|Views|Savepoints)$'`.
+Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, SUE for COMMENT Execute, and owner-authorized AX for selected ALTER utilities. Explicit `LOCK [TABLE]` accepts ordered targets with ONLY/star, all eight table modes (default AX) and NOWAIT in an explicit SQL/driver block, including read-only blocks. Documented table-level ANY-rights privileges apply; ordinary views recurse with owner authority, security_invoker with the original invoker. Native table inheritance remains unsupported. The complete matrix and savepoint restoration contract are in [relation locks](TRANSACTIONS.md#relation-locks). Semantic data Prepare acquires automatic table modes and fixes characteristic/RR snapshot timing before waits; LOCK/COMMENT/ALTER Prepare remain metadata-only. Existing fair compatible cohorts, deadlock resolution, absolute deadlines, typed lock_timeout, caller-context identity, exact grant-time relation identity, replacement fences and publication-before-release are unchanged. UPDATE/DELETE preserve frozen candidate identities, RC/RU recheck and RR40001 behavior. Session advisory locking is supported; transaction-level advisory locking and introspection remain excluded. Feature smokes: `make quickcheck PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes(Matrix|Order|Views|Savepoints)$'`.
 Lock-timeout55P03 and deadlock40P01 during direct SELECT/INSERT/UPDATE/DELETE relation analysis or semantic Prepare carry the original ObjectName's first token character Position (schema token for qualified names). Cached Execute, SELECT/UPDATE/DELETE row waits and utility errors have no parse-analysis Position;57014 is excluded from this decoration. Do not put source-position policy into manager resources or fabricate Schema/Table fields.
-The canonical manager searches finite stable queue-order constraints to resolve soft cycles without aborting; unavoidable relation/row cycles fail an unspecified actual cycle member with ERROR40P01 `deadlock detected` and Hint `See server log for query details.` Native Detail describes exact logical transaction/session/epoch, mode, relation ObjectRef and optional RowID cycle edges, not physical PostgreSQL PID/XID/ctid identities or tuple Context. Without marks, mandatory Finish discards victim private effects and releases held locks, allowing survivors to proceed before explicit victim ROLLBACK. With recoverable marks it restores the newest mark's effects and held-mode checkpoint, releasing failed-level contributions while preserving ancestor holds. Explicit victims retain the existing25P02 recovery gate. SSI remains unsupported and is not a blocking dependency.
+The canonical manager searches finite stable queue-order constraints to resolve soft cycles without aborting; unavoidable relation/row cycles fail an unspecified actual cycle member with ERROR40P01 `deadlock detected` and Hint `See server log for query details.` Native Detail describes exact logical transaction/session/epoch, mode, relation ObjectRef and optional RowID cycle edges, not physical PostgreSQL PID/XID/ctid identities or tuple Context. Without marks, mandatory Finish discards victim private effects and releases transaction-owned locks, allowing survivors to proceed before explicit victim ROLLBACK. With recoverable marks it restores the newest mark's effects and held-mode checkpoint, releasing failed-level contributions while preserving ancestor holds. Prior session advisory counts are never part of that restoration/release. Explicit victims retain the existing25P02 recovery gate. SSI remains unsupported and is not a blocking dependency.
 Queued work binds the grant-time descriptor of the exact retained ObjectRef; a same-identity definition revision is valid, while epoch changes/removal/recreation remain fenced. Keep subsequent grant-time descriptor pinning and catalog/storage publication guards. Post-drop quoted expression errors use literal decoded identifiers and character positions. Positive qualified ordinary-owner controls use one ordinary schema/table owner; separate distinct-owner Restore/denial/replay witnesses retain the namespace-USAGE and explicit-ACL Dump boundaries without adding native GRANT.
 ALTER re-resolution must compare the complete ObjectRef with scope.lockedRef before owner/column semantics, notices or staging, then use the validated grant-time lockedDescriptor. A search_path shadow created during an AX wait fails ErrCatalogReplaced without effects or reacquisition; PostgreSQL's independently asserted utility behavior instead reacquires the shadow AX. Never reinstate a pre-wait descriptor-revision fence.
 DROP COLUMN compaction removes only the dropped stable SubID's column comment and preserves table/survivor comments immutably. Validate comment keys with hasAttribute; Dump must capture attributes and index comment payload by attributes[i], not dense i+1. Restore rebinds canonical named comments to the reconstructed declaration's IDs.

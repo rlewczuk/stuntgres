@@ -212,7 +212,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	}
 	var order []ResourceKind
 	var mu sync.Mutex
-	for _, kind := range []ResourceKind{AdvisorySession, Temporary, PreparedSQL, Cursors} {
+	for _, kind := range []ResourceKind{Temporary, PreparedSQL, Cursors} {
 		k := kind
 		owner := &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
 			if s.TransactionState() != TxIdle {
@@ -259,8 +259,14 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if err = s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(order, []ResourceKind{Cursors, PreparedSQL, Temporary, AdvisorySession}) {
+	if !reflect.DeepEqual(order, []ResourceKind{Cursors, PreparedSQL, Temporary}) {
 		t.Fatal(order)
+	}
+	e.locks.mu.Lock()
+	advisoryLive := e.locks.valid(s.advisory.ticket)
+	e.locks.mu.Unlock()
+	if advisoryLive {
+		t.Fatal("built-in advisory delegate survived session cleanup")
 	}
 	if _, err = e.Execute(op, statement(t, "SHOW application_name"), 0, nil); err == nil {
 		t.Fatal("done lease")

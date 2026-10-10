@@ -55,7 +55,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindTransactionTime(raw)
 	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && !parser.AdvisorySessionFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
@@ -118,6 +118,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindMath(raw, visible)
 	case "random", "random_normal", "setseed":
 		return b.bindRandom(raw, visible)
+	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared":
+		return b.bindAdvisory(raw, visible)
 	case "num_nulls":
 		kind = countNulls
 	case "num_nonnulls":
@@ -294,14 +296,20 @@ func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExp
 
 // functionSignatureError binds diagnostic operands once, only on a failure path.
 func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error {
-	// Syntactic hash admission preserves quoted spelling. On this failure route
+	// Syntactic admission preserves quoted spelling. On this failure route
 	// only, the argument limit still precedes exact-name signature resolution.
 	if len(raw.Args) > 100 && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		for _, selected := range [...]string{"convert", "convert_from", "convert_to", "encode", "decode", "to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "pg_size_bytes", "pg_size_pretty", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
-			if len(name) != len(selected) || !strings.EqualFold(name, selected) {
-				continue
+		selectedName := parser.AdvisorySessionFunctionName(name)
+		if !selectedName {
+			for _, selected := range [...]string{"convert", "convert_from", "convert_to", "encode", "decode", "to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "pg_size_bytes", "pg_size_pretty", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
+				if len(name) == len(selected) && strings.EqualFold(name, selected) {
+					selectedName = true
+					break
+				}
 			}
+		}
+		if selectedName {
 			for _, rawArg := range raw.Args {
 				if _, err := b.bind(rawArg, expressionPolicy{context: projectionContext}); err != nil {
 					return err

@@ -39,7 +39,7 @@ func TestUpdateReturningCurrentPredecessor(t *testing.T) {
 			resource := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
 			e.locks.mu.Lock()
 			entry := e.locks.entries[resource]
-			actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket]&(rowUpdate|noKeyUpdate) != 0
+			actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].mode&(rowUpdate|noKeyUpdate) != 0
 			e.locks.mu.Unlock()
 			if !actual {
 				t.Fatal("not actual predecessor contention")
@@ -105,7 +105,7 @@ func TestUpdateReturningWaitCancellation(t *testing.T) {
 	actual := entry != nil && len(entry.pending) == 1 && e.locks.entries[first] != nil
 	if actual {
 		ticket := entry.pending[0].ticket
-		actual = e.locks.entries[first].holders[ticket]&noKeyUpdate != 0
+		actual = e.locks.entries[first].holders[ticket].mode&noKeyUpdate != 0
 	}
 	e.locks.mu.Unlock()
 	if !actual {

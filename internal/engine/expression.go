@@ -49,6 +49,9 @@ type EvalContext struct {
 	Output         sqltype.OutputEnvironment
 	Outer          *EvalContext
 	query          *queryState
+	// Stored CHECK syntax stays immutable; detached executable expressions
+	// belong only to this command. A cached nil slice means no nodes changed.
+	preparedChecks map[*relationDescriptor][]BoundExpr
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -206,8 +209,9 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 	return preflightCoercionsWithPolicy(c, expression, false)
 }
 
-// Only consumed stored defaults use decisive constant planning. Ordinary source,
-// DELETE and supplied-value preflight retain their existing traversal demand.
+// Consumed stored defaults and standalone CHECK preparation use decisive
+// constant planning. Ordinary source, DELETE and supplied-value preflight
+// retain their existing traversal demand.
 func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
@@ -765,6 +769,27 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case advisoryExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		if folded, changed := foldAdvisoryNull(e); changed {
+			return folded, true, nil
+		}
+		return e, args != nil, nil
 	case indexPropertyExpression:
 		did := false
 		e.properties = ExprProperties{Volatility: Stable}

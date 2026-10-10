@@ -289,6 +289,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(randomExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(advisoryExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(uuidGenerationExpression); ok {
 			return children(r.Args, n.args)
 		}

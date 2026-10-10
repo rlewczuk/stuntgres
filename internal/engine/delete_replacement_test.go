@@ -71,7 +71,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	e.locks.mu.Lock()
 	rows := 0
 	for resource, entry := range e.locks.entries {
-		if resource.ObjectRef == ref && resource.row != 0 && entry.holders[scope.ticket] == rowUpdate && len(entry.pending) == 0 {
+		if resource.ObjectRef == ref && resource.row != 0 && entry.holders[scope.ticket].mode == rowUpdate && len(entry.pending) == 0 {
 			rows++
 		}
 	}
@@ -137,7 +137,7 @@ func deleteReplacementQueued(t *testing.T, e *Engine, resource lockResource, hol
 		e.locks.mu.Lock()
 		entry := e.locks.entries[resource]
 		var request *relationRequest
-		if entry != nil && entry.holders[holder] == rowUpdate && len(entry.pending) == 1 {
+		if entry != nil && entry.holders[holder].mode == rowUpdate && len(entry.pending) == 1 {
 			r := entry.pending[0]
 			if r.ticket == waiter && r.ref == resource && r.mode == rowUpdate && !r.terminal {
 				request = r
@@ -331,7 +331,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	for {
 		e.locks.mu.Lock()
 		entry := e.locks.entries[resource]
-		granted := request.terminal && request.err == nil && entry != nil && entry.holders[ticket] == rowUpdate && len(entry.pending) == 0
+		granted := request.terminal && request.err == nil && entry != nil && entry.holders[ticket].mode == rowUpdate && len(entry.pending) == 0
 		_, journaled := ticket.resources[resource]
 		e.locks.mu.Unlock()
 		if granted && journaled {

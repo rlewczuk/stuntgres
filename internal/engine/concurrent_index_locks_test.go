@@ -35,7 +35,7 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 	lockPending(t, e, 2)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	exact := len(entry.pending) == 2 && entry.pending[0].mode == relationShare && entry.pending[0].ticket.ref.session == b.token && entry.pending[1].mode == rowExclusive && entry.pending[1].ticket.ref.session == c.token && entry.holders[a.transactions.ticket]&rowExclusive != 0
+	exact := len(entry.pending) == 2 && entry.pending[0].mode == relationShare && entry.pending[0].ticket.ref.session == b.token && entry.pending[1].mode == rowExclusive && entry.pending[1].ticket.ref.session == c.token && entry.holders[a.transactions.ticket].mode&rowExclusive != 0
 	e.locks.mu.Unlock()
 	if !exact {
 		t.Fatal("ordinary Share build did not precede and block later RX request")
@@ -51,7 +51,7 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 	rows := sessionSQL(t, d, "SELECT n FROM t ORDER BY n")
 	rows.Rows.Close()
 	e.locks.mu.Lock()
-	compatible := entry.holders[d.transactions.ticket]&accessShare != 0 && len(entry.pending) == 2
+	compatible := entry.holders[d.transactions.ticket].mode&accessShare != 0 && len(entry.pending) == 2
 	e.locks.mu.Unlock()
 	if !compatible {
 		t.Fatal("compatible reader did not obtain real grant across Share/RX queue")
@@ -85,7 +85,7 @@ func TestConcurrentIndexU2CapturedWriterCohortAndTopLevelOutcome(t *testing.T) {
 	wait := concurrentUnitCompletion(t, e, owner, b)
 	e.locks.mu.Lock()
 	parentEntry := e.locks.entries[lockResource{ObjectRef: ref}]
-	actual := parentEntry.holders[wait.ticket]&shareUpdateExclusive != 0 && parentEntry.holders[wait.ticket]&relationShare == 0 && len(parentEntry.pending) == 0
+	actual := parentEntry.holders[wait.ticket].mode&shareUpdateExclusive != 0 && parentEntry.holders[wait.ticket].mode&relationShare == 0 && len(parentEntry.pending) == 0
 	e.locks.mu.Unlock()
 	if !actual {
 		t.Fatal("concurrent builder used a queued parent Share acquisition")
@@ -102,7 +102,7 @@ func TestConcurrentIndexU2CapturedWriterCohortAndTopLevelOutcome(t *testing.T) {
 	// Removing all relation contributions must not discharge completion ownership.
 	e.locks.restore(owner, nil)
 	e.locks.mu.Lock()
-	stillWaiting := !wait.terminal && wait.entry.holders[owner] == transactionCompletion
+	stillWaiting := !wait.terminal && wait.entry.holders[owner].mode == transactionCompletion
 	e.locks.mu.Unlock()
 	if !stillWaiting {
 		t.Fatal("savepoint/contribution release impersonated transaction outcome")
@@ -154,7 +154,7 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 		t.Fatal(diagnostic)
 	}
 	e.locks.mu.Lock()
-	hardSurvives := !completion.terminal && completion.entry.holders[a.transactions.ticket] == transactionCompletion
+	hardSurvives := !completion.terminal && completion.entry.holders[a.transactions.ticket].mode == transactionCompletion
 	e.locks.mu.Unlock()
 	if !hardSurvives {
 		t.Fatal("hard completion edge was removed or reordered as a soft relation queue")

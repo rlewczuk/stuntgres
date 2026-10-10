@@ -69,7 +69,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	e.locks.mu.Lock()
 	pending := e.locks.entries[lockResource{ObjectRef: b}].pending[0]
 	first := e.locks.entries[lockResource{ObjectRef: a}]
-	ordered := pending.mode == accessExclusive && first != nil && first.holders[pending.ticket] == accessExclusive
+	ordered := pending.mode == accessExclusive && first != nil && first.holders[pending.ticket].mode == accessExclusive
 	for _, ref := range []ObjectRef{ai, ai2, bi} {
 		ordered = ordered && e.locks.entries[lockResource{ObjectRef: ref}] == nil
 	}
@@ -123,7 +123,7 @@ func TestIndexMaintenanceExactLockModes(t *testing.T) {
 			correct := request.mode == c.want
 			if c.parent {
 				entry := e.locks.entries[lockResource{ObjectRef: table}]
-				correct = correct && entry != nil && entry.holders[request.ticket] == relationShare
+				correct = correct && entry != nil && entry.holders[request.ticket].mode == relationShare
 			} else if c.resource != "t" {
 				correct = correct && e.locks.entries[lockResource{ObjectRef: table}] == nil
 			}

@@ -89,6 +89,7 @@ type Session struct {
 	result             error
 	settings           *sessionSettings
 	transactions       *transactionOwner
+	advisory           sessionAdvisory
 	authorization      *sessionAuthorization
 	sequences          map[ObjectAddress]*sequenceMemory
 	lastSequence       ObjectAddress
@@ -169,6 +170,18 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		_, err = op.Attach(Transaction, transactions)
 		if err == nil {
 			s.transactions = transactions
+		}
+	}
+	if err == nil {
+		var ticket *relationTicket
+		ticket, err = e.locks.registerSession(s.token)
+		if err == nil {
+			s.advisory.ticket = ticket
+			_, err = op.Attach(AdvisorySession, &s.advisory)
+			if err != nil {
+				e.locks.end(ticket)
+				s.advisory.ticket = nil
+			}
 		}
 	}
 	e.mu.Lock()

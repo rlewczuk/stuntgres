@@ -64,7 +64,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 					// the barrier targets detector normalization, not startAcquire's
 					// earlier admission checks or its initial settle.
 					entry := e.locks.entries[x]
-					closer = &relationRequest{ticket: bt, ctx: context.Background(), mode: accessExclusive, done: make(chan struct{}), ref: x, entry: entry}
+					closer = &relationRequest{ticket: bt, provenance: bt.ref, ctx: context.Background(), mode: accessExclusive, done: make(chan struct{}), ref: x, entry: entry}
 					bt.resources[x] = struct{}{}
 					entry.pending = append(entry.pending, closer)
 					interrupted, survivor = first, closer
@@ -106,7 +106,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				e.locks.mu.Lock()
 				interruptedTerminal, interruption := interrupted.terminal, interrupted.err
 				survivorTerminal, survivorError := survivor.terminal, survivor.err
-				holdsRetained := e.locks.entries[x].holders[at]&accessExclusive != 0 && e.locks.entries[y].holders[bt]&accessExclusive != 0
+				holdsRetained := e.locks.entries[x].holders[at].mode&accessExclusive != 0 && e.locks.entries[y].holders[bt].mode&accessExclusive != 0
 				e.locks.mu.Unlock()
 				if !interruptedTerminal || !errors.Is(interruption, context.Canceled) {
 					t.Errorf("interrupted request must retain canonical cancellation, terminal=%v error=%v", interruptedTerminal, interruption)
@@ -179,7 +179,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 		})
 		e.locks.mu.Lock()
 		entry := e.locks.entries[resource]
-		if len(entry.pending) != count || len(entry.holders) != 1 || entry.holders[ht] != accessExclusive {
+		if len(entry.pending) != count || len(entry.holders) != 1 || entry.holders[ht].mode != accessExclusive {
 			e.locks.mu.Unlock()
 			t.Fatal("measurement requires exactly one AX holder and all AS readers pending")
 		}
@@ -212,7 +212,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 				t.Fatal("compatible reader failed after AX release", err)
 			}
 			e.locks.mu.Lock()
-			granted := e.locks.entries[resource].holders[r.ticket]&accessShare != 0
+			granted := e.locks.entries[resource].holders[r.ticket].mode&accessShare != 0
 			e.locks.mu.Unlock()
 			if !granted {
 				t.Fatal("reader was not granted after AX release")

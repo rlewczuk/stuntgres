@@ -342,9 +342,38 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 	oldRow, oldScope, oldFrame := eval.Row, eval.Scope, eval.Frame
 	eval.Row, eval.Scope, eval.Frame = row, 1, 1
 	defer func() { eval.Row, eval.Scope, eval.Frame = oldRow, oldScope, oldFrame }()
+	expressions, prepared := eval.preparedChecks[d]
+	if !prepared {
+		// Prepare every CHECK before any volatile row evaluation, matching
+		// ExecRelCheck. Keep descriptors/dependencies untouched and copy the
+		// executable expression slice only when a branch actually changes.
+		for i := range d.checkConstraints {
+			node, changed, err := preflightCoercionsWithPolicy(eval, d.checkConstraints[i].expression, true)
+			if err != nil {
+				return nil, err
+			}
+			if changed {
+				if expressions == nil {
+					expressions = make([]BoundExpr, len(d.checkConstraints))
+					for j := range d.checkConstraints {
+						expressions[j] = d.checkConstraints[j].expression
+					}
+				}
+				expressions[i] = node
+			}
+		}
+		if eval.preparedChecks == nil {
+			eval.preparedChecks = make(map[*relationDescriptor][]BoundExpr)
+		}
+		eval.preparedChecks[d] = expressions
+	}
 	for i := range d.checkConstraints {
 		c := &d.checkConstraints[i]
-		value, err := c.expression.Eval(eval)
+		expression := c.expression
+		if expressions != nil {
+			expression = expressions[i]
+		}
+		value, err := expression.Eval(eval)
 		if err != nil {
 			return nil, err
 		}

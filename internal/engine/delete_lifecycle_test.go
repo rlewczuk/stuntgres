@@ -57,7 +57,7 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 			manager.mu.Lock()
 			terminal := request.terminal && !request.timer.Stop() && !request.stop()
 			if action == "grant" {
-				terminal = terminal && manager.entries[resource].holders[b.transactions.ticket] == rowUpdate
+				terminal = terminal && manager.entries[resource].holders[b.transactions.ticket].mode == rowUpdate
 			}
 			manager.mu.Unlock()
 			if !terminal {
@@ -207,7 +207,7 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 		e.locks.mu.Lock()
 		held := 0
 		for resource, entry := range e.locks.entries {
-			if resource.row != 0 || entry.holders[s.transactions.ticket] != rowExclusive {
+			if resource.row != 0 || entry.holders[s.transactions.ticket].mode != rowExclusive {
 				held = -100
 				break
 			}

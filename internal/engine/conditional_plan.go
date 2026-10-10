@@ -510,6 +510,28 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
+	case advisoryExpression:
+		var args []BoundExpr
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = node
+				changed = true
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		if folded, did := foldAdvisoryNull(e); did {
+			return folded, true, nil
+		}
+		expression = e
 	case visibilityInquiryExpression:
 		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
 		if failure != nil {

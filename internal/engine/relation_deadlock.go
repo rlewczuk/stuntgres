@@ -25,17 +25,17 @@ type deadlockQueue struct {
 }
 type deadlockConstraint struct{ before, after int }
 type deadlockSearch struct {
-	tickets     []*relationTicket
-	nodes       map[*relationTicket]int
-	queues      []deadlockQueue
-	positions   []int
-	edges       [][]deadlockEdge
-	state       []uint8
-	parent      []deadlockEdge
-	cycle       []deadlockEdge
-	hardCycle   []deadlockEdge
-	constraints []deadlockConstraint
-	frames      [][]deadlockEdge
+	participants []lockParticipant
+	nodes        map[lockParticipant]int
+	queues       []deadlockQueue
+	positions    []int
+	edges        [][]deadlockEdge
+	state        []uint8
+	parent       []deadlockEdge
+	cycle        []deadlockEdge
+	hardCycle    []deadlockEdge
+	constraints  []deadlockConstraint
+	frames       [][]deadlockEdge
 }
 
 func (m *relationLockManager) detectDeadlock(newRequest *relationRequest, notify **relationRequest) {
@@ -54,7 +54,7 @@ func (m *relationLockManager) normalizeDeadlockWaits(notify **relationRequest) b
 	for ref, entry := range m.entries {
 		count := len(entry.pending)
 		for _, r := range entry.pending {
-			if !r.terminal && !m.valid(r.ticket) {
+			if !r.terminal && !m.validRequest(r) {
 				terminalRequest(r, ErrCatalogReplaced, notify)
 			}
 		}
@@ -69,11 +69,12 @@ func (m *relationLockManager) normalizeDeadlockWaits(notify **relationRequest) b
 // reconstruction is required. Hypothetical search never mutates real queues.
 func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest, notify **relationRequest) bool {
 	requestCount := 0
-	s := deadlockSearch{nodes: make(map[*relationTicket]int)}
+	s := deadlockSearch{nodes: make(map[lockParticipant]int)}
 	node := func(ticket *relationTicket) {
-		if _, ok := s.nodes[ticket]; !ok {
-			s.nodes[ticket] = len(s.tickets)
-			s.tickets = append(s.tickets, ticket)
+		participant := ticket.participant()
+		if _, ok := s.nodes[participant]; !ok {
+			s.nodes[participant] = len(s.participants)
+			s.participants = append(s.participants, participant)
 		}
 	}
 	for _, entry := range m.entries {
@@ -82,7 +83,7 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 		}
 		q := deadlockQueue{entry: entry}
 		for _, r := range entry.pending {
-			if r.terminal || !m.valid(r.ticket) {
+			if r.terminal || !m.validRequest(r) {
 				continue
 			}
 			q.requests = append(q.requests, r)
@@ -99,7 +100,7 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 		}
 		s.queues = append(s.queues, q)
 	}
-	n := len(s.tickets)
+	n := len(s.participants)
 	s.positions = make([]int, requestCount)
 	s.edges = make([][]deadlockEdge, n)
 	s.state = make([]uint8, n)
@@ -152,6 +153,10 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 			detail.WriteByte('\n')
 		}
 		r, blocker := edge.request, edge.blocker
+		if r.ref.kind != ordinaryResource {
+			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.id, deadlockMode(r.mode), r.ref.high, r.ref.low, r.ref.kind, blocker.session.id)
+			continue
+		}
 		if r.ref.completion != nil {
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.id, r.ticket.ref.session.id, r.ticket.ref.epoch)
 		} else {
@@ -239,10 +244,10 @@ func (s *deadlockSearch) findCycle() bool {
 	}
 	for _, q := range s.queues {
 		for index, r := range q.requests {
-			from := s.nodes[r.ticket]
+			from := s.nodes[r.ticket.participant()]
 			for ticket, held := range q.entry.holders {
-				to, live := s.nodes[ticket]
-				if live && ticket != r.ticket && lockConflict(r.mode, held) {
+				to, live := s.nodes[ticket.participant()]
+				if live && !sameLockSession(ticket, r.ticket) && lockConflict(r.mode, held.mode) {
 					s.edges[from] = append(s.edges[from], deadlockEdge{from: from, to: to, request: r, blocker: ticket, before: -1, after: -1})
 				}
 			}
@@ -250,20 +255,27 @@ func (s *deadlockSearch) findCycle() bool {
 				if r.ref.completion != nil {
 					continue
 				}
-				if blocker.ticket == r.ticket || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !lockConflict(r.mode, blocker.mode) {
+				if sameLockSession(blocker.ticket, r.ticket) || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !lockConflict(r.mode, blocker.mode) {
 					continue
 				}
 				// A conflicting existing hold makes this dependency hard already.
-				if held := q.entry.holders[blocker.ticket]; held != 0 && lockConflict(r.mode, held) {
+				hard := false
+				for holder, held := range q.entry.holders {
+					if sameLockSession(holder, blocker.ticket) && lockConflict(r.mode, held.mode) {
+						hard = true
+						break
+					}
+				}
+				if hard {
 					continue
 				}
-				s.edges[from] = append(s.edges[from], deadlockEdge{from: from, to: s.nodes[blocker.ticket], request: r, blocker: blocker.ticket, before: q.ids[index], after: q.ids[earlier]})
+				s.edges[from] = append(s.edges[from], deadlockEdge{from: from, to: s.nodes[blocker.ticket.participant()], request: r, blocker: blocker.ticket, before: q.ids[index], after: q.ids[earlier]})
 			}
 		}
 	}
 	clear(s.state)
 	s.cycle = s.cycle[:0]
-	for node := range s.tickets {
+	for node := range s.participants {
 		if s.state[node] == 0 && s.visit(node) {
 			return true
 		}
@@ -356,6 +368,10 @@ func deadlockMode(mode relationLockMode) string {
 	case relationShare:
 		return "ShareLock"
 	case relationExclusive:
+		return "ExclusiveLock"
+	case advisoryShared:
+		return "ShareLock"
+	case advisoryExclusive:
 		return "ExclusiveLock"
 	}
 	panic("invalid deadlock request mode")
