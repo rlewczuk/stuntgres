@@ -28,9 +28,21 @@ func TestReferenceSettingsPublicTimeoutRollbackCleanup(t *testing.T) {
 	}
 }
 
-// One stage owns its physical connection from baseline through closure. Workloads
-// end in NULL, so a fast execution fails atomically instead of requiring a retry.
+// Reach larger workloads only when the preceding candidate did not time out.
+// Each attempt disposes of its implicit armed owner before acquiring a new one.
 func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBackend, stage string, rollback bool) {
+	t.Helper()
+	for _, size := range []int{16384, 65536, 262144, 1048576} {
+		if settingsTimeoutAttempt(t, p, backend, stage, rollback, size) {
+			return
+		}
+	}
+	t.Fatal("bounded actual command workload did not time out")
+}
+
+// One attempt owns its physical connection from baseline through closure.
+// Workloads end in NULL, so a fast execution fails atomically.
+func settingsTimeoutAttempt(t *testing.T, p *referencePair, backend referenceBackend, stage string, rollback bool, size int) bool {
 	t.Helper()
 	owner, err := backend.db.Conn(p.ctx)
 	if err != nil {
@@ -67,121 +79,97 @@ func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBacke
 	}
 	defer retained.Close()
 	checkRetained := settingsTimeoutCursor(t, retained, backend.pg)
-	sizes := []int{16384, 65536, 262144, 1048576}
-	queries := make([]string, len(sizes))
-	held := make([]*sql.Stmt, len(sizes))
-	for i, size := range sizes {
-		queries[i] = "INSERT INTO " + name + " VALUES " + strings.Repeat("(8),", size) + "(NULL)"
+	query := "INSERT INTO " + name + " VALUES " + strings.Repeat("(8),", size) + "(NULL)"
+	var heldStmt *sql.Stmt
+	if stage == "prepared-execute" {
+		heldStmt, err = owner.PrepareContext(p.ctx, query)
+		if err != nil {
+			t.Fatal("prepare at timeout0", err)
+		}
+		// Registered before tx.Rollback so fatal paths roll back first.
+		defer func() {
+			if heldStmt != nil {
+				if err := heldStmt.Close(); err != nil {
+					t.Error("closing timeout workload", err)
+				}
+			}
+		}()
 	}
 	// Once armed, the next owner SQL must be the intended workload: even SHOW
 	// can legitimately exceed 1ms under scheduling pressure. Setting encoding is
 	// independently asserted by TestReferenceSettingsSQL; cleanup is checked at 0.
-	if !rollback && stage != "prepared-execute" {
+	if !rollback {
 		run(owner, referenceExec("SET statement_timeout TO '1ms'", 0))
 	}
+	var tx *sql.Tx
+	var executor referenceExecutor = owner
+	var statement *sql.Stmt
+	if rollback {
+		tx, err = owner.BeginTx(p.ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		executor = tx
+		run(tx, referenceExec("SET SESSION statement_timeout TO '1ms'", 0))
+	}
+	if contextErr := p.ctx.Err(); contextErr != nil {
+		t.Fatal("fixture context expired before server timeout workload", contextErr)
+	}
+	switch stage {
+	case "direct":
+		_, err = executor.ExecContext(p.ctx, query)
+	case "prepare":
+		statement, err = executor.PrepareContext(p.ctx, query)
+	case "prepared-execute":
+		// Execute the actual Conn-held statement on this same physical transaction
+		// owner; Tx.Stmt could substitute a reprepare and lose the captured handle.
+		_, err = heldStmt.ExecContext(p.ctx)
+	}
+	if statement != nil {
+		statement.Close()
+	}
 	timedOut := false
-	for i, query := range queries {
-		if stage == "prepared-execute" {
-			// Prepare only the candidate being attempted at timeout0, before
-			// arming the timer. Unused fallback ASTs must not exhaust the fixture.
-			held[i], err = owner.PrepareContext(p.ctx, query)
-			if err != nil {
-				t.Fatal("prepare at timeout0", err)
-			}
-			// Registered before tx.Rollback so fatal paths roll back first.
-			defer func() {
-				candidate := held[i]
-				held[i] = nil
-				if candidate != nil {
-					if err := candidate.Close(); err != nil {
-						t.Error("closing timeout workload", err)
-					}
-				}
-			}()
-		}
-		if !rollback && stage == "prepared-execute" {
-			run(owner, referenceExec("SET statement_timeout TO '1ms'", 0))
-		}
-		var tx *sql.Tx
-		var executor referenceExecutor = owner
-		var statement *sql.Stmt
-		if rollback {
-			tx, err = owner.BeginTx(p.ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tx.Rollback()
-			executor = tx
-			run(tx, referenceExec("SET SESSION statement_timeout TO '1ms'", 0))
-		}
+	var state interface{ SQLState() string }
+	if errors.As(err, &state) && state.SQLState() == "57014" {
 		if contextErr := p.ctx.Err(); contextErr != nil {
-			t.Fatal("fixture context expired before server timeout workload", contextErr)
+			t.Fatal("57014 coincided with Go-context cancellation", contextErr)
 		}
-		switch stage {
-		case "direct":
-			_, err = executor.ExecContext(p.ctx, query)
-		case "prepare":
-			statement, err = executor.PrepareContext(p.ctx, query)
-		case "prepared-execute":
-			// Execute the actual Conn-held statement on this same physical transaction
-			// owner; Tx.Stmt could substitute a reprepare and lose the captured handle.
-			_, err = held[i].ExecContext(p.ctx)
+		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to statement timeout"}
+		// REL_18_0 simple-query parsing can consume the timer before the second
+		// start_xact_command rearms it and clears its indicator. QueryCancelPending
+		// survives, so ProcessInterrupts reports user request for this server timer.
+		if backend.pg && stage == "direct" {
+			want.Message = "canceling statement due to user request"
 		}
-		if statement != nil {
-			statement.Close()
+		referenceAssertDiagnostic(t, err, &want)
+		timedOut = true
+	} else if stage == "prepare" {
+		if err != nil {
+			t.Fatal("Prepare stage", err)
 		}
-		var state interface{ SQLState() string }
-		if errors.As(err, &state) && state.SQLState() == "57014" {
-			if contextErr := p.ctx.Err(); contextErr != nil {
-				t.Fatal("57014 coincided with Go-context cancellation", contextErr)
-			}
-			want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to statement timeout"}
-			// REL_18_0 simple-query parsing can consume the timer before the second
-			// start_xact_command rearms it and clears its indicator. QueryCancelPending
-			// survives, so ProcessInterrupts reports user request for this server timer.
-			if backend.pg && stage == "direct" {
-				want.Message = "canceling statement due to user request"
-			}
-			referenceAssertDiagnostic(t, err, &want)
-			timedOut = true
-		} else if stage == "prepare" {
-			if err != nil {
-				t.Fatal("Prepare stage", err)
-			}
-		} else if !errors.As(err, &state) || state.SQLState() != "23502" {
-			t.Fatal(stage, err)
-		}
-		if rollback {
-			if err := tx.Rollback(); err != nil {
-				t.Fatal("public rollback cleanup", err)
-			}
-		}
-		if !rollback && stage == "prepared-execute" && !timedOut && i+1 < len(queries) {
-			// A fast atomic23502 permits the next bounded fallback. Disarm
-			// before its preparation, then rearm immediately before execution.
-			run(owner, referenceExec("SET statement_timeout TO '0'", 0))
-		}
-		if stage == "prepared-execute" {
-			candidate := held[i]
-			held[i] = nil
-			if err := candidate.Close(); err != nil {
-				t.Fatal("closing timeout workload", err)
-			}
-		}
-		run(peer, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
-		if rollback {
-			run(owner, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
-			run(owner, localReferenceSelect(backend.pg, "SHOW statement_timeout", "statement_timeout", "0"))
-		}
-		if settingsPhysical(t, owner) != identity {
-			t.Fatal("timeout replaced physical owner")
-		}
-		if timedOut {
-			break
+	} else if !errors.As(err, &state) || state.SQLState() != "23502" {
+		t.Fatal(stage, err)
+	}
+	if rollback {
+		if err := tx.Rollback(); err != nil {
+			t.Fatal("public rollback cleanup", err)
 		}
 	}
-	if !timedOut {
-		t.Fatal("bounded actual command workload did not time out")
+	if heldStmt != nil {
+		candidate := heldStmt
+		heldStmt = nil
+		if err := candidate.Close(); err != nil {
+			t.Fatal("closing timeout workload", err)
+		}
+	}
+	run(peer, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+	if rollback {
+		run(owner, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		run(owner, localReferenceSelect(backend.pg, "SHOW statement_timeout", "statement_timeout", "0"))
+	}
+	if settingsPhysical(t, owner) != identity {
+		t.Fatal("timeout replaced physical owner")
 	}
 	run(peer, localReferenceSelect(backend.pg, "SHOW statement_timeout", "statement_timeout", "0"))
 	if !backend.pg {
@@ -191,6 +179,7 @@ func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBacke
 		settingsTimeoutRecovery(t, p, backend, owner, name, identity)
 	}
 	// The implicit owner deliberately remains armed until physical disposal.
+	return timedOut
 }
 
 func settingsTimeoutCursor(t *testing.T, retained *sql.Rows, postgres bool) func() {

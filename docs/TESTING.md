@@ -1090,14 +1090,21 @@ restores timeout 0 before checking SAME-owner and held-statement recovery.
 Both prepared-execute routes prepare only the current candidate at timeout0,
 then arm1ms before executing that genuine Conn-held handle. The rollback route
 begins its transaction after preparation and closes the handle after rollback,
-including fatal-path cleanup. After a fast atomic23502, the nonrollback route
-disarms before preparing another candidate and rearms for its actual execution.
-The timed-out implicit owner still receives no further SQL before disposal.
+including fatal-path cleanup. After an untimed atomic23502 fallback, complete
+candidate assertions and statement closure, then physically discard the still-armed
+implicit owner without further owner SQL. The next reached candidate acquires a
+fresh timeout0 owner. Rollback restores entry timeout0 on the same owner before
+statement closure and recovery assertions.
 All four bounded fallback sizes and the shared30s fixture deadline remain;
 unused million-row fallback handles are not eagerly parsed/bound.
 `TestReferenceSettingsSQL` checks tiny-timeout encoding on the arming command
 and then disposes of that isolated owner. Do not increase the timer, retry an
 expired-owner reset, or suppress its diagnostic to make fixture cleanup pass.
+Generate and prepare only the reached bounded workload, before arming its owner.
+Each candidate owns its held statement and physical connection through assertions
+and closure; an untimed fallback disposes the armed implicit owner before the next
+candidate opens a fresh timeout0 owner. Retain all fallback sizes and stage/backend
+assertions without eager million-row preparation or a larger fixture deadline.
 The superseded `TestSettingsSmoke` is removed; its typed registry, numeric,
 metadata, notice/reentry, parser capture, access and connection-lifecycle
 obligations remain in the existing shared `TestReferenceSettings*` consumers.
