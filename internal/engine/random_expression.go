@@ -32,10 +32,10 @@ func (x randomExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(x.usage.Type), nil
 		}
 	}
-	if c.statementScope == nil || c.statementScope.op == nil || c.statementScope.op.session == nil {
+	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing random session scope")
 	}
-	s := &c.statementScope.op.session.random
+	s := &c.liveScope().op.session.random
 	if x.name == "setseed" {
 		seed, err := values[0].Float()
 		if err != nil {

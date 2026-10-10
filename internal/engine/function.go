@@ -241,7 +241,7 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	scope := c.statementScope
+	scope := c.liveScope()
 	if scope == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
 	}

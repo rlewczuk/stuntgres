@@ -210,6 +210,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	switch s := statement.(type) {
 	case *Select:
 		return query(s)
+	case *DeclareCursor:
+		return query(s.Query)
 	case *CreateView:
 		return query(s.Query)
 	case *CreateQueryTable:

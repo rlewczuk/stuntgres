@@ -283,6 +283,30 @@ controls retain their ordinary precanceled context-error contract.
 Complete dual-mode family: `RUN='^TestReferenceStringEncoding'`; feature smoke:
 `RUN='^TestReferenceStringEncodingFeatureSmoke$'` under both quickcheck modes.
 
+### Forward-only SQL cursors — change note
+
+Nonholdable `DECLARE [NO SCROLL] CURSOR [WITHOUT HOLD] FOR query`, forward
+constant-count/ALL FETCH and CLOSE/name/ALL reuse the typed query pipeline and one
+physical-session registry. Each FETCH is eager and detached while the private
+query retains position and DECLARE visibility. First-demand identity/time data
+is distinct from each FETCH's current execution authority. Blocking query demand
+is preserved; ordinary SELECT eagerness is unchanged. Empty and zero-width batches
+retain complete schema/cardinality. SQL/driver transaction end, full abort,
+PREPARE detach and session end close named execution; savepoint rollback removes
+later declarations without rewinding older movement or undoing CLOSE/failure.
+Native held FETCH returns the live schema, not pq's stale prepared description.
+Successful final cursor preflight is authoritative: Finish cannot retract a
+completed DECLARE/FETCH/CLOSE on late cancellation, while mid-demand failure
+returns no partial batch and fails the portal. Only these stage-free cursor
+utilities bypass the explicit private-stage merge; noncursor publication is unchanged.
+Runtime REGTYPE parser notices and modifier warnings use the current FETCH's
+operation/`client_min_messages`, not DECLARE's. Quiet DECLARE/before-first FETCH0
+and EOF do not emit runtime warnings; bounded FETCH projects no extra output warning.
+SCROLL, WITH HOLD, backward repositioning and ABSOLUTE/RELATIVE movement remain
+excluded. See [driver ownership and transport distinctions](DRIVER.md#forward-only-sql-cursors--change-note).
+Dual-mode family: `RUN='^TestReferenceSQLCursor'`; feature smoke:
+`RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+
 ### Prepared transaction SQL — change note
 
 `PREPARE TRANSACTION STRING`, `COMMIT PREPARED STRING` and
@@ -4078,7 +4102,8 @@ and destroys later marks. Release retains changes and removes target/later
 marks, except it restores the target parent's read-only mode. A recoverable
 error restores the newest mark and leaves the block Aborted until ROLLBACK TO.
 Per-mark relation/row lock contributions are restored on rollback/error, retaining
-the same ticket and premark modes. Cursor rollback and PL/pgSQL remain excluded.
+the same ticket and premark modes. Cursor declarations after the mark disappear;
+older motion, failure and CLOSE persist. PL/pgSQL remains excluded.
 Modifying utilities outside selected ALTER TYPE/nullability/identity/DROP COLUMN
 lists and sequence utilities remain a native 0A000 boundary in RW blocks.
 Exec-only RO rejects supported INSERT/UPDATE/DELETE, CREATE/ALTER/DROP

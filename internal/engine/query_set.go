@@ -70,7 +70,8 @@ func (a *setArm) next(ctx context.Context) ([]sqltype.Value, bool, error) {
 	if err != nil || !present {
 		return nil, present, err
 	}
-	a.inner.evaluation.Context, a.inner.evaluation.Row = ctx, a.inner.source.row(a.inner.index(i))
+	a.inner.evaluation.setContext(ctx)
+	a.inner.evaluation.Row = a.inner.source.row(a.inner.index(i))
 	a.inner.evaluation.orderValues = a.inner.orderRow(i)
 	for j, expression := range a.expressions {
 		if err := ctx.Err(); err != nil {
@@ -95,7 +96,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 	if len(n.grouping) != len(n.Schema()) {
 		return out, fmt.Errorf("stuntgres: invalid set grouping schema")
 	}
-	source := &querySource{flatWidth: len(n.Schema()), materialized: true}
+	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
 	buckets := make(map[uint64][]int)
 	var counts [][2]int
 	for side, arm := range [2]*projectNode{n.left, n.right} {
@@ -169,7 +170,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 }
 
 func openUnionAll(ctx context.Context, state *queryState, n *setNode) (indexedStage, error) {
-	out := indexedStage{source: &querySource{flatWidth: len(n.Schema()), materialized: true}, schema: n.Schema(), selection: []int{}}
+	out := indexedStage{source: &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.Schema(), selection: []int{}}
 	var child setArm
 	opened, side := false, 0
 	out.finish = func() error {

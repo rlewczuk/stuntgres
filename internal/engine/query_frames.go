@@ -84,7 +84,9 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 	if frame == 0 {
 		frame = 1
 	}
-	return EvalContext{Context: ctx, Scope: 1, Frame: frame, Parameters: s.parameters, statementScope: s.source.scope, Input: s.input, Output: s.output, Outer: s.outer, query: s}
+	evaluation := EvalContext{Scope: 1, Frame: frame, Parameters: s.parameters, Input: s.input, Output: s.output, Outer: s.outer, query: s}
+	evaluation.setContext(ctx)
+	return evaluation
 }
 
 func (b *expressionBinder) outerQualifiers() []queryQualifier {

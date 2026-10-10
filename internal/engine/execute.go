@@ -16,6 +16,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.FetchCursor:
+		return scope.executeFetchCursor(stmt.(*parser.FetchCursor), count)
+	case *parser.CloseCursor:
+		return scope.executeCloseCursor(stmt.(*parser.CloseCursor), count)
+	case *parser.DeclareCursor:
+		if scope.implicit {
+			return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
+		}
+		name := stmt.(*parser.DeclareCursor).Name.Text
+		if op.session.cursors.entries[name] != nil {
+			return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
+		}
 	case *parser.CreateIndex:
 		return e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count)
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
@@ -385,11 +397,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	tag := modifyingTag(stmt)
+	selection, selecting := stmt.(*parser.Select)
+	if declaration, ok := stmt.(*parser.DeclareCursor); ok {
+		selection, selecting = declaration.Query, true
+		tag = modifyingTag(selection)
+	}
 	// PostgreSQL reports the rewritten SELECT command for a marked view,
 	// including constant views without physical lock leaves. Physical table
 	// rowmarks retain their original SELECT FOR ... diagnostic.
 	if scope.owner.readOnly {
-		if _, selecting := stmt.(*parser.Select); selecting {
+		if selecting {
 			for _, leaf := range b.querySources {
 				if leaf.mark.mode != 0 && leaf.relation.view != nil {
 					tag = "SELECT"
@@ -398,7 +415,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	if _, selecting := stmt.(*parser.Select); selecting && tag == "" && scope.owner.readOnly && b.query != nil {
+	if selecting && tag == "" && scope.owner.readOnly && b.query != nil {
 		mode, modeErr := e.firstQueryRowModeLocked(scope, b.query.Root, b.querySources)
 		if modeErr != nil {
 			e.mu.Unlock()
@@ -659,6 +676,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return scope.executeDelete(b, view, inputs, canonical)
 	case *parser.CreateQueryTable:
 		return e.executeQueryTableLocked(scope, s, b, queryRoot, canonical, creationStage, creationDescriptor)
+	case *parser.DeclareCursor:
+		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
+		e.mu.Unlock()
+		if sourceErr != nil {
+			return Result{}, sourceErr
+		}
+		if err := selectQuerySources(ctx, source); err != nil {
+			source.close()
+			return Result{}, err
+		}
+		return scope.installSQLCursor(s, queryRoot, source, canonical)
 	case *parser.Select:
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.From == nil && s.Values == nil)
 		e.mu.Unlock()

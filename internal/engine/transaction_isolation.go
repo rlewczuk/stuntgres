@@ -182,7 +182,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 }
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	switch stmt.(type) {
-	case *parser.Select, *parser.CreateQueryTable, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
+	case *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CreateQueryTable, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.SettingCall:
 	default:
 		return nil
 	}
@@ -350,7 +350,7 @@ func modifyingTag(stmt parser.Statement) string {
 func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error {
 	t := s.owner
 	switch stmt.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	case *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return nil
 	}
 	t.mu.Lock()

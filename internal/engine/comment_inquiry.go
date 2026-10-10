@@ -129,14 +129,14 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.usage.Type), nil
 	}
-	if c.statementScope == nil || c.statementScope.commentCatalog.state == nil {
+	if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
 	oid, err := values[0].OID()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	scope := c.statementScope
+	scope := c.liveScope()
 	var text string
 	switch e.kind {
 	case legacyDescription:

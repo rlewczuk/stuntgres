@@ -258,6 +258,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.FetchCursor:
+		if cursor := op.session.cursors.entries[s.Name.Text]; cursor != nil {
+			return StatementDescription{Results: cursor.schema}, nil
+		}
+		return StatementDescription{}, nil
+	case *parser.CloseCursor:
+		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.AlterView, *parser.DropView:
 		return StatementDescription{}, nil
 	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
@@ -611,6 +618,14 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, err
 		}
 		b.querySources = binder.querySources
+	case *parser.DeclareCursor:
+		var err error
+		binder.queryAuth = &auth
+		b.query, err = binder.bindSelect(s.Query, false)
+		if err != nil {
+			return b, err
+		}
+		b.commandQuery = true
 	case *parser.Select:
 		var err error
 		binder.queryAuth = &auth

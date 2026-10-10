@@ -153,14 +153,14 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if value.IsNull() {
 		return sqltype.Null(e.usage.Type), nil
 	}
-	if c.statementScope == nil || c.statementScope.visibilityCatalog.state == nil {
+	if c.liveScope() == nil || c.liveScope().visibilityCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
 	}
 	oid, err := value.OID()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	scope := c.statementScope
+	scope := c.liveScope()
 	d, exists := scope.visibilityCatalog.Descriptor(ObjectAddress{ClassID: e.kind.class(), ObjectID: OID(oid)})
 	if !exists {
 		return sqltype.Null(e.usage.Type), nil

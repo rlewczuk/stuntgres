@@ -21,6 +21,7 @@ type capturedRegtypeInput struct {
 	temporary ObjectAddress
 	token     SessionToken
 	op        *Operation
+	authority *queryAuthority
 	position  parser.Position
 	portal    string
 	qualified *[]ObjectAddress
@@ -62,12 +63,19 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 		}
 		return value.OID()
 	}
+	op := r.op
+	if r.authority != nil {
+		op = nil
+		if r.authority.scope != nil {
+			op = r.authority.scope.op
+		}
+	}
 	raw, err := parser.ParseTypeName(ctx, text, func(notice sqlstate.Error) {
-		if r.op != nil {
+		if op != nil {
 			if r.portal != "" {
 				notice.Context += "\n" + r.portal
 			}
-			r.op.emitNotice(levelNotice, notice)
+			op.emitNotice(levelNotice, notice)
 		}
 	})
 	if err != nil {
@@ -183,12 +191,12 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 		if err != nil {
 			return 0, err
 		}
-		if warning != nil && r.op != nil {
+		if warning != nil && op != nil {
 			if r.position.Character > 0 {
 				warning.Position = strconv.Itoa(r.position.Character)
 			}
 			warning.Context = r.portal
-			r.op.emitNotice(levelWarning, *warning)
+			op.emitNotice(levelWarning, *warning)
 		}
 	}
 	return uint32(typ.ID()), nil

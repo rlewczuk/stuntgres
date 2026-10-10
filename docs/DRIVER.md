@@ -47,6 +47,64 @@ expired trusted admission, physical limit release, NOLOGIN and held authority
 refresh. Its repeatable reference selector is
 `RUN='^TestReferenceRoleAttributesFeatureSmoke$'` in both quickcheck modes.
 
+## Forward-only SQL cursors — change note
+
+`DECLARE name [NO SCROLL] CURSOR [WITHOUT HOLD] FOR query` requires an explicit
+transaction on a pinned `sql.Conn` or `sql.Tx`. DECLARE analyzes the complete
+query and captures its data snapshot and owned parameters without producing
+target values. `FETCH [FORWARD] count FROM|IN name` and `FETCH [FORWARD] ALL`
+continue the retained query in result order. Each successful FETCH publishes a
+fully eager, detached batch with the live cursor's complete schema, including
+empty/exhausted and zero-column results. Ordinary SELECT remains fully eager.
+Blocking sorts, aggregates, joins and views may demand input before a batch;
+there is no universal one-expression-draw-per-returned-row promise.
+
+The first effective FETCH captures selected stable identity and statement-time
+expression data; before-first FETCH0 does not start demand. Every FETCH uses a
+fresh operation/context, current cancellation and lock policy, transaction
+authority and sequence acquisition. DECLARE's source snapshot is never rebound
+or reopened. Already returned batches remain immutable after SQL CLOSE,
+transaction/session end or native catalog replacement.
+
+The final successful cursor publication preflight is the completion boundary:
+later cancellation cannot retract a delivered FETCH batch, installed DECLARE or
+completed CLOSE/CLOSE ALL in statement Finish. Cancellation or an error during
+demand or before that preflight returns no partial batch and leaves the executing
+cursor failed, not rewound. Finish still advances the command and releases statement
+admission/resources; only successful cursor utilities skip the private-stage merge.
+Ordinary statements retain their required row/catalog publication.
+
+Runtime REGTYPE casts route parser notices and modifier warnings through the
+current FETCH operation and its captured `client_min_messages` policy, never the
+DECLARE operation. A demanded TEXT `timestamp(7)` cast emits WARNING/22023
+`TIMESTAMP(7) precision reduced to maximum allowed, 6` when that policy permits it.
+Quiet description/DECLARE and before-first FETCH0 emit no runtime warning;
+bounded FETCH does not project an extra row's warning, and EOF emits none.
+
+`CLOSE name` and `CLOSE ALL` dispose named execution. COMMIT, ROLLBACK, CHAIN,
+full abort, PREPARE TRANSACTION detach and physical session end dispose nonholdable
+cursors. ROLLBACK TO removes declarations after its mark but does not rewind
+older cursor motion, undo CLOSE or heal an executing cursor failure. Recovered
+failed cursors report55000 `portal "name" cannot be run`; missing names give34000.
+Backward/negative and on-row zero FETCH give55000 `cursor can only scan forward`
+with the SCROLL hint. SCROLL, WITH HOLD and ABSOLUTE/RELATIVE movement remain
+independent unsupported capabilities.
+
+Preparing DECLARE analyzes parameters/dependencies but installs nothing;
+preparing FETCH/CLOSE performs no movement/name-error lookup. A native held
+FETCH always returns the current entry's actual names/types/values, even after
+same-name replacement or missing-at-Prepare declaration. Only FETCH is exempt
+from ordinary immutable prepared SELECT-result signatures. lib/pq independently
+retains its old wire description: absent descriptions can expose zero-width
+occurrences, and same-width replacements can expose old aliases. Type-changing
+replacement can fail in pq's stale binary decoder; native never emulates that
+corruption. Closing Go Rows or Stmt does not close or rewind the named cursor.
+Dump excludes names, positions and retained query execution; successful native
+Reset/Restore fences the next admitted use rather than recapturing sources.
+
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0`.
+
 ## Command and transaction clocks
 
 Each native public SQL request captures a microsecond-quantized command sample

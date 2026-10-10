@@ -50,8 +50,8 @@ func (e formatExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		values = formatValues{array: scratch[1]}
 	}
 	output := c.Output
-	output.Regclass = c.statementScope
-	output.Regtype = c.statementScope
+	output.Regclass = c.liveScope()
+	output.Regtype = c.liveScope()
 	text, err := formatText(c.Context, pattern, values, e.int4, output)
 	if err != nil {
 		return sqltype.Value{}, err

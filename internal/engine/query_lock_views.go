@@ -410,7 +410,7 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 		return frame, true, nil
 	}
 	if source.lineage != nil {
-		if !changedQueryLockSource(source.lineage.stage, evaluation.statementScope.queryLocks) {
+		if !changedQueryLockSource(source.lineage.stage, evaluation.liveScope().queryLocks) {
 			return source.row(source.lineage.currentIndex), true, nil
 		}
 		child := *evaluation
@@ -434,7 +434,7 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 	return rows[source.occurrence], true, nil
 }
 func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
-	if absentLockedQuery(node, inputs, evaluation.statementScope.queryLocks) {
+	if absentLockedQuery(node, inputs, evaluation.liveScope().queryLocks) {
 		return nil, true, nil
 	}
 	switch n := node.(type) {
@@ -516,8 +516,8 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		frame := scratch[*offset : *offset+len(n.Schema())]
 		*offset += len(frame)
-		leftAbsent := absentLockedQuery(n.left, inputs, evaluation.statementScope.queryLocks)
-		rightAbsent := absentLockedQuery(n.right, inputs, evaluation.statementScope.queryLocks)
+		leftAbsent := absentLockedQuery(n.left, inputs, evaluation.liveScope().queryLocks)
+		rightAbsent := absentLockedQuery(n.right, inputs, evaluation.liveScope().queryLocks)
 		if leftAbsent {
 			for i := range n.leftWidth {
 				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
@@ -555,7 +555,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 // consumes its provenance. Scalar view layers defer to their nearest owning
 // frontier, including an outer join's local input producer.
 func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode, child indexedStage) (indexedStage, error) {
-	locks, scope := state.source.locks, state.source.scope
+	locks := state.source.locks
 	due := make([]queryRowMark, len(locks.leaves))
 	for _, mark := range child.pending {
 		for _, occurrence := range mark.occurrences {
@@ -576,19 +576,23 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	joined := child.source.materialized
 	source := child.source
 	if !joined {
-		source = &querySource{anonymous: [][]sqltype.Value{}, materialized: true, occurrences: occurrences}
+		source = &querySource{anonymous: [][]sqltype.Value{}, materialized: true, occurrences: occurrences, authority: state.source.authority, scope: state.source.scope}
 	}
 	source.occurrences = occurrences
 	out := producingStage(&child, child.schema)
 	out.source, out.expressions, out.evaluation = source, child.expressions, child.evaluation
 	out.pending = nil
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		scope := state.source.liveScope()
+		if scope == nil {
+			return false, fmt.Errorf("stuntgres: missing row locking scope")
+		}
 		for {
 			i, present, err := child.nextOccurrence(ctx)
 			if err != nil || !present {
 				return present, err
 			}
-			evaluation.Context = ctx
+			evaluation.setContext(ctx)
 			index := child.index(i)
 			setQueryLineage(child.source, index)
 			provenance = appendQueryProvenance(provenance[:0], child.source, index)

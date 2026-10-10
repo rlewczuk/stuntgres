@@ -44,7 +44,7 @@ func TestHashIndexImmutableBatchAndCapturedPrefixes(t *testing.T) {
 		run(t, e, q)
 	}
 	_, old := hashRoot(t, e, "hn")
-	query, source := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
+	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	value := source.committed[1].values[0]
 	h, err := old.binding.provider.Hash(context.Background(), value)
 	if err != nil {
@@ -71,16 +71,18 @@ func TestHashIndexImmutableBatchAndCapturedPrefixes(t *testing.T) {
 		t.Fatal("retained prefix lost old identities", stage.count(), err)
 	}
 	stage.Close()
+	release()
 	_, current := hashRoot(t, e, "hn")
 	if got := hashKeys(t, current); !reflect.DeepEqual(got, []string{"2", "3", "4"}) {
 		t.Fatal(got)
 	}
-	freshQuery, freshSource := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
+	freshQuery, freshSource, releaseFresh := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	fresh := hashFilterStage(t, freshQuery, freshSource, nil)
 	if fresh.hashCandidates == nil || len(fresh.hashCandidates.occurrences) != 1 {
 		t.Fatal("new capture used old candidates")
 	}
 	fresh.Close()
+	releaseFresh()
 	retained := current
 	for _, q := range []string{"INSERT INTO t VALUES('bad')", "CREATE INDEX bad ON t USING hash((10/(n-2)))"} {
 		_, err := testExecute(e, context.Background(), statement(t, q), nil)
@@ -129,8 +131,8 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "INSERT INTO t VALUES(2)")
 	op := transactionOperation(t, s)
-	query, source := hashCaptureQuery(t, e, op, "SELECT n FROM t WHERE n=2")
-	op.Done()
+	t.Cleanup(op.Done)
+	query, source, release := hashCaptureQuery(t, e, op, "SELECT n FROM t WHERE n=2")
 	if len(source.hashIndexes) != 0 {
 		t.Fatal("private/explicit view acquired current root")
 	}
@@ -142,6 +144,8 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 		t.Fatal(stage.count(), err)
 	}
 	stage.Close()
+	release()
+	op.Done()
 	transactionEnd(t, s, tx, false)
 	_, after := hashRoot(t, e, "hn")
 	if after != retained {
@@ -151,11 +155,11 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	e.mu.Lock()
 	e.storage[parent.address].generation++
 	e.mu.Unlock()
-	_, source = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
+	_, source, release = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	if len(source.hashIndexes) != 0 {
 		t.Fatal("mismatched generation admitted")
 	}
-	source.close()
+	release()
 }
 
 func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
@@ -239,7 +243,9 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	parent := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	store := e.storage[parent.address]
 	value, err := parent.columns[0].Usage.Type.Input(context.Background(), "3", -1)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	writes := append([]rowVersion(nil), store.versions...)
 	for i := range writes {
 		writes[i].base, writes[i].born = writes[i].version, 0
@@ -249,11 +255,17 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	for _, rebuild := range []bool{false, true} {
 		for _, materialize := range []bool{false, true} {
 			p := rowPublication{address: parent.address, store: store, original: store, originalRelation: parent, relation: parent, root: store.versions, writes: writes, ends: store.ends, generation: store.generation, singleSlot: -1}
-			if err := e.prepareRowPublication(&p, TxRef{}, materialize); err != nil { t.Fatal(err) }
+			if err := e.prepareRowPublication(&p, TxRef{}, materialize); err != nil {
+				t.Fatal(err)
+			}
 			var intents map[ObjectAddress]*relationDescriptor
-			if rebuild { intents = map[ObjectAddress]*relationDescriptor{index.address: index} }
+			if rebuild {
+				intents = map[ObjectAddress]*relationDescriptor{index.address: index}
+			}
 			roots, err := e.prepareIndexPublication(context.Background(), e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil)
-			if err != nil { t.Fatal(rebuild, materialize, err) }
+			if err != nil {
+				t.Fatal(rebuild, materialize, err)
+			}
 			if materialize {
 				if roots[index.address] == e.indexRoots[index.address] || roots[index.address].hash == nil || !reflect.DeepEqual(hashKeys(t, roots[index.address].hash), []string{"3", "3"}) {
 					t.Fatal("materializing phase lost hash updates", rebuild, roots)

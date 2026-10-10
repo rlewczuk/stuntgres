@@ -34,19 +34,23 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.statementScope == nil {
+	if c.liveScope() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: identity lacks statement authority")
 	}
-	s := c.statementScope
+	s := c.liveScope()
+	identity := s.identity
+	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
+		identity = c.query.source.authority.expression.identity
+	}
 	switch e.kind {
 	case identityCatalog, identityDatabase:
-		return s.identity.database, nil
+		return identity.database, nil
 	case identityRole, identityCurrentUser, identityUser:
-		return s.identity.current, nil
+		return identity.current, nil
 	case identitySessionUser:
-		return s.identity.session, nil
+		return identity.session, nil
 	case identitySystemUser:
-		return s.identity.system, nil
+		return identity.system, nil
 	case identityCurrentSchema:
 		if s.currentSchemaResult.Type() != nil {
 			return s.currentSchemaResult, nil

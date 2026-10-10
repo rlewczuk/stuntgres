@@ -118,6 +118,9 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 
 // Called once with e.mu held: all table roots share this statement frontier.
 func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []queryLeaf, singleton bool) (*querySource, error) {
+	if scope.authority == nil {
+		scope.authority = &queryAuthority{scope: scope}
+	}
 	var invoker PrincipalRef
 	for _, leaf := range leaves {
 		if leaf.relation.view != nil {
@@ -206,7 +209,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 	}
 	if len(leaves) == 0 {
-		return &querySource{singleton: singleton, scope: scope, locks: locks}, nil
+		source := &querySource{singleton: singleton, locks: locks}
+		source.borrowAuthority(scope)
+		return source, nil
 	}
 	var single [1]ObjectRef
 	refs := single[:0]
@@ -265,7 +270,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			}
 			return nil, err
 		}
-		source.scope = scope
+		source.borrowAuthority(scope)
 		source.occurrence = i
 		source.locks = locks
 		if locks != nil && source.lineage == nil {

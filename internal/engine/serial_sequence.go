@@ -10,7 +10,7 @@ import (
 // evalSerialSequence reads the statement's catalog, not defaults or generator
 // state. AUTO (serial/manual) and INTERNAL (identity) share the same owned address.
 func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.Value) (sqltype.Value, error) {
-	scope := c.statementScope
+	scope := c.liveScope()
 	catalog := scope.commentCatalog
 	table, err := values[0].Text()
 	if err != nil {

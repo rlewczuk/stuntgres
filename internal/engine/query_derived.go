@@ -23,7 +23,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 	if err != nil {
 		return indexedStage{}, err
 	}
-	source := &querySource{flatWidth: len(n.Schema()), materialized: true, scope: state.source.scope, locks: state.source.locks}
+	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 	if state.source.locks != nil {
 		source.lineage = &queryLockLineage{root: project, inputs: state.source, stage: inner.source, state: innerState}
 	}
@@ -42,7 +42,8 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		if err != nil || !present {
 			return present, err
 		}
-		inner.evaluation.Context, inner.evaluation.Row = ctx, inner.source.row(inner.index(i))
+		inner.evaluation.setContext(ctx)
+		inner.evaluation.Row = inner.source.row(inner.index(i))
 		inner.evaluation.orderValues = inner.orderRow(i)
 		start := len(source.flat)
 		source.flat = append(source.flat, make([]sqltype.Value, len(n.Schema()))...)

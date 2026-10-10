@@ -1,0 +1,100 @@
+package parser
+
+import (
+	"errors"
+	"math"
+	"testing"
+
+	"stuntgres/internal/sqlstate"
+)
+
+func TestSQLCursorGrammar(t *testing.T) {
+	for _, q := range []string{
+		`DECLARE "Mixed" NO SCROLL CURSOR FOR SELECT i FROM public.t ORDER BY i`,
+		`DECLARE "Mixed" CURSOR WITHOUT HOLD FOR VALUES (1),(2)`,
+	} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		cursor, ok := statements[0].(*DeclareCursor)
+		if !ok || cursor.Name.Text != "Mixed" || cursor.Name.Pos.Offset != 8 || cursor.Pos.Offset != 0 || cursor.Query == nil {
+			t.Fatal(q, statements[0])
+		}
+	}
+	for _, test := range []struct {
+		query         string
+		count         int64
+		all, backward bool
+	}{
+		{"FETCH 1 FROM c", 1, false, false},
+		{"FETCH FORWARD +2 IN c", 2, false, false},
+		{"FETCH FORWARD -9223372036854775808 FROM c", math.MinInt64, false, false},
+		{"FETCH FORWARD 9223372036854775807 FROM c", math.MaxInt64, false, false},
+		{"FETCH c", 1, false, false},
+		{"FETCH FORWARD FROM c", 1, false, false},
+		{"FETCH ALL FROM c", 0, true, false},
+		{"FETCH FORWARD ALL IN c", 0, true, false},
+		{"FETCH BACKWARD ALL FROM c", 0, true, true},
+		{"FETCH BACKWARD 1 FROM c", 1, false, true},
+	} {
+		statements, err := Parse(test.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(test.query, statements, err)
+		}
+		cursor, ok := statements[0].(*FetchCursor)
+		if !ok || cursor.Name.Text != "c" || cursor.Count != test.count || cursor.All != test.all || cursor.Backward != test.backward {
+			t.Fatal(test.query, statements[0])
+		}
+	}
+	for _, q := range []string{`CLOSE "Mixed"`, "CLOSE ALL"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, err)
+		}
+		close := statements[0].(*CloseCursor)
+		if close.All != (q == "CLOSE ALL") || (!close.All && close.Name.Text != "Mixed") {
+			t.Fatal(close)
+		}
+	}
+}
+func TestSQLCursorFullInputAndExcludedCapabilities(t *testing.T) {
+	for _, q := range []string{"FETCH FORWARD $1 FROM c", "FETCH 1+1 FROM c", "FETCH 1 FROM c trailing", "CLOSE c trailing", "DECLARE c NO SCROLL CURSOR FOR SELECT 1 junk junk"} {
+		statements, err := Parse(q)
+		if err == nil || len(statements) != 0 {
+			t.Fatal("partial cursor syntax accepted", q, statements, err)
+		}
+	}
+	for _, q := range []string{"DECLARE c SCROLL CURSOR FOR SELECT 1", "DECLARE c CURSOR WITH HOLD FOR SELECT 1", "FETCH ABSOLUTE 1 FROM c", "FETCH RELATIVE 1 FROM c"} {
+		statements, err := Parse(q)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || len(statements) != 0 {
+			t.Fatal(q, statements, err)
+		}
+	}
+	statements, err := Parse("FETCH FORWARD 9223372036854775808 FROM c")
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || len(statements) != 0 {
+		t.Fatal(statements, err)
+	}
+	// The utility FETCH entry must not consume SELECT's existing bound syntax.
+	statements, err = Parse("SELECT i FROM t FETCH FIRST 2 ROWS ONLY")
+	if err != nil || len(statements) != 1 || statements[0].(*Select).Bounds == nil {
+		t.Fatal(statements, err)
+	}
+}
+func TestSQLCursorQueryTraversal(t *testing.T) {
+	statements, err := Parse("DECLARE c NO SCROLL CURSOR FOR SELECT a.i,(SELECT b.i FROM b) FROM a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries, tables := 0, 0
+	err = VisitQuerySources(statements[0], func(*Select) error { queries++; return nil }, func(*TableReference, *Select) error { tables++; return nil })
+	if err != nil || queries != 2 || tables != 2 {
+		t.Fatal(queries, tables, err)
+	}
+	statements, err = Parse("SELECT declare,cursor,close,scroll,hold,forward,backward,absolute,relative FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal("unreserved cursor words lost name legality", statements, err)
+	}
+}

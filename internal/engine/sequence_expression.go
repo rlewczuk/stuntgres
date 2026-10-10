@@ -394,7 +394,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.statementScope == nil {
+	if c.liveScope() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
 	var values [3]sqltype.Value
@@ -410,7 +410,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(x.usage.Type), nil
 		}
 	}
-	scope := c.statementScope
+	scope := c.liveScope()
 	e := scope.op.session.Engine()
 	ref := x.ref
 	if x.name != "lastval" && ref.owner == nil {

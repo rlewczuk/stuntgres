@@ -92,6 +92,7 @@ type Session struct {
 	settings             *sessionSettings
 	transactions         *transactionOwner
 	advisory             sessionAdvisory
+	cursors              *cursorRegistry
 	authorization        *sessionAuthorization
 	sequences            map[ObjectAddress]*sequenceMemory
 	lastSequence         ObjectAddress
@@ -184,6 +185,13 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 				e.locks.end(ticket)
 				s.advisory.ticket = nil
 			}
+		}
+	}
+	if err == nil {
+		cursors := &cursorRegistry{entries: make(map[string]*sqlCursor), token: s.token}
+		_, err = op.Attach(Cursors, cursors)
+		if err == nil {
+			s.cursors = cursors
 		}
 	}
 	e.mu.Lock()

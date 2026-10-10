@@ -38,7 +38,7 @@ func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (
 	if width == 0 || len(n.grouping) != width || len(n.Schema()) != width {
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid DISTINCT schema")
 	}
-	source := &querySource{flatWidth: width, materialized: true}
+	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
 	scratch := make([]sqltype.Value, width)
 	buckets := make(map[uint64][]int)
 	evaluation := state.evaluation(nil)

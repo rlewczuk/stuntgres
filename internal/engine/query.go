@@ -401,6 +401,7 @@ type querySource struct {
 	visible              []int
 	hashIndexes          []capturedHashIndex
 	scope                *StatementScope
+	authority            *queryAuthority
 	sources              []*querySource
 	flat                 []sqltype.Value
 	flatWidth, flatCount int
@@ -592,6 +593,7 @@ func (s *querySource) close() {
 	}
 	s.view = nil
 	s.committed, s.own = nil, nil
+	s.authority, s.scope = nil, nil
 	s.partialMask = nil
 	s.anonymous = nil
 	s.visible = nil
@@ -689,7 +691,8 @@ func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (
 			copy(dst, row)
 		}
 	} else {
-		s.evaluation.Context, s.evaluation.Row = ctx, row
+		s.evaluation.setContext(ctx)
+		s.evaluation.Row = row
 		if s.cacheWidth != 0 {
 			s.evaluation.orderValues = s.orderRow(s.position)
 		}
@@ -771,7 +774,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if state.source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
-		source := &querySource{flatWidth: len(n.Schema()), materialized: true}
+		source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority}
 		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 		evaluation := state.evaluation(nil)
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
@@ -779,7 +782,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			if i == len(n.rows) {
 				return false, nil
 			}
-			evaluation.Context = ctx
+			evaluation.setContext(ctx)
 			for j, expr := range n.rows[i] {
 				value, err := expr.Eval(&evaluation)
 				if err != nil {
@@ -799,7 +802,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if state.source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing singleton statement source")
 		}
-		source := &querySource{singleton: true, scope: state.source.scope, locks: state.source.locks}
+		source := &querySource{singleton: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *sourceNode:
 		source := state.source
@@ -861,7 +864,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 						continue
 					}
 				}
-				evaluation.Context, evaluation.Row = ctx, child.source.row(child.index(i))
+				evaluation.setContext(ctx)
+				evaluation.Row = child.source.row(child.index(i))
 				value, err := n.predicate.Eval(&evaluation)
 				if err != nil {
 					return false, err
@@ -1233,8 +1237,8 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
 	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
-	if source.scope != nil {
-		state.input, state.output = source.scope.input, source.scope.output
+	if scope := source.liveScope(); scope != nil {
+		state.input, state.output = scope.input, scope.output
 	}
 	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {

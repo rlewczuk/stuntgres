@@ -179,10 +179,11 @@ Actual TEMP sequence/object/namespace use is sticky across savepoint rollback
 and fails0A000 `cannot PREPARE a transaction that has operated on temporary objects`.
 An unused temporary sequence from an earlier transaction is allowed. Persistent
 nextval/currval/setval/lastval memory is allowed; consumed draws remain
-nontransactional. DECLARE/WITH HOLD cursors, LISTEN/UNLISTEN/NOTIFY
-and pg_export_snapshot retain their existing unsupported syntax/function
-boundaries, not executable native restriction parity. Ordinary Go Rows/Stmt
-handles are not SQL WITH HOLD cursors.
+nontransactional. Nonholdable SQL cursors close on PREPARE TRANSACTION detach.
+WITH HOLD cursors are rejected with0A000 `WITH HOLD cursors are unsupported`;
+LISTEN/UNLISTEN/NOTIFY and pg_export_snapshot retain their unsupported
+statement/function boundaries, not executable native PREPARE restriction parity.
+Ordinary Go Rows/Stmt handles are not SQL WITH HOLD cursors.
 
 `pg_catalog.pg_prepared_xacts` (also unqualified through pg_catalog lookup) is a
 read-only PUBLIC SELECT source with exactly five columns in order:
@@ -380,10 +381,25 @@ is allowed. Read-only to read-write is forbidden inside a read-only child.
 Locks remain on the same outer transaction ticket, but ROLLBACK TO and
 recoverable error unwind restore its held resource/mode snapshot. New resources
 and later upgrades disappear; earlier and incomparable modes survive. RELEASE
-retains contributions for the parent. Cursor rollback and PL/pgSQL remain excluded.
+retains contributions for the parent. SQL cursor declarations after the mark
+are removed; earlier positions/failure/closure are not restored. PL/pgSQL remains
+excluded. See [SQL cursor ownership](DRIVER.md#forward-only-sql-cursors--change-note).
 Successful Reset/Restore fences and discards stale private marks; rollback-to
 cannot resurrect an old catalog epoch. Full rollback remains recovery-eligible.
 Dump omits private writes; Restore does not accept transaction controls.
+
+Successful DECLARE, FETCH and CLOSE/CLOSE ALL have one final cursor publication
+preflight before irreversible installation, finalized batch delivery or removal.
+Cancellation after that success cannot retract it in statement Finish. These
+utilities have no private write stage to merge: Finish preserves existing
+transaction writes/deletions/catalog roots, advances the command once and performs
+normal visibility/resource cleanup, admission release and implicit termination.
+This exception is cursor-private, not a blanket exemption for completed utilities:
+noncursor catalog and projected-root changes still require their existing merge.
+Mid-demand or preflight failure returns no partial FETCH batch and permanently
+fails that portal; recovery never rewinds it. Runtime notices/warnings use each
+FETCH's current operation and notice policy, independently of DECLARE's snapshot
+and first-demand identity/time data.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke VERBOSE=0 RUN='^TestSavepointsSmoke$'`.
 

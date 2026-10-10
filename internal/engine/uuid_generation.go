@@ -103,13 +103,13 @@ func (e uuidGenerationExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(e.usage.Type), nil
 		}
 	}
-	if c.statementScope == nil || c.statementScope.op == nil || c.statementScope.op.session == nil {
+	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing UUID session scope")
 	}
 	var ms uint64
 	var fraction int64
 	if e.name == "uuidv7" {
-		ns := c.statementScope.op.session.uuid.now()
+		ns := c.liveScope().op.session.uuid.now()
 		ms = uint64(ns / 1000000)
 		fraction = ns % 1000000
 		if len(e.args) != 0 {

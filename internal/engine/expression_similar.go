@@ -26,8 +26,8 @@ type similarSubstringExpression struct {
 }
 
 func similarExecution(c *EvalContext) *sqltype.SimilarExecution {
-	if c.statementScope != nil {
-		return &c.statementScope.similar
+	if scope := c.liveScope(); scope != nil {
+		return &scope.similar
 	}
 	return &c.similar
 }

@@ -33,8 +33,8 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		values[i] = v
 	}
 	output := c.Output
-	output.Regclass = c.statementScope
-	output.Regtype = c.statementScope
+	output.Regclass = c.liveScope()
+	output.Regtype = c.liveScope()
 	return e.plan.Evaluate(c.Context, values, c.Input, output)
 }
 func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {

@@ -10,7 +10,7 @@ import (
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
 // owner's engine. No public adapter or testing-only production switch is used.
-func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQuery, *querySource) {
+func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQuery, *querySource, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	scope, err := e.StartStatement(op)
@@ -29,26 +29,44 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQ
 	}
 	var source *querySource
 	if err == nil {
-		source, err = e.captureQuerySourcesLocked(scope, bound.querySources, false)
+		// Logical-stage fixtures supply cancellation contexts directly, but keep
+		// the actual admission alive until every retained stage is closed.
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.querySources, false, PrincipalRef{}, queryRowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {
 		err = selectQuerySources(op.ctx, source)
 	}
-	if finishErr := scope.Finish(err); finishErr != nil {
-		t.Fatal(finishErr)
+	if err != nil {
+		scope.Finish(err)
+		t.Fatal(err)
 	}
-	t.Cleanup(source.close)
-	return bound.query, source
+	released := false
+	release := func() {
+		if released {
+			return
+		}
+		released = true
+		source.close()
+		if err := scope.Finish(nil); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(release)
+	return bound.query, source, release
 }
-func hashImplicitQuery(t *testing.T, e *Engine, q string) (*BoundQuery, *querySource) {
+func hashImplicitQuery(t *testing.T, e *Engine, q string) (*BoundQuery, *querySource, func()) {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer done()
-	return hashCaptureQuery(t, e, op, q)
+	t.Cleanup(done)
+	query, source, release := hashCaptureQuery(t, e, op, q)
+	return query, source, func() {
+		release()
+		done()
+	}
 }
 func hashFilterStage(t *testing.T, query *BoundQuery, source *querySource, parameters []sqltype.Value) indexedStage {
 	t.Helper()
@@ -57,8 +75,8 @@ func hashFilterStage(t *testing.T, query *BoundQuery, source *querySource, param
 		t.Fatal("fixture has no top-level filter")
 	}
 	state := &queryState{source: source, parameters: parameters, hashFilter: filter, frame: query.Root.(*projectNode).frame}
-	if source.scope != nil {
-		state.input, state.output = source.scope.input, source.scope.output
+	if scope := source.liveScope(); scope != nil {
+		state.input, state.output = scope.input, scope.output
 	}
 	stage, err := openQueryNode(context.Background(), state, filter)
 	if err != nil {
@@ -77,7 +95,7 @@ func TestHashIndexLookupFeatureSmoke(t *testing.T) {
 		t.Fatal(got)
 	}
 	for _, q := range []string{"SELECT n FROM t WHERE n=2", "SELECT n FROM t WHERE 2=n"} {
-		query, source := hashImplicitQuery(t, e, q)
+		query, source, release := hashImplicitQuery(t, e, q)
 		if len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root {
 			t.Fatal("live capture did not retain actual root", source.hashIndexes)
 		}
@@ -92,6 +110,7 @@ func TestHashIndexLookupFeatureSmoke(t *testing.T) {
 			t.Fatal("candidates were not consumed by original predicate", stage.count(), stage.hashCandidates)
 		}
 		stage.Close()
+		release()
 	}
 }
 
@@ -107,7 +126,7 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 		{"SELECT n FROM t WHERE n>1", 3}, {"SELECT n FROM t WHERE n IS NULL", 1}, {"SELECT n FROM t WHERE n=2 AND s='b'", 2},
 		{"SELECT n FROM t WHERE n=2::bigint", 2}, {"SELECT n FROM t WHERE n::bigint=2::bigint", 2},
 	} {
-		query, source := hashImplicitQuery(t, e, tc.q)
+		query, source, release := hashImplicitQuery(t, e, tc.q)
 		stage := hashFilterStage(t, query, source, nil)
 		if stage.hashCandidates != nil {
 			t.Fatal("unsupported predicate probed", tc.q)
@@ -116,12 +135,13 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 			t.Fatal(tc.q, stage.count(), err)
 		}
 		stage.Close()
+		release()
 	}
 	for _, tc := range []struct {
 		probe string
 		count int
 	}{{"2", 2}, {"1", 1}, {"99", 0}, {"NULL", 0}} {
-		query, source := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=$1")
+		query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=$1")
 		u := source.hashIndexes[0].usage
 		value := sqltype.Null(u.Type)
 		if tc.probe != "NULL" {
@@ -139,8 +159,9 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 			t.Fatal(tc, stage.count(), err)
 		}
 		stage.Close()
+		release()
 	}
-	query, source := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
+	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	original := source.hashIndexes[0].root
 	clone := *original
 	clone.buckets = maps.Clone(original.buckets)
@@ -162,14 +183,15 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 		t.Fatal("residual predicate not exercised", stage.count(), err)
 	}
 	stage.Close()
+	release()
 	if got := hashKeys(t, original); !reflect.DeepEqual(got, []string{"1", "2", "2", "3"}) {
 		t.Fatal("collision fixture mutated retained root", got)
 	}
 	for _, q := range []string{"SELECT n FROM t ORDER BY n", "SELECT n FROM (SELECT n FROM t WHERE n=2) d", "SELECT a.n FROM t a JOIN t b ON a.n=b.n WHERE a.n=2"} {
-		query, source := hashImplicitQuery(t, e, q)
+		query, _, release := hashImplicitQuery(t, e, q)
 		if hashQueryFilter(query.Root) != nil {
 			t.Fatal("order/derived/join filter admitted", q)
 		}
-		source.close()
+		release()
 	}
 }

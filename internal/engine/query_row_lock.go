@@ -177,7 +177,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 }
 
 func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (indexedStage, error) {
-	if state.source.scope == nil {
+	if state.source.liveScope() == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing row locking scope")
 	}
 	previous := state.locking

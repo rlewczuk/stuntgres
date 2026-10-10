@@ -82,10 +82,13 @@ func (e transactionTimeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	stamp := c.Input.TransactionStart
 	switch e.kind {
 	case transactionTimeStatement:
-		if c.statementScope == nil {
+		if c.liveScope() == nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement time scope")
 		}
-		stamp = c.statementScope.statementStart
+		stamp = c.liveScope().statementStart
+		if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
+			stamp = c.query.source.authority.expression.statementStart
+		}
 	case transactionTimeClock, transactionTimeOfDay:
 		stamp = time.Now().UTC().Truncate(time.Microsecond)
 	}

@@ -14,6 +14,14 @@ import (
 
 func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySource) {
 	t.Helper()
+	e, query, source, _ := queryJoinsAdmittedFixture(t, q, false)
+	return e, query, source
+}
+
+// Explicit admission allows immutable captured rows to outlive catalog replacement
+// without bypassing the replacement reservation held by implicit statements.
+func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, *BoundQuery, *querySource, func()) {
+	t.Helper()
 	ast := statement(t, q)
 	e := New()
 	for _, sql := range []string{"CREATE TABLE a(l TEXT,k INT,q INT)", "CREATE TABLE b(r TEXT,q INT,k INT)", "CREATE TABLE c(k INT,c TEXT)", "CREATE TABLE wide(k BIGINT)", "CREATE TABLE chars(k VARCHAR(3))", "CREATE TABLE longer(k VARCHAR(5))", "CREATE TABLE same(k VARCHAR(3))", "CREATE TABLE unused(v INT)", "INSERT INTO a VALUES('a',1,9),('a',1,9),('n',NULL,9),('z',2,8)", "INSERT INTO b VALUES('x',9,1),('x',9,1),('y',8,3),('n',9,NULL)", "INSERT INTO c VALUES(1,'c'),(1,'c')", "INSERT INTO wide VALUES(1)", "INSERT INTO chars VALUES('x')", "INSERT INTO longer VALUES('x')", "INSERT INTO same VALUES('x')"} {
@@ -23,8 +31,29 @@ func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySour
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer done()
-	scope, err := e.StartStatement(op)
+	var scope *StatementScope
+	var source *querySource
+	released := false
+	release := func() {
+		if released {
+			return
+		}
+		released = true
+		if source != nil {
+			source.close()
+		}
+		if scope != nil && !scope.finished {
+			_ = scope.Finish(context.Canceled)
+		}
+		done()
+	}
+	t.Cleanup(release)
+	if explicit {
+		if _, err = e.Begin(op, TxOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scope, err = e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,19 +67,19 @@ func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySour
 	if err == nil {
 		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}
-	var source *querySource
 	if err == nil {
-		source, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
+		// Standalone stages supply contexts, but still need live admission authority.
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.querySources, false, PrincipalRef{}, queryRowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {
 		err = selectQuerySources(op.ctx, source)
 	}
-	if finishErr := scope.Finish(err); finishErr != nil {
-		t.Fatal(finishErr)
+	if err != nil {
+		scope.Finish(err)
+		t.Fatal(err)
 	}
-	t.Cleanup(source.close)
-	return e, b.query, source
+	return e, b.query, source, release
 }
 
 func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
@@ -262,11 +291,13 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 	result.Rows.Close()
 	for _, replacement := range []string{"append", "reset", "restore"} {
 		for _, projection := range []string{"a.k,b.k", "a.k+1,b.k+1"} {
-			e, query, source := queryJoinsFixture(t, "SELECT "+projection+" FROM a JOIN b USING(k)")
+			e, query, source, release := queryJoinsAdmittedFixture(t, "SELECT "+projection+" FROM a JOIN b USING(k)", false)
 			rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
 			if err != nil || n != 4 {
 				t.Fatal(rows, n, err)
 			}
+			// Final rows are detached; no live stage still needs the admission.
+			release()
 			schema := append([]ColumnDescriptor(nil), rows.Schema()...)
 			switch replacement {
 			case "append":

@@ -150,7 +150,8 @@ func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) 
 	preparedReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 		a, peer := referenceLockConnections(t, p.ctx, b.db)
 		// TEMP now executes on both backends and proves the real PREPARE restriction.
-		// Other excluded features keep their independent native syntax/function errors.
+		// WITH HOLD has an explicit native capability error; other excluded
+		// features retain their independent statement/function boundaries.
 		for _, c := range []struct {
 			q, message string
 			listening  bool
@@ -179,8 +180,8 @@ func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) 
 				want.Position = "1"
 				switch {
 				case strings.HasPrefix(c.q, "DECLARE"):
-					want = controlsReferenceDiagnostic("42601", `syntax error at or near "DECLARE"`)
-					want.Position = "1"
+					want = controlsReferenceDiagnostic("0A000", "WITH HOLD cursors are unsupported")
+					want.Position = "32"
 				case strings.HasPrefix(c.q, "SELECT"):
 					want = controlsReferenceDiagnostic("0A000", "functions are unsupported")
 					want.Position = "8"

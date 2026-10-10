@@ -20,6 +20,7 @@ type savepointMark struct {
 	readOnly   bool
 	deferrable bool
 	locks      relationLockCheckpoint
+	cursors    uint64
 }
 
 type settingsMark struct {
@@ -53,10 +54,11 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: t.session.Engine().locks.checkpoint(t.ticket)}
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: t.session.Engine().locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
+	t.session.cursors.rollback(mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.session.settings.restoreSavepoint(settings)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
@@ -154,6 +156,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		case parser.CreateSavepoint:
 			t.savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
+			t.session.cursors.rollback(mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
 			t.isolation, t.readOnly = mark.isolation, mark.readOnly

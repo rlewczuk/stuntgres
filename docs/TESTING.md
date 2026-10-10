@@ -161,6 +161,111 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+### Forward-only SQL cursor verification
+
+Run the entire cursor family after changing an oracle expectation: a driver panic
+can truncate later tests, so a focused passing run does not establish family
+coverage. Each invocation has a separate 900-second deadline:
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursor' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursor' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorRegtypeWarnings$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorRegtypeWarnings$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeWarnings$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeWarnings$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestSQLCursor(CompletedPublicationBoundary|CancellationClearsAuthority)$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestSQLCursor' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestSQLCursor' VERBOSE=0
+```
+
+The permanent definitions have no discovery backend filter. Native-only controls
+and explicit backend capability phases remain independently asserted. Cursor
+assertions distinguish blocking volatile view sorts from demand-lazy outer
+projections, logical lock-error context
+from PostgreSQL's unstable physical tuple coordinates, and first-effective-FETCH
+stable expression values from current lock/cancellation authority.
+The role/GRANT transitions and application-name `current_setting` probe are
+PostgreSQL-only capability evidence. The native scope witness retains its original
+owner identity, uses an explicit literal application marker, and exercises
+already-supported timestamp and regclass providers rather than enabling adjacent
+role/settings features. Its regclass output changes from `cursor_rows` to
+`public.cursor_rows` after changing the search path; its first-demand statement
+timestamp remains equal on the second FETCH.
+The empty-table fixture is created before BEGIN on both backends; cursor coverage
+does not enable unrelated permanent CREATE TABLE inside explicit transactions.
+Internal units cover detached ownership/pin release, exact-limit/no-lookahead
+demand, zero-width/zero-position states, savepoint ordinals/stale transaction
+references, nested view/later UNION authority, admitted cancellation/no partial
+batch and quiet description/counter exhaustion.
+Nested view/later UNION units require exact returned `(i,nextval)` values and
+sequence state at DECLARE, each FETCH, EOF and CLOSE. Their consumer probes observe
+the current FETCH context and unfinished operation, not producer readiness or
+stored occurrence counts. The later UNION arm is first demanded by the second
+FETCH; its common-type consumer expression is the evaluated target.
+
+`TestSQLCursorCompletedPublicationBoundary` cancels synchronously after Execute
+success but before Finish for FETCH, DECLARE, CLOSE and CLOSE ALL. Expect success
+from repeated Finish, an active transaction, preserved install/removal and detached
+row ownership. After rollback to a savepoint, the older cursor next returns row2
+after its delivered row1, never replaying or skipping it; CLOSE is not resurrected.
+`TestSQLCursorCancellationClearsAuthority` separately retains mid-demand failure,
+no partial result, cleared admission and recovered55000 `portal "c" cannot be run`.
+The cursor-only completion classification must leave noncursor private writes,
+catalog and projected-root publication intact.
+
+`TestReferenceSQLCursorRegtypeWarnings` uses four table TEXT `timestamp(7)` values,
+not a planning-time literal cast, with alternating held/direct FETCH executions.
+Prepare and DECLARE are quiet. Each demanded row returns REGTYPE
+`timestamp without time zone`; current warning/error/notice/warning policies yield
+one/no/one/one complete WARNING/22023 precision-reduction records, with empty
+Position/Context and all other unspecified logical fields empty. Exhaustion retains
+full schema and emits no diagnostic; there is no extra projected warning.
+Run this definition and ordinary `TestReferenceRegtypeWarnings` in both modes
+before review, preserving the existing direct-operation warning contract.
+
+Stored view columns keep their declared native nullable metadata through cursor
+view/derived/join consumers; base-table NOT NULL metadata is not substituted.
+Analysis diagnostics separately assert the native unknown-function capability
+error0A000 `functions are unsupported` and PostgreSQL42883 with its function Hint.
+Failed native Restore retains its full42P02 diagnostic at parameter position53.
+
+`TestReferenceSQLCursorAdvisoryScope` changes peer ownership between successive
+FETCH batches, independently expecting true then false from the retained advisory
+expression. DECLARE is quiet, EOF preserves BOOL metadata, and cursor/transaction
+teardown leaves the peer's session hold intact. After changes to shared expression
+authority, select the entire existing advisory family and prepared-transaction
+boundary scenario alongside every cursor definition, in both modes before review:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)' VERBOSE=0
+```
+
+Each command has its own900-second deadline. The prepared-transaction boundary
+scenario retains PostgreSQL's actual WITH HOLD/PREPARE restriction and independently
+asserts native0A000 `WITH HOLD cursors are unsupported` at position32, not the
+obsolete DECLARE syntax error. Hash and join logical-stage fixtures keep real
+admissions alive until stage disposal, then finish the scope before
+operation/session cleanup. The selected-private-roots join helper completes eager
+finalization before releasing its statement and operation; detached output remains
+usable after transaction rollback. These fixtures never rely on finished scope
+authority.
+
+`TestReferenceSQLCursorPreparedMetadata` checks absent and stale prepared FETCH
+descriptions separately from a fresh direct FETCH's runtime schema. Its safe
+INT4-to-INT4 alias rebind consumes actual held-statement rows: PostgreSQL advertises
+the old alias but returns the new value, whereas native describes the live portal.
+Native absent/rebound rows likewise use the live schema, not lib/pq wire quirks. The pinned
+lib/pq transport retains its old binary decoder after a same-name INT4-to-TEXT
+cursor rebound: iterating TEXT `new` through that decoder panics. The stale
+description witness therefore inspects Query metadata without calling Next, closes
+the returned Rows, and independently checks fresh direct runtime rows. It does not
+recover the panic, promise decoded rebound-row parity, or change the production
+driver to imitate this lib/pq limitation.
+
 ### MERGE insertion and implicit INSERT migration
 
 Run each selective command under its own900-second deadline:

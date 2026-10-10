@@ -187,7 +187,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		transactionEnd(t, b, rb, false)
 		observed := make(chan bool, 1)
 		op := transactionOperation(t, b)
-		_, err := op.Attach(Cursors, &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
+		_, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
 			observed <- b.TransactionState() == TxIdle && advisoryUnitHold(b, key).shared == 1
 			return nil
 		}})
@@ -209,7 +209,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				t.Fatal("delegate ordering lost transaction cleanup/prior count")
 			}
 		default:
-			t.Fatal("cursor cleanup callback missing")
+			t.Fatal("prepared resource cleanup callback missing")
 		}
 		e.locks.mu.Lock()
 		persistentLive := e.locks.valid(b.advisory.ticket)

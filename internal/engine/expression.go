@@ -171,8 +171,8 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	output := c.Output
-	output.Regclass = c.statementScope
-	output.Regtype = c.statementScope
+	output.Regclass = c.liveScope()
+	output.Regtype = c.liveScope()
 	return e.plan.Apply(c.Context, v, c.Input, output)
 }
 func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperties {

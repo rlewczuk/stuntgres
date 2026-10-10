@@ -54,7 +54,7 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, kind := range []engine.ResourceKind{engine.Temporary, engine.PreparedSQL, engine.Cursors} {
+			for _, kind := range []engine.ResourceKind{engine.Temporary, engine.PreparedSQL} {
 				k := kind
 				_, err := op.Attach(k, &transactionTerminalObserver{end: func(got engine.SessionToken, r engine.EndReason) error {
 					if got != token || r != reason {
@@ -64,7 +64,7 @@ func TestTransactionTerminalReasons(t *testing.T) {
 						t.Error("transaction cleanup must precede resource cleanup")
 					}
 					order = append(order, k)
-					if k == engine.Cursors {
+					if k == engine.PreparedSQL {
 						return failure
 					}
 					return nil
@@ -93,7 +93,7 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			if s.IsLive() || s.TransactionState() != engine.TxIdle || c.IsValid() {
 				t.Fatal("terminal session remained live/active/valid")
 			}
-			want := []engine.ResourceKind{engine.Cursors, engine.PreparedSQL, engine.Temporary}
+			want := []engine.ResourceKind{engine.PreparedSQL, engine.Temporary}
 			if !reflect.DeepEqual(order, want) {
 				t.Fatal("resource drain order", order, want)
 			}

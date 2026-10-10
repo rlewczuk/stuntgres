@@ -58,7 +58,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 	}
 	count := child.count()
 	width := len(n.calls)
-	source := &querySource{input: child.source, window: true, windowCount: count, windowWidth: width, windowValues: make([]sqltype.Value, count*width), scratch: make([]sqltype.Value, len(n.Schema()))}
+	source := &querySource{input: child.source, authority: state.source.authority, scope: state.source.scope, window: true, windowCount: count, windowWidth: width, windowValues: make([]sqltype.Value, count*width), scratch: make([]sqltype.Value, len(n.Schema()))}
 	if state.source != child.source {
 		source.sources = []*querySource{state.source}
 	}

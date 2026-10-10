@@ -39,6 +39,9 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
 		return s.acquireQueryRelations(creation.Query, stmt, execute)
 	}
+	if declaration, ok := stmt.(*parser.DeclareCursor); ok {
+		return s.acquireQueryRelations(declaration.Query, declaration.Query, execute)
+	}
 	if sel, ok := stmt.(*parser.Select); ok {
 		return s.acquireQueryRelations(sel, stmt, execute)
 	}

@@ -109,6 +109,7 @@ package parser
  groupClause *GroupClause
  groupItems []GroupItem
  groupItem GroupItem
+ cursorFetch *FetchCursor
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -132,6 +133,7 @@ package parser
 %token <tok> NOT_DEFERRABLE_LA NOT_IN_LA
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
+%token <tok> DECLARE CURSOR CLOSE SCROLL HOLD FORWARD BACKWARD ABSOLUTE RELATIVE
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW LEFT RIGHT FULL OUTER
 %token <tok> DELETE
@@ -244,6 +246,10 @@ package parser
 %type <tok> window_name
 %type <tok> window_frame
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> declare_cursor fetch_cursor close_cursor
+%type <cursorFetch> cursor_direction
+%type <desc> cursor_scroll cursor_hold
+%type <tok> cursor_from cursor_word
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
 %type <queryTable> query_table_target
@@ -470,10 +476,35 @@ accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqll
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
+ | declare_cursor | fetch_cursor | close_cursor
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
+declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Query:$7,Pos:$1.pos} } ;
+cursor_scroll: /* empty */ { $$=false }
+ | NO SCROLL { $$=false }
+ | SCROLL { sqllex.(*lexer).failAt("0A000","SCROLL cursors are unsupported",$1.pos.Offset);return 1 } ;
+cursor_hold: /* empty */ { $$=false }
+ | WITHOUT HOLD { $$=false }
+ | WITH HOLD { sqllex.(*lexer).failAt("0A000","WITH HOLD cursors are unsupported",$1.pos.Offset);return 1 } ;
+cursor_from: FROM | IN ;
+fetch_cursor: FETCH cursor_direction cursor_from name { $2.Name=Identifier{Text:$4.text,Pos:$4.pos};$2.Pos=$1.pos;$$=$2 }
+ | FETCH cursor_direction name { $2.Name=Identifier{Text:$3.text,Pos:$3.pos};$2.Pos=$1.pos;$$=$2 } ;
+cursor_direction: /* empty */ { $$=&FetchCursor{Count:1} }
+ | sequence_integer { $$=&FetchCursor{Count:$1} }
+ | ALL { $$=&FetchCursor{All:true} }
+ | FORWARD { $$=&FetchCursor{Count:1} }
+ | FORWARD sequence_integer { $$=&FetchCursor{Count:$2} }
+ | FORWARD ALL { $$=&FetchCursor{All:true} }
+ | BACKWARD { $$=&FetchCursor{Count:1,Backward:true} }
+ | BACKWARD sequence_integer { $$=&FetchCursor{Count:$2,Backward:true} }
+ | BACKWARD ALL { $$=&FetchCursor{All:true,Backward:true} }
+ | ABSOLUTE sequence_integer { sqllex.(*lexer).failAt("0A000","ABSOLUTE cursor movement is unsupported",$1.pos.Offset);return 1 }
+ | RELATIVE sequence_integer { sqllex.(*lexer).failAt("0A000","RELATIVE cursor movement is unsupported",$1.pos.Offset);return 1 } ;
+close_cursor: CLOSE name { $$=&CloseCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | CLOSE ALL { $$=&CloseCursor{All:true,Pos:$1.pos} } ;
+cursor_word: DECLARE | CURSOR | CLOSE | SCROLL | HOLD | FORWARD | BACKWARD | ABSOLUTE | RELATIVE ;
 sequence_persistence: /* empty */ { $$="logged" } | TEMP { $$="temporary" } | UNLOGGED { $$="unlogged" } ;
 sequence_create_head: CREATE sequence_persistence SEQUENCE relation_name { $$=&CreateSequence{Name:$4,Persistence:$2,Pos:$1.pos} }
  | CREATE sequence_persistence SEQUENCE IF NOT EXISTS relation_name { $$=&CreateSequence{Name:$7,Persistence:$2,IfNotExists:true,Pos:$1.pos} } ;
@@ -1569,6 +1600,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
+ | cursor_word
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
@@ -1593,6 +1625,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
+ | cursor_word
  | membership_keyword
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW

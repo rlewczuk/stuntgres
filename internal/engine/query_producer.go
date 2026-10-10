@@ -147,7 +147,8 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 		out.orderValues = append(out.orderValues, make([]sqltype.Value, out.cacheWidth)...)
 		values := out.orderValues[start:]
 		copy(values, child.orderRow(i))
-		evaluation.Context, evaluation.Row, evaluation.orderValues = ctx, child.source.row(child.index(i)), values
+		evaluation.setContext(ctx)
+		evaluation.Row, evaluation.orderValues = child.source.row(child.index(i)), values
 		for j, expr := range n.expressions {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {

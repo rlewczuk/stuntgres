@@ -133,7 +133,8 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 						}
 					}
 				}
-				child = &querySource{ref: leaf.ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), scope: scope, locks: child.locks, occurrence: child.occurrence}
+				child = &querySource{ref: leaf.ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: child.locks, occurrence: child.occurrence}
+				child.borrowAuthority(scope)
 			}
 			if sources != nil {
 				sources[i] = child
@@ -145,8 +146,9 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			source = sources[0]
 			source.sources = sources
 		}
-		source.scope = scope
-		bridge := &querySource{ref: ref, scope: scope, locks: locks, nestedRoot: root, nestedInputs: source, materialized: true, flatWidth: len(root.Schema()), inherited: mark}
+		source.borrowAuthority(scope)
+		bridge := &querySource{ref: ref, authority: scope.authority, locks: locks, nestedRoot: root, nestedInputs: source, materialized: true, flatWidth: len(root.Schema()), inherited: mark}
+		bridge.borrowAuthority(scope)
 		if locks != nil {
 			occurrences := queryTreeOccurrences(root, source, nil)
 			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}

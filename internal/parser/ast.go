@@ -681,6 +681,33 @@ type GroupingExpr struct {
 func (GroupingExpr) expression()                {}
 func (e GroupingExpr) SourcePosition() Position { return e.Pos }
 
+// SQL cursors retain a query privately; each FETCH publishes a detached batch.
+type DeclareCursor struct {
+	Name  Identifier
+	Query *Select
+	Pos   Position
+}
+
+func (*DeclareCursor) statement() {}
+
+type FetchCursor struct {
+	Name     Identifier
+	Count    int64
+	All      bool
+	Backward bool
+	Pos      Position
+}
+
+func (*FetchCursor) statement() {}
+
+type CloseCursor struct {
+	Name Identifier
+	All  bool
+	Pos  Position
+}
+
+func (*CloseCursor) statement() {}
+
 // LeftmostSelect follows set arms only; FROM and expression subqueries are
 // separate statement frontiers and must never supply an outer INTO destination.
 func LeftmostSelect(query *Select) *Select {

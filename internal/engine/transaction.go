@@ -99,6 +99,9 @@ type transactionOwner struct {
 }
 
 func (t *transactionOwner) clear() {
+	if t.session.cursors != nil {
+		t.session.cursors.clear()
+	}
 	t.state = TxIdle
 	t.ref = TxRef{}
 	t.command = 0
@@ -241,12 +244,14 @@ type StatementScope struct {
 	self                  *StatementScope
 	owner                 *transactionOwner
 	op                    *Operation
+	authority             *queryAuthority
 	stage                 WriteStage
 	view                  *VisibilityView
 	finished              bool
 	result                error
 	worked                bool
 	completed             bool
+	cursorCompleted       bool // Successful cursor utilities have no private stage to merge.
 	controlOutcome        controlOutcome
 	replacementRead       bool
 	ticket                *relationTicket
@@ -571,6 +576,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if _, ok := stmt.(*parser.TransactionCharacteristics); ok {
 		return StatementDescription{}, nil
 	}
+	switch stmt.(type) {
+	case *parser.FetchCursor, *parser.CloseCursor:
+		return s.op.session.Engine().describeOperation(s, stmt)
+	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation {
 		if err := s.executionEligibility(stmt); err != nil {
@@ -724,6 +733,9 @@ func (s *StatementScope) Finish(err error) error {
 	if s.finished {
 		return s.result
 	}
+	if s.authority != nil {
+		s.authority.scope = nil
+	}
 	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
 		// A control has no stage/view. In particular, do not advance or recheck
 		// the new incarnation installed by CHAIN after its linearization.
@@ -750,7 +762,7 @@ func (s *StatementScope) Finish(err error) error {
 			if !s.completed {
 				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority)
 			}
-		} else {
+		} else if !s.cursorCompleted {
 			var deletes map[ObjectAddress]*privateDeletionRoot
 			var writes map[ObjectAddress][]rowVersion
 			if s.projectedRoots {
@@ -806,6 +818,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.clear()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		if errors.Is(err, ErrCatalogReplaced) {
+			t.session.cursors.clear()
 			t.truncateSavepoints(0)
 		}
 		if len(t.savepoints) != 0 {
@@ -830,6 +843,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.catalog = nil
 			endedTicket = t.ticket
 			t.ticket = nil
+			t.session.cursors.clear()
 		}
 	}
 	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))

@@ -43,7 +43,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 	if !currentIdentity {
 		t.Fatal("fixture must satisfy existing storage identity proofs despite incomplete coverage")
 	}
-	query, source := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=4")
+	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=4")
 	if len(source.hashIndexes) != 0 {
 		t.Fatal("invalid root was selected for query capture", source.hashIndexes)
 	}
@@ -55,6 +55,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 		t.Fatal("heap fallback lost grandfathered row", stage.count(), err)
 	}
 	stage.Close()
+	release()
 	sessionSQL(t, first, "REINDEX INDEX hi")
 	healthyIndex, healthy := hashRoot(t, e, "hi")
 	if !healthyIndex.sqlIndex.ready || !healthyIndex.sqlIndex.valid || !healthyIndex.sqlIndex.live || healthy == incomplete {
@@ -63,7 +64,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 	if got := hashKeys(t, healthy); !reflect.DeepEqual(got, []string{"1", "2", "4"}) {
 		t.Fatal("reconstruction omitted committed row", got)
 	}
-	query, source = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=4")
+	query, source, release = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=4")
 	if len(source.hashIndexes) != 1 || source.hashIndexes[0].root != healthy {
 		t.Fatal("healthy actual root was not captured", source.hashIndexes)
 	}
@@ -75,6 +76,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 		t.Fatal("healthy lookup lost committed row", stage.count(), err)
 	}
 	stage.Close()
+	release()
 	if got := hashKeys(t, incomplete); !reflect.DeepEqual(got, []string{"1", "2"}) {
 		t.Fatal("query/reconstruction mutated retained invalid root", got)
 	}

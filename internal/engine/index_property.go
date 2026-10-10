@@ -248,10 +248,10 @@ func (e indexPropertyExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if e.kind == accessMethodProperty {
 		result, known = indexAMProperty(oid, property)
 	} else {
-		if c.statementScope == nil || c.statementScope.commentCatalog.state == nil {
+		if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing index property catalog snapshot")
 		}
-		relation, ok := c.statementScope.commentCatalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}].(*relationDescriptor)
+		relation, ok := c.liveScope().commentCatalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}].(*relationDescriptor)
 		if !ok || relation.sqlIndex == nil {
 			return sqltype.Null(e.usage.Type), nil
 		}

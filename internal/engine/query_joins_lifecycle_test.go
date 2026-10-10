@@ -172,8 +172,8 @@ func TestQueryJoinsSelfLockAndInsertDestination(t *testing.T) {
 }
 
 func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
-	e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b USING(k)")
-	defer source.close()
+	e, query, source, release := queryJoinsAdmittedFixture(t, "SELECT a.k FROM a JOIN b USING(k)", true)
+	defer release()
 	old := source.sources[1].ref
 	// Snapshot genuine admission evidence while its statement is still live.
 	op, done, err := testOperation(e, context.Background())
@@ -206,9 +206,9 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	// Captured data remains valid for the eager execution owner. Its retained
-	// source identity cannot authorize admission in the replacement catalog;
-	// the fixture's already-Finished statement no longer owns any grants.
+	// The explicit statement still authorizes logical consumption of captured
+	// immutable rows, but neither it nor the separate finished statement's grant
+	// can authorize the old physical identity in the replacement catalog.
 	e.mu.Lock()
 	_, err = currentQuerySourceLocked(e, CatalogRead{e, e.state}, nil, grant)
 	e.mu.Unlock()
@@ -485,20 +485,31 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO b VALUES(3)")
 		}
 		var query *BoundQuery
-		source := func() *querySource {
+		source, finish := func() (*querySource, func(error) error) {
 			op := transactionOperation(t, s)
-			defer op.Done()
+			t.Cleanup(op.Done)
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
 			}
+			released := false
+			finish := func(err error) error {
+				if released {
+					return err
+				}
+				released = true
+				err = scope.Finish(err)
+				op.Done()
+				return err
+			}
+			t.Cleanup(func() { _ = finish(context.Canceled) })
 			ast := statement(t, "SELECT k FROM a JOIN b USING(k)")
 			if _, err = scope.Describe(ast); err != nil {
-				scope.Finish(err)
+				finish(err)
 				t.Fatal(err)
 			}
 			if scope.ownDeletes[unrelated.Address] == nil || len(scope.ownWrites[unrelated.Address]) == 0 {
-				scope.Finish(nil)
+				finish(nil)
 				t.Fatal("private-root exclusion witness was vacuous")
 			}
 			e.mu.Lock()
@@ -515,11 +526,12 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			if err == nil {
 				err = selectQuerySources(op.ctx, source)
 			}
-			if err = scope.Finish(err); err != nil {
+			if err != nil {
+				finish(err)
 				t.Fatal(err)
 			}
 			query = bound.query
-			return source
+			return source, finish
 		}()
 		defer source.close()
 		data := source.view.read()
@@ -531,6 +543,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			t.Fatal("unrelated private roots retained", data)
 		}
 		rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		err = finish(err)
 		if err != nil || n != 1 {
 			t.Fatal(rows, n, err)
 		}

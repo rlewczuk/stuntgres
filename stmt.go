@@ -12,7 +12,8 @@ import (
 )
 
 // Retains raw syntax and immutable description/scalar captures, not a bound
-// execution plan. Current catalog/ACLs and parameter frames rebind on every use.
+// execution plan. Ordinary queries rebind on use; FETCH resolves the live named
+// cursor and publishes its actual schema, independently of the prepared hint.
 type stmt struct {
 	conn        *conn
 	ast         parser.Statement

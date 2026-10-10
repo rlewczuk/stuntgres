@@ -226,13 +226,13 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.usage.Type), nil
 	}
-	if c.statementScope == nil || c.statementScope.commentCatalog.state == nil {
+	if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
 	if e.signature == deparseSerialSequence {
 		return e.evalSerialSequence(c, values)
 	}
-	view := c.statementScope.commentCatalog
+	view := c.liveScope().commentCatalog
 	pretty := false
 	definition := deparseSignatures[e.signature]
 	if definition.args[len(definition.args)-1] == sqltype.Bool {
@@ -242,8 +242,8 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
-	renderer := pgRenderer{view: view, pretty: pretty, path: c.statementScope.deparsePath,
-		output: c.statementScope.output, nonstandardStrings: c.statementScope.op.nonstandardStrings}
+	renderer := pgRenderer{view: view, pretty: pretty, path: c.liveScope().deparsePath,
+		output: c.liveScope().output, nonstandardStrings: c.liveScope().op.nonstandardStrings}
 	index := 1
 	if e.signature != deparseExpr && e.signature != deparseExprPretty {
 		index = 0
@@ -363,7 +363,7 @@ func validateDeparseExpression(e deparseExpression) error {
 }
 
 func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value, pretty bool) (sqltype.Value, error) {
-	scope := c.statementScope
+	scope := c.liveScope()
 	catalog := scope.commentCatalog
 	var address ObjectAddress
 	if e.signature == deparseViewText || e.signature == deparseViewTextPretty {

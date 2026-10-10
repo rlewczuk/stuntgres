@@ -148,7 +148,7 @@ func TestCountExpressionVolatileCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	source.scope = scope
+	source.borrowAuthority(scope)
 	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 || rows == nil {
 		t.Fatal(rows, count, err)

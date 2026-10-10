@@ -90,10 +90,10 @@ func (x advisoryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(x.usage.Type), nil
 		}
 	}
-	if c.statementScope == nil || c.statementScope.op == nil || c.statementScope.op.session == nil || c.statementScope.op.session.advisory.ticket == nil {
+	s := c.liveScope()
+	if s == nil || s.op == nil || s.op.session == nil || s.op.session.advisory.ticket == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
 	}
-	s := c.statementScope
 	ticket := s.op.session.advisory.ticket
 	if x.action == advisoryUnlockAll {
 		if err := ticket.manager.unlockAdvisoryAll(ticket); err != nil {

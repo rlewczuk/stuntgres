@@ -106,7 +106,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		right = settledRight
 	}
 	frame := make([]sqltype.Value, width)
-	source := &querySource{flatWidth: width, materialized: true}
+	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
 	locking := state.locking || state.source.locks != nil
 	if locking {
 		source.occurrences = appendQueryOccurrences(source.occurrences, left.source)
@@ -142,7 +142,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		}
 	}
 	emit := func(ctx context.Context, out *indexedStage, li, ri int) (bool, error) {
-		evaluation.Context = ctx
+		evaluation.setContext(ctx)
 		for k, expr := range n.merges {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
@@ -228,7 +228,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			if tail {
 				return emit(ctx, out, absentQueryIndex, right.index(j))
 			}
-			evaluation.Context = ctx
+			evaluation.setContext(ctx)
 			if n.predicate != nil {
 				matches, err := updateMatches(&evaluation, n.predicate)
 				if err != nil {

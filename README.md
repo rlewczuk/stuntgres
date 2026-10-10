@@ -286,6 +286,18 @@ or bit casts/operators/arrays are introduced. See
 Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0`.
 
+Change note: forward-only SQL cursors support `DECLARE [NO SCROLL] CURSOR`,
+constant-count/ALL forward FETCH and CLOSE/name/ALL inside explicit transactions.
+DECLARE retains visibility without drawing targets; each FETCH publishes a
+detached eager batch and continues position under fresh execution authority.
+Transaction/session end closes nonholdable cursors; savepoint rollback removes
+later declarations without rewinding older movement or undoing CLOSE/failure.
+Native prepared FETCH exposes the live entry's schema rather than emulating
+lib/pq's stale description/decoder. SCROLL/WITH HOLD/backward movement remain
+excluded. See [SQL cursor ownership](docs/DRIVER.md#forward-only-sql-cursors--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0`.
+
 Change note: `PREPARE TRANSACTION 'gid'`, `COMMIT PREPARED 'gid'` and
 `ROLLBACK PREPARED 'gid'` support process-local two-phase transaction state.
 Preparation detaches private writes and transaction-owned locks from the session; physical
@@ -295,8 +307,8 @@ current superuser can finish them. `pg_catalog.pg_prepared_xacts` exposes
 Native preparation is always enabled per Engine, without crash persistence,
 cluster-wide databases or a capacity setting. Reset/Restore refuse while entries
 exist; Dump remains committed-only. Executed TEMP table/sequence access prohibits
-preparation; unsupported SQL cursors, notifications and snapshot
-export remain excluded. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
+preparation; WITH HOLD cursors, notifications and snapshot export remain excluded.
+Nonholdable cursors close on detach. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`.
 

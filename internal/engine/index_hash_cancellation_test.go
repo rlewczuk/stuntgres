@@ -33,7 +33,8 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 		run(t, e, q)
 	}
 	index, root := hashRoot(t, e, "hn")
-	query, source := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
+	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
+	defer release()
 	if len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root {
 		t.Fatal("cancellation fixture did not retain the real root")
 	}
@@ -42,8 +43,8 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 		t.Fatal("missing real filter")
 	}
 	state := &queryState{source: source, hashFilter: filter, frame: query.Root.(*projectNode).frame}
-	if source.scope != nil {
-		state.input, state.output = source.scope.input, source.scope.output
+	if scope := source.liveScope(); scope != nil {
+		state.input, state.output = scope.input, scope.output
 	}
 	view, data := source.view, source.view.read()
 	rows, visible := hashCancellationRows(source.committed), append([]int(nil), source.visible...)

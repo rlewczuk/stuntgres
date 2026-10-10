@@ -210,13 +210,20 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if _, err = e.Begin(op, TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = e.Execute(op, statement(t, "DECLARE terminal NO SCROLL CURSOR FOR SELECT 1"), 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	cursor := s.cursors.entries["terminal"]
 	var order []ResourceKind
 	var mu sync.Mutex
-	for _, kind := range []ResourceKind{Temporary, PreparedSQL, Cursors} {
+	for _, kind := range []ResourceKind{Temporary, PreparedSQL} {
 		k := kind
 		owner := &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
 			if s.TransactionState() != TxIdle {
 				t.Error("transaction cleanup did not precede resources")
+			}
+			if len(s.cursors.entries) != 0 || cursor.source != nil || cursor.authority.scope != nil {
+				t.Error("named execution cleanup did not precede resources")
 			}
 			mu.Lock()
 			defer mu.Unlock()
@@ -259,7 +266,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if err = s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(order, []ResourceKind{Cursors, PreparedSQL, Temporary}) {
+	if !reflect.DeepEqual(order, []ResourceKind{PreparedSQL, Temporary}) {
 		t.Fatal(order)
 	}
 	e.locks.mu.Lock()
@@ -325,7 +332,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	s.serial = ^uint64(0)
 	s.mu.Unlock()
 	op, _ = s.Acquire(context.Background())
-	if _, err = op.Attach(Cursors, owner); err == nil {
+	if _, err = op.Attach(PreparedSQL, owner); err == nil {
 		t.Fatal("serial wrap")
 	}
 	op.Done()
@@ -340,9 +347,9 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 	op, _ := s.Acquire(context.Background())
 	first, second := errors.New("first cleanup"), errors.New("second cleanup")
 	calls := 0
-	for _, kind := range []ResourceKind{Temporary, Cursors} {
+	for _, kind := range []ResourceKind{Temporary, PreparedSQL} {
 		failure := first
-		if kind == Cursors {
+		if kind == PreparedSQL {
 			failure = second
 		}
 		if _, err = op.Attach(kind, &sessionOwner{fn: func(token SessionToken, reason EndReason) error {
