@@ -109,7 +109,7 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 		// Serial fixtures return borrowed admin handles before their cleanup.
 		referenceAdmin.SetMaxIdleConns(0)
 		referenceAdmin.SetMaxIdleConns(2)
-		if _, err := referenceAdmin.ExecContext(resetCtx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
+		if _, err := referenceResetConn.ExecContext(resetCtx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
 			t.Errorf("reference schema reset: %v", err)
 		}
 	}

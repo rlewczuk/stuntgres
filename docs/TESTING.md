@@ -48,6 +48,28 @@ This is the authoritative test-placement and implementation workflow.
   asserting a complete database-wide candidate bag. The shared PostgreSQL
   fixture resets `public`, not every nonpublic schema; unrelated same-name
   objects can legitimately remain outside the scenario's search path.
+- The pinned fixture owns a private reset-only physical PostgreSQL connection.
+  Both before-case and after-case resets still execute `DROP SCHEMA public CASCADE;
+  CREATE SCHEMA public` under their 15-second contexts. Reusing only that connection
+  avoids repeated authentication without reusing test sessions or native engines.
+  Administrative probe pools still discard idle sessions at each boundary, so
+  returned `SESSION AUTHORIZATION` state cannot change the reset principal or
+  public-schema owner. Startup failure and final teardown release the reset
+  connection before the administrative database. The shared
+  `TestReferenceFixtureResetIsolation` and pinned
+  `TestReferenceFixtureSessionAuthorizationReset` independently cover the boundary:
+
+  ```sh
+  make quickcheck PACKAGES=./reference RUN='^TestReferenceFixture' VERBOSE=0
+  make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFixture' VERBOSE=0
+  ```
+
+  Schema-owner introspection through `pg_namespace` is PostgreSQL-only. Native
+  reset isolation independently asserts bootstrap principals, fresh session
+  settings, an empty public `Dump`, and same-name empty-table recreation. Its
+  native-only public `Reset` phase removes actual inserted data/catalog state,
+  preserves bootstrap principals, and again permits empty-table recreation;
+  it does not add a native `pg_namespace` compatibility surface.
 
 The affected visibility utility-boundary scenarios now assert supported MV
 creation/count/stored rows and cleanup in both backends, instead of obsolete
