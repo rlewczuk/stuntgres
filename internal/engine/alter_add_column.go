@@ -36,6 +36,11 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if column == nil {
 		return fail(fmt.Errorf("stuntgres: missing ADD column declaration"))
 	}
+	for _, constraint := range column.Constraints {
+		if constraint.Unique != nil && constraint.Unique.Primary {
+			return fail(insertError("0A000", "ALTER TABLE action is unsupported", action.Pos))
+		}
+	}
 	if isSystemColumn(column.Name) {
 		return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name)))
 	}

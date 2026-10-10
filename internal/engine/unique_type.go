@@ -79,6 +79,36 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 	if next == nil {
 		return parent, nil
 	}
+	// PostgreSQL18 rebuilds the affected primary key's NN identity after the
+	// index constraint. Clone only on change: source/savepoint descriptors keep
+	// their old identities, and unrelated NN identities remain untouched.
+	copiedNotNull := false
+	for i, n := range parent.notNullConstraints {
+		changed := false
+		for _, transformation := range transformations {
+			if transformation.attribute != n.Attribute {
+				continue
+			}
+			for _, constraint := range parent.uniqueConstraints {
+				if constraint.Primary && slices.Contains(constraint.Attributes, n.Attribute) {
+					changed = true
+					break
+				}
+			}
+		}
+		if !changed {
+			continue
+		}
+		if !copiedNotNull {
+			next.notNullConstraints = slices.Clone(parent.notNullConstraints)
+			copiedNotNull = true
+		}
+		id, err := e.allocateOIDLocked()
+		if err != nil {
+			return nil, err
+		}
+		next.notNullConstraints[i].OID = id
+	}
 	if err := stage.Replace(next); err != nil {
 		return nil, err
 	}

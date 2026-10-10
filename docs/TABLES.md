@@ -62,8 +62,8 @@ be stored. Diagnostics belong to destination execution, not returned row metadat
 Column Usage retains resolved type identity, typmod and collation, including
 existing domains, enums, arrays and concrete catalog output types. New attributes
 and origin metadata belong to the destination; stored columns are nullable.
-Source table NOT NULL/default/generated/identity/CHECK/UNIQUE constraints, indexes,
-comments and ACLs are not copied. A domain retains its own existing type semantics;
+Source table NOT NULL/default/generated/identity/CHECK/UNIQUE/PRIMARY KEY constraints,
+indexes, comments and ACLs are not copied. A domain retains its own existing type semantics;
 this feature does not add native domain constraints or defaults.
 
 The effective creator owns the destination. Initial population requires schema
@@ -98,7 +98,7 @@ remain unchanged; PostgreSQL can materialize its physical node serialization.
 
 `CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] name (...)` uses the ordinary
 ordered table elements, declared types, NULL/NOT NULL, DEFAULT, CHECK, stored
-generation, serial/identity, UNIQUE and plain LIKE construction path. TEMP
+generation, serial/identity, UNIQUE, PRIMARY KEY and plain LIKE construction path. TEMP
 creation ignores the default persistent creation namespace. Ordinary
 `CREATE TABLE pg_temp.name`, an actual own TEMP namespace, or a leading
 `search_path=pg_temp` also creates an owner-TEMP relation. Qualified persistent
@@ -770,6 +770,94 @@ The independent reference recorder preserves genuine zero-column cursor
 metadata as an empty result, distinct from no query result; consumed rows and
 cursor closure are checked for both native and PostgreSQL executions.
 
+## Primary-key constraints — change note
+
+```sql
+CREATE TABLE scalar(id INT PRIMARY KEY);
+CREATE TABLE composite(a INT, b TEXT, CONSTRAINT composite_pk PRIMARY KEY(a, b));
+```
+
+CREATE TABLE supports named or unnamed column and table PRIMARY KEY declarations,
+including table keys before their columns. Keys are ordered lists of 1–32
+distinct ordinary attributes. Missing/repeated columns fail42703/42701 at the
+PRIMARY or CONSTRAINT declaration; a second explicit primary key fails42P16
+before binding its keys. Empty/expression key lists are syntax errors.
+
+Column-local PRIMARY KEY implies NOT NULL at its declaration position:
+`a INT NULL PRIMARY KEY` and `a INT PRIMARY KEY NULL` conflict with42601.
+A table-form key can upgrade a separately declared nullable column. Its missing
+NOT NULL identities are appended in key order after original explicit/inherited
+NOT NULL declarations, rather than physical column order. An explicit NOT NULL
+name remains independent of the primary-key name.
+
+Explicit CREATE index declarations retain the primary key first. Identical
+ordered ordinary UNIQUE keys collapse into it, transferring the first explicit
+UNIQUE name if the primary key is unnamed. Reversed keys and UNIQUE NULLS NOT
+DISTINCT remain separate. Two primary keys never deduplicate. This retention
+rule applies only to explicit declarations: LIKE copies and explicit UNIQUE
+constraints remain independently owned, even on the same keys.
+
+Generated names are `table_pkey`, then numbered suffixes, using existing UTF8-safe
+63-byte clipping. Generation sees existing namespace objects and earlier retained
+backing relations, not future explicit names. Existing backing relation collisions
+fail42P07 before local CHECK/NOT NULL name collisions; otherwise local constraint
+name collisions fail42710. CREATE publishes the table, separate NOT NULL and
+primary constraint identities, and actual enforcing B-tree as one atomic group.
+
+Typed immediate uniqueness and transaction key claims reuse the ordinary UNIQUE
+providers. NULL fails23502 before uniqueness or ON CONFLICT omission. Duplicates
+fail23505 naming the real primary constraint, with typed key Detail only when
+the current caller can SELECT the table or every key column. All existing INSERT
+producers, UPDATE and MERGE retain their whole-statement atomicity.
+`ON CONFLICT ON CONSTRAINT primary_name DO NOTHING` selects this real provider.
+
+`pg_constraint` reports kind `p`, owning table and NULL conbin, with separate
+kind `n` identities for nonnullable keys. Both pg_get_constraintdef signatures
+render PRIMARY KEY using current labels; pg_indexes renders CREATE UNIQUE INDEX.
+Native result metadata knows key columns are nonnullable, including empty and
+prepared cursors; lib/pq does not expose nullable metadata. The backing attachment
+supplies primary/unique/immediate index metadata internally without adding native
+catalog columns.
+
+Renames, schema-group moves and REINDEX preserve the primary discriminator and
+reciprocal attachment. Direct backing-index DROP, even CASCADE, fails2BP01;
+backing-index rename updates the constraint name while retaining both identities.
+Dropping a key column removes the primary key/backing, not surviving key NOT NULL
+identities. Unrelated column removal preserves the group and stable attributes.
+Actual key TYPE changes remint affected primary/backing/NOT NULL identities;
+the rebuilt primary identity precedes rebuilt NOT NULL identities. Unaffected
+identities and the table identity remain. Duplicate or NULL conversions leave
+all original descriptors, rows and roots unchanged.
+
+A live primary key prevents ALTER COLUMN DROP NOT NULL and DROP CONSTRAINT
+of its key's NOT NULL identity with42P16. Identity-column ALTER COLUMN DROP NOT
+NULL retains its earlier42601 identity guard; named NOT NULL DROP still reaches
+the primary-key42P16 guard first. Dropping the primary key leaves its NOT NULL
+identities unchanged. Ordered `DROP CONSTRAINT pk, ALTER a DROP NOT NULL` can
+succeed for ordinary keys; reversing those actions fails atomically. Existing
+transaction, savepoint and read-only admission boundaries are unchanged.
+
+Plain LIKE copies NOT NULL but not the primary key. INCLUDING INDEXES or ALL
+copies the primary kind with destination names, fresh identities, remapped keys
+and actual key characteristics, never source rows or roots. Multiple explicit/
+copied primary keys fail42P16 without a source position. Index descriptor comments
+copy under INCLUDING COMMENTS; SQL COMMENT ON INDEX remains PostgreSQL-only,
+with a native package-function copy counterpart rather than invented SQL support.
+Dump emits named NOT NULL and the primary declaration once in the owning CREATE;
+Restore rebuilds and enforces populated persistent groups in isolated staging.
+Failed duplicate/NULL replay leaves the destination and held rows unchanged;
+existing TEMP exclusion and retained TEMP groups remain intact.
+
+ALTER ADD PRIMARY KEY, ADD USING INDEX, ADD COLUMN PRIMARY KEY, RENAME CONSTRAINT,
+deferrability (including NOT DEFERRABLE/INITIALLY), WITHOUT OVERLAPS and primary
+index parameter tails are explicitly unsupported. Malformed full input still
+fails42601 before deferred capability diagnostics or prefix effects.
+Foreign keys and physical PostgreSQL index/WAL/server mechanisms remain external.
+
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`;
+use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.0.
+
 ## UNIQUE constraints — change note
 
 CREATE TABLE supports `[CONSTRAINT name] UNIQUE [NULLS [NOT] DISTINCT]`
@@ -780,10 +868,11 @@ lists of 1–32 distinct ordinary attributes. Missing/repeated attributes fail
 Default and explicit NULLS DISTINCT allow any key containing NULL to repeat;
 NULLS NOT DISTINCT compares NULL components as equal.
 
-Equal ordered keys and equal NULL policy collapse into one retained definition.
-A later explicit name transfers onto an unnamed retained definition; otherwise
-the first explicit name wins. Reversed key order and a different NULL policy are
-separate constraints. Generated `table_columns_key` names use UTF8-safe 63-byte
+Equal ordered keys and equal NULL policy among explicit CREATE declarations
+collapse into one retained definition. A later explicit name transfers onto an
+unnamed retained definition; otherwise the first explicit name wins. Independent
+LIKE copies do not participate in this merge. Reversed key order and a different
+NULL policy are separate constraints. Generated `table_columns_key` names use UTF8-safe 63-byte
 identifier clipping and numbered suffixes. Backing relations share the ordinary
 relation namespace; collisions with table or index names fail42P07, while
 collisions with existing CHECK/NOT NULL names on the table fail42710.
@@ -821,7 +910,7 @@ table owner: unreadable build keys yield `Duplicate keys exist.`, whereas unread
 runtime duplicates omit Detail. Ownership does not replace revoked SELECT rights.
 
 ALTER ADD UNIQUE, deferrability (including explicit NOT DEFERRABLE), RENAME
-CONSTRAINT and PK/FK remain unsupported. Standalone CREATE UNIQUE INDEX reuses
+CONSTRAINT and FK remain unsupported. Standalone CREATE UNIQUE INDEX reuses
 the same enforcing B-tree authority without creating a constraint attachment.
 It supports simple/composite keys and trailing NULLS DISTINCT/NOT DISTINCT:
 all key components must compare equal, and DISTINCT bypasses conflicts whenever

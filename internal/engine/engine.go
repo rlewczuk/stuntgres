@@ -80,6 +80,8 @@ type binding struct {
 	expressions           [][]BoundExpr
 	createColumns         []ColumnDescriptor
 	createNotNull         []notNullConstraint
+	createColumnIndex     map[string]int
+	createUniques         []createUniqueConstraint
 	createDeclarations    []createColumnDeclaration
 	createLikes           []createLikeInput
 	defaults              []BoundExpr
@@ -521,7 +523,15 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 		b.createColumns = columns
 		var err error
-		b.createNotNull, err = bindCreateNotNull(s, columns, declarations, inherited)
+		b.createColumnIndex, err = bindCreateColumnIndex(columns)
+		if err != nil {
+			return b, err
+		}
+		b.createUniques, err = bindCreateUniques(s, b.createColumnIndex, b.createLikes, auth.catalog)
+		if err != nil {
+			return b, err
+		}
+		b.createNotNull, err = bindCreateNotNull(s, columns, declarations, inherited, b.createUniques, b.createColumnIndex)
 		if err != nil {
 			return b, err
 		}

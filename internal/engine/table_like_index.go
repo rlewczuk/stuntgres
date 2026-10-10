@@ -39,8 +39,13 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			return 0
 		})
 		for _, source := range sources {
-			stage.captureLikeSource(source)
 			old := source.sqlIndex
+			// Copied PK was bound and staged before explicit UNIQUE. Keep the
+			// remaining independent LIKE index copies in source index order.
+			if old.constraint != nil && old.constraint.Primary {
+				continue
+			}
+			stage.captureLikeSource(source)
 			definition := *old
 			definition.parent = destination.address
 			definition.ready, definition.valid, definition.live = true, true, true
@@ -119,7 +124,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			}
 			address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 			if old.constraint != nil {
-				c := uniqueConstraint{Name: name, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.constraint.Attributes))}
+				c := uniqueConstraint{Name: name, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.constraint.Attributes))}
 				c.OID, err = e.allocateOIDLocked()
 				if err != nil {
 					return err

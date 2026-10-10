@@ -414,7 +414,7 @@ var keywords = [...]keyword{
 	{"prepare", Unreserved, true, PREPARE},
 	{"prepared", Unreserved, true, PREPARED},
 	{"preserve", Unreserved, true, 0},
-	{"primary", Reserved, true, 0},
+	{"primary", Reserved, true, PRIMARY},
 	{"prior", Unreserved, true, 0},
 	{"privileges", Unreserved, true, 0},
 	{"procedural", Unreserved, true, 0},

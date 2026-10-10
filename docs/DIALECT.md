@@ -632,8 +632,9 @@ smokes in [README](../README.md).
 The native catalog sources add exactly `pg_catalog.pg_constraint`
 (`oid OID, conname NAME, contype CHAR, conrelid OID, conbin PG_NODE_TREE`) and
 `pg_catalog.pg_attrdef` (`oid OID, adrelid OID, adnum INT2, adbin PG_NODE_TREE`).
-They project existing CHECK (`c`), NOT NULL (`n`, NULL conbin) and explicit
-nontrivial defaults from real immutable descriptors. Attribute numbers are stable,
+They project existing CHECK (`c`), NOT NULL (`n`), UNIQUE (`u`) and PRIMARY KEY
+(`p`) identities, plus explicit nontrivial defaults from real immutable descriptors.
+NOT NULL and index constraints have NULL conbin. Attribute numbers are stable,
 not dense evaluation slots. These are not general constraint/catalog rollout:
 foreign keys and additional metadata catalogs remain absent. STORED generated
 definitions share existing pg_attrdef/pg_get_expr; no pg_attribute or
@@ -799,6 +800,27 @@ pinned counterpart:
 
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA, BIT[(n)], BIT VARYING[(n)], VARBIT[(n)] and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, raw B/X bit literals, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
+
+### PRIMARY KEY constraints — change note
+
+CREATE TABLE admits named/unnamed scalar column and ordered composite table
+PRIMARY KEY declarations. Each retained key has kind `p`, separate implicit
+NOT NULL identities, and an actual unique B-tree attachment. Duplicate/NULL
+keys fail23505/23502 with current constraint/column identity; failed writes and
+TYPE builds expose no partial rows or roots. Identical explicit UNIQUE keys can
+merge into an explicit primary declaration; independent LIKE copies do not.
+Existing DROP/rename/schema/REINDEX/LIKE/ON CONSTRAINT and native Dump/Restore
+use the same group. Dropping the primary key leaves NOT NULL; dropping a live
+key's NOT NULL fails42P16 (identity-column ALTER COLUMN retains earlier42601).
+Named NOT NULL DROP reaches the primary-key guard first even on an identity key.
+Actual key TYPE remints affected p/index/n identities.
+ALTER ADD PK (including ADD COLUMN/USING INDEX), RENAME CONSTRAINT, deferrability,
+WITHOUT OVERLAPS and primary index parameters remain explicit capabilities
+outside the native surface. Full-input syntax errors precede those exclusions.
+Foreign keys remain external. See
+[the complete contract](TABLES.md#primary-key-constraints--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`;
+use identical RUN with `REFERENCE=1` for the pinned PostgreSQL18.0 oracle.
 
 ### INSERT conflict omission — change note
 
@@ -1589,8 +1611,8 @@ drops the whole unavailable candidate without refreshing it. These policies do
 not affect relation-lock waits. Acquired OFFSET-discarded survivors stay held;
 unavailable rows consume no bound quota. Bounded views settle inherited marks
 before their own counts, while plain scalar qualification stays deferred.
-UPDATE uses NO KEY UPDATE for unchanged keys, UPDATE for changed UNIQUE key
-datums; DELETE uses UPDATE. Matrix, lifetime,
+UPDATE uses NO KEY UPDATE for unchanged keys, UPDATE for changed UNIQUE or
+PRIMARY KEY datums; DELETE uses UPDATE. Matrix, lifetime,
 savepoint contribution restoration and exact diagnostics:
 [row locks](TRANSACTIONS.md#row-locks--change-note).
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`;
@@ -3867,6 +3889,11 @@ definitions. Both analyzed and execution predicates remap destination row
 attributes without redirecting external REGCLASS/REGTYPE constants. Analyzed
 dependencies remain held even if execution folds their arm away. Fresh roots
 contain no source rows; only TRUE qualifies, before expression-key evaluation.
+INCLUDING INDEXES/ALL copies real PRIMARY KEY kind and fresh backing identities;
+plain LIKE copies only its NOT NULL shape. Explicit plus copied PK, or two copied
+PKs, fail42P16. Copied PK and explicit UNIQUE stay independent even on equal keys.
+Actual key providers and descriptor comments copy through the existing source
+capture; SQL COMMENT ON INDEX remains a PostgreSQL-only capability.
 Partial HASH and partial concurrent creation retain their existing exclusions.
 
 TEMP LIKE composition preserves physical-session authority. Same-session copied
@@ -3933,9 +3960,10 @@ DROP NOT NULL on ctid/xmin/cmin/xmax/cmax/tableoid fails0A000 with
 DROP's default RESTRICT, explicit RESTRICT and CASCADE remove the selected
 NOT NULL identity equivalently: supported NOT NULL constraints have no inbound
 constraint dependents and own no SQL index. These modes do not implement a
-general constraint dependency closure. CREATE TABLE UNIQUE constraints own real
-B-tree relations; DROP CONSTRAINT or an included key column removes that backing
-relation atomically. PK/FK and referenced-key RESTRICT/CASCADE remain unsupported.
+general constraint dependency closure. CREATE TABLE UNIQUE and PRIMARY KEY own
+real B-tree relations; DROP CONSTRAINT or an included key column removes that
+backing relation atomically. Foreign keys and referenced-key RESTRICT/CASCADE
+remain unsupported.
 Unrelated NOT NULL identities and sequences owned by the
 still-live table attribute survive even CASCADE.
 Stable attribute IDs, ACL/comments and original storage/backing survive ALTER;
@@ -4225,8 +4253,9 @@ original relation-name occurrence. Cached-plan logical Context is empty on both
 backends; C Routine is not a logical diagnostic field.
 Canonical Dump emits current names/labels/comments/constraints, not ALTER history.
 Stored views preserve stable sources and render current renamed identifiers.
-RENAME CONSTRAINT belongs to constraint metadata work; FK/backing-index,
-hierarchy and transactional-DDL effects remain PostgreSQL-only witnesses.
+RENAME CONSTRAINT remains unsupported. UNIQUE/PRIMARY KEY backing-index rename
+preserves reciprocal identity; FK, hierarchy and transactional rename effects
+remain PostgreSQL-only witnesses.
 User row codecs retain their identity; simple B-tree index names remain unchanged while their stable parent/key identities survive renames.
 Physical pg_dump/server disk/network mechanisms are outside native Reset/Dump/Restore. Smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1`.
@@ -4278,8 +4307,8 @@ read-write explicit transactions retain 0A000 `statement is unsupported in an
 explicit transaction`; read-only execution rejects canonical ALTER TABLE first
 with25006. Simple B-tree indexes move atomically with their parent, including
 destination name collisions. User row types and their lookup-only arrays move
-with the actual owning table/view. Constraint backing-index moves remain
-PostgreSQL-only controls; native named NOT NULL and owned sequences are supported. Equal constraint names on unrelated tables
+with the actual owning table/view. UNIQUE/PRIMARY KEY backing indexes move in
+the same atomic schema group; native named NOT NULL and owned sequences are supported. Equal constraint names on unrelated tables
 do not collide. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
@@ -4290,8 +4319,8 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SELECT aliases/qualified columns,
-general casts/joins/functions/expressions, primary
-keys, UPDATE FROM/row-subqueries/CURRENT OF and DELETE CURRENT OF.
+general casts/joins/functions/expressions,
+UPDATE FROM/row-subqueries/CURRENT OF and DELETE CURRENT OF.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ/SERIALIZABLE, READ ONLY/READ WRITE
 and [NOT] DEFERRABLE modes. SET TRANSACTION changes current owner modes;
@@ -4649,7 +4678,7 @@ Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceTempCreationSmoke$' V
 Temporary tables and sequences share session-owned namespaces. CREATE TEMP/
 TEMPORARY TABLE and ordinary CREATE TABLE in own pg_temp/actual TEMP or a leading
 explicit pg_temp path stage private descriptors/storage with ordinary types,
-defaults, CHECK, generation, serial/identity, UNIQUE and indexes.
+defaults, CHECK, generation, serial/identity, UNIQUE, PRIMARY KEY and indexes.
 Owner lookup shadows permanent relations; peers never share values.
 ON COMMIT default/PRESERVE retains rows, DELETE clears rows/index membership
 without restarting owned sequences, and DROP removes the real dependency closure.
@@ -5352,7 +5381,7 @@ AS (...) composites are documented separately. See [types](TYPES.md#enums--chang
 
 Ordinary DROP INDEX groups, ALTER INDEX RENAME and REINDEX INDEX/TABLE operate on
 real logical B-trees. Repeated DROP addresses are deduplicated; late group
-kind/missing/dependency failures remove nothing. Backing UNIQUE rename retains
+kind/missing/dependency failures remove nothing. Backing UNIQUE/PRIMARY KEY rename retains
 both OIDs and the substantive root while updating current constraint enforcement
 names; direct backing DROP remains2BP01 even with CASCADE.
 

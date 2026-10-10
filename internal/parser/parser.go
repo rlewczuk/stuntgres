@@ -366,6 +366,23 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 	}
 }
 
+// The enclosing excluded ADD starts before any excluded PK suffix. Retain an
+// earlier command's pending error, but report this action rather than its tail.
+func (l *lexer) excludePrimaryAddition(add lexeme) {
+	if l.pendingMessage == "" || add.pos.Offset < l.pendingOffset {
+		l.pendingMessage, l.pendingOffset = "ALTER TABLE action is unsupported", add.pos.Offset
+	}
+}
+
+func (l *lexer) excludePrimaryColumnAddition(add lexeme, column *Column) {
+	for _, constraint := range column.Constraints {
+		if constraint.Unique != nil && constraint.Unique.Primary {
+			l.excludePrimaryAddition(add)
+			return
+		}
+	}
+}
+
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
 var unsupportedCommands = wordSet("truncate drop alter explain copy vacuum analyze analyse with execute deallocate discard listen notify unlisten cluster refresh reset")

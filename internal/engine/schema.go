@@ -89,7 +89,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		}
 	}
-	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, nil)
+	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, b.createColumnIndex)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 		}
 	}
-	if err := e.stageCreateUniques(stage, d, s); err != nil {
+	if err := e.stageCreateUniques(stage, d, b.createUniques); err != nil {
 		return err
 	}
 	return e.stageLikeIndexes(op, auth, stage, d, b.createLikes)

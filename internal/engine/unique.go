@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -16,19 +15,30 @@ type uniqueConstraint struct {
 	OID              OID
 	Name             string
 	Attributes       []int32
+	Primary          bool
 	NullsNotDistinct bool
 	Index            ObjectAddress
 }
 
 func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
+	primary := false
 	for _, c := range parent.uniqueConstraints {
 		if parent.relationKind != tableRelation || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
 		}
 		names[c.Name] = true
+		if c.Primary {
+			if primary || c.NullsNotDistinct {
+				return fmt.Errorf("stuntgres: invalid primary constraint")
+			}
+			primary = true
+		}
 		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.constraint.Index != c.Index || index.sqlIndex.constraint.Name != c.Name || index.sqlIndex.nullsNotDistinct != c.NullsNotDistinct || !slices.Equal(index.sqlIndex.constraint.Attributes, c.Attributes) || len(index.sqlIndex.keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
+		}
+		if index.sqlIndex.constraint.Primary != c.Primary {
+			return fmt.Errorf("stuntgres: inconsistent primary backing index")
 		}
 		used := make(map[int32]bool, len(c.Attributes))
 		for i, a := range c.Attributes {
@@ -36,57 +46,33 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 				return fmt.Errorf("stuntgres: invalid unique key")
 			}
 			used[a] = true
+			if c.Primary {
+				slot := slices.Index(parent.attributes, a)
+				if parent.columns[slot].Nullable || !parent.columns[slot].NullabilityKnown {
+					return fmt.Errorf("stuntgres: nullable primary key")
+				}
+				found := false
+				for _, n := range parent.notNullConstraints {
+					if n.Attribute == a {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return fmt.Errorf("stuntgres: missing primary not-null identity")
+				}
+			}
 		}
 	}
 	return nil
 }
 
-func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, s *parser.CreateTable) error {
-	var declarations []parser.UniqueConstraint
-	for _, element := range s.Elements {
-		if element.Unique != nil {
-			declarations = append(declarations, *element.Unique)
-		}
-		if element.Column != nil {
-			for _, constraint := range element.Column.Constraints {
-				if constraint.Unique != nil {
-					c := *constraint.Unique
-					c.Columns = []parser.Identifier{{Text: element.Column.Name, Pos: element.Column.Pos}}
-					declarations = append(declarations, c)
-				}
-			}
-		}
-	}
-	for _, raw := range declarations {
-		if len(raw.Columns) > 32 {
-			return sqlError("54011", "cannot use more than 32 columns in an index")
-		}
-		c := uniqueConstraint{Name: raw.Name.Text, NullsNotDistinct: raw.NullsNotDistinct, Attributes: make([]int32, len(raw.Columns))}
-		seen := make(map[int32]bool, len(raw.Columns))
-		for i, column := range raw.Columns {
-			slot, ok := d.index[column.Text]
-			if !ok {
-				return insertError("42703", fmt.Sprintf(`column "%s" named in key does not exist`, column.Text), raw.Pos)
-			}
-			attr := d.attributes[slot]
-			if seen[attr] {
-				return insertError("42701", fmt.Sprintf(`column "%s" appears twice in unique constraint`, column.Text), raw.Pos)
-			}
-			seen[attr] = true
-			c.Attributes[i] = attr
-		}
-		redundant := false
-		for i, old := range d.uniqueConstraints {
-			if old.NullsNotDistinct == c.NullsNotDistinct && slices.Equal(old.Attributes, c.Attributes) {
-				if old.Name == "" {
-					d.uniqueConstraints[i].Name = c.Name
-				}
-				redundant = true
-				break
-			}
-		}
-		if !redundant {
-			d.uniqueConstraints = append(d.uniqueConstraints, c)
+func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint) error {
+	d.uniqueConstraints = make([]uniqueConstraint, len(declarations))
+	for i := range declarations {
+		d.uniqueConstraints[i] = declarations[i].uniqueConstraint
+		if source := declarations[i].source; source != nil {
+			stage.captureLikeSource(source)
 		}
 	}
 	local := make(map[string]bool)
@@ -118,16 +104,26 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		if c.Name == "" {
-			labels := make([]string, len(c.Attributes))
-			for j, a := range c.Attributes {
-				for slot, attr := range d.attributes {
-					if attr == a {
-						labels[j] = d.columns[slot].Name
-						break
-					}
+			if c.Primary {
+				c.Name = generatedConstraintName(d.name, "", "pkey", used)
+			} else {
+				labels := make([]string, len(c.Attributes))
+				for j, a := range c.Attributes {
+					labels[j] = d.columns[slices.Index(d.attributes, a)].Name
 				}
+				c.Name = generatedConstraintName(d.name, strings.Join(labels, "_"), "key", used)
 			}
-			c.Name = generatedConstraintName(d.name, strings.Join(labels, "_"), "key", used)
+		}
+		// An existing backing relation wins over a same-named local NN/CHECK
+		// for PK. Ordinary UNIQUE retains its existing collision precedence.
+		if c.Primary {
+			key := NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
+			if _, ok := stage.base.state.names[key]; ok {
+				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
+			}
+			if _, ok := stage.names[key]; ok {
+				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
+			}
 		}
 		if local[c.Name] {
 			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, c.Name, d.name))
@@ -160,31 +156,54 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, keys: make([]indexKey, len(c.Attributes)), ready: true, valid: true, live: true}
-		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition, columns: make([]ColumnDescriptor, len(c.Attributes)), attributes: make([]int32, len(c.Attributes)), index: make(map[string]int, len(c.Attributes))}
-		index.attributeHighWater = int32(len(index.attributes))
-		labels := make(map[string]bool)
-		for j, a := range c.Attributes {
-			slot := slices.Index(d.attributes, a)
-			column := d.columns[slot]
-			class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
-			if !ok {
-				return indexDefaultClassError(column.Usage.Type.DiagnosticName(), btreeMethod)
+		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, ready: true, valid: true, live: true}
+		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition}
+		if source := declarations[i].source; source != nil {
+			// LIKE clones the actual key providers and presentation, not a
+			// freshly defaulted approximation or any source storage/root.
+			*definition = *source.sqlIndex
+			definition.parent, definition.constraint = d.address, c
+			definition.ready, definition.valid, definition.live = true, true, true
+			definition.keys = slices.Clone(source.sqlIndex.keys)
+			for j := range definition.keys {
+				definition.keys[j].attribute = c.Attributes[j]
 			}
-			definition.keys[j] = indexKey{attribute: a, class: class}
-			label := column.Name
-			for suffix := 1; labels[label]; suffix++ {
-				label = indexColumnLabel(column.Name, suffix)
+			definition.include = make([]int32, len(source.sqlIndex.include))
+			for j, attribute := range source.sqlIndex.include {
+				definition.include[j], err = declarations[i].like.attribute(d, attribute)
+				if err != nil {
+					return err
+				}
 			}
-			labels[label] = true
-			column.Name = label
-			column.Nullable = true
-			column.NullabilityKnown = true
+			index.columns = slices.Clone(source.columns)
+			index.attributes = slices.Clone(source.attributes)
+			index.attributeHighWater = source.attributeHighWater
+			if declarations[i].copyComments {
+				index.comment = source.comment
+			}
+		} else {
+			definition.keys = make([]indexKey, len(c.Attributes))
+			index.columns = make([]ColumnDescriptor, len(c.Attributes))
+			index.attributes = make([]int32, len(c.Attributes))
+			index.attributeHighWater = int32(len(c.Attributes))
+			for j, a := range c.Attributes {
+				column := d.columns[slices.Index(d.attributes, a)]
+				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
+				if !ok {
+					return indexDefaultClassError(column.Usage.Type.DiagnosticName(), btreeMethod)
+				}
+				definition.keys[j] = indexKey{attribute: a, class: class}
+				column.Nullable, column.NullabilityKnown = true, true
+				index.columns[j] = column
+				index.attributes[j] = int32(j + 1)
+			}
+		}
+		index.index = make(map[string]int, len(index.columns))
+		for j := range index.columns {
+			column := &index.columns[j]
 			column.OriginTable = uint32(id)
 			column.OriginAttribute = int16(j + 1)
-			index.columns[j] = column
-			index.attributes[j] = int32(j + 1)
-			index.index[label] = j
+			index.index[column.Name] = j
 		}
 		indices = append(indices, index)
 	}
@@ -353,7 +372,9 @@ func uniqueConstraintSQL(parent *relationDescriptor, c *uniqueConstraint) (strin
 		labels[i] = label
 	}
 	prefix := "UNIQUE"
-	if c.NullsNotDistinct {
+	if c.Primary {
+		prefix = "PRIMARY KEY"
+	} else if c.NullsNotDistinct {
 		prefix += " NULLS NOT DISTINCT"
 	}
 	return prefix + " (" + strings.Join(labels, ", ") + ")", nil

@@ -186,7 +186,11 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "c"), oid(3, uint32(relation.address.ObjectID)), tree})
 			}
 			for _, definition := range relation.uniqueConstraints {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "u"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
+				kind := "u"
+				if definition.Primary {
+					kind = "p"
+				}
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, kind), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
 			}
 		case 2604:
 			for attribute, definition := range relation.defaults {

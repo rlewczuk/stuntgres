@@ -604,7 +604,18 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 	}
 	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
 	if !adding {
-		if _, ok := old.identities[old.attributes[slot]]; ok {
+		_, identity := old.identities[old.attributes[slot]]
+		// ALTER COLUMN checks identity before entering constraint removal.
+		// Named DROP reaches the primary-key protection first instead.
+		if identity && a.Action != parser.DropConstraint {
+			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.columns[slot].Name, old.name))
+		}
+		for _, constraint := range old.uniqueConstraints {
+			if constraint.Primary && slices.Contains(constraint.Attributes, old.attributes[slot]) {
+				return nil, sqlError("42P16", fmt.Sprintf(`column "%s" is in a primary key`, old.columns[slot].Name))
+			}
+		}
+		if identity {
 			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.columns[slot].Name, old.name))
 		}
 	}

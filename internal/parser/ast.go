@@ -169,8 +169,10 @@ type CheckConstraint struct {
 }
 
 type UniqueConstraint struct {
-	Name             Identifier
-	Columns          []Identifier
+	Name    Identifier
+	Columns []Identifier
+	// Primary distinguishes PRIMARY KEY from UNIQUE on this shared attachment.
+	Primary          bool
 	NullsNotDistinct bool
 	Pos              Position
 }

@@ -1139,6 +1139,20 @@ See [UNIQUE constraints](docs/TABLES.md#unique-constraints--change-note) and
 [the design](docs/design/PG18-DDL-UNIQUE.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueFeatureSmoke$'`.
 
+Change note: CREATE TABLE column/table `PRIMARY KEY` supports scalar and composite
+ordered keys. Every primary key owns a real unique B-tree and separate NOT NULL
+identities for its key columns. Duplicate and NULL keys fail with23505/23502;
+failed multirow writes and TYPE conversion are atomic. `pg_constraint` exposes
+kind `p` and canonical PRIMARY KEY deparsing. Existing renames, schema moves,
+REINDEX, LIKE INCLUDING INDEXES/ALL and native Dump/Restore preserve the attachment.
+Dropping the primary key leaves its NOT NULL identities; live key columns cannot
+drop NOT NULL. Key TYPE changes rebuild affected constraint/index/NOT NULL identities.
+ALTER ADD PRIMARY KEY (including ADD COLUMN), deferrability, WITHOUT OVERLAPS,
+index parameters and foreign keys remain excluded.
+See [primary-key constraints](docs/TABLES.md#primary-key-constraints--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`.
+
 Change note: INSERT supports `ON CONFLICT DO NOTHING`, with an omitted target,
 column/expression inference plus optional partial predicate, or named constraint.
 Every matching installed unique provider participates; selected collisions skip

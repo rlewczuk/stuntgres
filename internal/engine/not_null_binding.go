@@ -90,8 +90,17 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	seen := declaration.serial
 	declaration.columnNotNull = declaration.serial
 	for _, constraint := range column.Constraints {
-		if constraint.Check != nil || constraint.Unique != nil {
+		if constraint.Check != nil {
 			continue
+		}
+		if constraint.Unique != nil {
+			if !constraint.Unique.Primary {
+				continue
+			}
+			// PK implies local NN, but its name belongs only to the index
+			// constraint. An explicit NN name remains independent.
+			constraint.NotNull = true
+			constraint.Name = parser.Identifier{}
 		}
 		if constraint.Generation != nil {
 			generation := constraint.Generation
@@ -166,8 +175,7 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	return declaration, nil
 }
 
-func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declarations []createColumnDeclaration, inherited []createLikeConstraint) ([]notNullConstraint, error) {
-	table := s.Name.Parts[len(s.Name.Parts)-1].Text
+func bindCreateColumnIndex(columns []ColumnDescriptor) (map[string]int, error) {
 	index := make(map[string]int, len(columns))
 	for i, c := range columns {
 		if _, exists := index[c.Name]; exists {
@@ -178,6 +186,11 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declar
 		}
 		index[c.Name] = i
 	}
+	return index, nil
+}
+
+func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declarations []createColumnDeclaration, inherited []createLikeConstraint, uniques []createUniqueConstraint, index map[string]int) ([]notNullConstraint, error) {
+	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	// Retain first occurrence order while merging later declarations' names.
 	var constraints []notNullConstraint
 	merge := func(slot int, name string) error {
@@ -221,6 +234,18 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declar
 					return nil, err
 				}
 				inheritedIndex++
+			}
+		}
+	}
+	// Table-form PK adds NN only after the original column/table/LIKE NN
+	// merge. Explicit NULL in a column therefore does not conflict here.
+	for _, constraint := range uniques {
+		if !constraint.Primary {
+			continue
+		}
+		for _, attribute := range constraint.Attributes {
+			if err := merge(int(attribute-1), ""); err != nil {
+				return nil, err
 			}
 		}
 	}

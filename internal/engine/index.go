@@ -145,7 +145,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	if d.constraint != nil {
 		found := false
 		for _, c := range parent.uniqueConstraints {
-			if c.Index == index.address && c.OID == d.constraint.OID {
+			if c.Index == index.address && c.OID == d.constraint.OID && c.Primary == d.constraint.Primary {
 				found = true
 				break
 			}
