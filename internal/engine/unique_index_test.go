@@ -79,6 +79,11 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE ui_t(a INT,b TEXT)")
+	// Warm sticky summary history through real publication/removal. The next
+	// index must still invalidate the binding through catalog membership even
+	// when it needs no further immutable parent-summary transition.
+	roleExecute(t, e, op, "CREATE INDEX ui_history ON ui_t(a)")
+	roleExecute(t, e, op, "DROP INDEX ui_history")
 	ref := roleTableRef(t, e, "ui_t")
 	scope, err := e.StartStatement(op)
 	if err != nil {

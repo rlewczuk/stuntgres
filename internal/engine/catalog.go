@@ -104,6 +104,7 @@ type relationDescriptor struct {
 	generations        map[int32]columnGeneration
 	identities         map[int32]columnIdentity
 	relationKind       relationKind
+	hasIndexes         bool // Sticky publication history; removing an index does not clear it.
 	sequence           *sequenceOptions
 	view               *viewDefinition
 	sqlIndex           *indexDefinition
@@ -502,6 +503,11 @@ func (s *CatalogStage) Replace(d Descriptor) error {
 	if !ok {
 		return CatalogConflict{}
 	}
+	if previous, ok := old.(*relationDescriptor); ok && previous.hasIndexes {
+		if next, ok := d.(*relationDescriptor); !ok || !next.hasIndexes {
+			return fmt.Errorf("stuntgres: relation replacement clears index publication history")
+		}
+	}
 	oldKey := NameKey{ClassID: old.Address().ClassID, Namespace: old.Namespace(), Name: old.Name()}
 	newKey := NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
 	if a := s.lookupName(newKey); a != (ObjectAddress{}) && a != d.Address() {
@@ -687,6 +693,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	if err := e.evolveStageIndexesLocked(s, ObjectAddress{}, nil); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
+	if err := e.markStageIndexHistoryLocked(s); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -1174,6 +1184,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		return ChangeSet{}, err
 	}
 	replacement = persistentReplacementCatalog(replacement)
+	if err := normalizeReplacementIndexHistory(ctx, replacement); err != nil {
+		return ChangeSet{}, err
+	}
 	targetRoles := e.Roles()
 	if err := validateDefinitionOIDs(replacement); err != nil {
 		return ChangeSet{}, err

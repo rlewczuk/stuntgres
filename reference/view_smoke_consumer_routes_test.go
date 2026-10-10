@@ -18,12 +18,7 @@ func TestReferenceViewSmokeCatalogReplayControls(t *testing.T) {
 			db := b.db
 			recorder := b.recorder
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, db, recorder, s) }
-			providerQuery := "CREATE VIEW providers AS SELECT viewname FROM pg_catalog.pg_views"
-			if b.pg {
-				// PostgreSQL additionally exposes its system-schema views;
-				// the smoke's exact six-name bag is the user-schema contract.
-				providerQuery += " WHERE schemaname='public'"
-			}
+			providerQuery := "CREATE VIEW providers AS SELECT viewname FROM pg_catalog.pg_views WHERE schemaname='public'"
 			for _, s := range []referenceStep{
 				referenceExec("CREATE TABLE t(id INT,txt TEXT,visible BOOL)", 0),
 				referenceExec("INSERT INTO t VALUES(1,'a',true),(2,'b',false),(3,NULL,true),(3,NULL,true)", 4),

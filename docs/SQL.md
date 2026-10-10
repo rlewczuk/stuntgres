@@ -497,6 +497,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL` |
 | `pg_catalog.pg_rewrite` | `oid OID`, `rulename NAME`, `ev_class OID`, `ev_type CHAR`, `ev_enabled CHAR`, `is_instead BOOL` |
 | `pg_catalog.pg_views` | `schemaname NAME`, `viewname NAME`, `viewowner NAME`, `definition TEXT` |
+| `pg_catalog.pg_tables` | `schemaname NAME`, `tablename NAME`, `tableowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `hasrules BOOL`, `hastriggers BOOL`, `rowsecurity BOOL` |
 | `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
 
@@ -507,6 +508,59 @@ and Dump share identity-aware reconstruction after renames; PostgreSQL pretty
 printing byte equality is not promised. Unsupported columns, including
 `reloptions`, `ev_action` and `ev_qual`, give ordinary42703; no fake pg_node_tree.
 Built-in source output is derived, never persisted as table data.
+
+### Table and view summaries — change note
+
+`pg_tables` and `pg_views` expose current real names, schemas and owners without
+filtering underlying objects by search_path, schema USAGE or table/column SELECT.
+The summary source's own normal SELECT authorization still applies. A denied
+underlying read can report42501 while its summary remains visible. This matches
+PostgreSQL's unfiltered views and does **not** change the intentionally stricter
+native `pg_indexes` disclosure policy.
+
+Ordinary user tables and stored views participate; sequences and indexes do not.
+User tables have NULL default tablespace and false rule/trigger/RLS flags because
+those table states are not implemented. `hasindexes` is sticky publication history:
+UNIQUE backing, ordinary and concurrent initial index publication set it; dropping
+the last index does not clear it. Supported rename/schema/column edits, view-owner
+changes, real descriptor ownership replacement and REINDEX retain it; a newly
+recreated table starts false. Native ALTER TABLE OWNER and TRUNCATE remain0A000
+boundaries without metadata changes; PostgreSQL supports them. Failed ordinary expression
+index builds before publication leave it unchanged; failed concurrent work after
+initial invalid-index publication retains true. This adds no VACUUM/ANALYZE.
+
+The represented builtin table inventory is `pg_cast`, `pg_sequence`, `pg_depend`,
+`pg_description`, `pg_shdescription`, `pg_constraint`, `pg_attrdef`, `pg_class`,
+`pg_rewrite`. Their released compatibility metadata has hasindexes=true and
+hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
+`pg_shdescription`'s `pg_global`. These flags do not invent native system backing
+indexes or physical storage. The represented builtin views are `pg_views`,
+`pg_prepared_xacts`, `pg_indexes`, `pg_tables`. Classification is local to these
+summaries, not a broader `pg_class` schema/kind expansion or full catalog inventory.
+
+User `pg_views.definition` reconstructs the actual immutable stored SELECT using
+current identities and output labels, preserving frozen stars/aliases and without
+evaluating the body. Its structural formatting is not a PostgreSQL whitespace
+golden. Builtin definitions instead expose complete PostgreSQL18 compatibility
+SELECT text sourced from the
+[REL_18_0 system_views.sql CREATE VIEW sections](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_views.sql)
+and pinned18.0 reconstruction. They may reference native-unimplemented catalogs
+and functions and are **not promised executable in native**; in particular the
+released `pg_indexes` text does not describe native's stricter ACL policy.
+
+Neither summary exposes persistence, access method, OID or any physical size
+metric: no physical approximation is introduced. Extra columns give ordinary
+42703 PostgreSQL English diagnostics, including analysis on empty-result queries.
+Native Dump persists owning objects, never summary rows. Logical Restore
+normalizes history-only hasindexes=true to false when no index remains; live and
+UNIQUE backing indexes restore true. Actual descriptor replacement retains history
+and normalizes a supplied false flag to true when an index is represented, in its
+private immutable candidate without changing retained source descriptors.
+Captured native rows/descriptions remain immutable across mutation/Reset/Restore;
+held statements see fresh metadata on each execution. Native catalog queries retain
+the existing latest-committed plus own-overlay frontier rather than PostgreSQL's
+repeatable-read catalog MVCC snapshot.
+
 `pg_get_viewdef` accepts TEXT/OID alone, TEXT/OID plus BOOL, or OID plus INT4
 wrap width; all return strict nullable TEXT and terminate the command with a
 semicolon. Plain top-level VALUES remains VALUES regardless of pretty/width;

@@ -10,6 +10,19 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
+documented eight/four columns with exact current schema/name/owner identities.
+Both disclose underlying objects independent of privileges and search_path, unlike
+native's deliberately stricter `pg_indexes` policy. User definitions reconstruct
+stored SELECTs without evaluation; represented builtin definitions are sourced
+PostgreSQL18 compatibility text, not native-executable catalog implementations.
+Index history remains true after dropping the last index; logical SQL Restore
+normalizes history-only flags while real descriptor replacement preserves them.
+No physical metrics or approximations are exposed.
+See [table/view summaries](docs/SQL.md#table-and-view-summaries--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
 table/name, NULL default tablespace and compact reconstructable definition.
 Access method appears in CREATE INDEX text, not a sixth field. Native visibility

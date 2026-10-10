@@ -999,6 +999,32 @@ make quickcheck PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexC
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
 ```
 
+The `TestReferencePGTableViews` family independently pins exact eight/four-field
+summaries, raw metadata, current/quoted ownership and names, unfiltered denied
+object disclosure, immutable captures/held refresh, sticky index history and
+failed ordinary/concurrent publication, reconstructed user-definition replay,
+represented builtin9/4 membership and full released definitions, diagnostics,
+transaction overlays/RR differences and native logical control normalization.
+The controls replay actual native SQL Dump on PostgreSQL. Privileged PG-only
+column GRANT/REVOKE is fixture setup, not a native SQL/public-control feature;
+internal units exercise real ACL-neutral source capture and descriptor replacement.
+Run every new/migrated reference definition in both modes, each with a900-second
+deadline, before review:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^(TestReferencePGTableViews.*|TestReferenceViewSmokeCatalogReplayControls)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferencePGTableViews.*|TestReferenceViewSmokeCatalogReplayControls)$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^Test(TableSummary.*|TableViewSummaryBuiltinIdentity)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0
+```
+
+Expected feature observations include DROP-last-index preserving true, a fresh
+table starting false, denied-schema/table metadata disclosed on both backends,
+four nonNULL released builtin SELECT definitions, executable dynamic user-view
+copies after renames/replacement and Restore producing false/true/false for
+never/currently/formerly indexed tables. No discovery gate remains in final tests.
+
 The `TestReferencePGIndexes` acceptance family pins the five-column view shape,
 compact definitions, held execution, lifecycle, supported transactional overlays,
 repeatable-read peer CREATE boundary, independent disclosure policy and full

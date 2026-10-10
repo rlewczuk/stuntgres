@@ -451,6 +451,36 @@ Native SYSTEM_USER remains typed NULL, but its nontrivial DEFAULT stays stored.
 These consumers do not change identity providers, authority or namespace resolution.
 See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 
+### Table and view summaries — change note
+
+Readonly `pg_tables`/`pg_views` use their documented PostgreSQL18 eight/four
+fields and exact unfiltered underlying-object disclosure, independent of actor
+and search_path. They summarize supported ordinary tables and stored views plus
+the explicitly represented nine system tables/four system views; this does not
+promise a full PostgreSQL catalog inventory or change `pg_class` kinds.
+Tables retain sticky index-publication history after DROP. Native admitted user
+tables have default NULL tablespace and false rule/trigger/RLS states; no success
+stub is added for unsupported DDL. Released builtin flags/tablespaces and complete
+system-view SELECT definitions are sourced compatibility metadata, not invented
+native storage/indexes or executable definitions of missing catalogs/functions.
+User definitions remain executable stored structural reconstruction, not original
+SQL, pretty-print equality or view evaluation.
+
+No persistence/access-method/physical-size columns or physical approximations are
+exposed. Native logical Dump/Restore serializes real owning objects and normalizes
+formerly-indexed/no-current-index history to false; current/UNIQUE indexes restore
+true. Immutable actual catalog replacement preserves history-only true and
+normalizes false to true for represented indexes without mutating source roots. Captured
+native rows/descriptors remain stable while held executions refresh. Supported
+own transaction overlays participate; native's latest committed catalog frontier
+still differs from PostgreSQL repeatable-read MVCC. TEMP tables/views, partitioning,
+tablespace DDL, rules, triggers, RLS and VACUUM remain outside this change.
+Native ALTER TABLE OWNER and TRUNCATE retain their existing0A000 boundaries
+without changing summary state; supported ALTER VIEW OWNER refreshes view ownership.
+Table owners come from real authenticated creation, control replay or internal
+immutable descriptor replacement, not a new table-owner SQL command.
+See [exact schemas and provenance](SQL.md#table-and-view-summaries--change-note).
+
 Index/view introspection has seven strict STABLE TEXT signatures:
 `pg_get_indexdef(oid)`, `pg_get_indexdef(oid, integer, boolean)`,
 `pg_get_viewdef(text)`, `pg_get_viewdef(oid)`,

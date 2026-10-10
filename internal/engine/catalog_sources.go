@@ -64,6 +64,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"schemaname", sqltype.Name}, {"tablename", sqltype.Name}, {"indexname", sqltype.Name}, {"tablespace", sqltype.Name}, {"indexdef", sqltype.Text}}},
+		{12003, "pg_tables", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"schemaname", sqltype.Name}, {"tablename", sqltype.Name}, {"tableowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"hasrules", sqltype.Bool}, {"hastriggers", sqltype.Bool}, {"rowsecurity", sqltype.Bool}}},
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
@@ -116,6 +120,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2608 {
 		return capturePGDepend(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 12000 || source.address.ObjectID == 12003 {
+		return e.captureTableViewSummary(ctx, catalog, ref, source)
 	}
 	var relations []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {
@@ -191,19 +198,6 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				continue
 			}
 			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.view.rule)), text(1, "_RETURN"), oid(2, uint32(relation.address.ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
-		case 12000:
-			if relation.view == nil {
-				continue
-			}
-			owner, err := (RoleRead{e, e.roles}).Descriptor(relation.owner)
-			if err != nil {
-				return nil, err
-			}
-			definition, err := relation.view.selectSQL(ctx, catalog, viewPresentation{columns: relation.columns})
-			if err != nil {
-				return nil, err
-			}
-			rows = append(rows, []sqltype.Value{text(0, catalog.state.descriptors[relation.namespace].Name()), text(1, relation.name), text(2, owner.Name), text(3, definition+";")})
 		default:
 			return nil, fmt.Errorf("stuntgres: unknown catalog source")
 		}
