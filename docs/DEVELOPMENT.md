@@ -48,7 +48,7 @@ must still compare its starting and ending integration tips and rerun on the
 current tip if it advances; concurrent source changes are not made safe by the
 generation helper.
 
-Each `make quickcheck` invocation enforces a fixed 900-second wall-clock deadline
+Ordinary `make quickcheck` invocations enforce a 900-second wall-clock deadline
 across parser generation and all selected packages, including compilation, plus a per-package timeout.
 Use `RACE=1` for race-enabled tests and `REFERENCE=1 PACKAGES=./reference` for
 real pinned PostgreSQL validation (the `reference` build tag and `-args -reference=true`).
@@ -56,8 +56,11 @@ Slow or hanging tests must be fixed, not exempted.
 Run final `make fullcheck` after merge. It runs build, quick native tests,
 race-enabled native tests and real pinned PostgreSQL reference tests (each test run regenerates the parser),
 the five-run startup benchmark and production dependency checks serially under
-one 1800-second total deadline. It requires Docker and fails on external production
-dependencies. Commit any failure remedies separately from the merged task.
+one 3600-second total deadline. Its complete pinned PostgreSQL race stage may use
+the remaining aggregate budget; its shell and Go package deadlines are 3600 seconds.
+The native stages and ordinary quickcheck remain capped at 900 seconds.
+It requires Docker and fails on external production dependencies.
+Commit any failure remedies separately from the merged task.
 Every changed or new reference definition MUST first pass selected runs in both modes:
 `make quickcheck PACKAGES=./reference RUN='...'` and
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='...'`.

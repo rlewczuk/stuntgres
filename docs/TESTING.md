@@ -325,9 +325,18 @@ make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
 # Ordinary full Docker-free verification.
 make quickcheck
-# After integration: all final gates under one 30-minute deadline.
+# After integration: all final gates under a one-hour deadline.
 make fullcheck
 ```
+
+Ordinary quickcheck and selective reference runs retain their 900-second limits.
+Fullcheck gives its complete pinned PostgreSQL race stage a 3600-second shell and
+Go package deadline inside the same 3600-second aggregate gate; native stages
+remain capped at 900 seconds. This exception preserves the complete scenario and
+race coverage, not a skip or permission to loosen SQL timeout expectations.
+`TEST_TIMEOUT` is a numeric count of seconds, defaulting to `900`; fullcheck
+explicitly selects `900` for native stages and `3600` for complete reference race.
+
 
 `make quickcheck REFERENCE=1 PACKAGES=./reference` enables `-reference=true` and the `reference` build tag; it runs
 both native and PostgreSQL backends, not PostgreSQL alone. The ordinary runner
