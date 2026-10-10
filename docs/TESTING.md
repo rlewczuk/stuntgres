@@ -146,6 +146,27 @@ Both modes are required before review/integration. Final fullcheck remains one
 1800-second gate after merge. Discovery-only deliberate observation failures
 and PG-only filters must be removed before the native failing proof and gates.
 
+The string-encoding smoke executes all five functions with independently expected
+rows/types, Unicode16 assigned/unassigned codepoints, exact conversion and escape
+diagnostics, held valid/NULL/error/recovery frames and stored NAME/INT4 overloads.
+Native phases exercise retained snapshots, Dump/Reset/Restore, failed Restore
+atomicity and real PostgreSQL replay of actual emitted native SQL:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceStringEncoding' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringEncoding' VERBOSE=0
+```
+
+Each invocation has a900-second deadline. Smoke does not replace the complete
+family, ordinary quickcheck or post-merge fullcheck. The offline Unicode generator
+also emits assignment ranges from the existing vendored Unicode16 data:
+
+```sh
+go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go
+```
+
 The index-clause feature smoke exercises mixed keys, an existing scalar expression
 key with explicit owned collation/class and INCLUDE, prepared uppercase projection,
 payload/derived-key maintenance, the total 32/33 boundary and native controls with

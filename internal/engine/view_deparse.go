@@ -418,9 +418,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
-			if literal, ok := v.literals[literalPath]; ok && literal.ResultUsage().Type.ID() == sqltype.Oid {
+			if literal, ok := v.literals[literalPath]; ok && (literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name) {
 				// The binder types these literal children directly as the cast
-				// target. OID literalSQL already supplies the canonical cast;
+				// target. OID/NAME literalSQL already supplies the canonical cast;
 				// wrapping it again would grow another cast on every replay.
 				return text, nil
 			}
@@ -683,7 +683,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		text, err := args(e.Args)
 		switch name {
-		case "lpad", "rpad", "repeat", "reverse":
+		case "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
 			if v.presentation.deparse {
 				return name + "(" + text + ")", err
 			}

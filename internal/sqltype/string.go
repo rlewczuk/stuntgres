@@ -105,6 +105,26 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		return p, fmt.Errorf("invalid string signature")
 	}
 	switch name {
+	case "ascii":
+		if len(args) != 1 || result != result.Type.Usage() || result.Type.ID() != Int4 || !textual[0] {
+			return p, fmt.Errorf("invalid ascii signature")
+		}
+	case "chr":
+		if len(args) != 1 || result.Type.ID() != Text || textual[0] {
+			return p, fmt.Errorf("invalid chr signature")
+		}
+	case "unistr":
+		if len(args) != 1 || result.Type.ID() != Text || !textual[0] {
+			return p, fmt.Errorf("invalid unistr signature")
+		}
+	case "unicode_assigned":
+		if len(args) != 1 || result != result.Type.Usage() || result.Type.ID() != Bool || !textual[0] {
+			return p, fmt.Errorf("invalid assignment signature")
+		}
+	case "to_ascii":
+		if len(args) > 2 || result.Type.ID() != Text || !textual[0] || len(args) == 2 && textual[1] {
+			return p, fmt.Errorf("invalid to_ascii signature")
+		}
 	case "||":
 		if len(args) != 2 || result.Type.ID() != Text || !textual[0] && !textual[1] {
 			return p, fmt.Errorf("invalid concatenation signature")
@@ -172,6 +192,13 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		}
 		p.args[i] = u
 		target := text
+		if name == "to_ascii" && i == 1 {
+			if (u.Type.ID() != Name && u.Type.ID() != Int4) || u != u.Type.Usage() {
+				return p, fmt.Errorf("invalid encoding input")
+			}
+			p.formal[i] = u
+			continue
+		}
 		if StringIntegerArgument(name, i) {
 			if u.Type.ID() != Int4 || u != u.Type.Usage() {
 				return p, fmt.Errorf("invalid string integer input")
@@ -220,7 +247,15 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	var texts [4]string
 	for i := range int(p.count) {
 		v := values[i]
-		if StringIntegerArgument(p.name, i) {
+		if p.formal[i].Type.ID() == Int4 {
+			continue
+		}
+		if p.name == "to_ascii" && i == 1 {
+			var err error
+			texts[i], err = v.Text()
+			if err != nil {
+				return Value{}, err
+			}
 			continue
 		}
 		var err error
@@ -244,6 +279,9 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 		if err != nil {
 			return Value{}, err
 		}
+	}
+	if p.name == "ascii" || p.name == "chr" || p.name == "to_ascii" || p.name == "unistr" || p.name == "unicode_assigned" {
+		return p.evaluateEncoding(ctx, texts, values)
 	}
 	if p.result.Type.ID() == Int4 {
 		return p.evaluateLength(ctx, texts)

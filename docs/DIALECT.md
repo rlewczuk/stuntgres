@@ -31,6 +31,62 @@ introducing explicit BIT casts in Dump; restored defaults remain expressions.
 See [bit strings](TYPES.md#bit-strings--change-note) for input, scanner and
 driver details.
 
+### String codepoints, encoding and Unicode — change note
+
+The fixed UTF8 database supports these immutable, strict functions:
+
+| Signature | Result | Behavior |
+| --- | --- | --- |
+| `ascii(text)` | INT4 | First UTF8 codepoint; empty text returns0, not an error. |
+| `chr(integer)` | TEXT | One Unicode scalar; unassigned scalars and noncharacters are legal output. |
+| `to_ascii(text)` / `to_ascii(text,integer)` / `to_ascii(text,name)` | TEXT | Byte transliteration from an explicitly selected supported legacy encoding. |
+| `unistr(text)` | TEXT | Runtime Unicode escape decoding and UTF16 surrogate pairing. |
+| `unicode_assigned(text)` | BOOL | Every codepoint has Unicode16 General_Category other than Cn; empty text is true. |
+
+Character arguments use the existing type-owned TEXT conversion, including
+trailing-space removal for CHARACTER but not VARCHAR. `chr` accepts implicit
+SMALLINT widening and contextual unknown input, not known BIGINT/NUMERIC/TEXT.
+The encoding argument chooses INT4 for compatible known numeric inputs and NAME
+for character inputs or unknown literals/parameters. NAME retains its existing
+63-byte complete-UTF8 clipping before encoding-name resolution.
+
+`to_ascii` is not general encoding conversion or Unicode accent removal. It maps
+raw source bytes through PostgreSQL18's LATIN1/LATIN2/LATIN9/WIN1250 tables
+(IDs8/9/16/29), preserving byte count and ASCII bytes. For example
+`to_ascii('é','LATIN1')` returns `AC`, not `e`. Omitted encoding is UTF8, so even
+empty/all-ASCII sources report0A000. Release18 encoding aliases normalize ASCII
+alphanumerics case-insensitively: `ISO-8859-1` and `windows-1250` are valid;
+`CP1250` is not. Valid-but-unsupported encodings, including SQL_ASCII, UTF8,
+MULE_INTERNAL (ID7) and SJIS, report0A000 using canonical encoding names.
+Unknown names/codes report42704. This does not add server-encoding settings
+or a general conversion registry.
+
+`unistr` recognizes exactly `\XXXX`, `\+XXXXXX`, `\uXXXX`, `\UXXXXXXXX` and
+`\\` (one literal backslash); hex digits accept either case and widths are fixed.
+Use dollar literals or parameters when supplying these raw runtime escapes:
+`unistr($$\D83D\uDE42$$)` returns `🙂`. Ordinary Unicode is unchanged.
+NUL or a value above10FFFF reports22023 with uppercase hexadecimal codepoint;
+malformed escapes report42601 with the four-form Hint. Invalid surrogate pairing
+reports42601 without that Hint. A malformed/out-of-range second escape is diagnosed
+before pending-surrogate pairing. These are runtime function diagnostics, distinct
+from lexical E-string/U& errors, and carry no invented SQL source Position.
+`chr(-1)` reports22023; zero, surrogate values and values above10FFFF report54000.
+
+Assignment uses generated ranges from the vendored Unicode16 UnicodeData, including
+CJK/Hangul and private-use First/Last ranges. Controls, combining marks and private
+use are assigned; noncharacters and unassigned characters are not. SQL text input
+still validates the entire UTF8/NUL boundary before any function, even `ascii`.
+NULL returns a typed NULL and skips runtime conversion availability/name checks,
+not analysis or demanded child-input diagnostics.
+
+DEFAULT/CHECK, views, generated columns and expression indexes reuse the existing
+expression ownership/volatility contracts. Native Dump/Restore preserves overloads
+and replays actual emitted SQL against PostgreSQL; failed staged Restore or writes
+do not publish partial state. Cancellation uses bounded provider scans; native
+controls retain their ordinary precanceled context-error contract.
+Complete dual-mode family: `RUN='^TestReferenceStringEncoding'`; feature smoke:
+`RUN='^TestReferenceStringEncodingFeatureSmoke$'` under both quickcheck modes.
+
 ### SQL current date and time — change note
 
 `CURRENT_DATE` returns DATE; `CURRENT_TIME[(p)]` returns TIMETZ;

@@ -10,6 +10,19 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
+`unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
+providers. `ascii` returns the first UTF8 codepoint (empty text returns0);
+`chr` rejects NUL and invalid Unicode scalars. Explicit legacy `to_ascii`
+conversion transliterates bytes, not Unicode accents; omitted encoding uses
+UTF8 and reports unsupported conversion even for empty input. `unistr` decodes
+four runtime escape forms and surrogate pairs; assignment uses vendored
+Unicode16 categories rather than the host Unicode version. Stored consumers,
+metadata and native Dump/Restore retain the selected NAME/INT4 overload.
+See [string encoding](docs/DIALECT.md#string-codepoints-encoding-and-unicode--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0`.
+
 Change note: `lpad(text,integer[,text])`, `rpad(text,integer[,text])`,
 `repeat(text,integer)` and `reverse(text)` reuse the selected immutable string
 providers. Padding counts UTF8 codepoints, repeats fill from its beginning and

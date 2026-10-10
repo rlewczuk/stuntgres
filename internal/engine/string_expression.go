@@ -170,8 +170,18 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			return b.finishBinary(name, raw.Pos, operands, syntax)
 		}
 	}
+	// UNKNOWN prefers the string-category NAME overload. Known operands choose
+	// only an existing implicit INT4 or NAME edge; retain their source typing.
+	encodingID := sqltype.Name
+	if name == "to_ascii" && len(operands) > 1 && operands[1].descriptor() != nil {
+		if _, err := sqltype.PlanCoercion(operands[1].node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Implicit); err == nil {
+			encodingID = sqltype.Int4
+		}
+	}
 	valid := visible && (!raw.Variadic || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse")
 	switch {
+	case name == "ascii" || name == "chr" || name == "unistr" || name == "unicode_assigned":
+		valid = valid && len(operands) == 1
 	case name == "lpad" || name == "rpad":
 		valid = valid && (len(operands) == 2 || len(operands) == 3)
 	case name == "repeat":
@@ -191,6 +201,11 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	}
 	for i, o := range operands {
 		if d := o.descriptor(); d != nil {
+			if name == "to_ascii" && i == 1 {
+				_, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(encodingID).Usage(), sqltype.Implicit)
+				valid = valid && err == nil
+				continue
+			}
 			if sqltype.StringIntegerArgument(name, i) {
 				_, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Implicit)
 				valid = valid && err == nil
@@ -218,6 +233,10 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			target = b.typ(sqltype.Int4)
 			textual[i] = false
 		}
+		if name == "to_ascii" && i == 1 {
+			target = b.typ(encodingID)
+			textual[i] = false
+		}
 		var err error
 		args[i], err = b.finalizeOperand(o, target)
 		if err != nil {
@@ -232,10 +251,10 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		}
 	}
 	result := b.typ(sqltype.Text).Usage()
-	if name == "is_normalized" || name == "starts_with" {
+	if name == "is_normalized" || name == "starts_with" || name == "unicode_assigned" {
 		result = b.typ(sqltype.Bool).Usage()
 	}
-	if count || search {
+	if count || search || name == "ascii" {
 		result = b.typ(sqltype.Int4).Usage()
 	}
 	if name == "position" && raw.Syntax == parser.SQLFunctionSyntax {

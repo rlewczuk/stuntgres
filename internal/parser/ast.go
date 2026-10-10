@@ -615,7 +615,7 @@ func singletonArgument(expr Expr) bool {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if !binaryHashFunction(name) && !datetimeFunctionName(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !binaryHashFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}
