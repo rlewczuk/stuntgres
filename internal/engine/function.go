@@ -51,6 +51,10 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	// Shared syntax must never silently discard labels in adjacent providers.
+	if len(raw.ArgNames) != 0 && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+		return nil, b.functionSignatureError(raw)
+	}
 	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
 		return nil, b.formatDiagnosticSignatureError(raw)
 	}
@@ -77,6 +81,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	switch name {
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef":
 		return b.bindDeparse(raw, visible)
+	case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
+		return b.bindDatetimeMake(raw, visible)
 	case "to_char", "to_date", "to_timestamp":
 		return b.bindDatetimeFormatting(raw, visible)
 	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse":
@@ -305,6 +311,7 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 		if literal, ok := rawArg.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			names[i] = "unknown"
 		}
+		names[i] = functionNamedType(raw, i, names[i])
 	}
 	return names, nil
 }

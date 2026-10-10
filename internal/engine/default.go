@@ -218,6 +218,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
+	case datetimeMakeExpression:
+		return n.sql("pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case datetimeFormattingExpression:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args[:])
 	case stringExpression:
@@ -976,6 +978,19 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 			return node, false, nil
 		}
 		n.plan, err = sqltype.BindBinary(n.plan.Name(), info.usage, usages[:len(n.args)]...)
+		n.expressionInfo = info
+		rebound = n
+	case datetimeMakeExpression:
+		for i := range n.children() {
+			n.args[i] = child(n.args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, err = sqltype.BindDatetimeMake(n.plan.Name(), info.usage.Type, n.count)
 		n.expressionInfo = info
 		rebound = n
 	case datetimeFormattingExpression:

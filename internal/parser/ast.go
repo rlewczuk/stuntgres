@@ -950,8 +950,11 @@ const (
 )
 
 type FunctionExpr struct {
-	Name           ObjectName
-	Args           []Expr
+	Name ObjectName
+	Args []Expr
+	// ArgNames is nil for positional calls; zero entries mark positional arguments.
+	// Args and labels always retain written order, independently of bound slots.
+	ArgNames       []Identifier
 	Pos            Position
 	Variadic       bool
 	ResolutionOnly bool // Absent ordinary call: diagnostics, never provider dispatch.

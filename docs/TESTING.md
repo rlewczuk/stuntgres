@@ -104,6 +104,28 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+The datetime-constructor smoke directly asserts all five exact result types and
+values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
+held prepared session-zone changes, full calendar/seconds/zone/signature errors,
+later-row write atomicity and named stored-definition Dump/Restore with replay
+of actual emitted native SQL against PostgreSQL:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0
+```
+
+Run the complete identical `RUN='^TestReferenceDatetimeMake'` family in both
+modes before review, with900-second deadlines. Supplemental constructor units
+use `PACKAGES=./internal/sqltype RUN='^TestDatetimeMake'`,
+`PACKAGES=./internal/parser RUN='^TestDatetimeMakeNamedArguments$'` and
+`PACKAGES=./internal/engine RUN='^TestDatetimeMake(Binding|Properties|ArgumentAssociation)$'`.
+These selectors do not replace ordinary quickcheck or post-merge fullcheck.
+Successful interval witnesses assert `INTERVAL` metadata and exact public output
+codec strings directly; they do not require an `interval::text` conversion edge.
+Constructor write coverage uses INSERT affected counts and existing UPDATE/DELETE
+RETURNING projections, not unsupported INSERT RETURNING syntax.
+
 The index-clause feature smoke exercises mixed keys, an existing scalar expression
 key with explicit owned collation/class and INCLUDE, prepared uppercase projection,
 payload/derived-key maintenance, the total 32/33 boundary and native controls with

@@ -163,6 +163,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return n.plan.Name() != "||"
 	case indexPropertyExpression:
 		return true
+	case datetimeMakeExpression:
+		return true
 	case mathExpression, binaryExpression, randomExpression, nullCountExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, currentDateTimeExpression:
 		return true
 	default:

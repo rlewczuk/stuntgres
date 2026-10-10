@@ -132,6 +132,11 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	case binaryExpression:
 		n.args = args(n.args)
 		next = n
+	case datetimeMakeExpression:
+		for i := range n.children() {
+			n.args[i] = child(n.args[i])
+		}
+		next = n
 	case datetimeFormattingExpression:
 		for i := range n.args {
 			n.args[i] = child(n.args[i])

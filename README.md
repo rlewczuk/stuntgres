@@ -23,6 +23,18 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringPa
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringPadFeatureSmoke$' VERBOSE=0`.
 See [padding and reversal](docs/DIALECT.md#string-padding-repetition-and-reversal--change-note).
 
+Change note: PostgreSQL 18 `make_date`, `make_time`, `make_timestamp`,
+`make_timestamptz` and `make_interval` construct exact typed temporal values.
+These selected calls accept positional or named `=>`/`:=` arguments; interval
+components independently default to zero. Negative years mean BC, TIME retains
+24:00, and microseconds round to nearest/even. Timestamptz construction uses an
+explicit zone or the Execute-time session zone; output uses the captured session.
+The constructors compose in queries, writes and stored definitions, including
+native Dump/Restore. General named-function binding, justify and extract remain
+excluded. See [datetime constructors](docs/DIALECT.md#datetime-constructors--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
+
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
 `pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL

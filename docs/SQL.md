@@ -17,6 +17,33 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+## Selected datetime constructor calls
+
+`make_date`, `make_time`, `make_timestamp`, `make_timestamptz` and
+`make_interval` accept ordinary positional calls and named `label => expression`
+or `label := expression` calls. Labels use SQL identifier folding; quoted
+lowercase labels match, while quoted uppercase labels do not. Named arguments
+can be reordered, but every positional argument must precede all named ones.
+Duplicate labels are rejected; unknown labels, positional/name collisions,
+missing required arguments and VARIADIC do not resolve a constructor signature.
+Every interval component has its own zero default; explicit NULL is never zero.
+Date/time/timestamp required slots have no defaults, and six/seven-argument
+timestamptz are distinct strict overloads. The timestamp day label is `mday`;
+interval uses plural `mins`/`secs`, while time uses singular `min`/`sec`.
+
+```sql
+SELECT make_date(day => 15, year => 2013, month => 7);
+SELECT make_interval(1, days => 2, secs := 1.5);
+SELECT make_timestamptz(2013,7,15,12,0,0,'America/New_York');
+```
+
+These calls compose through existing scalar expression and stored-definition
+routes, preserving written labels/order and omitted defaults in definition
+presentation. General named argument binding for other functions is not added;
+`=>`/`:=` do not become binary SQL operators. See
+[constructor signatures and semantics](DIALECT.md#datetime-constructors--change-note).
+
+
 Domain declarations use represented scalar/domain or supported array bases.
 NULL is the default; explicit NULL is accepted. DEFAULT/CHECK/NOT NULL,
 ALTER DOMAIN, array operators/functions/constructors/subscripts, native type

@@ -545,6 +545,10 @@ func (l *lexer) scan(v *sqlSymType) int {
 		if c == ':' && l.offset < len(l.input) && l.input[l.offset] == ':' {
 			l.current.text = "::"
 			l.offset++
+		} else if c == ':' && l.offset < len(l.input) && l.input[l.offset] == '=' {
+			l.current.text = ":="
+			l.offset++
+			token = EQUALS_GREATER
 		}
 		// PostgreSQL maximal-munch operators stop before comment openers.
 		// Trailing signs survive only with a nonstandard operator character.
@@ -1250,5 +1254,5 @@ func indexPropertyCallName(name string) bool {
 
 // Recognize quoted spellings for admission without changing exact resolution.
 func datetimeFunctionName(name string) bool {
-	return strings.EqualFold(name, "to_char") || strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp")
+	return strings.EqualFold(name, "to_char") || strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || datetimeMakeFunctionName(name)
 }

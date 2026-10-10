@@ -1184,6 +1184,36 @@ Native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTime[A
 Real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`;
 the tagged optional-date complement remains real-oracle coverage only.
 
+## Constructed datetime values — change note
+
+The five selected numeric constructors return the existing DATE1082, TIME1083,
+TIMESTAMP1114, TIMESTAMPTZ1184 and INTERVAL1186 descriptors with typmod-1. They
+construct typed inline civil days, clock/instant microseconds or independent
+interval month/day/time fields, not text approximations fed back through codecs.
+Native DATE/TIME/INTERVAL exports remain string/nil; finite timestamps export
+time.Time/nil. pq's DATE/TIME time.Time and INTERVAL byte-slice boundary remains
+independently specified in shared reference tests.
+
+Negative input years mean BC (-1 is astronomical zero), with no positive year0.
+DATE's finite civil domain is4714-11-24BC through5874897-12-31. Timestamp's domain
+is4714-11-24BC through294276-12-31 23:59:59.999999, with exclusive upper END:
+constructor rounding/carry may not produce END even when a later typmod input
+path accepts it. Julian admissibility is checked before clock completion and
+the combined finite timestamp check; prior-day24:00 can carry onto finite MIN.
+
+Seconds use binary64 multiplication and nearest/even microsecond rounding before
+clock bounds. TIME retains24:00, whereas timestamps advance the civil date.
+Intervals check years*12 and weeks*7 as signed32-bit intermediates and all final
+month/day/microsecond sums, retaining24hours separately from1day and30days
+separately from1month. NaN/infinite or out-of-range seconds reject; finite
+floating multiplication overflow is22003, ordinary interval overflow22008.
+Constructors never generate temporal or interval infinity sentinels.
+
+NULL results retain exact types. Session-dependent construction/output uses the
+existing captured environments; IntervalStyle still belongs to its output codec.
+See [calls](SQL.md#selected-datetime-constructor-calls) and
+[semantics](DIALECT.md#datetime-constructors--change-note).
+
 ## Datetime formatting — change note
 
 `to_char` on TIMESTAMP, TIMESTAMPTZ and INTERVAL returns unsized TEXT.
@@ -1730,8 +1760,9 @@ canonical typed interval input with explicitly signed month, day and exact integ
 microsecond quantities, independent of either session's style. This uniform encoding
 preserves the finite minimum time component through data, defaults and views;
 NULL/infinities retain their existing encoding. Interval arithmetic,
-timestamp+interval, justify/extract/make_interval and cross-family casts are not
-added. See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
+timestamp+interval and justify/extract are not added. Selected `make_interval`
+construction is documented above; it does not enable new cross-family casts.
+See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 The interaction regressions are merged into untagged dual-mode `reference/`
 scenarios, with independent native string and pq byte-slice representations:

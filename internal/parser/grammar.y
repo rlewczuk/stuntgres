@@ -304,7 +304,7 @@ package parser
 %type <row> conditional_args count_values
 %type <tok> conditional_word
 %type <tok> comparison_operator
-%type <call> function_args
+%type <call> function_args function_argument_list
 %type <predicate> truth_kind
 %type <selectStmt> projection projection_item
 %type <insertSource> insert_input
@@ -661,11 +661,11 @@ index_atom: name {$$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.
  | '(' scalar_projection ')' {$$=IndexKey{Expression:$2,Pos:$1.pos}}
  | function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
  | conditional_call {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
- | name '.' check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
+ | check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,ArgNames:$2.ArgNames,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
+ | name '.' check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
  | string_function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | name '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
- | name '.' col_label '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos},Pos:$1.pos}} ;
+ | name '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
+ | name '.' col_label '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos},Pos:$1.pos}} ;
 index_class: /* empty */ {$$=IndexKey{}}
  | relation_name index_options {name:=$1;$$=IndexKey{Opclass:&name,Options:$2}} ;
 index_options: /* empty */ {$$=nil} | '(' index_option_list ')' {$$=$2} ;
@@ -988,10 +988,10 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | CURRENT_TIMESTAMP '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,CurrentTimestamp,$1,$3);if !ok{return 1};$$=raw}
  | LOCALTIME '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,LocalTime,$1,$3);if !ok{return 1};$$=raw}
  | LOCALTIMESTAMP '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,LocalTimestamp,$1,$3);if !ok{return 1};$$=raw}
- | IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
- | IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
+ | IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
+ | IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
  | INTERVAL STRING %prec TYPE_NAME {$$=TypedLiteralExpr{TypeName:TypeName{Name:"interval",Pos:$1.pos},Text:$2.text,Pos:$2.pos}}
@@ -1011,7 +1011,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
- | check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos} }
+ | check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,ArgNames:$2.ArgNames,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos} }
  | OVERLAY '(' scalar PLACING scalar FROM scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7}) }
  | OVERLAY '(' scalar PLACING scalar FROM scalar FOR scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7,$9}) }
  | OVERLAY '(' function_values ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"overlay",Pos:$1.pos}}},Args:$3,Pos:$1.pos} }
@@ -1021,8 +1021,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | SUBSTRING '(' scalar FROM scalar FOR scalar ')' { $$=binarySQLCall("substring",$1.pos,[]Expr{$3,$5,$7}) }
  | SUBSTRING '(' scalar FOR scalar FROM scalar ')' { $$=binarySQLCall("substring",$1.pos,[]Expr{$3,$7,$5}) }
  | SUBSTRING '(' scalar FOR scalar ')' { $$=binarySQLCall("substring",$1.pos,[]Expr{$3,binarySubstringStart(),binarySubstringCount($5)}) }
- | SUBSTRING '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"substring",Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos} } ;
+ | SUBSTRING '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"substring",Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos} } ;
 /* Only an actual scalar/index call can enter the failure-only argument context. */
 check_function_head: CHECK_FUNC '(' {$$=$1;sqllex.(*lexer).formatCallHead($1)} ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
@@ -1160,15 +1160,19 @@ projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
 /* Selected calls remain standalone projection roots, not Boolean/comparison
  * leaves. Their arguments remain ordinary operands or nested selected calls. */
 function_argument: operand { $$=$1 } | function { $$=$1 } ;
-function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} } ;
+function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
- | function_values { $$=FunctionExpr{Args:$1} }
+ | function_argument_list { $$=$1 }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
- | function_values ',' VARIADIC function_argument { $$=FunctionExpr{Args:append($1,$4),Variadic:true} } ;
+ | function_argument_list ',' VARIADIC function_argument { $$=appendFunctionArgument($1,$4,Identifier{});$$.Variadic=true } ;
+function_argument_list: function_argument { $$=FunctionExpr{Args:[]Expr{$1}} }
+ | name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
+ | function_argument_list ',' function_argument { $$=appendFunctionArgument($1,$3,Identifier{}) }
+ | function_argument_list ',' name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
-string_function: STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
- | name '.' STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
+string_function: STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
  | NORMALIZE '(' scalar ')' { $$=stringBuiltin("normalize",$1.pos,[]Expr{$3}) }
  | NORMALIZE '(' scalar ',' normalization_form ')' { $$=stringBuiltin("normalize",$1.pos,[]Expr{$3,stringForm($5)}) }
  | TRIM '(' trim_direction trim_arguments ')' { $$=stringBuiltin($3.text,$1.pos,$4) } ;

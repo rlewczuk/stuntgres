@@ -649,6 +649,24 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return objectNameText(e.Name) + "(" + strings.Join(parts, ", ") + ")", nil
 		}
+		if name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" {
+			functionName, identifier := "pg_catalog."+name, quoteIdentifier
+			if v.presentation.deparse {
+				functionName, identifier = name, pgIdentifier
+			}
+			parts := make([]string, len(e.Args))
+			for i, arg := range e.Args {
+				text, err := operand(arg, pgRenderParent{functionArgument: true})
+				if err != nil {
+					return "", err
+				}
+				if len(e.ArgNames) > i && e.ArgNames[i].Text != "" {
+					text = identifier(e.ArgNames[i].Text) + " => " + text
+				}
+				parts[i] = text
+			}
+			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
+		}
 		text, err := args(e.Args)
 		switch name {
 		case "lpad", "rpad", "repeat", "reverse":

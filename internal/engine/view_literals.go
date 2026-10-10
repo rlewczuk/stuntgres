@@ -310,6 +310,17 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(binaryExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(datetimeMakeExpression); ok {
+			if len(r.Args) != n.writtenCount {
+				return fmt.Errorf("stuntgres: mismatched constructor syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.args[n.writtenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if n, ok := bound.(datetimeFormattingExpression); ok {
 			return children(r.Args, n.args[:])
 		}

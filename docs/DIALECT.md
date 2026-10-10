@@ -187,8 +187,59 @@ input at Prepare and cursor output at Execute. See [types](TYPES.md#interval--ch
 and [settings](SETTINGS.md#intervalstyle--change-note).
 Malformed/range/precision errors use originating PostgreSQL logical diagnostics
 and atomic publication. No interval arithmetic, date-time cross-family cast,
-justify/extract/make_interval, wire protocol or physical storage is added.
+justify/extract, wire protocol or physical storage is added. Selected constructors
+are documented below.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+
+### Datetime constructors — change note
+
+The selected signatures return exact unsized values:
+
+| Function | Parameters in declared order | Result |
+|---|---|---|
+| `make_date` | `year int4, month int4, day int4` | DATE |
+| `make_time` | `hour int4, min int4, sec float8` | TIME |
+| `make_timestamp` | `year int4, month int4, mday int4, hour int4, min int4, sec float8` | TIMESTAMP |
+| `make_timestamptz` | the six timestamp parameters, optionally `timezone text` | TIMESTAMPTZ |
+| `make_interval` | `years, months, weeks, days, hours, mins int4`, `secs float8` | INTERVAL |
+
+Every interval parameter independently defaults to zero. Positional arguments
+must precede named arguments; both `=>` and `:=` are admitted, with ordinary
+identifier folding and exact quoted labels. Timestamp's third label is `mday`,
+not `day`. Ordinary and `pg_catalog`-qualified calls use existing namespace
+resolution and implicit coercion: int2 widens to int4, but int8/numeric does not
+implicitly narrow. Seconds accept the existing numeric-to-float8 edges.
+
+Years below zero mean BC; year zero is invalid. Calendar fields do not normalize.
+Seconds round to nearest/even microseconds before clock checks; sec60 can carry,
+TIME keeps24:00, and timestamp24:00 advances the civil date. DATE keeps its
+wider civil range; constructors produce only finite timestamps strictly below
+the TIMESTAMP END bound, independent of text-input typmod rounding. Interval
+months/days/time stay distinct; checked years/weeks intermediate overflow cannot
+be rescued by a later component. Huge finite seconds multiplication overflow
+reports22003 separately from interval22008.
+
+Omitted timestamptz zone uses Execute-time session TimeZone; explicit zones use
+the same embedded IANA/abbreviation/POSIX provider with constructor numeric-zone
+admission and ISO displacement sign. Rounded/carry-normalized civil fields choose
+the DST gap/fold offset. Explicit NULL timezone returns NULL, not the session
+zone. Presentation still uses captured output settings.
+Numeric-zone diagnostics preserve embedded quotes and backslashes literally.
+
+All constructors are strict. NULL does not suppress signature/input errors or
+constant-child preflight errors (for example `make_date(NULL,1,1/0)`); runtime
+nullable operands do not suppress reached failing siblings. Date/time/plain
+timestamp/interval are IMMUTABLE; both timestamptz overloads are STABLE, even
+with explicitUTC. Immutable constructors work in generated columns/expression
+indexes; timestamptz defaults/views remain dynamic. Existing query/DML/CHECK,
+group/join, stored remapping and native control consumers share the same bound
+nodes. Stored definitions preserve supplied named order and omitted defaults;
+deparse normalizes named separators to `=>`. No general named-function provider,
+new temporal arithmetic, justify/extract, host timezone fallback or wire service
+is added.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
 
 ### Datetime formatting — change note
 

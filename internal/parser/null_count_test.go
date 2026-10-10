@@ -103,9 +103,7 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
 		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", "SELECT num_nulls(1) OVER () FROM t",
-		"SELECT num_nulls(a => 1) FROM t", `SELECT "NUM_NULLS"(NULL) FROM t`,
-		"SELECT num_nonnulls(a => 1) FROM t", "SELECT num_nulls(a=>1) FROM t",
-		"SELECT num_nulls(a := 1) FROM t", "SELECT num_nulls(a=>1)",
+		`SELECT "NUM_NULLS"(NULL) FROM t`,
 	} {
 		statements, err := Parse(q)
 		if err == nil || len(statements) != 0 {
