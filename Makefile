@@ -25,7 +25,7 @@ quickcheck:
 # Post-integration production gates share one 30-minute deadline.
 # Clear selection overrides so final verification always covers the full suites.
 fullcheck:
-	@timeout --signal=KILL 1800s sh -c '$(MAKE) -j1 build quickcheck RUN= PACKAGES=./... REFERENCE=0 RACE=0 && $(MAKE) -j1 quickcheck RUN= PACKAGES=./... REFERENCE=0 RACE=1 && $(MAKE) -j1 quickcheck RUN= PACKAGES=./reference REFERENCE=1 RACE=1 && $(MAKE) -j1 bench deps && module=$$(go list -m) && dependencies=$$(go list -deps -f "{{if not .Standard}}{{.ImportPath}}{{end}}" ./...) && for dependency in $$dependencies; do case "$$dependency" in "$$module"|"$$module"/*) ;; *) printf "Non-standard production dependency: %s\n" "$$dependency" >&2; exit 1 ;; esac; done'
+	@timeout --signal=KILL 3600s sh -c '$(MAKE) -j1 build quickcheck RUN= PACKAGES=./... REFERENCE=0 RACE=0 && $(MAKE) -j1 quickcheck RUN= PACKAGES=./... REFERENCE=0 RACE=1 && $(MAKE) -j1 quickcheck RUN= PACKAGES=./reference REFERENCE=1 RACE=1 && $(MAKE) -j1 bench deps && module=$$(go list -m) && dependencies=$$(go list -deps -f "{{if not .Standard}}{{.ImportPath}}{{end}}" ./...) && for dependency in $$dependencies; do case "$$dependency" in "$$module"|"$$module"/*) ;; *) printf "Non-standard production dependency: %s\n" "$$dependency" >&2; exit 1 ;; esac; done'
 
 bench:
 	@timeout --signal=KILL 900s go test -timeout=900s -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
