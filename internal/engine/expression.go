@@ -935,6 +935,10 @@ type expressionBinder struct {
 	regclassConcat             bool
 	aggregateClause            string
 	aggregates                 []aggregateCall
+	windowRaw                  []parser.WindowDefinition
+	windowDefinitions          map[string]boundWindowSpec
+	windowCalls                []windowCall
+	argumentOwner              argumentWindowOwner
 	queryAuth                  *AuthorizationView
 	querySources               []queryLeaf
 	queryLockAdmission         *queryLockAdmission
@@ -1170,7 +1174,7 @@ func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos p
 	ref := b.useColumnOf(relation, i)
 	return columnExpression{expressionInfo: expressionInfo{usage: relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 }
-func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (BoundExpr, error) {
+func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (boundResult BoundExpr, bindError error) {
 	if policy.context == filterContext && !policy.operand && policy.booleanConstruct == "" {
 		return b.bindBoolean(raw, policy.context, "WHERE")
 	}
@@ -1207,6 +1211,44 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	case parser.ForbiddenGenerationExpr:
 		return nil, expressionError(r.Code, r.Message, r.Pos)
 	case parser.AggregateExpr:
+		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
+		if r.Schema != nil {
+			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
+		}
+		if r.Window != nil {
+			var err error
+			node, err = b.bindWindow(r, name)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+		parentAggregates, parentWindows := b.aggregates, b.windowCalls
+		defer func() {
+			if bindError != nil {
+				b.aggregates, b.windowCalls = parentAggregates, parentWindows
+			}
+		}()
+		if r.Name == "row_number" {
+			types := make([]string, len(r.Args))
+			for i, arg := range r.Args {
+				child, err := b.bind(arg, expressionPolicy{context: projectionContext})
+				if err != nil {
+					return nil, err
+				}
+				types[i] = functionArgumentTypeName(arg, child)
+			}
+			if _, err := b.bindAggregateFilter(r); err != nil {
+				return nil, err
+			}
+			if err := b.resolveRowNumberSignature(r, name, types); err != nil {
+				return nil, err
+			}
+			return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+		}
+		parentOwner := b.argumentOwner
+		b.argumentOwner = argumentWindowOwner{active: true}
+		defer func() { b.argumentOwner = parentOwner }()
 		if b.indexConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)
 		}
@@ -1215,10 +1257,6 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 		if b.checkConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
-		}
-		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
-		if r.Schema != nil {
-			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 		}
 		var err error
 		if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
@@ -1260,6 +1298,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		node, err = b.bindFunction(r)
 		if err != nil {
 			return nil, err
+		}
+		if r.Window != nil {
+			return nil, expressionError("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
 		}
 	case parser.CallExpr:
 		var err error

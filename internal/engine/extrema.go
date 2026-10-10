@@ -85,27 +85,59 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 			return nil, err
 		}
 		operand = bound
-		types[i] = "unknown"
-		if typ := bound.descriptor(); typ != nil {
-			types[i] = typ.DiagnosticName()
-			if typ.IsDomain() {
-				auth, err := b.bindingAuthorization()
-				if err != nil {
-					return nil, err
-				}
-				path, err := b.engine.lookupPath(auth, typeLookup)
-				if err != nil {
-					return nil, err
-				}
-				d := auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}].(*typeDescriptor)
-				types[i] = typeDiagnosticNameAt(auth.catalog, d, path)
-			}
+		types[i], err = b.extremaArgumentTypeName(bound)
+		if err != nil {
+			return nil, err
 		}
 	}
 	filter, err := b.bindAggregateFilter(raw)
 	if err != nil {
 		return nil, err
 	}
+	arg, err := b.resolveExtremaSignature(raw, name, operand, types)
+	if err != nil {
+		return nil, err
+	}
+	selected := arg.ResultUsage().Type
+	usage := arg.ResultUsage()
+	usage.Typmod = -1
+	comparison, err := sqltype.BindComparison(selected, selected)
+	if err != nil {
+		return nil, err
+	}
+	operation := aggregateMin
+	if raw.Name == "max" {
+		operation = aggregateMax
+	}
+	provider := extremaProvider{usage: usage, comparison: comparison, maximum: operation == aggregateMax, collationConflict: arg.CollationIndeterminate()}
+	call := aggregateCall{provider: provider, argument: arg, operation: operation}
+	properties := arg.Properties()
+	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
+	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
+	return b.finishAggregate(raw, call, filter, info)
+}
+
+func (b *expressionBinder) extremaArgumentTypeName(operand comparisonOperand) (string, error) {
+	typ := operand.descriptor()
+	if typ == nil {
+		return "unknown", nil
+	}
+	if !typ.IsDomain() {
+		return typ.DiagnosticName(), nil
+	}
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return "", err
+	}
+	path, err := b.engine.lookupPath(auth, typeLookup)
+	if err != nil {
+		return "", err
+	}
+	d := auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}].(*typeDescriptor)
+	return typeDiagnosticNameAt(auth.catalog, d, path), nil
+}
+
+func (b *expressionBinder) resolveExtremaSignature(raw parser.AggregateExpr, name parser.ObjectName, operand comparisonOperand, types []string) (BoundExpr, error) {
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -133,34 +165,13 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 			return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 		}
 	}
-	var arg BoundExpr
 	if typ := operand.descriptor(); typ != nil && typ.BaseType().ID() == sqltype.Char {
 		info := b.info(selected.Usage(), operand.node.SourcePosition(), operand.node.Properties())
 		plan, failure := sqltype.PlanExtremaCharText(operand.node.ResultUsage(), info.usage)
 		if failure != nil {
 			return nil, failure
 		}
-		arg = coercionExpression{info, operand.node, plan, sqltype.Implicit}
-	} else {
-		arg, err = b.coerceConditional(operand, selected.Usage(), raw.Name)
-		if err != nil {
-			return nil, err
-		}
+		return coercionExpression{info, operand.node, plan, sqltype.Implicit}, nil
 	}
-	usage := arg.ResultUsage()
-	usage.Typmod = -1
-	comparison, err := sqltype.BindComparison(selected, selected)
-	if err != nil {
-		return nil, err
-	}
-	operation := aggregateMin
-	if raw.Name == "max" {
-		operation = aggregateMax
-	}
-	provider := extremaProvider{usage: usage, comparison: comparison, maximum: operation == aggregateMax, collationConflict: arg.CollationIndeterminate()}
-	call := aggregateCall{provider: provider, argument: arg, operation: operation}
-	properties := arg.Properties()
-	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
-	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
-	return b.finishAggregate(raw, call, filter, info)
+	return b.coerceConditional(operand, selected.Usage(), raw.Name)
 }

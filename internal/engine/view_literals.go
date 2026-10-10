@@ -21,6 +21,7 @@ const (
 	viewValuesOrderLiteral
 	viewValuesOffsetLiteral
 	viewValuesLimitLiteral
+	viewWindowLiteral
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
@@ -107,6 +108,23 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return nil
 		}
 	case parser.AggregateExpr:
+		if n, ok := bound.(*windowExpression); ok && r.Window != nil {
+			if n.call < 0 || n.call >= len(b.windowCalls) {
+				return fmt.Errorf("stuntgres: invalid stored window occurrence")
+			}
+			spec := b.windowCalls[n.call].spec
+			for i, key := range r.Window.Partition {
+				if err := child(key, spec.partition[i]); err != nil {
+					return err
+				}
+			}
+			for i, key := range r.Window.Order {
+				if err := child(key.Expr, spec.order[i].expression); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if n, ok := bound.(aggregateExpression); ok {
 			if call, ok := b.aggregateCallAt(n); ok {
 				for i, arg := range r.Args {
@@ -434,6 +452,20 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		if err := validate(s.Having, viewHavingLiteral, 0); err != nil {
 			return err
 		}
+		for i, definition := range s.Windows {
+			ordinal := 0
+			path := viewLiteralPath{query: frame, clause: viewWindowLiteral, target: i}
+			for _, key := range definition.Spec.Partition {
+				if err := v.validateLiteralTree(catalog, key, path, &ordinal, &count, &columnCount); err != nil {
+					return err
+				}
+			}
+			for _, key := range definition.Spec.Order {
+				if err := v.validateLiteralTree(catalog, key.Expr, path, &ordinal, &count, &columnCount); err != nil {
+					return err
+				}
+			}
+		}
 		// VALUES owns its decorations' source-ordinal literal paths even when
 		// the SELECT syntax wrapper also exposes those same tail pointers.
 		if s.Values == nil && s.Order != nil {
@@ -584,6 +616,18 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		for _, key := range r.Order {
 			if err := child(key.Expr); err != nil {
 				return err
+			}
+		}
+		if r.Window != nil {
+			for _, key := range r.Window.Partition {
+				if err := child(key); err != nil {
+					return err
+				}
+			}
+			for _, key := range r.Window.Order {
+				if err := child(key.Expr); err != nil {
+					return err
+				}
 			}
 		}
 		if r.Filter != nil {

@@ -18,6 +18,10 @@ type queryBindingScope struct {
 	returning         *returningAliases
 	nonLateral        bool
 	rowDiagnosticMode relationLockMode
+	windowRaw         []parser.WindowDefinition
+	windowDefinitions map[string]boundWindowSpec
+	windowCalls       []windowCall
+	argumentOwner     argumentWindowOwner
 }
 
 func (b *expressionBinder) frameID() uint32 {
@@ -32,6 +36,8 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.aggregateClause, aggregates: b.aggregates, returning: b.returningAliases, nonLateral: b.queryNonLateral}
 	parent.relation = b.relation
 	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
+	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.windowRaw, b.windowDefinitions, b.windowCalls
+	parent.argumentOwner = b.argumentOwner
 	if parent.namespace == nil && b.relation != nil && (b.updateParameters || b.deleteTarget) {
 		ns := b.mutationTargetNamespace()
 		parent.namespace = &ns
@@ -50,6 +56,8 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.queryScopes = append(b.queryScopes, parent)
 	b.queryNamespace, b.queryHidden = nil, nil
 	b.aggregates, b.aggregateClause = nil, ""
+	b.windowRaw, b.windowDefinitions, b.windowCalls = nil, nil, nil
+	b.argumentOwner = argumentWindowOwner{}
 	b.returningAliases = nil
 	b.queryNonLateral = disallowParent
 	b.queryRowDiagnosticMode = 0
@@ -58,6 +66,8 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 		b.queryScopes = b.queryScopes[:index]
 		b.queryNamespace, b.queryHidden = oldNamespace, parent.hidden
 		b.aggregates, b.aggregateClause = parent.aggregates, parent.clause
+		b.windowRaw, b.windowDefinitions, b.windowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls
+		b.argumentOwner = parent.argumentOwner
 		b.returningAliases, b.queryNonLateral = parent.returning, parent.nonLateral
 		b.queryRowDiagnosticMode = parent.rowDiagnosticMode
 		b.queryFrame = oldFrame

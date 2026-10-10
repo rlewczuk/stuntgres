@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"errors"
-	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
@@ -30,8 +28,7 @@ func TestIntervalAvgExclusions(t *testing.T) {
 	}
 	for _, q := range []string{"SELECT avg(v) OVER () FROM t"} {
 		statements, err := Parse(q)
-		var d *sqlstate.Error
-		if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" {
+		if len(statements) != 1 || err != nil || statements[0].(*Select).Targets[0].(AggregateExpr).Window == nil {
 			t.Fatal(q, statements, err)
 		}
 	}

@@ -22,6 +22,8 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 		return queryTreeOccurrences(n.child, inputs, dst)
 	case *sortNode:
 		return queryTreeOccurrences(n.child, inputs, dst)
+	case *windowNode:
+		return dst // Windows consume their input and cannot carry row marks.
 	case *aggregateNode, *distinctNode, *setNode:
 		return dst
 	case *rowLockNode:

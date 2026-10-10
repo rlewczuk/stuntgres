@@ -33,12 +33,31 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 	if err != nil {
 		return nil, err
 	}
+	arg, operation, err := b.resolveAvgSignature(raw, name, operand, types)
+	if err != nil {
+		return nil, err
+	}
+	typ := arg.ResultUsage().Type
+	var provider aggregateProvider
+	switch operation {
+	case aggregateIntervalAvg:
+		provider = intervalAvgProvider{typ.Usage()}
+	case aggregateNumericAvg:
+		provider = numericAvgProvider{typ, b.typ(sqltype.Numeric).Usage()}
+	case aggregateFloatAvg:
+		provider = floatAvgProvider{typ, b.typ(sqltype.Float8).Usage()}
+	}
+	call := aggregateCall{provider: provider, argument: arg, operation: operation}
+	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
+}
+
+func (b *expressionBinder) resolveAvgSignature(raw parser.AggregateExpr, name parser.ObjectName, operand comparisonOperand, types []string) (BoundExpr, aggregateOperation, error) {
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, 0, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	visible, err := b.builtinVisible(name, functionLookup)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	typ := operand.descriptor()
 	if len(raw.Args) == 1 {
@@ -48,29 +67,24 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 		}
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
+		return nil, 0, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
 	if typ == nil {
 		d := expressionError("42725", fmt.Sprintf("function %s(unknown) is not unique", objectNameText(name)), raw.Pos).(*sqlstate.Error)
 		d.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
-		return nil, d
+		return nil, 0, d
 	}
-	var provider aggregateProvider
 	var operation aggregateOperation
 	switch typ {
 	case b.typ(sqltype.Interval):
-		provider, operation = intervalAvgProvider{typ.Usage()}, aggregateIntervalAvg
+		operation = aggregateIntervalAvg
 	case b.typ(sqltype.Int2), b.typ(sqltype.Int4), b.typ(sqltype.Int8), b.typ(sqltype.Numeric):
-		provider, operation = numericAvgProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericAvg
+		operation = aggregateNumericAvg
 	case b.typ(sqltype.Float4), b.typ(sqltype.Float8):
-		provider, operation = floatAvgProvider{typ, b.typ(sqltype.Float8).Usage()}, aggregateFloatAvg
+		operation = aggregateFloatAvg
 	default:
-		return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
+		return nil, 0, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
 	arg, err := b.finalizeOperand(operand, typ)
-	if err != nil {
-		return nil, err
-	}
-	call := aggregateCall{provider: provider, argument: arg, operation: operation}
-	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
+	return arg, operation, err
 }

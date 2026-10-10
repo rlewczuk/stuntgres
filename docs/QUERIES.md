@@ -448,7 +448,7 @@ captured-source ownership and atomic INSERT publication. Dump/Restore persists
 existing data/sequence state and analyzed view definitions, never sort datum caches.
 Native public SQL/API ACL mutation remains absent: exact column grants use engine units and
 independent PostgreSQL GRANT scenarios. ORDER USING, general COLLATE/ICU,
-windows and unadmitted aggregate-internal ordering remain excluded.
+unadmitted aggregate-internal ordering remain excluded; selected windows are described below.
 The existing AND/OR bare-label ambiguity remains a bounded
 logical-grammar difference; AS and quoted forms can label those outputs.
 
@@ -1115,7 +1115,7 @@ use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
 
 This does not admit
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
-DISTINCT/ALL grouping modifiers, OVER, grouping sets/ROLLUP/CUBE/empty sets,
+DISTINCT/ALL grouping modifiers, other window providers, grouping sets/ROLLUP/CUBE/empty sets,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
 aggregate projections and selected sequence/REGCLASS siblings. Function-provider
@@ -1158,7 +1158,7 @@ deduplication uses hashing. Native arrays/domains-over-arrays and PG_NODE_TREE
 give positioned0A000 aggregate-specific capability boundaries for DISTINCT or
 local ORDER; PostgreSQL supports these represented carriers. Explicit tree TEXT
 casts use existing TEXT support. SELECT DISTINCT structural equality is unchanged;
-no ordinary array/tree comparator, aggregate provider or OVER support is added.
+no ordinary array/tree comparator or additional window provider is added.
 Prepared/view plans remain immutable; per-execution group/call dedup and ordering
 buffers never survive execution. Stored views/export/native Dump/Restore preserve
 FILTER/DISTINCT/order and rebind descriptor-owned key families/comparators.
@@ -1412,7 +1412,7 @@ Native retained result values/schema survive rollback, Reset/Restore and later
 generations. Dump serializes committed survivors, descriptors/defaults/NOT NULL,
 comments, views and current sequence state, excluding private deletions and
 output cursors/history. Restore continues to reject DELETE RETURNING scripts.
-Whole-row OLD/NEW records and absent window/SRF providers,
+Whole-row OLD/NEW records and SRF providers,
 triggers/FKs/view writes and rewrite-to-UPDATE (where PostgreSQL NEW can be
 nonnull) remain real PostgreSQL-only controls, not native engine mechanisms.
 PostgreSQL18.0's excluded parenthesized whole-row expansion
@@ -1676,7 +1676,8 @@ function-signature Hint (or the misplaced-ORDER-BY Hint for multiple ordering
 keys); unknown unary arguments fail42725 ambiguity.
 Numeric SELECT SUM is executable; valid SUM in UPDATE assignments/INSERT VALUES
 gives42803 after child/FILTER and signature analysis.
-Windows/SRFs remain excluded; existing COUNT/modifiers retain clause restrictions.
+Window calls are diagnosed as illegal in RETURNING; SRFs remain excluded and
+existing COUNT/modifiers retain their ordinary clause restrictions.
 
 Each successful constrained row is projected exactly once before atomic Finish.
 Late output conversion/division/overflow and prepublication cancellation expose
@@ -2970,3 +2971,117 @@ Existing format, index-property and datetime-formatting arguments participate in
 the same lexical aggregate ownership walk. Outer references below these providers
 remain outer-owned through scalar subqueries, stored-view rendering and native
 Dump/Restore; adding a no-FROM input does not add function providers.
+
+## Selected windows — change note (changelog)
+
+The selected providers are `row_number()` and unmodified `count(*)`, both INT8
+(`int64` when scanned into any). Native metadata proves nonnull output, typmod-1,
+and no relation/attribute origin. Aliases change only the output name. Source-column
+metadata is unchanged, and hidden outer-order windows do not add visible columns.
+
+```sql
+SELECT id,
+       row_number() OVER ordered AS rn,
+       count(*) OVER (PARTITION BY p ORDER BY k) AS n
+FROM t
+WINDOW base AS (PARTITION BY p),
+       ordered AS (base ORDER BY k,id)
+ORDER BY id;
+```
+
+Numbering starts at1 separately for every partition. The default count frame is
+RANGE UNBOUNDED PRECEDING through the current row's last peer: keys `(10,10,20)`
+produce counts `(2,2,3)`, not `(1,2,3)`. Without window ORDER, every row in the
+partition receives its full partition count. All order keys define peers; adding
+an id tiebreaker changes frames. Equivalent specifications share their tie order;
+assignment of row numbers within peers remains unspecified. Window sorting does
+not promise final presentation: use an explicit outer ORDER.
+
+Window keys are SQL99 input expressions, not projection labels or ordinal
+references. `OVER (ORDER BY 1)` therefore counts the full partition at every row.
+Typed partition equality groups NULLs together and uses existing numeric,
+character/domain/enum/structural key contracts. ASC defaults NULLS LAST; DESC
+defaults NULLS FIRST. NULL peer keys compare equal.
+
+The stage follows WHERE, ordinary grouping/aggregation and HAVING, then precedes
+DISTINCT, outer ORDER and LIMIT/OFFSET. A window count alone does not create a
+grouped query. Grouped keys must be grouped columns or ordinary aggregate results.
+Each set arm runs its own windows before the existing set operation. Scalar
+composition, hidden outer-order calls and INSERT SELECT use the ordinary evaluator
+and assignment/coercion stages. Bounds never truncate window frames.
+
+`SELECT row_number() OVER (),count(*) OVER ()` returns one `(1,1)` through the
+ordinary no-FROM singleton. WHERE FALSE and empty table input return zero rows
+with complete metadata, not the ordinary aggregate count's singleton zero.
+
+Targets can reference any named definition in their query. Definition-to-definition
+inheritance permits only earlier names. An inherited specification cannot add
+PARTITION, even if the parent has none; it may add ORDER only to an orderless
+parent. `OVER name` and `OVER (name)` retain their written shapes. All definitions,
+including unused ones, undergo column/type/permission analysis. Nested and sibling
+queries have independent names and execution buffers.
+Raw named references are checked at the call, but key expressions are transformed
+after targets, WHERE, GROUP, HAVING and outer ORDER analysis; a bad key therefore
+does not overtake an earlier expression diagnostic. Only resolved immutable specs
+reach the executable stage.
+Inline calls and named declarations retain independent key trees across later
+calls and statements in the same parsed script.
+The PostgreSQL keyword policy keeps OVER unreserved and WINDOW reserved; both
+require AS (or quoting) when used as projection labels.
+New contextual window/frame tokens retain their unreserved enum/domain type-name
+and schema-prefix roles; reserved WINDOW does not become a generic type name.
+
+Calls are allowed only in SELECT and outer ORDER. Illegal WHERE/group/HAVING/
+FILTER/bounds/CHECK/DEFAULT/index/RETURNING/generation calls report42P20 at the
+actual call; nested calls report42P20, and a window inside an ordinary aggregate
+reports42803. Missing names report42704 at the bare name or specification opening
+parenthesis. Missing OVER on row_number reports42809. Active windows with row
+locking report0A000 without a caret; an unused valid WINDOW does not activate this
+restriction. Physical source authority is required even for empty/no-key queries;
+keys, hidden keys and unused definitions require their actual referenced columns.
+Argument and FILTER children, then ordinary callable signatures, are analyzed
+before window shape or clause restrictions for every already admitted aggregate:
+count, row_number, avg, bool_and/bool_or/every, any_value, min/max, string_agg and
+sum. Shared ordinary signature/coercion helpers
+retain argument limits, unknown ambiguity and polymorphic-type diagnostics without
+registering ordinary aggregation or constructing another window provider.
+Thus invalid callable signatures are not hidden by DISTINCT, WHERE or provider
+exclusions, and a missing FILTER column still precedes signature resolution.
+Primary function diagnostics retain the complete qualified callee and original
+character-position owner.
+The nearest same-query argument owner decides nesting only after its own callable
+resolves. Thus `count(count(row_number() OVER ())) OVER ()` reports42803 at
+`row_number`, while `count(count(row_number() OVER ()) OVER ())` reports42P20 there.
+An invalid two-argument COUNT retains42883 even when an argument contains a window.
+Scalar subqueries reset this ownership: their windows are not argument occurrences
+in the parent query. FILTER and window-definition clause prohibitions retain their
+own authority. Failed analysis neither registers these occurrences nor leaves
+pending ownership for the next call.
+These FILTER checks also precede the missing-OVER diagnostic for row_number.
+Call-local aggregate ORDER BY is rejected as a window shape without resolving
+its keys; it does not change ordinary aggregate ORDER BY analysis. Actual
+OVER/WINDOW ordering keys are resolved in the window-definition phase.
+Repeated OVER attachments are rejected for scalar and aggregate calls, using
+the actual second keyword's spelling and character position, independently of
+the specification's name/parenthesis caret. Malformed whole-input scripts do not
+publish a parsed statement prefix.
+
+Prepared execution rebinds fresh parameters, catalog and authority. Window keys,
+partitions, peer scans and provider work finish before cursor publication. Late
+failure/cancellation publishes no partial cursor or INSERT batch; native cancellation
+preserves ordinary context errors. Finalized cursors and metadata survive later
+append/Reset/Restore. Stored view capture/export/remap and pristine Dump/Restore
+persist input/key identities and definitions, never mutable window state.
+
+Explicit frames/units/exclusions, other window providers, count(expr) windows and
+window aggregate FILTER remain excluded. Native errors distinguish valid excluded
+capabilities (0A000) from malformed syntax (42601). Ordinary aggregate modifiers
+remain unchanged; this does not add public GRANT, types, joins or persistence formats.
+
+Feature smoke and independent pinned PostgreSQL counterpart:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0
+```
+

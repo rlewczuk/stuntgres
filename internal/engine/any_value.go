@@ -74,6 +74,20 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 	if err != nil {
 		return nil, err
 	}
+	arg, err := b.resolveAnyValueSignature(raw, name, operand, types)
+	if err != nil {
+		return nil, err
+	}
+	usage := arg.ResultUsage()
+	usage.Typmod = -1
+	call := aggregateCall{provider: anyValueProvider{usage}, argument: arg, operation: aggregateAnyValue}
+	properties := arg.Properties()
+	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
+	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
+	return b.finishAggregate(raw, call, filter, info)
+}
+
+func (b *expressionBinder) resolveAnyValueSignature(raw parser.AggregateExpr, name parser.ObjectName, operand comparisonOperand, types []string) (BoundExpr, error) {
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -87,12 +101,5 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 	if !operand.descriptor().Concrete() {
 		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
 	}
-	arg := operand.node
-	usage := arg.ResultUsage()
-	usage.Typmod = -1
-	call := aggregateCall{provider: anyValueProvider{usage}, argument: arg, operation: aggregateAnyValue}
-	properties := arg.Properties()
-	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
-	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
-	return b.finishAggregate(raw, call, filter, info)
+	return operand.node, nil
 }

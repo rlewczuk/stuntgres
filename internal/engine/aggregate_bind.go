@@ -37,6 +37,16 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
 		return ok && e.slot == o.slot && e.frame == o.frame
+	case *windowExpression:
+		o, ok := other.(*windowExpression)
+		if !ok || e.frame != o.frame {
+			return false
+		}
+		if e.call < 0 || o.call < 0 || e.call >= len(b.windowCalls) || o.call >= len(b.windowCalls) {
+			return e.slot == o.slot
+		}
+		a, c := b.windowCalls[e.call], b.windowCalls[o.call]
+		return b.sameWindowCall(a, c)
 	case groupExpression:
 		o, ok := other.(groupExpression)
 		return ok && e.slot == o.slot && e.frame == o.frame
@@ -372,6 +382,8 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			return e, nil
 		}
 		return groupExpression{expressionInfo: e.expressionInfo, slot: len(keys) + e.slot, frame: b.frameID()}, nil
+	case *windowExpression:
+		return e, nil
 	case columnExpression:
 		if e.frame != b.frameID() {
 			return e, nil

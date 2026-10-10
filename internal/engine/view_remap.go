@@ -100,6 +100,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 		next = n
 	case aggregateExpression:
 		next = n
+	case *windowExpression:
+		copy := *n
+		next = &copy
 	case cachedOrderExpression:
 		next = n // The cache slot belongs to this immutable query plan.
 	case collationExpression:
@@ -329,7 +332,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		query.Root, err = m.nested(query.Root)
 		next = &derivedNode{querySchema: schema, query: &query}
 	case *projectNode:
-		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax}
+		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax}
 	case *setNode:
 		copy := *n
 		copy.querySchema = schema
@@ -384,6 +387,33 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if err == nil && !copy.keys[i].expression.CollationIndeterminate() {
 				copy.keys[i].comparison, err = sqltype.BindOrdering(copy.keys[i].expression.ResultUsage())
 			}
+		}
+		next = &copy
+	case *windowNode:
+		copy := *n
+		copy.querySchema = schema
+		copy.child = child(n.child)
+		copy.specs = append([]boundWindowSpec(nil), n.specs...)
+		for i, spec := range copy.specs {
+			spec.partition = expressions(spec.partition)
+			spec.grouping = make([]sqltype.Grouping, len(spec.partition))
+			for j, key := range spec.partition {
+				if err == nil {
+					spec.grouping[j], err = sqltype.BindGrouping(key.ResultUsage())
+				}
+			}
+			spec.order = append([]sortKey(nil), spec.order...)
+			for j, key := range spec.order {
+				spec.order[j].expression = expression(key.expression)
+				if err == nil {
+					spec.order[j].comparison, err = sqltype.BindOrdering(spec.order[j].expression.ResultUsage())
+				}
+			}
+			copy.specs[i] = spec
+		}
+		copy.calls = append([]windowCall(nil), n.calls...)
+		for i, call := range copy.calls {
+			copy.calls[i].expression = expression(call.expression).(*windowExpression)
 		}
 		next = &copy
 	case *aggregateNode:

@@ -7,7 +7,7 @@ import "testing"
 func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 	p := newReferencePair(t)
 	// PostgreSQL-only controls combine records with otherwise shared scalar
-	// subqueries, or require SRFs, windows, triggers, FKs and rewriting.
+	// subqueries, or require SRFs, triggers, FKs and rewriting.
 	t.Run("postgres", func(t *testing.T) {
 		db, r := p.postgres, p.postgresRecord
 		referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT PRIMARY KEY)", 0)
@@ -18,7 +18,6 @@ func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 		// fields here; this excluded record path is not ordinary new.id/new.*.
 		referenceRunStep(t, p.ctx, db, r, referenceSelect("DELETE FROM t RETURNING (old).*,(new).*", []string{"id", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}))
 		for _, tc := range []struct{ q, code, message string }{
-			{"DELETE FROM t RETURNING row_number() OVER ()", "42P20", "window functions are not allowed in RETURNING"},
 			{"DELETE FROM t RETURNING generate_series(1,2)", "0A000", "set-returning functions are not allowed in RETURNING"},
 		} {
 			s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: "25"})

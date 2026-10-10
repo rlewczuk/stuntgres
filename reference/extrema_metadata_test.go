@@ -96,7 +96,7 @@ func TestReferenceExtremaBoundaries(t *testing.T) {
 			{"SELECT min(DISTINCT v),max(ALL v) FROM extrema_boundary", "INT4", "", "", [][]any{{int64(1), int64(2)}}},
 			{"SELECT min(v ORDER BY v),max(v ORDER BY v DESC) FROM extrema_boundary", "INT4", "", "", [][]any{{int64(1), int64(2)}}},
 			{"SELECT min(v) FILTER(WHERE v>1),max(v) FILTER(WHERE v>1) FROM extrema_boundary", "INT4", "", "", [][]any{{int64(2), int64(2)}}},
-			{"SELECT min(v) OVER(),max(v) OVER() FROM extrema_boundary", "INT4", "aggregate modifiers are unsupported", "15", [][]any{{int64(1), int64(2)}, {int64(1), int64(2)}}},
+			{"SELECT min(v) OVER(),max(v) OVER() FROM extrema_boundary", "INT4", "window function provider is unsupported", "8", [][]any{{int64(1), int64(2)}, {int64(1), int64(2)}}},
 		} {
 			t.Run(tc.query, func(t *testing.T) {
 				if pg || tc.message == "" {

@@ -258,6 +258,21 @@ func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog
 		}
 		text += clause + "HAVING " + part
 	}
+	if len(s.Windows) > 0 {
+		definitions := make([]string, len(s.Windows))
+		for i, definition := range s.Windows {
+			path := viewLiteralPath{query: renderer.frame, clause: viewWindowLiteral, target: i}
+			ordinal := 0
+			part, err := windowSpecSQL(definition.Spec, func(expr parser.Expr) (string, error) {
+				return renderer.expressionSQLAt(ctx, catalog, expr, path, &ordinal, pgRenderParent{})
+			})
+			if err != nil {
+				return "", err
+			}
+			definitions[i] = quoteIdentifier(definition.Name.Text) + " AS (" + part + ")"
+		}
+		text += clause + "WINDOW " + strings.Join(definitions, ", ")
+	}
 	return renderer.selectQueryTailSQL(ctx, catalog, s, text, presentation, setOperand)
 }
 
@@ -745,6 +760,17 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			text += " FILTER (WHERE " + filter + ")"
 		}
+		if e.Window != nil {
+			spec, err := windowSpecSQL(*e.Window, child)
+			if err != nil {
+				return "", err
+			}
+			if e.Window.Bare {
+				text += " OVER " + spec
+			} else {
+				text += " OVER (" + spec + ")"
+			}
+		}
 		return text, nil
 	case parser.ConditionalExpr:
 		text, err := args(e.Args)
@@ -898,4 +924,42 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return "CAST(" + text + " AS regclass)", err
 	}
 	return "", fmt.Errorf("stuntgres: unsupported view deparser expression %T", raw)
+}
+
+func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, error)) (string, error) {
+	parts := make([]string, 0, 3)
+	if spec.Name != nil {
+		parts = append(parts, quoteIdentifier(spec.Name.Text))
+	}
+	if len(spec.Partition) > 0 {
+		keys := make([]string, len(spec.Partition))
+		for i, key := range spec.Partition {
+			var err error
+			keys[i], err = child(key)
+			if err != nil {
+				return "", err
+			}
+		}
+		parts = append(parts, "PARTITION BY "+strings.Join(keys, ", "))
+	}
+	if len(spec.Order) > 0 {
+		keys := make([]string, len(spec.Order))
+		for i, key := range spec.Order {
+			part, err := child(key.Expr)
+			if err != nil {
+				return "", err
+			}
+			if key.Desc {
+				part += " DESC"
+			}
+			if key.Nulls == parser.NullsFirst {
+				part += " NULLS FIRST"
+			} else if key.Nulls == parser.NullsLast {
+				part += " NULLS LAST"
+			}
+			keys[i] = part
+		}
+		parts = append(parts, "ORDER BY "+strings.Join(keys, ", "))
+	}
+	return strings.Join(parts, " "), nil
 }

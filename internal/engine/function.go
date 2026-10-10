@@ -320,16 +320,20 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 		if err != nil {
 			return nil, err
 		}
-		names[i] = "unknown"
-		if arg.ResultUsage().Type != nil {
-			names[i] = arg.ResultUsage().Type.DiagnosticName()
-		}
-		if literal, ok := rawArg.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-			names[i] = "unknown"
-		}
+		names[i] = functionArgumentTypeName(rawArg, arg)
 		names[i] = functionNamedType(raw, i, names[i])
 	}
 	return names, nil
+}
+
+func functionArgumentTypeName(raw parser.Expr, arg BoundExpr) string {
+	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+		return "unknown"
+	}
+	if arg.ResultUsage().Type != nil {
+		return arg.ResultUsage().Type.DiagnosticName()
+	}
+	return "unknown"
 }
 
 // Reuse transformed argument names when a diagnostic producer already bound them.

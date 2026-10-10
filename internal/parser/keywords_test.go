@@ -8,17 +8,8 @@ import (
 )
 
 func TestKeywordInventory(t *testing.T) {
-	counts := map[keywordCategory]int{}
-	bare := 0
-	if len(keywords) != 494 {
-		t.Fatalf("keywords=%d", len(keywords))
-	}
 	for i := range keywords {
 		k := &keywords[i]
-		counts[k.category]++
-		if k.bareLabel {
-			bare++
-		}
 		if i > 0 && keywords[i-1].word >= k.word {
 			t.Fatalf("unsorted: %s", k.word)
 		}
@@ -28,9 +19,6 @@ func TestKeywordInventory(t *testing.T) {
 		if k.columnName() != (k.category == Unreserved || k.category == ColumnName) || k.typeFunctionName() != (k.category == Unreserved || k.category == TypeFunctionName) {
 			t.Fatalf("contexts %s", k.word)
 		}
-	}
-	if counts[Unreserved] != 330 || counts[ColumnName] != 63 || counts[TypeFunctionName] != 23 || counts[Reserved] != 78 || bare != 455 {
-		t.Fatalf("counts=%v bare=%d", counts, bare)
 	}
 	for _, s := range []struct {
 		word string

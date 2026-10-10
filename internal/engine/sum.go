@@ -50,6 +50,37 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 	if err != nil {
 		return nil, err
 	}
+	arg, err := b.resolveSumSignature(raw, name, operand, types)
+	if err != nil {
+		return nil, err
+	}
+	typ := arg.ResultUsage().Type
+	var provider aggregateProvider
+	var operation aggregateOperation
+	switch typ.ID() {
+	case sqltype.Int2, sqltype.Int4:
+		provider, operation = integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum
+	case sqltype.Int8, sqltype.Numeric:
+		provider, operation = numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum
+	case sqltype.Float4, sqltype.Float8:
+		provider, operation = floatSumProvider{typ, typ.Usage()}, aggregateFloatSum
+	case sqltype.Interval:
+		if err := b.argumentOwner.nestingError(); err != nil {
+			return nil, err
+		}
+		// Retain the established clause diagnostic, without an interval executor.
+		if b.aggregateClause == "RETURNING" {
+			return nil, expressionError("42803", "aggregate functions are not allowed in RETURNING", raw.Pos)
+		}
+		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	}
+	call := aggregateCall{provider: provider, argument: arg, operation: operation}
+	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
+}
+
+// Resolve/coerce SUM's existing callable without constructing a provider or
+// registering ordinary aggregation; excluded window execution shares this seam.
+func (b *expressionBinder) resolveSumSignature(raw parser.AggregateExpr, name parser.ObjectName, operand comparisonOperand, types []string) (BoundExpr, error) {
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -67,30 +98,12 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 		return nil, d
 	}
 	typ = typ.BaseType()
-	var provider aggregateProvider
-	var operation aggregateOperation
 	switch typ.ID() {
-	case sqltype.Int2, sqltype.Int4:
-		provider, operation = integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum
-	case sqltype.Int8, sqltype.Numeric:
-		provider, operation = numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum
-	case sqltype.Float4, sqltype.Float8:
-		provider, operation = floatSumProvider{typ, typ.Usage()}, aggregateFloatSum
-	case sqltype.Interval:
-		// Retain the established clause diagnostic, without an interval executor.
-		if b.aggregateClause == "RETURNING" {
-			return nil, expressionError("42803", "aggregate functions are not allowed in RETURNING", raw.Pos)
-		}
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8, sqltype.Interval:
+		return b.coerceConditional(operand, typ.Usage(), raw.Name)
 	default:
 		return nil, sumSignatureError(name, raw.Pos, types, len(raw.Order))
 	}
-	arg, err := b.coerceConditional(operand, typ.Usage(), raw.Name)
-	if err != nil {
-		return nil, err
-	}
-	call := aggregateCall{provider: provider, argument: arg, operation: operation}
-	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
 }
 
 func sumSignatureError(name parser.ObjectName, pos parser.Position, types []string, orderKeys int) error {

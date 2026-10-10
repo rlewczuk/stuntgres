@@ -1,0 +1,557 @@
+package engine
+
+import (
+	"fmt"
+	"reflect"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// Window occurrences reference immutable appended stage slots, never aggregate state.
+type windowExpression struct {
+	expressionInfo
+	slot  int
+	frame uint32
+	call  int
+}
+
+func (e *windowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	if err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.slot < 0 || e.slot >= len(c.Row) {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing window output")
+	}
+	return c.Row[e.slot], nil
+}
+
+type boundWindowSpec struct {
+	partition []BoundExpr
+	grouping  []sqltype.Grouping
+	order     []sortKey
+}
+type windowCall struct {
+	expression *windowExpression
+	spec       boundWindowSpec
+	number     bool
+	raw        *parser.WindowSpec
+}
+
+// A same-query call owns only its own argument occurrences. Evidence is checked
+// after that call resolves, so an invalid signature is never hidden by nesting.
+type argumentWindowOwner struct {
+	active, window, found bool
+	first                 parser.Position
+}
+
+func (owner argumentWindowOwner) nestingError() error {
+	if !owner.found {
+		return nil
+	}
+	if owner.window {
+		return expressionError("42P20", "window function calls cannot be nested", owner.first)
+	}
+	return expressionError("42803", "aggregate function calls cannot contain window function calls", owner.first)
+}
+
+func (b *expressionBinder) windowAllowed(pos parser.Position) error {
+	clause := b.aggregateClause
+	if b.checkConsumer {
+		clause = "check constraints"
+	} else if b.indexConsumer {
+		clause = "index expressions"
+	} else if b.defaultConsumer {
+		clause = "DEFAULT expressions"
+	}
+	if clause == "window definitions" {
+		return expressionError("42P20", "window functions are not allowed in window definitions", pos)
+	}
+	if clause != "SELECT" && clause != "ORDER BY" {
+		return expressionError("42P20", "window functions are not allowed in "+clause, pos)
+	}
+	return nil
+}
+func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (boundResult BoundExpr, bindError error) {
+	parentOwner := b.argumentOwner
+	parentAggregates, parentWindows := b.aggregates, b.windowCalls
+	defer func() {
+		if bindError != nil {
+			b.aggregates, b.windowCalls = parentAggregates, parentWindows
+		}
+	}()
+	b.argumentOwner = argumentWindowOwner{active: true, window: true}
+	defer func() { b.argumentOwner = parentOwner }()
+	resultUsage := b.typ(sqltype.Int8).Usage()
+	if raw.Name == "count" || raw.Name == "row_number" {
+		args := make([]BoundExpr, len(raw.Args))
+		for i, arg := range raw.Args {
+			var err error
+			args[i], err = b.bind(arg, expressionPolicy{context: projectionContext})
+			if err != nil {
+				return nil, err
+			}
+		}
+		if _, err := b.bindAggregateFilter(raw); err != nil {
+			return nil, err
+		}
+		if raw.Name == "count" {
+			if err := b.resolveCountSignature(raw, name, args); err != nil {
+				return nil, err
+			}
+		} else {
+			types := make([]string, len(args))
+			for i, arg := range args {
+				types[i] = functionArgumentTypeName(raw.Args[i], arg)
+			}
+			if err := b.resolveRowNumberSignature(raw, name, types); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		var err error
+		resultUsage, err = b.resolveWindowAggregateSignature(raw, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if raw.Distinct {
+		return nil, expressionError("0A000", "DISTINCT is not implemented for window functions", raw.Pos)
+	}
+	if len(raw.Order) > 0 {
+		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
+	}
+	if raw.Filter != nil && raw.Name == "row_number" {
+		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
+	}
+	if err := b.windowAllowed(raw.Pos); err != nil {
+		return nil, err
+	}
+	if err := b.argumentOwner.nestingError(); err != nil {
+		return nil, err
+	}
+	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || (raw.Name == "count" && raw.Star)) {
+		found := false
+		for _, definition := range b.windowRaw {
+			if definition.Name.Text == raw.Window.Name.Text {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, expressionError("42704", fmt.Sprintf(`window "%s" does not exist`, raw.Window.Name.Text), raw.Window.Pos)
+		}
+	}
+	if parentOwner.active {
+		if !parentOwner.found {
+			parentOwner.first, parentOwner.found = raw.Pos, true
+		}
+		// Analysis-only occurrence: the completed parent must either reject its
+		// signature or report nesting. It cannot enter an executable window plan.
+		return &windowExpression{expressionInfo: b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true}), slot: -1, call: -1, frame: b.frameID()}, nil
+	}
+	if raw.Filter != nil {
+		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
+	}
+	if raw.Name != "row_number" && (raw.Name != "count" || !raw.Star) {
+		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
+	}
+	expr := &windowExpression{expressionInfo: b.info(b.typ(sqltype.Int8).Usage(), raw.Pos, ExprProperties{StageDependent: true}), slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
+	b.windowCalls = append(b.windowCalls, windowCall{expression: expr, raw: raw.Window, number: raw.Name == "row_number"})
+	return expr, nil
+}
+
+func (b *expressionBinder) resolveRowNumberSignature(raw parser.AggregateExpr, name parser.ObjectName, types []string) error {
+	if len(raw.Args) > 100 {
+		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	visible, err := b.builtinVisible(name, functionLookup)
+	if err != nil {
+		return err
+	}
+	if !visible || len(raw.Args) != 0 || raw.Star {
+		return functionSignatureErrorForTypes(name, raw.Pos, types)
+	}
+	return nil
+}
+
+// The excluded-provider path performs the same signature/coercion analysis as
+// ordinary aggregation, but never builds a provider or registers an aggregate.
+// In particular, raw call-local ORDER expressions are not transformed here.
+func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateExpr, name parser.ObjectName) (sqltype.Usage, error) {
+	var small [2]comparisonOperand
+	var names [2]string
+	var operands []comparisonOperand
+	var types []string
+	if len(raw.Args) <= 2 {
+		operands, types = small[:len(raw.Args)], names[:len(raw.Args)]
+	} else if len(raw.Args) <= 100 {
+		operands = make([]comparisonOperand, len(raw.Args))
+		types = make([]string, len(raw.Args))
+	}
+	for i, child := range raw.Args {
+		operand, err := b.comparisonOperand(child)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		if operands != nil {
+			operands[i] = operand
+			types[i] = "unknown"
+			if raw.Name == "sum" {
+				types[i] = b.diagnosticTypeName(operand.descriptor())
+			} else if typ := operand.descriptor(); typ != nil {
+				types[i] = typ.DiagnosticName()
+			}
+			if raw.Name == "min" || raw.Name == "max" {
+				types[i], err = b.extremaArgumentTypeName(operand)
+				if err != nil {
+					return sqltype.Usage{}, err
+				}
+			}
+		}
+	}
+	if _, err := b.bindAggregateFilter(raw); err != nil {
+		return sqltype.Usage{}, err
+	}
+	if len(raw.Args) > 100 {
+		return sqltype.Usage{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	var operand comparisonOperand
+	if len(operands) > 0 {
+		operand = operands[0]
+	}
+	var arg BoundExpr
+	var err error
+	var usage sqltype.Usage
+	switch raw.Name {
+	case "bool_and", "bool_or", "every":
+		arg, err = b.resolveBooleanAggregateSignature(raw, name, operands, types)
+		if err == nil {
+			usage = arg.ResultUsage()
+		}
+	case "avg":
+		var operation aggregateOperation
+		arg, operation, err = b.resolveAvgSignature(raw, name, operand, types)
+		if err == nil {
+			switch operation {
+			case aggregateIntervalAvg:
+				usage = arg.ResultUsage()
+			case aggregateNumericAvg:
+				usage = b.typ(sqltype.Numeric).Usage()
+			case aggregateFloatAvg:
+				usage = b.typ(sqltype.Float8).Usage()
+			}
+		}
+	case "any_value":
+		arg, err = b.resolveAnyValueSignature(raw, name, operand, types)
+		if err == nil {
+			usage = arg.ResultUsage()
+			usage.Typmod = -1
+		}
+	case "min", "max":
+		arg, err = b.resolveExtremaSignature(raw, name, operand, types)
+		if err == nil {
+			usage = arg.ResultUsage()
+			usage.Typmod = -1
+		}
+	case "string_agg":
+		arg, _, err = b.resolveStringAggregateSignature(raw, name, operands, types)
+		if err == nil {
+			usage = arg.ResultUsage()
+		}
+	case "sum":
+		arg, err = b.resolveSumSignature(raw, name, operand, types)
+		if err == nil {
+			switch arg.ResultUsage().Type.ID() {
+			case sqltype.Int2, sqltype.Int4:
+				usage = b.typ(sqltype.Int8).Usage()
+			case sqltype.Int8, sqltype.Numeric:
+				usage = b.typ(sqltype.Numeric).Usage()
+			default:
+				usage = arg.ResultUsage()
+			}
+		}
+	default:
+		err = functionSignatureErrorForTypes(name, raw.Pos, types)
+	}
+	return usage, err
+}
+
+// Resolve keys only after target, predicate, grouping and outer order analysis.
+func (b *expressionBinder) resolveWindows() error {
+	if err := b.resolveWindowDefinitions(); err != nil {
+		return err
+	}
+	for i := range b.windowCalls {
+		spec, err := b.bindWindowSpec(*b.windowCalls[i].raw, b.windowDefinitions)
+		if err != nil {
+			return err
+		}
+		b.windowCalls[i].spec = spec
+		b.windowCalls[i].raw = nil
+	}
+	return nil
+}
+
+func (b *expressionBinder) sameWindowCall(a, c windowCall) bool {
+	if a.number != c.number {
+		return false
+	}
+	if a.raw != nil || c.raw != nil {
+		return sameRawWindow(reflect.ValueOf(a.raw), reflect.ValueOf(c.raw))
+	}
+	return b.sameWindowSpec(a.spec, c.spec)
+}
+
+// PostgreSQL assigns raw window references before transforming their keys.
+// Compare those trees without source locations; this is binding-only and does
+// not allocate copies or leak unresolved keys into the executable plan.
+func sameRawWindow(a, b reflect.Value) bool {
+	if !a.IsValid() || !b.IsValid() {
+		return a.IsValid() == b.IsValid()
+	}
+	if a.Type() != b.Type() {
+		return false
+	}
+	if a.Type() == reflect.TypeOf(parser.Position{}) {
+		return true
+	}
+	switch a.Kind() {
+	case reflect.Interface, reflect.Pointer:
+		if a.IsNil() || b.IsNil() {
+			return a.IsNil() == b.IsNil()
+		}
+		return sameRawWindow(a.Elem(), b.Elem())
+	case reflect.Struct:
+		for i := range a.NumField() {
+			if !sameRawWindow(a.Field(i), b.Field(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Slice:
+		if a.Len() != b.Len() {
+			return false
+		}
+		for i := range a.Len() {
+			if !sameRawWindow(a.Index(i), b.Index(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.String:
+		return a.String() == b.String()
+	case reflect.Bool:
+		return a.Bool() == b.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return a.Int() == b.Int()
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return a.Uint() == b.Uint()
+	case reflect.Float32, reflect.Float64:
+		return a.Float() == b.Float()
+	}
+	return false
+}
+func (b *expressionBinder) resolveWindowDefinitions() error {
+	if b.windowDefinitions != nil {
+		return nil
+	}
+	if len(b.windowRaw) == 0 {
+		return nil
+	}
+	b.windowDefinitions = make(map[string]boundWindowSpec, len(b.windowRaw))
+	for definitionIndex, definition := range b.windowRaw {
+		if _, ok := b.windowDefinitions[definition.Name.Text]; ok {
+			return expressionError("42P20", fmt.Sprintf(`window "%s" is already defined`, definition.Name.Text), definition.Spec.Pos)
+		}
+		spec, err := b.bindWindowSpec(definition.Spec, b.windowDefinitions)
+		if err != nil {
+			return err
+		}
+		if b.noParameters {
+			ordinal := 0
+			path := viewLiteralPath{query: b.frameID(), clause: viewWindowLiteral, target: definitionIndex}
+			for i, key := range definition.Spec.Partition {
+				if err := b.captureViewLiteralTree(key, spec.partition[i], path, &ordinal); err != nil {
+					return err
+				}
+			}
+			for i, key := range definition.Spec.Order {
+				if err := b.captureViewLiteralTree(key.Expr, spec.order[i].expression, path, &ordinal); err != nil {
+					return err
+				}
+			}
+		}
+		b.windowDefinitions[definition.Name.Text] = spec
+	}
+	return nil
+}
+func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[string]boundWindowSpec) (boundWindowSpec, error) {
+	var parent boundWindowSpec
+	if raw.Name != nil {
+		var ok bool
+		parent, ok = names[raw.Name.Text]
+		if !ok {
+			return boundWindowSpec{}, expressionError("42704", fmt.Sprintf(`window "%s" does not exist`, raw.Name.Text), raw.Pos)
+		}
+		if raw.Bare {
+			return parent, nil
+		}
+	}
+	old := b.aggregateClause
+	b.aggregateClause = "window definitions"
+	defer func() { b.aggregateClause = old }()
+	spec := boundWindowSpec{order: make([]sortKey, len(raw.Order)), partition: make([]BoundExpr, len(raw.Partition)), grouping: make([]sqltype.Grouping, len(raw.Partition))}
+	for i, key := range raw.Order {
+		expr, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
+		if err != nil {
+			return spec, err
+		}
+		expr, err = b.finalizeProjection(expr)
+		if err != nil {
+			return spec, err
+		}
+		if expr.CollationIndeterminate() {
+			_, err := bindDistinctGrouping(expr)
+			return spec, err
+		}
+		comparison, err := sqltype.BindOrdering(expr.ResultUsage())
+		if d, ok := err.(*sqlstate.Error); ok {
+			copy := *d
+			copy.Position = fmt.Sprint(key.Pos.Character)
+			return spec, &copy
+		}
+		if err != nil {
+			return spec, err
+		}
+		spec.order[i] = sortKey{expression: expr, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc}
+	}
+	for i, key := range raw.Partition {
+		expr, err := b.bind(key, expressionPolicy{context: projectionContext})
+		if err != nil {
+			return spec, err
+		}
+		expr, err = b.finalizeProjection(expr)
+		if err != nil {
+			return spec, err
+		}
+		grouping, err := bindDistinctGrouping(expr)
+		if err != nil {
+			return spec, err
+		}
+		spec.partition[i], spec.grouping[i] = expr, grouping
+	}
+	if raw.Name != nil {
+		if len(raw.Partition) > 0 {
+			return spec, expressionError("42P20", fmt.Sprintf(`cannot override PARTITION BY clause of window "%s"`, raw.Name.Text), raw.Pos)
+		}
+		if len(parent.order) > 0 && len(raw.Order) > 0 {
+			return spec, expressionError("42P20", fmt.Sprintf(`cannot override ORDER BY clause of window "%s"`, raw.Name.Text), raw.Pos)
+		}
+		spec.partition, spec.grouping = parent.partition, parent.grouping
+		if len(spec.order) == 0 {
+			spec.order = parent.order
+		}
+	}
+	return spec, nil
+}
+func (b *expressionBinder) sameWindowSpec(a, c boundWindowSpec) bool {
+	if len(a.partition) != len(c.partition) || len(a.order) != len(c.order) {
+		return false
+	}
+	for i, expr := range a.partition {
+		if !b.sameGroupExpression(expr, c.partition[i]) {
+			return false
+		}
+	}
+	for i, key := range a.order {
+		other := c.order[i]
+		if key.desc != other.desc || key.nullsFirst != other.nullsFirst || !b.sameGroupExpression(key.expression, other.expression) {
+			return false
+		}
+	}
+	return true
+}
+func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, grouped bool) (LogicalNode, error) {
+	if grouped {
+		for _, definition := range b.windowRaw {
+			spec := b.windowDefinitions[definition.Name.Text]
+			for _, key := range spec.partition {
+				if _, err := b.rewriteGroup(key, keys); err != nil {
+					return nil, err
+				}
+			}
+			for _, key := range spec.order {
+				if _, err := b.rewriteGroup(key.expression, keys); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	if len(b.windowCalls) == 0 {
+		return root, nil
+	}
+	calls := make([]windowCall, 0, len(b.windowCalls))
+	specs := make([]boundWindowSpec, 0, len(b.windowCalls))
+	indices := make([]int, 0, len(b.windowCalls))
+	schema := append([]ColumnDescriptor(nil), root.Schema()...)
+	for _, call := range b.windowCalls {
+		spec := call.spec
+		if grouped {
+			spec.partition = append([]BoundExpr(nil), spec.partition...)
+			spec.order = append([]sortKey(nil), spec.order...)
+			for j, expr := range spec.partition {
+				var err error
+				spec.partition[j], err = b.rewriteGroup(expr, keys)
+				if err != nil {
+					return nil, err
+				}
+			}
+			for j, key := range spec.order {
+				var err error
+				spec.order[j].expression, err = b.rewriteGroup(key.expression, keys)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		index := -1
+		for j, other := range specs {
+			if b.sameWindowSpec(spec, other) {
+				index = j
+				break
+			}
+		}
+		if index < 0 {
+			index = len(specs)
+			specs = append(specs, spec)
+		}
+		shared := -1
+		for j, previous := range calls {
+			if indices[j] == index && previous.number == call.number {
+				shared = j
+				break
+			}
+		}
+		if shared >= 0 {
+			call.expression.slot = calls[shared].expression.slot
+			continue
+		}
+		call.expression.slot = len(schema)
+		call.spec = boundWindowSpec{}
+		calls = append(calls, call)
+		indices = append(indices, index)
+		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), NullabilityKnown: true})
+	}
+	return &windowNode{querySchema: schema, child: root, specs: specs, calls: calls, specIndices: indices}, nil
+}
+
+func windowOccurrence(expr BoundExpr) *windowExpression {
+	var found *windowExpression
+	walkBoundExpression(expr, func(child BoundExpr) {
+		if e, ok := child.(*windowExpression); ok && found == nil {
+			found = e
+		}
+	})
+	return found
+}

@@ -101,7 +101,7 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		"SELECT current_setting(num_nulls(NULL))", "SELECT f(1) FROM t",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
-		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", "SELECT num_nulls(1) OVER () FROM t",
+		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t",
 		`SELECT "NUM_NULLS"(NULL) FROM t`,
 	} {
 		statements, err := Parse(q)
@@ -109,8 +109,16 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 			t.Fatal("excluded syntax admitted", q, statements, err)
 		}
 	}
+	statements, err := Parse("SELECT num_nulls(1) OVER (ORDER BY id) FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	call := statements[0].(*Select).Targets[0].(FunctionExpr)
+	if call.Window == nil || len(call.Window.Order) != 1 {
+		t.Fatal(call)
+	}
 	// Full-input malformed suffixes must not execute a parsed script prefix.
-	statements, err := Parse("CREATE TABLE staged(v INT); SELECT num_nulls(NULL),1 WHERE")
+	statements, err = Parse("CREATE TABLE staged(v INT); SELECT num_nulls(NULL),1 WHERE")
 	var diagnostic *sqlstate.Error
 	if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {
 		t.Fatal(statements, err)

@@ -27,7 +27,7 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 						t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 							s := referenceSelect(tc.q, []string{tc.label}, []string{tc.typ}, tc.rows)
 							if !backend.pg && tc.name == "over" {
-								s = referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: "aggregate modifiers are unsupported", Position: stringAggPosition(tc.q, "OVER", false)})
+								s = referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: "explicit window frames are unsupported", Position: stringAggPosition(tc.q, "ROWS", false)})
 								s.selectRows = true
 							}
 							s.prepared = prepared

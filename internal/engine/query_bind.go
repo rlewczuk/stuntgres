@@ -89,6 +89,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	b.queryNamespace = &namespace
 	b.aggregateClause, b.aggregates = "SELECT", nil
+	b.windowRaw = s.Windows
 	var projection []BoundExpr
 	var targetNames []string
 	var literalTargets []int
@@ -192,6 +193,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if call := aggregateOccurrence(keys[i]); call != nil && (call.frame == 0 || call.frame == b.frameID()) {
 			return nil, expressionError("42803", "aggregate functions are not allowed in GROUP BY", call.pos)
 		}
+		if call := windowOccurrence(keys[i]); call != nil && call.frame == b.frameID() {
+			return nil, expressionError("42P20", "window functions are not allowed in GROUP BY", call.pos)
+		}
 		keys[i], err = b.finalizeProjection(keys[i])
 		if err != nil {
 			return nil, err
@@ -273,22 +277,6 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	if b.noParameters && s.Order != nil {
-		frozen := *s.Order
-		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
-		for i, key := range frozen.Keys {
-			if ordinal := order[i].outputOrdinal; ordinal != 0 {
-				// Freeze the exact resolved output occurrence, independently of
-				// equivalent expression syntax or a view column-name override.
-				frozen.Keys[i].Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: key.Pos}}
-				continue
-			}
-			if err := b.captureViewLiterals(key.Expr, order[i].expression, viewOrderLiteral, i); err != nil {
-				return nil, err
-			}
-		}
-		s.Order = &frozen
-	}
 	var distinctOrder []int
 	if plainDistinct {
 		distinctOrder = make([]int, len(order))
@@ -307,6 +295,25 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 			distinctOrder[i] = slot
 		}
+	}
+	if err := b.resolveWindows(); err != nil {
+		return nil, err
+	}
+	if b.noParameters && s.Order != nil {
+		frozen := *s.Order
+		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
+		for i, key := range frozen.Keys {
+			if ordinal := order[i].outputOrdinal; ordinal != 0 {
+				// Freeze the exact resolved output occurrence, independently of
+				// equivalent expression syntax or a view column-name override.
+				frozen.Keys[i].Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: key.Pos}}
+				continue
+			}
+			if err := b.captureViewLiterals(key.Expr, order[i].expression, viewOrderLiteral, i); err != nil {
+				return nil, err
+			}
+		}
+		s.Order = &frozen
 	}
 	bounds, err := b.bindQueryBounds(s.Bounds, true)
 	if err != nil {
@@ -339,6 +346,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if aggregate, ok := expr.(aggregateExpression); ok && aggregate.frame == b.frameID() {
 			result.NullabilityKnown = true
 			result.Nullable = b.aggregates[aggregate.slot].operation != aggregateCount
+		}
+		if _, ok := expr.(*windowExpression); ok {
+			result.Nullable, result.NullabilityKnown = false, true
 		}
 		if _, ok := expr.(currentSchemasExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true
@@ -379,6 +389,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			suffix = "HAVING clause"
 		case len(b.aggregates) != 0:
 			suffix = "aggregate functions"
+		case len(b.windowCalls) != 0:
+			suffix = "window functions"
 		}
 		if suffix != "" {
 			mode := queryRowClause(b.queryRowDiagnosticMode)
@@ -421,6 +433,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				return nil, err
 			}
 		}
+	}
+	root, err = b.finishWindows(root, keys, grouped)
+	if err != nil {
+		return nil, err
 	}
 	if plainDistinct {
 		root = &distinctNode{querySchema: results, child: root, expressions: projection, grouping: distinctFamilies}
@@ -469,7 +485,15 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		// source-typed descriptors retained by DISTINCT and its ordering/bounds.
 		results = append([]ColumnDescriptor(nil), results...)
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frame: b.frameID(), syntax: s}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
+	var analysis []BoundExpr
+	for _, definition := range b.windowRaw {
+		spec := b.windowDefinitions[definition.Name.Text]
+		analysis = append(analysis, spec.partition...)
+		for _, key := range spec.order {
+			analysis = append(analysis, key.expression)
+		}
+	}
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {

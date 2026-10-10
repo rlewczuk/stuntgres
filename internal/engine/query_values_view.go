@@ -50,6 +50,8 @@ func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
 			return visit(n.child)
 		case *aggregateNode:
 			return visit(n.child)
+		case *windowNode:
+			return visit(n.child)
 		case *distinctNode:
 			return visit(n.child)
 		case *rowLockNode:

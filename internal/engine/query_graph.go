@@ -17,6 +17,8 @@ func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 		return n.child, nil
 	case *sortNode:
 		return n.child, nil
+	case *windowNode:
+		return n.child, nil
 	case *aggregateNode:
 		return n.child, nil
 	case *distinctNode:
@@ -47,6 +49,7 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 		args(n.rightExpressions)
 	case *projectNode:
 		args(n.expressions)
+		args(n.analysisExpressions)
 	case *filterNode:
 		visit(n.predicate)
 	case *sortNode:
@@ -54,6 +57,13 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 			visit(key.expression)
 		}
 		args(n.outputs)
+	case *windowNode:
+		for _, spec := range n.specs {
+			args(spec.partition)
+			for _, key := range spec.order {
+				visit(key.expression)
+			}
+		}
 	case *aggregateNode:
 		args(n.keys)
 		for _, call := range n.calls {
@@ -169,6 +179,8 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 					case groupExpression:
 						frame = n.frame
 					case aggregateExpression:
+						frame = n.frame
+					case *windowExpression:
 						frame = n.frame
 					case subqueryExpression:
 						var ignoredChild *projectNode

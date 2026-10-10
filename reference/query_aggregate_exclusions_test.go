@@ -11,6 +11,11 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 		step.prepared = prepared
 		p.step(t, step)
 	}
+	for _, backend := range p.backends() {
+		s := referenceSelect("SELECT count(*) OVER () FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}, {int64(3)}, {int64(3)}})
+		s.bag = true
+		queryWindowRoutes(t, p, backend, s)
+	}
 	for _, tc := range []struct {
 		q, name string
 		rows    [][]any
@@ -19,7 +24,6 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 		{"SELECT count(DISTINCT v) FROM t", "count", [][]any{{int64(2)}}},
 		{"SELECT count(ALL v) FROM t", "count", [][]any{{int64(3)}}},
 		{"SELECT count(v ORDER BY v) FROM t", "count", [][]any{{int64(3)}}},
-		{"SELECT count(*) OVER () FROM t", "count", [][]any{{int64(3)}, {int64(3)}, {int64(3)}}},
 		{"SELECT count(*) FROM t GROUP BY ROLLUP(v)", "count", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},
 		{"SELECT count(*) FROM t GROUP BY CUBE(v)", "count", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},
 		{"SELECT count(*) FROM t GROUP BY GROUPING SETS ((v))", "count", [][]any{{int64(2)}, {int64(1)}}},
@@ -80,7 +84,7 @@ func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
 		}
 	}
 	for _, q := range []string{
-		"SELECT count(*) OVER () FROM t",
+		"SELECT count(*) OVER (ROWS UNBOUNDED PRECEDING) FROM t",
 		"SELECT v FROM t GROUP BY ROLLUP(v)", "SELECT v FROM t GROUP BY CUBE(v)",
 		"SELECT v FROM t GROUP BY GROUPING SETS ((v))", "SELECT v FROM t GROUP BY ()",
 		"SELECT v FROM t GROUP BY DISTINCT v", "SELECT v FROM t GROUP BY ALL v",

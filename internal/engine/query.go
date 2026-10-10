@@ -72,11 +72,12 @@ type sortNode struct {
 }
 type projectNode struct {
 	querySchema
-	child        LogicalNode
-	expressions  []BoundExpr
-	frozenValues bool // Synthetic FROM VALUES slots are already produced.
-	frame        uint32
-	syntax       *parser.Select
+	child               LogicalNode
+	expressions         []BoundExpr
+	analysisExpressions []BoundExpr // Unused named definitions remain analyzed, not executed.
+	frozenValues        bool        // Synthetic FROM VALUES slots are already produced.
+	frame               uint32
+	syntax              *parser.Select
 }
 
 // A physical literal or this execution's imported BOOL parameter can prove a
@@ -106,6 +107,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
+	case *windowNode:
+		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) })
 	case *setNode:
 		return preflightSet(c, n)
 	case *distinctNode:
@@ -411,13 +414,17 @@ type querySource struct {
 	nestedStage          *indexedStage
 	inherited            queryRowMark // Execution-only mark crossing this view boundary.
 	// Only locking joins populate provenance; ordinary query work is unchanged.
-	occurrence          int
-	occurrences         []int
-	provenance          []int
-	versions            []rowVersion
-	versionValid        []bool // Nil: complete sequential cache; nonnil: sparse frontier.
-	joinLeft, joinRight *querySource
-	joinPairs           []queryPair
+	occurrence               int
+	occurrences              []int
+	provenance               []int
+	versions                 []rowVersion
+	versionValid             []bool // Nil: complete sequential cache; nonnil: sparse frontier.
+	joinLeft, joinRight      *querySource
+	joinPairs                []queryPair
+	window                   bool
+	windowCount, windowWidth int
+	windowValues             []sqltype.Value
+	windowIndices            []int
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -431,6 +438,9 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRe
 	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.columns[2].Usage.Type, g.called)}}}, nil
 }
 func (s *querySource) count() int {
+	if s.window {
+		return s.windowCount
+	}
 	if s.materialized {
 		return s.flatCount
 	}
@@ -454,6 +464,16 @@ func (s *querySource) count() int {
 func (s *querySource) row(i int) []sqltype.Value {
 	if i == absentQueryIndex {
 		return nil
+	}
+	if s.window {
+		index := i
+		if s.windowIndices != nil {
+			index = s.windowIndices[i]
+		}
+		row := s.input.row(index)
+		copy(s.scratch, row)
+		copy(s.scratch[len(s.scratch)-s.windowWidth:], s.windowValues[i*s.windowWidth:(i+1)*s.windowWidth])
+		return s.scratch
 	}
 	if s.materialized {
 		if s.anonymous != nil {
@@ -534,6 +554,8 @@ func (s *querySource) close() {
 		}
 	}
 	s.flat = nil
+	s.windowValues, s.windowIndices = nil, nil
+	s.windowCount, s.windowWidth, s.window = 0, 0, false
 	s.occurrences = nil
 	s.provenance = nil
 	s.versions = nil
@@ -724,6 +746,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *windowNode:
+		return openWindowNode(ctx, state, n)
 	case *setNode:
 		return openSetNode(ctx, state, n)
 	case *limitNode:
@@ -1288,9 +1312,12 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if direct && r.count > 0 {
 		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
-		if stageSource != source {
+		if stageSource != source && !querySourceRetains(stageSource, source) {
 			source.close()
 		}
+	}
+	if !direct || r.count == 0 {
+		stageSource.close()
 	}
 	detachQuerySource(stageSource)
 	return r, r.count, nil
@@ -1312,4 +1339,22 @@ func anonymousResult(schema []ColumnDescriptor, rows [][]sqltype.Value, count in
 		}
 	}
 	return Result{Count: count, Rows: r}, nil
+}
+
+func querySourceRetains(source, target *querySource) bool {
+	if source == target {
+		return true
+	}
+	if source == nil {
+		return false
+	}
+	if querySourceRetains(source.input, target) {
+		return true
+	}
+	for _, child := range source.sources {
+		if child != source && querySourceRetains(child, target) {
+			return true
+		}
+	}
+	return false
 }

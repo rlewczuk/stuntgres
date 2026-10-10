@@ -51,6 +51,15 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		return bounds(v.Bounds)
 	}
+	window := func(spec *WindowSpec) error {
+		if spec == nil {
+			return nil
+		}
+		if err := expressions(spec.Partition); err != nil {
+			return err
+		}
+		return orderKeys(spec.Order)
+	}
 	expression = func(raw Expr) error {
 		switch e := raw.(type) {
 		case SubqueryExpr:
@@ -63,7 +72,10 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		case OperatorExpr:
 			return expressions(e.Args)
 		case FunctionExpr:
-			return expressions(e.Args)
+			if err := expressions(e.Args); err != nil {
+				return err
+			}
+			return window(e.Window)
 		case AggregateExpr:
 			if err := expressions(e.Args); err != nil {
 				return err
@@ -71,7 +83,10 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if err := orderKeys(e.Order); err != nil {
 				return err
 			}
-			return expression(e.Filter)
+			if err := expression(e.Filter); err != nil {
+				return err
+			}
+			return window(e.Window)
 		case ConditionalExpr:
 			return expressions(e.Args)
 		case CallExpr:
@@ -173,6 +188,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		if err := expression(s.Having); err != nil {
 			return err
+		}
+		for _, definition := range s.Windows {
+			if err := window(&definition.Spec); err != nil {
+				return err
+			}
 		}
 		if err := order(s.Order); err != nil {
 			return err

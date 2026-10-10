@@ -31,6 +31,14 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 			}
 		}
 		args = e.Args
+		if e.Window != nil {
+			for _, key := range e.Window.Partition {
+				child(key)
+			}
+			for _, key := range e.Window.Order {
+				child(key.Expr)
+			}
+		}
 	case CallExpr:
 		args = e.Args
 	case ArrayExpr:
@@ -45,6 +53,14 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 			child(key.Expr)
 		}
 		child(e.Filter)
+		if e.Window != nil {
+			for _, key := range e.Window.Partition {
+				child(key)
+			}
+			for _, key := range e.Window.Order {
+				child(key.Expr)
+			}
+		}
 	case CaseExpr:
 		child(e.Test)
 		for _, arm := range e.Arms {

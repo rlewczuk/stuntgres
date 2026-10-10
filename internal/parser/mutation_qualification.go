@@ -48,6 +48,14 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 			absorb(key.Expr)
 		}
 		absorb(e.Filter)
+		if e.Window != nil {
+			for _, key := range e.Window.Partition {
+				absorb(key)
+			}
+			for _, key := range e.Window.Order {
+				absorb(key.Expr)
+			}
+		}
 		return result
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
@@ -100,6 +108,14 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 	case FunctionExpr:
 		inCast = true
 		children = e.Args
+		if e.Window != nil {
+			for _, key := range e.Window.Partition {
+				absorb(key)
+			}
+			for _, key := range e.Window.Order {
+				absorb(key.Expr)
+			}
+		}
 	case CallExpr:
 		inCast = true
 		children = e.Args
@@ -154,6 +170,18 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 				return token, reject
 			}
 		}
+		if e.Window != nil {
+			for _, key := range e.Window.Partition {
+				if token, reject := nonqueryQualification(key, assignment); token != nil {
+					return token, reject
+				}
+			}
+			for _, key := range e.Window.Order {
+				if token, reject := nonqueryQualification(key.Expr, assignment); token != nil {
+					return token, reject
+				}
+			}
+		}
 		return nonqueryQualification(e.Filter, assignment)
 	case ArrayExpr:
 		for _, element := range e.Elements {
@@ -187,6 +215,18 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	case ConditionalExpr, CaseExpr:
 		return deleteQualification(expr, false), false
 	case FunctionExpr:
+		if e.Window != nil {
+			for _, key := range e.Window.Partition {
+				if token := deleteQualification(key, true); token != nil {
+					return token, false
+				}
+			}
+			for _, key := range e.Window.Order {
+				if token := deleteQualification(key.Expr, true); token != nil {
+					return token, false
+				}
+			}
+		}
 		for _, child := range e.Args {
 			if token := deleteQualification(child, true); token != nil {
 				return token, false
@@ -246,11 +286,31 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 		for i, key := range e.Order {
 			e.Order[i].Expr, _ = markGroupedQualification(key.Expr)
 		}
+		if e.Window != nil {
+			for i, key := range e.Window.Partition {
+				e.Window.Partition[i], _ = markGroupedQualification(key)
+			}
+			for i, key := range e.Window.Order {
+				e.Window.Order[i].Expr, _ = markGroupedQualification(key.Expr)
+			}
+		}
 		if e.Filter != nil {
 			filter, changed := markGroupedQualification(e.Filter)
 			if changed {
 				e.Filter = filter
 				return e, true
+			}
+		}
+	case FunctionExpr:
+		for i, child := range e.Args {
+			e.Args[i], _ = markGroupedQualification(child)
+		}
+		if e.Window != nil {
+			for i, child := range e.Window.Partition {
+				e.Window.Partition[i], _ = markGroupedQualification(child)
+			}
+			for i, key := range e.Window.Order {
+				e.Window.Order[i].Expr, _ = markGroupedQualification(key.Expr)
 			}
 		}
 	case ColumnExpr:

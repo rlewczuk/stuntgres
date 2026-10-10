@@ -28,16 +28,7 @@ func TestReferenceCancellationTransactionsAndClosedObjects(t *testing.T) {
 			if err = tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}
-			for _, q := range []string{"SELECT v FROM c WINDOW w AS ()"} {
-				_, err = db.Exec(q)
-				if backend.pg {
-					if err != nil {
-						t.Fatal(err)
-					}
-				} else {
-					driverSQLState(t, err, "0A000")
-				}
-			}
+			referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec("SELECT v FROM c WINDOW w AS ()", 0))
 			for _, q := range []string{"SAVEPOINT x", "RELEASE x"} {
 				_, err = db.Exec(q)
 				driverSQLState(t, err, "25P01")

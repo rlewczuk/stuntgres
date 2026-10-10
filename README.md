@@ -70,6 +70,17 @@ See [period overlap](docs/DIALECT.md#period-overlap--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0`.
 
+Change note: selected PostgreSQL18 windows support `row_number()` and default-frame
+`count(*)` with `OVER`, partition/order keys and inherited named `WINDOW` definitions.
+Counts include every peer through the default RANGE frame; numbering restarts in
+each partition. Windows run after WHERE/group/HAVING and before DISTINCT, outer
+ORDER and bounds. Only outer ORDER promises presentation order. Prepared queries,
+INSERT SELECT, captured views and pristine native Dump/Restore share this pipeline.
+Explicit frames, window FILTER, count(expr) windows and other providers remain excluded.
+See [window queries](docs/QUERIES.md#selected-windows--change-note-changelog).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0`.
+
 Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
 `unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
 providers. `ascii` returns the first UTF8 codepoint (empty text returns0);
@@ -1482,8 +1493,8 @@ Empty/all-NULL global input returns typed NULL. Use call-local
 ordering only orders result groups. Each call can use different source-key order.
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
 Dump/Restore use the same eager pipeline. All existing aggregates admit
-FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. OVER and
-array_agg remain excluded. Admitted aggregates also use the ordinary no-FROM input.
+FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. Window execution
+is restricted to row_number() and unmodified count(*); array_agg remains excluded.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row

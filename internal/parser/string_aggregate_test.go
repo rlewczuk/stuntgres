@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"errors"
-	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
@@ -45,15 +43,14 @@ func TestStringAggregateGrammar(t *testing.T) {
 	}
 }
 
-func TestStringAggregateCapabilityGuards(t *testing.T) {
-	for _, q := range []string{
-		"SELECT string_agg(v,d) OVER () FROM t",
-	} {
-		statements, err := Parse("INSERT INTO t VALUES('unpublished');" + q)
-		var d *sqlstate.Error
-		if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" {
-			t.Fatal(q, statements, err)
-		}
+func TestStringAggregateWindowAST(t *testing.T) {
+	statements, err := Parse("SELECT string_agg(v,d) OVER (PARTITION BY p ORDER BY k) FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	call := statements[0].(*Select).Targets[0].(AggregateExpr)
+	if call.Window == nil || len(call.Window.Partition) != 1 || len(call.Window.Order) != 1 || len(call.Args) != 2 {
+		t.Fatal(call)
 	}
 }
 

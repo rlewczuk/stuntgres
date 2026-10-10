@@ -546,6 +546,7 @@ type Select struct {
 	Where         Expr
 	GroupBy       []Expr
 	Having        Expr
+	Windows       []WindowDefinition
 	Order         *Order
 	Pos           Position
 	Into          *ObjectName
@@ -604,6 +605,27 @@ type SetQuery struct {
 // QueryBounds retains decoration presence even for LIMIT ALL/NULL.
 type QueryBounds struct {
 	Offset, Count Expr
+}
+
+// WindowSpec preserves the input-key namespace and specification caret owner.
+type WindowSpec struct {
+	Name      *Identifier
+	Partition []Expr
+	Order     []OrderKey
+	Pos       Position
+	Bare      bool
+}
+
+type WindowDefinition struct {
+	Name Identifier
+	Spec WindowSpec
+}
+
+// Parser-only keyword identity is separate from the specification caret and is
+// discarded on attachment; it is not part of the persisted expression tree.
+type windowOverClause struct {
+	spec  WindowSpec
+	token lexeme
 }
 
 type queryTail struct {
@@ -1017,18 +1039,21 @@ type FunctionExpr struct {
 	ResolutionOnly bool // Absent ordinary call: diagnostics, never provider dispatch.
 	Syntax         FunctionSyntax
 	StringSyntax   StringSyntax
+	Window         *WindowSpec
 }
 
 // AggregateExpr retains ordinary aggregate arguments and call-local modifiers.
 type AggregateExpr struct {
-	Name     string
-	Star     bool
-	Args     []Expr
-	Order    []OrderKey
-	Distinct bool
-	Filter   Expr
-	Schema   *Identifier
-	Pos      Position
+	Name      string
+	Star      bool
+	Args      []Expr
+	Order     []OrderKey
+	Distinct  bool
+	Filter    Expr
+	Schema    *Identifier
+	Window    *WindowSpec
+	FilterPos Position
+	Pos       Position
 }
 
 func (AggregateExpr) expression()                {}

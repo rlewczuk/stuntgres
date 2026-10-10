@@ -326,6 +326,8 @@ func canSimplifyExists(query *BoundQuery) bool {
 			return false // Set keys determine presence, not just projected payload.
 		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode:
 			return true // FROM inputs retain their own demand and clause fences.
+		case *windowNode:
+			return false // Keep real window-key demand and eager failure frontiers.
 		case *aggregateNode:
 			if len(n.calls) != 0 {
 				return false
@@ -422,6 +424,8 @@ func scheduledQueryTarget(node LogicalNode, slot int) BoundExpr {
 		case *filterNode:
 			node = n.child
 		case *aggregateNode:
+			node = n.child
+		case *windowNode:
 			node = n.child
 		case *distinctNode:
 			node = n.child

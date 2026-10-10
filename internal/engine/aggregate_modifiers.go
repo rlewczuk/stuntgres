@@ -150,6 +150,9 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			call.distinct[i] = grouping
 		}
 	}
+	if err := b.argumentOwner.nestingError(); err != nil {
+		return nil, err
+	}
 	properties := ExprProperties{StageDependent: true}
 	call.expressions(func(expr BoundExpr) {
 		if expr != nil {

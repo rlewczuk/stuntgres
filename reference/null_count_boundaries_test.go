@@ -63,7 +63,7 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 		"INSERT INTO t VALUES(num_nulls(NULL),1)",
 		"SELECT num_nulls(ARRAY[1,NULL])", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
 		"SELECT num_nulls(DISTINCT 1) FROM t", "SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
-		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", "SELECT num_nulls(1) OVER () FROM t",
+		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t",
 		"SELECT num_nulls(a => 1) FROM t", "SELECT current_setting(num_nulls(NULL))",
 	} {
 		t.Run(q, func(t *testing.T) {
@@ -102,7 +102,6 @@ func nullCountPostgresBoundaries(t *testing.T, p *referencePair) {
 		referenceImplicitError("SELECT num_nulls(1 ORDER BY 1) FROM t", referenceDiagnostic{Code: "42809", Message: "ORDER BY specified, but num_nulls is not an aggregate function", Position: "8"}),
 		referenceImplicitError("SELECT num_nulls(*) FROM t", referenceDiagnostic{Code: "42883", Message: "function num_nulls() does not exist", Hint: hint, Position: "8"}),
 		referenceImplicitError("SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", referenceDiagnostic{Code: "42809", Message: "FILTER specified, but num_nulls is not an aggregate function", Position: "8"}),
-		referenceImplicitError("SELECT num_nulls(1) OVER () FROM t", referenceDiagnostic{Code: "42809", Message: "OVER specified, but num_nulls is not a window function nor an aggregate function", Position: "8"}),
 		referenceImplicitError("SELECT num_nulls(a => 1) FROM t", referenceDiagnostic{Code: "42883", Message: "function num_nulls(a => integer) does not exist", Hint: hint, Position: "8"}),
 		referenceImplicitError("SELECT current_setting(num_nulls(NULL))", referenceDiagnostic{Code: "42883", Message: "function current_setting(integer) does not exist", Hint: hint, Position: "8"}),
 	}

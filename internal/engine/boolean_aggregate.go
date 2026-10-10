@@ -73,6 +73,21 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 	if err != nil {
 		return nil, err
 	}
+	arg, err := b.resolveBooleanAggregateSignature(raw, name, operands, types)
+	if err != nil {
+		return nil, err
+	}
+	typ := arg.ResultUsage().Type
+	operation := aggregateAnd
+	if raw.Name == "bool_or" {
+		operation = aggregateOr
+	}
+	call := aggregateCall{provider: booleanAggregateProvider{typ.Usage(), operation}, argument: arg, operation: operation}
+	return b.finishAggregate(raw, call, filter, b.info(typ.Usage(), raw.Pos, ExprProperties{}))
+}
+
+// Resolve/coerce the callable without registering ordinary aggregate state.
+func (b *expressionBinder) resolveBooleanAggregateSignature(raw parser.AggregateExpr, name parser.ObjectName, operands []comparisonOperand, types []string) (BoundExpr, error) {
 	if len(operands) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -84,14 +99,5 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 	if !visible || raw.Star || len(operands) != 1 || (operands[0].descriptor() != nil && operands[0].descriptor().BaseType() != typ) {
 		return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
-	arg, err := b.coerceConditional(operands[0], typ.Usage(), raw.Name)
-	if err != nil {
-		return nil, err
-	}
-	operation := aggregateAnd
-	if raw.Name == "bool_or" {
-		operation = aggregateOr
-	}
-	call := aggregateCall{provider: booleanAggregateProvider{typ.Usage(), operation}, argument: arg, operation: operation}
-	return b.finishAggregate(raw, call, filter, b.info(typ.Usage(), raw.Pos, ExprProperties{}))
+	return b.coerceConditional(operands[0], typ.Usage(), raw.Name)
 }

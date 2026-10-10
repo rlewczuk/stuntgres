@@ -34,7 +34,7 @@ func TestQueryAggregateGrammar(t *testing.T) {
 }
 func TestQueryAggregateExclusions(t *testing.T) {
 	for _, q := range []string{
-		"SELECT count(* ORDER BY v) FROM t", "SELECT count(*) OVER () FROM t",
+		"SELECT count(* ORDER BY v) FROM t",
 		"SELECT k FROM t GROUP BY ROLLUP(k)", "SELECT k FROM t GROUP BY CUBE(k)",
 		"SELECT k FROM t GROUP BY GROUPING SETS ((k))", "SELECT k FROM t GROUP BY ()",
 		"SELECT k FROM t GROUP BY DISTINCT k", "SELECT k FROM t GROUP BY ALL k",

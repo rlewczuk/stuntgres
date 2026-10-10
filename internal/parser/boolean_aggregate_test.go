@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"errors"
-	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
@@ -33,9 +31,8 @@ func TestBooleanAggregateExclusions(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT every(b) OVER () FROM t"} {
-		statements, err := Parse("INSERT INTO t VALUES(TRUE);" + q)
-		var d *sqlstate.Error
-		if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" {
+		statements, err := Parse(q)
+		if len(statements) != 1 || err != nil || statements[0].(*Select).Targets[0].(AggregateExpr).Window == nil {
 			t.Fatal(q, statements, err)
 		}
 	}

@@ -64,9 +64,10 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		return node, nil
 	case *projectNode:
 		input, expressions := child(n.child), args(n.expressions)
+		analysis := args(n.analysisExpressions)
 		if changed && err == nil {
 			copy := *n
-			copy.child, copy.expressions = input, expressions
+			copy.child, copy.expressions, copy.analysisExpressions = input, expressions, analysis
 			out = &copy
 		}
 	case *distinctNode:
@@ -144,6 +145,46 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			copy.child, copy.outputs = input, outputs
 			if keys != nil {
 				copy.keys = keys
+			}
+			out = &copy
+		}
+	case *windowNode:
+		input := child(n.child)
+		var specs []boundWindowSpec
+		for i, spec := range n.specs {
+			partition := args(spec.partition)
+			specChanged := len(partition) > 0 && &partition[0] != &spec.partition[0]
+			var order []sortKey
+			for j, key := range spec.order {
+				if err != nil {
+					break
+				}
+				next, different, failure := rewrite(key.expression)
+				err = failure
+				if different {
+					if order == nil {
+						order = append([]sortKey(nil), spec.order...)
+					}
+					order[j].expression = next
+					specChanged = true
+					changed = true
+				}
+			}
+			if specChanged {
+				if specs == nil {
+					specs = append([]boundWindowSpec(nil), n.specs...)
+				}
+				specs[i].partition = partition
+				if order != nil {
+					specs[i].order = order
+				}
+			}
+		}
+		if changed && err == nil {
+			copy := *n
+			copy.child = input
+			if specs != nil {
+				copy.specs = specs
 			}
 			out = &copy
 		}
@@ -258,6 +299,8 @@ func expressionUsesFrame(expr BoundExpr, frame uint32) bool {
 		case columnExpression:
 			found = found || e.frame == frame
 		case aggregateExpression:
+			found = found || e.frame == frame
+		case *windowExpression:
 			found = found || e.frame == frame
 		case groupExpression:
 			found = found || e.frame == frame

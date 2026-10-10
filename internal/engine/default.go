@@ -1077,6 +1077,10 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 	case aggregateExpression:
 		n.expressionInfo = info
 		rebound = n
+	case *windowExpression:
+		copy := *n
+		copy.expressionInfo = info
+		rebound = &copy
 	case cachedOrderExpression:
 		n.expressionInfo = info
 		rebound = n

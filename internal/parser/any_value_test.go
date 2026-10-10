@@ -1,10 +1,7 @@
 package parser
 
 import (
-	"errors"
 	"testing"
-
-	"stuntgres/internal/sqlstate"
 )
 
 func TestAnyValueGrammar(t *testing.T) {
@@ -32,9 +29,8 @@ func TestAnyValueExclusions(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT any_value(v) OVER () FROM t"} {
-		statements, err := Parse("INSERT INTO t VALUES(1);" + q)
-		var diagnostic *sqlstate.Error
-		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
+		statements, err := Parse(q)
+		if len(statements) != 1 || err != nil || statements[0].(*Select).Targets[0].(AggregateExpr).Window == nil {
 			t.Fatal(q, statements, err)
 		}
 	}

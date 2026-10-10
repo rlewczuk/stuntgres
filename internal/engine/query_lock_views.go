@@ -205,6 +205,9 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 			case *aggregateNode:
 				suffix = "aggregate functions"
 				node = nil
+			case *windowNode:
+				suffix = "window functions"
+				node = nil
 			case *distinctNode:
 				suffix = "DISTINCT clause"
 				node = nil
@@ -353,7 +356,7 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	switch n := node.(type) {
 	case *limitNode:
 		return queryLockRecheckWidth(n.child, inputs)
-	case *aggregateNode, *distinctNode, *setNode:
+	case *aggregateNode, *windowNode, *distinctNode, *setNode:
 		return 0 // Its input marks/provenance have already been consumed.
 	case *evaluationNode:
 		return queryLockRecheckWidth(n.child, inputs)

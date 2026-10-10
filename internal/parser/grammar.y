@@ -91,6 +91,10 @@ package parser
  indexOptions []IndexOption
  indexOption IndexOption
  indexValue Value
+ windowSpec WindowSpec
+ windowOver windowOverClause
+ windows []WindowDefinition
+ window WindowDefinition
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -109,6 +113,7 @@ package parser
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> FILTER
+%token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE
 %token <tok> NOT_DEFERRABLE_LA NOT_IN_LA
 %token <tok> FOR
@@ -184,7 +189,8 @@ package parser
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
 /* REINDEX previously used KW_U: keep that same type-tail shift when promoting
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX '.'
+%nonassoc FRAME_EDGE FRAME_START
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
 %nonassoc GENERATION_OVER
@@ -201,6 +207,16 @@ package parser
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
 %nonassoc FILTER
+%nonassoc OVER
+%type <windowSpec> window_spec
+%type <windowOver> over_clause
+%type <windows> windows window_definitions
+%type <window> window_definition
+%type <identifier> window_parent
+%type <row> window_partition
+%type <orderKeys> window_order
+%type <tok> window_name
+%type <tok> window_frame
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
@@ -601,8 +617,8 @@ query_table_options: /* empty */
  | query_table_options USING name {sqllex.(*lexer).deferUnsupported($2,"table access methods are unsupported")}
  | query_table_options WITH '(' view_option_list ')' {sqllex.(*lexer).deferUnsupported($2,"table storage parameters are unsupported")}
  | query_table_options TABLESPACE name {sqllex.(*lexer).deferUnsupported($2,"table tablespaces are unsupported")}
- | query_table_options ON COMMIT KW_U KW_U {if $4.text!="preserve" || $5.text!="rows" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
- | query_table_options ON COMMIT DELETE KW_U {if $5.text!="rows" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
+ | query_table_options ON COMMIT KW_U FRAME_UNIT {if $4.text!="preserve" || $5.text!="rows" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
+ | query_table_options ON COMMIT DELETE FRAME_UNIT {if $5.text!="rows" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
  | query_table_options ON COMMIT DROP {sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")} ;
 create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} }
  | CREATE OR replace_word VIEW relation_name view_columns view_options AS select { query,ok:=$9.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$5,Columns:$6,Options:$7,Query:query,Replace:true,Pos:$1.pos} } ;
@@ -1136,8 +1152,8 @@ into_clause: /* empty */ %prec NAME_LIST {$$=nil}
  | INTO TEMP TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"temporary tables are unsupported");n:=$4;$$=&n}
  | INTO UNLOGGED relation_name {sqllex.(*lexer).deferUnsupported($2,"unlogged tables are unsupported");n:=$3;$$=&n}
  | INTO UNLOGGED TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"unlogged tables are unsupported");n:=$4;$$=&n} ;
-select_core: SELECT select_projection into_clause optional_from where group having { $2.Into=$3;$2.From=$4;$2.Where=$5;$2.GroupBy=$6;$2.Having=$7;$2.Pos=$1.pos;$$=$2 }
- | SELECT into_clause optional_from where group having %prec NAME_LIST { $$=&Select{Into:$2,From:$3,Where:$4,GroupBy:$5,Having:$6,Pos:$1.pos} } ;
+select_core: SELECT select_projection into_clause optional_from where group having windows { $2.Into=$3;$2.From=$4;$2.Where=$5;$2.GroupBy=$6;$2.Having=$7;$2.Windows=$8;$2.Pos=$1.pos;$$=$2 }
+ | SELECT into_clause optional_from where group having windows %prec NAME_LIST { $$=&Select{Into:$2,From:$3,Where:$4,GroupBy:$5,Having:$6,Windows:$7,Pos:$1.pos} } ;
 /* Absorb consecutive parentheses before selecting the scalar, FROM or set-arm
  * category; these category reductions stay below ')' shift precedence. */
 select_with_parens: '(' query_select ')' { $$=parenthesizedQuery{Query:$2,Pos:$1.pos} }
@@ -1158,6 +1174,26 @@ select_query: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
  | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
 select: select_query { $$=$1 } ;
+windows: /* empty */ %prec NAME_LIST { $$=nil } | WINDOW window_definitions { $$=$2 } ;
+window_definitions: window_definition { $$=[]WindowDefinition{$1} } | window_definitions ',' window_definition { $$=append($1,$3) } ;
+window_definition: name AS '(' window_spec ')' { $4.Pos=$3.pos;$$=WindowDefinition{Name:Identifier{Text:$1.text,Pos:$1.pos},Spec:$4} } ;
+over_clause: OVER name { $$=windowOverClause{spec:WindowSpec{Name:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos,Bare:true},token:$1} }
+ | OVER '(' window_spec ')' { $3.Pos=$2.pos;$$=windowOverClause{spec:$3,token:$1} } ;
+window_spec: window_parent window_partition window_order { $$=WindowSpec{Name:$1,Partition:$2,Order:$3} }
+ | window_parent window_partition window_order window_frame {sqllex.(*lexer).failAt("0A000","explicit window frames are unsupported",$4.pos.Offset);return 1} ;
+window_frame: FRAME_UNIT frame_bound window_exclusion { $$=$1 }
+ | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion { $$=$1 } ;
+frame_bound: FRAME_START FRAME_EDGE {}
+ | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1}}
+ | scalar_projection FRAME_EDGE {} ;
+window_exclusion: /* empty */ {}
+ | KW_U KW_U {if $1.text!="exclude" || $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1}}
+ | KW_U GROUP {if $1.text!="exclude" {sqllex.(*lexer).syntax($1);return 1}}
+ | KW_U KW_U ROW {if $1.text!="exclude" || $2.text!="current" {sqllex.(*lexer).syntax($1);return 1}}
+ | KW_U NO KW_U {if $1.text!="exclude" || $3.text!="others" {sqllex.(*lexer).syntax($1);return 1}} ;
+window_parent: /* empty */ %prec NAME_LIST { $$=nil } | window_name { $$=&Identifier{Text:$1.text,Pos:$1.pos} } | BETWEEN { $$=&Identifier{Text:$1.text,Pos:$1.pos} } ;
+window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY group_keys { $$=$3 } ;
+window_order: /* empty */ %prec NAME_LIST { $$=nil } | ORDER BY order_keys { $$=$3 } ;
 optional_from: /* empty */ %prec NAME_LIST { $$=nil } | FROM from_list { $$=$2 } ;
 row_fields: scalar_projection { $$=[]Expr{$1} } | row_fields ',' scalar_projection { $$=append($1,$3) } ;
 quantifier: ANY | SOME | ALL ;
@@ -1223,7 +1259,8 @@ projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
 function_argument: operand { $$=$1 } | function { $$=$1 } ;
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
- | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} } ;
+ | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
+ | function over_clause { call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};spec:=$2.spec;call.Window=&spec;$$=call } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list { $$=$1 }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
@@ -1342,13 +1379,15 @@ limit_value: scalar_projection { $$=$1 } | ALL { $$=LiteralExpr{Value:Value{Kind
 offset_clause: OFFSET scalar_projection optional_count_rows { $$=&QueryBounds{Offset:$2} } ;
 fetch_direction: KW_U { if $1.text!="first" && $1.text!="next" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 count_rows: ROW { $$=$1 }
- | KW_U { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+ | FRAME_UNIT { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
+ | KW_U {sqllex.(*lexer).syntax($1);return 1} ;
 optional_count_rows: /* empty */ { $$=false } | count_rows { $$=true } ;
 count_values: conditional_value { $$=[]Expr{$1} } | count_values ',' conditional_value { $$=append($1,$3) } ;
 /* One call grammar serves scalar and FETCH inputs. FILTER attaches to the
  * actual call, not to a parenthesized or otherwise composed scalar expression. */
 aggregate_application: aggregate_call %prec ')' { $$=$1 }
- | aggregate_call FILTER '(' WHERE target_or ')' { call,ok:=$1.(AggregateExpr);if !ok {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1};call.Filter=$5;$$=call } ;
+ | aggregate_call FILTER '(' WHERE target_or ')' { call,ok:=$1.(AggregateExpr);if !ok {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1};call.Filter=$5;call.FilterPos=$2.pos;$$=call }
+ | aggregate_application over_clause { call,ok:=$1.(AggregateExpr);if !ok || call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};spec:=$2.spec;call.Window=&spec;$$=call } ;
 aggregate_call: cast_function target_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}} }
  | qualified_call_head target_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}} }
  | cast_function target_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
@@ -1396,7 +1435,9 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
-non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX
+non_between_name: window_name | PARTITION | FRAME_UNIT ;
+window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER
+ | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 name: non_between_name | BETWEEN ;
@@ -1406,18 +1447,18 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
- | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | FILTER | OVERLAPS ;
+ | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
- | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | OVERLAPS ;
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
-bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.text=="over") {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$1.pos.Offset);return 1}; if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$1.pos.Offset);return 1}; if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | COLLATE { $$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
@@ -1431,7 +1472,7 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
- | UNION | INTERSECT | EXCEPT | OVERLAPS ;
+ | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;
 where_predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | CONSTRAINT ;

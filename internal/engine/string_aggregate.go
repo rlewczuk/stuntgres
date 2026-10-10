@@ -113,15 +113,30 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	if err != nil {
 		return nil, err
 	}
-	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	visible, err := b.builtinVisible(name, functionLookup)
+	value, separator, err := b.resolveStringAggregateSignature(raw, name, operands, types)
 	if err != nil {
 		return nil, err
 	}
+	properties := mergeExpressionProperties(value.Properties(), separator.Properties())
+	properties.StageDependent = true
+	info, err := collatedInfo(b.info(value.ResultUsage().Type.Usage(), raw.Pos, properties), value, separator)
+	if err != nil {
+		return nil, err
+	}
+	call := aggregateCall{provider: stringAggregateProvider{info.usage}, argument: value, separator: separator, operation: aggregateString}
+	return b.finishAggregate(raw, call, filter, info)
+}
+
+func (b *expressionBinder) resolveStringAggregateSignature(raw parser.AggregateExpr, name parser.ObjectName, operands []comparisonOperand, types []string) (BoundExpr, BoundExpr, error) {
+	if len(raw.Args) > 100 {
+		return nil, nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	visible, err := b.builtinVisible(name, functionLookup)
+	if err != nil {
+		return nil, nil, err
+	}
 	if !visible || raw.Star || len(operands) != 2 {
-		return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
+		return nil, nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
 	typ := b.typ(sqltype.Text)
 	for _, o := range operands {
@@ -132,24 +147,14 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	for _, o := range operands {
 		if d := o.descriptor(); d != nil {
 			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), typ.Usage(), sqltype.Implicit); err != nil {
-				return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
+				return nil, nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 			}
 		}
 	}
 	value, err := b.coerceConditional(operands[0], typ.Usage(), raw.Name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	separator, err := b.coerceConditional(operands[1], typ.Usage(), raw.Name)
-	if err != nil {
-		return nil, err
-	}
-	properties := mergeExpressionProperties(value.Properties(), separator.Properties())
-	properties.StageDependent = true
-	info, err := collatedInfo(b.info(typ.Usage(), raw.Pos, properties), value, separator)
-	if err != nil {
-		return nil, err
-	}
-	call := aggregateCall{provider: stringAggregateProvider{info.usage}, argument: value, separator: separator, operation: aggregateString}
-	return b.finishAggregate(raw, call, filter, info)
+	return value, separator, err
 }

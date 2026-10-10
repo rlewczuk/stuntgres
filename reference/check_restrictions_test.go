@@ -4,10 +4,9 @@ package reference_test
 
 import "testing"
 
-// These remaining PostgreSQL-only controls require window or SRF execution.
+// The remaining PostgreSQL-only control requires SRF execution.
 func TestReferenceCheckExcludedExpressionControlsPostgres(t *testing.T) {
 	for _, tc := range []struct{ query, code, message string }{
-		{"CREATE TABLE t(a INT CHECK(row_number() OVER ()>0))", "42P20", "window functions are not allowed in check constraints"},
 		{"CREATE TABLE t(a INT CHECK(generate_series(1,2)>0))", "0A000", "set-returning functions are not allowed in check constraints"},
 	} {
 		t.Run(tc.query, func(t *testing.T) {

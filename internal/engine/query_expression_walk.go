@@ -181,7 +181,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		}
 	}
 	switch clause {
-	case "SELECT", "HAVING", "ORDER BY":
+	case "SELECT", "HAVING", "ORDER BY", "window definitions":
 	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER", "UPDATE":
 		return nil, expressionError("42803", "aggregate functions are not allowed in "+clause, e.pos)
 	default:

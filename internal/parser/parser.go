@@ -391,7 +391,7 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
-	case "date", "timestamptz", "timetz", "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "min", "max":
+	case "date", "timestamptz", "timetz", "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "min", "max", "row_number":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		return callee.keyword == nil // Quoted alias diagnostics belong to binding.
@@ -412,7 +412,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func ordinaryAggregate(name string) bool {
-	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max"
+	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max" || name == "row_number"
 }
 
 func (l *lexer) scalarInput(expr Expr) bool {
@@ -440,6 +440,18 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 				return false
 			}
 		}
+		if r.Window != nil {
+			for _, key := range r.Window.Partition {
+				if !l.scalarInputTree(key) {
+					return false
+				}
+			}
+			for _, key := range r.Window.Order {
+				if !l.scalarInputTree(key.Expr) {
+					return false
+				}
+			}
+		}
 		return true
 	case AggregateExpr:
 		if r.Name == "sum" {
@@ -455,6 +467,18 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		for _, key := range r.Order {
 			if !l.scalarInputTree(key.Expr) {
 				return false
+			}
+		}
+		if r.Window != nil {
+			for _, key := range r.Window.Partition {
+				if !l.scalarInputTree(key) {
+					return false
+				}
+			}
+			for _, key := range r.Window.Order {
+				if !l.scalarInputTree(key.Expr) {
+					return false
+				}
 			}
 		}
 		return r.Filter == nil || l.scalarInputTree(r.Filter)
