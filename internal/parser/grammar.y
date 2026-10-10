@@ -6,7 +6,7 @@ package parser
  stmt Statement
  insertStmt *Insert
  insertConflict *InsertConflict
- col Column
+ col *Column
  columns []Column
  elements []TableElement
  element TableElement
@@ -28,7 +28,7 @@ package parser
  lockTargets []LockTarget
  lockMode TableLockMode
  alterActions []AlterTableAction
- alterAction AlterTableAction
+ alterAction *AlterTableAction
  dropTarget dropTarget
  targets []InsertTarget
  target InsertTarget
@@ -89,7 +89,7 @@ package parser
  integer int64
  joinKind JoinKind
  persistence string
- onCommit CreateTable
+ onCommit onCommitClause
  identity *IdentityDefinition
  generation *GenerationDefinition
  identityMode IdentityMode
@@ -114,7 +114,7 @@ package parser
  indexOptions []IndexOption
  indexOption IndexOption
  indexValue Value
- windowSpec WindowSpec
+ windowSpec *WindowSpec
  windowOver windowOverClause
  windows []WindowDefinition
  window WindowDefinition
@@ -763,14 +763,14 @@ set_name: setting_word { $$=settingName{first:$1} }
  * parameter names, and ROLE stays name-eligible everywhere else. */
 local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
-create_table: CREATE TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos,Persistence:"logged",OnCommit:$7.OnCommit,OnCommitPos:$7.OnCommitPos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true,Persistence:"logged",OnCommit:$10.OnCommit,OnCommitPos:$10.OnCommitPos} }
- | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Pos:$1.pos,Persistence:"temporary",OnCommit:$8.OnCommit,OnCommitPos:$8.OnCommitPos} }
- | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$11.OnCommit,OnCommitPos:$11.OnCommitPos} } ;
-table_on_commit: /* empty */ { $$=CreateTable{} }
- | ON COMMIT DROP { $$=CreateTable{OnCommit:OnCommitDrop,OnCommitPos:$1.pos} }
- | ON COMMIT DELETE table_rows { $$=CreateTable{OnCommit:OnCommitDelete,OnCommitPos:$1.pos} }
- | ON COMMIT table_preserve table_rows { $$=CreateTable{OnCommit:OnCommitPreserve,OnCommitPos:$1.pos} } ;
+create_table: CREATE TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos,Persistence:"logged",OnCommit:$7.action,OnCommitPos:$7.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true,Persistence:"logged",OnCommit:$10.action,OnCommitPos:$10.pos} }
+ | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Pos:$1.pos,Persistence:"temporary",OnCommit:$8.action,OnCommitPos:$8.pos} }
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$11.action,OnCommitPos:$11.pos} } ;
+table_on_commit: /* empty */ { $$=onCommitClause{} }
+ | ON COMMIT DROP { $$=onCommitClause{action:OnCommitDrop,pos:$1.pos} }
+ | ON COMMIT DELETE table_rows { $$=onCommitClause{action:OnCommitDelete,pos:$1.pos} }
+ | ON COMMIT table_preserve table_rows { $$=onCommitClause{action:OnCommitPreserve,pos:$1.pos} } ;
 table_preserve: KW_U { if $1.text!="preserve" {sqllex.(*lexer).syntax($1);return 1}; $$=$1 } ;
 table_rows: FRAME_UNIT { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1}; $$=$1 } ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
@@ -847,9 +847,9 @@ enum_label_list: STRING {$$=[]EnumLabel{{Text:$1.text,Pos:$1.pos}}}
  | enum_label_list ',' STRING {$$=append($1,EnumLabel{Text:$3.text,Pos:$3.pos})} ;
 create_composite: CREATE TYPE relation_name AS '(' composite_members ')' { $$=&CreateComposite{Name:$3,Members:$6,Pos:$1.pos} } ;
 composite_members: /* empty */ {$$=nil} | composite_member_list {$$=$1} ;
-composite_member_list: composite_member {$$=[]Column{$1}}
- | composite_member_list ',' composite_member {$$=append($1,$3)} ;
-composite_member: name type column_collation {$$=Column{Name:$1.text,TypeName:$2,Collation:$3,Pos:$1.pos}} ;
+composite_member_list: composite_member {$$=[]Column{*$1}}
+ | composite_member_list ',' composite_member {$$=append($1,*$3)} ;
+composite_member: name type column_collation {$$=&Column{Name:$1.text,TypeName:$2,Collation:$3,Pos:$1.pos}} ;
 create_domain: CREATE DOMAIN relation_name domain_as type column_collation domain_constraints { $$=&CreateDomain{Name:$3,Base:$5,Collation:$6,Constraints:$7,Pos:$1.pos} } ;
 domain_as: /* empty */ | AS ;
 domain_constraints: /* empty */ {$$=nil}
@@ -860,7 +860,7 @@ drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 collation_create_head: CREATE COLLATION relation_name {$$=&CreateCollation{Name:$3,Pos:$1.pos}}
  | CREATE COLLATION IF NOT EXISTS relation_name {$$=&CreateCollation{Name:$6,IfNotExists:true,Pos:$1.pos}} ;
-create_collation: collation_create_head FROM relation_name {$1.From=&$3;$$=$1}
+create_collation: collation_create_head FROM relation_name {source:=$3;$1.From=&source;$$=$1}
  | collation_create_head '(' collation_options ')' {$1.Options=$3;$$=$1} ;
 collation_options: collation_option {$$=[]CollationOption{$1}}
  | collation_options ',' collation_option {$$=append($1,$3)} ;
@@ -966,7 +966,7 @@ index_option_value: view_option_value | '+' NUMBER {$$=$2;$$.text="+"+$2.text}
 index_direction: /* empty */ {$$=lexeme{}} | ASC {$$=$1} | DESC {$$=$1} ;
 optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
-element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
+element: column { $$=TableElement{Column:$1,Pos:$1.Pos} }
  | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
  | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
  | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} }
@@ -1046,28 +1046,28 @@ alter_drop_column: ALTER TABLE alter_target alter_actions { $$=&AlterTable{Name:
  | alter_schema_single { $$=$1 }
  | alter_rename_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
-alter_actions: alter_selected_action { $$=[]AlterTableAction{$1} }
- | alter_actions ',' alter_selected_action { $$=append($1,$3) }
+alter_actions: alter_selected_action { $$=[]AlterTableAction{*$1} }
+ | alter_actions ',' alter_selected_action { $$=append($1,*$3) }
  | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
  | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
-alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
- | ALTER optional_column name SET NOT NULL { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
- | ALTER optional_column name DROP NOT NULL { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
- | ADD table_not_null { $$=AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos} }
- | DROP CONSTRAINT drop_target drop_mode { $$=AlterTableAction{Constraint:$3.Name,Action:DropConstraint,IfExists:$3.IfExists,Mode:$4,Pos:$1.pos} }
- | ALTER optional_column name ADD identity_definition { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AddIdentity,Identity:$5,Pos:$1.pos} }
- | ALTER optional_column name DROP IDENTITY { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
- | ALTER optional_column name DROP IDENTITY IF EXISTS { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,IfExists:true,Pos:$1.pos} }
- | ALTER optional_column name identity_alter_options { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetIdentity,Identity:$4,Pos:$1.pos} }
- | ADD optional_column column { c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,&c);$$=AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:&c,Action:AddColumn,Pos:$1.pos} }
- | ADD optional_column IF NOT EXISTS column { c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,&c);$$=AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:&c,IfNotExists:true,Action:AddColumn,Pos:$1.pos} }
+alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
+ | ALTER optional_column name SET NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
+ | ALTER optional_column name DROP NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
+ | ADD table_not_null { $$=&AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos} }
+ | DROP CONSTRAINT drop_target drop_mode { $$=&AlterTableAction{Constraint:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropConstraint,Pos:$1.pos} }
+ | ALTER optional_column name ADD identity_definition { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AddIdentity,Identity:$5,Pos:$1.pos} }
+ | ALTER optional_column name DROP IDENTITY { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
+ | ALTER optional_column name DROP IDENTITY IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,IfExists:true,Pos:$1.pos} }
+ | ALTER optional_column name identity_alter_options { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetIdentity,Identity:$4,Pos:$1.pos} }
+ | ADD optional_column column { c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos} }
+ | ADD optional_column IF NOT EXISTS column { c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos} }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
- | ADD unique_constraint { sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=AlterTableAction{} }
- | ADD primary_constraint {sqllex.(*lexer).excludePrimaryAddition($1);$$=AlterTableAction{}}
- | ADD primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=AlterTableAction{}}
- | ADD CONSTRAINT name primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=AlterTableAction{}}
- | ADD exclusion_constraint {$$=AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
- | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
+ | ADD unique_constraint { sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=&AlterTableAction{} }
+ | ADD primary_constraint {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
+ | ADD primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
+ | ADD CONSTRAINT name primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
+ | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
+ | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET KW_U TYPE { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
 column_collation: /* empty */ {$$=nil}
@@ -1092,7 +1092,7 @@ drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
 /* EXISTS cannot start an ALTER action: retain it for IF EXISTS lookahead,
  * rather than competing with an unqualified relation literally named if. */
 alter_action: generic_word_without_exists | OWNER | SET ;
-column: name type column_collation nullability { $$ = Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
+column: name type column_collation nullability { $$ = &Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT %prec TYPE_NAME { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=inputColumnType(sqllex,$1) }
  | temporal_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode }
@@ -1406,7 +1406,7 @@ transaction_time_filtered: transaction_time_base %prec ')' { $$=$1 }
 /* Keep selected decorations ordered and nonrepeating. Invalid continuations
  * fail at their token rather than falling through to generic bare-label guards. */
 transaction_time_call: transaction_time_filtered %prec ')' { $$=$1 }
- | transaction_time_filtered over_clause %prec ')' { $$=$1;spec:=$2.spec;$$.Window=&spec }
+ | transaction_time_filtered over_clause %prec ')' { $$=$1;$$.Window=$2.spec }
  | transaction_time_filtered FILTER { sqllex.(*lexer).syntax($2);return 1 }
  | transaction_time_filtered over_clause FILTER { sqllex.(*lexer).syntax($3);return 1 }
  | transaction_time_filtered over_clause OVER { sqllex.(*lexer).syntax($3);return 1 } ;
@@ -1491,11 +1491,11 @@ select_query: query_select { $$=$1 }
 select: select_query { $$=$1 } ;
 windows: /* empty */ %prec NAME_LIST { $$=nil } | WINDOW window_definitions { $$=$2 } ;
 window_definitions: window_definition { $$=[]WindowDefinition{$1} } | window_definitions ',' window_definition { $$=append($1,$3) } ;
-window_definition: name AS '(' window_spec ')' { $4.Pos=$3.pos;$$=WindowDefinition{Name:Identifier{Text:$1.text,Pos:$1.pos},Spec:$4} } ;
-over_clause: OVER name { $$=windowOverClause{spec:WindowSpec{Name:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos,Bare:true},token:$1} }
+window_definition: name AS '(' window_spec ')' { $4.Pos=$3.pos;$$=WindowDefinition{Name:Identifier{Text:$1.text,Pos:$1.pos},Spec:*$4} } ;
+over_clause: OVER name { $$=windowOverClause{spec:&WindowSpec{Name:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos,Bare:true},token:$1} }
  | OVER '(' window_spec ')' { $3.Pos=$2.pos;$$=windowOverClause{spec:$3,token:$1} } ;
-window_spec: window_parent window_partition window_order { $$=WindowSpec{Name:$1,Partition:$2,Order:$3} }
- | window_parent window_partition window_order window_frame {$$=WindowSpec{Name:$1,Partition:$2,Order:$3,Frame:$4}} ;
+window_spec: window_parent window_partition window_order { $$=&WindowSpec{Name:$1,Partition:$2,Order:$3} }
+ | window_parent window_partition window_order window_frame {$$=&WindowSpec{Name:$1,Partition:$2,Order:$3,Frame:$4}} ;
 window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeRangeFrame(sqllex.(*lexer),$1,$2,FrameBound{Kind:FrameCurrentRow,Pos:$2.Pos},$3);if !ok{return 1}}
  | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion {var ok bool;$$,ok=makeRangeFrame(sqllex.(*lexer),$1,$3,$5,$6);if !ok{return 1}} ;
 frame_bound: FRAME_START FRAME_EDGE {kind:=FrameUnboundedPreceding;if $2.text=="following"{kind=FrameUnboundedFollowing};$$=FrameBound{Kind:kind,Pos:$1.pos}}
@@ -1584,7 +1584,7 @@ function_argument: operand { $$=$1 } | function { $$=$1 } ;
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
  | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
- | function over_clause { call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};spec:=$2.spec;call.Window=&spec;$$=call } ;
+ | function over_clause { call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list { $$=$1 }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
@@ -1723,7 +1723,7 @@ count_values: conditional_value { $$=[]Expr{$1} } | count_values ',' conditional
  * actual call, not to a parenthesized or otherwise composed scalar expression. */
 aggregate_application: aggregate_call %prec ')' { $$=$1 }
  | aggregate_call FILTER '(' WHERE target_or ')' { call,ok:=$1.(AggregateExpr);if !ok {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1};call.Filter=$5;call.FilterPos=$2.pos;$$=call }
- | aggregate_application over_clause { call,ok:=$1.(AggregateExpr);if !ok || call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};spec:=$2.spec;call.Window=&spec;$$=call } ;
+ | aggregate_application over_clause { call,ok:=$1.(AggregateExpr);if !ok || call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call } ;
 aggregate_call: cast_function target_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}} }
  | qualified_call_head target_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}} }
  | cast_function target_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }

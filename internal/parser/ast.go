@@ -191,6 +191,12 @@ const (
 	OnCommitDrop
 )
 
+// onCommitClause is parser-only metadata, not an unfinished table declaration.
+type onCommitClause struct {
+	action OnCommitAction
+	pos    Position
+}
+
 type CreateTable struct {
 	Name        ObjectName
 	Elements    []TableElement
@@ -884,7 +890,7 @@ type RangeFrame struct {
 // Parser-only keyword identity is separate from the specification caret and is
 // discarded on attachment; it is not part of the persisted expression tree.
 type windowOverClause struct {
-	spec  WindowSpec
+	spec  *WindowSpec
 	token lexeme
 }
 

@@ -9,7 +9,7 @@ type sqlSymType struct {
 	stmt               Statement
 	insertStmt         *Insert
 	insertConflict     *InsertConflict
-	col                Column
+	col                *Column
 	columns            []Column
 	elements           []TableElement
 	element            TableElement
@@ -31,7 +31,7 @@ type sqlSymType struct {
 	lockTargets        []LockTarget
 	lockMode           TableLockMode
 	alterActions       []AlterTableAction
-	alterAction        AlterTableAction
+	alterAction        *AlterTableAction
 	dropTarget         dropTarget
 	targets            []InsertTarget
 	target             InsertTarget
@@ -92,7 +92,7 @@ type sqlSymType struct {
 	integer            int64
 	joinKind           JoinKind
 	persistence        string
-	onCommit           CreateTable
+	onCommit           onCommitClause
 	identity           *IdentityDefinition
 	generation         *GenerationDefinition
 	identityMode       IdentityMode
@@ -117,7 +117,7 @@ type sqlSymType struct {
 	indexOptions       []IndexOption
 	indexOption        IndexOption
 	indexValue         Value
-	windowSpec         WindowSpec
+	windowSpec         *WindowSpec
 	windowOver         windowOverClause
 	windows            []WindowDefinition
 	window             WindowDefinition
@@ -8991,42 +8991,42 @@ sqldefault:
 	case 328:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqlVAL.stmt = &CreateTable{Name: sqlDollar[3].objectName, Elements: sqlDollar[5].elements, Pos: sqlDollar[1].tok.pos, Persistence: "logged", OnCommit: sqlDollar[7].onCommit.OnCommit, OnCommitPos: sqlDollar[7].onCommit.OnCommitPos}
+			sqlVAL.stmt = &CreateTable{Name: sqlDollar[3].objectName, Elements: sqlDollar[5].elements, Pos: sqlDollar[1].tok.pos, Persistence: "logged", OnCommit: sqlDollar[7].onCommit.action, OnCommitPos: sqlDollar[7].onCommit.pos}
 		}
 	case 329:
 		sqlDollar = sqlS[sqlpt-10 : sqlpt+1]
 		{
-			sqlVAL.stmt = &CreateTable{Name: sqlDollar[6].objectName, Elements: sqlDollar[8].elements, Pos: sqlDollar[1].tok.pos, IfNotExists: true, Persistence: "logged", OnCommit: sqlDollar[10].onCommit.OnCommit, OnCommitPos: sqlDollar[10].onCommit.OnCommitPos}
+			sqlVAL.stmt = &CreateTable{Name: sqlDollar[6].objectName, Elements: sqlDollar[8].elements, Pos: sqlDollar[1].tok.pos, IfNotExists: true, Persistence: "logged", OnCommit: sqlDollar[10].onCommit.action, OnCommitPos: sqlDollar[10].onCommit.pos}
 		}
 	case 330:
 		sqlDollar = sqlS[sqlpt-8 : sqlpt+1]
 		{
-			sqlVAL.stmt = &CreateTable{Name: sqlDollar[4].objectName, Elements: sqlDollar[6].elements, Pos: sqlDollar[1].tok.pos, Persistence: "temporary", OnCommit: sqlDollar[8].onCommit.OnCommit, OnCommitPos: sqlDollar[8].onCommit.OnCommitPos}
+			sqlVAL.stmt = &CreateTable{Name: sqlDollar[4].objectName, Elements: sqlDollar[6].elements, Pos: sqlDollar[1].tok.pos, Persistence: "temporary", OnCommit: sqlDollar[8].onCommit.action, OnCommitPos: sqlDollar[8].onCommit.pos}
 		}
 	case 331:
 		sqlDollar = sqlS[sqlpt-11 : sqlpt+1]
 		{
-			sqlVAL.stmt = &CreateTable{Name: sqlDollar[7].objectName, Elements: sqlDollar[9].elements, Pos: sqlDollar[1].tok.pos, IfNotExists: true, Persistence: "temporary", OnCommit: sqlDollar[11].onCommit.OnCommit, OnCommitPos: sqlDollar[11].onCommit.OnCommitPos}
+			sqlVAL.stmt = &CreateTable{Name: sqlDollar[7].objectName, Elements: sqlDollar[9].elements, Pos: sqlDollar[1].tok.pos, IfNotExists: true, Persistence: "temporary", OnCommit: sqlDollar[11].onCommit.action, OnCommitPos: sqlDollar[11].onCommit.pos}
 		}
 	case 332:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.onCommit = CreateTable{}
+			sqlVAL.onCommit = onCommitClause{}
 		}
 	case 333:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.onCommit = CreateTable{OnCommit: OnCommitDrop, OnCommitPos: sqlDollar[1].tok.pos}
+			sqlVAL.onCommit = onCommitClause{action: OnCommitDrop, pos: sqlDollar[1].tok.pos}
 		}
 	case 334:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.onCommit = CreateTable{OnCommit: OnCommitDelete, OnCommitPos: sqlDollar[1].tok.pos}
+			sqlVAL.onCommit = onCommitClause{action: OnCommitDelete, pos: sqlDollar[1].tok.pos}
 		}
 	case 335:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.onCommit = CreateTable{OnCommit: OnCommitPreserve, OnCommitPos: sqlDollar[1].tok.pos}
+			sqlVAL.onCommit = onCommitClause{action: OnCommitPreserve, pos: sqlDollar[1].tok.pos}
 		}
 	case 336:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -9477,17 +9477,17 @@ sqldefault:
 	case 419:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.columns = []Column{sqlDollar[1].col}
+			sqlVAL.columns = []Column{*sqlDollar[1].col}
 		}
 	case 420:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.columns = append(sqlDollar[1].columns, sqlDollar[3].col)
+			sqlVAL.columns = append(sqlDollar[1].columns, *sqlDollar[3].col)
 		}
 	case 421:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.col = Column{Name: sqlDollar[1].tok.text, TypeName: sqlDollar[2].typ, Collation: sqlDollar[3].collation, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.col = &Column{Name: sqlDollar[1].tok.text, TypeName: sqlDollar[2].typ, Collation: sqlDollar[3].collation, Pos: sqlDollar[1].tok.pos}
 		}
 	case 422:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
@@ -9539,7 +9539,8 @@ sqldefault:
 	case 433:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlDollar[1].createCollation.From = &sqlDollar[3].objectName
+			source := sqlDollar[3].objectName
+			sqlDollar[1].createCollation.From = &source
 			sqlVAL.stmt = sqlDollar[1].createCollation
 		}
 	case 434:
@@ -10150,8 +10151,7 @@ sqldefault:
 	case 549:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			c := sqlDollar[1].col
-			sqlVAL.element = TableElement{Column: &c, Pos: c.Pos}
+			sqlVAL.element = TableElement{Column: sqlDollar[1].col, Pos: sqlDollar[1].col.Pos}
 		}
 	case 550:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
@@ -10608,12 +10608,12 @@ sqldefault:
 	case 630:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.alterActions = []AlterTableAction{sqlDollar[1].alterAction}
+			sqlVAL.alterActions = []AlterTableAction{*sqlDollar[1].alterAction}
 		}
 	case 631:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.alterActions = append(sqlDollar[1].alterActions, sqlDollar[3].alterAction)
+			sqlVAL.alterActions = append(sqlDollar[1].alterActions, *sqlDollar[3].alterAction)
 		}
 	case 632:
 		sqlDollar = sqlS[sqlpt-8 : sqlpt+1]
@@ -10630,61 +10630,61 @@ sqldefault:
 	case 634:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: sqlDollar[3].dropTarget.Name, IfExists: sqlDollar[3].dropTarget.IfExists, Mode: sqlDollar[4].dropMode, Action: DropColumn, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: sqlDollar[3].dropTarget.Name, IfExists: sqlDollar[3].dropTarget.IfExists, Mode: sqlDollar[4].dropMode, Action: DropColumn, Pos: sqlDollar[1].tok.pos}
 		}
 	case 635:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: SetNotNull, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: SetNotNull, Pos: sqlDollar[1].tok.pos}
 		}
 	case 636:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropNotNull, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropNotNull, Pos: sqlDollar[1].tok.pos}
 		}
 	case 637:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: sqlDollar[2].notNull.Column, Constraint: sqlDollar[2].notNull.Name, Action: AddNotNull, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: sqlDollar[2].notNull.Column, Constraint: sqlDollar[2].notNull.Name, Action: AddNotNull, Pos: sqlDollar[1].tok.pos}
 		}
 	case 638:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Constraint: sqlDollar[3].dropTarget.Name, Action: DropConstraint, IfExists: sqlDollar[3].dropTarget.IfExists, Mode: sqlDollar[4].dropMode, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Constraint: sqlDollar[3].dropTarget.Name, IfExists: sqlDollar[3].dropTarget.IfExists, Mode: sqlDollar[4].dropMode, Action: DropConstraint, Pos: sqlDollar[1].tok.pos}
 		}
 	case 639:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: AddIdentity, Identity: sqlDollar[5].identity, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: AddIdentity, Identity: sqlDollar[5].identity, Pos: sqlDollar[1].tok.pos}
 		}
 	case 640:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropIdentity, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropIdentity, Pos: sqlDollar[1].tok.pos}
 		}
 	case 641:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropIdentity, IfExists: true, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: DropIdentity, IfExists: true, Pos: sqlDollar[1].tok.pos}
 		}
 	case 642:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: SetIdentity, Identity: sqlDollar[4].identity, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: SetIdentity, Identity: sqlDollar[4].identity, Pos: sqlDollar[1].tok.pos}
 		}
 	case 643:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			c := sqlDollar[3].col
-			sqllex.(*lexer).excludePrimaryColumnAddition(sqlDollar[1].tok, &c)
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: &c, Action: AddColumn, Pos: sqlDollar[1].tok.pos}
+			sqllex.(*lexer).excludePrimaryColumnAddition(sqlDollar[1].tok, c)
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, Action: AddColumn, Pos: sqlDollar[1].tok.pos}
 		}
 	case 644:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			c := sqlDollar[6].col
-			sqllex.(*lexer).excludePrimaryColumnAddition(sqlDollar[1].tok, &c)
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: &c, IfNotExists: true, Action: AddColumn, Pos: sqlDollar[1].tok.pos}
+			sqllex.(*lexer).excludePrimaryColumnAddition(sqlDollar[1].tok, c)
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: c.Name, Pos: c.Pos}, Definition: c, IfNotExists: true, Action: AddColumn, Pos: sqlDollar[1].tok.pos}
 		}
 	case 645:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -10696,35 +10696,35 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).deferUnsupported(sqlDollar[1].tok, "ALTER TABLE action is unsupported")
-			sqlVAL.alterAction = AlterTableAction{}
+			sqlVAL.alterAction = &AlterTableAction{}
 		}
 	case 647:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).excludePrimaryAddition(sqlDollar[1].tok)
-			sqlVAL.alterAction = AlterTableAction{}
+			sqlVAL.alterAction = &AlterTableAction{}
 		}
 	case 648:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
 			sqllex.(*lexer).excludePrimaryAddition(sqlDollar[1].tok)
-			sqlVAL.alterAction = AlterTableAction{}
+			sqlVAL.alterAction = &AlterTableAction{}
 		}
 	case 649:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
 			sqllex.(*lexer).excludePrimaryAddition(sqlDollar[1].tok)
-			sqlVAL.alterAction = AlterTableAction{}
+			sqlVAL.alterAction = &AlterTableAction{}
 		}
 	case 650:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Action: AddExclusion, Exclusion: sqlDollar[2].exclusion, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Action: AddExclusion, Exclusion: sqlDollar[2].exclusion, Pos: sqlDollar[1].tok.pos}
 		}
 	case 651:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqlVAL.alterAction = AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: AlterColumnType, TypeName: sqlDollar[5].typ, Collation: sqlDollar[6].collation, Using: sqlDollar[7].expr, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterAction = &AlterTableAction{Column: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Action: AlterColumnType, TypeName: sqlDollar[5].typ, Collation: sqlDollar[6].collation, Using: sqlDollar[7].expr, Pos: sqlDollar[1].tok.pos}
 		}
 	case 652:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -10846,7 +10846,7 @@ sqldefault:
 	case 677:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.col = Column{Name: sqlDollar[1].tok.text, TypeName: sqlDollar[2].typ, Collation: sqlDollar[3].collation, Constraints: sqlDollar[4].constraints, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.col = &Column{Name: sqlDollar[1].tok.text, TypeName: sqlDollar[2].typ, Collation: sqlDollar[3].collation, Constraints: sqlDollar[4].constraints, Pos: sqlDollar[1].tok.pos}
 		}
 	case 678:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -12771,8 +12771,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqlVAL.call = sqlDollar[1].call
-			spec := sqlDollar[2].windowOver.spec
-			sqlVAL.call.Window = &spec
+			sqlVAL.call.Window = sqlDollar[2].windowOver.spec
 		}
 	case 1005:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -13349,12 +13348,12 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
 			sqlDollar[4].windowSpec.Pos = sqlDollar[3].tok.pos
-			sqlVAL.window = WindowDefinition{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Spec: sqlDollar[4].windowSpec}
+			sqlVAL.window = WindowDefinition{Name: Identifier{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, Spec: *sqlDollar[4].windowSpec}
 		}
 	case 1101:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.windowOver = windowOverClause{spec: WindowSpec{Name: &Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[2].tok.pos, Bare: true}, token: sqlDollar[1].tok}
+			sqlVAL.windowOver = windowOverClause{spec: &WindowSpec{Name: &Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[2].tok.pos, Bare: true}, token: sqlDollar[1].tok}
 		}
 	case 1102:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -13365,12 +13364,12 @@ sqldefault:
 	case 1103:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.windowSpec = WindowSpec{Name: sqlDollar[1].identifier, Partition: sqlDollar[2].row, Order: sqlDollar[3].orderKeys}
+			sqlVAL.windowSpec = &WindowSpec{Name: sqlDollar[1].identifier, Partition: sqlDollar[2].row, Order: sqlDollar[3].orderKeys}
 		}
 	case 1104:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.windowSpec = WindowSpec{Name: sqlDollar[1].identifier, Partition: sqlDollar[2].row, Order: sqlDollar[3].orderKeys, Frame: sqlDollar[4].rangeFrame}
+			sqlVAL.windowSpec = &WindowSpec{Name: sqlDollar[1].identifier, Partition: sqlDollar[2].row, Order: sqlDollar[3].orderKeys, Frame: sqlDollar[4].rangeFrame}
 		}
 	case 1105:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
@@ -13857,8 +13856,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[2].windowOver.token)
 				return 1
 			}
-			spec := sqlDollar[2].windowOver.spec
-			call.Window = &spec
+			call.Window = sqlDollar[2].windowOver.spec
 			sqlVAL.expr = call
 		}
 	case 1211:
@@ -14672,8 +14670,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[2].windowOver.token)
 				return 1
 			}
-			spec := sqlDollar[2].windowOver.spec
-			call.Window = &spec
+			call.Window = sqlDollar[2].windowOver.spec
 			sqlVAL.expr = call
 		}
 	case 1364:

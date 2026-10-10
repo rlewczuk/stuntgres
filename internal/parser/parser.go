@@ -54,7 +54,7 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 		l.failAt("42601", "invalid UTF-8 in SQL", invalidOffset)
 		return nil, l.err
 	}
-	if sqlParse(l) != 0 || l.err != nil {
+	if parseLexer(l) != 0 || l.err != nil {
 		return nil, l.err
 	}
 	if l.pendingMessage != "" {
@@ -110,7 +110,7 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 func (l *lexer) validateInsertValues(values *ValuesQuery) bool {
 	replay := &lexer{input: l.input, offset: values.Pos.Offset + len("values"), options: l.options,
 		backslashEscapes: l.backslashEscapes, insertScalarEntry: true, insertScalarEnd: values.rowEnd}
-	if sqlParse(replay) != 0 || replay.err != nil {
+	if parseLexer(replay) != 0 || replay.err != nil {
 		l.err = replay.err
 		return false
 	}

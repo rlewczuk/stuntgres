@@ -19,7 +19,7 @@ func ParseTypeName(ctx context.Context, input string, notice func(sqlstate.Error
 		return TypeName{}, invalidTypeName(input)
 	}
 	l := &lexer{input: input, options: Options{Context: ctx, StandardConformingStrings: true}, typeInputEntry: true, typeInputMode: true, typeInputNotice: notice}
-	if sqlParse(l) != 0 || l.err != nil {
+	if parseLexer(l) != 0 || l.err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(l.err, &diagnostic) {
 			copied := *diagnostic

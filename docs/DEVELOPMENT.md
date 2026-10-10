@@ -35,6 +35,12 @@ normal exits and catchable termination signals clean up the temporary directory.
 The original input/output basenames preserve the generated header and format.
 Never hand-edit `grammar_gen.go`; continue to use `make generate`.
 
+Grammar actions must never publish addresses of goyacc semantic cells (`&$n`)
+into ASTs or retain them through helpers. Copy a value to an owned local before
+taking its address, or publish an independently allocated node. Semantic cells
+are overwritten during parsing and the entire receiver is cleared before its
+bounded scratch-cache return; AST ownership must not depend on parser lifetime.
+
 Prepared transaction oracle scenarios use the existing pinned PostgreSQL18.0
 UTF8/C fixture with startup `max_prepared_transactions=100`, preserving its
 existing fsync option. Startup checks assert100. This is fixture capacity, not

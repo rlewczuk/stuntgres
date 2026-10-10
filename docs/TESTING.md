@@ -311,6 +311,24 @@ The public persistent-definition and four-row2/4/3/2 overlay witnesses migrated
 from native window units; actual staged cancellation/descriptor mechanics remain
 package units. Native Dump/Restore phases have no invented PostgreSQL API.
 
+Parser scratch reuse is an internal allocation change, not a parsed-result cache.
+Each SQL parse, restricted INSERT replay and standalone type-input parse borrows
+an exclusive generated receiver. The whole receiver is cleared before return,
+including on error or panic; lexers, options, contexts and ASTs are never pooled.
+The bounded nonblocking channel retains at most the initial GOMAXPROCS count of
+fully cleared receivers: empty checkout allocates, full return discards, and
+neither operation waits or limits active parses. Grammar cells use owned Column,
+AlterTableAction and WindowSpec pointers and compact ON COMMIT action/position
+metadata; existing public AST value/pointer storage boundaries stay unchanged.
+Invocation-local grown stacks are not retained. `^TestParseScratch` in
+`./internal/parser` covers retained AST/type data and complex table/composite/ALTER/
+CTAS declarations, lexical options, recursive callback entry, cancellation,
+callback error/panic propagation and concurrent independent results.
+Run `make quickcheck PACKAGES=./internal/parser RUN='^TestParseScratch'` and its
+`RACE=1` counterpart, then the complete parser package. Allocation profiles are
+motivation, not proof of a speedup: rerun the complete real-reference race command
+under the unchanged 900-second quickcheck deadline before claiming an improvement.
+
 
 ### Commands and oracle-first discovery
 
