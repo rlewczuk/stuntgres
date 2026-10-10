@@ -1059,6 +1059,14 @@ is armed with the genuine 1ms statement timer, even `SHOW` or `RESET` can
 legitimately time out under scheduling pressure. The implicit-timeout scenario
 therefore disposes of its armed owner without further SQL; transaction rollback
 restores timeout 0 before checking SAME-owner and held-statement recovery.
+Both prepared-execute routes prepare only the current candidate at timeout0,
+then arm1ms before executing that genuine Conn-held handle. The rollback route
+begins its transaction after preparation and closes the handle after rollback,
+including fatal-path cleanup. After a fast atomic23502, the nonrollback route
+disarms before preparing another candidate and rearms for its actual execution.
+The timed-out implicit owner still receives no further SQL before disposal.
+All four bounded fallback sizes and the shared30s fixture deadline remain;
+unused million-row fallback handles are not eagerly parsed/bound.
 `TestReferenceSettingsSQL` checks tiny-timeout encoding on the arming command
 and then disposes of that isolated owner. Do not increase the timer, retry an
 expired-owner reset, or suppress its diagnostic to make fixture cleanup pass.

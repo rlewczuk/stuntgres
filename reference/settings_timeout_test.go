@@ -72,22 +72,36 @@ func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBacke
 	held := make([]*sql.Stmt, len(sizes))
 	for i, size := range sizes {
 		queries[i] = "INSERT INTO " + name + " VALUES " + strings.Repeat("(8),", size) + "(NULL)"
-		if stage == "prepared-execute" {
-			held[i], err = owner.PrepareContext(p.ctx, queries[i])
-			if err != nil {
-				t.Fatal("prepare at timeout0", err)
-			}
-			defer held[i].Close()
-		}
 	}
 	// Once armed, the next owner SQL must be the intended workload: even SHOW
 	// can legitimately exceed 1ms under scheduling pressure. Setting encoding is
 	// independently asserted by TestReferenceSettingsSQL; cleanup is checked at 0.
-	if !rollback {
+	if !rollback && stage != "prepared-execute" {
 		run(owner, referenceExec("SET statement_timeout TO '1ms'", 0))
 	}
 	timedOut := false
 	for i, query := range queries {
+		if stage == "prepared-execute" {
+			// Prepare only the candidate being attempted at timeout0, before
+			// arming the timer. Unused fallback ASTs must not exhaust the fixture.
+			held[i], err = owner.PrepareContext(p.ctx, query)
+			if err != nil {
+				t.Fatal("prepare at timeout0", err)
+			}
+			// Registered before tx.Rollback so fatal paths roll back first.
+			defer func() {
+				candidate := held[i]
+				held[i] = nil
+				if candidate != nil {
+					if err := candidate.Close(); err != nil {
+						t.Error("closing timeout workload", err)
+					}
+				}
+			}()
+		}
+		if !rollback && stage == "prepared-execute" {
+			run(owner, referenceExec("SET statement_timeout TO '1ms'", 0))
+		}
 		var tx *sql.Tx
 		var executor referenceExecutor = owner
 		var statement *sql.Stmt
@@ -140,6 +154,18 @@ func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBacke
 		if rollback {
 			if err := tx.Rollback(); err != nil {
 				t.Fatal("public rollback cleanup", err)
+			}
+		}
+		if !rollback && stage == "prepared-execute" && !timedOut && i+1 < len(queries) {
+			// A fast atomic23502 permits the next bounded fallback. Disarm
+			// before its preparation, then rearm immediately before execution.
+			run(owner, referenceExec("SET statement_timeout TO '0'", 0))
+		}
+		if stage == "prepared-execute" {
+			candidate := held[i]
+			held[i] = nil
+			if err := candidate.Close(); err != nil {
+				t.Fatal("closing timeout workload", err)
 			}
 		}
 		run(peer, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
