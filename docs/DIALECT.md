@@ -156,7 +156,7 @@ zero/lone-surrogate escapes; malformed escapes/syntax report22P02 with JSON
 Context and original SQL literal Position. Raw invalid UTF8/NUL is encoding22021.
 Physical EOF in a Unicode escape is an invalid token; an actual nonhex character
 retains the four-hexadecimal-digits Detail.
-Standard/postfix casts add JSON identity and explicit TEXT↔JSON only, through
+Standard/postfix casts support JSON identity, explicit TEXT↔JSON and assignment/explicit JSON↔JSONB IO, through
 the shared expression binder. JSON typed literals compose in table and ordinary
 no-FROM SELECT without a syntax-only per-target witness. The local no-FROM unit
 does not broaden any type's cast or operator providers.
@@ -169,11 +169,26 @@ Missing default B-tree classes report42704 with the existing Hint for both direc
 and expression keys, including atomic ALTER TYPE reconstruction. Explicit
 incompatible classes retain42804. JSON INCLUDE payloads require no comparator
 and support row maintenance and native dump replay under a supported ordered key.
-jsonb/jsonpath, JSON operators/functions and SQL/JSON `json(...)` construction
+jsonpath, JSON operators/functions and SQL/JSON `json(...)` construction
 are excluded. See [JSON storage and metadata](TYPES.md#json-textual-storage--change-note).
 Native Dump/Restore and stored defaults retain exact text/type identity.
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`;
 pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
+
+### JSONB normalized IO — change note
+
+JSONB columns and typed literals normalize whitespace and decoded object keys,
+with duplicate-last semantics, exact decimal output and Unicode decoding.
+Numeric range, U+0000 and invalid surrogate pairs are rejected without changing
+source-preserving JSON behavior. SQL NULL remains distinct from JSON null.
+Ordinary comparison, grouping, DISTINCT, UNIQUE and generic B-tree keys use
+structural equality (numeric scale ignored) and the released `jsonb_ops` class.
+Explicit TEXT↔JSONB and assignment/explicit JSON↔JSONB IO casts, array/domain
+associations, metadata and logical native persistence reuse central providers.
+JSON operators/functions, GIN, jsonpath and scalar constructors remain excluded.
+See [JSONB storage](TYPES.md#jsonb-normalized-storage--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`.
 
 
 ### Interval values — change note

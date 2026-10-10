@@ -8958,7 +8958,7 @@ sqldefault:
 	case 735:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "date" && sqlDollar[1].tok.text != "timestamptz" && sqlDollar[1].tok.text != "timetz" && sqlDollar[1].tok.text != "json" {
+			if sqlDollar[1].tok.text != "date" && sqlDollar[1].tok.text != "timestamptz" && sqlDollar[1].tok.text != "timetz" && sqlDollar[1].tok.text != "json" && sqlDollar[1].tok.text != "jsonb" {
 				sqllex.(*lexer).failAt("0A000", "typed literals are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}

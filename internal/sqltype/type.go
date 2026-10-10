@@ -43,6 +43,7 @@ const (
 	Regclass    ID = 2205
 	Void        ID = 2278
 	UUID        ID = 2950
+	JSONB       ID = 3802
 )
 
 type CollationDerivation uint8
@@ -145,6 +146,7 @@ func Builtins() []*Descriptor {
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
+		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
 		{id: BPChar, name: "bpchar", sql: "BPCHAR", database: "BPCHAR", associatedArray: 1014},
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
@@ -197,6 +199,7 @@ type Value struct {
 	tree            *treePayload
 	treeKey         bool // text is an immutable prepared structural equality/output key.
 	array           *arrayPayload
+	jsonb           *jsonbPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -216,6 +219,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 		if from.Typmod != to.Typmod || from.Collation != to.Collation {
 			return Value{}, fmt.Errorf("incompatible domain base constraints")
 		}
+	}
+	if !v.null && d.BaseType().id == JSONB && v.jsonb == nil {
+		return Value{}, fmt.Errorf("missing JSONB payload")
 	}
 	if v.typ == d {
 		if !v.null && d.BaseType().IsArray() && v.array == nil {
@@ -379,7 +385,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsCharacter(d.id) || d.id == Name || d.id == JSON {
+	if IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB {
 		if err := validateCharacterInput(text); err != nil {
 			return Value{}, err
 		}
@@ -391,6 +397,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	switch d.id {
 	case JSON:
+		return d.jsonInput(ctx, text)
+	case JSONB:
 		return d.jsonInput(ctx, text)
 	case Oid:
 		return d.oidInput(text)
@@ -639,6 +647,11 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return v.text, nil
 	case Text, BPChar, VarChar, Name, JSON:
 		return v.text, nil
+	case JSONB:
+		if v.jsonb == nil {
+			return "", fmt.Errorf("missing JSONB payload")
+		}
+		return v.text, nil
 	case Bool:
 		if v.boolean {
 			return "t", nil
@@ -705,6 +718,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	case Text, BPChar, VarChar, Name, Regclass, JSON:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
+	case JSONB:
+		text, err := d.Output(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	case Oid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
@@ -838,7 +857,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON:
+		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB:
 		return true
 	}
 	return false
@@ -916,8 +935,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 		return p, failure("42804", "incompatible source and destination types")
 	}
-	if source.Type.id == JSON || target.Type.id == JSON {
+	if source.Type.id == JSON || target.Type.id == JSON || source.Type.id == JSONB || target.Type.id == JSONB {
 		if source.Type == target.Type {
+			return p, nil
+		}
+		if context != Implicit && (source.Type.id == JSON && target.Type.id == JSONB || source.Type.id == JSONB && target.Type.id == JSON) {
+			p.method = viaIO
 			return p, nil
 		}
 		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
@@ -1118,7 +1141,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8,
 			Interval, Name, Numeric, Oid, Regclass, Text, VarChar, Time,
-			Timestamp, Timestamptz, Timetz, UUID:
+			Timestamp, Timestamptz, Timetz, UUID, JSONB:
 		case Void:
 			message := "could not identify an ordering operator for type void"
 			return Comparison{}, &sqlstate.Error{
@@ -1204,6 +1227,12 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 			return 1, nil
 		}
 		return 0, nil
+	}
+	if p.left.id == JSONB {
+		if a.jsonb == nil || b.jsonb == nil {
+			return 0, fmt.Errorf("missing JSONB payload")
+		}
+		return compareJSONB(ctx, &a.jsonb.root, &b.jsonb.root, false)
 	}
 	if p.left.id != p.right.id && dateTimestampType(p.left.id) && dateTimestampType(p.right.id) {
 		return compareDatetime(a, b, input), nil

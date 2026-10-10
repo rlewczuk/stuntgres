@@ -1,9 +1,8 @@
-package smoke_test
+package reference_test
 
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
@@ -16,28 +15,25 @@ import (
 	"unicode/utf8"
 )
 
-func TestTypeCoreSmoke(t *testing.T) {
-	if err := typeCoreRun(); err != nil {
-		t.Fatal(err)
+// Complete Context-route assertion union migrated from smoke/type_core_test.go.
+func TestReferenceTypeCoreLegacyContextRoutes(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			if err := typeCoreLegacyRun(t, p, backend); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
-func typeCoreDiagnostic(err error, want stuntgres.Error) error {
-	want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-	var got *stuntgres.Error
-	if !errors.As(err, &got) || *got != want {
-		return fmt.Errorf("diagnostic got %#v (%v), want %#v", got, err, want)
-	}
+func typeCoreLegacyDiagnostic(t *testing.T, err error, want stuntgres.Error) error {
+	referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: want.Code, Message: want.Message, Detail: want.Detail, Hint: want.Hint, Position: want.Position, Context: want.Context, Schema: want.Schema, Table: want.Table, Column: want.Column, DataType: want.DataType, Constraint: want.Constraint})
 	return nil
 }
-func typeCoreRun() error {
-	ctx := context.Background()
-	d := stuntgres.NewDriver()
-	connector, err := d.OpenConnector("typed-core-smoke")
-	if err != nil {
-		return err
-	}
-	db := sql.OpenDB(connector)
-	defer db.Close()
+func typeCoreLegacyRun(t *testing.T, p *referencePair, backend referenceBackend) error {
+	ctx := p.ctx
+	db := backend.db
+	var err error
 	if err = db.PingContext(ctx); err != nil {
 		return err
 	}
@@ -56,45 +52,7 @@ func typeCoreRun() error {
 		return nil
 	}
 	check := func(q string, names, types []string, want [][]any, args ...any) error {
-		rows, err := db.QueryContext(ctx, q, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		columns, err := rows.Columns()
-		if err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(columns, names) {
-			return fmt.Errorf("columns %v want %v", columns, names)
-		}
-		metadata, err := rows.ColumnTypes()
-		if err != nil {
-			return err
-		}
-		for i, n := range types {
-			if metadata[i].DatabaseTypeName() != n {
-				return fmt.Errorf("type %s want %s", metadata[i].DatabaseTypeName(), n)
-			}
-		}
-		got := make([][]any, 0)
-		for rows.Next() {
-			row := make([]any, len(names))
-			dst := make([]any, len(names))
-			for i := range row {
-				dst[i] = &row[i]
-			}
-			if err = rows.Scan(dst...); err != nil {
-				return err
-			}
-			got = append(got, row)
-		}
-		if err = rows.Err(); err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(got, want) {
-			return fmt.Errorf("%s rows %#v want %#v", q, got, want)
-		}
+		referenceRunStep(t, ctx, db, backend.recorder, referenceSelect(q, names, types, want, args...))
 		return nil
 	}
 	names, types := []string{"i", "b", "t", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}
@@ -138,9 +96,12 @@ func typeCoreRun() error {
 		return err
 	}
 	scan := []reflect.Type{reflect.TypeFor[int64](), reflect.TypeFor[int64](), reflect.TypeFor[string](), reflect.TypeFor[bool]()}
+	if backend.pg {
+		scan[0] = reflect.TypeFor[int32]()
+	}
 	for i := range types {
 		nullable, known := metadata[i].Nullable()
-		if metadata[i].ScanType() != scan[i] || !known || nullable != (i != 0) {
+		if metadata[i].ScanType() != scan[i] || (!backend.pg && (!known || nullable != (i != 0))) || (backend.pg && (known || nullable)) {
 			return fmt.Errorf("invalid metadata for %s", names[i])
 		}
 	}
@@ -165,10 +126,17 @@ func typeCoreRun() error {
 	if err = check("SELECT * FROM repeats ORDER BY a", []string{"a", "b", "c"}, []string{"INT4", "TEXT", "INT4"}, [][]any{{int64(7), "x", int64(7)}, {int64(8), "x", int64(8)}}); err != nil {
 		return err
 	}
-	_, err = db.PrepareContext(ctx, "INSERT INTO repeats VALUES($1,$1,1)")
-	if err = typeCoreDiagnostic(err, stuntgres.Error{Code: "0A000", Message: "parameter reused with different destination types"}); err != nil {
-		return err
+	// Preserve the native capability boundary and the independently observed
+	// PostgreSQL parameter deduction failure on the exact original SQL.
+	mixedWant := controlsReferenceDiagnostic("0A000", "parameter reused with different destination types")
+	if backend.pg {
+		mixedWant = controlsReferenceDiagnostic("42P08", "inconsistent types deduced for parameter $1")
+		mixedWant.Detail = "integer versus text"
+		mixedWant.Position = "31"
 	}
+	mixedStep := referencePrepared(referenceErrorDiagnostic("INSERT INTO repeats VALUES($1,$1,1)", mixedWant))
+	mixedStep.errorStage = "prepare"
+	referenceRunStep(t, ctx, db, backend.recorder, mixedStep)
 	if err = check("SELECT i FROM typed WHERE i=2147483648", []string{"i"}, []string{"INT4"}, [][]any{}); err != nil {
 		return err
 	}
@@ -183,7 +151,7 @@ func typeCoreRun() error {
 		}
 		q := "/*é*/ INSERT INTO typed(" + tc.column + ") VALUES(1),('" + tc.text + "')"
 		_, err = db.ExecContext(ctx, q)
-		if err = typeCoreDiagnostic(err, stuntgres.Error{Code: tc.code, Message: message, Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'")]) + 1)}); err != nil {
+		if err = typeCoreLegacyDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message, Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'")]) + 1)}); err != nil {
 			return err
 		}
 		bound, e := db.PrepareContext(ctx, "INSERT INTO typed("+tc.column+") VALUES($1)")
@@ -192,13 +160,13 @@ func typeCoreRun() error {
 		}
 		_, e = bound.ExecContext(ctx, tc.text)
 		bound.Close()
-		if err = typeCoreDiagnostic(e, stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $1 = '...'"}); err != nil {
+		if err = typeCoreLegacyDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $1 = '...'"}); err != nil {
 			return err
 		}
 	}
 	q := "INSERT INTO typed(i) VALUES(TRUE)"
 	_, err = db.PrepareContext(ctx, q)
-	if err = typeCoreDiagnostic(err, stuntgres.Error{Code: "42804", Message: `column "i" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(strings.Index(q, "TRUE") + 1)}); err != nil {
+	if err = typeCoreLegacyDiagnostic(t, err, stuntgres.Error{Code: "42804", Message: `column "i" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(strings.Index(q, "TRUE") + 1)}); err != nil {
 		return err
 	}
 	narrow, err := db.PrepareContext(ctx, "INSERT INTO typed(i) VALUES(1),(2147483648)")
@@ -207,14 +175,16 @@ func typeCoreRun() error {
 	}
 	_, err = narrow.ExecContext(ctx)
 	narrow.Close()
-	if err = typeCoreDiagnostic(err, stuntgres.Error{Code: "22003", Message: "integer out of range"}); err != nil {
+	if err = typeCoreLegacyDiagnostic(t, err, stuntgres.Error{Code: "22003", Message: "integer out of range"}); err != nil {
 		return err
 	}
-	canceled, cancel := context.WithCancel(ctx)
-	cancel()
-	_, err = db.ExecContext(canceled, "INSERT INTO typed(i) VALUES(1),(2)")
-	if !errors.Is(err, context.Canceled) {
-		return fmt.Errorf("cancel got %v", err)
+	if !backend.pg {
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		_, err = db.ExecContext(canceled, "INSERT INTO typed(i) VALUES(1),(2)")
+		if !errors.Is(err, context.Canceled) {
+			return fmt.Errorf("cancel got %v", err)
+		}
 	}
 	if err = check("SELECT * FROM typed ORDER BY i", names, types, want); err != nil {
 		return err
@@ -224,7 +194,10 @@ func typeCoreRun() error {
 		return err
 	}
 	want = append(want[:1], append([][]any{{int64(0), nil, "O'Brien\n\\tail", false}}, want[1:]...)...)
-	raw, err := d.Open("typed-core-smoke")
+	if backend.pg {
+		return check("SELECT * FROM typed ORDER BY i", names, types, want)
+	}
+	raw, err := p.nativeConnector.Connect(ctx)
 	if err != nil {
 		return err
 	}
@@ -235,17 +208,17 @@ func typeCoreRun() error {
 	}
 	defer held.Close()
 	var dump bytes.Buffer
-	if err = stuntgres.Dump(ctx, db, &dump); err != nil {
+	if err = stuntgres.Dump(ctx, p.native, &dump); err != nil {
 		return err
 	}
-	if err = stuntgres.Reset(ctx, db); err != nil {
+	if err = stuntgres.Reset(ctx, p.native); err != nil {
 		return err
 	}
-	if err = stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+	if err = stuntgres.Restore(ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 		return err
 	}
 	var redump bytes.Buffer
-	if err = stuntgres.Dump(ctx, db, &redump); err != nil {
+	if err = stuntgres.Dump(ctx, p.native, &redump); err != nil {
 		return err
 	}
 	if dump.String() != redump.String() {
@@ -280,8 +253,8 @@ func typeCoreRun() error {
 		return fmt.Errorf("retained EOF %v", err)
 	}
 	script := "CREATE TABLE replacement(i INT); INSERT INTO replacement VALUES(1),('oops')"
-	err = stuntgres.Restore(ctx, db, strings.NewReader(script))
-	if err = typeCoreDiagnostic(err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Position: strconv.Itoa(strings.Index(script, "'oops'") + 1)}); err != nil {
+	err = stuntgres.Restore(ctx, p.native, strings.NewReader(script))
+	if err = typeCoreLegacyDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Position: strconv.Itoa(strings.Index(script, "'oops'") + 1)}); err != nil {
 		return err
 	}
 	if err = check("SELECT * FROM typed ORDER BY i", names, types, want); err != nil {

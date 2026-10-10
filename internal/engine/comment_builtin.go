@@ -68,6 +68,8 @@ func builtinTypeComment(id sqltype.ID) string {
 		return "pseudo-type for the result of a function with no real result"
 	case 2950:
 		return "UUID"
+	case sqltype.JSONB:
+		return "Binary JSON"
 	}
 	return ""
 }

@@ -64,10 +64,21 @@ the existing typed seams, including generic JSON arrays and domains. JSON has
 no ordinary comparison/grouping/index-key provider, but supports INCLUDE payloads.
 Missing default classes report42704 even during atomic ALTER TYPE reconstruction.
 Unicode-escape physical EOF reports an invalid token, distinct from present nonhex
-digits. jsonb, JSON operators/functions and SQL/JSON constructor `json(...)` are excluded.
+digits. JSON operators/functions and SQL/JSON constructor `json(...)` are excluded.
 See [JSON types](docs/TYPES.md#json-textual-storage--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
+
+Change note: JSONB storage normalizes whitespace and key order, keeps the last
+decoded duplicate key, and preserves exact finite decimals and their display
+scale. It rejects numeric overflow, zero Unicode escapes and invalid surrogate
+pairs. SQL NULL differs from JSON null. Ordinary comparison, grouping, B-tree
+keys, JSON↔JSONB IO casts, metadata and logical native Dump/Restore share the
+existing typed providers; JSON remains source-preserving and noncomparable.
+See [JSONB types](docs/TYPES.md#jsonb-normalized-storage--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`.
+
 
 Change note: PostgreSQL 18 datetime templates support `to_char(timestamp,text)`,
 `to_char(timestamptz,text)`, `to_char(interval,text)`, `to_date(text,text)` and

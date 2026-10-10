@@ -110,7 +110,7 @@ func pgDescriptionControlsScenario(t *testing.T) {
 	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
 		t.Fatal(err)
 	}
-	referenceRunStep(t, p.ctx, native.db, native.recorder, referenceSelect("SELECT count(*) FROM pg_catalog.pg_description", []string{"count"}, []string{"INT8"}, [][]any{{int64(163)}}))
+	referenceRunStep(t, p.ctx, native.db, native.recorder, referenceSelect("SELECT count(*) FROM pg_catalog.pg_description", []string{"count"}, []string{"INT8"}, [][]any{{int64(164)}}))
 	pgDescriptionRows(t, p, native, pgDescriptionSelect("SELECT * FROM pg_catalog.pg_description WHERE classoid=2615", [][]any{{int64(11), int64(2615), int64(0), "system catalog schema"}, {int64(2200), int64(2615), int64(0), "standard public schema"}}))
 	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(dump)); err != nil {
 		t.Fatal(err)

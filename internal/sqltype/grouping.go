@@ -49,7 +49,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		return g, nil
 	}
 	switch base.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, JSONB:
 	default:
 		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + base.DiagnosticName()}
 	}
@@ -209,6 +209,11 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		return h, ctx.Err()
 	}
 	switch v.typ.id {
+	case JSONB:
+		if v.jsonb == nil {
+			return 0, fmt.Errorf("missing JSONB payload")
+		}
+		return hashJSONB(ctx, &v.jsonb.root, h)
 	case PgNodeTree:
 		// Preserve the logical descriptor for PrepareKey's generation check.
 		v.typ = g.usage.Type

@@ -1,4 +1,4 @@
-package smoke_test
+package reference_test
 
 import (
 	"bytes"
@@ -13,22 +13,22 @@ import (
 	"stuntgres"
 )
 
-func TestNumericLiteralsSmoke(t *testing.T) {
-	if err := numericLiteralsRun(); err != nil {
-		t.Fatal(err)
+// Complete Context-route assertion union from smoke/numeric_literals_test.go.
+func TestReferenceNumericLiteralsLegacyContextRoutes(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			if err := numericLiteralsLegacyRun(t, p, backend); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
-
-func numericLiteralsDiagnostic(err error, code, message, position string) error {
-	var got *stuntgres.Error
-	want := &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
-	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
-		return fmt.Errorf("diagnostic got %#v (%v), want %#v", got, err, want)
-	}
+func numericLiteralsLegacyDiagnostic(t *testing.T, err error, code, message, position string) error {
+	referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position})
 	return nil
 }
-
-func numericLiteralsCheckRows(rows *sql.Rows, names, types []string, want [][]any) error {
+func numericLiteralsLegacyCheckRows(rows *sql.Rows, pg bool, names, types []string, want [][]any) error {
 	defer rows.Close()
 	gotNames, err := rows.Columns()
 	if err != nil {
@@ -42,8 +42,12 @@ func numericLiteralsCheckRows(rows *sql.Rows, names, types []string, want [][]an
 		return err
 	}
 	for i, typ := range types {
-		if metadata[i].DatabaseTypeName() != typ || metadata[i].ScanType() != reflect.TypeOf(int64(0)) {
-			return fmt.Errorf("metadata %d: %s/%v, want %s/int64", i, metadata[i].DatabaseTypeName(), metadata[i].ScanType(), typ)
+		scan := reflect.TypeFor[int64]()
+		if pg && typ == "INT4" {
+			scan = reflect.TypeFor[int32]()
+		}
+		if metadata[i].DatabaseTypeName() != typ || metadata[i].ScanType() != scan {
+			return fmt.Errorf("metadata %d: %s/%v, want %s/%v", i, metadata[i].DatabaseTypeName(), metadata[i].ScanType(), typ, scan)
 		}
 	}
 	var got [][]any
@@ -67,14 +71,10 @@ func numericLiteralsCheckRows(rows *sql.Rows, names, types []string, want [][]an
 	return nil
 }
 
-func numericLiteralsRun() error {
-	ctx := context.Background()
-	connector, err := stuntgres.NewDriver().OpenConnector("numeric-literals-smoke")
-	if err != nil {
-		return err
-	}
-	db := sql.OpenDB(connector)
-	defer db.Close()
+func numericLiteralsLegacyRun(t *testing.T, p *referencePair, backend referenceBackend) error {
+	ctx := p.ctx
+	db := backend.db
+	var err error
 	exec := func(query string, count int64, prepared bool, args ...any) error {
 		var result sql.Result
 		var e error
@@ -116,11 +116,17 @@ func numericLiteralsRun() error {
 		if e != nil {
 			return e
 		}
-		return numericLiteralsCheckRows(rows, names, types, want)
+		return numericLiteralsLegacyCheckRows(rows, backend.pg, names, types, want)
 	}
 	for _, prepared := range []bool{false, true} {
-		if err := stuntgres.Reset(ctx, db); err != nil {
-			return err
+		if !backend.pg {
+			if err := stuntgres.Reset(ctx, p.native); err != nil {
+				return err
+			}
+		} else if prepared {
+			if _, err := db.ExecContext(ctx, "DROP TABLE t"); err != nil {
+				return err
+			}
 		}
 		if err := exec("CREATE TABLE t(id INT,i INT,b BIGINT)", 0, false); err != nil {
 			return err
@@ -201,7 +207,7 @@ func numericLiteralsRun() error {
 					return fmt.Errorf("failed Prepare returned statement")
 				}
 			}
-			if err := numericLiteralsDiagnostic(e, "42601", c.message, c.position); err != nil {
+			if err := numericLiteralsLegacyDiagnostic(t, e, "42601", c.message, c.position); err != nil {
 				return err
 			}
 			if err := unchanged(); err != nil {
@@ -214,7 +220,7 @@ func numericLiteralsRun() error {
 	}
 	// Actual sentinel second-row atomicity, independent of the positional table.
 	_, err = db.ExecContext(ctx, "INSERT INTO sentinel VALUES (1),(0b2)")
-	if err := numericLiteralsDiagnostic(err, "42601", `trailing junk after numeric literal at or near "0b2"`, "34"); err != nil {
+	if err := numericLiteralsLegacyDiagnostic(t, err, "42601", `trailing junk after numeric literal at or near "0b2"`, "34"); err != nil {
 		return err
 	}
 	if err := unchanged(); err != nil {
@@ -233,7 +239,7 @@ func numericLiteralsRun() error {
 		} else {
 			_, err = db.ExecContext(ctx, assignment)
 		}
-		if err := numericLiteralsDiagnostic(err, "22003", "integer out of range", ""); err != nil {
+		if err := numericLiteralsLegacyDiagnostic(t, err, "22003", "integer out of range", ""); err != nil {
 			return err
 		}
 		if err := unchanged(); err != nil {
@@ -242,11 +248,14 @@ func numericLiteralsRun() error {
 	}
 	// Valid beyond-int8 syntax fails only when assigned to the first INT4 column.
 	_, err = db.ExecContext(ctx, "INSERT INTO t VALUES (0x8000000000000000)")
-	if err := numericLiteralsDiagnostic(err, "22003", "integer out of range", ""); err != nil {
+	if err := numericLiteralsLegacyDiagnostic(t, err, "22003", "integer out of range", ""); err != nil {
 		return err
 	}
+	if backend.pg {
+		return unchanged()
+	} // Native-only controls below; shared Context SQL above.
 	var dump bytes.Buffer
-	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+	if err := stuntgres.Dump(ctx, p.native, &dump); err != nil {
 		return err
 	}
 	for _, spelling := range []string{"1000", "9223372036854775807", "-9223372036854775808"} {
@@ -262,20 +271,20 @@ func numericLiteralsRun() error {
 		return err
 	}
 	defer held.Close()
-	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE staged(x INT); INSERT INTO staged VALUES (1); INSERT INTO staged VALUES (0b2)"))
-	if err := numericLiteralsDiagnostic(err, "42601", `trailing junk after numeric literal at or near "0b2"`, "87"); err != nil {
+	err = stuntgres.Restore(ctx, p.native, strings.NewReader("CREATE TABLE staged(x INT); INSERT INTO staged VALUES (1); INSERT INTO staged VALUES (0b2)"))
+	if err := numericLiteralsLegacyDiagnostic(t, err, "42601", `trailing junk after numeric literal at or near "0b2"`, "87"); err != nil {
 		return err
 	}
 	if err := unchanged(); err != nil {
 		return err
 	}
-	if err := numericLiteralsCheckRows(held, []string{"id", "b"}, []string{"INT4", "INT8"}, endpoints); err != nil {
+	if err := numericLiteralsLegacyCheckRows(held, false, []string{"id", "b"}, []string{"INT4", "INT8"}, endpoints); err != nil {
 		return err
 	}
-	if err := stuntgres.Reset(ctx, db); err != nil {
+	if err := stuntgres.Reset(ctx, p.native); err != nil {
 		return err
 	}
-	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+	if err := stuntgres.Restore(ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 		return err
 	}
 	if err := query("SELECT id,b FROM endpoints ORDER BY id", false, []string{"id", "b"}, []string{"INT4", "INT8"}, endpoints); err != nil {

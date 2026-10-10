@@ -1313,6 +1313,9 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 	if err == nil && u.Type.ID() == sqltype.JSON {
 		return "CAST(" + literal + " AS JSON)", nil
 	}
+	if err == nil && u.Type.ID() == sqltype.JSONB {
+		return "CAST(" + literal + " AS JSONB)", nil
+	}
 	if err != nil || n.value.IsNull() {
 		return literal, err
 	}

@@ -52,3 +52,19 @@ func TestJSONTypedLiteralSyntax(t *testing.T) {
 		t.Fatalf("got %+v (%v) want %+v", got, err, want)
 	}
 }
+
+func TestJSONBTypedLiteralSyntax(t *testing.T) {
+	for _, q := range []string{`SELECT jsonb 'null' AS v`, `SELECT CAST('null' AS pg_catalog.jsonb) AS v`, `SELECT "jsonb" 'null' AS v`, `SELECT CAST('null' AS jsonb) AS v`, `SELECT 'null'::jsonb AS v`} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, err)
+		}
+		selected := statements[0].(*Select)
+		if selected.From != nil || len(selected.Targets) != 1 {
+			t.Fatal("JSONB target lost", q)
+		}
+	}
+	if lookupKeyword("jsonb") != nil {
+		t.Fatal("JSONB became reserved")
+	}
+}

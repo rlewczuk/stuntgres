@@ -34,6 +34,7 @@ var pgDescriptionExpectedTypes = []pgDescriptionExpectedSeed{
 	{2205, "registered class"},
 	{2278, "pseudo-type for the result of a function with no real result"},
 	{2950, "UUID"},
+	{3802, "Binary JSON"},
 }
 
 var pgDescriptionExpectedCollations = []pgDescriptionExpectedSeed{

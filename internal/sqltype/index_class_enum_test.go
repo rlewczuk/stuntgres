@@ -67,6 +67,7 @@ func TestOrderingBtreeIdentityExplicitClassIdentities(t *testing.T) {
 		{"oid_ops", 1981, Int4}, {"bpchar_ops", 10004, Text},
 		{"varchar_ops", 10044, VarChar}, {"text_pattern_ops", 4217, Text},
 		{"varchar_pattern_ops", 4218, VarChar}, {"bpchar_pattern_ops", 4219, BPChar},
+		{"jsonb_ops", 10088, JSONB},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			class, ok := LookupIndexClass(c.name)
@@ -88,7 +89,7 @@ func TestOrderingBtreeIdentityExplicitClassIdentities(t *testing.T) {
 			}
 		})
 	}
-	for _, name := range []string{"array_ops", "record_ops", "jsonb_ops"} {
+	for _, name := range []string{"array_ops", "record_ops"} {
 		class, ok := LookupIndexClass(name)
 		if !ok || class.OID() != 0 {
 			t.Fatal("unsupported diagnostic class advertised ordering identity", class, ok)

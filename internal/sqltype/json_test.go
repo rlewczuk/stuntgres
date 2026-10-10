@@ -125,6 +125,56 @@ func TestJSONSyntaxDiagnostics(t *testing.T) {
 	}
 }
 
+func TestJSONLexerEscapedStringCancellation(t *testing.T) {
+	for _, jsonb := range []bool{false, true} {
+		mode := map[bool]string{false: "json", true: "jsonb"}[jsonb]
+		for _, tc := range []struct{ name, escape, decoded string }{
+			{"simple", `\n\\\"\/\b\f\r\t`, "\n\\\"/\b\f\r\t"},
+			{"unicode", `\u0041`, "A"},
+			{"surrogate_pair", `\uD83D\uDE04`, "😄"},
+		} {
+			t.Run(mode+"/"+tc.name, func(t *testing.T) {
+				for _, prefix := range []string{"", " \t "} {
+					text := prefix + `"` + strings.Repeat(tc.escape, 4096) + `"`
+					cancel := &groupingCancelContext{Context: context.Background(), at: 2}
+					l := jsonLexer{ctx: cancel, text: text, line: 1, jsonb: jsonb}
+					err := l.next()
+					if !errors.Is(err, context.Canceled) || cancel.calls != 2 || l.offset < 8192 || l.offset >= len(text)-1 || l.decoded != "" {
+						t.Fatal("escape scanning did not cancel during bounded progress", l.offset, len(text), len(l.decoded), cancel.calls, err)
+					}
+					// Every escape path advances at most six bytes before the
+					// shared entry poll; two thresholds may overshoot by <12.
+					if l.offset >= 8192+12 {
+						t.Fatal("escape scanning exceeded cancellation work budget", l.offset)
+					}
+					complete := jsonLexer{ctx: context.Background(), text: text, line: 1, jsonb: jsonb}
+					if err := complete.next(); err != nil || complete.kind != 's' || complete.offset != len(text) || complete.start != len(prefix) || complete.end != len(text) {
+						t.Fatal("successful token endpoints changed", complete.start, complete.end, err)
+					}
+					want := ""
+					if jsonb {
+						want = strings.Repeat(tc.decoded, 4096)
+					}
+					if complete.decoded != want {
+						t.Fatal("successful escape decoding changed")
+					}
+				}
+			})
+		}
+		t.Run(mode+"/high_surrogate_threshold", func(t *testing.T) {
+			// The high-surrogate escape crosses4096 and takes its early continue.
+			// Cancellation must occur before consuming the following low surrogate.
+			text := `"` + strings.Repeat("x", 4092) + `\uD83D\uDE04"`
+			cancel := &groupingCancelContext{Context: context.Background(), at: 1}
+			l := jsonLexer{ctx: cancel, text: text, line: 1, jsonb: jsonb}
+			err := l.next()
+			if !errors.Is(err, context.Canceled) || cancel.calls != 1 || l.offset != 4099 || l.end != 4099 || l.decoded != "" {
+				t.Fatal("surrogate continuation skipped crossed threshold", l.offset, l.end, cancel.calls, err)
+			}
+		})
+	}
+}
+
 func TestJSONExplicitTextCoercion(t *testing.T) {
 	types := testTypes()
 	ctx := context.Background()

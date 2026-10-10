@@ -12,6 +12,16 @@ import (
 	"stuntgres"
 )
 
+// Shared nonSQL diagnostic helper retained after the type-core SQL migration.
+func typeCoreDiagnostic(err error, want stuntgres.Error) error {
+	want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+	var got *stuntgres.Error
+	if !errors.As(err, &got) || *got != want {
+		return fmt.Errorf("diagnostic got %#v (%v), want %#v", got, err, want)
+	}
+	return nil
+}
+
 func TestSmoke(t *testing.T) {
 	if err := baselineRun(); err != nil {
 		t.Fatal(err)

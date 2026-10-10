@@ -1,6 +1,9 @@
 package sqltype
 
-import "math"
+import (
+	"context"
+	"math"
+)
 
 // SameDatum compares concrete constant representations, not SQL equality or
 // grouping's NOT DISTINCT equivalence. Expression-tree identity must retain
@@ -33,6 +36,12 @@ func SameDatum(a, b Value) bool {
 		return true
 	}
 	switch a.typ.BaseType().id {
+	case JSONB:
+		if a.jsonb == nil || b.jsonb == nil {
+			return false
+		}
+		n, err := compareJSONB(context.Background(), &a.jsonb.root, &b.jsonb.root, true)
+		return err == nil && n == 0
 	case PgNodeTree:
 		return a.tree == b.tree
 	case Interval:

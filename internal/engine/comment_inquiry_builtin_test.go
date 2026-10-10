@@ -21,7 +21,7 @@ func TestCommentInquiryBuiltinDescriptions(t *testing.T) {
 		{1043, "'varchar(length)' non-blank-padded string, variable storage length"}, {1082, "date"}, {1083, "time of day"},
 		{1114, "date and time"}, {1184, "date and time with time zone"}, {1186, "time interval, format 'number units ...'"},
 		{1266, "time of day with time zone"}, {1700, "'numeric(precision, scale)' arbitrary precision number"}, {2205, "registered class"},
-		{2278, "pseudo-type for the result of a function with no real result"}, {2950, "UUID"}, {1003, nil},
+		{2278, "pseudo-type for the result of a function with no real result"}, {2950, "UUID"}, {3802, "Binary JSON"}, {1003, nil},
 	} {
 		got := tuples(roleExecute(t, e, op, fmt.Sprintf("SELECT obj_description(%d,'pg_type')", tc.oid)))
 		if len(got) != 1 || got[0][0] != tc.want {

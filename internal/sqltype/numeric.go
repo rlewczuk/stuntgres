@@ -432,6 +432,11 @@ func exactOperand(v Value) Value {
 func compareNumeric(a, b Value) int {
 	var ab, bb [20]byte
 	av, bv := numericComparisonView(a, &ab), numericComparisonView(b, &bb)
+	return compareNumericViews(av, bv)
+}
+
+// Borrowed immutable decimal views also serve JSONB numeric primitives.
+func compareNumericViews(av, bv numericView) int {
 	rank := func(v numericView) int {
 		switch v.special {
 		case numericNegativeInfinity:

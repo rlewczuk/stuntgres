@@ -95,6 +95,9 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 	case "uuid_ops":
 		c.input = UUID
 		c.oid = 10065
+	case "jsonb_ops":
+		c.input = JSONB
+		c.oid = 10088
 	case "text_pattern_ops", "varchar_pattern_ops":
 		c.input = Text
 		c.Family = "text_pattern_ops"
@@ -114,7 +117,7 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 		c.input = 27 // Diagnostic identity only; no tid descriptor/provider.
 	// Released classes without an owned input/comparator. They cannot authorize
 	// an implemented scalar just because their spelling exists in pg_catalog.
-	case "record_ops", "record_image_ops", "network_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "jsonb_ops", "money_ops", "tsquery_ops", "tsvector_ops", "xid8_ops":
+	case "record_ops", "record_image_ops", "network_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "money_ops", "tsquery_ops", "tsvector_ops", "xid8_ops":
 	default:
 		return IndexClass{}, false
 	}
@@ -176,6 +179,8 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "numeric_ops"
 	case UUID:
 		name = "uuid_ops"
+	case JSONB:
+		name = "jsonb_ops"
 	case NameArray:
 		name = "array_ops"
 	case 27:

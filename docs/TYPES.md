@@ -42,7 +42,7 @@ character instead reports that four hexadecimal digits are required.
 Standard CAST, postfix `::` and `json '...'`/`pg_catalog.json '...'` typed
 literals use the shared expression binder in table and ordinary no-FROM SELECT.
 No per-target JSON or enum witness is required for the local no-FROM unit.
-Only JSON identity and explicit TEXT↔JSON casts are added. Numeric/bool SQL
+JSON identity, explicit TEXT↔JSON and assignment/explicit JSON↔JSONB IO casts are supported. Numeric/bool SQL
 casts do not construct JSON; numeric/bool *bound protocol values* use textual
 input instead. JSON is not a character/collatable/comparable/hashable type:
 ordinary equality/order/grouping and B-tree keys remain unavailable.
@@ -59,7 +59,7 @@ Native Dump/Restore retains exact JSON bytes, typed stored expressions and
 captured cursor ownership; invalid late Restore leaves the live catalog intact.
 Ordinary SELECT DISTINCT rejects JSON keys, including JSON domain/array keys,
 with 42883 because JSON has no equality provider.
-No jsonb/jsonpath, JSON operators/functions, SQL/JSON constructor `json(...)`
+No jsonpath, JSON operators/functions, SQL/JSON constructor `json(...)`
 or pg_type catalog projections are introduced.
 
 Feature smoke (each invocation has a 900-second deadline):
@@ -67,12 +67,63 @@ Feature smoke (each invocation has a 900-second deadline):
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
 All definitions: use the same commands with `RUN='^TestReferenceJSON'`.
 
+## JSONB normalized storage — change note
+
+`JSONB` (OID3802, associated array OID3807) is a noncollatable immutable
+structural value, exported as normalized `string`. Objects sort decoded keys
+by UTF8 byte length and then bytes, retain the last duplicate key, and output
+comma-space/colon-space separators. Arrays retain order and duplicates; all
+scalar roots, including JSON null, are accepted. For example,
+` { "z":1,"a":1,"a":2 } ` becomes `{"a": 2, "z": 1}`.
+JSON storage still retains its exact original source.
+
+Numbers use exact unconstrained NUMERIC limits (131072 digits before the
+decimal, 16383 after), not float64. Exponents render as decimals;
+`1.230e-5` becomes `0.00001230`, and `1.00` keeps its display scale.
+JSON numeric grammar excludes NaN/Infinity, radix and underscore syntax.
+Unicode escapes decode to UTF8, proper surrogate pairs combine, controls are
+reescaped, and slash/HTML/nonASCII/U+2028 are not gratuitously escaped.
+Every input token is validated even when a later duplicate overwrites it.
+Shared JSON/JSONB string scanning polls cancellation by consumed bytes, including
+escape and surrogate paths. JSONB object finalization and string rendering also
+poll bounded work; canceled input does not publish a partial value.
+
+Syntax diagnostics retain type-json22P02 messages and JSON Context; escaped
+U+0000 reports22P05, numeric format overflow22003, and raw invalid UTF8/NUL22021.
+Literal positions are original SQL character positions. Parameter import
+failures append redacted portal Context; JSON→JSONB expression conversion
+failures do not invent that continuation or a bound-source position.
+
+Six ordinary comparisons and B-tree `jsonb_ops` (OID10088) compare structures.
+Order is JSON null, string, number, Boolean, array, object, except the historical
+top-level empty array sorts before JSON null. Container counts precede recursive
+contents; nested empty arrays follow ordinary array order. Numeric equality
+ignores display scale, including inside containers; grouping/DISTINCT/UNIQUE
+hashes agree with that equality. JSONB[]/domains reuse the existing associations
+and generic grouping facilities, not new SQL-array ordering operators.
+
+Typed literals, direct/prepared columns, bound text/bytes, explicit TEXT↔JSONB,
+and assignment/explicit JSON↔JSONB IO casts use existing binders/codecs.
+SQL NULL exports nil, while JSON null exports `null`. JSONB metadata has no
+Length/DecimalSize; native ScanType is string with known declared nullability;
+pq raw values are bytes, ScanType any and nullability unknown.
+Native Dump/Restore preserves normalized values, defaults and typed NULLs,
+replays ordinary SQL, retains old cursors and replaces atomically.
+JSON-specific operators/functions, GIN, containment/path/extraction, JSON scalar
+constructors and physical PostgreSQL binary/disk persistence remain out of scope.
+
+Feature smoke (900-second deadline per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFeatureSmoke$' VERBOSE=0`.
+The same two modes with `RUN='^TestReference(JSON|TypeCore|Numeric|PGDescription)'` cover the
+complete affected reference families and migrated source execution routes.
+
 
 ## Arrays — change note
 
 Arrays are immutable catalog-owned values over the supported stored scalars:
 BOOL, BYTEA, NAME, INT2/INT4/INT8, TEXT/BPCHAR/VARCHAR, OID, FLOAT4/FLOAT8,
-NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID and JSON. Domains over
+NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID, JSON and JSONB. Domains over
 supported scalars or arrays may also be elements; a REGCLASS domain is supported,
 while bare REGCLASS and REGCLASS[] table columns retain their existing exclusion.
 There is no added CHAR, BOX, UNKNOWN, VOID or PG_NODE_TREE array family.

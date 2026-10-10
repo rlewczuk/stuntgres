@@ -1,11 +1,9 @@
-package smoke_test
+package reference_test
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"io"
 	"reflect"
 	"strings"
@@ -13,15 +11,16 @@ import (
 	"testing"
 )
 
-func TestNumericSmoke(t *testing.T) {
-	ctx := context.Background()
-	d := stuntgres.NewDriver()
-	connector, err := d.OpenConnector("numeric-smoke")
-	if err != nil {
-		t.Fatal(err)
+// Preserves Context and ordinary DB/held-statement routes from numeric smoke.
+func TestReferenceNumericLegacyConsumerRoutes(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) { numericLegacyConsumer(t, p, backend) })
 	}
-	db := sql.OpenDB(connector)
-	defer db.Close()
+}
+func numericLegacyConsumer(t *testing.T, p *referencePair, backend referenceBackend) {
+	ctx := p.ctx
+	db := backend.db
 	preparedControls := false
 	exec := func(q string, count int64, args ...any) {
 		t.Helper()
@@ -82,6 +81,10 @@ func TestNumericSmoke(t *testing.T) {
 			if err := rows.Scan(dst...); err != nil {
 				t.Fatal(err)
 			}
+			for i := range row {
+				referenceAssertRawValue(t, backend.pg, types[i], row[i])
+				row[i] = referenceNormalize(row[i])
+			}
 			got = append(got, row)
 		}
 		if rows.Err() != nil || !reflect.DeepEqual(got, want) {
@@ -90,11 +93,7 @@ func TestNumericSmoke(t *testing.T) {
 	}
 	diagnostic := func(err error, want stuntgres.Error) {
 		t.Helper()
-		want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-		var got *stuntgres.Error
-		if !errors.As(err, &got) || *got != want {
-			t.Fatal(got, err, want)
-		}
+		referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: want.Code, Message: want.Message, Detail: want.Detail, Hint: want.Hint, Position: want.Position, Context: want.Context, Schema: want.Schema, Table: want.Table, Column: want.Column, DataType: want.DataType, Constraint: want.Constraint})
 	}
 	exact := "12345678901234567890.1234567890123456789000"
 	exec("CREATE TABLE n(id INT,v NUMERIC,a NUMERIC(2,-3),b NUMERIC(3,5))", 0)
@@ -113,9 +112,17 @@ func TestNumericSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, s, ok := types[2].DecimalSize()
-	if !ok || p != 2 || s != -3 || types[1].ScanType() != reflect.TypeFor[string]() {
-		t.Fatal(types, p, s, ok)
+	precision, scale, ok := types[2].DecimalSize()
+	scan := reflect.TypeFor[string]()
+	if backend.pg {
+		scan = reflect.TypeFor[any]()
+	}
+	wantScale := int64(-3)
+	if backend.pg {
+		wantScale = 2045
+	}
+	if !ok || precision != 2 || scale != wantScale || types[1].ScanType() != scan {
+		t.Fatal(types, precision, scale, ok)
 	}
 	exec("CREATE TABLE sized(v NUMERIC(3,1))", 0)
 	stmt, err := db.Prepare("INSERT INTO sized VALUES($1)")
@@ -256,7 +263,10 @@ func TestNumericSmoke(t *testing.T) {
 		}
 	}
 	preparedControls = false
-	raw, err := d.Open("numeric-smoke")
+	if backend.pg {
+		return
+	} // Native-only controls; shared SQL assertions above run on both.
+	raw, err := p.nativeConnector.Connect(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,18 +277,18 @@ func TestNumericSmoke(t *testing.T) {
 	}
 	defer held.Close()
 	var dump bytes.Buffer
-	if err = stuntgres.Dump(ctx, db, &dump); err != nil {
+	if err = stuntgres.Dump(ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err = stuntgres.Reset(ctx, db); err != nil {
+	if err = stuntgres.Reset(ctx, p.native); err != nil {
 		t.Fatal(err)
 	}
-	if err = stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+	if err = stuntgres.Restore(ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	check("SELECT * FROM n ORDER BY id", []string{"INT4", "NUMERIC", "NUMERIC", "NUMERIC"}, want)
 	var redump bytes.Buffer
-	if err = stuntgres.Dump(ctx, db, &redump); err != nil || redump.String() != dump.String() {
+	if err = stuntgres.Dump(ctx, p.native, &redump); err != nil || redump.String() != dump.String() {
 		t.Fatal(err)
 	}
 	dst := make([]driver.Value, 4)
@@ -295,7 +305,7 @@ func TestNumericSmoke(t *testing.T) {
 	if err = held.Next(dst); err != io.EOF {
 		t.Fatal(err)
 	}
-	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE staged(v NUMERIC(3,1)); INSERT INTO staged VALUES(1.2),(99.95)"))
+	err = stuntgres.Restore(ctx, p.native, strings.NewReader("CREATE TABLE staged(v NUMERIC(3,1)); INSERT INTO staged VALUES(1.2),(99.95)"))
 	diagnostic(err, overflow)
 	check("SELECT * FROM n ORDER BY id", []string{"INT4", "NUMERIC", "NUMERIC", "NUMERIC"}, want)
 }

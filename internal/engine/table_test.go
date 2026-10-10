@@ -217,23 +217,10 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	}
 }
 
-func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
+func TestTableCoreSupportedStoredTypesExecute(t *testing.T) {
 	e := New()
-	for _, name := range []string{"JSONB"} {
-		q := "CREATE TABLE bad (id " + name + ")"
-		stmt := statement(t, q)
-		if _, err := testDescribe(e, stmt); err != nil {
-			t.Fatal("semantic type rejection during preparation", name, err)
-		}
-		_, err := testExecute(e, context.Background(), stmt, nil)
-		var got *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported column type", Position: "22"}
-		if !errors.As(err, &got) || *got != want {
-			t.Fatal(name, got, err, want)
-		}
-		_, err = testExecute(e, context.Background(), statement(t, "SELECT * FROM bad"), nil)
-		state(t, err, "42P01")
-	}
+	run(t, e, "CREATE TABLE supported_jsonb(v JSONB)")
+	run(t, e, `INSERT INTO supported_jsonb VALUES('{"a":1,"a":2}')`)
 	run(t, e, `CREATE TABLE supported_uuid(v "uuid")`)
 	run(t, e, "CREATE TABLE supported_zoned(z TIMESTAMPTZ,q TIMETZ)")
 	run(t, e, "INSERT INTO supported_zoned VALUES('2004-01-01 12:00+02','12:00+02')")
