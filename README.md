@@ -1159,6 +1159,8 @@ runtime demand; eligible EXISTS may discard target-only output (see the linked
 eligibility contract). Scalar cardinality,
 NULL/empty reductions, coherent mutation consumers and stored-view dependencies
 retain their PostgreSQL contracts. LATERAL, CTE and function FROM remain excluded.
+Direct/prepared reference cases independently specify scalar NULL-left IN/NOT IN
+on nonempty input and SOME empty/NULL reductions.
 See [subqueries](docs/QUERIES.md#subqueries-and-derived-select--change-note-changelog).
 Shared verification commands:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySubquery'` and
