@@ -4,6 +4,8 @@ package parser
 %union {
  tok lexeme
  stmt Statement
+ insertStmt *Insert
+ insertConflict *InsertConflict
  col Column
  columns []Column
  elements []TableElement
@@ -134,6 +136,7 @@ package parser
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW LEFT RIGHT FULL OUTER
 %token <tok> DELETE
 %token <tok> MERGE MATCHED SOURCE TARGET DO NOTHING
+%token <tok> CONFLICT ON_CONFLICT_LA
 %token <tok> RETURNING
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
@@ -275,6 +278,10 @@ package parser
 %type <tok> index_method index_direction index_null_policy
 %type <indexKeys> index_keys index_include
 %type <indexKey> index_key index_atom index_class
+%type <insertStmt> insert_base
+%type <insertConflict> insert_conflict conflict_target
+%type <tok> conflict_open
+%type <expr> conflict_predicate
 %type <viewOptions> index_options index_option_list
 %type <viewOption> index_option
 %type <tok> index_option_value
@@ -372,6 +379,7 @@ package parser
 %type <call> transaction_time_head transaction_time_args transaction_time_base transaction_time_filtered transaction_time_call
 %type <predicate> truth_kind
 %type <selectStmt> projection projection_item
+%type <tok> insert_head on_keyword
 %type <insertSource> insert_input
 %type <selectStmt> insert_select
 %type <order> order
@@ -458,7 +466,7 @@ standalone_type: type { $$=$1 }
 separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
-accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
+accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
@@ -1012,15 +1020,24 @@ update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Ident
  | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 } ;
-insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1.pos) }
- | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
- | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
- | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
- | INSERT INTO relation_name insert_input RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$5.pos.Offset);return 1 }
- | INSERT INTO relation_name '(' insert_targets ')' insert_input RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$8.pos.Offset);return 1 }
- | INSERT INTO relation_name insert_override insert_input { s:=insertStatement($3,nil,$5,$1.pos);s.Override=$4;$$=s }
- | INSERT INTO relation_name '(' insert_targets ')' insert_override insert_input { s:=insertStatement($3,$5,$8,$1.pos);s.Override=$7;$$=s }
- | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
+insert: insert_base insert_conflict { $1.Conflict=$2;$$=$1 }
+ | insert_base insert_conflict RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$3.pos.Offset);return 1 }
+ | insert_base suffix { sqllex.(*lexer).capability($2,unsupportedSuffixes,"INSERT suffix is unsupported");return 1 } ;
+insert_head: INSERT INTO {sqllex.(*lexer).insertStatement=true;$$=$1} ;
+insert_base: insert_head relation_name insert_input { $$=insertStatement($2,nil,$3,$1.pos) }
+ | insert_head relation_name '(' insert_targets ')' insert_input { $$=insertStatement($2,$4,$6,$1.pos) }
+ | insert_head relation_name insert_override insert_input { $$=insertStatement($2,nil,$4,$1.pos);$$.Override=$3 }
+ | insert_head relation_name '(' insert_targets ')' insert_override insert_input { $$=insertStatement($2,$4,$7,$1.pos);$$.Override=$6 }
+ | insert_head relation_name DEFAULT VALUES { $$=&Insert{Name:$2,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
+insert_conflict: /* empty */ {$$=nil}
+ | ON_CONFLICT_LA CONFLICT conflict_target DO NOTHING {$$=$3}
+ | ON_CONFLICT_LA CONFLICT conflict_target DO UPDATE {sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$5.pos.Offset);return 1} ;
+conflict_target: /* empty */ {$$=&InsertConflict{}}
+ | conflict_open index_keys ')' conflict_predicate {sqllex.(*lexer).indexExpression=false;$$=&InsertConflict{Keys:insertConflictKeys($2),Predicate:$4,Pos:$1.pos}}
+ | ON CONSTRAINT name {$$=&InsertConflict{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}} ;
+conflict_open: '(' {sqllex.(*lexer).indexExpression=true;$$=$1} ;
+conflict_predicate: /* empty */ {$$=nil}
+ | WHERE target_or {$$=$2} ;
 insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER VALUE { $$=OverrideUser } ;
 merge: MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms {
    $$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos}
@@ -1417,9 +1434,10 @@ from_list: joined_table { $$=$1 }
  | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
 joined_table: from_atom { $$=$1 }
  | joined_table CROSS JOIN from_atom { $$=&JoinReference{Left:$1,Right:$4,Pos:$2.pos} }
- | joined_table inner_join JOIN from_atom ON target_or { $$=&JoinReference{Left:$1,Right:$4,Kind:$2,On:$6,Pos:$3.pos} }
+ | joined_table inner_join JOIN from_atom on_keyword target_or { $$=&JoinReference{Left:$1,Right:$4,Kind:$2,On:$6,Pos:$3.pos} }
  | joined_table inner_join JOIN from_atom USING '(' using_columns ')' using_alias { $$=&JoinReference{Left:$1,Right:$4,Kind:$2,Using:$7,UsingAlias:$9,Pos:$3.pos} }
  | joined_table NATURAL inner_join JOIN from_atom { $$=&JoinReference{Left:$1,Right:$5,Kind:$3,Natural:true,Pos:$2.pos} } ;
+on_keyword: ON {$$=$1} | ON_CONFLICT_LA {$$=$1} ;
 inner_join: /* empty */ { $$=JoinInner } | INNER { $$=JoinInner }
  | LEFT optional_outer { $$=JoinLeft }
  | RIGHT optional_outer { $$=JoinRight }
@@ -1549,7 +1567,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
- | MERGE | MATCHED | SOURCE | TARGET | NOTHING
+ | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
@@ -1573,7 +1591,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
- | MERGE | MATCHED | SOURCE | TARGET | NOTHING
+ | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | membership_keyword
  | OF | NOWAIT | SKIP | LOCKED

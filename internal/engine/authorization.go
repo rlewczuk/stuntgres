@@ -702,6 +702,11 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
 			return err
 		}
+		if b.conflict != nil && len(b.conflict.reads) != 0 {
+			if err := v.checkColumns(b, SelectPrivilege, b.conflict.reads); err != nil {
+				return err
+			}
+		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Merge:
 		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {

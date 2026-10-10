@@ -23,6 +23,12 @@ func (c IndexClass) OID() uint32 { return c.oid }
 
 func (c IndexClass) IsHash() bool { return c.hash }
 
+// Inference compares the declared input and family, not class aliases or
+// CREATE's broader binary-compatible admission set.
+func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {
+	return c.Family == other.Family && c.input == other.input && c.enum == other.enum && c.hash == other.hash
+}
+
 func LookupIndexClass(name string) (IndexClass, bool) {
 	c := IndexClass{Name: name, Family: name}
 	switch name {

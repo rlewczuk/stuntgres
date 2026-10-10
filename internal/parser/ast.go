@@ -495,6 +495,16 @@ type Insert struct {
 	Pos           Position
 	DefaultValues bool
 	Override      InsertOverride
+	Conflict      *InsertConflict
+}
+
+// InsertConflict is absent for ordinary insertion. An empty target means all
+// enforcing providers; Keys and Constraint retain distinct inference authority.
+type InsertConflict struct {
+	Keys       []IndexKey
+	Predicate  Expr
+	Constraint Identifier
+	Pos        Position
 }
 
 type InsertTarget struct {

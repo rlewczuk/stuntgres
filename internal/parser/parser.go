@@ -416,6 +416,28 @@ func ordinaryAggregate(name string) bool {
 	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max" || name == "row_number"
 }
 
+// CREATE's direct index-call syntax retains FunctionExpr. Conflict inference
+// must retain the known aggregate kind so its existing forbidden-context binder
+// runs without demanding an executable aggregate provider.
+func insertConflictKeys(keys []IndexKey) []IndexKey {
+	for i := range keys {
+		call, ok := keys[i].Expression.(FunctionExpr)
+		if !ok || len(call.Name.Parts) == 0 || len(call.Name.Parts) > 2 || len(call.ArgNames) != 0 || call.Variadic || call.ResolutionOnly {
+			continue
+		}
+		name := call.Name.Parts[len(call.Name.Parts)-1].Text
+		if !ordinaryAggregate(name) || len(call.Name.Parts) == 2 && call.Name.Parts[0].Text != "pg_catalog" {
+			continue
+		}
+		aggregate := AggregateExpr{Name: name, Args: call.Args, Star: call.Star, Order: call.Order, Distinct: call.Distinct, Filter: call.Filter, Window: call.Window, Pos: call.Pos}
+		if len(call.Name.Parts) == 2 {
+			aggregate.Schema = &call.Name.Parts[0]
+		}
+		keys[i].Expression = aggregate
+	}
+	return keys
+}
+
 func (l *lexer) scalarInput(expr Expr) bool {
 	// Raw qualification errors precede scalar consumer checks, including a
 	// later invalid cast beneath an otherwise unsupported conditional child.

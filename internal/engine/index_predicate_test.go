@@ -16,7 +16,7 @@ type partialIndexFixture struct {
 	store         *relationStorage
 }
 
-func newPartialIndexFixture(t *testing.T) partialIndexFixture {
+func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	t.Helper()
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)

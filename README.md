@@ -1059,6 +1059,21 @@ See [UNIQUE constraints](docs/TABLES.md#unique-constraints--change-note) and
 [the design](docs/design/PG18-DDL-UNIQUE.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueFeatureSmoke$'`.
 
+Change note: INSERT supports `ON CONFLICT DO NOTHING`, with an omitted target,
+column/expression inference plus optional partial predicate, or named constraint.
+Every matching installed unique provider participates; selected collisions skip
+individual proposals while unselected violations and earlier row validation
+still reject the whole statement. Typed equality, current privileges, held
+rebinding, cancellation, key claims and stable-snapshot visibility use their
+existing owners. DO UPDATE and INSERT RETURNING remain excluded.
+Partial inference preserves nested TRUE/FALSE/NULL values and released conservative
+proof behavior. Stable selected collisions recover visibility through checked
+immutable index/storage positions, without an added per-duplicate storage scan.
+See [the contract](docs/QUERIES.md#insert-conflict-omission--change-note) and
+[design](docs/design/PG18-DML-INSERT-CONFLICT.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflictFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflictFeatureSmoke$' VERBOSE=0`.
+
 Change note: `CREATE UNIQUE INDEX` supports simple/composite keys, default or
 explicit `NULLS DISTINCT`, and trailing `NULLS NOT DISTINCT`. Existing duplicates
 reject the build atomically with23505; writes use the same immediate typed

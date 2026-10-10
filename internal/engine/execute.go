@@ -254,6 +254,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.mu.Unlock()
+		if b.conflict != nil {
+			if b.conflict.predicate != nil {
+				b.conflict.predicate, err = normalizeConflictPredicate(&evaluation, b.conflict.predicate)
+				if err != nil {
+					return Result{}, err
+				}
+			}
+			if err := b.conflict.selectArbiters(&evaluation, b.relation, auth.catalog); err != nil {
+				return Result{}, err
+			}
+			scope.insertConflict = b.conflict
+		}
 		if inserting {
 			// Supplied values retain priority over defaults and executor ACLs.
 			// Constant planning and frame conversions both run unlocked; only
@@ -524,10 +536,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			if err := scope.Writes().applyValidated(b.ref, rows); err != nil {
+			count, err := scope.Writes().applyInsertValidated(b.ref, rows)
+			if err != nil {
 				return Result{}, err
 			}
-			return Result{Count: int64(len(rows))}, nil
+			return Result{Count: int64(count)}, nil
 		}
 		if b.subqueryDemand {
 			inputs, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, false)
@@ -546,7 +559,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 		}
-		rows := make([][]sqltype.Value, len(s.Rows))
+		rows := make([][]sqltype.Value, 0, len(s.Rows))
 		for i, source := range s.Rows {
 			if err = ctx.Err(); err != nil {
 				return Result{}, err
@@ -563,10 +576,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
-				if err = scope.checkUniqueRow(b.ref, row, nil, rows[:i]); err != nil {
-					return Result{}, err
+				admitted, admitErr := scope.admitInsertRow(b.ref, row, rows)
+				if admitErr != nil {
+					return Result{}, admitErr
 				}
-				rows[i] = row
+				if admitted {
+					rows = append(rows, row)
+				}
 				continue
 			}
 			if len(b.defaults) != 0 {
@@ -600,19 +616,22 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			if err = scope.checkUniqueRow(b.ref, row, nil, rows[:i]); err != nil {
-				return Result{}, err
+			admitted, admitErr := scope.admitInsertRow(b.ref, row, rows)
+			if admitErr != nil {
+				return Result{}, admitErr
 			}
-			rows[i] = row
+			if admitted {
+				rows = append(rows, row)
+			}
 		}
-		err = ctx.Err()
-		if err == nil {
-			err = scope.Writes().applyValidated(b.ref, rows)
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
 		}
+		count, err := scope.Writes().applyInsertValidated(b.ref, rows)
 		if err != nil {
 			return Result{}, err
 		}
-		return Result{Count: int64(len(rows))}, nil
+		return Result{Count: int64(count)}, nil
 	case *parser.Delete:
 		var view *VisibilityView
 		var viewErr error

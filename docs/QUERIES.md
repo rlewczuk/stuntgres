@@ -1378,7 +1378,8 @@ parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
 No-FROM SELECT sources use the same local input as standalone SELECT.
 Standalone and FROM VALUES use the same query-source binder and runtime described
-below. WITH/CTE, RETURNING and ON CONFLICT remain outside this INSERT producer surface.
+below. WITH/CTE and RETURNING remain outside this INSERT producer surface.
+Conflict omission is described in [INSERT conflict omission](#insert-conflict-omission--change-note).
 Supported SELECT row-lock clauses are described in [SELECT row locking](#select-row-locking--change-note).
 
 The target RX lock is acquired before source relation locks: AS for ordinary
@@ -3296,4 +3297,53 @@ Focused independent feature smoke (900 seconds each):
 make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
 ```
+
+## INSERT conflict omission — change note
+
+`INSERT ... ON CONFLICT DO NOTHING` accepts the existing VALUES, DEFAULT VALUES
+and SELECT producers, including their supported decorations. A target may be
+omitted, specify `(column-or-expression [COLLATE collation] [opclass], ...)`
+with an optional inference `WHERE`, or name `ON CONSTRAINT constraint`.
+Targets infer every installed matching unique provider, independent of key
+order and repeated occurrences. INCLUDE payload, key direction and NULL
+ordering do not participate in equality; inference itself rejects direction
+and NULL ordering decorations. Explicit classes match family and declared input,
+not the broader binary-compatible CREATE admission set.
+
+Partial inference proves immutable SQL TRUE implication using released conservative
+Boolean composition, actual strictness and owned B-tree comparison rules.
+Normalization preserves full TRUE/FALSE/NULL values beneath NOT, truth/null tests
+and equality. Structural identical nested predicates can infer; mathematical
+equivalence alone is insufficient. For example, `active IS TRUE` does not infer
+bare `active`, and `NOT (active IS TRUE)` does not imply `active IS NOT NULL`.
+This does not change SELECT's exact-conjunction matching or infer unrelated algebra.
+The target predicate chooses providers; it does not filter proposed rows.
+Native held statements specialize parameters afresh at each Execute.
+PostgreSQL can instead switch to a generic parameter plan after custom plans;
+that established backend difference is explicit in the reference family.
+
+Defaults, assignments, identity, generated columns, NOT NULL and CHECK run
+before conflict arbitration. Selected unique collisions omit only that proposal;
+unselected-only collisions remain ordinary23505. Accepted rows retain producer
+order and claims; skipped proposals retain no newly acquired unique claim.
+A later error, cancellation or required cursor Close error vetoes all staged
+row effects, but already demanded sequence draws are not rolled back. Affected
+rows count accepted proposals, not consumed source occurrences.
+
+Read committed may omit a committed conflict invisible to the source snapshot.
+Repeatable read and serializable reject a post-frontier committed conflicting
+tuple with40001; own private/prefix proposals are exempt.
+Selected stable-isolation visibility recovery uses an immutable physical position
+checked against the simultaneously captured storage's RowID and VersionID; it
+does not add a linear per-duplicate lookup to ordinary/read-committed enforcement.
+Current privileges, definitions and installed providers are checked again after arbitration waits.
+Ready-invalid providers participate in targetless arbitration; explicit
+inference requires a valid provider. Native Dump/Reset/Restore retain supported
+definitions and accepted data, but Restore input rejects conflict-bearing INSERTs.
+
+DO UPDATE and INSERT RETURNING remain positioned0A000 boundaries. Native
+deferred and exclusion arbiters are not installed providers: deferrable UNIQUE
+DDL retains its0A000 boundary and exclusion DDL its42601 syntax boundary.
+The complete public contract and smoke use the same
+`TestReferenceInsertConflict` definitions in native and pinned PostgreSQL modes.
 

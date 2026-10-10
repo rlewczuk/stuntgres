@@ -158,7 +158,7 @@ var keywords = [...]keyword{
 	{"concurrently", TypeFunctionName, true, CONCURRENTLY},
 	{"conditional", Unreserved, true, 0},
 	{"configuration", Unreserved, true, 0},
-	{"conflict", Unreserved, true, 0},
+	{"conflict", Unreserved, true, CONFLICT},
 	{"connection", Unreserved, true, 0},
 	{"constraint", Reserved, true, CONSTRAINT},
 	{"constraints", Unreserved, true, 0},

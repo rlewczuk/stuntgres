@@ -133,27 +133,32 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate
 	if len(writes) == 0 && (deletes == nil || len(deletes.rows) == 0) {
 		baselines = make(map[string]*logicalIndexRoot)
 	}
-	replaced := make(map[RowID]bool, len(writes))
-	for _, row := range writes {
-		replaced[row.row] = true
-	}
-	var live []rowVersion
-	for _, row := range store.versions {
-		if !replaced[row.row] && liveVersion(row, CommitSeq(^uint64(0)), store.ends, deletes) {
-			live = append(live, row)
+	validationStore := store
+	if baselines == nil {
+		// Overlay-only validation is never installed. Reusable roots instead
+		// retain the original physical layout, including committed tombstones.
+		replaced := make(map[RowID]bool, len(writes))
+		for _, row := range writes {
+			replaced[row.row] = true
 		}
-	}
-	for _, row := range writes {
-		if !uniqueRowDeleted(row.row, deletes) {
-			live = append(live, row)
+		var live []rowVersion
+		for _, row := range store.versions {
+			if !replaced[row.row] && liveVersion(row, CommitSeq(^uint64(0)), store.ends, deletes) {
+				live = append(live, row)
+			}
 		}
+		for _, row := range writes {
+			if !uniqueRowDeleted(row.row, deletes) {
+				live = append(live, row)
+			}
+		}
+		validationStore = &relationStorage{versions: live}
 	}
-	liveStore := relationStorage{versions: live}
 	for _, index := range indexes {
 		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			continue
 		}
-		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, &liveStore)
+		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, validationStore)
 		if err != nil {
 			return nil, err
 		}

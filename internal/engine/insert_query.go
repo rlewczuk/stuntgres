@@ -390,7 +390,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 	}
 	scratch := make([]sqltype.Value, len(b.targets))
 	evaluation := EvalContext{Context: ctx, Input: input, Output: output, statementScope: scope}
-	for count < 0 || len(rows) < count {
+	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -446,8 +446,12 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			if scope == nil {
 				return nil, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}
-			if err := scope.checkUniqueRow(b.ref, row, nil, rows); err != nil {
+			admitted, err := scope.admitInsertRow(b.ref, row, rows)
+			if err != nil {
 				return nil, err
+			}
+			if !admitted {
+				continue
 			}
 		}
 		rows = append(rows, row)

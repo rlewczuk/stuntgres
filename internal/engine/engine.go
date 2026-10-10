@@ -83,6 +83,7 @@ type binding struct {
 	defaults           []BoundExpr
 	identityDiscard    []bool
 	insertProjection   []int
+	conflict           *boundInsertConflict
 	temporals          []temporalConstant
 	predicate          BoundExpr
 	sequenceConstants  []sequenceConstant
@@ -516,6 +517,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 		}
 		if err := e.bindInsertInput(&b, binder, auth, s); err != nil {
+			return b, err
+		}
+		if err := e.bindInsertConflict(&b, binder, auth, s.Conflict); err != nil {
 			return b, err
 		}
 	case *parser.Merge:

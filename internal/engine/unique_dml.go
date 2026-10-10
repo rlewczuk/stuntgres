@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"slices"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -184,35 +185,70 @@ func uniqueRowDeleted(id RowID, roots ...*privateDeletionRoot) bool {
 	return false
 }
 
-// Exclusions contain only ended accepted-prefix predecessors and the current
-// predecessor, never future UPDATE candidates. Prefix rows remain conflicting.
-func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excluded []rowVersion, prefix [][]sqltype.Value) error {
-retry:
-	binding, err := s.bindUniqueWrite(ref)
+// One real provider probe supplies both ordinary violations and omission.
+// Only selected stable-isolation omission needs committed visibility identity.
+type uniqueConflict struct {
+	parent, index *relationDescriptor
+	key           []sqltype.Value
+	auth          AuthorizationView
+	view          CatalogRead
+	schema        string
+	row           rowVersion
+	committed     bool
+}
+
+func (c *uniqueConflict) diagnostic(s *StatementScope, ref ObjectRef) error {
+	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.sqlIndex.keys)
 	if err != nil {
 		return err
 	}
+	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
+}
+func (s *StatementScope) checkUniqueRow(ref ObjectRef, row []sqltype.Value, excluded []rowVersion, prefix [][]sqltype.Value) error {
+	conflict, err := s.probeUniqueRow(ref, row, excluded, prefix, nil)
+	if err != nil {
+		return err
+	}
+	if conflict.index != nil {
+		return conflict.diagnostic(s, ref)
+	}
+	return nil
+}
+func (s *StatementScope) probeUniqueRow(ref ObjectRef, row []sqltype.Value, excluded []rowVersion, prefix [][]sqltype.Value, action *boundInsertConflict) (uniqueConflict, error) {
+retry:
+	binding, err := s.bindUniqueWrite(ref)
+	if err != nil {
+		return uniqueConflict{}, err
+	}
 	parent := binding.parent
 	if len(row) != len(parent.columns) {
-		return errors.New("stuntgres: invalid staged row width")
+		return uniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
 	e := s.op.session.Engine()
 	ctx := s.op.Context()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
+	if action != nil && action.catalog != binding.catalog {
+		view := CatalogRead{owner: e, state: binding.catalog}
+		if err := action.selectArbiters(&evaluation, parent, view); err != nil {
+			return uniqueConflict{}, err
+		}
+	}
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
-		ordering := bound.ordering
+		if action != nil && !slices.Contains(action.selected, index.address) {
+			continue
+		}
 		member, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row)
 		if err != nil {
-			return err
+			return uniqueConflict{}, err
 		}
 		if !member {
 			continue
 		}
 		key, err := bound.load(row, &evaluation)
 		if err != nil {
-			return err
+			return uniqueConflict{}, err
 		}
 		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
@@ -220,12 +256,12 @@ retry:
 		indexRef := ref
 		indexRef.Address = index.address
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
-			return err
+			return uniqueConflict{}, err
 		}
 		e.mu.Lock()
 		if ref.Epoch != e.state.epoch {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return uniqueConflict{}, ErrCatalogReplaced
 		}
 		current := e.privateCatalogLocked(s.owner.catalog)
 		if current.state != binding.catalog {
@@ -235,12 +271,9 @@ retry:
 		}
 		currentParent, parentOK := current.state.descriptors[ref.Address].(*relationDescriptor)
 		currentIndex, indexOK := current.state.descriptors[index.address].(*relationDescriptor)
-		// ACL publication replaces immutable descriptors without changing their
-		// definition revision. Validate semantic identity rather than rejecting
-		// that replacement, then use the current descriptor for disclosure.
 		if !parentOK || !indexOK || currentParent.revision != parent.revision || !sameRelationRowShape(parent, currentParent) || currentIndex.revision != index.revision || !sameIndexKeySemantics(index, currentIndex) {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return uniqueConflict{}, ErrCatalogReplaced
 		}
 		parent, index = currentParent, currentIndex
 		auth, err := e.authorizationLocked(s.op)
@@ -252,24 +285,34 @@ retry:
 				root = private
 			}
 		}
+		var versions []rowVersion
+		if action != nil && stableIsolation(s.owner.isolation) {
+			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
+				versions = storage.versions
+			}
+		}
 		e.mu.Unlock()
 		if err != nil {
-			return err
+			return uniqueConflict{}, err
 		}
 		if namespace == nil {
-			return ErrCatalogReplaced
+			return uniqueConflict{}, ErrCatalogReplaced
+		}
+		if check := s.insertConflict; check != nil {
+			if err := auth.checkBinding(bindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
+				return uniqueConflict{}, err
+			}
 		}
 		if root == nil {
-			return errors.New("stuntgres: ready unique index root is missing")
+			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
-		conflict := false
-		// Binary lower bound into the real committed B-tree key range.
+		outcome := uniqueConflict{parent: parent, index: index, key: key, auth: auth, view: current, schema: namespace.name}
 		lo, hi := 0, len(root.entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2
-			cmp, err := ordering.compareKeys(ctx, root.entries[mid], logicalIndexEntry{keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, root.entries[mid], logicalIndexEntry{keys: key})
 			if err != nil {
-				return err
+				return uniqueConflict{}, err
 			}
 			if cmp < 0 {
 				lo = mid + 1
@@ -279,9 +322,9 @@ retry:
 		}
 		for at := lo; at < len(root.entries); at++ {
 			entry := root.entries[at]
-			cmp, err := ordering.compareKeys(ctx, entry, logicalIndexEntry{keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, entry, logicalIndexEntry{keys: key})
 			if err != nil {
-				return err
+				return uniqueConflict{}, err
 			}
 			if cmp != 0 {
 				break
@@ -305,49 +348,54 @@ retry:
 				}
 			}
 			if !replaced {
-				conflict = true
-				break
+				if action != nil && stableIsolation(s.owner.isolation) {
+					head, err := conflictEntryVersion(versions, entry)
+					if err != nil {
+						return uniqueConflict{}, err
+					}
+					outcome.row = head
+					outcome.committed = head.born != 0
+				}
+				return outcome, nil
 			}
 		}
-		for _, overlay := range [][]rowVersion{s.ownWrites[ref.Address], s.stage.rows[ref.Address]} {
-			if conflict {
-				break
-			}
+		for _, overlay := range [2][]rowVersion{s.ownWrites[ref.Address], s.stage.rows[ref.Address]} {
 			for _, own := range overlay {
 				if uniqueRowExcluded(own.row, excluded) || uniqueRowDeleted(own.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 					continue
 				}
 				equal, err := bound.matches(&evaluation, own.values, key)
 				if err != nil {
-					return err
+					return uniqueConflict{}, err
 				}
 				if equal {
-					conflict = true
-					break
+					outcome.row = own
+					return outcome, nil
 				}
 			}
 		}
-		if !conflict {
-			for _, accepted := range prefix {
-				equal, err := bound.matches(&evaluation, accepted, key)
-				if err != nil {
-					return err
-				}
-				if equal {
-					conflict = true
-					break
-				}
-			}
-		}
-		if conflict {
-			allowed, err := uniqueKeyDetailAllowed(auth, ref, index.sqlIndex.keys)
+		for _, accepted := range prefix {
+			equal, err := bound.matches(&evaluation, accepted, key)
 			if err != nil {
-				return err
+				return uniqueConflict{}, err
 			}
-			return uniqueDiagnostic(ctx, parent, index, key, namespace.name, s.output, allowed, false, current)
+			if equal {
+				return outcome, nil
+			}
 		}
 	}
-	return nil
+	return uniqueConflict{}, nil
+}
+
+func conflictEntryVersion(versions []rowVersion, entry logicalIndexEntry) (rowVersion, error) {
+	if entry.position < 0 || entry.position >= len(versions) {
+		return rowVersion{}, ErrCatalogReplaced
+	}
+	head := versions[entry.position]
+	if head.row != entry.row || head.version != entry.version {
+		return rowVersion{}, ErrCatalogReplaced
+	}
+	return head, nil
 }
 
 func (s *StatementScope) uniqueKeyChanged(ref ObjectRef, old, next []sqltype.Value) (bool, error) {

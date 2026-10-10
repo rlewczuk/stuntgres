@@ -25,6 +25,7 @@ type lexer struct {
 	// Exact grammar row-end evidence bounds private INSERT scalar replay.
 	queryRowEnd       int
 	insertScalarEntry bool
+	insertStatement   bool // Enables narrow ON CONFLICT lookahead only inside ordinary INSERT.
 	insertScalarEnd   int
 	typeInputEntry    bool
 	typeInputMode     bool
@@ -693,6 +694,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if err := l.options.Context.Err(); err != nil {
 			l.err = err
 			return 0
+		}
+	}
+	if l.err == nil && l.insertStatement && token.code == ON {
+		next := l.nextRaw()
+		if l.err != nil {
+			return 0
+		}
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == CONFLICT && next.lexeme.keyword != nil {
+			token.code = ON_CONFLICT_LA
 		}
 	}
 	if l.err == nil && token.code == AT {

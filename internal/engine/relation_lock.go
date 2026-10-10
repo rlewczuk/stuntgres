@@ -237,6 +237,58 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 	m.mu.Unlock()
 	notifyRequests(notify)
 }
+
+// Candidate omission changes only key contributions, not source row/relation
+// grants. Reuse caller-owned scratch and preserve preexisting stronger modes.
+func (m *relationLockManager) checkpointUnique(t *relationTicket, held relationLockCheckpoint) relationLockCheckpoint {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if held == nil {
+		held = make(relationLockCheckpoint)
+	}
+	clear(held)
+	if m.valid(t) && !t.persistent {
+		for ref := range t.resources {
+			if ref.key != nil && ref.kind == ordinaryResource && ref.completion == nil {
+				if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 {
+					held[ref] = entry.holders[t].mode
+				}
+			}
+		}
+	}
+	return held
+}
+func (m *relationLockManager) restoreUnique(t *relationTicket, held relationLockCheckpoint) {
+	var notify *relationRequest
+	m.mu.Lock()
+	if m.valid(t) && !t.persistent {
+		for ref := range t.resources {
+			if ref.key == nil || ref.kind != ordinaryResource || ref.completion != nil {
+				continue
+			}
+			entry := m.entries[ref]
+			if entry == nil {
+				continue
+			}
+			hold := entry.holders[t]
+			mode := hold.mode & held[ref]
+			if mode == hold.mode {
+				continue
+			}
+			if mode == 0 {
+				delete(entry.holders, t)
+				delete(t.resources, ref)
+			} else {
+				hold.mode = mode
+				entry.holders[t] = hold
+			}
+			m.settle(entry, &notify)
+			m.retire(ref, entry)
+		}
+	}
+	m.mu.Unlock()
+	notifyRequests(notify)
+}
 func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
 	r.err = err
 	r.terminal = true

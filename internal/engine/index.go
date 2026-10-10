@@ -39,9 +39,10 @@ func (d *indexDefinition) publicationState() (ready, valid, live bool) {
 }
 
 type logicalIndexEntry struct {
-	keys    []sqltype.Value
-	row     RowID
-	version VersionID
+	keys     []sqltype.Value
+	row      RowID
+	version  VersionID
+	position int // Physical slot in the simultaneously published immutable storage.
 }
 type logicalIndexRoot struct {
 	entries    []logicalIndexEntry // Ordered B-tree keys, including NULLs.
@@ -323,7 +324,7 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 	}
 	entries := make([]logicalIndexEntry, 0, len(store.versions))
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
-	for _, row := range store.versions {
+	for position, row := range store.versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -339,6 +340,7 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 			if err != nil {
 				return nil, err
 			}
+			entry.position = position
 			entries = append(entries, entry)
 		}
 	}
@@ -361,7 +363,7 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 	ended := make(map[RowID]VersionID, endedCount)
 	added := make([]logicalIndexEntry, 0, len(p.writes))
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
-	for _, row := range p.writes {
+	for i, row := range p.writes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -387,6 +389,7 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 		if err != nil {
 			return nil, err
 		}
+		entry.position = publicationSlot(p, i)
 		added = append(added, entry)
 	}
 	if p.deletion != nil {

@@ -190,6 +190,11 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	stores[f.parent.address] = store
 	parents := map[ObjectAddress]bool{f.parent.address: rebuild}
 	publication := rowPublication{address: f.parent.address, relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.address], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
+	if materialize {
+		if err := f.e.prepareRowPublication(&publication, TxRef{owner: f.e, epoch: f.catalog.epoch}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
 	output := sqltype.OutputEnvironment{DateStyle: sqltype.DateStyle{Style: sqltype.DateGerman, Order: sqltype.DateDMY}}
 	roots, err := f.e.prepareIndexPublication(ctx, f.catalog, f.catalog, stores, f.roots, parents, nil, []rowPublication{publication}, materialize, output, &f.auth)
 	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || deletion != nil && !reflect.DeepEqual(deletion.rows, beforeDeletes) {
@@ -227,8 +232,14 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ObjectAddr
 		t.Fatal("completion omitted substantive root")
 	}
 	want := make([]logicalIndexEntry, len(rows))
+	nextPosition := len(f.stores[f.parent.address].versions)
 	for i, row := range rows {
-		want[i] = logicalIndexEntry{row: row.row, version: row.version, keys: slices.Clone(row.values[:f.keys])}
+		_, position, found := rowByID(f.stores[f.parent.address].versions, row.row, -1)
+		if !found {
+			position = nextPosition
+			nextPosition++
+		}
+		want[i] = logicalIndexEntry{row: row.row, version: row.version, position: position, keys: slices.Clone(row.values[:f.keys])}
 	}
 	if !reflect.DeepEqual(root.entries, want) {
 		t.Fatal("wrong completion membership", root.entries, want)

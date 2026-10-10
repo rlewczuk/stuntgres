@@ -2195,3 +2195,48 @@ are covered by admission/lifecycle scenarios, not inferred solely from smoke.
 Role rename/settings, password handshake and catalogs remain adjacent omissions;
 native explicit transactions and existing DROP/COMMENT gates remain bounded.
 
+## INSERT conflict omission acceptance
+
+All public SQL scenarios live in the untagged shared
+`TestReferenceInsertConflict` family. The completed oracle-first definitions have
+no backend discovery filters or observation logs. Native-specific provider,
+Restore and cancellation boundaries are independent expectations, not fake
+PostgreSQL capabilities. Package supplements use actual expressions, descriptors,
+roots, cursors, roles/ACLs and lock tickets; they issue no public SQL.
+
+Run each quickcheck separately under a 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflict' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflict' VERBOSE=0
+make quickcheck PACKAGES='./internal/parser ./internal/engine ./internal/sqltype' RUN='^TestInsertConflict' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestInsertConflict(Predicate|IndexPositionHints|AuthorizationAfterWait)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestInsertConflictAuthorizationAfterWait$' RACE=1 VERBOSE=0
+make quickcheck PACKAGES=./internal/engine TEST_FLAGS='-count=1 -timeout=120s -run NoTestMatches -bench BenchmarkInsertConflictCommittedOmissions -benchmem' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflictFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflictFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflict(Contention|ConcurrentSameKey|SnapshotVisibility|ReadCommittedInvisibleConflict|Cancellation|OmittedReservations|ConcurrentProviderPhases|CanceledProvider)$' RACE=1 VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflict(Contention|ConcurrentSameKey|SnapshotVisibility|ReadCommittedInvisibleConflict|Cancellation|OmittedReservations|ConcurrentProviderPhases|CanceledProvider)$' RACE=1 VERBOSE=0
+```
+
+The feature smoke asserts exact accepted rows/counts and empty command metadata,
+selected-first/unselected uniqueness, partial strong implication and nested truth
+rejection with unchanged TRUE/FALSE/NULL rows, native control round-trips and40001
+for a post-frontier repeatable-read conflict. Focused race cases independently
+assert contention outcomes, sum-of-counts1, provider phases, resource cleanup,
+invisible read-committed skips and atomic direct/held cancellation.
+`NestedTruthTests` separates full three-valued value fidelity from released
+conservative inference, asserting full42P10 at Execute for mathematically valid
+but unsupported implications. Native `AuthorizationAfterWait` independently
+observes an actual pending key/accepted-prefix claim before SELECT/INSERT
+revocation and proves failure cleanup, unchanged sentinel identity/data and
+regranted publication. `IndexPositionHints` covers all entries, publication slots,
+partial membership, shape/trusted/private reconstruction, reusable TYPE tombstones,
+bad-hint fences and ordinary/nonstable bypass. The benchmark reports both batch
+cost and ns/proposal across128,4096,65536 committed duplicates; compare scaling,
+not a brittle timing threshold. Its make TEST_FLAGS override retains the harness
+and gives the benchmark a120-second internal timeout.
+Passing native alone does not validate the changed reference definitions.
+Ordinary quickcheck precedes review; final fullcheck runs after integration under
+one 1800-second deadline.
+

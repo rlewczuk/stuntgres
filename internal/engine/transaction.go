@@ -265,6 +265,7 @@ type StatementScope struct {
 	ownWrites             map[ObjectAddress][]rowVersion
 	ownDeletes            map[ObjectAddress]*privateDeletionRoot
 	uniqueBinding         *uniqueWriteBinding
+	insertConflict        *boundInsertConflict
 	Expected              *StatementDescription
 	implicit              bool
 	input                 sqltype.InputEnvironment
@@ -488,9 +489,17 @@ retry:
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
 		s.owner.mu.Unlock()
-		for i, row := range rows {
-			if err := s.checkUniqueRow(ref, row, nil, rows[:i]); err != nil {
+		if s.insertConflict != nil {
+			var err error
+			rows, err = s.revalidateConflictRows(ref, rows)
+			if err != nil {
 				return err
+			}
+		} else {
+			for i, row := range rows {
+				if err := s.checkUniqueRow(ref, row, nil, rows[:i]); err != nil {
+					return err
+				}
 			}
 		}
 		goto retry
@@ -517,6 +526,9 @@ retry:
 		if len(row) != len(relation.columns) {
 			return errors.New("stuntgres: invalid staged row width")
 		}
+	}
+	if s.insertConflict != nil {
+		s.insertConflict.affected = len(rows)
 	}
 	if len(rows) == 0 {
 		return nil
@@ -830,6 +842,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.ownDeletes = nil
 	s.ownWrites = nil
 	s.uniqueBinding = nil
+	s.insertConflict = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
 	s.indexMaintenance = nil
