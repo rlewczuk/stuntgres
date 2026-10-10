@@ -1235,8 +1235,8 @@ arrays/domains retain structural equality; supported tree carriers retain their
 binary-compatible structural text equality. Projection is evaluated once before
 deduplication; ORDER must reference projected outputs, and locking DISTINCT is
 rejected. Views/native replay and INSERT SELECT share source-typed deduplication
-before destination assignment. DISTINCT ON and grouping DISTINCT,
-ordinary array operators/order and new FROM forms remain excluded.
+before destination assignment. DISTINCT ON, ordinary array operators/order and
+new FROM forms remain excluded.
 See [distinct projected rows](docs/QUERIES.md#distinct-projected-rows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
 
@@ -1638,12 +1638,30 @@ FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. Window executi
 is restricted to row_number() and unmodified count(*); array_agg remains excluded.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
-Equal typed keys, including NULL keys, form one group; empty global count returns one row
-containing zero, while empty grouped input returns no rows. Group order is not
+Equal typed keys, including NULL keys, form one group per set occurrence; empty global
+count returns zero. Empty input emits only empty-set groups, not keyed groups. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and
 `INSERT ... SELECT`; public rows never evaluate aggregates during `Next`.
 See [query grouping](docs/QUERIES.md#grouping-and-count--change-note) for examples,
 diagnostics and deliberate exclusions.
+
+Change note: `GROUPING SETS`, `ROLLUP`, `CUBE`, explicit `GROUP BY ()` and
+`GROUP BY ALL`/`DISTINCT` use the same eager grouping pipeline. Missing keys
+become typed NULLs; `GROUPING(a,b)` returns nonnullable INT4 bits (rightmost
+argument is bit0), distinguishing placeholders from source NULLs. Default/ALL
+retain duplicate sets; DISTINCT removes duplicate sets, not duplicate rows.
+Empty sets emit a group even on empty input. Keys/aggregate arguments are
+evaluated once per source occurrence across levels. Expansion is limited to4096
+raw sets before DISTINCT, CUBE to12 units and GROUPING to31 arguments. PostgreSQL
+18's correlated outer-Var operation is supported; correlated computed arguments
+retain its42803 boundary. Views/native controls, consumers and post-group windows
+share this contract; adjacent aggregate/window/type restrictions are unchanged.
+ROLLUP/CUBE accept ordinary expression units and indivisible sublists, not empty
+or nested grouping-set children. Supplied parameter identity is structural;
+held non-NULL/NULL reuse preserves included versus omitted indicator bits.
+See [grouping sets](docs/QUERIES.md#grouping-sets-and-grouping--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0`;
+oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0`.
 
 Change note: aggregate modifiers share one input pipeline across COUNT, Boolean,
 AVG, any_value, min/max and string_agg providers. FILTER admits only TRUE and runs

@@ -15,6 +15,8 @@ type queryBindingScope struct {
 	allowed           bool
 	clause            string
 	aggregates        []aggregateCall
+	groupingActive    bool
+	groupSets         [][]int
 	returning         *returningAliases
 	nonLateral        bool
 	rowDiagnosticMode relationLockMode
@@ -35,6 +37,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	oldNamespace := b.queryNamespace
 	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.aggregateClause, aggregates: b.aggregates, returning: b.returningAliases, nonLateral: b.queryNonLateral}
 	parent.relation = b.relation
+	parent.groupingActive, parent.groupSets = b.groupingActive, b.groupSets
 	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
 	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.windowRaw, b.windowDefinitions, b.windowCalls
 	parent.argumentOwner = b.argumentOwner
@@ -56,6 +59,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.queryScopes = append(b.queryScopes, parent)
 	b.queryNamespace, b.queryHidden = nil, nil
 	b.aggregates, b.aggregateClause = nil, ""
+	b.groupingActive, b.groupSets = false, nil
 	b.windowRaw, b.windowDefinitions, b.windowCalls = nil, nil, nil
 	b.argumentOwner = argumentWindowOwner{}
 	b.returningAliases = nil
@@ -66,6 +70,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 		b.queryScopes = b.queryScopes[:index]
 		b.queryNamespace, b.queryHidden = oldNamespace, parent.hidden
 		b.aggregates, b.aggregateClause = parent.aggregates, parent.clause
+		b.groupingActive, b.groupSets = parent.groupingActive, parent.groupSets
 		b.windowRaw, b.windowDefinitions, b.windowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls
 		b.argumentOwner = parent.argumentOwner
 		b.returningAliases, b.queryNonLateral = parent.returning, parent.nonLateral

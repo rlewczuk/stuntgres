@@ -107,6 +107,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			b.viewColumns[path] = viewColumn{frame: column.frame, slot: column.slot}
 			return nil
 		}
+	case parser.GroupingExpr:
+		if n, ok := bound.(groupingExpression); ok {
+			return children(r.Args, n.args)
+		}
 	case parser.AggregateExpr:
 		if n, ok := bound.(*windowExpression); ok && r.Window != nil {
 			if n.call < 0 || n.call >= len(b.windowCalls) {
@@ -459,10 +463,13 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		if err := validate(s.Where, viewWhereLiteral, 0); err != nil {
 			return err
 		}
-		for i, raw := range s.GroupBy {
-			if err := validate(raw, viewGroupLiteral, i); err != nil {
-				return err
-			}
+		i := 0
+		if err := s.GroupBy.VisitExpressions(func(raw parser.Expr) error {
+			err := validate(raw, viewGroupLiteral, i)
+			i++
+			return err
+		}); err != nil {
+			return err
 		}
 		if err := validate(s.Having, viewHavingLiteral, 0); err != nil {
 			return err
@@ -556,6 +563,8 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.GroupingExpr:
+		return args(r.Args)
 	case parser.SubqueryExpr:
 		if v.queries[r.Query] == nil {
 			return fmt.Errorf("stuntgres: missing frozen subquery syntax")

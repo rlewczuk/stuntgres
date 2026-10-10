@@ -453,6 +453,8 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 			}
 		}
 		return true
+	case GroupingExpr:
+		return true // Dedicated binder owns child analysis and clause diagnostics.
 	case AggregateExpr:
 		if r.Name == "sum" {
 			// SUM analyzes children and FILTER before its VALUES clause error.

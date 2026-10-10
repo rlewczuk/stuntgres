@@ -18,6 +18,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		}
 	}
 	switch e := node.(type) {
+	case groupingExpression:
+		args(e.args)
 	case regclassArrayExpression:
 		args(e.elements)
 	case updateOldExpression:
@@ -123,58 +125,29 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	e := node.(aggregateExpression)
 	call := b.aggregates[e.slot]
-	owner := b.frameID()
-	local := false
-	index := -1
 	walkArguments := func(visit func(BoundExpr)) {
 		call.expressions(func(expr BoundExpr) { walkQueryArgumentExpression(expr, visit) })
 	}
-	walkArguments(func(node BoundExpr) {
-		var frame uint32
-		switch n := node.(type) {
-		case columnExpression:
-			frame = n.frame
-		case aggregateExpression:
-			frame = n.frame
-		case groupExpression:
-			frame = n.frame
-		}
-		if frame == 0 {
-			return
-		}
-		if frame == b.frameID() {
-			local = true
-			return
-		}
-		for i := len(b.queryScopes) - 1; i >= 0; i-- {
-			scope := &b.queryScopes[i]
-			if scope.allowed && scope.frame == frame {
-				if i > index {
-					index = i
-				}
-				break
-			}
-		}
-	})
-	if local {
-		index = -1
-	}
-	if index >= 0 {
-		owner = b.queryScopes[index].frame
-	}
+	owner, index := b.argumentQueryOwner(walkArguments)
 	clause := b.aggregateClause
 	if index >= 0 {
 		clause = b.queryScopes[index].clause
 	}
-	var nested aggregateExpression
-	hasNested := false
+	var nested BoundExpr
 	walkArguments(func(node BoundExpr) {
-		if n, ok := node.(aggregateExpression); ok && n.frame == owner && !hasNested {
-			nested, hasNested = n, true
+		switch n := node.(type) {
+		case aggregateExpression:
+			if n.frame == owner && nested == nil {
+				nested = n
+			}
+		case groupingExpression:
+			if n.frame == owner && nested == nil {
+				nested = n
+			}
 		}
 	})
-	if hasNested {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.pos)
+	if nested != nil {
+		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
 	// SUM resolves its children and signature before the INSERT VALUES restriction.
 	// Keep other aggregates' incumbent clause handling unchanged.
@@ -219,6 +192,47 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	}
 	e.frame = owner
 	return e, nil
+}
+
+// Pick the nearest visible argument frame, ignoring child-local query frames.
+func (b *expressionBinder) argumentQueryOwner(walk func(func(BoundExpr))) (uint32, int) {
+	owner, index, local := b.frameID(), -1, false
+	walk(func(node BoundExpr) {
+		var frame uint32
+		switch n := node.(type) {
+		case columnExpression:
+			frame = n.frame
+		case aggregateExpression:
+			frame = n.frame
+		case groupingExpression:
+			frame = n.frame
+		case groupExpression:
+			frame = n.frame
+		}
+		if frame == 0 {
+			return
+		}
+		if frame == b.frameID() {
+			local = true
+			return
+		}
+		for i := len(b.queryScopes) - 1; i >= 0; i-- {
+			scope := &b.queryScopes[i]
+			if scope.allowed && scope.frame == frame {
+				if i > index {
+					index = i
+				}
+				break
+			}
+		}
+	})
+	if local {
+		index = -1
+	}
+	if index >= 0 {
+		owner = b.queryScopes[index].frame
+	}
+	return owner, index
 }
 
 func (b *expressionBinder) aggregateCallAt(e aggregateExpression) (aggregateCall, bool) {

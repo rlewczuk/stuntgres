@@ -98,7 +98,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 		hidden.Address.SubID = 2
 		grant(visible, SelectPrivilege)
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION am_unit_reader")
-		for _, q := range []string{"SELECT count(v) FILTER(WHERE hidden>0) FROM am_acl WHERE FALSE", "SELECT count(v ORDER BY hidden) FILTER(WHERE FALSE) FROM am_acl"} {
+		for _, q := range []string{"SELECT count(v) FILTER(WHERE hidden>0) FROM am_acl WHERE FALSE", "SELECT count(v ORDER BY hidden) FILTER(WHERE FALSE) FROM am_acl", "SELECT GROUPING(hidden) FROM am_acl WHERE FALSE GROUP BY ROLLUP(hidden)", "SELECT GROUPING(hidden) FROM am_acl GROUP BY GROUPING SETS((hidden),()) HAVING FALSE"} {
 			for _, prepared := range []bool{false, true} {
 				ast := statement(t, q)
 				var expected *StatementDescription
@@ -132,7 +132,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 		if len(held.Results) != 1 || held.Results[0].Name != "count" || held.Results[0].Usage.Type == nil || held.Results[0].Usage.Type.ID() != sqltype.Int8 {
 			t.Fatal("modifier COUNT metadata", held.Results)
 		}
-		execute := func(denied bool) {
+		execute := func(denied bool, want int64) {
 			t.Helper()
 			scope, err := e.StartStatement(op)
 			if err != nil {
@@ -154,16 +154,30 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 			}
 			got := tuples(result)
 			result.Rows.Close()
-			want := int64(0)
-			if populated {
-				want = 1
-			}
 			if len(got) != 1 || got[0][0] != want {
 				t.Fatal(got, want)
 			}
 		}
-		execute(false)
+		want := int64(0)
+		if populated {
+			want = 1
+		}
+		execute(false, want)
 		grant(hidden, 0)
-		execute(true)
+		execute(true, 0)
+		grant(hidden, SelectPrivilege)
+		ast = statement(t, "SELECT GROUPING(hidden) FROM am_acl GROUP BY ROLLUP(hidden) HAVING GROUPING(hidden)=1")
+		held, err = e.Describe(op, ast)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(held.Results) != 1 || held.Results[0].Name != "grouping" || held.Results[0].Usage.Type == nil || held.Results[0].Usage.Type.ID() != sqltype.Int4 {
+			t.Fatal("held GROUPING metadata", held.Results)
+		}
+		execute(false, 1)
+		grant(hidden, 0)
+		execute(true, 0)
+		grant(hidden, SelectPrivilege)
+		execute(false, 1)
 	}
 }

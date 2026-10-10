@@ -23,6 +23,17 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	}
 	same := b.sameGroupExpression
 	switch e := a.(type) {
+	case groupingExpression:
+		o, ok := other.(groupingExpression)
+		if !ok || e.frame != o.frame || len(e.args) != len(o.args) {
+			return false
+		}
+		for i, arg := range e.args {
+			if !same(arg, o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case subqueryExpression:
 		o, ok := other.(subqueryExpression)
 		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || e.queryPlan.Root.(*projectNode).frame != o.queryPlan.Root.(*projectNode).frame || len(e.comparisons) != len(o.comparisons) {
@@ -359,6 +370,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (BoundExpr, error) {
 	if err := b.ctx.Err(); err != nil {
 		return nil, err
+	}
+	if operation, ok := expr.(groupingExpression); ok {
+		return b.rewriteGrouping(operation, keys)
 	}
 	for i, key := range keys {
 		if b.sameGroupExpression(expr, key) {

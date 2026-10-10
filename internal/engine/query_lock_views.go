@@ -183,7 +183,7 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 		suffix = "UNION/INTERSECT/EXCEPT"
 	case project.syntax.Distinct != nil:
 		suffix = "DISTINCT clause"
-	case len(project.syntax.GroupBy) != 0:
+	case project.syntax.GroupBy != nil:
 		suffix = "GROUP BY clause"
 	case project.syntax.Having != nil:
 		suffix = "HAVING clause"

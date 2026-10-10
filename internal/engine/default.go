@@ -1114,6 +1114,26 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 	case aggregateExpression:
 		n.expressionInfo = info
 		rebound = n
+	case groupingExpression:
+		var args []BoundExpr
+		for i, arg := range n.args {
+			next, replaced, failure := retagBoundTypesWithQuery(arg, retainedType, queryMapper)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if replaced {
+				changed = true
+				if args == nil {
+					args = append([]BoundExpr(nil), n.args...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			n.args = args
+		}
+		n.expressionInfo = info
+		rebound = n
 	case *windowExpression:
 		copy := *n
 		copy.expressionInfo = info

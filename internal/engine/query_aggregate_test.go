@@ -195,13 +195,13 @@ func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 	two, _ := sqltype.Integer(typ, 2)
 	groups := []queryGroup{{keys: []sqltype.Value{one}}, {keys: []sqltype.Value{two}}}
 	// A forced collision bucket is not evidence that its first key is equal.
-	index, err := findQueryGroup(context.Background(), node.grouping, []sqltype.Value{two}, groups, []int{0, 1})
+	index, err := findQueryGroup(context.Background(), node.grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1})
 	if err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := findQueryGroup(ctx, node.grouping, []sqltype.Value{two}, groups, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := findQueryGroup(ctx, node.grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -268,7 +268,7 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 	one, _ := sqltype.Integer(usage.Type, 1)
 	two, _ := sqltype.Integer(usage.Type, 2)
 	collision := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := findQueryGroup(collision, node.grouping, []sqltype.Value{two}, []queryGroup{{keys: []sqltype.Value{one}}, {keys: []sqltype.Value{two}}}, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := findQueryGroup(collision, node.grouping, []sqltype.Value{two}, []int{0}, []queryGroup{{keys: []sqltype.Value{one}}, {keys: []sqltype.Value{two}}}, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	// A real admitted TEXT key is scanned and canceled inside the shared hash.

@@ -28,16 +28,13 @@ func TestQueryAggregateGrammar(t *testing.T) {
 	}
 	s := statements[0].(*Select)
 	call := s.Targets[0].(AggregateExpr)
-	if !call.Star || call.Name != "count" || call.Pos.Character != 14 || len(s.GroupBy) != 1 || s.Having == nil || s.From == nil {
+	if !call.Star || call.Name != "count" || call.Pos.Character != 14 || s.GroupBy == nil || len(s.GroupBy.Items) != 1 || s.Having == nil || s.From == nil {
 		t.Fatal(s, call)
 	}
 }
 func TestQueryAggregateExclusions(t *testing.T) {
 	for _, q := range []string{
 		"SELECT count(* ORDER BY v) FROM t",
-		"SELECT k FROM t GROUP BY ROLLUP(k)", "SELECT k FROM t GROUP BY CUBE(k)",
-		"SELECT k FROM t GROUP BY GROUPING SETS ((k))", "SELECT k FROM t GROUP BY ()",
-		"SELECT k FROM t GROUP BY DISTINCT k", "SELECT k FROM t GROUP BY ALL k",
 		"SELECT k FROM t GROUP BY k FETCH FIRST 1 ROW WITH TIES",
 	} {
 		t.Run(q, func(t *testing.T) {

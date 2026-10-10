@@ -240,16 +240,56 @@ func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog
 		}
 		text += clause + "WHERE " + part
 	}
-	if len(s.GroupBy) > 0 {
-		var keys []string
-		for i, expr := range s.GroupBy {
-			part, err := renderer.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewGroupLiteral, target: i})
-			if err != nil {
-				return "", err
+	if s.GroupBy != nil {
+		leaf := 0
+		var render func([]parser.GroupItem) (string, error)
+		render = func(items []parser.GroupItem) (string, error) {
+			parts := make([]string, len(items))
+			for i, item := range items {
+				if err := ctx.Err(); err != nil {
+					return "", err
+				}
+				if item.Kind == parser.GroupExpression {
+					text, err := renderer.expressionSQL(ctx, catalog, item.Expr, viewLiteralPath{clause: viewGroupLiteral, target: leaf})
+					if err != nil {
+						return "", err
+					}
+					leaf++
+					parts[i] = text
+					continue
+				}
+				text, err := render(item.Items)
+				if err != nil {
+					return "", err
+				}
+				switch item.Kind {
+				case parser.GroupEmpty:
+					parts[i] = "()"
+				case parser.GroupList:
+					parts[i] = "(" + text + ")"
+				case parser.GroupSets:
+					parts[i] = "GROUPING SETS (" + text + ")"
+				case parser.GroupRollup:
+					parts[i] = "ROLLUP(" + text + ")"
+				case parser.GroupCube:
+					parts[i] = "CUBE(" + text + ")"
+				default:
+					return "", fmt.Errorf("stuntgres: invalid stored grouping item")
+				}
 			}
-			keys = append(keys, part)
+			return strings.Join(parts, ", "), nil
 		}
-		text += clause + "GROUP BY " + strings.Join(keys, ", ")
+		keys, err := render(s.GroupBy.Items)
+		if err != nil {
+			return "", err
+		}
+		modifier := ""
+		if s.GroupBy.Distinct {
+			modifier = "DISTINCT "
+		} else if s.GroupBy.All {
+			modifier = "ALL "
+		}
+		text += clause + "GROUP BY " + modifier + keys
 	}
 	if s.Having != nil {
 		part, err := renderer.expressionSQL(ctx, catalog, s.Having, viewLiteralPath{clause: viewHavingLiteral})
@@ -462,6 +502,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return strings.Join(parts, ", "), nil
 	}
 	switch e := raw.(type) {
+	case parser.GroupingExpr:
+		text, err := args(e.Args)
+		if err != nil {
+			return "", err
+		}
+		return "GROUPING(" + text + ")", nil
 	case parser.RowExpr:
 		text, err := args(e.Fields)
 		if err != nil {

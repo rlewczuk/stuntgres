@@ -100,6 +100,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 		next = n
 	case aggregateExpression:
 		next = n
+	case groupingExpression:
+		n.args = args(n.args)
+		next = n
 	case *windowExpression:
 		copy := *n
 		next = &copy

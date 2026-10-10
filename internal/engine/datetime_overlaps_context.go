@@ -23,7 +23,7 @@ func overlapsExecutionConstant(node BoundExpr, c *EvalContext) bool {
 		return true
 	case parameterExpression:
 		return n.number > 0 && n.number <= len(c.Parameters)
-	case columnExpression, groupExpression, aggregateExpression, subqueryExpression:
+	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
 		return false
 	}
 	if plannedVolatility(node) != Immutable {
@@ -63,7 +63,7 @@ func overlapsInlineSafe(e datetimeOverlapsExpression) bool {
 // boolean/CASE nodes cost zero; only function-backed work adds to the threshold.
 func overlapsNodeCost(node BoundExpr) int {
 	switch n := node.(type) {
-	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, updateOldExpression, deleteNewExpression:
+	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, groupingExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, updateOldExpression, deleteNewExpression:
 		return 0
 	case caseExpression:
 		if n.test != nil {

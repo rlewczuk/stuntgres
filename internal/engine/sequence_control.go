@@ -384,7 +384,7 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 	return prefix, suffix
 }
 func restoreSequenceState(s *parser.Select) bool {
-	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) != 1 {
+	if s.From != nil || s.Where != nil || s.GroupBy != nil || s.Having != nil || s.Order != nil || len(s.Targets) != 1 {
 		return false
 	}
 	for _, label := range s.Labels {

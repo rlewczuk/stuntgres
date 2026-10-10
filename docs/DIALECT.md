@@ -1190,8 +1190,8 @@ Dump/Restore retain the same contract. Arrays/domains use structural key equalit
 Enums and enum domains use declaration-ordinal keys. Explicit ORDER aliases and
 ordinals preserve the selected visible occurrence, including independent repeated
 volatile projections. Projected enum-domain arrays do not widen array storage.
-Ordinary array operators/order, DISTINCT ON and grouping DISTINCT
-modifiers remain excluded. No implicit order is promised.
+Ordinary array operators/order and DISTINCT ON remain excluded.
+No implicit order is promised.
 See [distinct projected rows](QUERIES.md#distinct-projected-rows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
 
@@ -1511,14 +1511,31 @@ independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 
 Grouping uses the ordinary no-FROM local input. It does not add
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
-other window providers and explicit frames, DISTINCT/ALL grouping,
-grouping sets/ROLLUP/CUBE/empty grouping sets. Group-expression
+other window providers or explicit frames. GROUPING SETS, ROLLUP, CUBE, explicit
+empty groups and ALL/DISTINCT grouping clauses are admitted. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0`;
 real independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
 Expression-count smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCountExpressionSmokeMigration$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0`.
+Change note: omitted whole grouping expressions become typed NULLs; real input
+NULLs retain included-key GROUPING bit0. The operation returns nonnullable INT4,
+rightmost argument low bit, at most31 arguments matched to exact expressions of
+their owning query. Default/ALL retain set occurrences; GROUP BY DISTINCT
+deduplicates sets, not output rows. Empty sets produce a group even without input.
+ROLLUP/CUBE arguments are ordinary expression units, with implicit sublists
+indivisible; empty and recursive grouping constructs instead belong to the
+general grouping-item list used by GROUPING SETS. Nested unreserved function
+names retain scalar-call ownership and the existing native capability boundary.
+Typed supplied parameters match by identity, not equal runtime values; held NULL
+keys retain included0 versus omitted1 bits and do not capture a previous value.
+CUBE permits12 units; raw expansion permits4096 sets before DISTINCT. Outer Var
+GROUPING in scalar subqueries follows PostgreSQL18 ownership; correlated computed
+arguments retain42803. INSERT RETURNING, domain constraints and other adjacent
+boundaries remain unchanged. Smoke/oracle:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0`.
 Boolean smoke: `make quickcheck PACKAGES=./reference RUN='^TestReference(BooleanAggregate[A-Za-z0-9_]*|AnyValueSourceACL)$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0`.
 Parameterless count() gives42809 and preserves a qualified call name in its message.

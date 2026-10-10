@@ -39,7 +39,7 @@ func TestQueryDistinctGrammar(t *testing.T) {
 }
 
 func TestQueryDistinctGrammarBoundaries(t *testing.T) {
-	for _, q := range []string{"SELECT DISTINCT ON (a) a FROM t", "SELECT a FROM t GROUP BY DISTINCT a", "SELECT DISTINCT DISTINCT a FROM t", "SELECT DISTINCT FROM t"} {
+	for _, q := range []string{"SELECT DISTINCT ON (a) a FROM t", "SELECT DISTINCT DISTINCT a FROM t", "SELECT DISTINCT FROM t"} {
 		statements, err := Parse(q)
 		var diagnostic *sqlstate.Error
 		if err == nil || len(statements) != 0 || !errors.As(err, &diagnostic) {
@@ -48,5 +48,17 @@ func TestQueryDistinctGrammarBoundaries(t *testing.T) {
 		if q == "SELECT DISTINCT FROM t" && (diagnostic.Code != "42601" || diagnostic.Message != `syntax error at or near "FROM"` || diagnostic.Position != "17") {
 			t.Fatal(diagnostic)
 		}
+	}
+	statements, err := Parse("SELECT a FROM t GROUP BY DISTINCT a")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	s := statements[0].(*Select)
+	if s.Distinct != nil || s.GroupBy == nil || !s.GroupBy.Distinct || s.GroupBy.All || len(s.GroupBy.Items) != 1 || s.GroupBy.Items[0].Kind != GroupExpression {
+		t.Fatal(s.Distinct, s.GroupBy)
+	}
+	column, ok := s.GroupBy.Items[0].Expr.(ColumnExpr)
+	if !ok || len(column.Name.Parts) != 1 || column.Name.Parts[0].Text != "a" {
+		t.Fatal(s.GroupBy)
 	}
 }

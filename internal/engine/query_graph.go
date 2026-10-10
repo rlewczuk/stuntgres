@@ -180,6 +180,8 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 						frame = n.frame
 					case aggregateExpression:
 						frame = n.frame
+					case groupingExpression:
+						frame = n.frame
 					case *windowExpression:
 						frame = n.frame
 					case subqueryExpression:

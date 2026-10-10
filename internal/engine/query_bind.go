@@ -174,54 +174,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
 	}
 	b.aggregateClause = "GROUP BY"
-	keys := make([]BoundExpr, len(s.GroupBy))
-	comparisons := make([]sqltype.Grouping, len(keys))
-	for i, raw := range s.GroupBy {
-		ordinal, ok, err := groupOrdinal(raw, width)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			keys[i] = projection[ordinal]
-		} else {
-			keys[i], err = b.bind(raw, expressionPolicy{context: projectionContext})
-			if err != nil {
-				return nil, err
-			}
-		}
-		if unknown, ok := keys[i].(unknownOutput); ok {
-			keys[i], err = b.bind(unknown.raw, expressionPolicy{context: projectionContext})
-			if err != nil {
-				return nil, err
-			}
-		}
-		if call := aggregateOccurrence(keys[i]); call != nil && (call.frame == 0 || call.frame == b.frameID()) {
-			return nil, expressionError("42803", "aggregate functions are not allowed in GROUP BY", call.pos)
-		}
-		if call := windowOccurrence(keys[i]); call != nil && call.frame == b.frameID() {
-			return nil, expressionError("42P20", "window functions are not allowed in GROUP BY", call.pos)
-		}
-		keys[i], err = b.finalizeProjection(keys[i])
-		if err != nil {
-			return nil, err
-		}
-		if b.noParameters && !ok {
-			if err := b.captureViewLiterals(raw, keys[i], viewGroupLiteral, i); err != nil {
-				return nil, err
-			}
-		}
-		comparisons[i], err = sqltype.BindGrouping(keys[i].ResultUsage())
-		if err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && keys[i].ResultUsage().Type.BaseType().ID() == sqltype.JSON {
-				copy := *diagnostic
-				if pos := raw.SourcePosition(); pos.Character > 0 {
-					copy.Position = fmt.Sprint(pos.Character)
-				}
-				return nil, &copy
-			}
-			return nil, err
-		}
+	keys, comparisons, sets, err := b.bindGroupClause(s.GroupBy, projection)
+	if err != nil {
+		return nil, err
 	}
+	b.groupSets = sets
 	b.aggregateClause = "HAVING"
 	var having BoundExpr
 	if s.Having != nil {
@@ -348,6 +305,27 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			result = namespace.frame[c.slot]
 			result.Name = targetNames[i]
 		}
+		if operation, ok := expr.(groupingExpression); ok && operation.frame == b.frameID() {
+			result.Nullable, result.NullabilityKnown = false, true
+		}
+		for keyIndex, key := range keys {
+			if !b.sameGroupExpression(expr, key) {
+				continue
+			}
+			for _, set := range sets {
+				present := false
+				for _, slot := range set {
+					if slot == keyIndex {
+						present = true
+						break
+					}
+				}
+				if !present {
+					result.Nullable, result.NullabilityKnown = true, true
+					break
+				}
+			}
+		}
 		if aggregate, ok := expr.(aggregateExpression); ok && aggregate.frame == b.frameID() {
 			result.NullabilityKnown = true
 			result.Nullable = b.aggregates[aggregate.slot].operation != aggregateCount
@@ -382,13 +360,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	grouped := len(keys) > 0 || len(b.aggregates) > 0 || having != nil
+	grouped := s.GroupBy != nil || b.groupingActive || len(b.aggregates) > 0 || having != nil
 	if b.queryRowDiagnosticMode != 0 {
 		suffix := ""
 		switch {
 		case s.Distinct != nil:
 			suffix = "DISTINCT clause"
-		case len(s.GroupBy) != 0:
+		case s.GroupBy != nil:
 			suffix = "GROUP BY clause"
 		case s.Having != nil:
 			suffix = "HAVING clause"
@@ -409,14 +387,15 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return nil, sqlError("0A000", "SELECT DISTINCT ON is unsupported")
 	}
 	if grouped {
-		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates))
+		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates)+1)
 		for i, key := range keys {
 			schema[i] = ColumnDescriptor{Usage: key.ResultUsage()}
 		}
 		for i, call := range b.aggregates {
 			schema[len(keys)+i] = ColumnDescriptor{Usage: call.provider.ResultUsage()}
 		}
-		root = &aggregateNode{querySchema: schema, child: root, keys: keys, grouping: comparisons, calls: append([]aggregateCall(nil), b.aggregates...)}
+		schema[len(schema)-1] = ColumnDescriptor{Usage: b.typ(sqltype.Int4).Usage()}
+		root = &aggregateNode{querySchema: schema, child: root, keys: keys, grouping: comparisons, sets: sets, groupingActive: b.groupingActive, calls: append([]aggregateCall(nil), b.aggregates...)}
 		for i, expr := range projection {
 			var err error
 			projection[i], err = b.rewriteGroup(expr, keys)

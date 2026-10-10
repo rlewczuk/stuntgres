@@ -332,7 +332,7 @@ func canSimplifyExists(query *BoundQuery) bool {
 		case *windowNode:
 			return false // Keep real window-key demand and eager failure frontiers.
 		case *aggregateNode:
-			if len(n.calls) != 0 {
+			if !n.discardableGrouping() {
 				return false
 			}
 		case *rowLockNode:
@@ -466,7 +466,7 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 		copy.child = child
 		return &copy
 	case *aggregateNode:
-		if len(n.calls) == 0 {
+		if n.discardableGrouping() {
 			copy := *n
 			copy.child = presenceQueryInput(n.child)
 			copy.presenceOnly = true

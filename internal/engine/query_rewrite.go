@@ -300,6 +300,8 @@ func expressionUsesFrame(expr BoundExpr, frame uint32) bool {
 			found = found || e.frame == frame
 		case aggregateExpression:
 			found = found || e.frame == frame
+		case groupingExpression:
+			found = found || e.frame == frame
 		case *windowExpression:
 			found = found || e.frame == frame
 		case groupExpression:

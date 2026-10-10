@@ -32,10 +32,10 @@ func TestCommentInquiryGroupedCalls(t *testing.T) {
 		t.Fatal(ss, err)
 	}
 	s := ss[0].(*Select)
-	if len(s.GroupBy) != 1 {
+	if s.GroupBy == nil || len(s.GroupBy.Items) != 1 {
 		t.Fatal(s.GroupBy)
 	}
-	call, ok := s.GroupBy[0].(FunctionExpr)
+	call, ok := s.GroupBy.Items[0].Expr.(FunctionExpr)
 	if !ok || call.Name.Parts[0].Text != "obj_description" || len(call.Args) != 2 {
 		t.Fatal(s.GroupBy)
 	}

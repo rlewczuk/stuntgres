@@ -8,12 +8,25 @@ import (
 
 type aggregateNode struct {
 	querySchema
-	child        LogicalNode
-	keys         []BoundExpr
-	grouping     []sqltype.Grouping
-	calls        []aggregateCall
-	presenceOnly bool // Retain analyzed grouping while discarding eligible EXISTS demand.
+	child          LogicalNode
+	keys           []BoundExpr
+	grouping       []sqltype.Grouping
+	calls          []aggregateCall
+	sets           [][]int // Canonical key IDs; each occurrence has isolated state.
+	groupingActive bool
+	presenceOnly   bool // Retain analyzed grouping while discarding eligible EXISTS demand.
 }
+
+func (n *aggregateNode) discardableGrouping() bool {
+	if len(n.calls) != 0 || n.groupingActive {
+		return false
+	}
+	if n.sets == nil {
+		return len(n.keys) > 0
+	}
+	return len(n.sets) == 1 && len(n.sets[0]) > 0
+}
+
 type queryGroup struct {
 	keys     []sqltype.Value
 	states   []any
@@ -68,12 +81,22 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	if err := child.drain(ctx); err != nil {
 		return indexedStage{}, err
 	}
+	sets := n.sets
+	if sets == nil {
+		keys := make([]int, len(n.keys))
+		for i := range keys {
+			keys[i] = i
+		}
+		sets = [][]int{keys}
+	}
 	groups := make([]queryGroup, 0)
-	var buckets map[uint64][]int
-	if len(n.keys) > 0 {
-		buckets = make(map[uint64][]int)
+	buckets := make([]map[uint64][]int, len(sets))
+	indices := make([]int, len(sets))
+	for i := range indices {
+		indices[i] = -1
 	}
 	scratch := make([]sqltype.Value, len(n.keys))
+	hashes := make([]uint64, len(n.keys))
 	orderedWidth := 0
 	hasDistinct := false
 	for _, call := range n.calls {
@@ -83,7 +106,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		}
 	}
 	tuple := make([]sqltype.Value, orderedWidth)
-	newGroup := func() (int, error) {
+	newGroup := func(occurrence int) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
@@ -94,7 +117,19 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		if hasDistinct {
 			group.distinct = make([]aggregateDistinctState, len(n.calls))
 		}
-		copy(group.keys, scratch)
+		for k, key := range n.keys {
+			group.keys[k] = sqltype.Null(key.ResultUsage().Type)
+		}
+		for _, k := range sets[occurrence] {
+			group.keys[k] = scratch[k]
+		}
+		if slot := len(n.keys) + len(n.calls); slot < len(group.keys) {
+			value, err := sqltype.Integer(n.Schema()[slot].Usage.Type, int64(occurrence))
+			if err != nil {
+				return 0, err
+			}
+			group.keys[slot] = value
+		}
 		for i, call := range n.calls {
 			var err error
 			group.states[i], err = call.provider.Init(ctx)
@@ -108,9 +143,13 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		groups = append(groups, group)
 		return len(groups) - 1, nil
 	}
-	if len(n.keys) == 0 {
-		if _, err := newGroup(); err != nil {
-			return indexedStage{}, err
+	for occurrence, set := range sets {
+		if len(set) == 0 {
+			index, err := newGroup(occurrence)
+			if err != nil {
+				return indexedStage{}, err
+			}
+			indices[occurrence] = index
 		}
 	}
 	evaluation := state.evaluation(ctx)
@@ -119,7 +158,6 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			return indexedStage{}, err
 		}
 		evaluation.Row = child.source.row(child.index(i))
-		hash := uint64(14695981039346656037)
 		for k, key := range n.keys {
 			value, err := key.Eval(&evaluation)
 			if err != nil {
@@ -137,21 +175,34 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			if err != nil {
 				return indexedStage{}, err
 			}
-			hash = (hash ^ h) * 1099511628211
+			hashes[k] = h
 		}
-		index := 0
-		if len(n.keys) > 0 {
-			index, err = findQueryGroup(ctx, n.grouping, scratch, groups, buckets[hash])
+		for occurrence, set := range sets {
+			if err := ctx.Err(); err != nil {
+				return indexedStage{}, err
+			}
+			if len(set) == 0 {
+				continue
+			}
+			hash := uint64(14695981039346656037)
+			for _, k := range set {
+				hash = (hash ^ hashes[k]) * 1099511628211
+			}
+			index, err := findQueryGroup(ctx, n.grouping, scratch, set, groups, buckets[occurrence][hash])
 			if err != nil {
 				return indexedStage{}, err
 			}
 			if index < 0 {
-				index, err = newGroup()
+				index, err = newGroup(occurrence)
 				if err != nil {
 					return indexedStage{}, err
 				}
-				buckets[hash] = append(buckets[hash], index)
+				if buckets[occurrence] == nil {
+					buckets[occurrence] = make(map[uint64][]int)
+				}
+				buckets[occurrence][hash] = append(buckets[occurrence][hash], index)
 			}
+			indices[occurrence] = index
 		}
 		for p, call := range n.calls {
 			if err := ctx.Err(); err != nil {
@@ -214,30 +265,35 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 					}
 				}
 			}
-			if len(call.distinct) > 0 {
-				scratch := [2]sqltype.Value{value, separator}
-				admit, err := groups[index].distinct[p].admit(ctx, call.distinct, scratch[:len(call.distinct)])
-				if err != nil {
+			for _, index := range indices {
+				if err := ctx.Err(); err != nil {
 					return indexedStage{}, err
 				}
-				if !admit {
+				if len(call.distinct) > 0 {
+					scratch := [2]sqltype.Value{value, separator}
+					admit, err := groups[index].distinct[p].admit(ctx, call.distinct, scratch[:len(call.distinct)])
+					if err != nil {
+						return indexedStage{}, err
+					}
+					if !admit {
+						continue
+					}
+				}
+				if len(call.order) > 0 {
+					if call.argument == nil || !value.IsNull() {
+						groups[index].ordered[p] = append(groups[index].ordered[p], tuple[:call.stageWidth]...)
+					}
 					continue
 				}
-			}
-			if len(call.order) > 0 {
-				if call.argument == nil || !value.IsNull() {
-					groups[index].ordered[p] = append(groups[index].ordered[p], tuple[:call.stageWidth]...)
+				if call.argument != nil && value.IsNull() {
+					continue
 				}
-				continue
-			}
-			if call.argument != nil && value.IsNull() {
-				continue
-			}
-			if err := call.provider.Advance(ctx, groups[index].states[p], value, separator); err != nil {
-				return indexedStage{}, err
-			}
-			if err := ctx.Err(); err != nil {
-				return indexedStage{}, err
+				if err := call.provider.Advance(ctx, groups[index].states[p], value, separator); err != nil {
+					return indexedStage{}, err
+				}
+				if err := ctx.Err(); err != nil {
+					return indexedStage{}, err
+				}
 			}
 		}
 	}
@@ -276,14 +332,14 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	return indexedStage{source: source, schema: n.Schema()}, nil
 }
 
-func findQueryGroup(ctx context.Context, grouping []sqltype.Grouping, keys []sqltype.Value, groups []queryGroup, candidates []int) (int, error) {
+func findQueryGroup(ctx context.Context, grouping []sqltype.Grouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return -1, err
 		}
 		equal := true
-		for k, value := range keys {
-			same, err := grouping[k].Equal(ctx, value, groups[candidate].keys[k])
+		for _, k := range active {
+			same, err := grouping[k].Equal(ctx, keys[k], groups[candidate].keys[k])
 			if err != nil {
 				return -1, err
 			}

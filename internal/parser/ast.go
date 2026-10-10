@@ -582,7 +582,7 @@ type Select struct {
 	Targets       []Expr
 	Labels        []Identifier
 	Where         Expr
-	GroupBy       []Expr
+	GroupBy       *GroupClause
 	Having        Expr
 	Windows       []WindowDefinition
 	Order         *Order
@@ -596,6 +596,72 @@ type Select struct {
 }
 
 func (*Select) statement() {}
+
+type GroupKind uint8
+
+const (
+	GroupExpression GroupKind = iota
+	GroupList
+	GroupEmpty
+	GroupSets
+	GroupRollup
+	GroupCube
+)
+
+// A nil clause means no grouping; an explicit empty item is never absent.
+type GroupClause struct {
+	Items         []GroupItem
+	Distinct, All bool
+	Pos           Position
+}
+
+type GroupItem struct {
+	Kind  GroupKind
+	Expr  Expr
+	Items []GroupItem
+	Pos   Position
+}
+
+func groupExpressionItem(expr Expr) GroupItem {
+	if row, ok := expr.(RowExpr); ok && !row.Explicit {
+		items := make([]GroupItem, len(row.Fields))
+		for i, field := range row.Fields {
+			items[i] = groupExpressionItem(field)
+		}
+		return GroupItem{Kind: GroupList, Items: items, Pos: row.Pos}
+	}
+	return GroupItem{Kind: GroupExpression, Expr: expr, Pos: expr.SourcePosition()}
+}
+
+// VisitExpressions gives capture, rendering and source traversal one stable
+// depth-first leaf order, including leaves below nested grouping constructs.
+func (g *GroupClause) VisitExpressions(visit func(Expr) error) error {
+	if g == nil {
+		return nil
+	}
+	var walk func([]GroupItem) error
+	walk = func(items []GroupItem) error {
+		for _, item := range items {
+			if item.Kind == GroupExpression {
+				if err := visit(item.Expr); err != nil {
+					return err
+				}
+			} else if err := walk(item.Items); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(g.Items)
+}
+
+type GroupingExpr struct {
+	Args []Expr
+	Pos  Position
+}
+
+func (GroupingExpr) expression()                {}
+func (e GroupingExpr) SourcePosition() Position { return e.Pos }
 
 // LeftmostSelect follows set arms only; FROM and expression subqueries are
 // separate statement frontiers and must never supply an outer INTO destination.

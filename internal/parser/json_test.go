@@ -36,7 +36,7 @@ func TestJSONTypedLiteralSyntax(t *testing.T) {
 				t.Fatal("missing ORDER BY", q)
 			}
 		case `SELECT json 'null' GROUP BY 1`:
-			if len(selected.GroupBy) != 1 {
+			if selected.GroupBy == nil || len(selected.GroupBy.Items) != 1 {
 				t.Fatal("missing GROUP BY", q)
 			}
 		case `SELECT json 'null' FOR UPDATE`:

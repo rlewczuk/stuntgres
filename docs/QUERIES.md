@@ -464,9 +464,8 @@ pipeline. INSERT SELECT deduplicates **source-typed** keys before destination
 assignment: different numeric source values that round to the same INTEGER still
 insert separate occurrences. OVERRIDING USER VALUE cannot prune a DISTINCT key.
 Failure/cancellation publishes no partial native cursor or INSERT batch.
-DISTINCT ON, grouping DISTINCT modifiers, ordinary array comparison
-operators/ordering, general FROM expansion and spill/planner machinery remain
-excluded.
+DISTINCT ON, ordinary array comparison operators/ordering, general FROM
+expansion and spill/planner machinery remain excluded.
 
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
@@ -817,9 +816,10 @@ Table SELECT and shared INSERT SELECT now accept scalar, comma-separated
 `count(expression)` evaluates its ordinary scalar argument once per input row
 and counts only non-NULL results: zero, false and empty strings count normally.
 Both have label `count`, SQL type `INT8`, and Go value `int64`.
-Without keys, aggregate calls or HAVING create one global group: an empty
-source has count zero. Empty keyed grouping instead has no rows, but retains the
-complete result schema. HAVING alone also creates a global group.
+Without a grouping clause, aggregate calls or HAVING create one global group:
+an empty source has count zero. Explicit empty sets also emit one row per set,
+even without an aggregate. Empty keyed-only grouping has no rows but retains
+the complete result schema. HAVING alone also creates a global group.
 
 Boolean aggregates `bool_and(b)`, `bool_or(b)` and `every(b)` accept BOOL
 and return nullable BOOL (Go bool for non-NULL values; scan NULL with sql.NullBool
@@ -1202,7 +1202,7 @@ use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
 
 This does not admit
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
-DISTINCT/ALL grouping modifiers, other window providers, grouping sets/ROLLUP/CUBE/empty sets,
+other window providers or explicit frames,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
 aggregate projections and selected sequence/REGCLASS siblings. Function-provider
@@ -3170,5 +3170,92 @@ Feature smoke and independent pinned PostgreSQL counterpart:
 ```sh
 make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0
+```
+
+## Grouping sets and GROUPING — change note
+
+`GROUPING SETS` concatenates explicitly requested sets, `ROLLUP` generates
+prefixes including the empty set, and `CUBE` generates subsets of its units.
+Parenthesized sublists are indivisible units; nested sets flatten, and multiple
+top-level grouping items form a Cartesian product. Repeated expressions inside
+a set are redundant. An absent GROUP BY clause differs from explicit `()`: the
+latter emits a group even on empty input and without ordinary aggregate calls.
+Empty nonempty-key sets emit no rows but retain the complete output schema.
+
+ROLLUP/CUBE argument lists contain ordinary expressions, not the general
+grouping-item list. `ROLLUP(a,(b,v))` preserves the sublist as one unit; `ROLLUP(())`
+and `CUBE(GROUPING SETS((a),()))` are42601 syntax errors. GROUPING SETS still
+accepts recursive grouping constructs, including nested SETS and valid producers.
+In `ROLLUP(cube(a))`, the inner unreserved name denotes an ordinary scalar call,
+not a producer. PostgreSQL reports42883 for that missing function; native retains
+the existing generic-call0A000 capability boundary, rather than rejecting the
+name as illegal grouping syntax or admitting a new function.
+
+Each set reads the same admitted FROM/WHERE input. Canonical keys and admitted
+aggregate arguments/FILTER/order inputs evaluate once per source row, then feed
+separate execution-local state for each set occurrence. A key absent from a set
+becomes a typed NULL, including an omitted whole computed or ordinal-selected
+constant expression. Placeholder NULLs are not merged with included source NULLs.
+Default grouping and `GROUP BY ALL` retain duplicate sets; `GROUP BY DISTINCT`
+removes duplicate sets before execution, not identical projected result rows.
+Use `SELECT DISTINCT` separately when duplicate output rows should disappear.
+
+```sql
+SELECT a,b,GROUPING(a,b),count(*),sum(v)
+FROM gs GROUP BY ROLLUP(a,b);
+-- Equivalent levels: GROUPING SETS ((a,b),(a),()).
+SELECT a,GROUPING(a),count(*)
+FROM gs GROUP BY DISTINCT GROUPING SETS ((a),(a),());
+```
+
+`GROUPING(...)` returns nonnullable INT4 (Go int64 transport). Rightmost argument
+is bit0: included0, omitted1. Thus a real NULL key can have bit0, while its
+subtotal placeholder has bit1. Arguments are analyzed dependencies, never
+evaluated by the operation; they must exactly match grouping expressions of the
+associated query level. Ordinary GROUP BY produces mask0. There is no
+functional-dependency or algebraic-equivalence exemption. PostgreSQL18 outer
+Var references in scalar subqueries use their owning outer group; correlated
+computed arguments retain42803 even when matching the outer computed key.
+
+Typed supplied parameters can be whole keys or part of compound keys.
+For three input rows, duplicate `($1::INT)` sets plus() give `(7,0,3)` twice and
+`(NULL,1,3)` when supplied7. Supplying NULL instead gives `(NULL,0,3)` twice
+and `(NULL,1,3)`: included NULL is still distinct from the omitted placeholder.
+Reexecuting one held statement uses fresh supplied values and aggregate states;
+output types and nullable-key/nonnullable-indicator metadata remain stable.
+Parameter number is part of exact expression identity: `$2::INT` cannot be a
+GROUPING argument for grouped `$1::INT` merely because both supplied values are7.
+Parameterized grouped INSERT has the same occurrence counts and atomicity,
+including omitted-key NOT NULL veto and same-owner recovery after failure.
+
+HAVING and supported windows see group rows, including repeated occurrences;
+hidden ORDER and window partition/order expressions can use GROUPING.
+EXISTS preserves empty/multiple-set and operation-owning grouping stages:
+EXISTS over empty input with GROUP BY () is true, while keyed-only grouping is
+false; HAVING FALSE removes the empty-set row. Analysis errors still surface on
+empty inputs and in discarded EXISTS targets.
+
+GROUPING accepts at most31 arguments (32 gives54023). CUBE permits12 units
+(13 gives54011 after child resolution). Raw expansion is capped at4096 before
+DISTINCT reduction (54001); repeating keys does not bypass either guard.
+Invalid grouping references and illegal clauses/nesting give full42803
+diagnostics. Empty call/list syntax is42601, not an unsupported capability.
+Grouping clauses, including explicit(), retain FOR-locking restrictions.
+
+INSERT SELECT, CTAS/no-data, derived/scalar/set queries and stored views share
+the grouped graph. Omitted base NOT NULL keys become nullable output metadata;
+always-present keys retain their proof. GROUPING has no physical origin and no
+private marker column leaks. Native eager late failures/cancellation publish no
+cursor or partial INSERT; pq may expose a cursor before a late streaming error.
+Views preserve actual grouping syntax, ordinals and dependencies through
+rename/deparse replay and native Dump/Reset/Restore with destination-owned types.
+Domain constraints, INSERT RETURNING, additional aggregates/window providers,
+ROW/composite execution and optimizer/spill/parallel machinery remain unchanged.
+
+Focused independent feature smoke (900 seconds each):
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
 ```
 

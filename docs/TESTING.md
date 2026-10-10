@@ -1898,3 +1898,92 @@ recovery, empty/NULL metadata before iteration and symbolic native controls with
 actual emitted SQL replay on PostgreSQL. Control replacement failures must leave
 the destination dump byte-for-byte unchanged; parameters in every new argument
 slot remain rejected. Quiet test success alone is not a discovery transcript.
+
+## Grouping sets regression-first contract
+
+The shared untagged `TestReferenceGroupingSets` families independently assert
+ROLLUP/CUBE/nested expansion, ALL/DISTINCT multiplicities, placeholder NULLs and
+GROUPING bits, query ownership, EXISTS, limits, full diagnostics, consumers,
+metadata, statement atomicity, cancellation and stored-definition/native controls.
+`TestReferenceCountExpressionCapabilityBoundaries` now treats grouping constructs
+as shared success contracts; `TestReferenceQueryAggregateExclusionPrefixEffects`
+uses malformed grouping suffixes while retaining the unrelated window boundary.
+The pinned tests-only contract and native-red checkpoints precede production.
+The original discovery filter was removed; final scenarios must visit both backends.
+Final family selectors (900 seconds each):
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
+```
+
+Root removed the initial PostgreSQL-only discovery loop before native red.
+Pinned discovery supplies positions, prepared phases and raw descriptor flags;
+new or changed witnesses remain unobserved until their next pinned run. Full
+exposed diagnostics are asserted rather than stripped. Discovery established
+position8 for an ungrouped `a` projection with legal `GROUP BY ()`, and absent
+positions for explicit-empty rowmarks and over-limit CUBE Cartesian products.
+
+An empty-call syntax-position override applies only to malformed42601 calls,
+not a legal empty grouping clause. Atomicity Query witnesses divide by zero on
+every group, while INSERT retains late-failing expressions and unchanged-state
+assertions. An original late SELECT returning from `QueryContext` successfully
+does not establish completed SQL success or NULL results: pq may return a
+cursor before a subsequent server error. Native eager late SELECTs separately
+assert the stronger nil-cursor contract; it is not fabricated as pq parity.
+
+Grouped-query PostgreSQL cancellation prepares before an ACCESS EXCLUSIVE peer
+lock, observes the actual relation waiter/blocker and exact active query, server
+cancels, joins with a deadline, asserts nil cursor/full57014, then reruns the
+same held owner. This proves admitted-query cancellation, not interruption of
+group execution loops. Native precancellation likewise only proves publication
+and recovery. Package units cover structural AST/source traversal/whole input,
+canonical expansion/raw limits, masks/outer frames/no argument evaluation,
+occurrence state/modifier evaluation, actual fanout/family/finalization/merge
+cancellation, column ACL manifests, physical output origins and Restore whitelist.
+No production hook or pg_sleep substitute satisfies active-loop obligations.
+
+Internal selectors for root verification:
+`make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^Test(GroupingSets|QueryAggregate|AggregateModifiers)' VERBOSE=0`.
+Native control branches remain in shared public scenarios. The typed lifecycle
+uses admitted unconstrained domains; illegal RETURNING grouping uses the admitted
+UPDATE route, not an expansion of the INSERT RETURNING boundary.
+
+### Blocking-review regression contracts
+
+`TestReferenceGroupingSetsReview.*` supplies illegal producer-child syntax and
+whole-input mutation-prefix rejection, ordinary nested unreserved function-name
+ownership, typed supplied keys, compound parameter keys, equal-value distinct
+parameter identities, held non-NULL/NULL reuse, grouped INSERT counts and
+NOT NULL atomicity with same-owner held recovery. Exact bags, types and metadata
+are independent expectations. Root's pinned Review checkpoint passed these new
+diagnostics, character positions, supplied-parameter rows and metadata.
+
+The temporary new-family-only PG discovery helper was removed and every caller
+migrated to `groupingSetsScenario` before native red. No grouping discovery filter
+remains. Native red found the producer-child/function admission bug; parameter,
+identity and INSERT scenarios passed. The grammar remedy uses expression-only
+ROLLUP/CUBE units, preserving implicit sublists and recursive GROUPING SETS.
+Root must freshly validate the completed definitions in both modes, under a
+separate900-second deadline per invocation:
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSetsReview.*$' VERBOSE=0
+# Both backends execute shared definitions; no temporary discovery helper.
+make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSetsReview.*$' VERBOSE=0
+```
+
+Final complete-family selectors above include every changed/new definition.
+The review smoke adds a valid composite producer, forbidden empty/SETS children
+with prefix atomicity, supplied held7/NULL/7 masks and metadata, and a prepared
+parameterized grouped INSERT. Ordinary nested cube/rollup calls retain the
+existing native generic-call0A000 boundary versus PostgreSQL42883 with Hint;
+this does not admit new scalar functions or syntactically reject their names.
+Parser units supplement public contracts with positioned expression-unit ASTs,
+legal nested SETS/producers and bare names, full malformed-child diagnostics,
+whole-input zero-statement publication and inner ordinary-call capability ownership.
+These new units and the final grammar remedy require root verification; the
+historical oracle pass/native red are not final passing evidence.
+

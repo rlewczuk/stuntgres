@@ -1,106 +1,74 @@
 package reference_test
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+	"unicode/utf8"
+)
 
 func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
-	p := newReferenceScenario(t)
-	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1),(1),(2)", 3))
-	for _, prepared := range []bool{false, true} {
-		step := referenceSelect("SELECT count(*)", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}})
-		step.prepared = prepared
-		p.step(t, step)
-	}
-	for _, backend := range p.backends() {
-		s := referenceSelect("SELECT count(*) OVER () FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}, {int64(3)}, {int64(3)}})
-		s.bag = true
+	groupingSetsScenario(t, func(t *testing.T, p *referencePair, backend referenceBackend, c *sql.Conn, run func(referenceStep)) {
+		run(referenceExec("CREATE TABLE t(v INT)", 0))
+		run(referenceExec("INSERT INTO t VALUES(1),(1),(2)", 3))
+		groupingSetsBoth(run, referenceSelect("SELECT count(*)", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
+		s := groupingSetsBag("SELECT count(*) OVER () FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}, {int64(3)}, {int64(3)}})
 		queryWindowRoutes(t, p, backend, s)
-	}
-	for _, tc := range []struct {
-		q, name string
-		rows    [][]any
-	}{
-		{"SELECT count(*) FILTER (WHERE v>1) FROM t", "count", [][]any{{int64(1)}}},
-		{"SELECT count(DISTINCT v) FROM t", "count", [][]any{{int64(2)}}},
-		{"SELECT count(ALL v) FROM t", "count", [][]any{{int64(3)}}},
-		{"SELECT count(v ORDER BY v) FROM t", "count", [][]any{{int64(3)}}},
-		{"SELECT count(*) FROM t GROUP BY ROLLUP(v)", "count", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},
-		{"SELECT count(*) FROM t GROUP BY CUBE(v)", "count", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},
-		{"SELECT count(*) FROM t GROUP BY GROUPING SETS ((v))", "count", [][]any{{int64(2)}, {int64(1)}}},
-		{"SELECT count(*) FROM t GROUP BY ()", "count", [][]any{{int64(3)}}},
-		{"SELECT count(*) FROM t GROUP BY DISTINCT v", "count", [][]any{{int64(2)}, {int64(1)}}},
-		{"SELECT count(*) FROM t GROUP BY ALL v", "count", [][]any{{int64(2)}, {int64(1)}}},
-	} {
-		t.Run(tc.q, func(t *testing.T) {
-			for _, prepared := range []bool{false, true} {
-				native := referenceError(tc.q, "0A000")
-				if tc.q == "SELECT count(*) FILTER (WHERE v>1) FROM t" || tc.q == "SELECT count(DISTINCT v) FROM t" || tc.q == "SELECT count(ALL v) FROM t" || tc.q == "SELECT count(v ORDER BY v) FROM t" {
-					native = referenceSelect(tc.q, []string{tc.name}, []string{"INT8"}, tc.rows)
-				}
-				native.selectRows = true
-				native.prepared = prepared
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-				oracle := referenceSelect(tc.q, []string{tc.name}, []string{"INT8"}, tc.rows)
-				oracle.bag = true
-				oracle.prepared = prepared
-				// Intentional admission difference, not parity or fake native aggregates.
-				if p.postgres != nil {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, oracle)
-				}
-			}
-		})
-	}
-	t.Run("SELECT sum(v) FROM t", func(t *testing.T) {
-		for _, backend := range p.backends() {
-			for _, prepared := range []bool{false, true} {
-				s := referenceSelect("SELECT sum(v) FROM t", []string{"sum"}, []string{"INT8"}, [][]any{{int64(4)}})
-				s.prepared = prepared
-				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
-			}
+		for _, tc := range []struct {
+			q    string
+			rows [][]any
+		}{
+			{"SELECT count(*) FILTER (WHERE v>1) FROM t", [][]any{{int64(1)}}},
+			{"SELECT count(DISTINCT v) FROM t", [][]any{{int64(2)}}},
+			{"SELECT count(ALL v) FROM t", [][]any{{int64(3)}}},
+			{"SELECT count(v ORDER BY v) FROM t", [][]any{{int64(3)}}},
+			{"SELECT count(*) FROM t GROUP BY ROLLUP(v)", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},
+			{"SELECT count(*) FROM t GROUP BY CUBE(v)", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},
+			{"SELECT count(*) FROM t GROUP BY GROUPING SETS ((v))", [][]any{{int64(2)}, {int64(1)}}},
+			{"SELECT count(*) FROM t GROUP BY ()", [][]any{{int64(3)}}},
+			{"SELECT count(*) FROM t GROUP BY DISTINCT v", [][]any{{int64(2)}, {int64(1)}}},
+			{"SELECT count(*) FROM t GROUP BY ALL v", [][]any{{int64(2)}, {int64(1)}}},
+		} {
+			t.Run(tc.q, func(t *testing.T) {
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
+				groupingSetsBoth(run, groupingSetsBag(tc.q, []string{"count"}, []string{"INT8"}, tc.rows))
+			})
 		}
+		groupingSetsBoth(run, referenceSelect("SELECT sum(v) FROM t", []string{"sum"}, []string{"INT8"}, [][]any{{int64(4)}}))
 	})
 }
 
 func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
-	p := newReferenceScenario(t)
-	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
-	// The LOCAL-unit aggregate is legal; a malformed suffix must still prevent
-	// the preceding INSERT from publishing, including through Prepare.
-	for _, prepared := range []bool{false, true} {
-		failure := referenceError("INSERT INTO t VALUES(1);SELECT count(*) WHERE", "42601")
-		failure.prepared = prepared
-		p.step(t, failure)
-		p.step(t, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
-	}
-	// SUM is now admitted. A malformed SUM suffix still rejects the whole input
-	// before its preceding INSERT can publish, through direct and prepared routes.
-	for _, backend := range p.backends() {
-		for _, prepared := range []bool{false, true} {
-			q := "INSERT INTO t VALUES(1);SELECT sum(v) FROM t WHERE"
-			failure := referenceImplicitError(q, referenceDiagnostic{Code: "42601", Message: "syntax error at end of input", Position: referencePosition(len(q) + 1)})
-			failure.prepared = prepared
-			referenceRunStep(t, p.ctx, backend.db, backend.recorder, failure)
-			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
+	groupingSetsScenario(t, func(t *testing.T, p *referencePair, backend referenceBackend, c *sql.Conn, run func(referenceStep)) {
+		run(referenceExec("CREATE TABLE t(v INT)", 0))
+		// Malformed in-scope suffixes reject the whole input before the prefix
+		// INSERT, through direct execution and actual Prepare.
+		for _, suffix := range []string{
+			"SELECT count(*) WHERE",
+			"SELECT sum(v) FROM t WHERE",
+			"SELECT v FROM t GROUP BY ROLLUP(",
+			"SELECT v FROM t GROUP BY CUBE(",
+			"SELECT v FROM t GROUP BY GROUPING SETS(",
+			"SELECT v FROM t GROUP BY (",
+			"SELECT v FROM t GROUP BY DISTINCT",
+			"SELECT v FROM t GROUP BY ALL",
+		} {
+			t.Run(suffix, func(t *testing.T) {
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
+				q := "INSERT INTO t VALUES(1);" + suffix
+				s := referenceImplicitError(q, referenceDiagnostic{Code: "42601", Message: "syntax error at end of input", Position: referencePosition(utf8.RuneCountInString(q) + 1)})
+				groupingSetsAnalysisError(run, s)
+				run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
+			})
 		}
-	}
-	for _, q := range []string{
-		"SELECT count(*) OVER (ROWS UNBOUNDED PRECEDING) FROM t",
-		"SELECT v FROM t GROUP BY ROLLUP(v)", "SELECT v FROM t GROUP BY CUBE(v)",
-		"SELECT v FROM t GROUP BY GROUPING SETS ((v))", "SELECT v FROM t GROUP BY ()",
-		"SELECT v FROM t GROUP BY DISTINCT v", "SELECT v FROM t GROUP BY ALL v",
-	} {
-		t.Run(q, func(t *testing.T) {
-			for _, prepared := range []bool{false, true} {
-				failure := referenceError("INSERT INTO t VALUES(1);"+q, "0A000")
-				if prepared {
-					queryAggregatePrepareRejection(t, p, failure.query, failure.state)
-				} else {
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
-				}
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
-			}
-		})
-	}
+		groupingSetsAnalysisError(run, groupingSetsError("SELECT v FROM t GROUP BY ()", "42803", "column \"t.v\" must appear in the GROUP BY clause or be used in an aggregate function", "v FROM"))
+		// Unrelated window-frame exclusion is unchanged and native-only.
+		if !backend.pg {
+			q := "INSERT INTO t VALUES(1);SELECT count(*) OVER (ROWS UNBOUNDED PRECEDING) FROM t"
+			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceError(q, "0A000"))
+			queryAggregatePrepareRejection(t, p, q, "0A000")
+			run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
+		}
+	})
 }
 
 func queryAggregatePrepareRejection(t *testing.T, p *referencePair, query, state string) {

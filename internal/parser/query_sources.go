@@ -62,6 +62,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	}
 	expression = func(raw Expr) error {
 		switch e := raw.(type) {
+		case GroupingExpr:
+			return expressions(e.Args)
 		case SubqueryExpr:
 			if err := expression(e.Left); err != nil {
 				return err
@@ -183,7 +185,7 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		if err := expression(s.Where); err != nil {
 			return err
 		}
-		if err := expressions(s.GroupBy); err != nil {
+		if err := s.GroupBy.VisitExpressions(expression); err != nil {
 			return err
 		}
 		if err := expression(s.Having); err != nil {

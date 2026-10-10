@@ -47,6 +47,8 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 		args = e.Args
 	case ConditionalExpr:
 		args = e.Args
+	case GroupingExpr:
+		args = e.Args
 	case AggregateExpr:
 		args = e.Args
 		for _, key := range e.Order {

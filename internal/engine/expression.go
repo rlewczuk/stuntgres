@@ -217,6 +217,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return nil, false, err
 	}
 	switch e := expression.(type) {
+	case groupingExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		return e, args != nil, nil
 	case visibilityInquiryExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
 		if err != nil {
@@ -989,6 +1007,8 @@ type expressionBinder struct {
 	regclassConcat             bool
 	aggregateClause            string
 	aggregates                 []aggregateCall
+	groupingActive             bool
+	groupSets                  [][]int
 	windowRaw                  []parser.WindowDefinition
 	windowDefinitions          map[string]boundWindowSpec
 	windowCalls                []windowCall
@@ -1267,6 +1287,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 	case parser.ForbiddenGenerationExpr:
 		return nil, expressionError(r.Code, r.Message, r.Pos)
+	case parser.GroupingExpr:
+		var err error
+		node, err = b.bindGrouping(r)
+		if err != nil {
+			return nil, err
+		}
 	case parser.AggregateExpr:
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
 		if r.Schema != nil {
@@ -1838,6 +1864,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 		return r.Name, true
 	case parser.CurrentDateTimeExpr:
 		return r.Kind.Name(), true
+	case parser.GroupingExpr:
+		return "grouping", true
 	case parser.AggregateExpr:
 		return r.Name, true
 	case parser.ConditionalExpr:
@@ -2144,7 +2172,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
+	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

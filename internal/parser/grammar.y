@@ -103,6 +103,9 @@ package parser
  windowOver windowOverClause
  windows []WindowDefinition
  window WindowDefinition
+ groupClause *GroupClause
+ groupItems []GroupItem
+ groupItem GroupItem
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -133,6 +136,7 @@ package parser
 %token <tok> RETURNING
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
+%token <tok> GROUPING SETS ROLLUP CUBE
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> AT
 %token <tok> INTERVAL HOUR MINUTE SECOND DAY MONTH YEAR
@@ -342,7 +346,9 @@ package parser
 %type <tok> alter_action
 %type <names> names
 %type <row> values call_args function_values sequence_args sequence_values
-%type <row> group_keys group
+%type <groupClause> group
+%type <groupItems> group_keys producer_units
+%type <groupItem> group_item
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
@@ -1080,6 +1086,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 && len($3.ArrayBounds)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
  | scalar COLLATE relation_name %prec COLLATE { $$=CollateExpr{Child:$1,Name:$3,Pos:$2.pos} }
  | aggregate_application { $$=$1 }
+ | GROUPING '(' function_values ')' { $$=GroupingExpr{Args:$3,Pos:$1.pos} }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
  | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
@@ -1197,7 +1204,7 @@ case_arm: WHEN target_or THEN conditional_value { $$=CaseArm{Condition:$2,Result
 case_else: /* empty */ { $$=nil } | ELSE conditional_value { $$=$2 } ;
 conditional_value: target_or { $$=$1 } | function { $$=$1 } ;
 conditional_args: target_or { $$=[]Expr{$1} } | conditional_args ',' target_or { $$=append($1,$3) } ;
-generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY group_keys {} | GENERATION_PARTITION BY group_keys ORDER BY order_keys {} ;
+generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY row_fields {} | GENERATION_PARTITION BY row_fields ORDER BY order_keys {} ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
  * shift cannot consume the precision before the literal STRING continuation. */
@@ -1233,7 +1240,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  * the result-level ORDER/bounds/locking tail. */
 select_projection: projection { $$=$1 }
  | DISTINCT projection { $2.Distinct=&DistinctClause{Pos:$1.pos};$$=$2 }
- | DISTINCT ON '(' group_keys ')' projection { $6.Distinct=&DistinctClause{On:$4,Pos:$1.pos};$$=$6 } ;
+ | DISTINCT ON '(' row_fields ')' projection { $6.Distinct=&DistinctClause{On:$4,Pos:$1.pos};$$=$6 } ;
 into_clause: /* empty */ %prec NAME_LIST {$$=nil}
  | INTO relation_name {n:=$2;$$=&n}
  | INTO TABLE relation_name {n:=$3;$$=&n}
@@ -1281,7 +1288,7 @@ window_exclusion: /* empty */ {}
  | KW_U KW_U ROW {if $1.text!="exclude" || $2.text!="current" {sqllex.(*lexer).syntax($1);return 1}}
  | KW_U NO KW_U {if $1.text!="exclude" || $3.text!="others" {sqllex.(*lexer).syntax($1);return 1}} ;
 window_parent: /* empty */ %prec NAME_LIST { $$=nil } | window_name { $$=&Identifier{Text:$1.text,Pos:$1.pos} } | BETWEEN { $$=&Identifier{Text:$1.text,Pos:$1.pos} } ;
-window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY group_keys { $$=$3 } ;
+window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY row_fields { $$=$3 } ;
 window_order: /* empty */ %prec NAME_LIST { $$=nil } | ORDER BY order_keys { $$=$3 } ;
 optional_from: /* empty */ %prec NAME_LIST { $$=nil } | FROM from_list { $$=$2 } ;
 row_fields: scalar_projection { $$=[]Expr{$1} } | row_fields ',' scalar_projection { $$=append($1,$3) } ;
@@ -1381,7 +1388,7 @@ truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
 projection_item: projection_target %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{}}} }
  | scalar COLLATE { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | target_between IN %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
- | scalar_projection bare_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
+ | scalar_projection bare_label { if $2.keyword!=nil && $2.text=="filter" {if _,ok:=$1.(GroupingExpr);ok {sqllex.(*lexer).syntax($2)} else {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset)};return 1};$$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | scalar_projection AS col_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$3.text,Pos:$3.pos}}} }
 /* A keyword after a complete projection base can be a bare label when no
  * pattern operand follows. Factor here so predicate-starter lookahead retains
@@ -1423,12 +1430,20 @@ where: /* empty */ { $$ = nil }
  | WHERE name KW_C { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 } ;
 /* GROUP/HAVING are admitted clause openers and retained suffix guards. Prefer
  * their real clauses over reducing the optional clause to reach a guard. */
-group: /* empty */ %prec NAME_LIST { $$=nil } | GROUP BY group_keys { $$=$3 }
- | GROUP BY '(' ')' { sqllex.(*lexer).failAt("0A000","empty grouping sets are unsupported",$1.pos.Offset);return 1 }
- | GROUP BY DISTINCT group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY DISTINCT is unsupported",$3.pos.Offset);return 1 }
- | GROUP BY ALL group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY ALL is unsupported",$3.pos.Offset);return 1 }
- | GROUP BY KW_C name '(' group_keys ')' { if $3.text!="grouping" || $4.text!="sets" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).failAt("0A000","grouping sets are unsupported",$3.pos.Offset);return 1 } ;
-group_keys: scalar_projection { $$=[]Expr{$1} } | group_keys ',' scalar_projection { $$=append($1,$3) } ;
+group: /* empty */ %prec NAME_LIST { $$=nil }
+ | GROUP BY group_keys { $$=&GroupClause{Items:$3,Pos:$1.pos} }
+ | GROUP BY DISTINCT group_keys { $$=&GroupClause{Items:$4,Distinct:true,Pos:$1.pos} }
+ | GROUP BY ALL group_keys { $$=&GroupClause{Items:$4,All:true,Pos:$1.pos} } ;
+group_keys: group_item { $$=[]GroupItem{$1} } | group_keys ',' group_item { $$=append($1,$3) } ;
+group_item: scalar_projection { $$=groupExpressionItem($1) }
+ | '(' ')' { $$=GroupItem{Kind:GroupEmpty,Pos:$1.pos} }
+ | GROUPING SETS '(' group_keys ')' { $$=GroupItem{Kind:GroupSets,Items:$4,Pos:$1.pos} }
+ | ROLLUP '(' producer_units ')' { $$=GroupItem{Kind:GroupRollup,Items:$3,Pos:$1.pos} }
+ | CUBE '(' producer_units ')' { $$=GroupItem{Kind:GroupCube,Items:$3,Pos:$1.pos} } ;
+/* Unlike GROUPING SETS, producer units are expressions, including implicit row
+ * sublists. Nested unreserved function names retain ordinary call ownership. */
+producer_units: scalar_projection { $$=[]GroupItem{groupExpressionItem($1)} }
+ | producer_units ',' scalar_projection { $$=append($1,groupExpressionItem($3)) } ;
 having: /* empty */ %prec NAME_LIST { $$=nil } | HAVING target_or { $$=$2 } ;
 order: /* empty */ { $$=nil } | ORDER BY order_keys { $$=&Order{Keys:$3} } ;
 aggregate_order: /* empty */ { $$=nil } | ORDER BY order_keys { $$=$3 } ;
@@ -1523,6 +1538,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | ESCAPE | FILTER
  | membership_keyword
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
+ | GROUPING | SETS | ROLLUP | CUBE
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
@@ -1543,7 +1559,8 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
- | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
+ | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | GROUPING | SETS | ROLLUP | CUBE ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
@@ -1551,11 +1568,14 @@ generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH 
  | NAMES
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | membership_keyword
- | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | GROUPING | SETS | ROLLUP | CUBE ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
-bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$1.pos.Offset);return 1}; if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+/* FILTER's failure-only bare-label guard needs its preceding expression:
+ * GROUPING is dedicated syntax, not an unsupported aggregate provider. */
+bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} else {if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1} }
  | COLLATE { $$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
