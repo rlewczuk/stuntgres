@@ -59,6 +59,12 @@ func ArrayValue(d *Descriptor, dimensions []ArrayDimension, elements []Value) (V
 	value.array.elements = slices.Clone(elements)
 	return value, nil
 }
+
+// OwnedArrayValue transfers exclusive ownership of both buffers to the value.
+// Callers must not retain mutable aliases. Validation matches ArrayValue.
+func OwnedArrayValue(d *Descriptor, dimensions []ArrayDimension, elements []Value) (Value, error) {
+	return ownedArray(d, dimensions, elements)
+}
 func ownedArray(d *Descriptor, dimensions []ArrayDimension, elements []Value) (Value, error) {
 	if !d.Concrete() || !d.IsArray() || len(dimensions) > 6 {
 		return Value{}, fmt.Errorf("invalid array payload descriptor or rank")

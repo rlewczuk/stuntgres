@@ -110,36 +110,85 @@ func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []O
 	return relationDiagnosticNameAt(catalog, d, path)
 }
 
-func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) error {
-	// CHECKs have owner-local declaration identities; views use their existing
-	// relation creation addresses. Neither family takes precedence over another.
-	type dependent struct {
-		oid     OID
-		ordinal int
-		target  ObjectAddress
-		detail  string
-	}
-	dependents := make([]dependent, 0, len(checks)+len(views)+len(defaults))
+type supportedDependent struct {
+	oid          OID
+	target       ObjectAddress
+	view         ObjectAddress
+	label        string
+	checkOwner   OID
+	checkOrdinal int
+}
+
+// Walk the existing immediate-provider edges depth-first. Genuine identities
+// order mixed siblings; same-owner CHECK siblings retain declaration order.
+func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) []supportedDependent {
+	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults))
 	for _, edge := range defaults {
-		dependents = append(dependents, dependent{edge.relation.address.ObjectID, int(edge.attribute), edge.target, edge.label() + " depends on " + dependencyObject(catalog, edge.target, path)})
+		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
+		dependents = append(dependents, supportedDependent{oid: edge.relation.defaults[edge.attribute].OID, target: edge.target, label: label})
 	}
 	for _, edge := range checks {
-		dependents = append(dependents, dependent{edge.relation.address.ObjectID, edge.check.ordinal, edge.target, "constraint " + edge.check.Name + " on table " + dependencyRelationName(catalog, edge.relation, path) + " depends on " + dependencyObject(catalog, edge.target, path)})
+		label := "constraint " + dependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalog, edge.relation, path)
+		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.address.ObjectID, checkOrdinal: edge.check.ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, dependent{edge.view.address.ObjectID, 0, edge.target, "view " + dependencyRelationName(catalog, edge.view, path) + " depends on " + dependencyObject(catalog, edge.target, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: "view " + dependencyRelationName(catalog, edge.view, path)})
 	}
-	slices.SortFunc(dependents, func(a, b dependent) int {
-		if order := cmp.Compare(a.oid, b.oid); order != 0 {
-			return order
+	slices.SortFunc(dependents, func(a, b supportedDependent) int { return cmp.Compare(a.oid, b.oid) })
+	// CHECK OIDs can be assigned in enforcement/name order. Permute only their
+	// occupied sibling slots, leaving every non-CHECK position and provider edge
+	// intact. A mixed ordinal/OID comparator would not be transitive.
+	for i := range dependents {
+		if dependents[i].checkOwner == 0 {
+			continue
 		}
-		return cmp.Compare(a.ordinal, b.ordinal)
-	})
+		first := i
+		for j := i + 1; j < len(dependents); j++ {
+			if dependents[j].checkOwner == dependents[i].checkOwner && dependents[j].target == dependents[i].target && dependents[j].checkOrdinal < dependents[first].checkOrdinal {
+				first = j
+			}
+		}
+		dependents[i], dependents[first] = dependents[first], dependents[i]
+	}
+	if len(views) == 0 && len(targets) <= 1 {
+		return dependents
+	}
+	ordered := make([]supportedDependent, 0, len(dependents))
+	seen := make([]bool, len(dependents))
+	var visit func(ObjectAddress)
+	visit = func(target ObjectAddress) {
+		for i, dependent := range dependents {
+			if seen[i] || dependent.target.ClassID != target.ClassID || dependent.target.ObjectID != target.ObjectID || target.SubID != 0 && dependent.target.SubID != target.SubID {
+				continue
+			}
+			seen[i] = true
+			ordered = append(ordered, dependent)
+			if dependent.view != (ObjectAddress{}) {
+				visit(dependent.view)
+			}
+		}
+	}
+	for _, target := range targets {
+		visit(target)
+	}
+	return ordered
+}
+
+func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) error {
+	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path)
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
-		details[i] = dependent.detail
+		details[i] = dependent.label + " depends on " + dependencyObject(catalog, dependent.target, path)
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, dependents[0].target, path) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+	// Closure edges are parent-first. Walk backwards to keep the original
+	// requested provider in Message while Detail retains each actual edge.
+	target := dependents[0].target
+	for i := len(views) - 1; i >= 0; i-- {
+		if views[i].view.address == target {
+			target = views[i].target
+		}
+	}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
@@ -151,21 +200,30 @@ func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode pars
 // stageViewDependentsLocked requires the owning engine mutex throughout the
 // coherent closure and removals; no provider callbacks or evaluation occur here.
 func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
-	checks, err := stageCheckDependents(stage, targets, mode)
-	if err != nil {
-		return err
-	}
-	defaults, err := stageDefaultDependents(stage, targets, mode)
-	if err != nil {
-		return err
-	}
 	edges := viewDependencyClosure(stage.base, targets, stage)
+	expanded := targets
+	if len(edges) != 0 {
+		expanded = make([]ObjectAddress, len(targets), len(targets)+len(edges))
+		copy(expanded, targets)
+		for _, edge := range edges {
+			expanded = append(expanded, edge.view.address)
+		}
+	}
+	checks, err := stageCheckDependents(stage, expanded, mode)
+	if err != nil {
+		return err
+	}
+	defaults, err := stageDefaultDependents(stage, expanded, mode)
+	if err != nil {
+		return err
+	}
 	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 {
 		return nil
 	}
 	if mode == parser.DropRestrict {
-		return supportedRestrictError(stage.base, checks, edges, defaults, stage.dependencyPath)
+		return supportedRestrictError(stage.base, targets, checks, edges, defaults, stage.dependencyPath)
 	}
+	activeEdges := edges[:0]
 	for _, edge := range edges {
 		d := edge.view
 		if _, exists := stage.removals[d.address]; exists {
@@ -174,7 +232,10 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 		if err := stage.removeObjectLocked(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: d.address}, false); err != nil {
 			return err
 		}
-		stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to view "+d.name)
+		activeEdges = append(activeEdges, edge)
+	}
+	for _, dependent := range supportedDependentLabels(stage.base, targets, checks, activeEdges, defaults, stage.dependencyPath) {
+		stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+dependent.label)
 	}
 	return nil
 }

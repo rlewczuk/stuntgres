@@ -100,8 +100,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
 	indexIndices := make(map[OID]int)
-	// Only exclusively deferrable default contributions may relax a cycle.
-	var defaultPredecessors map[OID][]OID
+	// Deferral removes only eligible definitions' edges. Inline consumers keep
+	// their prerequisites, including providers shared with deferred defaults.
+	var inlinePredecessors map[OID][]OID
+	deferDefaults := false
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
@@ -327,6 +329,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 			}
+			for _, literal := range r.view.literals {
+				if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, literal, addPredecessor); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+			}
 			oid := r.address.ObjectID
 			viewDependencies[oid] = make([]OID, 0, len(predecessors))
 			for predecessor := range predecessors {
@@ -373,6 +381,16 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		oid := r.address.ObjectID
 		var predecessors []OID
 		for _, check := range r.checkConstraints {
+			if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, check.expression, func(address ObjectAddress) error {
+				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, address, r.address)
+				if err == nil && predecessor != 0 {
+					predecessors = append(predecessors, predecessor)
+				}
+				return err
+			}); err != nil {
+				e.mu.Unlock()
+				return err
+			}
 			for _, dependency := range check.dependencies {
 				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, dependency.ref.Address, r.address)
 				if err != nil {
@@ -381,6 +399,48 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
 					predecessors = append(predecessors, predecessor)
+				}
+			}
+		}
+		var deferredPredecessors []OID
+		var deferredDefinitions map[int32]bool
+		for attribute, definition := range r.defaults {
+			eligible := defaultReplayDeferrable(definition)
+			if eligible {
+				if deferredDefinitions == nil {
+					deferredDefinitions = make(map[int32]bool)
+				}
+				deferredDefinitions[attribute] = true
+				deferDefaults = deferDefaults || definition.expression.ResultUsage().Type.ContainsRegclass()
+			}
+			addPredecessor := func(address ObjectAddress) error {
+				owner := r.address
+				if eligible {
+					owner = ObjectAddress{}
+				}
+				predecessor, err := dumpPredecessor(catalog, address, owner)
+				if err != nil {
+					return err
+				}
+				if eligible {
+					if !deferDefaults && predecessor != 0 && !slices.Contains(deferredPredecessors, predecessor) {
+						deferredPredecessors = append(deferredPredecessors, predecessor)
+					}
+				} else if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
+					predecessors = append(predecessors, predecessor)
+				}
+				return nil
+			}
+			// Opaque literal payloads need replay ordering even when their BOOL/
+			// TEXT result is inline and intentionally has no relation DROP edge.
+			if err := regclassReplayReferences(catalog, definition.expression, addPredecessor); err != nil {
+				e.mu.Unlock()
+				return err
+			}
+			for _, dependency := range definition.dependencies {
+				if err := addPredecessor(dependency.Address); err != nil {
+					e.mu.Unlock()
+					return err
 				}
 			}
 		}
@@ -396,60 +456,42 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		var deferredPredecessors []OID
-		for _, definition := range r.defaults {
-			deferrable := defaultReplayDeferrable(definition)
-			for _, dependency := range definition.dependencies {
-				// Even a same-table Const needs its provider to exist before binding.
-				predecessor, err := dumpPredecessor(catalog, dependency.Address, ObjectAddress{})
-				if err != nil {
-					e.mu.Unlock()
-					return err
-				}
-				if predecessor == 0 {
-					continue
-				}
-				if deferrable {
-					if !slices.Contains(deferredPredecessors, predecessor) {
-						deferredPredecessors = append(deferredPredecessors, predecessor)
-					}
-				} else if !slices.Contains(predecessors, predecessor) {
-					predecessors = append(predecessors, predecessor)
-				}
-			}
-		}
-		for _, predecessor := range deferredPredecessors {
-			// CHECK/generated/nondeferrable defaults retain shared predecessors.
-			if slices.Contains(predecessors, predecessor) {
-				continue
-			}
-			if defaultPredecessors == nil {
-				defaultPredecessors = make(map[OID][]OID)
-			}
-			defaultPredecessors[oid] = append(defaultPredecessors[oid], predecessor)
-			predecessors = append(predecessors, predecessor)
-		}
 		viewDependencies[oid] = predecessors
+		if len(deferredPredecessors) != 0 && !deferDefaults {
+			if inlinePredecessors == nil {
+				inlinePredecessors = make(map[OID][]OID)
+			}
+			inlinePredecessors[oid] = predecessors
+			combined := slices.Clone(predecessors)
+			for _, predecessor := range deferredPredecessors {
+				if !slices.Contains(combined, predecessor) {
+					combined = append(combined, predecessor)
+				}
+			}
+			viewDependencies[oid] = combined
+		}
 		tableIndices[oid] = len(tables)
 		linked := make(map[ObjectAddress]dumpSequence, len(r.identities))
 		for _, identity := range r.identities {
 			sequence := e.state.descriptors[identity.sequence].(*relationDescriptor)
 			linked[identity.sequence] = dumpSequence{owner: principal.Name, schema: ns.name, name: sequence.name, options: *sequence.sequence, state: *e.sequences[identity.sequence], comment: sequence.comment}
 		}
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, descriptor: r, identities: r.identities, identitySequences: linked})
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
 	domainStatements, err := domainDumpStatements(ctx, catalog, domainRoles, domains)
 	if err != nil {
 		return err
 	}
+	if deferDefaults {
+		for oid, predecessors := range inlinePredecessors {
+			viewDependencies[oid] = predecessors
+		}
+	}
 	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
-	deferDefaults := false
-	if err != nil && ctx.Err() == nil && len(defaultPredecessors) != 0 {
-		for oid, defaults := range defaultPredecessors {
-			viewDependencies[oid] = slices.DeleteFunc(viewDependencies[oid], func(predecessor OID) bool {
-				return slices.Contains(defaults, predecessor)
-			})
+	if err != nil && !deferDefaults && ctx.Err() == nil && len(inlinePredecessors) != 0 {
+		for oid, predecessors := range inlinePredecessors {
+			viewDependencies[oid] = predecessors
 		}
 		viewOrder, err = viewDumpOrder(ctx, viewDependencies)
 		deferDefaults = err == nil
@@ -565,7 +607,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				line.WriteString(" COLLATE \"pg_catalog\"." + quoteIdentifier(name))
 			}
-			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && defaultReplayDeferrable(definition)) {
+			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
 				text, err := defaultSQL(ctx, catalog, definition.expression)
 				if err != nil {
 					return err
@@ -888,17 +930,17 @@ func restoreScalar(raw parser.Expr) error {
 		return nil
 	case parser.CollateExpr:
 		return restoreScalar(r.Child)
-	case parser.RegclassExpr:
-		// Stored nonnull references emit CAST('name' AS REGCLASS). Admit only
-		// that literal shape; the existing binder resolves its current identity.
-		// Stored NULL uses the ordinary literal path, not a REGCLASS cast.
-		literal, ok := r.Child.(parser.LiteralExpr)
-		if !ok || literal.Value.Kind != parser.StringValue {
-			return fmt.Errorf("stuntgres: invalid restore scalar")
-		}
-		return nil
 	case parser.CastExpr:
 		return restoreScalar(r.Child)
+	case parser.RegclassExpr:
+		return restoreScalar(r.Child)
+	case parser.ArrayExpr:
+		for _, element := range r.Elements {
+			if err := restoreScalar(element); err != nil {
+				return err
+			}
+		}
+		return nil
 	case parser.TimeZoneExpr:
 		if err := restoreScalar(r.Value); err != nil {
 			return err

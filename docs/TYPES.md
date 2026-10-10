@@ -178,14 +178,95 @@ and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONBFe
 The same two modes with `RUN='^TestReference(JSON|TypeCore|Numeric|PGDescription)'` cover the
 complete affected reference families and migrated source execution routes.
 
+## Regclass relation identifiers — change note
+
+`regclass` (OID2205) stores a canonical unsigned 32-bit relation identity.
+Direct `regclass`/`regclass[]` columns, ADD COLUMN, scalar/array domains,
+INSERT/UPDATE/RETURNING and stored DEFAULT/CHECK/view consumers use the normal
+typed execution path. Native `database/sql` values are canonical strings (NULL
+is nil), with `REGCLASS`/`_REGCLASS` metadata; domains report their physical base
+type. Retained rows preserve their captured catalog, names and metadata.
+
+Input selects the first accessible matching table, view, index or sequence on
+the effective relation path. Schema USAGE is required; relation SELECT is not.
+Quoted names preserve case/dots/doubled quotes; unquoted names fold and clip at
+63 UTF8-safe bytes. A current-database.schema.relation qualifier is accepted;
+foreign databases and excessive qualification retain PostgreSQL diagnostics.
+Exact digit strings use the existing OID codec (`010` is octal8; `08` is invalid).
+`0` and `-` are zero. Signed/padded strings are symbolic, not numeric shorthand.
+INT4 casts preserve unsigned bits; INT8 casts check the OID range. Explicit
+OID/TEXT/VARCHAR/integer-to-regclass and regclass-to-OID/INT4/INT8/TEXT edges reuse
+the bounded coercion matrix; BOOL and NUMERIC are not implicit extensions.
+Output uses visible names, otherwise qualified/quoted names; missing identities
+display decimal and zero displays `-`.
+
+Flat `ARRAY[...]` construction is admitted only for scalar regclass elements,
+including typed NULLs and parameters inferred from regclass-array context or
+regclass peers, such as `ARRAY[$1]::regclass[]` and `ARRAY[$1,'pg_class'::regclass]`.
+Repeated parameter occurrences share one input contract and fresh execution
+values; constructor children are evaluated once in order.
+Contextual `ARRAY[]::regclass[]` is nonnull empty;
+untyped empty ARRAY retains42P18 and its explicit-cast hint. NULL elements are
+not NULL arrays. Nested constructors and general element families are not added;
+existing array literal dimensions/lower bounds remain supported.
+
+Stored scalar regclass input constants, including existing digit-string input
+and scalar leaves under constructors/domain casts, depend on their live relation.
+Rename/schema moves retain identity; RESTRICT protects those consumers and
+CASCADE removes defaults/CHECKs/views without deleting their owner-table data.
+This includes defaults/CHECKs referencing views removed through recursive view
+dependencies. RESTRICT details identify each actual provider edge; CASCADE
+preserves the surviving owner tables and their existing rows.
+The same rule applies when DROP COLUMN removes a view referenced by surviving
+definitions on that very table: the remaining data and unrelated definitions
+survive, but definitions bound to removed views do not reappear. Diagnostics and
+notices follow immediate-provider traversal, with genuine consumer identities
+ordering mixed siblings and same-owner CHECKs retaining declaration order.
+Replacing an older view with a newer source does not reverse the dependency chain.
+Numeric INT/OID coercion expressions and opaque array/domain-array input carry
+no relation DROP dependency. Ordinary prepared scalar SQL reanalyzes its original
+spelling after relation/path changes; it is not a stored-definition binding.
+
+Logical native Dump/Reset/Restore reowns actual regclass datums recursively and
+remaps live scalar input constants. Captured scalar references and actual scalar
+datums use the same canonical literal serializer, while captured authority
+validation and dependencies remain intact across replay. Closed regclass-result
+defaults replay after
+relation definitions, including self/mutual references. Existing pure closed
+BOOL/TEXT/CASE defaults carrying genuine captured scalar regclass authority can
+also defer to break replay cycles; sequence deferral still requires its captured
+provider. One per-definition decision governs ordering, CREATE omission and ALTER
+emission. Nondeferred defaults, CHECKs and generated expressions retain mandatory
+prerequisites, including providers shared with deferred defaults. Opaque array
+payloads under an inline BOOL default such as `IS NOT NULL` receive replay-only
+ordering without DROP dependencies; without captured scalar authority that BOOL
+definition remains inline. Numeric coercion trees keep
+their original numbers across different allocators: their result may become
+decimal or denote a different destination object. Dangling numeric datums make
+no cross-catalog identity promise. Failed/canceled restore preserves the prior
+persistent projection; retained source rows are never rewritten. These are
+process-local logical controls, not disk durability, network protocol,
+PostgreSQL physical ABI or pg_dump-format compatibility.
+
+INSERT and UPDATE CHECK/NOT NULL diagnostics, including UPDATE RETURNING, format
+scalar/domain/array regclass values through the statement's captured catalog:
+zero is `-`, live identities use visible or qualified/quoted names. Existing
+column/table privilege filtering still determines which fields are disclosed.
+
+This change supersedes the historical direct-regclass-storage exclusion in
+`docs/design/PG18-INDEX-CLAUSES.md` and the earlier array/string capability notes.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRegclassFeatureSmoke$' VERBOSE=0`
+and the identical command with `REFERENCE=1` (900 seconds per invocation).
+
+
 
 ## Arrays — change note
 
 Arrays are immutable catalog-owned values over the supported stored scalars:
 BOOL, BYTEA, NAME, INT2/INT4/INT8, TEXT/BPCHAR/VARCHAR, OID, FLOAT4/FLOAT8,
-NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID, JSON and JSONB. Domains over
-supported scalars or arrays may also be elements; a REGCLASS domain is supported,
-while bare REGCLASS and REGCLASS[] table columns retain their existing exclusion.
+NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID, JSON, JSONB and REGCLASS.
+Domains over supported scalars or arrays may also be elements; scalar REGCLASS,
+REGCLASS[] and their domain wrappers are admitted table-column types.
 There is no added CHAR, BOX, UNKNOWN, VOID or PG_NODE_TREE array family.
 Each represented element has one authoritative associated array ID. User domains
 and their automatic arrays publish together, share namespace/owner/ACL authority,
@@ -219,8 +300,8 @@ Array grouping/key equality, including SELECT DISTINCT, compares rank, dimension
 lower bounds and recursively typed NULL-aware elements; numeric scale, BPCHAR
 padding and floating NaN/signed-zero normalization follow their scalar contracts.
 Domains retain logical identity while delegating key equivalence to their bases.
-No array-to-array cast graph, ordinary comparison operators/order, constructors,
-subscripts or additional array functions are introduced.
+This declaration/literal capability adds no general array cast graph or
+constructor families. The selected flat regclass constructor is described above.
 
 Ordinary INTERVAL DAY/HOUR array input first parses bare `1` as seconds and then
 applies the field mask, yielding zero; array elements which are DAY/HOUR domains
@@ -1209,12 +1290,11 @@ REGCLASS mixed output formats its canonical OID through the execution's captured
 catalog and relation search path: visible names are unqualified, shadowed names
 are schema-qualified, and necessary identifier quotes are preserved. Missing
 relations retain numeric output (zero spells `-`). The datum is not rewritten,
-no public cast edge is added, and retained TEXT results never consult a later
-catalog. Nested stored CHECK and explicit write/USING expressions propagate
-snapshot demand through existing statement capture. Native DEFAULT retains its
-existing REGCLASS-input exclusion (0A000); ordinary string defaults still compose
-with trim/normalization/concatenation and the four case providers. PostgreSQL-only DEFAULT success is tested
-separately, not advertised as native capability.
+and retained TEXT results never consult a later catalog. Nested stored CHECK,
+DEFAULT and explicit write/USING expressions propagate snapshot demand through
+existing statement capture. REGCLASS input and explicit text/numeric conversions
+are admitted as described above; ordinary string defaults compose with
+trim/normalization/concatenation and the four case providers.
 
 `lower`, `upper`, `casefold` and `initcap` return unconstrained TEXT with inherited
 collation, including NULL outputs. They reuse the selected implicit character

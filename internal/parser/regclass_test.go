@@ -23,6 +23,7 @@ func TestRegclassQualifiedNameInputBoundary(t *testing.T) {
 		{strings.Repeat("界", 22), []string{strings.Repeat("界", 21)}},
 		{`"` + strings.Repeat("界", 22) + `"`, []string{strings.Repeat("界", 21)}},
 		{"db . public . s", []string{"db", "public", "s"}},
+		{"a.b.c.d", []string{"a", "b", "c", "d"}},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			name, err := ParseRegclassName(tc.input)
@@ -38,7 +39,7 @@ func TestRegclassQualifiedNameInputBoundary(t *testing.T) {
 			}
 		})
 	}
-	for _, input := range []string{"", " \t\n", ".s", "s.", "s..t", "s trailing", `"s"suffix`, `"s`, "a.b.c.d"} {
+	for _, input := range []string{"", " \t\n", ".s", "s.", "s..t", "s trailing", `"s"suffix`, `"s`} {
 		if name, err := ParseRegclassName(input); err == nil {
 			t.Errorf("accepted incomplete or invalid input %q: %#v", input, name)
 		}

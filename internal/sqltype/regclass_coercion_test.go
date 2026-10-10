@@ -124,7 +124,33 @@ func TestRegclassInquiryCoercions(t *testing.T) {
 	if err != nil || out.Type() != ts[Regclass] {
 		t.Fatal(out, err)
 	}
-	if _, err := PlanCoercion(ts[Regclass].Usage(), ts[Oid].Usage(), Explicit); err == nil {
-		t.Fatal("unrequested explicit cast admission")
+	for _, target := range []ID{Oid, Int4, Int8} {
+		plan, err := PlanCoercion(ts[Regclass].Usage(), ts[target].Usage(), Explicit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, err := plan.Apply(ctx, String(ts[Regclass], "4294967295"), InputEnvironment{}, OutputEnvironment{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if target == Oid {
+			n, err := value.OID()
+			if err != nil || n != 4294967295 {
+				t.Fatal(n, err)
+			}
+		} else {
+			n, err := value.Integer()
+			want := int64(4294967295)
+			if target == Int4 {
+				want = -1
+			}
+			if err != nil || n != want {
+				t.Fatal(n, err)
+			}
+		}
+		null, err := plan.Apply(ctx, Null(ts[Regclass]), InputEnvironment{}, OutputEnvironment{})
+		if err != nil || !null.IsNull() || null.Type() != ts[target] {
+			t.Fatal(null, err)
+		}
 	}
 }

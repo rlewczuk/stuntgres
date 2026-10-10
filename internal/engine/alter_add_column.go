@@ -66,9 +66,6 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if err != nil {
 		return fail(err)
 	}
-	if usage.Type.ID() == sqltype.Regclass || usage.Type.IsArray() && usage.Type.Element().ID() == sqltype.Regclass {
-		return fail(typeDiagnostic(column.TypeName, "0A000", "unsupported column type"))
-	}
 	declaration, err := bindCreateColumnDeclaration(column, old.name)
 	if err != nil {
 		return fail(err)

@@ -50,10 +50,6 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 	return nil
 }
 
-func (edge defaultDependencyEdge) label() string {
-	return "default value for column " + edge.column + " of table " + edge.relation.name
-}
-
 func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
 	for address, descriptor := range stage.base.state.descriptors {
@@ -125,10 +121,5 @@ func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode p
 		}
 		return cmp.Compare(a.attribute, b.attribute)
 	})
-	if mode != parser.DropRestrict {
-		for _, edge := range edges {
-			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+edge.label())
-		}
-	}
 	return edges, nil
 }

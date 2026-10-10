@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// Goldens are independent pinned PostgreSQL 18.0 observations. Internal
-// "char" columns and regclass DEFAULT are excluded native capabilities;
-// regclass providers are exercised through sequence calls instead.
+// Goldens are independent pinned PostgreSQL 18.0 observations.
+// Internal "char" columns remain excluded native capabilities; sequence calls
+// provide additional regclass dependency and deparser coverage.
 var deparseReviewChecks = []struct{ name, input, compact, pretty string }{
 	{"nested_c", "pg_get_constraintdef(0) IS NULL", "CHECK ((pg_get_constraintdef((0)::oid) IS NULL))", "CHECK (pg_get_constraintdef(0::oid) IS NULL)"},
 	{"nested_e", "pg_get_expr(NULL,0) IS NULL", "CHECK ((pg_get_expr(NULL::pg_node_tree, (0)::oid) IS NULL))", "CHECK (pg_get_expr(NULL::pg_node_tree, 0::oid) IS NULL)"},

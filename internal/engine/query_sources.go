@@ -152,6 +152,15 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 }
 
 func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
+	for _, column := range relation.columns {
+		if column.Usage.Type.ContainsRegclass() {
+			if err := e.captureCommentSnapshotLocked(scope); err != nil {
+				return err
+			}
+			scope.output.Regclass = scope
+			return nil
+		}
+	}
 	for _, definition := range relation.defaults {
 		if definition.catalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)

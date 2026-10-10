@@ -497,10 +497,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch s := stmt.(type) {
 	case *parser.Update:
-		if b.returning != nil {
+		err = e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		if err == nil && b.returning != nil {
 			err = e.captureCommentSnapshotLocked(scope)
-		} else {
-			err = e.captureCheckCommentSnapshotLocked(scope, b.relation)
 		}
 		if err != nil {
 			e.mu.Unlock()

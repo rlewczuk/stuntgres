@@ -164,9 +164,9 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 	return u, nil
 }
 
-// Query-derived schemas can store builtin CHAR/REGCLASS/XID without admitting
-// new raw declaration owners. Only the isolated Restore CREATE-column caller
-// reconstructs their canonical declarations; casts/domains stay unchanged.
+// Query-derived schemas can store builtin CHAR/XID without admitting new raw
+// declaration owners. Only the isolated Restore caller reconstructs those
+// private declarations; regclass uses ordinary public type admission.
 func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
 	u, err := e.resolveType(raw, op)
 	privateScalar := sqltype.ID(0)
@@ -177,21 +177,15 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 			privateScalar = sqltype.Xid
 		}
 	}
-	regclass := err == nil && (u.Type.ID() == sqltype.Regclass || u.Type.IsArray() && u.Type.Element().ID() == sqltype.Regclass)
-	if privateScalar == 0 && !regclass {
+	if privateScalar == 0 {
 		return u, err
 	}
 	if op == nil || !op.restoreTableDestination {
-		if regclass {
-			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
-		}
 		return u, err
 	}
-	if privateScalar != 0 {
-		diagnostic, ok := err.(*sqlstate.Error)
-		if !ok || diagnostic.Code != "0A000" {
-			return u, err
-		}
+	diagnostic, ok := err.(*sqlstate.Error)
+	if !ok || diagnostic.Code != "0A000" {
+		return u, err
 	}
 	auth, authErr := e.authorizationLocked(op)
 	if authErr != nil {
@@ -201,17 +195,11 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 	if authErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 		return sqltype.Usage{}, fmt.Errorf("stuntgres: invalid trusted restore column authority")
 	}
-	if privateScalar != 0 {
-		typ, ok := auth.catalog.LookupType(privateScalar)
-		if !ok || !typ.Concrete() || typ.IsUserDefined() {
-			return sqltype.Usage{}, fmt.Errorf("stuntgres: missing builtin restore column type")
-		}
-		return typ.Usage(), nil
+	typ, ok := auth.catalog.LookupType(privateScalar)
+	if !ok || !typ.Concrete() || typ.IsUserDefined() {
+		return sqltype.Usage{}, fmt.Errorf("stuntgres: missing builtin restore column type")
 	}
-	if raw.Name != "regclass" || len(raw.Modifiers) != 0 || raw.Schema != nil && raw.Schema.Text != "pg_catalog" {
-		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
-	}
-	return u, nil
+	return typ.Usage(), nil
 }
 
 func storedArrayElement(typ *sqltype.Descriptor) bool {

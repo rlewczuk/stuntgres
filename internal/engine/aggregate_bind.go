@@ -55,6 +55,17 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case parameterExpression:
 		o, ok := other.(parameterExpression)
 		return ok && e.number == o.number
+	case regclassArrayExpression:
+		o, ok := other.(regclassArrayExpression)
+		if !ok || len(e.elements) != len(o.elements) {
+			return false
+		}
+		for i, element := range e.elements {
+			if !same(element, o.elements[i]) {
+				return false
+			}
+		}
+		return true
 	case collationExpression:
 		o, ok := other.(collationExpression)
 		return ok && same(e.child, o.child)
@@ -345,6 +356,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.pos)
 		}
 		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
+	case regclassArrayExpression:
+		e.elements = append([]BoundExpr(nil), e.elements...)
+		for i, element := range e.elements {
+			e.elements[i] = rewrite(element)
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case collationExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
@@ -538,6 +556,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	}
 	switch e := expr.(type) {
+	case regclassArrayExpression:
+		for _, element := range e.elements {
+			walk(element)
+		}
 	case currentSchemasExpression:
 		walk(e.arg)
 	case aggregateExpression:

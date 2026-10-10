@@ -80,6 +80,13 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.kind, n.hasPrecision, n.precision)
 	case columnExpression:
 		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
+	case regclassArrayExpression:
+		fmt.Fprint(out, "RegclassArray")
+		for _, element := range n.elements {
+			if err = child(element); err != nil {
+				break
+			}
+		}
 	case collationExpression:
 		fmt.Fprintf(out, "Collate oid %d", n.usage.Collation.ID)
 		err = child(n.child)

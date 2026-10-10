@@ -45,7 +45,7 @@ func TestArrayTypeDeclarations(t *testing.T) {
 			t.Fatal("cast dimensions", tc, cast)
 		}
 	}
-	for _, query := range []string{"SELECT ARRAY[1,2] FROM t", "SELECT a[1] FROM t", "SELECT a[1:2] FROM t"} {
+	for _, query := range []string{"SELECT a[1] FROM t", "SELECT a[1:2] FROM t"} {
 		_, err := Parse(query)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {

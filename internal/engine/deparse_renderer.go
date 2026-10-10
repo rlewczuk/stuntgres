@@ -377,6 +377,20 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return deparseAttribute(r.relation, n.origin.Address.SubID)
 	case tableOIDExpression:
 		return "tableoid", nil
+	case regclassArrayExpression:
+		parts := make([]string, len(n.elements))
+		for i, element := range n.elements {
+			text, err := child(element)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		text := "ARRAY[" + strings.Join(parts, ", ") + "]"
+		if len(parts) == 0 {
+			return r.cast(text, n.ResultUsage(), true)
+		}
+		return text, nil
 	case collationExpression:
 		text, err := child(n.child)
 		if err != nil {

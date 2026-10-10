@@ -146,17 +146,15 @@ func TestReferenceDeleteReturningRegclassBoundary(t *testing.T) {
 				}{
 					{"DELETE FROM rt RETURNING old.v::regclass,new.v::regclass", []string{"v", "v"}, []string{"REGCLASS", "REGCLASS"}, []any{nil, nil}, referenceDiagnostic{Code: "0A000", Message: "qualified column references are unsupported", Position: "26"}},
 					{"DELETE FROM rt RETURNING new.v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{Code: "0A000", Message: "qualified column references are unsupported", Position: "26"}},
-					{"DELETE FROM rt RETURNING v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{Code: "42804", Message: "incompatible source and destination types"}},
-					{"DELETE FROM rt RETURNING CAST(v AS regclass)", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{Code: "42804", Message: "incompatible source and destination types"}},
+					{"DELETE FROM rt RETURNING v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{}},
+					{"DELETE FROM rt RETURNING CAST(v AS regclass)", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{}},
 				} {
 					referenceLockExec(t, p.ctx, db, "INSERT INTO rt VALUES(NULL)", 1)
-					if backend.pg {
+					if backend.pg || tc.want.Code == "" {
 						s := referenceSelect(tc.query, tc.columns, tc.types, [][]any{tc.values})
 						s.prepared = prepared
 						referenceRunStep(t, p.ctx, db, r, s)
 					} else {
-						// Native's legacy explicit provider remains bounded even
-						// though inquiries accept contextual TEXT arguments.
 						s := referenceImplicitError(tc.query, tc.want)
 						s.prepared, s.selectRows, s.errorStage = prepared, true, "execute"
 						if prepared {

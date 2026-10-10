@@ -76,6 +76,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return expressions(e.Args)
 		case CallExpr:
 			return expressions(e.Args)
+		case ArrayExpr:
+			return expressions(e.Elements)
 		case CastExpr:
 			return expression(e.Child)
 		case RegclassExpr:

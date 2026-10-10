@@ -185,9 +185,12 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 		var stamp DefinitionRevision
 		// Capture the provider stamp from the same authority as its name and
 		// temporary lifetime, never from a different published catalog.
-		_, represented := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, represented := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if represented {
-			stamp = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp
+			stamp = d.sequencePlanStamp
+			if d.relationKind != sequenceRelation {
+				stamp = d.revision
+			}
 		}
 		b.sequenceConstants = append(b.sequenceConstants, sequenceConstant{offset: literal.Value.Pos.Offset, ref: ref, temporary: temporary, stamp: stamp, represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
@@ -219,6 +222,35 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 	}
 	return coercionExpression{info, node, plan, sqltype.Implicit}, ObjectRef{}, nil
 }
+
+// Explicit casts share name input with sequence consumers but use the ordinary
+// coercion matrix for typed sources. Keep coercion nodes: they are not stored
+// regclass input constants and must not acquire relation dependencies.
+func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position) (BoundExpr, error) {
+	if err := qualifiedCastChild(raw); err != nil {
+		return nil, err
+	}
+	if literal, ok := raw.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue {
+		node, _, err := b.bindRegclass(raw)
+		return node, err
+	}
+	if err := b.captureElementInput(); err != nil {
+		return nil, err
+	}
+	target := b.typ(sqltype.Regclass).Usage()
+	child, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: target, deferAssignment: true})
+	if err != nil {
+		return nil, err
+	}
+	plan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Explicit)
+	if err != nil {
+		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to regclass", b.diagnosticTypeName(child.ResultUsage().Type)), pos)
+	}
+	if child.ResultUsage() == target {
+		return child, nil
+	}
+	return coercionExpression{b.info(target, raw.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Explicit}, nil
+}
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
@@ -232,7 +264,7 @@ func sequenceInputError(err error, pos parser.Position, context string, paramete
 	}
 	return err
 }
-func regclassNumeric(text string) (uint32, bool, error) {
+func regclassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error) {
 	input := text
 	if input == "-" {
 		input = "0"
@@ -245,15 +277,17 @@ func regclassNumeric(text string) (uint32, bool, error) {
 			return 0, false, nil
 		}
 	}
-	n, err := strconv.ParseUint(input, 10, 32)
+	value, err := typ.Input(context.Background(), input, -1)
 	if err != nil {
-		return 0, true, sqlError("22003", fmt.Sprintf(`value "%s" is out of range for type oid`, text))
+		return 0, true, err
 	}
-	return uint32(n), true, nil
+	n, err := value.OID()
+	return n, true, err
 }
 
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef, error) {
-	if oid, numeric, err := regclassNumeric(text); numeric {
+	typ, _ := auth.catalog.LookupType(sqltype.Oid)
+	if oid, numeric, err := regclassNumeric(text, typ); numeric {
 		if err != nil {
 			return ObjectRef{}, err
 		}
@@ -263,10 +297,28 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef,
 	if err != nil {
 		return ObjectRef{}, sqlError("42602", "invalid name syntax")
 	}
-	if len(name.Parts) == 3 {
-		return ObjectRef{}, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
+	database := ""
+	if auth.session != nil {
+		database = auth.session.databaseName
+	}
+	name, err = regclassQualifiedName(name, text, database)
+	if err != nil {
+		return ObjectRef{}, err
 	}
 	return e.resolveRelationReference(auth, name, false)
+}
+
+func regclassQualifiedName(name parser.ObjectName, text, database string) (parser.ObjectName, error) {
+	if len(name.Parts) > 3 {
+		return parser.ObjectName{}, sqlError("42601", "improper relation name (too many dotted names): "+text)
+	}
+	if len(name.Parts) == 3 {
+		if name.Parts[0].Text != database {
+			return parser.ObjectName{}, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
+		}
+		name.Parts = name.Parts[1:]
+	}
+	return name, nil
 }
 
 // Element input retains the statement's immutable authority, including its
@@ -276,6 +328,7 @@ type capturedRegclassInput struct {
 	path      []ObjectAddress
 	temporary ObjectAddress
 	token     SessionToken
+	database  string
 }
 
 func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassResolver, error) {
@@ -286,6 +339,7 @@ func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassR
 	input := capturedRegclassInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
 	if auth.session != nil {
 		input.token = auth.session.token
+		input.database = auth.session.databaseName
 	}
 	input.auth.session = nil
 	input.auth.settings = nil
@@ -295,15 +349,17 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if oid, numeric, err := regclassNumeric(text); numeric {
+	typ, _ := r.auth.catalog.LookupType(sqltype.Oid)
+	if oid, numeric, err := regclassNumeric(text, typ); numeric {
 		return oid, err
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return 0, sqlError("42602", "invalid name syntax")
 	}
-	if len(name.Parts) == 3 {
-		return 0, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
+	name, err = regclassQualifiedName(name, text, r.database)
+	if err != nil {
+		return 0, err
 	}
 	path := r.path
 	if len(name.Parts) == 2 {

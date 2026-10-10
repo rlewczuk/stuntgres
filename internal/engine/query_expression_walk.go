@@ -18,6 +18,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		}
 	}
 	switch e := node.(type) {
+	case regclassArrayExpression:
+		args(e.elements)
 	case updateOldExpression:
 		walk(e.columnExpression)
 	case deleteNewExpression:

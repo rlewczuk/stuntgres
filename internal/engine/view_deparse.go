@@ -598,6 +598,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return "", err
 		}
+		if _, constructor := e.Child.(parser.ArrayExpr); constructor {
+			return text + "::" + declaration, nil
+		}
 		return "CAST(" + text + " AS " + declaration + ")", nil
 	case parser.OperatorExpr:
 		spelling := e.Name.Parts[len(e.Name.Parts)-1].Text
@@ -880,6 +883,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	case parser.CallExpr:
 		text, err := args(e.Args)
 		return objectNameText(e.Name) + "(" + text + ")", err
+	case parser.ArrayExpr:
+		text, err := args(e.Elements)
+		return "ARRAY[" + text + "]", err
 	case parser.RegclassExpr:
 		text, err := child(e.Child)
 		return "CAST(" + text + " AS regclass)", err

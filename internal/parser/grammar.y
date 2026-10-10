@@ -999,6 +999,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar qualified_operator quantifier select_with_parens %prec OPERATOR {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,$2,kind,$4.Query,false,$2.Parts[0].Pos)}
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
+ | ARRAY '[' sequence_args ']' { $$=ArrayExpr{Elements:$3,Pos:$1.pos,Spelling:$1.raw} }
  | string_function { $$=$1 }
  | CURRENT_CATALOG { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_ROLE { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }

@@ -807,6 +807,8 @@ var baselineCasts = [...]castSpec{
 	{Int2, Regclass, Implicit, oidConversion, castCatalogFact{}},
 	{Int4, Regclass, Implicit, oidConversion, castCatalogFact{}},
 	{Int8, Regclass, Implicit, oidConversion, castCatalogFact{}},
+	{Regclass, Int4, Assignment, oidConversion, castCatalogFact{}},
+	{Regclass, Int8, Assignment, oidConversion, castCatalogFact{}},
 	{Text, Regclass, Implicit, viaIO, castCatalogFact{}},
 	{VarChar, Regclass, Implicit, viaIO, castCatalogFact{}},
 	{Oid, Int4, Assignment, oidConversion, castCatalogFact{20033, 0, 'a', 'b'}},
@@ -870,7 +872,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case Bool, Int2, Int4, Int8, Oid, Text, Name, BPChar, VarChar, Bytea, UUID,
+	case Bool, Int2, Int4, Int8, Oid, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB:
 		return true
 	}
@@ -907,7 +909,9 @@ func TemporalCastPair(source, target ID) bool {
 func OIDCastPair(source, target ID) bool {
 	integer := func(id ID) bool { return id == Int2 || id == Int4 || id == Int8 }
 	return source == Oid && (target == Oid || target == Text || integer(target)) ||
-		target == Oid && (source == Text || integer(source))
+		target == Oid && (source == Text || integer(source)) ||
+		source == Regclass && (target == Regclass || target == Oid || target == Text || integer(target)) ||
+		target == Regclass && (source == Oid || source == Text || source == VarChar || integer(source))
 }
 
 // PlanCoercion admits only bounded directional edges, never transitive casts.
@@ -1013,7 +1017,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = stringConversion
 		return p, nil
 	}
-	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Bytea || source.Type.id == Oid || TemporalCastType(source.Type.id) || source.Type.id == Interval) {
+	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Bytea || source.Type.id == Oid || source.Type.id == Regclass || TemporalCastType(source.Type.id) || source.Type.id == Interval) {
 		p.method = viaIO
 		if source.Type.id == Bool {
 			p.method = booleanText

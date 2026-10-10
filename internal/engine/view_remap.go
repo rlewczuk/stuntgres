@@ -36,6 +36,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	}
 	var next BoundExpr
 	switch n := node.(type) {
+	case regclassArrayExpression:
+		n.elements = args(n.elements)
+		next = n
 	case subqueryExpression:
 		if queryMapper != nil {
 			root, failure := queryMapper(n.queryPlan.Root)

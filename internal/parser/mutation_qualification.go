@@ -74,6 +74,10 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 		return scanDeleteQualification(e.Child, true)
 	case RegclassExpr:
 		return scanDeleteQualification(e.Child, true)
+	case ArrayExpr:
+		for _, element := range e.Elements {
+			absorb(element)
+		}
 	case OperatorExpr:
 		for _, child := range e.Args {
 			absorb(child)
@@ -151,6 +155,12 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 			}
 		}
 		return nonqueryQualification(e.Filter, assignment)
+	case ArrayExpr:
+		for _, element := range e.Elements {
+			if token, reject := nonqueryQualification(element, assignment); token != nil {
+				return token, reject
+			}
+		}
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			return &lexeme{raw: ".", pos: e.QualificationPos}, assignment && !e.QualificationGrouped
@@ -280,6 +290,21 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 		child, changed := markGroupedQualification(e.Child)
 		if changed {
 			e.Child = child
+			return e, true
+		}
+	case ArrayExpr:
+		var elements []Expr
+		for i, element := range e.Elements {
+			next, changed := markGroupedQualification(element)
+			if changed {
+				if elements == nil {
+					elements = append([]Expr(nil), e.Elements...)
+				}
+				elements[i] = next
+			}
+		}
+		if elements != nil {
+			e.Elements = elements
 			return e, true
 		}
 	case LogicalExpr:

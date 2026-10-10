@@ -86,18 +86,6 @@ func TestReferencePGDependRegclassOwners(t *testing.T) {
 						expr = "'p'::regclass::d"
 					}
 					statements := pgDependOwnerStatements(owner, "t", "("+expr+") IS NOT NULL")
-					if !b.pg && (probe == "numeric" || probe == "absent" || probe == "domain") {
-						for _, q := range statements[:len(statements)-1] {
-							pgDependExec(t, p, b, q)
-						}
-						want := controlsReferenceDiagnostic("42804", "incompatible source and destination types")
-						if probe == "domain" {
-							want = controlsReferenceDiagnostic("0A000", "explicit casts are supported only for int4, int8, text and bool")
-							want.Position = map[string]string{"default": "52", "check": "56", "generated": "63", "index": "37", "view": "39"}[owner]
-						}
-						pgDependError(t, p, b, statements[len(statements)-1], want)
-						return
-					}
 					pgDependExec(t, p, b, statements...)
 					table := pgDependRelation(t, b, "t")
 					class, id := pgDependOwnerIdentity(t, b, owner, table)
@@ -110,6 +98,22 @@ func TestReferencePGDependRegclassOwners(t *testing.T) {
 						want = append(want, pgDependEdge(class, id, 0, 1247, domain, 0, "n"))
 					}
 					pgDependBag(t, p, b, class, id, want...)
+					if probe == "numeric" || probe == "absent" || probe == "domain" {
+						spelling := "p"
+						if probe == "absent" {
+							spelling = "4294967295"
+						}
+						referenceRunStep(t, p.ctx, b.db, b.recorder, regclassRows("SELECT "+expr+" AS r", "r", spelling))
+						referenceRunStep(t, p.ctx, b.db, b.recorder, referenceExec("INSERT INTO t(a) VALUES(7)", 1))
+						switch owner {
+						case "default", "generated":
+							referenceRunStep(t, p.ctx, b.db, b.recorder, referenceSelect("SELECT a,c FROM t", []string{"a", "c"}, []string{"INT4", "BOOL"}, [][]any{{int64(7), true}}))
+						case "check", "index":
+							referenceRunStep(t, p.ctx, b.db, b.recorder, referenceSelect("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+						case "view":
+							referenceRunStep(t, p.ctx, b.db, b.recorder, referenceSelect("SELECT c FROM v", []string{"c"}, []string{"BOOL"}, [][]any{{true}}))
+						}
+					}
 				})
 			})
 		}

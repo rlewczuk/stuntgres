@@ -243,6 +243,7 @@ func TestReferenceSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 						referenceRunStep(t, p.ctx, a, record, s)
 						referenceLockExec(t, p.ctx, a, "INSERT INTO "+name+" DEFAULT VALUES", 1)
 						referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"BOOL"}, [][]any{{i == 0}}))
+						referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT count(*) AS n FROM pg_attrdef WHERE adrelid='"+name+"'::regclass::oid", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 					}
 					if !pg {
 						sequenceProbeValue(t, p.ctx, a, "SELECT nextval('default_s')", 17)

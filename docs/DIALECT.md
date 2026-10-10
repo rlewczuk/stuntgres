@@ -711,8 +711,8 @@ outside this datetime family; native numeric/epoch ownership reports 0A000.
 PostgreSQL's implicit TIME-to-INTERVAL formatting route depends on a cast not
 provided by the current native temporal substrate; native reports 0A000
 `time to interval conversion is unsupported`. This does not implement that
-adjacent cast. VARIADIC ARRAY constructors likewise retain the existing native
-parser capability diagnostic rather than adding general ARRAY syntax.
+adjacent cast. General-family VARIADIC ARRAY construction remains excluded;
+the selected flat regclass constructor does not add temporal-array construction.
 The string-category resolver, DATE's implicit source promotion and namespace
 visibility retain the existing overload rules. No temporal arithmetic,
 new general casts, wire protocol or locale provider is added.
@@ -1974,8 +1974,8 @@ array types or syntax, arbitrary successful routine dispatch or `sprintf`.
 REGCLASS-array literal annotations retain their existing array cast identity in
 both `value::regclass[]` and `CAST(value AS regclass[])`, including native replay
 of typed leaves in stored format expressions. Ordinary array output and borrowed
-VARIADIC elements use statement-visible relation names; this does not admit
-directly declared REGCLASS-array columns or change scalar REGCLASS casts.
+VARIADIC elements use statement-visible relation names. Direct REGCLASS-array
+columns and bounded scalar casts are now admitted by the regclass change below.
 Resolution-only absent-call admission is confined to actual selected format
 arguments: missing nested children retain42883 without installing providers.
 Selected format spelling/signature diagnostics remain unchanged. Outside those
@@ -3373,7 +3373,8 @@ case-insensitively without trimming. Unknown/wrong-level names, invalid numeric
 identities, non-index relations and invalid index-column ordinals return NULL.
 Missing named REGCLASS input is a normal resolution error, not an invalid-OID NULL.
 OID, integer widths, TEXT/VARCHAR and existing domains implicitly select the
-documented REGCLASS signature; explicit cast and storage admission are unchanged.
+documented REGCLASS signature; bounded explicit casts and direct storage are
+documented under regclass relation identifiers below.
 String conversion uses captured statement input authority.
 
 Fixed builtin AM IDs403/405/783/2742/4000/3580 answer documented capabilities;
@@ -3571,17 +3572,64 @@ Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceTemporaryTableBoundar
 
 The four selected sequence functions and minimal regclass casts reuse the common typed scalar binder/eager evaluator. Literal regclass lookup happens at Prepare with character positions. Nonnull regclass parameters become canonical OIDs during coherent Execute parameter import, before zero-row evaluation, runtime NULL checks or nested function effects; input errors retain portal Context without a literal Position. Numeric/dash inputs require no existing relation. NULL arguments are strict and do not open a sequence. Exact session-before-use, missing/wrong-kind, option, bound, ACL and NOTICE diagnostics have independent pinned-release fixtures. This does not admit arbitrary relationless SELECT, user-defined functions or general casts.
 
+### Regclass relation identifiers — change note
+
 Regclass input follows PostgreSQL qualified-name splitting, separately from the
 SQL statement lexer. Unquoted punctuation and comment-looking bytes remain part
 of the name; only dots and six ASCII whitespace bytes delimit components.
 Quoted components preserve case/embedded dots and decode doubled quotes; names
-fold ASCII and clip at 63 UTF8-safe bytes. Only exact nonempty ASCII digit strings
-or exact `-` select the opening-free OID path. Padded digit/dash strings instead
-resolve symbolic names, and malformed complete input rejects before effects.
+fold ASCII and clip at 63 UTF8-safe bytes. Exact nonempty ASCII digit strings
+or exact `-` select the opening-free OID path, including the existing OID codec's
+octal rules. Signed/padded numeric-looking strings resolve symbolic names.
+Malformed complete input rejects before effects. Qualified input accepts the
+current database and rejects foreign databases/excessive dotted qualification.
 Input-boundary stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`.
+Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=1`.
 
-Both `value::regclass` and `CAST(value AS regclass)` are admitted through the shared cast syntax alongside the existing bounded explicit-cast matrix above; unsupported source/target pairs retain that matrix's diagnostics. Regclass (OID2205) is a sequence expression/result identity, not an admitted stored column type. Valid sequence CREATE prepares without namespace permission checks. At execution, schema CREATE denial has no Position; ordinary CREATE validates options first, while IF NOT EXISTS checks namespace authority before skipping an existing relation or validating options. Literal regclass schema USAGE denial remains an analysis/Prepare error positioned at the input literal.
+Both `value::regclass` and `CAST(value AS regclass)` share the bounded explicit
+matrix: OID/TEXT/VARCHAR/integer inputs and OID/INT4/INT8/TEXT outputs. INT4 uses
+unsigned bits; INT8 checks the OID range. Direct scalar/array columns, domains,
+DEFAULT/CHECK/views and writes are admitted. Flat ARRAY constructors accept
+scalar regclass elements, NULLs, contextually typed empty arrays and parameters
+inferred from a regclass-array cast or regclass peer, but not
+nested or general-family construction. Scalar stored input constants retain
+relation dependencies across rename/move; numeric coercion trees and opaque
+array/domain-array input do not gain DROP dependencies. Ordinary prepared SQL
+reanalyzes its source spelling, unlike stored definitions.
+Recursive view cascades include surviving-table defaults/CHECKs bound to removed
+views, while restrictive details retain each immediate provider. DROP COLUMN
+also prunes definitions referencing removed views on the same surviving owner,
+without discarding unrelated definitions or retained data. Immediate-provider
+traversal orders diagnostics/notices even through replaced views; genuine
+consumer identities order mixed siblings and same-owner CHECKs keep declaration
+order within their occupied sibling slots. Failing
+INSERT/UPDATE rows, including UPDATE RETURNING, use captured symbolic regclass
+output recursively through domains/arrays and retain existing ACL disclosure.
+
+Native logical replay remaps actual data/scalar Const identities and defers
+eligible closed defaults until definitions exist. Pure closed BOOL/TEXT/CASE
+defaults with genuine captured scalar regclass authority retain their existing
+cycle deferral; sequence defaults require captured provider authority. The same
+per-definition decision controls prerequisites, CREATE omission and deferred ALTER
+emission. Nondeferred defaults/CHECKs/generated expressions keep mandatory shared
+prerequisites. Opaque regclass-array payloads under an inline BOOL default get
+replay ordering but no scalar relation DROP edge; a BOOL result without captured
+scalar authority remains outside the deferred subset.
+Numeric coercion expressions preserve
+their numeric bits, not logical bindings under a different allocator. Opaque
+array view/CHECK payloads receive replay ordering without DROP dependencies.
+These process-local controls preserve retained rows and atomically reject
+failed/canceled restore; they do not promise disk/network/physical pg_dump ABI.
+See [regclass type contracts](TYPES.md#regclass-relation-identifiers--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRegclassFeatureSmoke$' VERBOSE=0`
+and the identical command with `REFERENCE=1` (900-second deadlines).
+
+Valid sequence CREATE still prepares without namespace permission checks.
+At execution, schema CREATE denial has no Position; ordinary CREATE validates
+options first, while IF NOT EXISTS checks namespace authority before skipping
+an existing relation or validating options. Literal regclass schema USAGE
+denial remains an analysis/Prepare error positioned at the input literal.
 
 Standalone selected regclass projections use the `regclass` column label and
 PostgreSQL name output: visible names are unqualified, shadowed/off-path names
@@ -4036,7 +4084,7 @@ INCLUDE repetitions, while class/collation/options contain only keys. Top-level
 scalar collations use their real stable attribute/no indexprs where PostgreSQL does.
 Central IndexClass owns actual identities; BindOrdering obtains default identities
 from it, retaining enum/domain declaration ordering and internal Char/Regclass
-without expanding excluded stored declarations or Char domains. All implemented
+without expanding excluded CHAR stored declarations or CHAR domains. All implemented
 explicit classes/collations and INCLUDE payloads survive maintenance. Full/column/
 pretty index deparse uses the existing PG renderer and compatibility reconstruction
 owner; native Dump retains canonical replay, including admitted decorations.

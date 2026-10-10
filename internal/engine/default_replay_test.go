@@ -27,6 +27,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	catalog := e.CatalogRead()
 	regclass, _ := catalog.LookupType(sqltype.Regclass)
 	oid, _ := catalog.LookupType(sqltype.Oid)
+	boolean, _ := catalog.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
 	literal := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage(), regclassRef: ref}, value: sqltype.String(regclass, "10000")}
 	definition := columnDefault{expression: literal, dependencies: []ObjectRef{ref}}
@@ -42,7 +43,6 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*literalExpression){
-		func(n *literalExpression) { n.regclassRef = ObjectRef{} },
 		func(n *literalExpression) { n.regclassRef.Epoch++ },
 		func(n *literalExpression) { n.regclassRef.Address.SubID = 1 },
 		func(n *literalExpression) {
@@ -57,7 +57,9 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	} {
 		changed := literal
 		mutate(&changed)
-		definition.expression = changed
+		// These mutations must not create captured authority for a pure BOOL
+		// result. REGCLASS results independently belong to the selected subset.
+		definition.expression = nullTestExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, child: changed, not: true}
 		if defaultReplayDeferrable(definition) {
 			t.Fatal("noncaptured, mismatched, nonscalar or NULL reference admitted")
 		}

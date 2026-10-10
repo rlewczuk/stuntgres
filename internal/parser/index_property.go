@@ -33,6 +33,8 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 		args = e.Args
 	case CallExpr:
 		args = e.Args
+	case ArrayExpr:
+		args = e.Elements
 	case OperatorExpr:
 		args = e.Args
 	case ConditionalExpr:

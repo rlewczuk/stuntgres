@@ -269,6 +269,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			changed = changed || zoneChanged
 		}
 		return e, changed, nil
+	case regclassArrayExpression:
+		var elements []BoundExpr
+		for i, old := range e.elements {
+			next, changed, err := preflightCoercionsWithPolicy(c, old, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if elements == nil {
+					elements = append([]BoundExpr(nil), e.elements...)
+				}
+				elements[i] = next
+			}
+		}
+		if elements != nil {
+			e.elements = elements
+		}
+		return e, elements != nil, nil
 	case collationExpression:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
@@ -1215,9 +1233,15 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+	case parser.ArrayExpr:
+		var err error
+		node, err = b.bindRegclassArray(r, policy.expected)
+		if err != nil {
+			return nil, err
+		}
 	case parser.RegclassExpr:
 		var err error
-		node, _, err = b.bindRegclass(r.Child)
+		node, err = b.bindRegclassCast(r.Child, r.Pos)
 		if err != nil {
 			return nil, err
 		}
@@ -1324,6 +1348,21 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			literalUsage = u.BaseUsage()
 		}
 		node = literalExpression{b.info(literalUsage, v.Pos, ExprProperties{}), value}
+		if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
+			text, _ := value.Text()
+			oid, err := strconv.ParseUint(text, 10, 32)
+			if err != nil {
+				return nil, err
+			}
+			auth, err := b.bindingAuthorization()
+			if err != nil {
+				return nil, err
+			}
+			address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
+			if descriptor, exists := auth.catalog.Descriptor(address); exists {
+				b.dependency(ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: address}, descriptor.Revision())
+			}
+		}
 	case parser.TypedLiteralExpr:
 		rawType := r.TypeName
 		saved, found, err := b.captureAt(r.Pos.Offset)
@@ -1537,8 +1576,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return b.bind(raw.Child, outerPolicy)
 	}
 	if target.Type.ID() == sqltype.Regclass {
-		node, _, err := b.bindRegclass(raw.Child)
-		return node, err
+		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
 	if !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
@@ -1560,6 +1598,8 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 				}
 			}
 		}
+	case parser.ArrayExpr:
+		policy.expected = target
 	case parser.CastExpr:
 		if unknownNullSyntax(child) {
 			policy.expected = target
@@ -1668,7 +1708,12 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 	case parser.CallExpr:
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.RegclassExpr:
+		if name, strong := expressionName(r.Child, usage, bound); strong {
+			return name, true
+		}
 		return "regclass", false
+	case parser.ArrayExpr:
+		return "array", false
 	case parser.TimeZoneExpr:
 		return "timezone", true
 	case parser.CollateExpr:
@@ -1933,7 +1978,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
+	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

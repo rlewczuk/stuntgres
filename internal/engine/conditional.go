@@ -489,6 +489,12 @@ func qualifiedCastChild(raw parser.Expr) error {
 		}
 	case parser.RegclassExpr:
 		return qualifiedCastChild(e.Child)
+	case parser.ArrayExpr:
+		for _, element := range e.Elements {
+			if err := qualifiedCastChild(element); err != nil {
+				return err
+			}
+		}
 	case parser.OperatorExpr:
 		for _, arg := range e.Args {
 			if err := qualifiedCastChild(arg); err != nil {

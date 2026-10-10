@@ -23,6 +23,26 @@ See [string encoding](docs/DIALECT.md#string-codepoints-encoding-and-unicode--ch
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0`.
 
+Change note: PostgreSQL 18 `regclass` identifies tables, views, indexes and
+sequences using quoted names, the effective relation search path or unsigned OID
+input. Direct scalar/array columns, domains, supported numeric/text casts and
+flat `ARRAY[scalar_regclass, ...]` constructors now compose with writes, stored
+defaults, CHECKs, views and logical native Dump/Restore. Stored scalar input
+constants retain identity and DROP dependencies; ordinary prepared SQL
+reanalyzes its source spelling. Numeric coercion expressions retain their
+numbers, not cross-catalog identity promises. Constructor parameters infer
+from regclass context or peers. Recursive view cascades remove their dependent
+defaults/CHECKs, including same-owner DROP COLUMN and replaced-view chains;
+replay keeps inline consumer prerequisites, including opaque array payloads
+inside BOOL defaults without manufacturing DROP dependencies. Failing UPDATE
+RETURNING rows use captured symbolic output without widening privilege
+disclosure. See
+[regclass relation identifiers](docs/TYPES.md#regclass-relation-identifiers--change-note).
+Feature smoke (900-second deadline per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRegclassFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegclassFeatureSmoke$' VERBOSE=0`.
+
 Change note: `lpad(text,integer[,text])`, `rpad(text,integer[,text])`,
 `repeat(text,integer)` and `reverse(text)` reuse the selected immutable string
 providers. Padding counts UTF8 codepoints, repeats fill from its beginning and
@@ -265,8 +285,9 @@ associated array; declared bounds do not constrain stored shape. Native values
 are canonical array-literal strings, with owned immutable dimensions/elements,
 typed NULLs, element typmods and statement-owned temporal/REGCLASS presentation.
 Domain publication/drop and native Dump/Restore retain both association halves
-and recursively reown stored identities. No ARRAY constructors, subscripts,
-operators, array functions or new catalog projections are added.
+and recursively reown stored identities. This declaration/literal change adds
+no general constructor family; the selected flat regclass constructor is
+documented above. Existing subscripts/operators/functions have separate notes.
 See [arrays](docs/TYPES.md#arrays--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`.

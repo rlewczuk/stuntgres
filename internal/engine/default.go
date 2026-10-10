@@ -128,6 +128,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	}
 	r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
+	case regclassArrayExpression:
+		return r.regclassArraySQL(ctx, view, n)
 	case indexPropertyExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: index property inquiries are unsupported in stored defaults")
@@ -481,18 +483,25 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.regclassRef != (ObjectRef{}) {
 			ref := n.regclassRef
 			target, ok := view.Descriptor(ref.Address)
-			relation, relationOK := target.(*relationDescriptor)
+			_, relationOK := target.(*relationDescriptor)
 			if !ok || !relationOK || ref.owner != view.owner.owner || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
 			}
 			r.record(ref)
-			if r.checkLiterals == nil {
-				namespace, ok := view.Descriptor(relation.namespace)
-				if !ok {
-					return "", fmt.Errorf("stuntgres: missing stored regclass namespace")
-				}
-				name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(relation.name)
-				return "CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)", nil
+		} else if n.value.Type().ID() == sqltype.Regclass && !n.value.IsNull() {
+			// Actual scalar input datums retain relation dependencies; numeric
+			// coercion trees are not materialized into these constants.
+			text, err := n.value.Text()
+			if err != nil {
+				return "", err
+			}
+			oid, err := strconv.ParseUint(text, 10, 32)
+			if err != nil {
+				return "", err
+			}
+			address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
+			if _, exists := view.Descriptor(address); exists {
+				r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 			}
 		}
 		if r.checkLiterals != nil {
@@ -892,6 +901,29 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case regclassArrayExpression:
+		var elements []BoundExpr
+		for i, old := range n.elements {
+			next, replaced, failure := retagBoundTypesWithQuery(old, retainedType, queryMapper)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if replaced {
+				changed = true
+				if elements == nil {
+					elements = append([]BoundExpr(nil), n.elements...)
+				}
+				elements[i] = next
+			}
+		}
+		if !changed {
+			return node, false, err
+		}
+		if elements != nil {
+			n.elements = elements
+		}
+		n.expressionInfo = info
+		rebound = n
 	case tableOIDExpression:
 		n.expressionInfo = info
 		rebound = n

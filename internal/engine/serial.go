@@ -81,3 +81,23 @@ func closedSequenceDefault(node BoundExpr) bool {
 	}
 	return false
 }
+
+func closedRegclassDefault(node BoundExpr) bool {
+	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
+		return false
+	}
+	switch n := node.(type) {
+	case literalExpression:
+		return true
+	case coercionExpression:
+		return closedRegclassDefault(n.child)
+	case regclassArrayExpression:
+		for _, element := range n.elements {
+			if !closedRegclassDefault(element) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}

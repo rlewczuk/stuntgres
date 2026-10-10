@@ -61,6 +61,10 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	if err := stageViewDependents(stage, []ObjectAddress{target}, a.Mode); err != nil {
 		return nil, err
 	}
+	// The dependency pass can prune surviving definitions on this same table.
+	// Its staged descriptor, not the pre-cascade maps, owns the remaining shape.
+	old = stage.descriptors[ref.Address].(*relationDescriptor)
+	slot = old.indexForAttribute(target.SubID)
 	next := *old
 	next.columns = make([]ColumnDescriptor, 0, len(old.columns)-1)
 	next.attributes = make([]int32, 0, len(old.attributes)-1)

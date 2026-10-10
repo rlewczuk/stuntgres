@@ -5,9 +5,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// This is a replay decision over an already-bound, validated definition, not
-// DEFAULT admission or volatility policy. Only captured provider authority can
-// justify removing a creation predecessor and installing the default later.
+// One replay decision over an already-bound, validated definition, not DEFAULT
+// admission or volatility policy. Captured closed expressions and the selected
+// closed regclass result subset may install after their providers are created.
 func defaultReplayDeferrable(definition columnDefault) bool {
 	node := definition.expression
 	if node == nil {
@@ -24,6 +24,11 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 	}
 	if node.Properties() != (ExprProperties{}) {
 		return false
+	}
+	// The selected stored regclass result subset also includes opaque arrays,
+	// domains and numeric coercion trees, without manufacturing DROP providers.
+	if node.ResultUsage().Type.ContainsRegclass() && closedRegclassDefault(node) {
+		return true
 	}
 	captured := false
 	walkBoundExpression(node, func(child BoundExpr) {

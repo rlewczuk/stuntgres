@@ -30,7 +30,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 			e.mu.Lock()
 			usage, err := e.resolveTableColumnType(raw, op)
 			e.mu.Unlock()
-			if mode == "isolated" {
+			if mode == "isolated" || raw.Name == "regclass" {
 				if err != nil {
 					t.Fatal(mode, raw, err)
 				}
@@ -141,24 +141,36 @@ func TestQueryTableCreateRestoreReferenceLiteralBoundary(t *testing.T) {
 		t.Fatal("ordinary stored NULL rejected", err)
 	}
 	for _, tc := range []struct {
-		name  string
-		child parser.Expr
+		name     string
+		child    parser.Expr
+		accepted bool
 	}{
-		{"absent", nil},
-		{"null_cast", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
-		{"numeric", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}},
-		{"parameter", parser.ParameterExpr{Number: 1}},
-		{"column", parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "n"}}}}},
-		{"otherwise_restorable_call", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "upper"}}}, Args: []parser.Expr{literal}}},
-		{"effect", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "nextval"}}}, Args: []parser.Expr{literal}}},
-		{"query", parser.SubqueryExpr{Query: &parser.Select{Targets: []parser.Expr{literal}}}},
-		{"nested_cast", parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "text"}}},
-		{"nested_reference", parser.RegclassExpr{Child: literal}},
+		{"absent", nil, false},
+		{"null_cast", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, true},
+		{"numeric", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, true},
+		{"parameter", parser.ParameterExpr{Number: 1}, false},
+		{"column", parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "n"}}}}, false},
+		{"otherwise_restorable_call", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "upper"}}}, Args: []parser.Expr{literal}}, true},
+		{"effect", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "nextval"}}}, Args: []parser.Expr{literal}}, false},
+		{"query", parser.SubqueryExpr{Query: &parser.Select{Targets: []parser.Expr{literal}}}, false},
+		{"nested_cast", parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "text"}}, true},
+		{"nested_reference", parser.RegclassExpr{Child: literal}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := restoreScalar(parser.RegclassExpr{Child: tc.child})
-			if err == nil || err.Error() != "stuntgres: invalid restore scalar" {
-				t.Fatal("non-generated reference child admitted", err)
+			if tc.name == "parameter" {
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" {
+					t.Fatal("existing parameter rejection lost", err)
+				}
+				return
+			}
+			if tc.accepted {
+				if err != nil {
+					t.Fatal("selected restorable scalar child rejected", err)
+				}
+			} else if err == nil || err.Error() != "stuntgres: invalid restore scalar" {
+				t.Fatal("unsupported scalar child admitted", err)
 			}
 		})
 	}

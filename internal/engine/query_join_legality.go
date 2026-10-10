@@ -472,6 +472,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	switch e := expr.(type) {
 	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression:
 		return 0, nil
+	case regclassArrayExpression:
+		children = e.elements
 	case coercionExpression:
 		return joinExpressionSides(e.child, leftWidth, rightWidth)
 	case collationExpression:

@@ -71,7 +71,7 @@ func ParseRegclassName(input string) (ObjectName, error) {
 		if offset == len(input) {
 			return ObjectName{Parts: parts}, nil
 		}
-		if input[offset] != '.' || len(parts) == 3 {
+		if input[offset] != '.' {
 			return ObjectName{}, fmt.Errorf("invalid name syntax")
 		}
 		offset++

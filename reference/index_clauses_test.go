@@ -179,8 +179,8 @@ func TestReferenceIndexClausesCollations(t *testing.T) {
 func TestReferenceIndexClausesOperatorClasses(t *testing.T) {
 	indexClausesScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, run func(referenceStep)) {
 		run(referenceExec("CREATE DOMAIN dint AS integer", 0))
-		// Direct REGCLASS storage remains excluded. This existing domain storage
-		// path is independently covered by TestReferenceDomainBaseValues.
+		// Domain-on-regclass storage independently covers the existing domain
+		// path, in addition to the direct-storage regclass suite.
 		run(referenceExec("CREATE DOMAIN dreg AS regclass", 0))
 		run(referenceExec("CREATE TABLE t(n INT,s TEXT,v VARCHAR,c CHAR(4),d dint,r dreg)", 0))
 		for i, elem := range []string{"n int4_ops", "n pg_catalog.int4_ops", "n oid_ops", "s text_ops", "s varchar_ops", "s bpchar_ops", "s text_pattern_ops", "s varchar_pattern_ops", "s bpchar_pattern_ops", "v text_ops", "v varchar_ops", "v bpchar_ops", "v text_pattern_ops", "v varchar_pattern_ops", "v bpchar_pattern_ops", "c bpchar_ops", "c bpchar_pattern_ops", "d int4_ops", "d oid_ops", "r oid_ops"} {

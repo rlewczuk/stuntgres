@@ -59,6 +59,13 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 		return stringSingletonFamily(e.Child, datetimeOnly)
 	case RegclassExpr:
 		return stringSingletonFamily(e.Child, datetimeOnly)
+	case ArrayExpr:
+		valid, found := true, false
+		for _, element := range e.Elements {
+			a, b := stringSingletonFamily(element, datetimeOnly)
+			valid, found = valid && a, found || b
+		}
+		return valid, found
 	case TimeZoneExpr:
 		a, b := stringSingletonFamily(e.Value, datetimeOnly)
 		if e.Local {

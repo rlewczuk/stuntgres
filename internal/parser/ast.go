@@ -297,6 +297,16 @@ type RegclassExpr struct {
 func (RegclassExpr) expression()                {}
 func (e RegclassExpr) SourcePosition() Position { return e.Pos }
 
+// ArrayExpr is flat ARRAY[...] syntax; type admission belongs to the binder.
+type ArrayExpr struct {
+	Elements []Expr
+	Pos      Position
+	Spelling string // Original keyword spelling for excluded-family diagnostics.
+}
+
+func (ArrayExpr) expression()                {}
+func (e ArrayExpr) SourcePosition() Position { return e.Pos }
+
 type TimeZoneExpr struct {
 	Value, Zone Expr
 	Local       bool

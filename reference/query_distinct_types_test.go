@@ -43,8 +43,8 @@ func TestReferenceQueryDistinctTypes(t *testing.T) {
 				view := table + "_distinct"
 				stored, projection, values := tc.typ, "v", tc.values
 				if tc.typ == "REGCLASS" {
-					// Literal REGCLASS providers are admitted; TEXT-column casts and
-					// REGCLASS storage are separate, unsupported prerequisites.
+					// This fixture compares literal REGCLASS providers independently of
+					// direct storage and TEXT-column casts covered by the regclass suite.
 					stored = "INT"
 					values = "(1),(2),(3),(NULL),(NULL)"
 					projection = "CASE v WHEN 1 THEN 'pg_class'::regclass WHEN 2 THEN 'pg_catalog.pg_class'::regclass WHEN 3 THEN 'pg_attrdef'::regclass ELSE NULL::regclass END AS v"

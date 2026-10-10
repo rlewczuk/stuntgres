@@ -427,6 +427,13 @@ func (l *lexer) scalarInput(expr Expr) bool {
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
+	case ArrayExpr:
+		for _, element := range r.Elements {
+			if !l.scalarInputTree(element) {
+				return false
+			}
+		}
+		return true
 	case FunctionExpr:
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {

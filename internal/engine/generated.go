@@ -121,6 +121,8 @@ func generationImmutable(node BoundExpr) bool {
 		return true
 	}
 	switch n := node.(type) {
+	case regclassArrayExpression:
+		return args(n.elements)
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
 	case collationExpression:
@@ -228,6 +230,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
+	case regclassArrayExpression:
+		return args(n.elements)
 	case tableOIDExpression:
 		return true
 	case collationExpression:
@@ -418,6 +422,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return nil
 	}
 	switch n := node.(type) {
+	case regclassArrayExpression:
+		return args(n.elements)
 	case columnExpression:
 		if n.origin.owner != view.owner.owner || n.origin.Epoch != view.Epoch() || n.origin.Address.ClassID != d.address.ClassID || n.origin.Address.ObjectID != d.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.columns) || d.attributes[n.slot] != n.origin.Address.SubID || usage != d.columns[n.slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")

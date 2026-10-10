@@ -444,10 +444,5 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 		}
 		return cmp.Compare(a.check.ordinal, b.check.ordinal)
 	})
-	if mode != parser.DropRestrict {
-		for _, edge := range edges {
-			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to constraint "+edge.check.Name+" on table "+edge.relation.name)
-		}
-	}
 	return edges, nil
 }
