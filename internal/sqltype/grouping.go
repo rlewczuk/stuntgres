@@ -52,7 +52,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		return g, nil
 	}
 	switch base.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, JSONB:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, Regtype, JSONB:
 	default:
 		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + base.DiagnosticName()}
 	}
@@ -142,7 +142,7 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 		return groupingTextEqual(ctx, a.text, b.text)
 	}
 	switch a.typ.BaseType().id {
-	case Xid:
+	case Xid, Regtype:
 		return a.oid == b.oid, ctx.Err()
 	case Text, VarChar, Name, Bytea, Regclass, Char:
 		return groupingTextEqual(ctx, a.text, b.text)
@@ -236,7 +236,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 			integerHash(uint64(hi))
 			integerHash(lo)
 		}
-	case Oid, Xid:
+	case Oid, Xid, Regtype:
 		integerHash(uint64(v.oid))
 	case Bool:
 		if v.boolean {

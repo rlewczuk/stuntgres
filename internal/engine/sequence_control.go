@@ -98,7 +98,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			return
 		}
 		if imported, ok := next.descriptors[address].(*typeDescriptor); ok && imported.typ != typ {
-			next.descriptors[address] = source
+			copy := *imported
+			copy.typ = typ
+			next.descriptors[address] = &copy
 			typesChanged = true
 		}
 		if typ.IsArray() {

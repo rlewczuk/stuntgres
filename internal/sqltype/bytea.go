@@ -39,6 +39,7 @@ type OutputEnvironment struct {
 	DateStyle     DateStyle
 	IntervalStyle IntervalStyle
 	Regclass      RegclassFormatter
+	Regtype       RegtypeFormatter
 }
 
 func hexNibble(text string) (byte, error) {

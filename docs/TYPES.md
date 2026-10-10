@@ -22,7 +22,8 @@ NULL still retains its concrete metadata identity.
 four-byte unsigned storage, database/SQL name XID, category U). Decimal output
 exports fresh owned `[]byte`, matching the pinned pq raw representation, not
 OID's `int64`. Scalar ownership/equality and grouping retain XID identity.
-It has no collation, typmod or associated array. This catalog projection does
+It has no collation or typmod; its associated `_xid` identity (OID1011) is
+lookup-only, not an executable XID array family. This catalog projection does
 not enable XID column declarations, casts to OID/regclass/numerics, ordering/
 index classes or XID functions. See [prepared transactions](TRANSACTIONS.md#prepared-transactions).
 
@@ -264,10 +265,10 @@ and the identical command with `REFERENCE=1` (900 seconds per invocation).
 
 Arrays are immutable catalog-owned values over the supported stored scalars:
 BOOL, BYTEA, NAME, INT2/INT4/INT8, TEXT/BPCHAR/VARCHAR, OID, FLOAT4/FLOAT8,
-NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID, JSON, JSONB and REGCLASS.
+NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID, JSON, JSONB, REGCLASS and REGTYPE.
 Domains over supported scalars or arrays may also be elements; scalar REGCLASS,
-REGCLASS[] and their domain wrappers are admitted table-column types.
-There is no added CHAR, BOX, UNKNOWN, VOID or PG_NODE_TREE array family.
+REGCLASS[], scalar REGTYPE, REGTYPE[] and their domain wrappers are admitted table-column types.
+There is no added executable CHAR, BOX, UNKNOWN, VOID or PG_NODE_TREE array family.
 Each represented element has one authoritative associated array ID. User domains
 and their automatic arrays publish together, share namespace/owner/ACL authority,
 and cannot leave an orphan on failed creation or dependency removal. Generated
@@ -2247,4 +2248,55 @@ output at execution, while determinate POSIX outputs retain identity951.
 Terminal-pattern escape errors remain lazy, including the release's ordering
 after `%` consumes adjacent `_` wildcards; exhausted literal input does not
 globally validate unreachable pattern suffixes.
+
+
+## REGTYPE — change note
+
+REGTYPE is an unsigned four-byte catalog identifier (OID2206, array2211),
+not TEXT, INTEGER or a composite value. Native scalar and array results export
+owned strings with REGTYPE/_REGTYPE metadata; NULL exports nil. Domains retain
+their logical authority while scalar metadata follows REGTYPE; array-of-domain
+metadata uses the actual uppercase associated-array name.
+
+Input recognizes exact `-` as zero and digit-only OIDs through the existing
+unsigned OID codec (including octal). Other input is a complete standalone type
+name: SQL aliases, quotes, comments, qualification, current-database prefixes,
+modifiers and array syntax use the shared grammar. Modifiers are validated then
+discarded; provider-less modifiers fail42601. `%TYPE` is not accepted.
+SQL aliases force pg_catalog; ordinary internal names follow the effective
+type search path. Explicit schema lookup checks USAGE; numeric input needs no
+existing referent. Lookup alone does not require type USAGE.
+
+All 621 released/initialized identities are represented, including catalog row
+types, information_schema domains and associated arrays. Unsupported values
+remain unsupported: an identity does not authorize storage, NULL construction,
+composite execution, extra catalog projections or adjacent DDL. User table/view
+row identities and their arrays publish, rename, move and drop with their actual
+owning relation. Ordinary sequences and indexes have no row type.
+
+INT2/INT4/INT8→REGTYPE and OID↔REGTYPE are implicit; REGTYPE→INT4/INT8
+are assignment casts. INT4 preserves unsigned bits; INT8 checks range.
+TEXT/VARCHAR IO is explicit, not an implicit TEXT assignment.
+Equality, grouping and ordering use unsigned identity, never display spelling.
+Visible user names are unqualified; off-path/shadowed names are qualified and
+quoted. Builtin SQL display aliases are canonical, arrays spell element[].
+Unknown identities remain decimal and zero spells `-`.
+
+Selected REGTYPE-to-character IO conversions, including domain-wrapped sources
+and INSERT/UPDATE destination assignments, demand the same statement-owned
+catalog/path snapshot as explicit TEXT/VARCHAR casts. Defaults and admitted
+ALTER-column conversions retain that output demand too. Numeric/OID conversions
+do not demand symbolic output. A failed runtime conversion does not leak its
+argument frame or authority into a later execution of the same held statement;
+NULL remains strict, and a subsequent valid argument uses fresh statement output
+authority without consulting a live catalog during formatting.
+
+Held literal analysis retains its complete OID group while effective type
+lookup authority is unchanged, even after referent drop/recreation. Changed
+path/role authority/database reanalyzes the group atomically; public prepared
+metadata stays immutable. Literal modifier warnings occur during analysis;
+frame warnings carry their actual portal slot, runtime TEXT casts do not.
+Output is captured before returning rows, so held cursors never consult a later
+live catalog. See [driver](DRIVER.md#regtype-input-and-held-descriptions) and
+[fixture persistence](FIXTURES.md#regtype-references-and-row-identity).
 

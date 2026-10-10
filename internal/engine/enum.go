@@ -19,7 +19,11 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	if len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: name})) != 0 || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
+	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	if err != nil {
+		return err
+	}
+	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	oid, err := e.allocateOIDLocked()
@@ -55,5 +59,13 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 		return err
 	}
 	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}, {Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Role: auth.state.CurrentUser}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege}}}
-	return stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl})
+	arrayOID, err := e.allocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	array := sqltype.LookupArray(sqltype.ID(arrayOID), associatedArrayName(stage, ns.Address, name), typ)
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, array: array.ID()}); err != nil {
+		return err
+	}
+	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl})
 }

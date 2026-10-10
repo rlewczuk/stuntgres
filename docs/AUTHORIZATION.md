@@ -216,17 +216,18 @@ default-allow. The reference harness recreates public, so ordinary-owner
 fixtures explicitly run `GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC` on
 the privileged PostgreSQL setup connection only.
 
-`make quickcheck PACKAGES=./smoke RUN='^TestRoleSmoke$'` checks direct/prepared aliases
-and diagnostics, NAME metadata, held prepared statements across switches,
-owner/nonowner isolation, genuinely distinct trusted authenticators,
-reuse/replacement, dependency failures and owner-preserving native controls.
-It asserts role creation defaults, owner access versus 42501 rejection,
-owner restoration, legacy control acceptance, atomic failures and successful
-role cleanup. Go test reports the result.
+The dual-mode `TestReferenceRole` family checks direct/prepared aliases and
+diagnostics, NAME metadata, held prepared statements across switches,
+owner/nonowner isolation, distinct trusted authenticators, reuse/replacement,
+dependency failures and owner-preserving native controls.
+`TestReferenceRoleMigratedSmokeControls` preserves the former `TestRoleSmoke`
+owner restoration, legacy control acceptance, failed-Restore atomicity and role
+cleanup assertions; creation/authentication/ACL/opaque connector assertions are
+preserved by the corresponding existing reference families. The obsolete SQL
+smoke copy is removed; its command helper remains for unrelated legacy callers.
 
-Focused nonSQL ACL/unit and public smoke checks retain
-`make quickcheck PACKAGES=./... RUN='^Test(Role|Authorization)'` and
-`make quickcheck PACKAGES=./smoke RUN='^TestRoleSmoke$'`.
+Focused nonSQL ACL/unit checks use
+`make quickcheck PACKAGES='./internal/engine' RUN='^Test(Role|Authorization)'`.
 Focused role SQL checks use
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceRole[A-Za-z0-9_]*$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole[A-Za-z0-9_]*$' VERBOSE=0`.

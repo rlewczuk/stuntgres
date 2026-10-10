@@ -97,6 +97,8 @@ package parser
 %token <tok> DATE_MODIFIER_NUMBER
 /* Private bounded replay entry for destination-context INSERT cells. */
 %token <tok> INSERT_SCALAR_VALUES
+%token <tok> TYPE_INPUT
+%token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
@@ -376,8 +378,18 @@ package parser
 %type <sequenceOptions> identity_options identity_option_list
 %type <sequenceOption> identity_option identity_set_option
 %type <override> insert_override
+%type <typ> standalone_type
 %%
-script: separators optional_statements ;
+script: separators optional_statements
+ | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneType($2) } ;
+standalone_type: type { $$=$1 }
+ | standalone_type '.' col_label { $$=appendStandalonePart($1,$3) }
+ | standalone_type '(' { if len($1.Parts)<3 {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).characterGeneric=true;sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).multipleModifiers=true;sqllex.(*lexer).bitModifier=true } generic_modifiers ')' { $$=$1;$$.Modifiers=$4.Modifiers }
+ | standalone_type '[' ']' { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
+ | standalone_type '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) }
+ | standalone_type ARRAY { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
+ | standalone_type ARRAY '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) }
+ | SETOF_TYPE standalone_type { $$=$2;$$.Setof=true } ;
 separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
@@ -811,13 +823,13 @@ drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
 alter_action: generic_word_without_exists | OWNER | SET ;
 column: name type column_collation nullability { $$ = Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT %prec TYPE_NAME { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
- | type_name %prec TYPE_NAME { $$=columnType($1) }
- | temporal_type { $$=$1 }
- | interval_type { $$=$1 }
+ | type_name %prec TYPE_NAME { $$=inputColumnType(sqllex,$1) }
+ | temporal_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode }
+ | interval_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode }
  | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false;sqllex.(*lexer).bitModifier=false }
  | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || ($1.text=="character" || $1.text=="bit") && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
- | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos} }
+ | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos,Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}} }
  | type '[' ']' { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
  | type '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) }
  | type ARRAY { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }

@@ -15,10 +15,11 @@ import (
 // Published definitions contain immutable typed nodes, never evaluated values
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
-	OID             OID
-	expression      BoundExpr
-	dependencies    []ObjectRef
-	catalogSnapshot bool
+	OID               OID
+	expression        BoundExpr
+	dependencies      []ObjectRef
+	catalogSnapshot   bool
+	regtypeReferences bool
 }
 
 func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (BoundExpr, error) {
@@ -73,7 +74,7 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 			continue
 		}
 		definition := columnDefault{expression: node}
-		_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
@@ -93,6 +94,7 @@ type scalarRenderer struct {
 	dependencies       *[]ObjectRef
 	commentSnapshot    *bool
 	visibilitySnapshot *bool
+	regtypeReferences  *bool
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
 	checkLiterals *[]literalExpression
@@ -261,7 +263,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		if r.commentSnapshot != nil {
 			for i, arg := range n.args {
-				if !n.textual[i] && arg.ResultUsage().Type.BaseType().ID() == sqltype.Regclass {
+				if !n.textual[i] && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 					*r.commentSnapshot = true
 				}
 			}
@@ -342,7 +344,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		parts := make([]string, len(n.args))
 		for i, arg := range n.args {
-			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsRegclass() {
+			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 				*r.commentSnapshot = true
 			}
 			text, err := r.sql(ctx, view, arg)
@@ -353,7 +355,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			// literal syntax already preserves it (including canonical B literals).
 			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
 				id := literal.usage.Type.ID()
-				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Bit {
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && id != sqltype.Bit {
 					declaration, err := catalogTypeDeclaration(view, literal.usage)
 					if err != nil {
 						return "", err
@@ -529,6 +531,12 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 			}
 		}
+		if err := r.recordRegtypeReferences(view, n.value); err != nil {
+			return "", err
+		}
+		if r.regtypeReferences != nil && n.value.Type().ContainsRegtype() && !n.value.IsNull() {
+			*r.regtypeReferences = true
+		}
 		if r.checkLiterals != nil {
 			*r.checkLiterals = append(*r.checkLiterals, n)
 			return fmt.Sprintf("$%d", len(*r.checkLiterals)), nil
@@ -573,9 +581,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return "", fmt.Errorf("stuntgres: invalid default collation")
 	case coercionExpression:
-		if r.commentSnapshot != nil && n.child != nil && n.child.ResultUsage().Type.ContainsRegclass() && u.Type.BaseType().ID() == sqltype.Text {
-			*r.commentSnapshot = true
-		}
 		if n.child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
 		}
@@ -587,6 +592,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, n.mode)
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
+		}
+		if r.commentSnapshot != nil && plan.RequiresCatalogOutput() {
+			*r.commentSnapshot = true
 		}
 		child, err := r.sql(ctx, view, n.child)
 		if err != nil || n.mode != sqltype.Explicit {

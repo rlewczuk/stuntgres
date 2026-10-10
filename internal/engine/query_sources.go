@@ -166,6 +166,11 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
+	for _, definition := range relation.generations {
+		if definition.catalogSnapshot {
+			return e.captureCommentSnapshotLocked(scope)
+		}
+	}
 	for _, check := range relation.checkConstraints {
 		if check.commentSnapshot {
 			return e.captureCommentSnapshotLocked(scope)

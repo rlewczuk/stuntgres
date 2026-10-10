@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"unicode/utf8"
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
@@ -20,7 +19,11 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	if len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: name})) != 0 || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
+	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	if err != nil {
+		return err
+	}
+	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	for _, c := range s.Constraints {
@@ -34,6 +37,9 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	base, err := e.resolveAnnotationTypeMode(s.Base, op, false, true)
 	if err != nil {
 		return err
+	}
+	if replacement, ok := stage.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}].(*typeDescriptor); ok {
+		base.Type = replacement.typ
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)
 	if err != nil {
@@ -65,23 +71,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	prefix := name
-	for len(prefix) > 62 {
-		_, width := utf8.DecodeLastRuneInString(prefix)
-		prefix = prefix[:len(prefix)-width]
-	}
-	arrayName := "_" + prefix
-	for suffix := 1; len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: arrayName})) != 0 || stage.names[NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: arrayName}] != (ObjectAddress{}); suffix++ {
-		// Keep the suffix while clipping the UTF8 identifier through the parser's
-		// existing normalization limit (domain names are already clipped).
-		tail := fmt.Sprintf("_%d", suffix)
-		prefix := name
-		for len(prefix) > 62-len(tail) {
-			_, width := utf8.DecodeLastRuneInString(prefix)
-			prefix = prefix[:len(prefix)-width]
-		}
-		arrayName = "_" + prefix + tail
-	}
+	arrayName := associatedArrayName(stage, ns.Address, name)
 	array, err := sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)
 	if err != nil {
 		return err

@@ -148,6 +148,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if v.Type().BaseType().IsArray() && v.Type().ContainsRegclass() {
 		output.Regclass = catalogRegclassOutput{view: r.view, path: r.path}
 	}
+	if v.Type().ContainsRegtype() {
+		output.Regtype = catalogRegtypeOutput{view: r.view, path: r.path}
+	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
 		return "", err

@@ -51,6 +51,9 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 }
 
 func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+	if err := captureRegtypeOutputValue(rows, catalog, path, value); err != nil {
+		return err
+	}
 	if value.IsNull() || !value.Type().ContainsRegclass() {
 		return nil
 	}

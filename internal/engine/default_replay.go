@@ -13,6 +13,9 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 	if node == nil {
 		return false
 	}
+	if definition.regtypeReferences {
+		return true
+	}
 	if closedSequenceDefault(node) {
 		for {
 			if wrapper, ok := node.(coercionExpression); ok {

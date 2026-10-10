@@ -39,13 +39,15 @@ func TestBitstringCodecAndOwnership(t *testing.T) {
 		if d == nil || d.Usage().Collation != (CollationRef{}) || d.Usage().Typmod != -1 || IsCharacter(d.ID()) {
 			t.Fatal(d)
 		}
-		// Scalar-only registration must not request an unsupported associated
-		// array: Builtins constructs every nonzero association through Array.
-		if d.AssociatedArray() != 0 {
-			t.Fatal("bit array association admitted", d.AssociatedArray())
-		}
 		if _, err := Array(d.ID()+1, "_"+d.Name(), d); err == nil {
 			t.Fatal("bit array descriptor admitted")
+		}
+		array := testTypes()[d.AssociatedArray()]
+		if _, err := ArrayValue(array, nil, nil); err == nil {
+			t.Fatal("lookup-only bit array admitted an empty value")
+		}
+		if _, err := array.Input(ctx, "{}", -1); err == nil {
+			t.Fatal("lookup-only bit array admitted textual input")
 		}
 		for _, tc := range []struct{ in, want string }{{"", ""}, {"B", ""}, {"X", ""}, {"0001", "0001"}, {"b1000", "1000"}, {"x0f", "00001111"}, {"XA", "1010"}, {"x0fA", "000011111010"}} {
 			v, err := d.Input(ctx, tc.in, -1)
@@ -106,13 +108,13 @@ func TestBitstringCodecAndOwnership(t *testing.T) {
 	if _, err := BitString(nil, "01"); err == nil {
 		t.Fatal("nil constructor")
 	}
-	if _, err := BitString(Builtins()[0], "01"); err == nil {
+	if _, err := BitString(testTypes()[Bool], "01"); err == nil {
 		t.Fatal("wrong descriptor")
 	}
 	if _, err := BitString(bit, "02"); err == nil {
 		t.Fatal("unchecked constructor")
 	}
-	for _, v := range []Value{{}, Null(bit), Boolean(Builtins()[0], true)} {
+	for _, v := range []Value{{}, Null(bit), Boolean(testTypes()[Bool], true)} {
 		if _, err := v.Bits(); err == nil {
 			t.Fatal("invalid accessor")
 		}

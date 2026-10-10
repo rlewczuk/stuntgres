@@ -99,7 +99,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		}
 		if !structuralNull(node) {
 			persisted := columnDefault{expression: node}
-			if _, err := (scalarRenderer{dependencies: &persisted.dependencies, commentSnapshot: &persisted.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{dependencies: &persisted.dependencies, commentSnapshot: &persisted.catalogSnapshot, regtypeReferences: &persisted.regtypeReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
 			if next.defaults == nil {

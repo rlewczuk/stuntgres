@@ -232,6 +232,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if !valid {
 			candidate.sequences = nil
 		}
+		regtypeValid, er := e.regtypeAnalysisValidLocked(auth, expected.regtypes)
+		if er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
+		if !regtypeValid {
+			candidate.regtypes = nil
+		}
 		expected = &candidate
 	}
 	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, expected, &scope.queryLockAdmission)
@@ -242,9 +250,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.regclassInput != nil {
 		scope.input.Regclass = b.regclassInput
 	}
+	if b.regtypeInput != nil {
+		scope.input.Regtype = b.regtypeInput
+	}
 	for _, usage := range b.parameters.Types {
 		if usage.Type.ContainsRegclass() && scope.input.Regclass == nil {
 			scope.input.Regclass, err = e.captureRegclassInput(auth)
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+		}
+		if usage.Type.ContainsRegtype() && scope.input.Regtype == nil {
+			scope.input.Regtype, err = e.captureRegtypeInput(auth, op)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -278,6 +296,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 			*scope.Expected.sequences = analysis
+		}
+		if scope.Expected.regtypes != nil && candidate.regtypes == nil {
+			analysis, er := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
+			if er != nil {
+				e.mu.Unlock()
+				return Result{}, er
+			}
+			*scope.Expected.regtypes = *analysis
 		}
 	}
 	if count != b.parameters.Count {

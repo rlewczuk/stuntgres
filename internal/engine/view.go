@@ -212,6 +212,21 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
+	base := auth.catalog
+	stage := e.BeginCatalogStage(base)
+	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	defer e.DiscardCatalogStage(stage)
+	if old == nil {
+		available, displacementErr := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+		if displacementErr != nil {
+			e.mu.Unlock()
+			return Result{}, displacementErr
+		}
+		if !available {
+			e.mu.Unlock()
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
+		}
+	}
 	lookupAuth, err := e.statementAuthorizationLocked(op, view)
 	if err != nil {
 		e.mu.Unlock()
@@ -281,6 +296,22 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: constant.ref, revision: constant.stamp})
 		}
 	}
+	for _, constant := range b.regtypeConstants {
+		if constant.value.Type() != nil {
+			var references []ObjectRef
+			if err := (scalarRenderer{dependencies: &references}).recordRegtypeReferences(auth.catalog, constant.value); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+			for _, ref := range references {
+				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.state.descriptors[ref.Address].Revision()})
+			}
+		}
+		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(constant.id)}
+		if d, exists := auth.catalog.state.descriptors[address]; exists {
+			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}, revision: d.Revision()})
+		}
+	}
 	definition.sources = make([]viewLeaf, len(b.querySources))
 	for occurrence, source := range b.querySources {
 		leaf := &definition.sources[occurrence]
@@ -320,19 +351,22 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.columns[i].OriginAttribute = int16(d.attributes[i])
 	}
 	d.attributeHighWater = attribute
-	base := auth.catalog
-	stage := e.BeginCatalogStage(base)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	if err = e.stageRowTypeLocked(stage, d); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	if old == nil {
 		err = stage.Create(d)
 	} else {
 		err = stage.Replace(d)
 	}
+	if err == nil && old == nil && len(stage.oldNames) != 0 {
+		err = e.reownStagedTypeGenerationsLocked(stage)
+	}
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	defer e.DiscardCatalogStage(stage)
 	if err := scope.acquireViewDefinitionReferences(b); err != nil {
 		return Result{}, err
 	}

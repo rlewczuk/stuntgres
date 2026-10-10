@@ -188,6 +188,9 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 				}
 				return err
 			}
+			if plan.RequiresCatalogOutput() {
+				binder.regclassConcat = true
+			}
 			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), coercionProperties(source, plan)), source, plan, sqltype.Assignment}
 			u.assignments[i] = source
 		}

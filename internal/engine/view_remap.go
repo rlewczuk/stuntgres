@@ -73,6 +73,15 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 				return nil, failure
 			}
 		}
+		if n.usage.Type.ContainsRegtype() && !n.value.IsNull() {
+			var failure error
+			n.value, failure = remapRegtypeDatum(n.value, func(id OID) OID {
+				return ref(ObjectRef{Address: ObjectAddress{ClassID: TypeClassID, ObjectID: id}}).Address.ObjectID
+			})
+			if failure != nil {
+				return nil, failure
+			}
+		}
 		next = n
 	case tableOIDExpression:
 		n.owner = ref(n.owner)
@@ -471,9 +480,53 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	return next, err
 }
 
+// Ordinary descriptor renaming reowns only consumers of changed type
+// generations; replacement additionally remaps every imported object reference.
+func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+	changed := false
+	expression := func(node BoundExpr) {
+		walkQueryArgumentExpression(node, func(child BoundExpr) {
+			old := child.ResultUsage().Type
+			changed = changed || old != typ(old)
+		})
+	}
+	for _, definition := range d.defaults {
+		expression(definition.expression)
+	}
+	for _, definition := range d.generations {
+		expression(definition.expression)
+		expression(definition.planned)
+	}
+	for _, constraint := range d.checkConstraints {
+		expression(constraint.expression)
+	}
+	if d.sqlIndex != nil {
+		for _, key := range d.sqlIndex.keys {
+			if key.derived != nil {
+				expression(key.derived.definition)
+				expression(key.derived.execution)
+			}
+		}
+	}
+	if d.view != nil {
+		for _, usage := range d.view.castUsages {
+			changed = changed || usage.Type != typ(usage.Type)
+		}
+		for _, literal := range d.view.literals {
+			expression(literal)
+		}
+		changed = changed || queryDescriptorsChanged(d.view.query.Root, typ)
+	}
+	return changed
+}
+
 func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
+	return e.reownCatalogExpressions(next, mapping, false)
+}
+
+func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress, typesOnly bool) error {
 	ref := func(old ObjectRef) ObjectRef {
-		if old == (ObjectRef{}) {
+		if old == (ObjectRef{}) || typesOnly {
 			return old
 		}
 		address := old.Address
@@ -483,7 +536,7 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 			old.Address = target
 		}
 		old.owner = e.owner
-		old.Epoch = e.state.epoch + 1
+		old.Epoch = next.epoch
 		return old
 	}
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -502,6 +555,9 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 	for address, descriptor := range next.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
+			continue
+		}
+		if typesOnly && !catalogExpressionTypesChanged(d, typ) {
 			continue
 		}
 		if len(d.defaults) != 0 {

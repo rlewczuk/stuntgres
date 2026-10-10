@@ -540,6 +540,9 @@ func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
 	if n <= 24 {
 		raw.Name = "float4"
 	}
+	if l.(*lexer).typeInputMode {
+		raw.System = true
+	}
 	return raw, true
 }
 
@@ -596,6 +599,16 @@ func intervalPrecision(l sqlLexer, mask int32, tok, open lexeme) (TypeName, bool
 }
 func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, bool) {
 	raw := columnType(tok)
+	if l.(*lexer).typeInputMode {
+		raw = inputColumnType(l, tok)
+		if qualified || raw.Quoted || tok.keyword == nil || raw.Name != "float" && raw.Name != "char" && raw.Name != "character" && raw.Name != "varchar" && raw.Name != "character varying" && raw.Name != "bit" && raw.Name != "bit varying" {
+			l.(*lexer).characterGeneric = true
+			l.(*lexer).genericModifier = true
+			l.(*lexer).multipleModifiers = true
+			l.(*lexer).bitModifier = true
+			return raw, true
+		}
+	}
 	if raw.Name == "bit" || raw.Name == "varbit" || raw.Name == "bit varying" {
 		l.(*lexer).bitModifier = true
 		l.(*lexer).characterGeneric = true

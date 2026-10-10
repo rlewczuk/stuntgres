@@ -180,8 +180,14 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 						t.Fatal("continuation changed restored descriptor", address)
 					}
 				}
+				postgres, _ := e.Roles().Lookup("postgres")
+				for _, name := range []string{"additional", "nested"} {
+					namespace := after.state.descriptors[schemaRef(t, e, name).Address].(*namespaceDescriptor)
+					if namespace.owner != postgres.Ref || namespace.acl.Explicit || len(namespace.acl.Entries) != 0 {
+						t.Fatal("new namespace owner/ACL", name, namespace)
+					}
+				}
 				ids := make(map[OID]ObjectAddress)
-				namespaces := 0
 				for address := range after.state.descriptors {
 					if address.ClassID != NamespaceClassID && address.ClassID != RelationClassID {
 						continue
@@ -190,12 +196,6 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 						t.Fatal("shared identity collision", prior, address)
 					}
 					ids[address.ObjectID] = address
-					if address.ClassID == NamespaceClassID {
-						namespaces++
-					}
-				}
-				if namespaces != 7 {
-					t.Fatal("namespace count", namespaces)
 				}
 				for _, tc := range []struct {
 					table string

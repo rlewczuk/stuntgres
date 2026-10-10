@@ -66,9 +66,10 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 		Detail:  fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, t_a_not_null) already exists.", candidate),
 		Schema:  "pg_catalog", Table: "pg_constraint", Constraint: "pg_constraint_conrelid_contypid_conname_index",
 	}
-	if !errors.As(err, &got) || *got != want || e.nextOID != candidate+1 {
+	if !errors.As(err, &got) || *got != want || e.nextOID <= candidate {
 		t.Fatal(err, got, want, candidate, e.nextOID)
 	}
+	failedFrontier := e.nextOID
 	if e.state != state || e.state.descriptors[ref.Address] != descriptor || e.storage[ref.Address] != storage {
 		t.Fatal("failed CREATE published a catalog/storage mutation")
 	}
@@ -80,6 +81,9 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 	}
 	run(t, e, "CREATE TABLE t(b INT CONSTRAINT t_a_not_null NOT NULL,a INT NOT NULL)")
 	d := e.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+	if d.address.ObjectID < failedFrontier {
+		t.Fatal("successful CREATE reused failed allocation", failedFrontier, d.address)
+	}
 	if len(d.notNullConstraints) != 2 || d.notNullConstraints[0].OID == 0 || d.notNullConstraints[1].OID == 0 || d.notNullConstraints[0].OID == d.notNullConstraints[1].OID || d.notNullConstraints[0].Name != "t_a_not_null" || d.notNullConstraints[0].Attribute != 1 || d.notNullConstraints[1].Name != "t_a_not_null1" || d.notNullConstraints[1].Attribute != 2 {
 		t.Fatal(d.notNullConstraints)
 	}

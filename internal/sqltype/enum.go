@@ -31,8 +31,10 @@ func Enum(id ID, name, declaration string, labels []string) (*Descriptor, error)
 	}
 	return &Descriptor{id: id, name: name, sql: declaration, enum: definition}, nil
 }
-func (d *Descriptor) IsEnum() bool        { return d != nil && d.enum != nil }
-func (d *Descriptor) IsUserDefined() bool { return d.IsDomain() || d.IsEnum() }
+func (d *Descriptor) IsEnum() bool { return d != nil && d.enum != nil }
+func (d *Descriptor) IsUserDefined() bool {
+	return d != nil && !d.lookupOnly && (d.IsDomain() || d.IsEnum())
+}
 func (d *Descriptor) EnumLabels() []string {
 	if !d.IsEnum() {
 		return nil

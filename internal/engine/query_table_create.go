@@ -35,7 +35,13 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, false, err
 	}
-	if _, exists := e.state.names[NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: name}]; exists {
+	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
+	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, e.roles.revision
+	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if !available {
 		return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 	}
 	projection, ok := b.query.Root.(*projectNode)
@@ -51,8 +57,6 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	}
 	columns := make([]ColumnDescriptor, len(schema))
 	names := make(map[string]int, len(schema))
-	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, e.roles.revision
 	for i, column := range schema {
 		column.Nullable, column.NullabilityKnown = true, true
 		column.OriginTable, column.OriginAttribute = 0, 0
@@ -112,8 +116,17 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return nil, nil, false, err
 	}
+	if err = e.stageRowTypeLocked(stage, d); err != nil {
+		return nil, nil, false, err
+	}
 	if err = stage.Create(d); err != nil {
 		return nil, nil, false, err
+	}
+	if len(stage.oldNames) != 0 {
+		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
+			return nil, nil, false, err
+		}
+		d = stage.descriptors[d.address].(*relationDescriptor)
 	}
 	return stage, d, false, nil
 }
@@ -137,6 +150,17 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if len(rows) == 0 {
 		stage.initialTx = ref
 		return nil
+	}
+	for _, row := range rows {
+		for i, value := range row {
+			if target := d.columns[i].Usage.Type; target != value.Type() {
+				reowned, err := reownDomainDatum(value, target)
+				if err != nil {
+					return err
+				}
+				row[i] = reowned
+			}
+		}
 	}
 	versions, err := e.allocateRowVersionsLocked(rows, nil)
 	if err != nil {

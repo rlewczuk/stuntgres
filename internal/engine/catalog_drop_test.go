@@ -16,6 +16,8 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	base := e.CatalogRead()
 	a := roleTableRef(t, e, "a")
 	b := roleTableRef(t, e, "b")
+	row := base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.state.descriptors[a.Address].(*relationDescriptor).rowType)}].(*typeDescriptor)
+	array := base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
 	retained := run(t, e, "SELECT * FROM a")
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Remove(a); err != nil {
@@ -39,8 +41,17 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(changes.Definitions, []ObjectAddress{a.Address}) || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
+	if len(changes.Definitions) != 3 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 		t.Fatal(changes)
+	}
+	for _, address := range []ObjectAddress{a.Address, row.Address(), array.Address()} {
+		found := false
+		for _, changed := range changes.Definitions {
+			found = found || changed == address
+		}
+		if !found {
+			t.Fatal("missing removal closure member", address, changes)
+		}
 	}
 	now := e.CatalogRead()
 	if now.Epoch() != base.Epoch() {
@@ -48,6 +59,14 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	}
 	if _, ok := now.Descriptor(a.Address); ok || e.storage[a.Address] != nil {
 		t.Fatal("drop retained definition/storage")
+	}
+	for _, typ := range []*typeDescriptor{row, array} {
+		if _, exists := now.Descriptor(typ.Address()); exists || len(now.Lookup(relationNameKey(typ))) != 0 {
+			t.Fatal("drop retained row/array identity", typ.Address())
+		}
+		if retained, exists := base.Descriptor(typ.Address()); !exists || retained != typ {
+			t.Fatal("retained row/array generation lost", typ.Address())
+		}
 	}
 	oldB, _ := base.Descriptor(b.Address)
 	newB, _ := now.Descriptor(b.Address)

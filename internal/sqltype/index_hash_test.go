@@ -32,8 +32,30 @@ func TestHashIndexClassProviders(t *testing.T) {
 			}
 			typ := types[tc.id]
 			if typ == nil {
+				return // Polymorphic enum input has no concrete builtin.
+			}
+			if !typ.Concrete() {
+				if !c.AcceptsID(tc.id) {
+					t.Fatal("released diagnostic input rejected", tc)
+				}
+				defaultClass, ok := DefaultHashIndexClassID(tc.id)
+				if !ok || defaultClass.Name != tc.name || defaultClass.OID() != tc.oid {
+					t.Fatal("released diagnostic default lost", tc, defaultClass, ok)
+				}
+				if _, ok := DefaultHashIndexClass(typ); ok {
+					t.Fatal("diagnostic identity acquired an executable default", tc)
+				}
+				if c.Accepts(typ) {
+					t.Fatal("diagnostic input became an executable key", tc)
+				}
+				if _, err := BindIndexHash(typ.Usage(), c); err == nil {
+					t.Fatal("diagnostic input acquired a hash provider", tc)
+				}
+				if _, err := BindIndexOrdering(typ.Usage(), c); err == nil {
+					t.Fatal("diagnostic input acquired an ordering provider", tc)
+				}
 				return
-			} // catalog-only system/enum identities
+			}
 			if !c.Accepts(typ) {
 				t.Fatal("released input rejected", tc)
 			}

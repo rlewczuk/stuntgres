@@ -34,6 +34,7 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	output := c.Output
 	output.Regclass = c.statementScope
+	output.Regtype = c.statementScope
 	return e.plan.Evaluate(c.Context, values, c.Input, output)
 }
 func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {
@@ -44,7 +45,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	}
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
-		if name == "||" && !textual[i] && usages[i].Type.BaseType().ID() == sqltype.Regclass {
+		if name == "||" && !textual[i] && usages[i].Type.ContainsCatalogIdentifier() {
 			b.regclassConcat = true
 		}
 		child := arg.Properties()

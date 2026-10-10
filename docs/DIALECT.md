@@ -4302,3 +4302,25 @@ retain nested frames, source identities and dependencies across rename,
 deparse, catalog remap and native Dump/Restore.
 See [the full contract](QUERIES.md#subqueries-and-derived-select--change-note-changelog).
 
+
+### REGTYPE — change note
+
+REGTYPE (2206) and REGTYPE[] (2211) are stored identifier families, also admitted
+through supported domains, casts, conditional consumers, grouping, unsigned
+ordering/index comparison and existing string-format/output consumers.
+Type-name input consumes a complete standalone shared-grammar entry; it is not
+a SELECT wrapper or the regclass qualified-name parser. SQL aliases force
+pg_catalog; ordinary/quoted/qualified names use captured type lookup authority.
+Current-database three-part names are accepted; foreign databases fail0A000
+before schema lookup, excessive qualification fails42601. `%TYPE` fails syntax
+without a notice or column lookup. Accepted modifiers validate/discard; errors
+and warnings keep their provider and literal/frame/runtime diagnostic lifetimes.
+
+Lookup includes the released/initialized builtin inventory and actual user
+table/view row identities with reciprocal arrays. Identity-only entries do not
+enable unsupported codecs, composite values, extra DDL, wire storage, cluster
+connections or additional catalog projection sources. Ordinary sequences and
+indexes have no row type. Existing REGCLASS storage/cast exclusions are unchanged.
+See [types](TYPES.md#regtype--change-note), [driver](DRIVER.md#regtype-input-and-held-descriptions)
+and [native replay](FIXTURES.md#regtype-references-and-row-identity).
+

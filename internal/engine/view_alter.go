@@ -279,6 +279,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	// Cascaded view identities receive the same AX admission as explicit targets.
 	cascade := make([]ObjectRef, 0, len(stage.removals))
 	for address, removal := range stage.removals {
+		if address.ClassID != RelationClassID {
+			continue
+		}
 		if !seen[address] {
 			cascade = append(cascade, removal.ref)
 		}
@@ -301,7 +304,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		return Result{}, err
 	}
 	scope.completed = true
-	emitViewCascade(scope.op, stage.viewCascadeNames)
+	emitViewCascade(scope.op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
 	for _, notice := range notices {
 		scope.op.emitNotice(levelNotice, notice)
 	}

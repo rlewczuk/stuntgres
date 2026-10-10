@@ -168,6 +168,7 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	output := c.Output
 	output.Regclass = c.statementScope
+	output.Regtype = c.statementScope
 	return e.plan.Apply(c.Context, v, c.Input, output)
 }
 func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperties {
@@ -904,6 +905,7 @@ type expressionBinder struct {
 	generatedOwner             *relationDescriptor
 	visibilitySnapshot         bool
 	sequenceConstants          []sequenceConstant
+	regtypeConstants           []regtypeConstant
 	regclassConcat             bool
 	aggregateClause            string
 	aggregates                 []aggregateCall
@@ -1491,7 +1493,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
 	if !policy.deferAssignment && (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
-		if policy.expected.Type.ContainsRegclass() {
+		if policy.expected.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
 				return nil, err
 			}
@@ -1508,11 +1510,21 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			}
 			return node, err
 		}
+		if plan.RequiresCatalogOutput() {
+			b.regclassConcat = true
+		}
 		info, err := collatedInfo(b.info(policy.expected, raw.SourcePosition(), coercionProperties(node, plan)), node)
 		if err != nil {
 			return nil, err
 		}
-		node = coercionExpression{info, node, plan, policy.mode}
+		if folded, ok, err := b.foldRegtypeConstant(node, plan, info); ok || err != nil {
+			if err != nil {
+				return nil, err
+			}
+			node = folded
+		} else {
+			node = coercionExpression{info, node, plan, policy.mode}
+		}
 	}
 	return node, nil
 }
@@ -1587,7 +1599,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
-	if target.Type.ContainsRegclass() {
+	if target.Type.ContainsCatalogIdentifier() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err
 		}
@@ -1632,9 +1644,6 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	source := child.ResultUsage()
-	if source.Type.ContainsRegclass() && target.Type.BaseType().ID() == sqltype.Text {
-		b.regclassConcat = true
-	}
 	if target.Collation.ID != 0 && source.Collation.ID != 0 {
 		target.Collation = source.Collation
 	}
@@ -1645,13 +1654,16 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
 			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 		}
 		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+	}
+	if plan.RequiresCatalogOutput() {
+		b.regclassConcat = true
 	}
 	if source == target {
 		return child, nil
@@ -1663,6 +1675,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	info, err := collatedInfo(b.info(target, pos, coercionProperties(child, plan)), child)
 	if err != nil {
 		return nil, err
+	}
+	if folded, ok, err := b.foldRegtypeConstant(child, plan, info); ok || err != nil {
+		return folded, err
 	}
 	return coercionExpression{info, child, plan, sqltype.Explicit}, nil
 }
@@ -1793,6 +1808,9 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 	return temporalConstant{}, false, nil
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
+	if u.Type.ID() == sqltype.Regtype {
+		return b.regtypeConstant(text, pos)
+	}
 	if u.Type.ID() == sqltype.Regclass {
 		node, _, err := b.bindRegclass(parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text, Pos: pos}})
 		if err != nil {
@@ -1801,6 +1819,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		return node.(literalExpression).value, nil
 	}
 	if u.Type.BaseType().IsArray() {
+		if u.Type.ContainsRegtype() {
+			return b.regtypeArrayConstant(text, u, pos)
+		}
 		c, found, err := b.captured(pos.Offset, u)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -1808,7 +1829,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if found {
 			return c.value.Retag(u.Type)
 		}
-		if u.Type.ContainsRegclass() {
+		if u.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
 				return sqltype.Value{}, err
 			}
@@ -1910,14 +1931,22 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 
 func (b *expressionBinder) captureElementInput() error {
-	if b.input.Regclass != nil {
+	if b.input.Regclass != nil && b.input.Regtype != nil {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return err
 	}
-	b.input.Regclass, err = b.engine.captureRegclassInput(auth)
+	if b.input.Regclass == nil {
+		b.input.Regclass, err = b.engine.captureRegclassInput(auth)
+		if err != nil {
+			return err
+		}
+	}
+	if b.input.Regtype == nil {
+		b.input.Regtype, err = b.engine.captureRegtypeInput(auth, b.op)
+	}
 	return err
 }
 func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {

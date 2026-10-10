@@ -13,6 +13,10 @@ type TypeName struct {
 	Schema      *Identifier
 	Modifiers   []TypeModifier
 	ArrayBounds []int32
+	// Standalone regtype syntax retains qualification and SQL-alias provenance.
+	Parts  []Identifier
+	System bool
+	Setof  bool
 }
 
 type EnumLabel struct {

@@ -28,7 +28,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.UUID: {"01234567-89ab-cdef-0123-456789abcdef"}, sqltype.Regclass: {"0", "42"},
 		sqltype.JSON:  {"null", ` {"a":1,"a":2} `},
 		sqltype.JSONB: {"null", ` {"a":1,"a":2} `},
-		sqltype.Bit: {"", "0010"}, sqltype.VarBit: {"", "00001111"},
+		sqltype.Bit:   {"", "0010"}, sqltype.VarBit: {"", "00001111"},
 	}
 	for _, d := range sqltype.Builtins() {
 		if !d.Concrete() {
@@ -37,7 +37,13 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		t.Run(d.Name(), func(t *testing.T) {
 			var values []sqltype.Value
 			if d.IsArray() {
-				element, err := d.Element().Input(ctx, inputs[d.Element().ID()][0], -1)
+				var element sqltype.Value
+				var err error
+				if d.Element().ID() == sqltype.Regtype {
+					element, err = sqltype.RegtypeValue(d.Element(), 42)
+				} else {
+					element, err = d.Element().Input(ctx, inputs[d.Element().ID()][0], -1)
+				}
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -48,6 +54,14 @@ func TestAnyValueProviderDatums(t *testing.T) {
 				values = append(values, value)
 			} else {
 				switch d.ID() {
+				case sqltype.Regtype:
+					for _, id := range []uint32{0, math.MaxUint32} {
+						value, err := sqltype.RegtypeValue(d, id)
+						if err != nil {
+							t.Fatal(err)
+						}
+						values = append(values, value)
+					}
 				case sqltype.Void:
 					values = append(values, sqltype.VoidValue(d))
 				case sqltype.PgNodeTree:

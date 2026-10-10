@@ -64,10 +64,17 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		}
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
-	if len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns, Name: name})) != 0 {
+	available, err := e.displaceAssociatedArrayLocked(stage, ns, name)
+	if err != nil {
+		return err
+	}
+	if !available {
 		diagnostic := sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name)).(*sqlstate.Error)
 		diagnostic.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."
 		return diagnostic
+	}
+	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
+		auth.catalog = e.stageRead(stage)
 	}
 	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil, nil)
 	if err != nil {
@@ -84,6 +91,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, nil)
 	if err != nil {
+		return err
+	}
+	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
 	d.notNullConstraints = b.createNotNull
@@ -425,8 +435,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				dependent = append(dependent, r)
 			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() {
 				domains = append(domains, t)
-			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && t.typ.Element().IsDomain() {
-				continue // removed automatically with its element domain
+			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
+				continue // removed automatically with the owning relation or element type
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")
 			}

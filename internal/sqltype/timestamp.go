@@ -27,6 +27,7 @@ type InputEnvironment struct {
 	DateStyle        DateStyle
 	IntervalStyle    IntervalStyle
 	Regclass         RegclassResolver
+	Regtype          RegtypeResolver
 }
 
 type RegclassResolver interface {

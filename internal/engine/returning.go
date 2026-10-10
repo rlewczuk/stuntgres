@@ -190,7 +190,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 		}
 		output.expressions[i] = expr
 		output.schema[i].Usage = expr.ResultUsage()
-		output.regclassOutput = output.regclassOutput || expr.ResultUsage().Type.ContainsRegclass()
+		output.regclassOutput = output.regclassOutput || expr.ResultUsage().Type.ContainsCatalogIdentifier()
 	}
 	output.visibilitySnapshot = b.visibilitySnapshot
 	return output, nil

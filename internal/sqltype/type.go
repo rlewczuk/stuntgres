@@ -44,6 +44,7 @@ const (
 	VarBit      ID = 1562
 	Numeric     ID = 1700
 	Regclass    ID = 2205
+	Regtype     ID = 2206
 	Void        ID = 2278
 	UUID        ID = 2950
 	JSONB       ID = 3802
@@ -83,11 +84,14 @@ type Descriptor struct {
 	associatedArray     ID
 	delimiter           byte
 	enum                *enumDefinition
+	lookupOnly          bool
+	namespace           string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
 func (d *Descriptor) Name() string    { return d.name }
 func (d *Descriptor) SQLName() string { return d.sql }
+
 func (d *Descriptor) DiagnosticName() string {
 	if d.IsUserDefined() {
 		return d.sql
@@ -116,7 +120,9 @@ func (d *Descriptor) DiagnosticName() string {
 	return strings.ToLower(d.sql)
 }
 func (d *Descriptor) DatabaseName() string { return d.database }
-func (d *Descriptor) Concrete() bool       { return d != nil && d.id != 0 && d.id != Unknown }
+func (d *Descriptor) Concrete() bool {
+	return d != nil && d.id != 0 && d.id != Unknown && !d.lookupOnly
+}
 func (d *Descriptor) Usage() Usage {
 	if d.IsDomain() {
 		return Usage{Type: d, Typmod: -1, Collation: d.base.Collation}
@@ -167,23 +173,11 @@ func Builtins() []*Descriptor {
 		{id: Numeric, name: "numeric", sql: "NUMERIC", database: "NUMERIC", associatedArray: 1231},
 		{id: UUID, name: "uuid", sql: "UUID", database: "UUID", associatedArray: 2951},
 		{id: Regclass, name: "regclass", sql: "REGCLASS", database: "REGCLASS", associatedArray: 2210},
+		{id: Regtype, name: "regtype", sql: "REGTYPE", database: "REGTYPE", associatedArray: 2211},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
-	// Reserve the one result buffer before adding associated descriptors.
-	result := make([]*Descriptor, 0, len(types)*2)
-	result = append(result, types...)
-	for _, element := range types {
-		if element.associatedArray == 0 {
-			continue
-		}
-		array, err := Array(element.associatedArray, "_"+element.name, element)
-		if err != nil {
-			panic(err)
-		}
-		result = append(result, array)
-	}
-	return result
+	return completeBuiltinIdentities(types)
 }
 
 // Zero Value is invalid, not NULL. Scalars stay inline; only structural tree
@@ -274,11 +268,11 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass && d.id != Char) {
+	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
 		panic("invalid string descriptor")
 	}
 	v := Value{typ: d, text: s}
-	if d.id == Regclass && len(s) != 0 && (len(s) == 1 || s[0] != '0') {
+	if (d.id == Regclass || d.id == Regtype) && len(s) != 0 && (len(s) == 1 || s[0] != '0') {
 		// Keep unresolved regclass input text intact. Canonical identities also
 		// carry an inline unsigned payload, validated once rather than per
 		// sort comparison; integer marks that payload as valid (OID zero too).
@@ -292,6 +286,9 @@ func String(d *Descriptor, s string) Value {
 		if canonical {
 			if oid, err := strconv.ParseUint(s, 10, 32); err == nil {
 				v.oid, v.integer = uint32(oid), 1
+				if d.id == Regtype {
+					v.text = ""
+				}
 			}
 		}
 	}
@@ -338,8 +335,15 @@ func (v Value) Boolean() (bool, error) {
 	return v.boolean, nil
 }
 func (v Value) Text() (string, error) {
-	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Char) {
+	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Regtype && v.typ.id != Char) {
 		return "", fmt.Errorf("not a text value")
+	}
+	if v.typ.id == Regtype {
+		id, err := v.TypeOID()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatUint(uint64(id), 10), nil
 	}
 	return v.text, nil
 }
@@ -440,6 +444,15 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.civilInput(text, typmod, env)
 	case Text, BPChar, VarChar:
 		return sizeCharacter(String(d, text), typmod, false)
+	case Regtype:
+		if env.Regtype == nil {
+			return Value{}, fmt.Errorf("regtype input lacks catalog authority")
+		}
+		n, err := env.Regtype.ResolveRegtype(ctx, text)
+		if err != nil {
+			return Value{}, err
+		}
+		return RegtypeValue(d, n)
 	case Regclass:
 		if env.Regclass != nil {
 			n, err := env.Regclass.ResolveRegclass(ctx, text)
@@ -646,6 +659,15 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return fmt.Sprintf("\\%03o", v.text[0]), nil
 		}
 		return v.text, nil
+	case Regtype:
+		id, err := v.TypeOID()
+		if err != nil {
+			return "", err
+		}
+		if env.Regtype != nil {
+			return env.Regtype.FormatRegtype(id)
+		}
+		return strconv.FormatUint(uint64(id), 10), nil
 	case Regclass:
 		if env.Regclass != nil {
 			n, err := strconv.ParseUint(v.text, 10, 32)
@@ -728,6 +750,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	case Regtype:
+		id, err := v.TypeOID()
+		if err != nil {
+			return "", err
+		}
+		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
 	case Text, BPChar, VarChar, Name, Regclass, JSON:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case JSONB:
@@ -789,6 +817,13 @@ type CoercionPlan struct {
 	logicalSource, logicalTarget *Descriptor
 }
 
+// RequiresCatalogOutput follows the selected operation, including recursive
+// array/domain output, rather than the destination's spelling. Identity and
+// numeric OID conversions never invoke symbolic output.
+func (p CoercionPlan) RequiresCatalogOutput() bool {
+	return p.method == viaIO && p.source.Type.ContainsCatalogIdentifier()
+}
+
 type castSpec struct {
 	source, target ID
 	minimum        CoercionContext
@@ -813,6 +848,13 @@ var baselineCasts = [...]castSpec{
 	{VarChar, Regclass, Implicit, viaIO, castCatalogFact{}},
 	{Oid, Int4, Assignment, oidConversion, castCatalogFact{20033, 0, 'a', 'b'}},
 	{Oid, Int8, Assignment, oidConversion, castCatalogFact{20034, 1288, 'a', 'f'}},
+	{Regtype, Oid, Implicit, oidConversion, castCatalogFact{}},
+	{Oid, Regtype, Implicit, oidConversion, castCatalogFact{}},
+	{Int2, Regtype, Implicit, oidConversion, castCatalogFact{}},
+	{Int4, Regtype, Implicit, oidConversion, castCatalogFact{}},
+	{Int8, Regtype, Implicit, oidConversion, castCatalogFact{}},
+	{Regtype, Int4, Assignment, oidConversion, castCatalogFact{}},
+	{Regtype, Int8, Assignment, oidConversion, castCatalogFact{}},
 	{Date, Timestamp, Implicit, dateTimestampConversion, castCatalogFact{20035, 2024, 'i', 'f'}},
 	{Date, Timestamptz, Implicit, datetimeConversion, castCatalogFact{20036, 1174, 'i', 'f'}},
 	{Time, Timetz, Implicit, datetimeConversion, castCatalogFact{20037, 2047, 'i', 'f'}},
@@ -873,7 +915,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB:
+		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, Regtype:
 		return true
 	}
 	return false
@@ -978,8 +1020,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 		return p, failure("42804", "incompatible source and destination types")
 	}
+	if context == Explicit && (source.Type.id == Regtype && (target.Type.id == Text || target.Type.id == VarChar) || target.Type.id == Regtype && (source.Type.id == Text || source.Type.id == VarChar)) {
+		p.method = viaIO
+		return p, nil
+	}
 	if context == Explicit {
-		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
+		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
 		}
 		switch {
@@ -1169,7 +1215,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8,
-			Interval, Name, Numeric, Oid, Regclass, Text, VarChar, Time,
+			Interval, Name, Numeric, Oid, Regclass, Regtype, Text, VarChar, Time,
 			Timestamp, Timestamptz, Timetz, UUID, JSONB:
 		case Void:
 			message := "could not identify an ordering operator for type void"
@@ -1313,7 +1359,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		return 0, nil
 	}
 	switch p.left.id {
-	case Regclass:
+	case Regclass, Regtype:
 		if a.integer != 1 || b.integer != 1 {
 			return 0, fmt.Errorf("invalid regclass comparison value")
 		}

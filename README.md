@@ -145,6 +145,32 @@ export remain excluded. See [prepared transactions](docs/TRANSACTIONS.md#prepare
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`.
 
+Change note: `REGTYPE` (OID2206) and its array support PostgreSQL type-name
+input, unsigned OID casts, symbolic output and stored scalar/domain/array values.
+Lookup covers all 621 released/initialized type identities and real table/view
+row types without admitting their unsupported value codecs. Standalone input
+uses the shared grammar, qualified/current-database names and captured type path.
+Held literal identity follows effective lookup authority, not referent revision;
+retained rows own their old output snapshot. Stored definitions retain TypeClassID
+dependencies; native Dump/Restore uses qualified names and atomic identity remapping.
+Reciprocal associated-array REGTYPE constants replay as qualified `element[]`.
+Logical replay may remint OIDs and generated internal array names; it preserves
+exact logical type identity, relationships, values and declared metadata, not
+historical allocator aliases. Live displacement and retained output stay exact.
+Standalone identifier clipping emits the PostgreSQL NOTICE, including input and
+parameter context. Internal row/array types share their relation's ownership
+dependency; catalog allocation skips type identities after native replacement.
+Persistent replacement rebinds seeded lookup-only domain/array bases to retained
+builtin generations without granting value codecs or replacing imported catalog ownership.
+Selected REGTYPE IO coercions capture symbolic output authority for VARCHAR and
+TEXT/VARCHAR assignment, including domain sources and stored defaults. Unrelated
+role creation/drop does not retarget held literals or repeat their analysis notices;
+qualified schema lookup still enforces current USAGE after ownership changes.
+See [REGTYPE contracts](docs/TYPES.md#regtype--change-note) and
+[design/inventory](docs/design/PG18-TYPE-REG-TYPE.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0`.
+
 Change note: `UNION`, `INTERSECT` and `EXCEPT` support default/explicit
 `DISTINCT` and `ALL`, full-tuple NULL equality and multiset counts. Parentheses
 preserve local ORDER/bounds; INTERSECT binds tighter than UNION/EXCEPT.
@@ -678,8 +704,10 @@ native SELECT sees a newly created source-schema shadow after a move (see
 qualified definitions, not move history.
 For a view, `ALTER TABLE view SET SCHEMA` aliases `ALTER VIEW SET SCHEMA` and
 moves only the view's namespace, leaving its sources and dependents in place.
-Explicit-transaction SET SCHEMA, generic standalone sequence/index moves,
-TEMP/system destinations and automatic row types remain bounded native exclusions.
+Explicit-transaction SET SCHEMA, generic standalone sequence/index moves and
+TEMP/system destinations remain bounded native exclusions. Automatic table/view
+row and associated-array catalog identities are supported; composite value
+execution remains excluded.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 Change note: ordinary `CREATE INDEX ... USING hash` supports one simple or
@@ -853,7 +881,7 @@ support RETURNING. Discover backend-local numeric relation identities by project
 requiring exactly two distinct positive candidate OIDs, one visible candidate,
 and the same identity bag after reversal. No pg_namespace query source or
 explicit regclass-to-oid cast is needed.
-CREATE TYPE forms other than AS ENUM, CREATE COLLATION/CONVERSION, automatic row types and materialized/foreign
+CREATE TYPE forms other than AS ENUM, CREATE COLLATION/CONVERSION and materialized/foreign
 table creation remain excluded. See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
 Index identity/path/control witnesses:

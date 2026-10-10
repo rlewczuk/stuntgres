@@ -133,6 +133,11 @@ type roleDependency struct {
 }
 
 func descriptorRoleDependencies(deps []roleDependency, d Descriptor, ref PrincipalRef) []roleDependency {
+	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
+		// The relation carries the ownership/ACL dependency for its internal
+		// row and associated array types; they are not independently owned.
+		return deps
+	}
 	owner, acl, columns := descriptorACL(d)
 	if owner == ref {
 		deps = append(deps, roleDependency{address: d.Address(), kind: 'o'})

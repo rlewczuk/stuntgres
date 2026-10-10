@@ -128,7 +128,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		return Result{}, err
 	}
 	scope.completed = true
-	emitViewCascade(op, stage.viewCascadeNames)
+	emitViewCascade(op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
 	for _, notice := range notices {
 		op.emitNotice(levelNotice, notice)
 	}

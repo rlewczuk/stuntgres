@@ -60,6 +60,22 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if relation, ok := stage.base.state.descriptors[target].(*relationDescriptor); ok && relation.rowType != 0 {
+			if err := visit(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}, root); err != nil {
+				return err
+			}
+			row, ok := stage.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+			if !ok || row.owningRelation != relation.address {
+				return fmt.Errorf("stuntgres: missing row type dependency owner")
+			}
+			// Removal already stages the owned array, so the descriptor scan
+			// below cannot discover it as an automatic dependent.
+			if row.array != 0 {
+				if err := visit(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}, root); err != nil {
+					return err
+				}
+			}
+		}
 		var direct []domainDependency
 		for a, descriptor := range stage.base.state.descriptors {
 			if _, removed := stage.removals[a]; removed {
@@ -176,7 +192,13 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
 	if len(targets) == 1 {
-		message = "cannot drop " + dependencyObject(stage.base, targets[0], stage.dependencyPath) + " because other objects depend on it"
+		target := targets[0]
+		if typ, ok := stage.base.state.descriptors[target].(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
+			if _, removed := stage.removals[typ.owningRelation]; removed {
+				target = typ.owningRelation
+			}
+		}
+		message = "cannot drop " + dependencyObject(stage.base, target, stage.dependencyPath) + " because other objects depend on it"
 	}
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {

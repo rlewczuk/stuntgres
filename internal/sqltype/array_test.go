@@ -34,9 +34,18 @@ func TestArrayBuiltinAuthority(t *testing.T) {
 			t.Fatal("shared or foreign builtin generation", tc)
 		}
 	}
-	for _, id := range []ID{Unknown, Char, Void, PgNodeTree} {
-		if types[id].AssociatedArray() != 0 {
-			t.Fatal("excluded scalar array", id)
+	// Catalog identity is not executable array authority.
+	for _, id := range []ID{Unknown, Char, Void, PgNodeTree, Xid} {
+		if _, err := Array(90000, "_boundary", types[id]); err == nil {
+			t.Fatal("unsupported scalar admitted to stored array", id)
+		}
+	}
+	for _, id := range []ID{1002, 1011} {
+		if _, err := ArrayValue(types[id], nil, nil); err == nil {
+			t.Fatal("lookup-only array admitted an empty value", id)
+		}
+		if _, err := types[id].Input(context.Background(), "{}", -1); err == nil {
+			t.Fatal("lookup-only array admitted textual input", id)
 		}
 	}
 }

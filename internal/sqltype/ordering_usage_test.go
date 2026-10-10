@@ -9,9 +9,9 @@ func TestOrderingUsage(t *testing.T) {
 	for _, d := range Builtins() {
 		t.Run(d.Name(), func(t *testing.T) {
 			provider, err := BindOrdering(d.Usage())
-			if d.ID() == Unknown {
+			if !d.Concrete() {
 				if err == nil {
-					t.Fatal("UNKNOWN admitted")
+					t.Fatal("lookup-only identity admitted to ordering")
 				}
 				return
 			}

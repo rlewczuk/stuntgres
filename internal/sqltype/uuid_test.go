@@ -72,10 +72,10 @@ func TestUUIDCodecFormsAndGuards(t *testing.T) {
 	if _, err := UUIDValue(nil, want); err == nil {
 		t.Fatal("nil constructor")
 	}
-	if _, err := UUIDValue(Builtins()[0], want); err == nil {
+	if _, err := UUIDValue(testTypes()[Bool], want); err == nil {
 		t.Fatal("wrong constructor")
 	}
-	for _, bad := range []Value{{}, Null(d), Boolean(Builtins()[0], true)} {
+	for _, bad := range []Value{{}, Null(d), Boolean(testTypes()[Bool], true)} {
 		if _, err := bad.UUID(); err == nil {
 			t.Fatal("invalid accessor")
 		}
@@ -133,7 +133,7 @@ func TestUUIDComparisonAndNull(t *testing.T) {
 	if n, err := p.Compare(ctx, a, b, InputEnvironment{}); err != nil || n != 0 {
 		t.Fatal(n, err)
 	}
-	boolType := Builtins()[0]
+	boolType := testTypes()[Bool]
 	eq, err := BindComparisonPredicate(CompareEqual, d, d, boolType)
 	if err != nil {
 		t.Fatal(err)

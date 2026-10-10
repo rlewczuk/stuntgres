@@ -118,7 +118,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, b := range []struct {
 		oid  OID
 		name string
-	}{{PublicNamespaceOID, "public"}, {PGCatalogNamespaceOID, "pg_catalog"}} {
+	}{{PublicNamespaceOID, "public"}, {PGCatalogNamespaceOID, "pg_catalog"}, {13229, "information_schema"}} {
 		d, exists := e.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: b.oid}]
 		if !exists {
 			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
@@ -199,7 +199,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-				} else if t.Namespace().ObjectID != PGCatalogNamespaceOID {
+				} else if t.Namespace().ObjectID != PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.owningRelation == (ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize unsupported user type")
 				}
@@ -215,12 +215,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if valid && ns.comment != namespaceCommentBaseline(a.ObjectID) {
 					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
 				}
-				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID) &&
+				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID || a.ObjectID == 13229) &&
 					!bootstrapNamespaceDumpable(ns) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
 				}
-				if valid && a.ObjectID != PublicNamespaceOID && a.ObjectID != PGCatalogNamespaceOID {
+				if valid && a.ObjectID != PublicNamespaceOID && a.ObjectID != PGCatalogNamespaceOID && a.ObjectID != 13229 {
 					if ns.acl.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")

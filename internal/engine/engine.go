@@ -87,6 +87,8 @@ type binding struct {
 	sequenceConstants  []sequenceConstant
 	regclassConcat     bool
 	regclassInput      sqltype.RegclassResolver
+	regtypeConstants   []regtypeConstant
+	regtypeInput       sqltype.RegtypeResolver
 }
 
 func New() *Engine {
@@ -143,7 +145,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 	for _, ns := range []struct {
 		oid  OID
 		name string
-	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}} {
+	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
 		rights := UsagePrivilege
 		if ns.oid == PublicNamespaceOID {
 			rights |= CreatePrivilege
@@ -157,6 +159,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray()}
+		if typ.NamespaceName() == "information_schema" {
+			d.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+		}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}
@@ -202,6 +207,9 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 			continue
 		}
 		if _, ok := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; ok {
+			continue
+		}
+		if _, ok := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: n}]; ok {
 			continue
 		}
 		usedRule := false
@@ -319,7 +327,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals, sequences: cell}, nil
+	regtypes, err := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
+	if err != nil {
+		return StatementDescription{}, err
+	}
+	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals, sequences: cell, regtypes: regtypes}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -763,6 +775,8 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.sequenceConstants = binder.sequenceConstants
 	b.regclassConcat = binder.regclassConcat
 	b.regclassInput = binder.input.Regclass
+	b.regtypeConstants = binder.regtypeConstants
+	b.regtypeInput = binder.input.Regtype
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars

@@ -107,6 +107,7 @@ type relationDescriptor struct {
 	sequence           *sequenceOptions
 	view               *viewDefinition
 	sqlIndex           *indexDefinition
+	rowType            sqltype.ID
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -203,8 +204,14 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
-	if r.relationKind == tableRelation && len(v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})) != 0 {
-		return CatalogConflict{}
+	if r.relationKind == tableRelation || r.relationKind == viewRelation {
+		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
+		if len(types) != 0 {
+			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
+			if len(types) != 1 || !ok || row.owningRelation != r.address || row.typ.ID() != r.rowType {
+				return CatalogConflict{}
+			}
+		}
 	}
 	if r.attributeHighWater < 0 {
 		return fmt.Errorf("stuntgres: invalid relation attribute high-water")
@@ -440,6 +447,24 @@ func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 	}
 	return s
 }
+
+// lookupName resolves the private candidate, including names vacated by a
+// replacement. The original name remains in touched for publication validation.
+func (s *CatalogStage) lookupName(k NameKey) ObjectAddress {
+	if address := s.names[k]; address != (ObjectAddress{}) {
+		return address
+	}
+	address := s.base.state.names[k]
+	if _, removed := s.removals[address]; removed {
+		return ObjectAddress{}
+	}
+	if replacement := s.descriptors[address]; replacement != nil &&
+		(replacement.Namespace() != k.Namespace || replacement.Name() != k.Name) {
+		return ObjectAddress{}
+	}
+	return address
+}
+
 func (s *CatalogStage) Create(d Descriptor) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
@@ -458,15 +483,10 @@ func (s *CatalogStage) Create(d Descriptor) error {
 		return CatalogConflict{}
 	}
 	k := NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()}
-	if incumbent, ok := s.base.state.names[k]; ok {
-		removal, removed := s.removals[incumbent]
-		if !removed || removal.ref.owner != s.owner.owner || removal.ref.Epoch != s.base.Epoch() || removal.ref.Address != incumbent || removal.descriptor != s.base.state.descriptors[incumbent] {
-			return CatalogConflict{}
-		}
-		s.touched[k] = incumbent
-	} else {
-		s.touched[k] = ObjectAddress{}
+	if s.lookupName(k) != (ObjectAddress{}) {
+		return CatalogConflict{}
 	}
+	s.touched[k] = s.base.state.names[k]
 	if _, ok := s.names[k]; ok {
 		return CatalogConflict{}
 	}
@@ -484,8 +504,11 @@ func (s *CatalogStage) Replace(d Descriptor) error {
 	}
 	oldKey := NameKey{ClassID: old.Address().ClassID, Namespace: old.Namespace(), Name: old.Name()}
 	newKey := NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
-	if a, exists := s.base.state.names[newKey]; exists && a != d.Address() {
+	if a := s.lookupName(newKey); a != (ObjectAddress{}) && a != d.Address() {
 		return CatalogConflict{}
+	}
+	if previous := s.descriptors[d.Address()]; previous != nil {
+		delete(s.names, NameKey{ClassID: d.Address().ClassID, Namespace: previous.Namespace(), Name: previous.Name()})
 	}
 	if s.oldNames == nil {
 		s.oldNames = make(map[NameKey]bool)
@@ -495,6 +518,9 @@ func (s *CatalogStage) Replace(d Descriptor) error {
 	s.touched[newKey] = s.base.state.names[newKey]
 	s.descriptors[d.Address()] = d
 	s.names[newKey] = d.Address()
+	if relation, ok := d.(*relationDescriptor); ok {
+		return s.synchronizeRowType(relation)
+	}
 	return nil
 }
 
@@ -586,7 +612,7 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		}
 	case *typeDescriptor:
 		t := d.(*typeDescriptor)
-		if !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsDomain()) {
+		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
 	default:
@@ -603,6 +629,20 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		s.removals = make(map[ObjectAddress]catalogRemoval)
 	}
 	s.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
+	if r, ok := d.(*relationDescriptor); ok && r.rowType != 0 {
+		row, ok := s.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}].(*typeDescriptor)
+		if !ok || row.owningRelation != r.address {
+			return CatalogConflict{}
+		}
+		s.domainTargets = append(s.domainTargets, row.Address())
+		for _, id := range []sqltype.ID{r.rowType, row.array} {
+			if id != 0 {
+				if err := s.removeObjectLocked(ObjectRef{owner: s.owner.owner, Epoch: s.base.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}}, false); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	s.touched[key] = ref.Address
 	return nil
 }
@@ -734,7 +774,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			return ChangeSet{}, err
 		}
 		for _, base := range s.domainBases {
-			if current.descriptors[base.Address()] != base {
+			observed := base
+			if s.descriptors[base.Address()] == base {
+				observed = s.base.state.descriptors[base.Address()]
+			}
+			if current.descriptors[base.Address()] != observed {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}

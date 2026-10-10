@@ -51,6 +51,7 @@ func (e formatExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	output := c.Output
 	output.Regclass = c.statementScope
+	output.Regtype = c.statementScope
 	text, err := formatText(c.Context, pattern, values, e.int4, output)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -158,7 +159,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
-		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsRegclass() {
+		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 			b.regclassConcat = true
 		}
 	}

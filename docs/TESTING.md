@@ -361,6 +361,91 @@ invent PostgreSQL raw-driver controls. All three are included by the full family
 selector above; NOT NULL and transaction diagnostics were pinned independently.
 The smoke itself now executes1BC century/millennium-1 and2BC decade-1 pairs.
 
+### Regtype completed definitions
+
+The `^TestReferenceRegtype` shared-body family encodes pinned PostgreSQL 18.0
+diagnostics, metadata, raw transport, warning timing and held literal identity.
+Every released/initialized name and array is exercised through regtype SQL
+without requiring a native pg_type projection. The complete identity facts and
+fixed-versus-allocated provenance are described in
+[the inventory handoff](design/regtype-pg18-oracle.md).
+
+The completed input and authorization scenarios preserve generic qualified
+varchar modifier witnesses and use a superuser-owned denied table in an
+accessible reader-owned schema. `TestReferenceRegtypeAliasModifierSyntax`
+preserves rejected string/parenthesized alias modifiers across all six routes,
+including held runtime input. `TestReferenceRegtypeHeldLiterals` and
+`TestReferenceRegtypeWarnings` cover authority-sensitive identity capture and
+literal-versus-parameter warning timing. No discovery filters, observation
+logging or deliberate discovery failures remain.
+
+`TestReferenceRegtypeOutputAuthority` and its held/atomic/native-control companions
+exercise selected VARCHAR IO, TEXT/VARCHAR assignment, domain sources, stored
+defaults and admitted ALTER-column conversions with actual Dump replay and
+retained string metadata. The unrelated-role
+family requires unchanged held OIDs and no repeated warnings after unrelated
+CREATE/DROP ROLE, while its qualified-authority control requires literal/fresh
+Prepare 42501 Position8, frame 42501 with portal Context, and owner-role recovery.
+Run the completed review-remedy witnesses in both modes before review, each with
+a 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype(OutputAuthority|UnrelatedRoles|ArrayDisplacement)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype(OutputAuthority|UnrelatedRoles|ArrayDisplacement)' VERBOSE=0
+```
+
+Validate the same completed definitions in both modes before review; each
+quickcheck invocation has a 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
+```
+
+The feature smoke independently asserts name/OID conversion, builtin and user
+row identities, qualification/shadowing, held input recovery, metadata,
+persistent scalar/domain/array values and native control atomicity. Native
+controls must replay the actual emitted native stream on PostgreSQL; never
+substitute a manually reconstructed stream or an invented PostgreSQL
+Dump/Reset/Restore API. The unchanged cohesive fixture's `checkRaw` hook supplies
+independent REGTYPE/array transport checks through the small regtype helper.
+These selectors do not replace ordinary quickcheck or the post-merge fullcheck
+under its single 1800-second deadline. Completed definitions are not passing
+verification until the root records successful runs.
+
+Regtype control witnesses retain a supported TEMP SEQUENCE across Reset/Restore
+to fence physical-session ownership and allocator collisions. Persistent
+domains supply the user-defined TypeClassID remapping witnesses. Temporary
+domain creation remains an adjacent native 0A000 boundary, even in an already
+initialized namespace; the path scenario asserts that boundary natively and
+uses PostgreSQL-only temporary-domain setup for additional oracle context.
+
+The removed `smoke/TestRoleSmoke` assertion union is preserved by
+`TestReferenceRoleCreation` (aliases/login/counts/duplicate/drop),
+`TestReferenceRoleAuthorization` (direct/held identities, NOLOGIN switches,
+table ACL/no mutation and owner dependencies),
+`TestReferenceRoleAuthenticatedSessions` (self/default/reset/peer isolation),
+`TestReferenceRoleTrustedConnectorIsolationAndReplacement` and
+`TestReferenceRoleTrustedConnectorAdmissionAndOpaqueIsolation`
+(authentication, reconnect and Driver/opaque-key isolation), and
+`TestReferenceRoleMigratedSmokeControls` (changed-session pool reuse, option
+boundary, reader-authorized Dump/Reset/Restore, exact owner directive,
+failed Restore/sentinel preservation, legacy stream and role cleanup).
+`TestReferenceControlTransactionsHostAuthorization` additionally preserves
+reader identity/settings and denied table access across host replacement.
+Run the completed remedy/migration definitions in both modes:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)' VERBOSE=0
+```
+
+Each invocation has a900-second deadline. Existing Array/Domain/Enum,
+SearchPathStoredViewRuntime, StringCoreReviewRestore and
+TableCoreAuthorizationAndOwnershipCleanup reference definitions also exercise
+the corrected catalog allocator/ownership seam without changed expectations.
 
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,

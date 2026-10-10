@@ -14,6 +14,13 @@ func Domain(id ID, name, declaration string, base Usage) (*Descriptor, error) {
 	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base}, nil
 }
 
+// LookupDomain preserves catalog base identity without admitting stored values.
+// The caller supplies an already validated catalog base generation.
+func LookupDomain(id ID, name, declaration string, base Usage) *Descriptor {
+	return &Descriptor{id: id, name: name, sql: declaration,
+		database: base.Type.BaseType().database, base: base, lookupOnly: true}
+}
+
 func (d *Descriptor) IsDomain() bool    { return d != nil && d.base.Type != nil }
 func (d *Descriptor) DomainBase() Usage { return d.base }
 

@@ -314,12 +314,19 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	table.namespace = ns.address
 	table.name = "array_component_temp"
 	table.revision = revision
+	table.rowType = 0
 	table.columns = append([]ColumnDescriptor(nil), prototype.columns...)
 	for i := range table.columns {
 		table.columns[i].OriginTable = uint32(tableOID)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
+		t.Fatal(err)
+	}
+	e.mu.Lock()
+	err = e.stageRowTypeLocked(stage, &table)
+	e.mu.Unlock()
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Create(&table); err != nil {
@@ -379,6 +386,12 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	replacement.storage[importedSource.address] = sourceStore
 	replacement.commitSeq = 1
 	replacement.mu.Unlock()
+	importedTypes := make(map[ObjectAddress]*typeDescriptor)
+	for address, descriptor := range replacement.CatalogRead().state.descriptors {
+		if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.NamespaceName() != "" && typ.owningRelation == (ObjectAddress{}) {
+			importedTypes[address] = typ
+		}
+	}
 	if _, err := e.ReplaceCatalog(ctx, replacement.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +412,22 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	for _, descriptor := range current.state.descriptors {
 		if err := e.providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
-			t.Fatal("invalid retained provider", err)
+			t.Fatal("invalid retained provider", descriptor.Address(), descriptor.Name(), err)
+		}
+	}
+	for address, source := range importedTypes {
+		actual := current.state.descriptors[address].(*typeDescriptor)
+		if actual.Namespace() != source.Namespace() || actual.owner != source.owner || actual.comment != source.comment || !reflect.DeepEqual(actual.acl, source.acl) {
+			t.Fatal("imported type catalog ownership changed", address)
+		}
+		if source.typ.IsDomain() {
+			base, ok := current.LookupType(source.typ.DomainBase().Type.ID())
+			if !ok || actual.typ.DomainBase().Type != base || actual.typ.Concrete() || actual.typ.IsUserDefined() {
+				t.Fatal("seeded domain closure/admission changed", address)
+			}
+		}
+		if replacement.CatalogRead().state.descriptors[address] != source {
+			t.Fatal("source type catalog mutated", address)
 		}
 	}
 	importedAddresses := current.Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "imported_arrays"})

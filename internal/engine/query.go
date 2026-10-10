@@ -1028,6 +1028,7 @@ type finalRows struct {
 	selection, slots  []int
 	values            []sqltype.Value
 	regclassOutput    map[string]string
+	regtypeOutput     map[uint32]string
 	anonymous         [][]sqltype.Value
 	count, position   int
 	terminal          error
@@ -1068,6 +1069,7 @@ func (r *finalRows) release() {
 	r.selection, r.slots, r.values = nil, nil, nil
 	r.anonymous = nil
 	r.regclassOutput = nil
+	r.regtypeOutput = nil
 }
 func (r *finalRows) fail(err error) (bool, error) {
 	r.terminal = err

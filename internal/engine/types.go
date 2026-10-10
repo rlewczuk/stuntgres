@@ -26,6 +26,7 @@ type StatementDescription struct {
 	// cell publishes complete analyzed literal groups under Engine.mu.
 	temporals []temporalConstant
 	sequences *sequenceAnalysis
+	regtypes  *regtypeAnalysis
 }
 
 type temporalConstant struct {
@@ -43,14 +44,15 @@ type temporalConstant struct {
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
 // seam. A sqltype ID is a projection, not an authorization token.
 type typeDescriptor struct {
-	typ        *sqltype.Descriptor
-	comment    string
-	namespace  ObjectAddress
-	revision   DefinitionRevision
-	owner      PrincipalRef
-	acl        ACLValue
-	dimensions int32
-	array      sqltype.ID
+	typ            *sqltype.Descriptor
+	comment        string
+	namespace      ObjectAddress
+	revision       DefinitionRevision
+	owner          PrincipalRef
+	acl            ACLValue
+	dimensions     int32
+	array          sqltype.ID
+	owningRelation ObjectAddress
 }
 
 func (d *typeDescriptor) Address() ObjectAddress {
@@ -87,7 +89,19 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
-	if t.typ.IsUserDefined() || t.typ.IsArray() && t.typ.Element().IsDomain() {
+	if t.owningRelation != (ObjectAddress{}) {
+		relation, ok := view.state.descriptors[t.owningRelation].(*relationDescriptor)
+		if !ok || relation.namespace != t.Namespace() || relation.owner != t.owner {
+			return fmt.Errorf("stuntgres: invalid row type ownership")
+		}
+		if !t.typ.IsArray() && (relation.rowType != t.typ.ID() || relation.name != t.Name()) {
+			return CatalogConflict{}
+		}
+		if t.typ.IsArray() && relation.rowType != t.typ.Element().ID() {
+			return CatalogConflict{}
+		}
+	}
+	if t.typ.IsUserDefined() || t.typ.IsArray() && t.typ.Element().IsUserDefined() {
 		if t.revision == 0 || relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
 			return CatalogConflict{}
 		}
@@ -95,7 +109,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	if t.typ.IsDomain() {
 		base := t.typ.DomainBase()
 		actual, exists := view.LookupType(base.Type.ID())
-		if !exists || actual != base.Type || !base.Valid() || t.revision == 0 || t.dimensions < 0 {
+		if !exists || actual != base.Type || t.typ.Concrete() && (!base.Valid() || t.revision == 0) || t.dimensions < 0 {
 			return fmt.Errorf("stuntgres: invalid domain base generation")
 		}
 	}
@@ -106,7 +120,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
 		owner, exists := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(element.ID())})
-		if !exists || owner.(*typeDescriptor).array != t.typ.ID() {
+		if !exists || owner.(*typeDescriptor).array != t.typ.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).owner != t.owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
 	}

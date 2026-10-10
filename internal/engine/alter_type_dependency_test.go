@@ -67,6 +67,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 				next := *originalView
 				next.address.ObjectID, next.name, next.revision = oid, "late_view", revision
+				next.rowType = 0
 				definition := *originalView.view
 				definition.rule = rule
 				next.view = &definition
@@ -76,6 +77,12 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(stage)
+				e.mu.Lock()
+				allocationErr = e.stageRowTypeLocked(stage, &next)
+				e.mu.Unlock()
+				if allocationErr != nil {
+					t.Fatal(allocationErr)
+				}
 				if err := stage.Create(&next); err != nil {
 					t.Fatal(err)
 				}

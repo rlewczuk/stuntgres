@@ -151,7 +151,11 @@ func timetzParameterText(v time.Time) string {
 func frameImporter(values []driver.Value) engine.FrameImporter {
 	return func(ctx context.Context, parameters engine.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, raw := range values {
-			value, err := importParameter(ctx, raw, parameters.Types[i], input)
+			parameterInput := input
+			if text, ok := raw.(string); ok {
+				parameterInput = input.ParameterInput(i+1, text == "")
+			}
+			value, err := importParameter(ctx, raw, parameters.Types[i], parameterInput)
 			if err != nil {
 				if diagnostic, ok := err.(*Error); ok {
 					copy := *diagnostic
@@ -204,6 +208,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
+	case sqltype.Regtype:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Xid:
 		text, err := v.Type().Output(ctx, v)
 		return []byte(text), err
@@ -263,7 +269,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
+	case sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

@@ -330,7 +330,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
-		regclassOutput = regclassOutput || result.Usage.Type.ContainsRegclass()
+		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
 		if c, ok := expr.(columnExpression); ok && c.frame == b.frameID() {
 			result = namespace.frame[c.slot]
@@ -491,6 +491,9 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(expr.ResultUsage().Type)), expr.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
+	}
+	if plan.RequiresCatalogOutput() {
+		b.regclassConcat = true
 	}
 	return coercionExpression{b.info(target.Usage, expr.SourcePosition(), coercionProperties(expr, plan)), expr, plan, sqltype.Assignment}, nil
 }

@@ -24,6 +24,10 @@ type lexer struct {
 	queryRowEnd       int
 	insertScalarEntry bool
 	insertScalarEnd   int
+	typeInputEntry    bool
+	typeInputMode     bool
+	typeInputResult   TypeName
+	typeInputNotice   func(sqlstate.Error)
 	options           Options
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
@@ -111,6 +115,14 @@ func truncateName(s string) string {
 		n--
 	}
 	return s[:n]
+}
+
+func (l *lexer) identifierName(s string) string {
+	clipped := truncateName(s)
+	if clipped != s && l.typeInputNotice != nil {
+		l.typeInputNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: fmt.Sprintf("identifier \"%s\" will be truncated to \"%s\"", s, clipped), Context: fmt.Sprintf("invalid type name \"%s\"", l.input)})
+	}
+	return clipped
 }
 
 // skip returns whether the separator contained a newline, for SQL string
@@ -473,7 +485,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.fail("42601", fmt.Sprintf("zero-length delimited identifier at or near \"%s\"", l.input[start:l.offset]))
 			return 0
 		}
-		l.current.text = truncateName(s)
+		l.current.text = l.identifierName(s)
 		token = IDENT
 		if s == "current_setting" || s == "set_config" {
 			token = SETTING_FUNC
@@ -560,7 +572,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.fail("0A000", "special quoted syntax is unsupported")
 			return 0
 		}
-		l.current.text = truncateName(raw)
+		l.current.text = l.identifierName(raw)
 		l.current.keyword = lookupKeyword(raw)
 		if k := l.current.keyword; k != nil {
 			token = k.token
@@ -657,6 +669,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.err != nil {
 		return 0
 	}
+	if l.typeInputEntry {
+		l.typeInputEntry = false
+		return TYPE_INPUT
+	}
 	if l.insertScalarEntry {
 		l.insertScalarEntry = false
 		return INSERT_SCALAR_VALUES
@@ -665,6 +681,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
+	if l.typeInputMode && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
+		token.code = SETOF_TYPE
+	}
 	if l.options.Context != nil {
 		if err := l.options.Context.Err(); err != nil {
 			l.err = err
@@ -736,7 +755,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 		if token.code == IDENT {
-			text = truncateName(text)
+			text = l.identifierName(text)
 		}
 		token.lexeme.text = text
 	}

@@ -302,3 +302,43 @@ remain private until successful installation. Replacement admission stays held,
 and changed target catalog/role/TEMP authority fails without retry. A failed
 repair discards private sequence effects as well as repaired cells.
 
+
+## REGTYPE references and row identity
+
+Reset initializes pg_catalog, public and information_schema type namespaces.
+The complete builtin inventory is immutable identity authority, not user objects
+to serialize. Real table/view row types and associated arrays reconstruct through
+their owning CREATE TABLE/VIEW, not artificial CREATE TYPE statements.
+
+Stored REGTYPE constants retain actual TypeClassID dependencies independently
+of their declared datatype. Known numeric constants also retain those edges;
+zero and unknown IDs do not. Ordinary stored data alone adds no drop dependency.
+RESTRICT/CASCADE follows the existing stored-expression/type closure, including
+dependents of an owning relation's row type.
+
+Dump writes actual qualified, quoted scalar referent names and recursively
+qualified `element[]` for reciprocal associated-array REGTYPE constants, rather
+than source OIDs, generated array aliases or search-path-dependent display names.
+Logical replay can remint OIDs and generated names without changing exact logical
+type identity, reciprocal relationships, values, defaults or views. Historical
+generated aliases are not guaranteed; live catalog names and retained snapshots
+remain exact. Explicit named-array domain bases keep dimensions zero: transient
+domain/enum replay-name prediction uses the shared allocator and baseline builtin
+identities to render the alias available at that declaration, not a history recipe.
+Row-type references impose owning-relation topology. Legal default-only cycles
+use deferred ALTER COLUMN SET DEFAULT after referents exist; CHECK/generated
+and view dependencies remain mandatory topology edges.
+Restore parses/binds these real statements in its private catalog, then remaps
+scalar/domain/array/stored leaves with TypeClassID addresses. A same-number
+RelationClassID mapping never retargets a REGTYPE value. Row/array ownership,
+namespace and datatype pointers move together without mutating source snapshots.
+Invalid declarations, bad type input, trailing SQL and cancellation preserve
+destination state through the existing atomic replacement path.
+
+Feature controls run in both modes (900-second deadline per invocation):
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
+```
+

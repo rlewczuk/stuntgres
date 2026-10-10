@@ -162,10 +162,19 @@ func TestIndexClausesSystemIdentity(t *testing.T) {
 	if class.AcceptsID(27) {
 		t.Fatal("integer class accepted tid")
 	}
-	// TID/CID remain diagnostic-only; catalog XID is concrete but never an index key.
+	// TID/CID have catalog identities, but never executable storage providers.
 	for _, d := range Builtins() {
 		if d.ID() == 27 || d.ID() == 29 {
-			t.Fatal("system diagnostic added a storage type", d)
+			if d.Concrete() || d.Usage().Valid() {
+				t.Fatal("system diagnostic added a storage type", d)
+			}
+			if _, err := BindOrdering(d.Usage()); err == nil {
+				t.Fatal("system diagnostic added an ordering provider", d)
+			}
+			class, _ := LookupIndexClass("tid_ops")
+			if class.Accepts(d) {
+				t.Fatal("system diagnostic admitted an executable index key", d)
+			}
 		}
 		if d.ID() == Xid {
 			if _, exists := DefaultIndexClassID(d.ID()); exists {

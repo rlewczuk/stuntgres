@@ -160,7 +160,7 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "text_ops"
 	case BPChar:
 		name = "bpchar_ops"
-	case Oid, Regclass:
+	case Oid, Regclass, Regtype:
 		name = "oid_ops"
 	case Float4:
 		name = "float4_ops"
@@ -194,8 +194,9 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 	return LookupIndexClass(name)
 }
 
-// Accepts models only released directional binary compatibility, never general
-// implicit/assignment casts. Domains flatten, but original values stay typed.
+// Accepts models executable keys with released directional binary compatibility,
+// never catalog identity alone or general implicit/assignment casts. Diagnostic
+// system identities use AcceptsID instead. Domains flatten; values stay typed.
 func (c IndexClass) Accepts(t *Descriptor) bool {
 	if !t.Concrete() {
 		return false
@@ -209,6 +210,7 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	return c.AcceptsID(t.BaseType().id)
 }
 
+// AcceptsID checks released input identity only; it grants no runtime provider.
 func (c IndexClass) AcceptsID(id ID) bool {
 	if c.input == 0 {
 		return false
@@ -222,7 +224,7 @@ func (c IndexClass) AcceptsID(id ID) bool {
 	case BPChar:
 		return id == Text || id == VarChar
 	case Oid:
-		return id == Int4 || id == Regclass
+		return id == Int4 || id == Regclass || id == Regtype
 	}
 	return false
 }

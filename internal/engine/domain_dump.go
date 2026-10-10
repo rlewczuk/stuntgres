@@ -10,6 +10,67 @@ import (
 
 type dumpDomain struct{ owner, sql string }
 
+// Replay names are transient rendering predictions keyed by captured identity,
+// not a catalog or destination OID allocator. Only domain/enum creators run here.
+type domainReplayNames struct {
+	occupied map[NameKey]sqltype.ID
+	names    map[sqltype.ID]NameKey
+	arrays   map[sqltype.ID]sqltype.ID
+	elements map[sqltype.ID]sqltype.ID
+}
+
+func newDomainReplayNames() *domainReplayNames {
+	r := &domainReplayNames{
+		occupied: make(map[NameKey]sqltype.ID), names: make(map[sqltype.ID]NameKey),
+		arrays: make(map[sqltype.ID]sqltype.ID), elements: make(map[sqltype.ID]sqltype.ID),
+	}
+	for _, typ := range sqltype.Builtins() {
+		namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		if typ.NamespaceName() == "information_schema" {
+			namespace.ObjectID = 13229
+		}
+		key := NameKey{ClassID: TypeClassID, Namespace: namespace, Name: typ.Name()}
+		r.occupied[key], r.names[typ.ID()] = typ.ID(), key
+		r.arrays[typ.ID()] = typ.AssociatedArray()
+		if typ.IsArray() {
+			r.elements[typ.ID()] = typ.Element().ID()
+		}
+	}
+	return r
+}
+
+func (r *domainReplayNames) arrayName(key NameKey) NameKey {
+	key.Name = chooseAssociatedArrayName(key.Name, func(candidate string) bool {
+		key.Name = candidate
+		return r.occupied[key] != 0
+	})
+	return key
+}
+
+func (r *domainReplayNames) reserve(d *typeDescriptor) error {
+	key := NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}
+	if incumbent := r.occupied[key]; incumbent != 0 {
+		element := r.elements[incumbent]
+		if element == 0 || r.arrays[element] != incumbent {
+			return fmt.Errorf("stuntgres: conflicting domain replay type name")
+		}
+		moved := r.arrayName(key)
+		delete(r.occupied, key)
+		r.occupied[moved], r.names[incumbent] = incumbent, moved
+	}
+	r.occupied[key], r.names[d.typ.ID()] = d.typ.ID(), key
+	return nil
+}
+
+func (r *domainReplayNames) associate(d *typeDescriptor) {
+	if d.array == 0 {
+		return
+	}
+	key := r.arrayName(r.names[d.typ.ID()])
+	r.occupied[key], r.names[d.array] = d.array, key
+	r.arrays[d.typ.ID()], r.elements[d.array] = d.array, d.typ.ID()
+}
+
 func defaultDomainACL(d *typeDescriptor) bool {
 	if !d.acl.Explicit {
 		return false
@@ -90,11 +151,15 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 		return nil, err
 	}
 	result := make([]dumpDomain, 0, len(order))
+	replayNames := newDomainReplayNames()
 	for _, id := range order {
 		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
 		d := descriptors[id]
+		if er := replayNames.reserve(d); er != nil {
+			return nil, er
+		}
 		if d.typ.IsEnum() {
 			qualified, er := catalogTypeDeclaration(view, d.typ.Usage())
 			if er != nil {
@@ -109,6 +174,7 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 				labels[i] = "'" + strings.ReplaceAll(label, "'", "''") + "'"
 			}
 			result = append(result, dumpDomain{owner.Name, "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"})
+			replayNames.associate(d)
 			continue
 		}
 		base := d.typ.DomainBase()
@@ -118,8 +184,15 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 		}
 		if base.Type.IsArray() {
 			if d.dimensions == 0 {
-				array := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}]
-				declaration = quoteIdentifier(view.state.descriptors[array.Namespace()].Name()) + "." + quoteIdentifier(array.Name())
+				key, exists := replayNames.names[base.Type.ID()]
+				if !exists || replayNames.arrays[base.Type.Element().ID()] != base.Type.ID() {
+					return nil, fmt.Errorf("stuntgres: missing domain replay array identity")
+				}
+				namespace, exists := view.Descriptor(key.Namespace)
+				if !exists {
+					return nil, fmt.Errorf("stuntgres: missing domain replay array namespace")
+				}
+				declaration = quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(key.Name)
 			} else {
 				declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.dimensions))
 			}
@@ -141,6 +214,7 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 			return nil, er
 		}
 		result = append(result, dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + ";\n"})
+		replayNames.associate(d)
 	}
 	return result, nil
 }
@@ -185,13 +259,20 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 		}
 		literal := "NULL"
 		if !n.value.IsNull() {
-			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}})
+			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}})
 			if err != nil {
 				return "", err
 			}
 			literal = "'" + strings.ReplaceAll(text, "'", "''") + "'"
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
+	}
+	if u.Type.ID() == sqltype.Regtype && !n.value.IsNull() {
+		id, err := n.value.TypeOID()
+		if err != nil {
+			return "", err
+		}
+		return "CAST('" + strings.ReplaceAll(regtypeReference(view, id), "'", "''") + "' AS REGTYPE)", nil
 	}
 	if u.Type.ID() == sqltype.Regclass && !n.value.IsNull() {
 		text, err := n.value.Text()

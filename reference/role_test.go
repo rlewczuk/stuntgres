@@ -193,6 +193,16 @@ func TestReferenceRoleAuthorization(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer heldIdentity.Close()
+					for _, query := range []string{"SET SESSION AUTHORIZATION " + nolog, "SET SESSION AUTHORIZATION DEFAULT", "RESET SESSION AUTHORIZATION"} {
+						run(a, referenceExec(query, 0))
+						want := bootstrap
+						if strings.HasSuffix(query, nolog) {
+							want = nolog
+						}
+						roleScenarioIdentity(t, a, want, heldIdentity, backend.pg)
+						identity(b, reader)
+					}
+					run(a, referenceExec("SET SESSION AUTHORIZATION "+owner, 0))
 					heldSecret, err := a.PrepareContext(p.ctx, "SELECT id FROM secret")
 					if err != nil {
 						t.Fatal(err)

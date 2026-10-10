@@ -246,3 +246,28 @@ Writable explicit ordinary CREATE INDEX transactions remain a native 0A000 bound
 concurrent creation instead reports25001 in explicit blocks,
 independently of read-only 25006 utility rejection.
 
+
+## REGTYPE input and held descriptions
+
+Native REGTYPE/_REGTYPE exports are strings with string ScanType. Scalar domains
+report REGTYPE, domain-over-array reports _REGTYPE, and array-of-domain uses its
+actual uppercase name. Pinned pq independently supplies nonnull []byte,
+interface{} ScanType and unknown Length/DecimalSize/Nullable; dynamic
+array-of-domain DatabaseTypeName is empty. Empty/all-NULL cursors keep metadata.
+
+Parameters are imported eagerly through one captured type lookup authority,
+before zero-row evaluation and later executor table rights. Input errors retain
+decoded parser positions/invalid-type Context and the existing portal Context.
+Runtime `$1::text::regtype` is ordinary expression IO, not portal input.
+Literal parser errors transpose Position to the outer literal while preserving
+the decoded invalid-type Context. Modifier warnings use the same notice API:
+literal analysis once per unchanged held authority, frame warnings on each
+Execute with actual slot Context, runtime TEXT warnings without portal Context.
+
+A held literal's OID is not refreshed merely because its referent disappears
+or is recreated. Effective lookup-path/role authority/database changes trigger
+complete successful reanalysis before publishing the private literal group.
+Returned rows retain captured output names even after rename, Reset or Restore;
+fresh execution formats against its own snapshot. This does not change existing
+prepared parameter/result identity guards or sequence-regclass lifecycle.
+

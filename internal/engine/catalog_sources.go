@@ -78,6 +78,15 @@ func (e *Engine) initializeCatalogSources() error {
 			d.attributes[i] = int32(i + 1)
 			d.index[column.name] = i
 		}
+		if address, ok := e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
+			row := e.state.descriptors[address].(*typeDescriptor)
+			row.owningRelation, row.owner = d.address, owner
+			d.rowType = row.typ.ID()
+			if row.array != 0 {
+				array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
+				array.owningRelation, array.owner = d.address, owner
+			}
+		}
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	}

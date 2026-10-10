@@ -230,6 +230,11 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		}
 		return fail(err)
 	}
+	if plan.RequiresCatalogOutput() {
+		if err := e.captureCommentSnapshotLocked(scope); err != nil {
+			return fail(err)
+		}
+	}
 	node = coercionExpression{expressionInfo{usage: usage, properties: coercionProperties(node, plan)}, node, plan, sqltype.Assignment}
 	attribute := original.attributes[source]
 	transformation := columnTransformation{attribute, node, a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
