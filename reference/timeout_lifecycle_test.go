@@ -11,9 +11,9 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 				f := newTimeoutReferenceFixture(t, p, b)
-				f.set("transaction_timeout", "1s")
+				f.set("transaction_timeout", "500ms")
 				f.beginPrivate()
-				f.exec(f.owner, "SET LOCAL transaction_timeout='500ms'", 0)
+				f.exec(f.owner, "SET LOCAL transaction_timeout='250ms'", 0)
 				command := end
 				aborted := end == "aborted-COMMIT" || end == "aborted-ROLLBACK"
 				if aborted {
@@ -26,14 +26,14 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 						command = "ROLLBACK"
 					}
 				}
-				timeoutReferenceIdle(t, p.ctx, 600*time.Millisecond)
+				timeoutReferenceIdle(t, p.ctx, 300*time.Millisecond)
 				f.exec(f.owner, command+" AND CHAIN", 0)
-				f.show("transaction_timeout", "1s")
+				f.show("transaction_timeout", "500ms")
 				// Cross old BEGIN's deadline and old LOCAL duration without
-				// crossing the new incarnation's full restored one-second budget.
-				timeoutReferenceIdle(t, p.ctx, 600*time.Millisecond)
-				f.show("transaction_timeout", "1s")
-				timeoutReferenceIdle(t, p.ctx, 600*time.Millisecond)
+				// crossing the new incarnation's full restored 500ms budget.
+				timeoutReferenceIdle(t, p.ctx, 300*time.Millisecond)
+				f.show("transaction_timeout", "500ms")
+				timeoutReferenceIdle(t, p.ctx, 300*time.Millisecond)
 				f.fatalProbe("25P04")
 				if end == "COMMIT" {
 					f.rows(f.peer, 7, 8)
@@ -48,12 +48,12 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 			f := newTimeoutReferenceFixture(t, p, b)
 			const gid = "timeout_detached"
 			preparedReferenceCleanup(t, b, gid)
-			f.set("transaction_timeout", "500ms")
-			f.set("idle_session_timeout", "750ms")
+			f.set("transaction_timeout", "250ms")
+			f.set("idle_session_timeout", "375ms")
 			f.beginPrivate()
 			f.exec(f.owner, "PREPARE TRANSACTION '"+gid+"'", 0)
 			entry := preparedReferenceOne(t, p, f.peer, gid)
-			timeoutReferenceIdle(t, p.ctx, 1000*time.Millisecond)
+			timeoutReferenceIdle(t, p.ctx, 500*time.Millisecond)
 			f.fatalProbe("57P05")
 			got := preparedReferenceOne(t, p, f.peer, gid)
 			expectedZone, expectedOffset := entry.prepared.Zone()
@@ -97,7 +97,7 @@ func TestReferenceTimeoutFatalCleanup(t *testing.T) {
 				if code == "25P03" {
 					setting = "idle_in_transaction_session_timeout"
 				}
-				f.set(setting, "750ms")
+				f.set(setting, "375ms")
 				f.beginPrivate()
 				await := referenceLockOperation(t, p.ctx, func(ctx context.Context) relationOutcome {
 					r, e := f.peer.QueryContext(ctx, "SELECT v FROM timeout_sentinel ORDER BY v")
@@ -106,7 +106,7 @@ func TestReferenceTimeoutFatalCleanup(t *testing.T) {
 				if b.pg {
 					referenceLockWaitBehind(t, p.ctx, pp, op, referenceLockOID(t, p.ctx, "public.timeout_sentinel"), "AccessShareLock")
 				}
-				timeoutReferenceIdle(t, p.ctx, 1000*time.Millisecond)
+				timeoutReferenceIdle(t, p.ctx, 500*time.Millisecond)
 				f.fatalProbe(code)
 				o := await()
 				referenceLimitLockValues(t, o, b.pg, 7)

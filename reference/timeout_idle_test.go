@@ -17,7 +17,7 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					if kind != "outside" {
 						setting, code = "idle_in_transaction_session_timeout", "25P03"
 					}
-					f.set(setting, "500ms")
+					f.set(setting, "250ms")
 					if kind != "outside" {
 						f.beginPrivate()
 					}
@@ -27,7 +27,7 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 						want.Position = "8"
 						referenceAssertDiagnostic(t, err, &want)
 					}
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					f.fatalProbe(code)
 					f.rows(f.peer, 7)
 				case "wrong-outside", "wrong-inside":
@@ -35,12 +35,12 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					if kind == "wrong-inside" {
 						setting = "idle_session_timeout"
 					}
-					f.set(setting, "500ms")
+					f.set(setting, "250ms")
 					if kind == "wrong-inside" {
 						f.beginPrivate()
 					}
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
-					f.show(setting, "500ms")
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
+					f.show(setting, "250ms")
 					if kind == "wrong-inside" {
 						f.exec(f.owner, "ROLLBACK", 0)
 					}
@@ -49,12 +49,12 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					}
 					f.rows(f.peer, 7)
 				case "query-reset", "prepare-reset", "ping-reset":
-					f.set("idle_session_timeout", "500ms")
+					f.set("idle_session_timeout", "250ms")
 					for range 3 {
-						timeoutReferenceIdle(t, p.ctx, 250*time.Millisecond)
+						timeoutReferenceIdle(t, p.ctx, 125*time.Millisecond)
 						switch kind {
 						case "query-reset":
-							f.show("idle_session_timeout", "500ms")
+							f.show("idle_session_timeout", "250ms")
 						case "prepare-reset":
 							stmt, err := f.owner.PrepareContext(p.ctx, "SHOW idle_session_timeout")
 							if err != nil {
@@ -72,17 +72,17 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					if settingsPhysical(t, f.owner) != identity {
 						t.Fatal("activity replaced physical owner")
 					}
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					f.fatalProbe("57P05")
 				case "retained-rows":
-					f.set("idle_session_timeout", "500ms")
+					f.set("idle_session_timeout", "250ms")
 					rows, err := f.owner.QueryContext(p.ctx, "SELECT v FROM timeout_sentinel")
 					if err != nil {
 						t.Fatal(err)
 					}
 					defer rows.Close()
 					check := settingsTimeoutCursor(t, rows, b.pg)
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					f.fatalQuery("57P05")
 					if !b.pg {
 						check()
@@ -98,11 +98,11 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					release := f.holdBlocked()
 					f.set("idle_session_timeout", "100ms")
 					f.set("idle_in_transaction_session_timeout", "100ms")
-					f.set("lock_timeout", "500ms")
+					f.set("lock_timeout", "250ms")
 					if kind == "active-inside" {
 						f.exec(f.owner, "BEGIN", 0)
 					}
-					// Actual wait under an unreleased holder lasts five idle limits.
+					// Actual wait under an unreleased holder lasts 2.5 idle limits.
 					// If active work were idle, a FATAL would replace this ERROR.
 					o := f.blocked("held", "SELECT v FROM timeout_blocked", held)
 					f.diagnostic(o.err, "55P03", "held")
@@ -126,13 +126,13 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 	// These are the new transaction suppression cases. The established
 	// TestReferenceRelationLockWaitsTimeout owns statement-versus-lock ties.
 	for _, tc := range []struct{ name, statement, idle, lock, code string }{
-		{"statement-equal", "500ms", "0", "0", "25P04"},
-		{"statement-longer", "2s", "0", "0", "25P04"},
-		{"statement-shorter", "250ms", "0", "0", "57014"},
-		{"idle-equal", "0", "500ms", "0", "25P04"},
-		{"idle-longer", "0", "2s", "0", "25P04"},
-		{"idle-shorter", "0", "250ms", "0", "25P03"},
-		{"lock-shorter", "0", "0", "250ms", "55P03"},
+		{"statement-equal", "250ms", "0", "0", "25P04"},
+		{"statement-longer", "1s", "0", "0", "25P04"},
+		{"statement-shorter", "125ms", "0", "0", "57014"},
+		{"idle-equal", "0", "250ms", "0", "25P04"},
+		{"idle-longer", "0", "1s", "0", "25P04"},
+		{"idle-shorter", "0", "125ms", "0", "25P03"},
+		{"lock-shorter", "0", "0", "125ms", "55P03"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
@@ -140,10 +140,10 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 				f.set("statement_timeout", tc.statement)
 				f.set("idle_in_transaction_session_timeout", tc.idle)
 				f.set("lock_timeout", tc.lock)
-				f.set("transaction_timeout", "500ms")
+				f.set("transaction_timeout", "250ms")
 				f.beginPrivate()
 				if tc.idle != "0" {
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					f.fatalProbe(tc.code)
 				} else {
 					release := f.holdBlocked()
@@ -163,13 +163,13 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 	t.Run("old-transaction-residual", func(t *testing.T) {
 		timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 			f := newTimeoutReferenceFixture(t, p, b)
-			f.set("transaction_timeout", "1s")
+			f.set("transaction_timeout", "500ms")
 			f.beginPrivate()
-			timeoutReferenceIdle(t, p.ctx, 600*time.Millisecond)
-			f.set("idle_in_transaction_session_timeout", "750ms")
+			timeoutReferenceIdle(t, p.ctx, 300*time.Millisecond)
+			f.set("idle_in_transaction_session_timeout", "375ms")
 			// Nominally shorter idle budget loses to the old transaction's
-			// remaining 400ms, not to a restarted transaction timer.
-			timeoutReferenceIdle(t, p.ctx, 550*time.Millisecond)
+			// remaining 200ms, not to a restarted transaction timer.
+			timeoutReferenceIdle(t, p.ctx, 275*time.Millisecond)
 			f.fatalProbe("25P04")
 			f.rows(f.peer, 7)
 		})
@@ -179,10 +179,10 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 		timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 			f := newTimeoutReferenceFixture(t, p, b)
 			release := f.holdBlocked()
-			f.set("transaction_timeout", "1s")
+			f.set("transaction_timeout", "500ms")
 			f.beginPrivate()
-			timeoutReferenceIdle(t, p.ctx, 600*time.Millisecond)
-			f.set("statement_timeout", "750ms")
+			timeoutReferenceIdle(t, p.ctx, 300*time.Millisecond)
+			f.set("statement_timeout", "375ms")
 			o := f.blocked("utility", "LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", nil)
 			f.diagnostic(o.err, "25P04")
 			f.dead()
@@ -199,12 +199,12 @@ func timeoutReferencePrecedenceAssignment(t *testing.T) {
 	t.Helper()
 	timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 		f := newTimeoutReferenceFixture(t, p, b)
-		f.set("statement_timeout", "500ms")
-		f.set("transaction_timeout", "500ms")
+		f.set("statement_timeout", "250ms")
+		f.set("transaction_timeout", "250ms")
 		f.exec(f.owner, "BEGIN", 0)
 		referenceRunStep(t, p.ctx, f.owner, b.recorder,
 			localReferenceSelect(b.pg, "SELECT set_config('transaction_timeout','0',false)", "set_config", "0"))
-		timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+		timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 		f.show("transaction_timeout", "0")
 		release := f.holdBlocked()
 		o := f.blocked("utility", "LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", nil)

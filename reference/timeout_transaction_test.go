@@ -26,7 +26,7 @@ func TestReferenceTimeoutTransactionBoundaries(t *testing.T) {
 						}
 						t.Cleanup(func() { held.Close() })
 					}
-					f.set("transaction_timeout", "500ms")
+					f.set("transaction_timeout", "250ms")
 					if block == "sql" {
 						f.beginPrivate()
 					}
@@ -162,22 +162,22 @@ func TestReferenceTimeoutTransactionBoundaries(t *testing.T) {
 	t.Run("completion-and-detached-rows", func(t *testing.T) {
 		timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 			f := newTimeoutReferenceFixture(t, p, b)
-			f.set("transaction_timeout", "500ms")
+			f.set("transaction_timeout", "250ms")
 			rows, err := f.owner.QueryContext(p.ctx, "SELECT v FROM timeout_sentinel")
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer rows.Close()
 			check := settingsTimeoutCursor(t, rows, b.pg)
-			timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
-			f.show("transaction_timeout", "500ms")
+			timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
+			f.show("transaction_timeout", "250ms")
 			if !b.pg {
 				check()
 			}
 			f.exec(f.owner, "BEGIN", 0)
 			f.exec(f.owner, "INSERT INTO timeout_sentinel VALUES(8)", 1)
 			f.exec(f.owner, "COMMIT", 0)
-			timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+			timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 			f.rows(f.owner, 7, 8)
 		})
 	})
@@ -195,16 +195,16 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					if kind == "session-commit" {
 						mode = "SESSION"
 					}
-					f.exec(f.owner, "SET "+mode+" transaction_timeout='500ms'", 0)
+					f.exec(f.owner, "SET "+mode+" transaction_timeout='250ms'", 0)
 					end := "COMMIT"
 					if kind == "local-rollback" {
 						end = "ROLLBACK"
 					}
 					f.exec(f.owner, end, 0)
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					want := "0"
 					if kind == "session-commit" {
-						want = "500ms"
+						want = "250ms"
 					}
 					f.show("transaction_timeout", want)
 					if settingsPhysical(t, f.owner) != identity {
@@ -213,19 +213,19 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					f.rows(f.peer, 7)
 					return
 				}
-				f.set("transaction_timeout", "500ms")
+				f.set("transaction_timeout", "250ms")
 				f.exec(f.owner, "BEGIN", 0)
 				switch kind {
 				case "commands":
 					for range 2 {
-						timeoutReferenceIdle(t, p.ctx, 200*time.Millisecond)
-						f.show("transaction_timeout", "500ms")
+						timeoutReferenceIdle(t, p.ctx, 100*time.Millisecond)
+						f.show("transaction_timeout", "250ms")
 					}
 				case "positive-positive", "same-value":
-					timeoutReferenceIdle(t, p.ctx, 300*time.Millisecond)
-					value := "2s"
+					timeoutReferenceIdle(t, p.ctx, 150*time.Millisecond)
+					value := "1s"
 					if kind == "same-value" {
-						value = "500ms"
+						value = "250ms"
 					}
 					f.set("transaction_timeout", value)
 					f.show("transaction_timeout", value)
@@ -238,10 +238,10 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					case "reset-all":
 						f.exec(f.owner, "RESET ALL", 0)
 					}
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					f.show("transaction_timeout", "0")
 					f.exec(f.owner, "ROLLBACK", 0)
-					f.show("transaction_timeout", "500ms")
+					f.show("transaction_timeout", "250ms")
 					f.rows(f.peer, 7)
 					return
 				case "reenable", "savepoint-restore", "set-config":
@@ -253,32 +253,32 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					} else {
 						f.set("transaction_timeout", "0")
 					}
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 					f.show("transaction_timeout", "0")
 					if kind == "savepoint-restore" {
 						f.exec(f.owner, "ROLLBACK TO timeout_restore", 0)
 					} else {
-						f.set("transaction_timeout", "500ms")
+						f.set("transaction_timeout", "250ms")
 					}
-					timeoutReferenceIdle(t, p.ctx, 100*time.Millisecond)
-					f.show("transaction_timeout", "500ms")
+					timeoutReferenceIdle(t, p.ctx, 50*time.Millisecond)
+					f.show("transaction_timeout", "250ms")
 				}
-				delay := 700 * time.Millisecond
+				delay := 350 * time.Millisecond
 				if kind == "commands" {
-					delay = 250 * time.Millisecond
+					delay = 125 * time.Millisecond
 				}
 				if kind == "positive-positive" || kind == "same-value" {
-					delay = 300 * time.Millisecond
+					delay = 150 * time.Millisecond
 				}
 				timeoutReferenceIdle(t, p.ctx, delay)
 				if kind == "savepoint-restore" {
-					// Pinned oracle: restoring SHOW500 after SET0 does not
+					// Restoring SHOW250 after SET0 does not
 					// rearm the retired budget. A real later off/on still does.
-					f.show("transaction_timeout", "500ms")
+					f.show("transaction_timeout", "250ms")
 					f.rows(f.owner, 7)
 					f.set("transaction_timeout", "0")
-					f.set("transaction_timeout", "500ms")
-					timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+					f.set("transaction_timeout", "250ms")
+					timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 				}
 				f.fatalProbe("25P04")
 				f.rows(f.peer, 7)
@@ -294,15 +294,15 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 				timeoutReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 					f := newTimeoutReferenceFixture(t, p, b)
 					identity := settingsPhysical(t, f.owner)
-					f.set("transaction_timeout", "1s")
-					// Configured 2s idle limit is suppressed even after ERROR stops
+					f.set("transaction_timeout", "500ms")
+					// Configured 1s idle limit is suppressed even after ERROR stops
 					// the actual transaction timer (release ReadyForQuery rule).
-					f.set("idle_in_transaction_session_timeout", "2s")
+					f.set("idle_in_transaction_session_timeout", "1s")
 					if failure == "statement" {
-						f.set("statement_timeout", "250ms")
+						f.set("statement_timeout", "125ms")
 					}
 					if failure == "lock" {
-						f.set("lock_timeout", "250ms")
+						f.set("lock_timeout", "125ms")
 					}
 					f.beginPrivate()
 					if child {
@@ -324,23 +324,23 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 					}
 					// O3 source hypothesis: full abort cancels all timers. An
 					// unchanged positive restoration must not invent a new timer.
-					timeoutReferenceIdle(t, p.ctx, 2200*time.Millisecond)
+					timeoutReferenceIdle(t, p.ctx, 1100*time.Millisecond)
 					_, err := f.owner.ExecContext(p.ctx, "SELECT v FROM timeout_sentinel")
 					want := referenceTransactionAborted()
 					referenceAssertDiagnostic(t, err, &want)
 					if child {
 						f.exec(f.owner, "ROLLBACK TO timeout_child", 0)
 						// O3: ROLLBACK TO unchanged positive setting does not rearm.
-						timeoutReferenceIdle(t, p.ctx, 1200*time.Millisecond)
+						timeoutReferenceIdle(t, p.ctx, 600*time.Millisecond)
 						f.rows(f.owner, 7, 8)
 						// A real off/on assignment does rearm the recovered owner.
 						f.set("transaction_timeout", "0")
-						f.set("transaction_timeout", "500ms")
-						timeoutReferenceIdle(t, p.ctx, 700*time.Millisecond)
+						f.set("transaction_timeout", "250ms")
+						timeoutReferenceIdle(t, p.ctx, 350*time.Millisecond)
 						f.fatalProbe("25P04")
 					} else {
 						f.exec(f.owner, "ROLLBACK", 0)
-						f.show("transaction_timeout", "1s")
+						f.show("transaction_timeout", "500ms")
 						if settingsPhysical(t, f.owner) != identity {
 							t.Fatal("ordinary ERROR killed owner")
 						}
