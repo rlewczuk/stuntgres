@@ -59,6 +59,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if s.Action == parser.SetDefault {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.queryAuth = &auth
+		binder.defaultTemporary = auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor).temporary
 		definition.expression, err = binder.bindDefault(s.Expression, old.columns[slot])
 		if err == nil {
 			_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(op.Context(), auth.catalog, definition.expression)

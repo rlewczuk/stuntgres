@@ -117,6 +117,31 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			for _, column := range relation.columns {
 				retainBuiltin(column.Usage.Type)
 			}
+			retainExpression := func(node BoundExpr) {
+				walkBoundExpression(node, func(node BoundExpr) { retainBuiltin(node.ResultUsage().Type) })
+			}
+			for _, definition := range relation.defaults {
+				retainExpression(definition.expression)
+			}
+			for _, definition := range relation.checkConstraints {
+				retainExpression(definition.expression)
+			}
+			for _, definition := range relation.generations {
+				retainExpression(definition.expression)
+				retainExpression(definition.planned)
+			}
+			if index := relation.sqlIndex; index != nil {
+				for _, key := range index.keys {
+					if key.derived != nil {
+						retainExpression(key.derived.definition)
+						retainExpression(key.derived.execution)
+					}
+				}
+				if predicate := index.predicate; predicate != nil {
+					retainExpression(predicate.definition)
+					retainExpression(predicate.execution)
+				}
+			}
 		}
 	}
 	mapping := make(map[ObjectAddress]ObjectAddress)

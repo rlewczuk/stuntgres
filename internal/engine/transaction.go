@@ -130,7 +130,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 	t.ticket = nil
 	t.mu.Unlock()
 	t.session.Engine().locks.end(ticket)
-	t.session.Engine().endSequenceSession(t.session)
+	t.session.Engine().endTemporarySession(t.session)
 	return nil
 }
 
@@ -564,6 +564,12 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	}
 	if err := s.snapshotPhase(stmt); err != nil {
 		return StatementDescription{}, err
+	}
+	switch stmt.(type) {
+	case *parser.CreateTable, *parser.DropTable:
+		// Table utilities have no result signature. Resolve ownership, read-only
+		// precedence and persistent-DDL exclusions only when actually executing.
+		return s.op.session.Engine().describeOperation(s, stmt)
 	}
 	indexBuild := earlyIndexUtility(stmt)
 	if !queryCreation && s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {

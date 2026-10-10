@@ -37,8 +37,8 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalR
 	return role.Ref, nil
 }
 
-// Ordinary tables cannot consume the sequence-only temporary namespace surface.
-func checkTableCreationNamespace(catalog CatalogRead, namespace ObjectAddress) error {
+// Non-table creation and namespace moves retain their TEMP capability boundary.
+func checkPersistentCreationNamespace(catalog CatalogRead, namespace ObjectAddress) error {
 	if catalog.state.descriptors[namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
 		return sqlError("0A000", "temporary schema creation is unsupported")
 	}
@@ -47,11 +47,11 @@ func checkTableCreationNamespace(catalog CatalogRead, namespace ObjectAddress) e
 
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment) error {
 	auth.catalog = stage.base
+	if namespace, ok := auth.catalog.state.descriptors[ns].(*namespaceDescriptor); ok && auth.session != nil && namespace.temporary == auth.session.token {
+		auth.stagedTemporary = ns
+	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-	}
-	if err := checkTableCreationNamespace(auth.catalog, ns); err != nil {
-		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
@@ -96,6 +96,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
+	d.onCommit = s.OnCommit
 	d.notNullConstraints = b.createNotNull
 	if err := nameCreateNotNull(d, auth.catalog); err != nil {
 		return err
@@ -110,6 +111,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	auth.catalog = e.stageRead(stage)
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
+	binder.defaultTemporary = auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor).temporary
 	d.defaults, err = bindCreateDefaults(binder, d.columns, b.createDeclarations)
 	if err != nil {
 		return err
@@ -345,6 +347,12 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		auth.state.CurrentUser = owner
 		auth.pathPrefix = ns.address
 		for _, table := range s.Tables {
+			if table.Persistence == "temporary" {
+				return nil, sqlError("0A000", "temporary tables in CREATE SCHEMA are unsupported")
+			}
+			if table.OnCommit != parser.OnCommitUnspecified {
+				return nil, sqlError("42P16", "ON COMMIT can only be used on temporary tables")
+			}
 			if len(table.Name.Parts) == 2 && table.Name.Parts[0].Text != name {
 				return nil, sqlError("42P15", fmt.Sprintf("CREATE specifies a schema (%s) different from the one being created (%s)", table.Name.Parts[0].Text, name))
 			}

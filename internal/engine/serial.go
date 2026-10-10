@@ -33,6 +33,9 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			return err
 		}
 		read := e.stageRead(stage)
+		if read.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+			options.persistence = "temporary"
+		}
 		name := ownedSequenceName(table.name, table.columns[slot].Name, func(name string) bool {
 			return name == table.name || len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name})) != 0
 		})
@@ -69,7 +72,7 @@ func closedSequenceDefault(node BoundExpr) bool {
 	case coercionExpression:
 		return closedSequenceDefault(n.child)
 	case sequenceCallExpression:
-		if n.name != "nextval" || n.identity || n.temporary != (SessionToken{}) || len(n.args) != 1 || n.ref == (ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility: Volatile}) {
+		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility: Volatile}) {
 			return false
 		}
 		literal, ok := n.args[0].(literalExpression)

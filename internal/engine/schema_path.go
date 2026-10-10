@@ -294,12 +294,17 @@ func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectNam
 	if len(name.Parts) == 2 {
 		n := name.Parts[0].Text
 		if n == "pg_temp" {
-			return ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
-		}
-		var ok bool
-		a, ok = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: n}]
-		if !ok {
-			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
+			ns, ok := auth.catalog.state.descriptors[auth.stagedTemporary].(*namespaceDescriptor)
+			if !ok || auth.session == nil || ns.temporary != auth.session.token {
+				return ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
+			}
+			a = ns.address
+		} else {
+			var ok bool
+			a, ok = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: n}]
+			if !ok {
+				return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
+			}
 		}
 	} else {
 		path, temp, err := e.explicitPath(auth)

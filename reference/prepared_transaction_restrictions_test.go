@@ -149,8 +149,8 @@ func TestReferencePreparedTransactionSyntax(t *testing.T) {
 func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) {
 	preparedReferenceScenario(t, func(t *testing.T, p *referencePair, b referenceBackend) {
 		a, peer := referenceLockConnections(t, p.ctx, b.db)
-		// PG can execute these features; native intentionally retains its preexisting
-		// syntax/function exclusion. They are not fake native restriction witnesses.
+		// TEMP now executes on both backends and proves the real PREPARE restriction.
+		// Other excluded features keep their independent native syntax/function errors.
 		for _, c := range []struct {
 			q, message string
 			listening  bool
@@ -170,7 +170,7 @@ func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) 
 			}
 			referenceLockExec(t, p.ctx, a, "BEGIN", 0)
 			rows, err := a.QueryContext(p.ctx, c.q)
-			if !b.pg {
+			if !b.pg && !strings.HasPrefix(c.q, "CREATE TEMP TABLE") {
 				if rows != nil {
 					rows.Close()
 					t.Fatal("unsupported boundary returned rows")
@@ -178,9 +178,6 @@ func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) 
 				want := controlsReferenceDiagnostic("0A000", "statement is unsupported")
 				want.Position = "1"
 				switch {
-				case strings.HasPrefix(c.q, "CREATE"):
-					want.Message = "CREATE syntax is unsupported"
-					want.Position = "8"
 				case strings.HasPrefix(c.q, "DECLARE"):
 					want = controlsReferenceDiagnostic("42601", `syntax error at or near "DECLARE"`)
 					want.Position = "1"

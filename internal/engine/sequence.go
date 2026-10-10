@@ -199,7 +199,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		changes := cloneCatalogChanges(scope.owner.catalog)
-		ns, err := e.sequenceCreationNamespaceLocked(auth, s, changes)
+		ns, err := e.relationCreationNamespaceLocked(auth, s.Name, s.Persistence, changes)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -209,7 +209,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		persistence, err := adjustSequenceCreationPersistence(auth, ns, s.Persistence)
+		persistence, err := adjustRelationCreationPersistence(auth, ns, s.Persistence)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -392,7 +392,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				return Result{}, sequenceLinkedError(&d, auth.catalog.state.descriptors[a].(*relationDescriptor), true)
 			}
 			destination := &parser.CreateSequence{Name: parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}}, Persistence: "logged"}
-			ns, err := e.sequenceCreationNamespaceLocked(auth, destination, changes)
+			ns, err := e.relationCreationNamespaceLocked(auth, destination.Name, destination.Persistence, changes)
 			if err != nil {
 				return Result{}, err
 			}
@@ -402,7 +402,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if err = auth.CheckCreate(ns); err != nil {
 				return Result{}, err
 			}
-			if _, err = adjustSequenceCreationPersistence(auth, ns, destination.Persistence); err != nil {
+			if _, err = adjustRelationCreationPersistence(auth, ns, destination.Persistence); err != nil {
 				return Result{}, err
 			}
 			oldNamespace := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)

@@ -131,9 +131,10 @@ embedded definition OIDs while retaining reciprocal links and TEMP sequence stat
 Dump emits each named table UNIQUE once and skips separate serialization of its
 owned backing relation. Isolated Restore reconstructs roots and rejects
 nonunique replay without replacing the target.
-TEMP tables remain outside the bounded native CREATE surface; the shared
-temporary-lifecycle scenario retains PostgreSQL's TEMP-table control and checks
-the native exclusion leaves its public parent/backing intact.
+Owner-TEMP tables use the same UNIQUE parent/backing lifecycle on both backends;
+the shared temporary-lifecycle scenario also preserves the independent persistent
+parent/backing control. TEMP commit actions and physical-session ownership follow
+the temporary-table contract in [TABLES.md](../TABLES.md).
 
 ## Verification manifest
 

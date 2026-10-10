@@ -31,6 +31,11 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 }
 
 func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority) error {
+	var err error
+	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
+	if err != nil {
+		return err
+	}
 	return e.publishRowsPrepared(op, ref, writes, deletes, c, authority, nil)
 }
 
@@ -193,7 +198,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if len(indexPredecessors) != 0 || c != nil {
 			buildStores := indexStores
 			var rebuildIndexes map[ObjectAddress]bool
-			if len(indexStores) > 0 && c != nil && len(c.storage) > 0 {
+			if c != nil && len(c.storage) > 0 {
 				buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores))
 				for a, store := range indexStores {
 					buildStores[a] = store
@@ -228,7 +233,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 					break
 				}
 				current, ok := e.state.descriptors[p.address].(*relationDescriptor)
-				if !ok || !sameRelationRowShape(p.originalRelation, current) {
+				if p.originalRelation == nil {
+					if e.state.descriptors[p.address] != nil {
+						err = ErrCatalogReplaced
+						break
+					}
+				} else if !ok || !sameRelationRowShape(p.originalRelation, current) {
 					err = ErrCatalogReplaced
 					break
 				}

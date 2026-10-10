@@ -950,6 +950,7 @@ type expressionBinder struct {
 	targetAlias           string
 	returningAliases      *returningAliases
 	defaultConsumer       bool
+	defaultTemporary      SessionToken
 	// Selected timezone/calendar operand analysis owns its released rejection
 	// diagnostic without admitting additional explicit cast providers.
 	datetimeZoneOperands       bool

@@ -47,11 +47,14 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return fail(err)
 	}
-	if err = checkTableCreationNamespace(auth.catalog, destination.Address); err != nil {
+	if err = checkPersistentCreationNamespace(auth.catalog, destination.Address); err != nil {
 		return fail(err)
 	}
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
+	}
+	if auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+		return fail(sqlError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.namespace {
 		op.session.mu.Lock()

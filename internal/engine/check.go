@@ -170,7 +170,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || dep.ref.owner != view.owner.owner || dep.ref.Epoch != view.Epoch() || (provider.Kind() != RelationObject && provider.Kind() != TypeObject) {
+			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != RelationObject && provider.Kind() != TypeObject) {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
 			if relation, ok := provider.(*relationDescriptor); ok && dep.ref.Address.SubID != 0 && !relation.hasAttribute(dep.ref.Address.SubID) {
@@ -186,6 +186,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 // never retargeted by name or evaluated to establish a dependency.
 func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	var refs []ObjectRef
+	var retained map[ObjectAddress]Descriptor
 	add := func(ref ObjectRef, d *relationDescriptor) error {
 		ref.Address.SubID = 0
 		if ref.Address.ClassID != RelationClassID || ref.Address == d.address {
@@ -199,6 +200,16 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			}
 			return nil
 		}
+		if !storedReferenceEpochValid(stage.base, d, ref) {
+			return fmt.Errorf("stuntgres: invalid retained definition provider")
+		}
+		if ref.Epoch != stage.base.Epoch() {
+			if retained == nil {
+				retained = make(map[ObjectAddress]Descriptor)
+			}
+			retained[ref.Address] = stage.base.state.descriptors[ref.Address]
+		}
+		ref.Epoch = stage.base.Epoch()
 		if !slices.Contains(refs, ref) {
 			refs = append(refs, ref)
 		}
@@ -250,7 +261,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if err == nil {
 			provider, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			original, existed := stage.base.state.descriptors[ref.Address].(*relationDescriptor)
-			if !ok || !existed || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind {
+			if !ok || !existed || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}
@@ -279,7 +290,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 		names[c.Name], previous = true, c.Name
 		var actual []ObjectRef
 		var commentSnapshot, visibilitySnapshot bool
-		if _, err := (scalarRenderer{owner: d, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
+		if _, err := (scalarRenderer{owner: d, capturedChecks: c.dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
 			return err
 		}
 		if commentSnapshot != c.commentSnapshot {
@@ -307,12 +318,12 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 			address := dep.ref.Address
 			address.SubID = 0
 			if address == d.address {
-				if dep.ref.owner != view.owner.owner || dep.ref.Epoch != view.Epoch() || !d.hasAttribute(dep.ref.Address.SubID) {
+				if !storedReferenceEpochValid(view, d, dep.ref) || !d.hasAttribute(dep.ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || dep.ref.owner != view.owner.owner || dep.ref.Epoch != view.Epoch() || (target.Kind() != RelationObject && target.Kind() != TypeObject) {
+				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != RelationObject && target.Kind() != TypeObject) {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
 			}
@@ -425,10 +436,11 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 		}
 		if changed {
 			copy := *d
-			copy.revision++
-			if copy.revision == 0 {
-				return nil, fmt.Errorf("stuntgres: definition revision exhausted")
+			revision, err := stage.cascadeMetadataRevision(copy.revision)
+			if err != nil {
+				return nil, err
 			}
+			copy.revision = revision
 			copy.checkConstraints = kept
 			if err := stage.Replace(&copy); err != nil {
 				return nil, err

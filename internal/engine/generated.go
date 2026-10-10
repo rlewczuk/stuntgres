@@ -390,7 +390,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 		for _, ref := range definition.dependencies {
 			address := ref.Address
 			address.SubID = 0
-			if ref.owner != view.owner.owner || ref.Epoch != view.Epoch() {
+			if !storedReferenceEpochValid(view, d, ref) {
 				return fmt.Errorf("stuntgres: missing generation provider")
 			}
 			if address == d.address && ref.Address.SubID != 0 {
@@ -447,12 +447,12 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case regclassArrayExpression:
 		return args(n.elements)
 	case columnExpression:
-		if n.origin.owner != view.owner.owner || n.origin.Epoch != view.Epoch() || n.origin.Address.ClassID != d.address.ClassID || n.origin.Address.ObjectID != d.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.columns) || d.attributes[n.slot] != n.origin.Address.SubID || usage != d.columns[n.slot].Usage {
+		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.address.ClassID || n.origin.Address.ObjectID != d.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.columns) || d.attributes[n.slot] != n.origin.Address.SubID || usage != d.columns[n.slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
 	case tableOIDExpression:
-		if n.owner.owner != view.owner.owner || n.owner.Epoch != view.Epoch() || n.owner.Address != d.address || usage.Type.ID() != sqltype.Oid {
+		if !storedReferenceEpochValid(view, d, n.owner) || n.owner.Address != d.address || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil

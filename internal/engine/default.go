@@ -95,6 +95,9 @@ type scalarRenderer struct {
 	commentSnapshot    *bool
 	visibilitySnapshot *bool
 	regtypeReferences  *bool
+	provenance         *relationDescriptor
+	capturedManifest   []ObjectRef
+	capturedChecks     []expressionDependency
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
 	checkLiterals *[]literalExpression
@@ -131,7 +134,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if !ok || typ != u.Type {
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
-	r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
+	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
 	case regclassArrayExpression:
 		return r.regclassArraySQL(ctx, view, n)
@@ -155,13 +158,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+deparseSignatures[n.signature].name, n.args)
 	case tableOIDExpression:
-		if r.owner == nil || n.owner.owner != view.owner.owner || n.owner.Epoch != view.Epoch() || n.owner.Address != r.owner.address || u.Type.ID() != sqltype.Oid {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.owner) || n.owner.Address != r.owner.address || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
 		}
 		r.record(n.owner)
 		return "tableoid", nil
 	case columnExpression:
-		if r.owner == nil || n.origin.owner != view.owner.owner || n.origin.Epoch != view.Epoch() || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
 		}
 		r.record(n.origin)
@@ -479,7 +482,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", err
 			}
 			target, ok := view.Descriptor(n.ref.Address)
-			if !ok || n.ref.owner != view.owner.owner || n.ref.Epoch != view.Epoch() {
+			if !ok || !storedSequenceEpochValid(view, r.retainedConsumer(), n.ref, n.temporary) {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
 			sequence, ok := target.(*relationDescriptor)
@@ -519,7 +522,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			ref := n.regclassRef
 			target, ok := view.Descriptor(ref.Address)
 			_, relationOK := target.(*relationDescriptor)
-			if !ok || !relationOK || ref.owner != view.owner.owner || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
+			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
 			}
 			r.record(ref)

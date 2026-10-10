@@ -225,30 +225,19 @@ func arrayReferenceTemporaryControls(t *testing.T, p *referencePair, c *sql.Conn
 	t.Helper()
 	run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, b.recorder, s) }
 	run(referenceExec("CREATE TEMP SEQUENCE array_temp_seed", 0))
-	// TEMP tables remain an adjacent capability boundary, even with supported
-	// array declarations. PostgreSQL's positive branch does not grant native SQL.
+	// Supported array declarations retain the table's physical TEMP ownership.
 	for _, prepared := range []bool{false, true} {
 		name := "array_temp_direct"
 		if prepared {
 			name = "array_temp_prepared"
 		}
 		query := "CREATE TABLE pg_temp." + name + " (i INT[],t TEXT[])"
-		var step referenceStep
-		if b.pg {
-			step = referenceExec(query, 0)
-		} else {
-			want := controlsReferenceDiagnostic("0A000", "temporary schema creation is unsupported")
-			want.Position = "14"
-			step = referenceErrorDiagnostic(query, want)
-			step.errorStage = "execute"
-		}
+		step := referenceExec(query, 0)
 		step.prepared = prepared
 		run(step)
-		if b.pg {
-			run(referenceExec("INSERT INTO pg_temp."+name+` VALUES ('[-2:-1]={5,NULL}','{NULL,"NULL","a,b"}')`, 1))
-			run(arrayReferenceSelect("SELECT i,t FROM pg_temp."+name, []string{"i", "t"}, []string{"_INT4", "_TEXT"}, []string{"_INT4", "_TEXT"}, [][]any{{"[-2:-1]={5,NULL}", `{NULL,"NULL","a,b"}`}}, true))
-			run(referenceExec("DROP TABLE pg_temp."+name, 0))
-		}
+		run(referenceExec("INSERT INTO pg_temp."+name+` VALUES ('[-2:-1]={5,NULL}','{NULL,"NULL","a,b"}')`, 1))
+		run(arrayReferenceSelect("SELECT i,t FROM pg_temp."+name, []string{"i", "t"}, []string{"_INT4", "_TEXT"}, []string{"_INT4", "_TEXT"}, [][]any{{"[-2:-1]={5,NULL}", `{NULL,"NULL","a,b"}`}}, b.pg))
+		run(referenceExec("DROP TABLE pg_temp."+name, 0))
 		run(persistent)
 	}
 	run(referenceExec("DROP SEQUENCE pg_temp.array_temp_seed", 0))

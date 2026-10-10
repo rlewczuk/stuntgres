@@ -11,6 +11,10 @@ import (
 // changes. TYPE reconstructs the whole definition using OLD type defaults,
 // matching PostgreSQL's captured pg_get_indexdef rather than original spelling.
 func evolveIndex(index, oldParent, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
+	return evolveIndexRevision(index, oldParent, parent, transformations, false)
+}
+
+func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transformations []columnTransformation, terminal bool) (*relationDescriptor, error) {
 	if parent == nil {
 		return nil, nil
 	}
@@ -169,7 +173,10 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 	}
 	clone.revision++
 	if clone.revision == 0 {
-		return nil, fmt.Errorf("stuntgres: index revision exhausted")
+		if !terminal {
+			return nil, fmt.Errorf("stuntgres: index revision exhausted")
+		}
+		clone.revision = index.revision
 	}
 	return &clone, nil
 }
@@ -182,14 +189,13 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent Object
 		if _, removed := stage.removals[a]; removed {
 			continue
 		}
-		if staged, changed := stage.descriptors[a]; changed {
-			candidate, ok := staged.(*relationDescriptor)
-			if !ok || candidate.sqlIndex == nil || candidate.sqlIndex.parent != typeParent || !uniqueIndexTypeAffected(candidate.sqlIndex, transformations) {
+		candidate, staged := stage.descriptors[a]
+		if staged {
+			replacement, ok := candidate.(*relationDescriptor)
+			if !ok || replacement.sqlIndex == nil {
 				continue
 			}
-			// An actual TYPE reconstruction also owns lifecycle repair for
-			// rebound definitions; unrelated staged wrappers cannot heal it.
-			index = candidate
+			index = replacement
 		}
 		var parent Descriptor
 		if _, removed := stage.removals[index.sqlIndex.parent]; removed {
@@ -202,10 +208,13 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent Object
 		relation, _ := parent.(*relationDescriptor)
 		oldParent := stage.base.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 		var dependentTypes []columnTransformation
-		if index.sqlIndex.parent == typeParent {
+		// Layout passes evolve the current candidate without lifecycle repair.
+		// Actual TYPE dependencies, including rebound predicates/keys/INCLUDE,
+		// retain reconstruction and normalization against their captured Usage.
+		if index.sqlIndex.parent == typeParent && (!staged || uniqueIndexTypeAffected(index.sqlIndex, transformations)) {
 			dependentTypes = transformations
 		}
-		next, err := evolveIndex(index, oldParent, relation, dependentTypes)
+		next, err := evolveIndexRevision(index, oldParent, relation, dependentTypes, stage.terminalCleanup)
 		if err != nil {
 			return err
 		}

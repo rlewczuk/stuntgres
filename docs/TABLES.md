@@ -53,6 +53,88 @@ existing domain/array physical wrappers. An existing-target IF NOT EXISTS skip
 still precedes this descriptor check. Its SELECT/catalog/deparser capabilities
 remain unchanged; PostgreSQL can materialize its physical node serialization.
 
+## Temporary tables — change note
+
+`CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] name (...)` uses the ordinary
+ordered table elements, declared types, NULL/NOT NULL, DEFAULT, CHECK, stored
+generation, serial/identity, UNIQUE and plain LIKE construction path. TEMP
+creation ignores the default persistent creation namespace. Ordinary
+`CREATE TABLE pg_temp.name`, an actual own TEMP namespace, or a leading
+`search_path=pg_temp` also creates an owner-TEMP relation. Qualified persistent
+access bypasses owner shadowing; explicit `public,pg_temp` path order is honored.
+Lookup alone does not allocate a namespace and peers never share TEMP data.
+
+Trailing `ON COMMIT PRESERVE ROWS` is the default; `DELETE ROWS` prepares empty
+storage/deletion/index roots at successful outer commit while preserving
+serial/identity counters; `DROP` removes table, owned sequences and backing/plain/
+expression indexes through the ordinary dependency closure. Autocommit counts:
+CREATE DROP succeeds then the table is absent; INSERT DELETE reports its actual
+affected count then the table is empty. Explicit SQL/driver commit and CHAIN
+apply actions once, not at intermediate statements. Rollback/savepoint rollback
+restores descriptor/action/data roots without rolling back nextval draws.
+
+Owned named IDENTITY sequences using `pg_temp` and same-stage SERIAL-dependent
+DEFAULTs resolve against the table builder's exact owner namespace before CREATE
+publication; this grants no generic persistent sequence alias authority.
+
+TEMP persists through pooled borrowing, but physical-session end removes all
+owned dependencies and aborts private work. Explicit DROP, ON COMMIT DROP and
+physical retirement use the same complete expression dependency closure:
+dependent DEFAULT/CHECK definitions, generated columns and external expression
+indexes are removed while their surviving consumers remain. Removing a generated
+column projects committed rows and pending writes/deletes by stable attribute
+identity, including nested private DDL and savepoint restoration; an ON COMMIT
+DELETE consumer stays empty after this projection. Retained immutable snapshots
+keep their old shape. Unrelated permanent objects and peer TEMP remain unchanged;
+permanent DEFAULTs retain their existing TEMP-provider exclusion.
+Surviving row shapes and affected index roots publish with the catalog at one
+frontier; physical retirement retries obsolete predecessors rather than replacing
+newer rows or index roots.
+If table and owned-sequence discovery reshape the same survivor more than once,
+each expression index evolves from its current immutable staged candidate to the
+latest stable-attribute layout. Already coherent candidates remain unchanged;
+earlier derived trees and original publication predecessors remain retained.
+Dump excludes TEMP definitions/data;
+native Reset/Restore preserves exact live owner descriptors, stores, generators,
+index roots/actions and retained builtin types. Stored DEFAULT/CHECK/generated
+and derived-index references retain their immutable manifests under bounded
+owner-TEMP provenance, including live same-owner table and index providers.
+References retain their original engine, physical namespace token, nonreused
+address and epoch; rendering still requires exact concrete types and row origins.
+Builtin retention walks both definition and execution trees of derived index keys
+and partial predicates, including a predicate that alone carries BOOL. Replacement
+does not remap those retained trees, their concrete type generations or manifests.
+This does not grant sequence runtime authority to tables/indexes, forgive
+foreign-owner or retired/recreated providers, or admit stale persistent consumers.
+Stale active transactions remain fenced by replacement; incompatible live
+user-domain-array dependencies retain their explicit ordinary-error boundary.
+Full index deparse uses `pg_temp` for the current physical owner's TEMP namespace,
+identified by captured namespace authority rather than name matching. Other
+owners retain their physical namespace spelling; context-free Dump stays canonical.
+CASCADE also traverses actual owned-index provider roots, including already-staged
+index removals, before final validation of their consumers. Independent own-row
+generated columns retain their definition identities and remap to the surviving
+dense layout; missing or retired providers never gain reference authority.
+
+Explicit ON COMMIT on a permanent destination fails42P16. TEMP in a persistent
+schema and creation in a foreign TEMP namespace fail42P16 after CREATE authority.
+IF NOT EXISTS does not bypass destination/permission/persistence checks or replace
+an incumbent's shape/data/action. Malformed/trailing clauses fail42601.
+DELETE/PRESERVE policies require the `ROWS` suffix; window frame-unit keywords
+`RANGE` and `GROUPS` are not alternative commit-policy units.
+Explicit identity LOGGED/UNLOGGED options on TEMP fail42P16
+`cannot set logged status of a temporary sequence` at the option.
+TEMP source SET SCHEMA is excluded with0A000
+`cannot move objects into or out of temporary schemas`.
+TEMP views (including a TEMP-source view), GLOBAL/LOCAL spellings, nested TEMP
+CREATE SCHEMA elements and permanent transactional CREATE/DROP remain excluded.
+CREATE/DROP TABLE driver Prepare is metadata-only, including inside a transaction:
+it creates/resolves no table or TEMP namespace and performs no read-only or
+destination rejection. Execute applies those checks and still excludes permanent
+transactional CREATE/DROP without effects.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
 
 ## Decompiled definitions — change note
 
@@ -620,8 +702,8 @@ private and committed rows, and atomically rejects new duplicates. Unaffected
 constraints retain their identities. DROP CONSTRAINT or an included column
 removes its backing relation; dropping an unrelated column retains it.
 Transactions, savepoints and catalog replacement preserve the same descriptor/root
-closure, including remaps around retained TEMP sequences. TEMP tables remain
-outside the bounded native CREATE surface. Dump writes canonical named UNIQUE declarations once;
+closure, including retained TEMP table/owned-sequence/index lifetimes.
+Dump writes canonical named persistent UNIQUE declarations once;
 Restore reconstructs and validates their backing B-trees in isolated staging.
 Duplicate-write diagnostics disclose key values only with table SELECT or SELECT
 on every key column. The same rule applies to TYPE-build failures even for the
@@ -652,8 +734,9 @@ authority as TYPE/runtime failures, including owners with revoked SELECT.
 UNIQUE does not enable index-planner or physical PostgreSQL storage claims.
 Partial predicates remain B-tree-only. Ordinary nonunique HASH support is
 unchanged and does not admit WHERE, including syntactic WHERE TRUE.
-The existing native CREATE TABLE exclusion in explicit transactions is unchanged;
-the corresponding PostgreSQL transaction/rollback control is independent.
+Permanent CREATE TABLE remains excluded in explicit transactions; owner-TEMP
+CREATE/DROP and rollback use the ordinary private catalog/storage publisher.
+The corresponding PostgreSQL transaction/rollback control is independent.
 Concurrent standalone UNIQUE indexes are independently admitted without a parent
 constraint or fabricated constraint identity; see [concurrent creation](design/PG18-INDEX-CONCURRENT.md).
 See [the design](design/PG18-DDL-UNIQUE.md) and

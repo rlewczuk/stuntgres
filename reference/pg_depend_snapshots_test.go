@@ -100,20 +100,14 @@ func TestReferencePGDependTransactions(t *testing.T) {
 			t.Fatal(err)
 		}
 		pgDescriptionExecutorRows(t, p, b, owner, pgDependSelect("SELECT * FROM pg_catalog.pg_depend WHERE classid=1259 AND objid=$1", [][]any{pgDependEdge(1259, tempSeq, 0, 2615, tempNS, 0, "n")}, tempSeq))
-		if !b.pg {
-			failure := referenceErrorDiagnostic("CREATE TABLE pg_temp.pgdep_temp(a INT)", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "temporary schema creation is unsupported", Position: "14"})
-			referenceRunStep(t, p.ctx, owner, b.recorder, failure)
-		} else {
-			// PostgreSQL-only existing TEMP-table capability, not a native rollout.
-			referenceRunStep(t, p.ctx, owner, b.recorder, referenceExec("CREATE TABLE pg_temp.pgdep_temp(a INT)", 0))
-			var tempTable int64
-			if err := owner.QueryRowContext(p.ctx, "SELECT oid FROM pg_catalog.pg_class WHERE relname='pgdep_temp'").Scan(&tempTable); err != nil {
-				t.Fatal(err)
-			}
-			referenceRunStep(t, p.ctx, owner, b.recorder, referenceExec("ALTER SEQUENCE pgdep_temp_seq OWNED BY pgdep_temp.a", 0))
-			pgDescriptionExecutorRows(t, p, b, owner, pgDependSelect("SELECT * FROM pg_catalog.pg_depend WHERE classid=1259 AND objid=$1", [][]any{pgDependEdge(1259, tempSeq, 0, 2615, tempNS, 0, "n"), pgDependEdge(1259, tempSeq, 0, 1259, tempTable, 1, "a")}, tempSeq))
-			referenceRunStep(t, p.ctx, owner, b.recorder, referenceExec("DROP TABLE pgdep_temp", 0))
-			pgDescriptionExecutorRows(t, p, b, owner, pgDependSelect("SELECT * FROM pg_catalog.pg_depend WHERE classid=1259 AND objid=$1", [][]any{}, tempSeq))
+		referenceRunStep(t, p.ctx, owner, b.recorder, referenceExec("CREATE TABLE pg_temp.pgdep_temp(a INT)", 0))
+		var tempTable int64
+		if err := owner.QueryRowContext(p.ctx, "SELECT oid FROM pg_catalog.pg_class WHERE relname='pgdep_temp'").Scan(&tempTable); err != nil {
+			t.Fatal(err)
 		}
+		referenceRunStep(t, p.ctx, owner, b.recorder, referenceExec("ALTER SEQUENCE pgdep_temp_seq OWNED BY pgdep_temp.a", 0))
+		pgDescriptionExecutorRows(t, p, b, owner, pgDependSelect("SELECT * FROM pg_catalog.pg_depend WHERE classid=1259 AND objid=$1", [][]any{pgDependEdge(1259, tempSeq, 0, 2615, tempNS, 0, "n"), pgDependEdge(1259, tempSeq, 0, 1259, tempTable, 1, "a")}, tempSeq))
+		referenceRunStep(t, p.ctx, owner, b.recorder, referenceExec("DROP TABLE pgdep_temp", 0))
+		pgDescriptionExecutorRows(t, p, b, owner, pgDependSelect("SELECT * FROM pg_catalog.pg_depend WHERE classid=1259 AND objid=$1", [][]any{}, tempSeq))
 	})
 }

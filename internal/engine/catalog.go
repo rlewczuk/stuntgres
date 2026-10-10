@@ -105,6 +105,7 @@ type relationDescriptor struct {
 	identities         map[int32]columnIdentity
 	relationKind       relationKind
 	hasIndexes         bool // Sticky publication history; removing an index does not clear it.
+	onCommit           parser.OnCommitAction
 	sequence           *sequenceOptions
 	view               *viewDefinition
 	virtualView        bool
@@ -201,6 +202,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := v.Descriptor(r.namespace)
 	if !ok || ns.Kind() != NamespaceObject {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
+	}
+	if r.onCommit > parser.OnCommitDrop || r.onCommit != parser.OnCommitUnspecified && (r.relationKind != tableRelation || ns.(*namespaceDescriptor).temporary == (SessionToken{})) {
+		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
 	found := v.Lookup(NameKey{ClassID: RelationClassID, Namespace: r.namespace, Name: r.name})
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
@@ -332,7 +336,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		var dependencies []ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		_, err := (scalarRenderer{provenance: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
@@ -355,7 +359,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		var dependencies []ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{owner: r, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		_, err := (scalarRenderer{owner: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}
@@ -400,6 +404,7 @@ type catalogRemoval struct {
 
 type catalogRowShape struct {
 	original       *relationStorage
+	root           []rowVersion
 	replacement    *relationStorage
 	observedLength int
 	observedEnds   *deletionRoot
@@ -433,12 +438,28 @@ type CatalogStage struct {
 	dependencyPath       []ObjectAddress
 	domainTargets        []ObjectAddress
 	domainBases          []Descriptor
+	// Physical retirement alone may saturate dependent descriptor/store/index
+	// counters; fresh identities and exact predecessor fences remain mandatory.
+	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
 	initialTables map[ObjectAddress]*relationStorage
 	initialTx     TxRef
 	querySources  []Descriptor
 }
+
+// Only terminal dependency removal can saturate. Other DDL retains its ordinary
+// overflow boundary; terminal replacements still have fresh identity.
+func (s *CatalogStage) cascadeMetadataRevision(revision DefinitionRevision) (DefinitionRevision, error) {
+	if revision == DefinitionRevision(^uint64(0)) {
+		if s.terminalCleanup {
+			return revision, nil
+		}
+		return 0, fmt.Errorf("stuntgres: definition revision exhausted")
+	}
+	return revision + 1, nil
+}
+
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
 	epoch CatalogEpoch
@@ -546,7 +567,11 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 		return err
 	}
 	old, ok := s.base.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || old.revision == DefinitionRevision(^uint64(0)) || d.revision != old.revision+1 || original == nil || replacement == nil || e.storage[ref.Address] != original {
+	validRevision := ok && d != nil && old.revision != DefinitionRevision(^uint64(0)) && d.revision == old.revision+1
+	if s.terminalCleanup && ok && old.revision == DefinitionRevision(^uint64(0)) {
+		validRevision = d != nil && d != old && d.revision == old.revision
+	}
+	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || !validRevision || original == nil || replacement == nil || e.storage[ref.Address] != original {
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
@@ -580,7 +605,7 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 	if s.rowShapes == nil {
 		s.rowShapes = make(map[ObjectAddress]catalogRowShape)
 	}
-	s.rowShapes[ref.Address] = catalogRowShape{original: original, replacement: replacement, observedLength: observedLength, observedEnds: observedEnds, generation: observedGeneration}
+	s.rowShapes[ref.Address] = catalogRowShape{original: original, root: beforeRows, replacement: replacement, observedLength: observedLength, observedEnds: observedEnds, generation: observedGeneration}
 	return nil
 }
 

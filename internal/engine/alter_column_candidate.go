@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -8,6 +9,10 @@ import (
 
 // Stable attributes own defaults, ACLs, comments, constraints and dependency edges.
 func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, error) {
+	return dropColumnCandidate(scope.op.Context(), stage, old, ref, a, scope, changes, nil)
+}
+
+func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) (*relationDescriptor, error) {
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
@@ -19,7 +24,9 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 		if !a.IfExists {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.name))
 		}
-		scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, a.Column.Text, old.name)})
+		if scope != nil {
+			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, a.Column.Text, old.name)})
+		}
 		return old, nil
 	}
 	target := ref.Address
@@ -48,11 +55,11 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 		}
 		dependentAction := a
 		dependentAction.Column = parser.Identifier{Text: old.columns[generatedSlot].Name}
-		remaining, err := scope.dropColumnCandidate(stage, old, ref, dependentAction, changes)
+		remaining, err := dropColumnCandidate(ctx, stage, old, ref, dependentAction, scope, changes, project)
 		if err != nil {
 			return nil, err
 		}
-		return scope.dropColumnCandidate(stage, remaining, ref, a, changes)
+		return dropColumnCandidate(ctx, stage, remaining, ref, a, scope, changes, project)
 	}
 	// Dependency passes must see preceding actions in this same ALTER list.
 	if err := stage.Replace(old); err != nil {
@@ -70,7 +77,7 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	next.attributes = make([]int32, 0, len(old.attributes)-1)
 	next.index = make(map[string]int, len(old.index)-1)
 	for i, column := range old.columns {
-		if err := scope.op.Context().Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if i == slot {
@@ -170,7 +177,7 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	if _, exists := old.columnACL[old.attributes[slot]]; exists {
 		next.columnACL = nil
 		for sub, acl := range old.columnACL {
-			if err := scope.op.Context().Err(); err != nil {
+			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			if sub == old.attributes[slot] {
@@ -185,7 +192,7 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	if _, exists := old.columnComments[old.attributes[slot]]; exists {
 		next.columnComments = nil
 		for sub, text := range old.columnComments {
-			if err := scope.op.Context().Err(); err != nil {
+			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			if sub == old.attributes[slot] {
@@ -203,7 +210,7 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	if err := stage.Replace(&next); err != nil {
 		return nil, err
 	}
-	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}, a.Mode, changes); err != nil {
+	if err := stageOwnedExpressionDependencies(ctx, stage, []ObjectAddress{target}, a.Mode, scope, changes, project); err != nil {
 		return nil, err
 	}
 	return stage.descriptors[ref.Address].(*relationDescriptor), nil

@@ -142,11 +142,26 @@ type UniqueConstraint struct {
 	NullsNotDistinct bool
 	Pos              Position
 }
+
+// OnCommitAction is stored with a temporary table's transactional descriptor.
+// Unspecified differs from explicit PRESERVE for permanent-table diagnostics.
+type OnCommitAction uint8
+
+const (
+	OnCommitUnspecified OnCommitAction = iota
+	OnCommitPreserve
+	OnCommitDelete
+	OnCommitDrop
+)
+
 type CreateTable struct {
 	Name        ObjectName
 	Elements    []TableElement
 	Pos         Position
 	IfNotExists bool
+	Persistence string
+	OnCommit    OnCommitAction
+	OnCommitPos Position
 }
 
 func (*CreateTable) statement() {}

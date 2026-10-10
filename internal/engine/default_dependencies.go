@@ -35,12 +35,19 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 			address := ref.Address
 			address.SubID = 0
 			provider, ok := view.Descriptor(address)
-			if !ok || ref.owner != view.owner.owner || ref.Epoch != view.Epoch() {
+			if !ok || !storedReferenceEpochValid(view, d, ref) {
 				return fmt.Errorf("stuntgres: missing default provider dependency")
 			}
-			if _, ok := provider.(*relationDescriptor); ok {
+			if relation, ok := provider.(*relationDescriptor); ok {
 				if ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid default relation provider")
+				}
+				namespace := view.state.descriptors[relation.namespace].(*namespaceDescriptor)
+				if namespace.temporary != (SessionToken{}) {
+					owner := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+					if owner.temporary != namespace.temporary {
+						return fmt.Errorf("stuntgres: foreign temporary default provider")
+					}
 				}
 			} else if provider.Kind() != TypeObject {
 				return fmt.Errorf("stuntgres: invalid default provider kind")
@@ -102,10 +109,11 @@ func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode p
 		}
 		if len(removed) != 0 && mode != parser.DropRestrict {
 			copy := *d
-			copy.revision++
-			if copy.revision == 0 {
-				return nil, fmt.Errorf("stuntgres: definition revision exhausted")
+			revision, err := stage.cascadeMetadataRevision(copy.revision)
+			if err != nil {
+				return nil, err
 			}
+			copy.revision = revision
 			copy.defaults = maps.Clone(d.defaults)
 			for _, attribute := range removed {
 				delete(copy.defaults, attribute)

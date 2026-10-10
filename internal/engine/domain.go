@@ -15,7 +15,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err = auth.CheckCreate(ns); err != nil {
 		return err
 	}
-	if err = checkTableCreationNamespace(auth.catalog, ns.Address); err != nil {
+	if err = checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text

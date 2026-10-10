@@ -38,6 +38,16 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			row.indexAdmission = nil
 		}
 	}
-	roots, err := e.prepareIndexCatalog(ctx, retained, next, storage, e.indexRoots, nil, nil, sqltype.OutputEnvironment{}, nil)
+	var retainedRoots map[ObjectAddress]*logicalIndexRoot
+	for a, root := range e.indexRoots {
+		if retained.descriptors[a] == nil {
+			continue
+		}
+		if retainedRoots == nil {
+			retainedRoots = make(map[ObjectAddress]*logicalIndexRoot)
+		}
+		retainedRoots[a] = root
+	}
+	roots, err := e.prepareIndexCatalog(ctx, retained, next, storage, retainedRoots, nil, nil, sqltype.OutputEnvironment{}, nil)
 	return roots, rowID, versionID, err
 }

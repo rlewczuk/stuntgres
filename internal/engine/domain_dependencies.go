@@ -78,6 +78,13 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 		}
 		var direct []domainDependency
 		for a, descriptor := range stage.base.state.descriptors {
+			// Owned indexes are closure roots even if an earlier pass already
+			// staged their removal. Their external consumers still need pruning,
+			// just like consumers of owned row types and associated arrays.
+			if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && index.sqlIndex.parent == target {
+				direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true, relation: index})
+				continue
+			}
 			if _, removed := stage.removals[a]; removed {
 				continue
 			}
@@ -228,10 +235,17 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 // All stored-expression owners use the same immutable authority traversal.
 // Generated owners are removed through the existing column/storage projection.
 func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
+	return stageExpressionDependencies(scope.op.Context(), stage, roots, mode, scope, changes, nil)
+}
+
+// The same ordered discovery/descriptor core serves SQL, outer Commit and
+// drained physical retirement. Only real SQL scopes perform grant acquisition;
+// Commit supplies its actual private-root projector without inventing a scope.
+func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
 	if len(roots) == 0 {
 		return nil
 	}
-	edges, err := domainDependencyClosure(scope.op.Context(), stage, roots)
+	edges, err := domainDependencyClosure(ctx, stage, roots)
 	if err != nil {
 		return err
 	}
@@ -256,10 +270,12 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
 	e := stage.owner
-	for _, r := range relations {
-		ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: r.address}
-		if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
-			return err
+	if scope != nil {
+		for _, r := range relations {
+			ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: r.address}
+			if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+				return err
+			}
 		}
 	}
 	noticeStart := len(stage.viewCascadeNames)
@@ -289,7 +305,7 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 			if slot < 0 {
 				continue
 			}
-			next, err = scope.dropColumnCandidate(stage, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.columns[slot].Name}, Mode: parser.DropCascade}, changes)
+			next, err = dropColumnCandidate(ctx, stage, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.columns[slot].Name}, Mode: parser.DropCascade}, scope, changes, project)
 			if err != nil {
 				return err
 			}
@@ -301,10 +317,20 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 		if _, removed := stage.removals[old.address]; removed {
 			continue
 		}
-		if old.revision == DefinitionRevision(^uint64(0)) {
-			return fmt.Errorf("stuntgres: definition revision exhausted")
+		revision, er := stage.cascadeMetadataRevision(old.revision)
+		if er != nil {
+			return er
 		}
-		next.revision = old.revision + 1
+		next.revision = revision
+		if project != nil {
+			if err = project(old, next); err != nil {
+				return err
+			}
+			if err = stage.Replace(next); err != nil {
+				return err
+			}
+			continue
+		}
 		if changes != nil {
 			if err = scope.stagePrivateColumnShape(stage, changes, old, next); err != nil {
 				return err
@@ -320,15 +346,19 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 		}
 		rows, ends, generation := storage.versions, storage.ends, storage.generation
 		e.mu.Unlock()
+		nextGeneration := generation + 1
 		if generation == ^uint64(0) {
-			return fmt.Errorf("stuntgres: storage generation exhausted")
+			if !stage.terminalCleanup {
+				return fmt.Errorf("stuntgres: storage generation exhausted")
+			}
+			nextGeneration = generation
 		}
-		projected, er := projectVersions(scope.op.Context(), rows, storageOwner, next, nil)
+		projected, er := projectVersions(ctx, rows, storageOwner, next, nil)
 		if er != nil {
 			return er
 		}
-		replacement := &relationStorage{versions: projected, ends: ends, generation: generation + 1}
-		if err = stage.alterRelation(scope.op.Context(), ref, next, storage, replacement, len(rows), generation, ends); err != nil {
+		replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
+		if err = stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends); err != nil {
 			return err
 		}
 	}

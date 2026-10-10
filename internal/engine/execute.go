@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -109,115 +108,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.dropTableLocked(scope, op, auth, s, count)
 	}
 	if s, ok := stmt.(*parser.CreateTable); ok {
-		if count != 0 {
-			e.mu.Unlock()
-			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
-		}
-		nsref, er := e.creationNamespace(auth, s.Name)
-		if er != nil {
-			e.mu.Unlock()
-			return Result{}, creationError(er, s.Name)
-		}
-		if er = checkTableCreationNamespace(auth.catalog, nsref.Address); er != nil {
-			e.mu.Unlock()
-			return Result{}, er
-		}
-		if op.restoreTableDestination {
-			bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
-			if er != nil || !bootstrap.Superuser || e.importTargets == nil {
-				e.mu.Unlock()
-				return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
-			}
-		}
-		if er = auth.CheckCreate(nsref); er != nil {
-			denied, ok := er.(*sqlstate.Error)
-			if !op.restoreTableDestination || !ok || denied.Code != "42501" {
-				e.mu.Unlock()
-				return Result{}, creationError(er, s.Name)
-			}
-		}
-		ns := nsref.Address
-		key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-		if _, exists := e.state.names[key]; exists {
-			e.mu.Unlock()
-			if s.IfNotExists {
-				op.existingRelationNotice(key.Name)
-				return Result{}, nil
-			}
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
-		}
-		base := CatalogRead{owner: e, state: e.state}
-		stage := e.BeginCatalogStage(base)
-		defer e.DiscardCatalogStage(stage)
-		stage.authSession = op.session
-		stage.authRevision = auth.revision
-		stage.roleRevision = auth.roles.state.revision
-		er = e.schemaTableLocked(op, auth, stage, s, ns, auth.state.CurrentUser, scope.input)
-		e.mu.Unlock()
-		if er != nil {
-			return Result{}, er
-		}
-		if er = scope.acquireDefinitionProviders(stage); er != nil {
-			return Result{}, er
-		}
-		prepared, er := e.ValidateCatalogStage(ctx, stage)
-		if er != nil {
-			e.DiscardCatalogStage(stage)
-			return Result{}, er
-		}
-		_, er = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
-		if er == nil {
-			scope.completed = true
-		}
-		if _, conflict := er.(CatalogConflict); conflict {
-			if err := ctx.Err(); err != nil {
-				return Result{}, err
-			}
-			if s.IfNotExists {
-				e.mu.Lock()
-				current := CatalogRead{owner: e, state: e.state}
-				currentAuth, authErr := e.authorizationLocked(op)
-				if authErr != nil {
-					contextErr := ctx.Err()
-					e.mu.Unlock()
-					if contextErr != nil {
-						return Result{}, contextErr
-					}
-					return Result{}, authErr
-				}
-				resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
-				var destinationErr error
-				if resolveErr == nil {
-					destinationErr = checkTableCreationNamespace(currentAuth.catalog, resolved.Address)
-				}
-				_, exists := e.state.names[key]
-				same := resolveErr == nil && destinationErr == nil && resolved.Address == ns && current.Epoch() == base.Epoch()
-				var accessErr error
-				if same && exists {
-					accessErr = currentAuth.CheckCreate(resolved)
-				}
-				contextErr := ctx.Err()
-				e.mu.Unlock()
-				if contextErr != nil {
-					return Result{}, contextErr
-				}
-				if resolveErr != nil {
-					return Result{}, creationError(resolveErr, s.Name)
-				}
-				if destinationErr != nil {
-					return Result{}, destinationErr
-				}
-				if accessErr != nil {
-					return Result{}, creationError(accessErr, s.Name)
-				}
-				if same && exists {
-					op.existingRelationNotice(key.Name)
-					return Result{}, nil
-				}
-			}
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
-		}
-		return Result{}, er
+		return e.createTableLocked(scope, op, auth, s, count)
 	}
 	expected := scope.Expected
 	var candidate StatementDescription
@@ -496,7 +387,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			tag = "SELECT"
 		}
 	}
-	if scope.owner.readOnly && tag != "" {
+	if scope.owner.readOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}

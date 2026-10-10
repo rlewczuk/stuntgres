@@ -410,7 +410,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath})
+		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath, temporary: temporaryNamespace(scope.deparseAuth)})
 	} else {
 		if relation.view == nil {
 			return sqltype.Null(e.usage.Type), nil

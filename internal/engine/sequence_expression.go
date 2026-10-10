@@ -128,7 +128,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 		}
 	}
 	if b.defaultConsumer {
-		if temporary != (SessionToken{}) {
+		if temporary != (SessionToken{}) && temporary != b.defaultTemporary {
 			return nil, expressionError("0A000", "temporary sequence DEFAULT is unsupported", r.SourcePosition())
 		}
 		// Stored defaults do not enter call-site prepared literal reanalysis.
@@ -439,12 +439,8 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if beforeErr == nil && scope.catalog != nil {
 		before.catalog = e.privateCatalogLocked(scope.catalog)
 	}
-	if beforeErr == nil && ref.owner == e.owner && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token {
-		if d, ok := before.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok && d.relationKind == sequenceRelation {
-			if ns, ok := before.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == x.temporary {
-				ref.Epoch = before.catalog.Epoch()
-			}
-		}
+	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
+		ref.Epoch = before.catalog.Epoch()
 	}
 	if beforeErr == nil && (ref.owner != e.owner || ref.Epoch != before.catalog.Epoch()) {
 		beforeErr = ErrCatalogReplaced

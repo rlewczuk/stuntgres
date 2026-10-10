@@ -1,10 +1,36 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"context"
+	"stuntgres/internal/parser"
+)
 
 // AUTO dependencies use stable attribute SubIDs, never compacted column slots.
 func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
+	return stageOwnedExpressionDependencies(s.op.Context(), stage, targets, mode, s, changes, nil)
+}
+
+func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
 	var closure []ObjectAddress
+	return stageOwnedSequenceDependencies(stage, targets, mode, func(ref ObjectRef) error {
+		if closure == nil {
+			closure = make([]ObjectAddress, len(targets)+1)
+			copy(closure, targets)
+		}
+		closure[len(targets)] = ref.Address
+		if err := stageExpressionDependencies(ctx, stage, closure, mode, scope, changes, project); err != nil {
+			return err
+		}
+		if scope != nil {
+			return scope.acquireSequence(ref, accessExclusive, false)
+		}
+		return nil
+	})
+}
+
+// Every owner supplies the same complete expression traversal; real SQL
+// additionally acquires its existing grants. No view-only automatic fallback.
+func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, prepare func(ObjectRef) error) error {
 	for a, d := range stage.base.state.descriptors {
 		if _, removed := stage.removals[a]; removed {
 			continue
@@ -27,17 +53,8 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 		if !remove {
 			continue
 		}
-		if closure == nil {
-			closure = make([]ObjectAddress, len(targets)+1)
-			copy(closure, targets)
-		}
-		closure[len(targets)] = a
-		if err := s.stageExpressionDependents(stage, closure, mode, changes); err != nil {
-			return err
-		}
 		ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: a}
-		// Dependency DDL validates providers outside replacement reservations.
-		if err := s.acquireSequence(ref, accessExclusive, false); err != nil {
+		if err := prepare(ref); err != nil {
 			return err
 		}
 		if err := stage.Remove(ref); err != nil {

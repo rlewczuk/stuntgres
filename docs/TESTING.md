@@ -802,6 +802,74 @@ SearchPathStoredViewRuntime, StringCoreReviewRestore and
 TableCoreAuthorizationAndOwnershipCleanup reference definitions also exercise
 the corrected catalog allocator/ownership seam without changed expectations.
 
+Temporary-table shared definitions cover physical owner isolation and shadowing,
+pg_temp creation/resolution, direct/prepared metadata and complete diagnostics,
+all commit policies, SQL/driver/CHAIN commit, rollback/savepoints, read-only DML,
+dependency counters/index membership, physical close, completed utility invariants
+and native persistent controls with exact retained stored-reference provenance.
+Migrated sequence TEMP-table authority/control scenarios retain sequence memories,
+held statements, peer ownership and persistent-control atomicity.
+`TestReferenceTemporaryTableClosePermanentCheck` asserts actual permanent CHECK
+enforcement/dependency identity, physical owner exit, removed constraint/provider,
+surviving rows, held prepared peer INSERT and same-basename peer TEMP isolation.
+The expression lifecycle family uses actual pg_class/pg_attrdef/pg_depend OIDs and
+independent prospective rows for automatic, immediate, explicit committed/private
+and physical cascades. It checks generated-column projection, surviving dense-slot
+indexes, retained snapshots, pending writes/deletes, savepoint rollback, composed
+ON COMMIT DELETE and native Dump/Restore. Package invariants cover late catalog and
+row/index predecessor reprepare, unrelated current heads, genuine private absence,
+terminal combined descriptor/store/index maxima, concurrent ready-invalid/not-ready
+flags and unchanged ordinary counter-exhaustion rejection.
+The index-composition definitions use a SERIAL TEMP owner, table/owned-sequence
+generated dependencies and an expression index created before BEGIN. Immediate
+and transactional/savepoint/full-rollback witnesses retain the actual index OID,
+independent key definition, original/restored rows and coherent subsequent DML.
+Their package supplement verifies original/intermediate/final derived layouts
+and stable slots, immutable earlier candidates, genuine rebuilt key/row identity,
+original publication predecessors, idempotent validation, ordinary second-pass
+overflow and physical-terminal saturation.
+The same fixtures retain an admitted B-tree partial expression index created
+outside BEGIN, exact full `pg_temp` key/predicate rendering and positive→negative→positive
+UPDATE membership. Actual `pg_tables.hasindexes=true` remains through compaction
+and rollback; the narrower native `pg_class` projection is not expanded.
+Genuine package deparse checks distinguish current physical owner from peer
+same-name indexes and context-free canonical Dump.
+The controlled sibling-provider cascade supplements this with actual table/index
+generated consumers and an independent own-row `z+1` generation across Reset/Restore.
+It asserts removed siblings, stable surviving definition/dependency identities,
+dense rows, held INSERT/UPDATE and nonreused same-name provider recreation.
+The package supplement also discovers the actual owned-index subtree after its
+removal is already staged, asserting exact once-only sibling edges and unchanged
+catalog/store/vector/end/index predecessors before the real SQL cascade.
+The live-provider controls retain an actual same-owner TEMP table and index
+through native Reset/Restore, then run unrelated CREATE, held INSERT, independent
+ALTER, UPDATE and catalog-expression consumers. Shared direct/prepared SQL
+witnesses assert exact provider/definition OIDs, dependency edges, independent
+rows and peer same-name isolation; Dump excludes the retained TEMP objects.
+The package supplement uses real sessions and catalog replacement, preserving
+captured manifests, descriptors, stores and roots while rejecting foreign engine
+or physical owner, future/zero epochs, invalid attributes, concrete type/row-origin
+mismatches, user-domain/array-domain types and retired/same-name recreated providers.
+`TestReferenceTemporaryTablePredicateOnlyControls` isolates a plain INT-key partial
+index without another BOOL-bearing TEMP definition that could mask predicate-type
+retention. Direct/prepared bodies assert exact identities/full definition and
+positive/negative membership before and after native Reset/Restore plus held DML.
+Its package supplement compares both predicate trees' concrete builtin generations
+and exact unchanged descriptors, manifests, stores, vectors, ends and index roots.
+The close witness also roundtrips native persistent output without the removed
+CHECK/provider while retaining the peer TEMP serial counter and stored rows.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)' VERBOSE=0
+make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^Test(TemporaryTable|TemporaryRelation|CatalogTemporary|SchemaSearchPathSessionDefaultsAndSpecials|SerializableEvidenceActualTemporaryNamespaceAndSequenceProviders|PGDependDefaultReplay)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0
+```
+
+Both selected modes use the same completed definitions under900-second deadlines;
+ordinary quickcheck and the post-merge1800-second fullcheck remain required.
+
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
 held prepared session-zone changes, full calendar/seconds/zone/signature errors,

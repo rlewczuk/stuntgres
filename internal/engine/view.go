@@ -168,7 +168,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, ErrCatalogReplaced
 	}
 	if err == nil {
-		err = checkTableCreationNamespace(auth.catalog, ns.Address)
+		err = checkPersistentCreationNamespace(auth.catalog, ns.Address)
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)

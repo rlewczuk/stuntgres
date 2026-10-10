@@ -74,6 +74,7 @@ package parser
  integer int64
  joinKind JoinKind
  persistence string
+ onCommit CreateTable
  identity *IdentityDefinition
  generation *GenerationDefinition
  identityMode IdentityMode
@@ -402,6 +403,8 @@ package parser
 %type <sequenceOption> sequence_option
 %type <integer> sequence_integer
 %type <persistence> sequence_persistence
+%type <onCommit> table_on_commit
+%type <tok> table_preserve table_rows
 %type <tok> sequence_name_word
 %type <identity> identity_definition identity_alter_options
 %type <identityMode> identity_mode
@@ -635,12 +638,24 @@ set_name: setting_word { $$=settingName{first:$1} }
  * parameter names, and ROLE stays name-eligible everywhere else. */
 local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
-create_table: CREATE TABLE relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true} } ;
+create_table: CREATE TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos,Persistence:"logged",OnCommit:$7.OnCommit,OnCommitPos:$7.OnCommitPos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true,Persistence:"logged",OnCommit:$10.OnCommit,OnCommitPos:$10.OnCommitPos} }
+ | CREATE TEMP TABLE relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$4, Elements:$6, Pos:$1.pos,Persistence:"temporary",OnCommit:$8.OnCommit,OnCommitPos:$8.OnCommitPos} }
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' optional_elements ')' table_on_commit { $$ = &CreateTable{Name:$7, Elements:$9, Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$11.OnCommit,OnCommitPos:$11.OnCommitPos} } ;
+table_on_commit: /* empty */ { $$=CreateTable{} }
+ | ON COMMIT DROP { $$=CreateTable{OnCommit:OnCommitDrop,OnCommitPos:$1.pos} }
+ | ON COMMIT DELETE table_rows { $$=CreateTable{OnCommit:OnCommitDelete,OnCommitPos:$1.pos} }
+ | ON COMMIT table_preserve table_rows { $$=CreateTable{OnCommit:OnCommitPreserve,OnCommitPos:$1.pos} } ;
+table_preserve: KW_U { if $1.text!="preserve" {sqllex.(*lexer).syntax($1);return 1}; $$=$1 } ;
+table_rows: FRAME_UNIT { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1}; $$=$1 } ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
  | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
- | CREATE TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$6,Columns:$8,Pos:$1.pos,IfNotExists:true}} ;
+ | CREATE TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$6,Columns:$8,Pos:$1.pos,IfNotExists:true}}
+ | CREATE TEMP TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Pos:$1.pos}}
+ | CREATE TEMP TABLE relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos}}
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true}}
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true}} ;
 create_query_table: query_table_target query_table_options AS query_table_body query_table_data {$1.Query=$4;$1.NoData=$5;$$=$1} ;
 query_table_body: query_select {deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1}
  | TABLE relation_name {sqllex.(*lexer).deferUnsupported($1,"TABLE queries are unsupported");$$=nil}
@@ -683,7 +698,6 @@ create: create_table { $$=$1 }
  | create_domain { $$=$1 }
  | create_enum { $$=$1 }
  | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
- | CREATE TEMP TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 /* Use a distinct unreserved head token, like DOMAIN, so generic-word

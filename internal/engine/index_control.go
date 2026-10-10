@@ -9,10 +9,11 @@ import (
 )
 
 type indexPresentation struct {
-	dump   bool
-	column int64
-	pretty bool
-	path   []ObjectAddress
+	dump      bool
+	column    int64
+	pretty    bool
+	path      []ObjectAddress
+	temporary ObjectAddress
 	// TYPE buffers retain original expression trees and old-Usage decoration.
 	reconstruct bool
 	output      sqltype.OutputEnvironment
@@ -51,6 +52,9 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		identifier = quoteIdentifier
 	}
 	schema := catalog.state.descriptors[parent.namespace].Name()
+	if !presentation.dump && parent.namespace == presentation.temporary {
+		schema = "pg_temp"
+	}
 	parentName := identifier(schema) + "." + identifier(parent.name)
 	if presentation.pretty {
 		parentName = relationDiagnosticNameAt(catalog, parent, presentation.path)

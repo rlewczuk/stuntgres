@@ -40,6 +40,15 @@ func TestReferenceVisibilityInquiryUtilityBoundaries(t *testing.T) {
 					run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 					continue
 				}
+				if strings.HasPrefix(q, "CREATE TEMP TABLE") {
+					run(referenceSelect(q, nil, nil, [][]any{}))
+					run(referenceExec("INSERT INTO temp_t VALUES(42)", 1))
+					run(referenceSelect("SELECT id FROM temp_t", []string{"id"}, []string{"INT4"}, [][]any{{int64(42)}}))
+					run(referenceExec("DROP TABLE temp_t", 0))
+					run(referenceSelect("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+					run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					continue
+				}
 				if backend.pg {
 					switch {
 					case strings.HasPrefix(q, "CREATE FOREIGN"):
@@ -55,10 +64,6 @@ func TestReferenceVisibilityInquiryUtilityBoundaries(t *testing.T) {
 					token := strings.Fields(q)[1]
 					want := controlsReferenceDiagnostic("42601", `syntax error at or near "`+token+`"`)
 					want.Position = "8"
-					if token == "TEMP" {
-						want.Code = "0A000"
-						want.Message = "CREATE syntax is unsupported"
-					}
 					s := referenceErrorDiagnostic(q, want)
 					s.selectRows = true // Utility analysis must not expose a cursor.
 					run(s)

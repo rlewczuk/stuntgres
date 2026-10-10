@@ -298,8 +298,9 @@ casts/functions/ordering or arrays.
 
 Native state is always-enabled and process-local per Engine, not crash durable
 or cluster-wide. Reset/Restore/ReplaceCatalog refuse while any entry remains;
-Dump records committed state only. TEMP TABLE, SQL WITH HOLD cursors,
-notifications and exported snapshots retain their preexisting exclusions.
+Dump records committed state only. Executed owner-TEMP table/sequence access
+prohibits preparation. SQL WITH HOLD cursors, notifications and exported snapshots
+retain their preexisting exclusions.
 Ordinary driver Rows and prepared statements do not prohibit preparation.
 See [transaction lifecycle and diagnostics](TRANSACTIONS.md#prepared-transactions).
 
@@ -3958,7 +3959,7 @@ ALTER re-resolution must compare the complete ObjectRef with scope.lockedRef bef
 DROP COLUMN compaction removes only the dropped stable SubID's column comment and preserves table/survivor comments immutably. Validate comment keys with hasAttribute; Dump must capture attributes and index comment payload by attributes[i], not dense i+1. Restore rebinds canonical named comments to the reconstructed declaration's IDs.
 Successful CatalogStage publication advances the shared revision allocator past staged installed revisions without lowering an already-leading frontier; MaxUint64 saturates and later allocations fail ordinarily. DROP keeps old revision + 1, with no early allocator reservation. Commit the candidate frontier with descriptor/storage installation only after final fences, so failed/canceled stages and skips do not consume revision tokens. Later TABLE/COLUMN COMMENT must publish strictly fresh tokens at the retained identity.
 
-CREATE/ALTER/DROP SCHEMA and search_path/current_schema reuse existing catalog/session/role seams. Nested CREATE SCHEMA elements are CREATE TABLE only with atomic publication. Schema provisioning/rename uses effective-superuser database-CREATE baseline; fixed native database label stuntgres is diagnostic-only. Native public retains PUBLIC USAGE|CREATE. Prepared AST re-resolution has a coherent frozen signature guard, not full PostgreSQL cached-plan caveat parity. Absent pg_temp lookup never allocates; pending creation fails 0A000.
+CREATE/ALTER/DROP SCHEMA and search_path/current_schema reuse existing catalog/session/role seams. Nested CREATE SCHEMA elements are persistent CREATE TABLE only with atomic publication. Schema provisioning/rename uses effective-superuser database-CREATE baseline; fixed native database label stuntgres is diagnostic-only. Native public retains PUBLIC USAGE|CREATE. Prepared AST re-resolution has a coherent frozen signature guard, not full PostgreSQL cached-plan caveat parity. Absent pg_temp lookup never allocates; table/sequence creation initializes the physical owner's namespace.
 
 Search-path namespace selection has one kind-aware authority. Explicit entries
 retain decoded order and deduplicate by namespace identity; missing, empty,
@@ -4006,7 +4007,7 @@ PostgreSQL supports array ordering; that external comparator is not native parit
 or a reason to sort the encoded array as TEXT.
 Native current_schema/current_schemas omit absent TEMP without materializing it;
 PostgreSQL current_schemas may materialize a pending leading pg_temp. Once a
-supported TEMP sequence creates the namespace, normal ordering/dedup applies.
+supported TEMP table or sequence creates the namespace, normal ordering/dedup applies.
 SQL routine/type/operator DDL and general overload resolution remain excluded.
 Native Dump/Restore preserves qualified persistent expression spelling and
 objects/data, not session search_path; it is not external pg_dump, wire protocol,
@@ -4092,9 +4093,9 @@ general locale comparison, imported OS collations or broader catalogs/DDL.
 Comparison supports default/C/POSIX and pg_c_utf8/pg_unicode_fast. Ordinary B-tree indexes participate in
 relation visibility, including same-name cross-kind shadowing, and their
 definitions roundtrip through native Dump/Restore. CREATE TYPE forms other than AS ENUM, CREATE COLLATION/
-CONVERSION, automatic row types, materialized/foreign tables and TEMP table
-creation retain their native exclusion boundaries; real PostgreSQL-only
-reference tests exercise those identities rather than fake native support.
+CONVERSION, automatic row types and materialized/foreign tables retain their
+native exclusion boundaries; real PostgreSQL-only reference tests exercise those
+identities rather than fake native support. TEMP tables use the ordinary table path.
 
 Fixed identities rebuild on New/Reset/Restore without separate serialization.
 Supported user objects/views/CHECK definitions roundtrip through existing SQL;
@@ -4211,13 +4212,22 @@ retain `3F000`/`42501` precedence, including IF NOT EXISTS; failures publish no
 private namespace or sequence state.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceTempCreationSmoke$' VERBOSE=1`.
 
-Temporary namespaces remain sequence-only. Ordinary CREATE TABLE rejects actual
-own/peer temporary namespaces and an initialized `search_path=pg_temp` with
-`0A000` / `temporary schema creation is unsupported`, before IF NOT EXISTS or
-descriptor/storage publication. This ordinary-table guard does not change the
-supported sequence creation rules above. Actual namespace/path errors have no
-Position; the existing explicit `pg_temp` creation alias retains Position14.
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceTemporaryTableBoundarySmoke$' VERBOSE=1`.
+Temporary tables and sequences share session-owned namespaces. CREATE TEMP/
+TEMPORARY TABLE and ordinary CREATE TABLE in own pg_temp/actual TEMP or a leading
+explicit pg_temp path stage private descriptors/storage with ordinary types,
+defaults, CHECK, generation, serial/identity, UNIQUE and indexes.
+Owner lookup shadows permanent relations; peers never share values.
+ON COMMIT default/PRESERVE retains rows, DELETE clears rows/index membership
+without restarting owned sequences, and DROP removes the real dependency closure.
+Rollback/savepoints restore descriptors/actions/roots; physical end removes owner
+TEMP, not pooled borrowing. Native persistent Dump excludes TEMP; Reset/Restore
+preserves exact live TEMP and bounded stored-reference provenance.
+Foreign TEMP creation fails42P16; native qualified peer lookup retains42501.
+Permanent transactional CREATE/DROP, TEMP views and GLOBAL/LOCAL remain excluded.
+TEMP-source SET SCHEMA fails0A000 `cannot move objects into or out of temporary schemas`.
+See [temporary table contract](TABLES.md#temporary-tables--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
 
 The four selected sequence functions and minimal regclass casts reuse the common typed scalar binder/eager evaluator. Literal regclass lookup happens at Prepare with character positions. Nonnull regclass parameters become canonical OIDs during coherent Execute parameter import, before zero-row evaluation, runtime NULL checks or nested function effects; input errors retain portal Context without a literal Position. Numeric/dash inputs require no existing relation. NULL arguments are strict and do not open a sequence. Exact session-before-use, missing/wrong-kind, option, bound, ACL and NOTICE diagnostics have independent pinned-release fixtures. This does not admit arbitrary relationless SELECT, user-defined functions or general casts.
 
@@ -4289,7 +4299,7 @@ typed OID datums or adding general OID casts/catalog queries.
 
 Sequence metadata, transactional generator replacements and INSERT/UPDATE/DELETE row versions publish together at Finish/COMMIT through the same immutable prepare/validate/install frontier. Ordinary nextval/setval effects and physical-session memories are outside rollback. RX protects demanded nonnull function calls; ALTER uses SRX and administrative rename/schema changes use AX. Sequence row reads use AS and retain captured data/types through subsequent changes. Native log_cnt0 intentionally differs from PostgreSQL WAL prelogging counters; tests assert both independently.
 
-Sequence DDL, COMMENT ON SEQUENCE and the selected ALTER TABLE action lists above are bounded exceptions to the general explicit-transaction DDL exclusion. TEMP sequence namespaces are session-private, shadow persistent relations, and survive persistent Reset/Restore until physical end. Controls preserve settings/roles/temp memories, exclude TEMP objects from Dump, serialize effective persistent options and called state, and reject invalid staged replacement atomically.
+Owner-TEMP CREATE/DROP TABLE, sequence DDL, COMMENT ON SEQUENCE and the selected ALTER TABLE action lists above are bounded exceptions to the general explicit-transaction DDL exclusion. TEMP namespaces are session-private, shadow persistent relations, and survive persistent Reset/Restore until physical end. Controls preserve settings/roles/temp memories, exclude TEMP objects from Dump, serialize effective persistent options and called state, and reject invalid staged replacement atomically.
 
 The internal native catalog-fixture replacement seam imports a persistent source
 projection only. Repeated self replacement preserves destination live TEMP once;

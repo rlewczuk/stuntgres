@@ -178,7 +178,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	for a, shape := range c.storage {
 		store := e.storage[a]
-		if store != shape.original || store.generation != shape.generation || len(store.versions) != len(shape.root) || store.ends != shape.ends || !sameVersionRoot(store.versions, shape.root) {
+		if store != shape.original || store != nil && (store.generation != shape.generation || len(store.versions) != len(shape.root) || store.ends != shape.ends || !sameVersionRoot(store.versions, shape.root)) {
 			return CatalogConflict{}
 		}
 	}

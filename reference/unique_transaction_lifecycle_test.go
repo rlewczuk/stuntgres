@@ -82,20 +82,10 @@ func TestReferenceUniqueTemporaryLifecycle(t *testing.T) {
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, b.recorder, s) }
 			run(referenceExec("CREATE TABLE t(k INT CONSTRAINT u UNIQUE)", 0))
 			run(referenceExec("INSERT INTO t VALUES(1)", 1))
-			if !b.pg {
-				// TEMP tables remain outside the bounded native CREATE surface.
-				// Its exclusion must not disturb the public parent or backing.
-				rejected := referenceImplicitError("CREATE TEMP TABLE t(k TEXT CONSTRAINT u UNIQUE NULLS NOT DISTINCT)", referenceDiagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"})
-				rejected.errorStage = "execute"
-				run(rejected)
-				rejected.errorStage = "prepare"
-				run(referencePrepared(rejected))
-				run(referenceSelect("SELECT k FROM t", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
-				referenceRunStep(t, p.ctx, peer, b.recorder, referenceSelect("SELECT k FROM t", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
-				run(referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='u'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"UNIQUE (k)"}}))
-				run(referenceErrorDiagnostic("INSERT INTO t VALUES(1)", uniqueReferenceDuplicate("t", "u", "Key (k)=(1) already exists.")))
-				return
-			}
+			run(referenceSelect("SELECT k FROM t", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
+			referenceRunStep(t, p.ctx, peer, b.recorder, referenceSelect("SELECT k FROM t", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
+			run(referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='u'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"UNIQUE (k)"}}))
+			run(referenceErrorDiagnostic("INSERT INTO t VALUES(1)", uniqueReferenceDuplicate("t", "u", "Key (k)=(1) already exists.")))
 			run(referenceExec("CREATE TEMP TABLE t(k TEXT CONSTRAINT u UNIQUE NULLS NOT DISTINCT)", 0))
 			run(referenceExec("INSERT INTO t VALUES('x'),(NULL)", 2))
 			run(referenceSelect("SELECT k FROM t ORDER BY k NULLS LAST", []string{"k"}, []string{"TEXT"}, [][]any{{"x"}, {nil}}))
@@ -138,9 +128,6 @@ func TestReferenceUniqueCreateTransactionBoundary(t *testing.T) {
 					if !b.pg {
 						s = referenceImplicitError(query, referenceDiagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
 						s.errorStage = "execute"
-						if prepared {
-							s.errorStage = "prepare"
-						}
 					}
 					if prepared {
 						s = referencePrepared(s)

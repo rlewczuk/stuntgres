@@ -20,7 +20,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		return nil, nil, false, err
 	}
-	if err = checkTableCreationNamespace(auth.catalog, ns.Address); err != nil {
+	if err = checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
 		return nil, nil, false, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text

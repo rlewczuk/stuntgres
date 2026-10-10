@@ -29,6 +29,9 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
 		if len(name.Parts) == 2 {
 			_, exists := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+			if name.Parts[0].Text == "pg_temp" {
+				exists = temporaryNamespace(auth) != (ObjectAddress{})
+			}
 			if !exists {
 				kind, missing = "schema", name.Parts[0].Text
 			}
@@ -83,6 +86,19 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		seen[ref.Address] = true
 		refs = append(refs, ref)
 	}
+	temporary := true
+	for _, ref := range refs {
+		relation := auth.catalog.state.descriptors[ref.Address]
+		namespace := auth.catalog.state.descriptors[relation.Namespace()].(*namespaceDescriptor)
+		if namespace.temporary != op.session.token {
+			temporary = false
+			break
+		}
+	}
+	if !temporary && scope.owner.state == TxActive {
+		e.mu.Unlock()
+		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
+	}
 	if len(refs) == 0 {
 		e.mu.Unlock()
 		for _, notice := range notices {
@@ -91,6 +107,10 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		return Result{}, nil
 	}
 	base := auth.catalog
+	var changes *catalogChanges
+	if temporary {
+		changes = cloneCatalogChanges(scope.owner.catalog)
+	}
 	stage := e.BeginCatalogStage(base)
 	stage.authSession = op.session
 	stage.authRevision = auth.revision
@@ -113,15 +133,27 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	if err := scope.stageExpressionDependents(stage, targets, s.Mode, nil); err != nil {
+	if err := scope.stageExpressionDependents(stage, targets, s.Mode, changes); err != nil {
 		return Result{}, err
 	}
-	if err := scope.stageOwnedSequences(stage, targets, s.Mode, nil); err != nil {
+	if err := scope.stageOwnedSequences(stage, targets, s.Mode, changes); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		return Result{}, err
+	}
+	if temporary {
+		if err := e.stageTemporaryCatalog(scope, stage, changes); err != nil {
+			return Result{}, err
+		}
+		scope.discardRemovedTemporaryWrites(stage)
+		scope.owner.accessedTemporary = true
+		emitViewCascade(op, stage.viewCascadeNames)
+		for _, notice := range notices {
+			op.emitNotice(levelNotice, notice)
+		}
+		return Result{}, nil
 	}
 	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err != nil {

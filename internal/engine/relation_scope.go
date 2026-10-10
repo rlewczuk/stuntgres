@@ -174,7 +174,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			var ns ObjectRef
 			ns, err = e.creationNamespace(auth, name)
 			if err == nil {
-				err = checkTableCreationNamespace(auth.catalog, ns.Address)
+				err = checkPersistentCreationNamespace(auth.catalog, ns.Address)
 			}
 			if err == nil {
 				err = auth.CheckCreate(ns)

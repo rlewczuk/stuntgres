@@ -11,7 +11,8 @@ and `sql.LevelSerializable` override it. Go `ReadOnly: false` explicitly request
 read-write access. SQL
 omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
 SELECT, DELETE, settings and the single-target AX utility are supported, including
-prepared execution. CREATE tables before a block; sequence DDL, COMMENT ON
+prepared execution. CREATE permanent tables before a block; owner-TEMP CREATE/
+DROP, sequence DDL, COMMENT ON
 SEQUENCE and selected ALTER TABLE ADD COLUMN/TYPE/nullability/named-NOT-NULL/
 DROP COLUMN/identity action lists are bounded transactional DDL exceptions. Successful private ALTER
 definitions govern subsequent metadata and writes; savepoints restore catalog,
@@ -76,7 +77,8 @@ table AccessExclusive holder. Read-only blocks reject persistent sequence DDL
 and actual persistent nextval/setval calls. Function checks occur after sequence
 opening and ACL checks but before cached-tail use, bounds or mutation. Reading
 sequence rows, currval/lastval and caller-owned TEMP sequence mutations remain
-allowed; TEMP sequences do not imply TEMP table support.
+allowed. Existing own TEMP table INSERT/UPDATE/DELETE is permitted in read-only
+blocks, while TEMP CREATE/DROP remains modifying utility DDL and fails25006.
 
 Supported whole-input SQL syntax (one statement per public call):
 
@@ -93,6 +95,40 @@ changes current characteristics; `SET SESSION CHARACTERISTICS AS TRANSACTION`
 changes next-transaction defaults. Malformed clauses/suffixes retain `42601`.
 Two-phase SQL controls are described below; their driver Prepare phase is
 metadata-only and never reserves a GID or changes transaction state.
+
+## Temporary table lifetime — change note
+
+Owner-TEMP CREATE/DROP, rows, descriptors, ON COMMIT options and dependencies share
+the private transaction/savepoint roots. Successful outer SQL/driver commit or
+healthy CHAIN preserves, clears (CONTINUE IDENTITY), or quietly cascades DROP.
+No-write commits act too; intermediate explicit statements, rollback, aborted
+commit, savepoint rollback and physical abort never run commit actions.
+Preparation fails after actual TEMP access. Retained rows/types remain immutable.
+
+At every committed SQL boundary DELETE tables are empty and DROP tables absent.
+Completed metadata/settings/role utilities introduce no private TEMP rows or
+new action descriptors, so their implicit action effect is identity; explicit
+settings do not prematurely clear private rows. Actions join ordinary row/catalog/
+index preparation before the final cancellation/epoch/authority preflight, never
+fallible cleanup after success. Physical session end aborts private work and
+removes only that owner's TEMP closure, not peer or permanent data.
+Its complete ordered dependency stage includes surviving descriptor replacements,
+generated-column row projections and external expression-index removals. The final
+lock fences the whole captured catalog, every projected store/vector/end-root/
+generation and affected index-root identity; intervening DDL or DML triggers
+reprepare, while unrelated current heads are preserved. Affected survivor indexes
+are rebuilt for the projected dense slots, preserving ready/valid/live flags
+without healing an invalid index. Only physical retirement permits exhausted
+descriptor/index revisions and storage generations to remain saturated. Fresh
+descriptor/catalog/store/vector/index-root identities invalidate retained plans,
+while unchanged row/version history reuses its exact immutable end root. Ordinary
+DDL and ON COMMIT cascade retain their counter-exhaustion errors.
+Repeated dependency passes remap current staged index candidates rather than
+treating evolution as one-shot; final validation of a coherent layout is identity.
+Pool return is not physical end. Native Reset/Restore is not SQL autocommit;
+it preserves live TEMP and fences transactions born before replacement.
+See [table syntax and capability boundaries](TABLES.md#temporary-tables--change-note).
+
 
 ## Prepared transactions
 
@@ -143,7 +179,7 @@ Actual TEMP sequence/object/namespace use is sticky across savepoint rollback
 and fails0A000 `cannot PREPARE a transaction that has operated on temporary objects`.
 An unused temporary sequence from an earlier transaction is allowed. Persistent
 nextval/currval/setval/lastval memory is allowed; consumed draws remain
-nontransactional. TEMP TABLE, DECLARE/WITH HOLD cursors, LISTEN/UNLISTEN/NOTIFY
+nontransactional. DECLARE/WITH HOLD cursors, LISTEN/UNLISTEN/NOTIFY
 and pg_export_snapshot retain their existing unsupported syntax/function
 boundaries, not executable native restriction parity. Ordinary Go Rows/Stmt
 handles are not SQL WITH HOLD cursors.
@@ -538,7 +574,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/replace/ALTER/DROP VIEW, CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. Read-only view utility tags are CREATE VIEW, ALTER VIEW and DROP VIEW. |
+| Explicit CREATE/replace/ALTER/DROP VIEW, permanent CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Owner-TEMP CREATE/DROP and selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. Mixed permanent/TEMP DROP remains excluded atomically. Read-only view utility tags are CREATE VIEW, ALTER VIEW and DROP VIEW. |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported Go isolation option | Ordinary `stuntgres: unsupported transaction isolation level`, before state change |

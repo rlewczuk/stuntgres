@@ -220,8 +220,13 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	session := sessionStart(t, e, nil)
 	sessionSQL(t, session, "CREATE SEQUENCE persistent_s")
 	sessionSQL(t, session, "CREATE TEMP SEQUENCE temporary_s")
-	sessionSQL(t, session, "CREATE TABLE eligibility(v INT)")
-	relation := catalogRef(t, e, e.CatalogRead(), "eligibility")
+	sessionSQL(t, session, "CREATE TEMP TABLE eligibility(v INT)")
+	view := e.CatalogRead()
+	matches := view.Lookup(NameKey{ClassID: RelationClassID, Namespace: session.temporaryNamespace, Name: "eligibility"})
+	if len(matches) != 1 {
+		t.Fatal("actual owner TEMP table missing", matches)
+	}
+	relation := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: matches[0]}
 	sessionSQL(t, session, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	for _, query := range []string{
 		"SELECT last_value,is_called FROM persistent_s",
@@ -248,12 +253,6 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if namespace.temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
-	catalog := cloneCatalog(e.state)
-	original := catalog.descriptors[relation.Address].(*relationDescriptor)
-	copy := *original
-	copy.namespace = namespace.address
-	catalog.descriptors[relation.Address] = &copy
-	e.state = catalog
 	scope := &StatementScope{owner: session.transactions, txRef: session.transactions.ref}
 	if e.serializableEligibleLocked(relation, nil) {
 		t.Fatal("temporary stored relation enrolled")

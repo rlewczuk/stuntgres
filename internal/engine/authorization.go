@@ -293,7 +293,9 @@ type AuthorizationView struct {
 	settings *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ObjectAddress
-	session    *Session
+	// An owned TEMP table builder may see its namespace before session publication.
+	stagedTemporary ObjectAddress
+	session         *Session
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.

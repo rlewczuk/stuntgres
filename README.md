@@ -130,6 +130,20 @@ See [window queries](docs/QUERIES.md#selected-windows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindowFeatureSmoke$' VERBOSE=0`.
 
+Change note: `CREATE TEMP` / `CREATE TEMPORARY TABLE` creates physical-session
+owned tables using the ordinary table/type/default/CHECK/identity/index path.
+Owner `pg_temp` lookup shadows persistent relations; peers have independent
+same-name tables. Default/`ON COMMIT PRESERVE ROWS` retains data,
+`ON COMMIT DELETE ROWS` clears rows and index membership without restarting
+owned sequences, and `ON COMMIT DROP` removes the dependency closure.
+Creation/drop and actions compose with rollback/savepoints; physical close
+removes TEMP, while returning a connection to its pool does not.
+Native Dump excludes TEMP; Reset/Restore preserves the exact live owner objects.
+Permanent transactional CREATE/DROP, TEMP views and GLOBAL/LOCAL spellings
+remain excluded. See [temporary tables](docs/TABLES.md#temporary-tables--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
+
 Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
 `unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
 providers. `ascii` returns the first UTF8 codepoint (empty text returns0);
@@ -244,8 +258,8 @@ current superuser can finish them. `pg_catalog.pg_prepared_xacts` exposes
 `transaction XID, gid TEXT, prepared TIMESTAMPTZ, owner NAME, database NAME`.
 Native preparation is always enabled per Engine, without crash persistence,
 cluster-wide databases or a capacity setting. Reset/Restore refuse while entries
-exist; Dump remains committed-only. Executed TEMP sequence access prohibits
-preparation; unsupported SQL cursors, TEMP TABLE, notifications and snapshot
+exist; Dump remains committed-only. Executed TEMP table/sequence access prohibits
+preparation; unsupported SQL cursors, notifications and snapshot
 export remain excluded. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0`.
@@ -866,8 +880,8 @@ bounded temporal explicit casts and same-type precision annotations are supporte
 `SELECT current_schemas(false)` returns a genuine NAME[] (`_NAME`)
 as a native string, or NULL for a NULL boolean argument, through the shared
 array storage/literal codec. CREATE TYPE forms other than AS ENUM and
-function/operator DDL remain excluded. TEMP remains sequence-only;
-introspection does not allocate an absent temporary namespace.
+function/operator DDL remain excluded. TEMP tables and sequences share physical
+session ownership; introspection does not allocate an absent temporary namespace.
 Native ORDER on NAME[] is explicitly unsupported at analysis, including empty
 sources; PostgreSQL's array comparator remains outside the bounded native surface.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.

@@ -112,7 +112,8 @@ metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACT
 ```text
 CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]
 DROP DOMAIN [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
-CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
+CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
+  [ON COMMIT PRESERVE ROWS | ON COMMIT DELETE ROWS | ON COMMIT DROP]
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
 CREATE INDEX [name] ON [schema.]table [USING btree]
@@ -1196,10 +1197,14 @@ IF NOT EXISTS does not bypass these checks. SET SCHEMA cannot move a sequence in
 or out of a temporary namespace; a foreign temporary destination is rejected by
 creation authority before the move restriction.
 
-Temporary namespaces remain sequence-only. Ordinary CREATE TABLE into an
-initialized `pg_temp` search path or an actual own/peer temporary namespace
-rejects `0A000` before IF NOT EXISTS can skip a target, without creating storage.
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceTemporaryTableBoundarySmoke$' VERBOSE=0`.
+Temporary tables share the owner namespace/resolver with TEMP sequences.
+Ordinary CREATE TABLE in own `pg_temp`/actual TEMP or its leading explicit path
+becomes temporary; another owner's namespace rejects42P16. Owner lookup shadows
+permanent relations and explicit persistent qualification bypasses it.
+ON COMMIT acts only at successful outer commit; physical end removes TEMP,
+while native persistent controls preserve live owner TEMP and exclude it from Dump.
+Permanent transactional CREATE/DROP, GLOBAL/LOCAL and TEMP views remain excluded.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
 
 
 Reading a sequence returns one captured nonnull row with

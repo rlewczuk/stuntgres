@@ -362,6 +362,12 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	if !explicitUtility(stmt) {
 		return nil
 	}
+	switch stmt.(type) {
+	case *parser.CreateTable, *parser.DropTable:
+		// Resolved destinations are checked by the existing table executor,
+		// after read-only utility admission and before any catalog mutation.
+		return nil
+	}
 	t := s.owner
 	t.mu.Lock()
 	defer t.mu.Unlock()

@@ -106,6 +106,20 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			}
 			options.persistence = persistence
 			read := e.stageRead(stage)
+			tableNamespace := read.state.descriptors[table.namespace].(*namespaceDescriptor)
+			if tableNamespace.temporary != (SessionToken{}) {
+				if auth.session != nil && tableNamespace.temporary == auth.session.token {
+					auth.stagedTemporary = table.namespace
+				}
+				if persistenceSet {
+					for _, option := range definition.Options {
+						if option.Name == "logged" || option.Name == "unlogged" {
+							return expressionError("42P16", "cannot set logged status of a temporary sequence", option.Pos)
+						}
+					}
+				}
+				options.persistence = "temporary"
+			}
 			namespace := table.namespace
 			used := func(name string) bool {
 				return len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name

@@ -189,6 +189,7 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer op.Done()
 	schemaFail(t, e, op, "CREATE TABLE no_destination(id INT)", "3F000")
 	_, err = e.Execute(op, statement(t, "SELECT set_config('search_path','s1,',false)"), 0, nil)
 	state(t, err, "22023")
@@ -227,6 +228,7 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer op.Done()
 	_, err = e.Execute(op, statement(t, "SELECT set_config('search_path','s1,',false)"), 0, nil)
 	state(t, err, "22023")
 	op.Done()
@@ -240,12 +242,6 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	check(a, "SHOW search_path", "s1,s2")
 	sessionSQL(t, a, "SET search_path TO pg_temp,public")
 	check(a, "SELECT current_schema", "public")
-	op, err = a.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	schemaFail(t, e, op, "CREATE TABLE pending(id INT)", "0A000")
-	op.Done()
 	sessionSQL(t, a, "SET search_path TO s1,pg_temp,public")
 	sessionSQL(t, a, "CREATE TABLE earlier(id INT)")
 	roleTableRef(t, e, "s1.earlier")

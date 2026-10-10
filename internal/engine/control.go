@@ -768,7 +768,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	defer op.Done()
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
-		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateEnum, *parser.CreateDomain:
+		case *parser.CreateTable:
+			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
+				return sqlError("0A000", "restore cannot stage non-retractable effects")
+			}
+		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateEnum, *parser.CreateDomain:
 		case *parser.CreateView:
 		case *parser.CreateIndex:
 		case *parser.CreateSequence:
