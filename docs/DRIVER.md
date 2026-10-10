@@ -71,7 +71,7 @@ later cancellation cannot retract a delivered FETCH batch, installed DECLARE or
 completed CLOSE/CLOSE ALL in statement Finish. Cancellation or an error during
 demand or before that preflight returns no partial batch and leaves the executing
 cursor failed, not rewound. Finish still advances the command and releases statement
-admission/resources; only successful cursor utilities skip the private-stage merge.
+admission/resources; successful cursor and SQL-name utilities skip the private-stage merge.
 Ordinary statements retain their required row/catalog publication.
 
 Runtime REGTYPE casts route parser notices and modifier warnings through the
@@ -104,6 +104,54 @@ Reset/Restore fences the next admitted use rather than recapturing sources.
 
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0`.
+
+## SQL prepared statements — change note
+
+SQL `PREPARE`, `EXECUTE` and `DEALLOCATE` own named definitions in the physical
+session. They are neither database/sql statement handles nor `PREPARE TRANSACTION`.
+Hold a `sql.Conn` (or a `sql.Tx` on that owner) for a named lifecycle: an arbitrary
+pool call may use another physical session. Names use normal identifier folding
+and quoted spelling. Returning and reborrowing the same physical connection
+retains definitions; physical close/replacement clears them without deleting
+committed database data or a peer session's definitions.
+
+`PrepareContext("PREPARE p(int) AS ...")` describes a utility without resolving
+declarations or analyzing/installing its body. Its first Exec installs the SQL
+name; a second valid Exec reports duplicate42P05. Preparing DEALLOCATE has no
+effect until Exec. Preparing EXECUTE describes the current name's result without
+evaluating actual expressions; an absent name can have an empty description,
+then fail26000 on execution. Native EXECUTE returns its current underlying result
+metadata, rather than emulating lib/pq's stale wire-description decoder behavior.
+Go `Stmt.Close` does not deallocate a SQL name; detached eager Rows remain usable
+after deallocation and physical session end.
+The retained-row witness closes the public driver.Conn inside sql.Conn.Raw,
+returning nil, then consumes the already eager sql.Rows. It does not force
+database/sql's borrowed-connection close via ErrBadConn while those Rows still
+own that wrapper's release; wrapper close/wait/cancellation is a separate API
+lifetime from the detached engine result.
+
+The wrapper has zero outer adapter parameters. `EXECUTE p($1)` does not bind Go
+arguments to the SQL definition: supplied adapter arguments fail as ordinary Go
+count errors; with no supplied arguments a nonzero-formal target reports42P02
+at `$1`. A zero-formal target ignores SQL actual expressions instead.
+
+Named definitions are session effects, not transactional rows: PREPARE survives
+ROLLBACK/ROLLBACK TO, and those commands do not undo DEALLOCATE. EXECUTE runs the
+underlying statement in the same admission, command clock, snapshot/lock and
+Finish boundary; it inherits normal read-only restrictions, permissions,
+cancellation, statement atomicity and explicit-transaction abort behavior.
+Final session publication preflight protects installation/removal against late
+cancellation, just like cursor session effects. Only successful session utilities
+skip private-stage merging; normal EXECUTE writes still publish normally.
+
+Native Dump omits names. Reset/Restore preserves live physical-session owners
+and definitions, with existing catalog-generation/signature/reanalysis fences
+on their next use. Restore scripts reject SQL lifecycle utilities atomically.
+No generalized prepared-plan cache/invalidation architecture is introduced.
+
+Feature family: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLPrepared' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLPrepared' VERBOSE=0`.
+See [parameter and diagnostic rules](DIALECT.md#sql-prepared-statements--change-note).
 
 ## Command and transaction clocks
 

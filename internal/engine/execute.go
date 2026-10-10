@@ -16,6 +16,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.PrepareSQL:
+		return scope.executePrepareSQL(stmt.(*parser.PrepareSQL), count)
+	case *parser.DeallocateSQL:
+		return scope.executeDeallocateSQL(stmt.(*parser.DeallocateSQL), count)
 	case *parser.FetchCursor:
 		return scope.executeFetchCursor(stmt.(*parser.FetchCursor), count)
 	case *parser.CloseCursor:

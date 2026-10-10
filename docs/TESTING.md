@@ -103,6 +103,31 @@ endpoint's TEXT representation is intentional because pq cannot construct its
 raw invalid-Location time.Time. Normal SQL expectations are shared; no PostgreSQL
 Restore API or native stored-row parity from PostgreSQL script replay is invented.
 
+SQL prepared lifecycle definitions use `RUN='^TestReferenceSQLPrepared'` with
+`make quickcheck PACKAGES=./reference VERBOSE=0` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference VERBOSE=0`, each with a
+900-second deadline. The feature smoke selector is
+`RUN='^TestReferenceSQLPreparedFeatureSmoke$'` in both modes.
+Independent expectations cover typed/inferred fresh values, declaration
+boundaries, all currently executable preparable forms, full logical diagnostics,
+EXECUTE expression evaluation and zero-formal extras, physical session ownership,
+rollback persistence, utility Go-handle effect phases, and native controls.
+Ordinary adapter argument failures are distinct from SQL diagnostics. Native
+controls and eager retained-row guarantees have no invented wire counterpart.
+Write-atomicity and canceled-write scenarios preserve PostgreSQL's INSERT RETURNING
+witnesses; native uses the same supported multirow INSERT without RETURNING and
+retains full failure/no-cursor/sentinel-data assertions. INSERT RETURNING itself
+is an existing native exclusion, not a new prepared-body capability.
+Retained eager native sql.Rows are consumed after DEALLOCATE and a real public
+driver.Conn.Close invoked inside sql.Conn.Raw with a nil callback result. This
+avoids conflating physical session end with database/sql's ErrBadConn wrapper-close
+wait/cancellation while Rows still owns its borrowed-connection release.
+`^TestReferenceSQLPreparedInquiryActuals$` additionally exercises already-supported
+comment, deparse, index-property and visibility actual expressions, with independent
+TEXT/BOOL/NULL values before comparison. The private
+`TestPreparedSQLActualNoSnapshotDemand` checks that primitive/STRICT-null actuals
+do not capture unneeded catalog environments; it does not replace public references.
+
 Timezone lookup coverage uses `RUN='^TestReferenceTimezoneViews'` in both
 `make quickcheck PACKAGES=./reference` and
 `make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds per invocation).

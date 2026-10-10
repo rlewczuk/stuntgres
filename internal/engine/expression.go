@@ -1047,6 +1047,8 @@ type expressionBinder struct {
 	insertTarget          *relationDescriptor // Diagnostic candidate only, never a source.
 	ref                   ObjectRef
 	parameters            map[int]sqltype.Usage
+	formalParameters      []sqltype.Usage
+	executeParameters     bool
 	updateParameters      bool
 	updateInputParameters map[int]sqltype.Usage
 	uses                  []int
@@ -1073,6 +1075,7 @@ type expressionBinder struct {
 	indexPredicateConsumer     bool
 	generatedOwner             *relationDescriptor
 	visibilitySnapshot         bool
+	catalogSnapshot            bool // Demanded inquiry nodes after STRICT folding.
 	sequenceConstants          []sequenceConstant
 	regtypeConstants           []regtypeConstant
 	regclassConcat             bool
@@ -1114,7 +1117,21 @@ type expressionBinder struct {
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
-	return &expressionBinder{engine: e, ctx: ctx, parameters: make(map[int]sqltype.Usage), input: input, op: op, expected: expected}
+	b := &expressionBinder{engine: e, ctx: ctx, parameters: make(map[int]sqltype.Usage), input: input, op: op, expected: expected}
+	if expected != nil {
+		b.seedParameters(expected.Parameters.Types)
+	}
+	return b
+}
+
+func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
+	b.formalParameters = types
+	for i, usage := range types {
+		if usage.Type != nil {
+			usage.Type = b.typ(usage.Type.ID())
+		}
+		b.parameters[i+1] = usage
+	}
 }
 
 // Binding must retain the caller's catalog/path authority, including a private
@@ -1338,6 +1355,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 		return nil, expressionError("0A000", "cannot use subquery in index expression", r.Pos)
 	case parser.SubqueryExpr:
+		if b.executeParameters {
+			return nil, expressionError("0A000", "cannot use subquery in EXECUTE parameter", r.Pos)
+		}
 		var err error
 		node, err = b.bindSubquery(r)
 		if err != nil {
@@ -1366,6 +1386,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return nil, err
 		}
 	case parser.AggregateExpr:
+		if b.executeParameters {
+			if r.Window != nil {
+				return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
+			}
+			return nil, expressionError("42803", "aggregate functions are not allowed in EXECUTE parameters", r.Pos)
+		}
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
 		if r.Schema != nil {
 			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
@@ -1454,10 +1480,30 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return nil, err
 		}
 	case parser.FunctionExpr:
+		if b.executeParameters && r.Window != nil {
+			return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
+		}
 		var err error
 		node, err = b.bindFunction(r)
 		if err != nil {
 			return nil, err
+		}
+		switch inquiry := node.(type) {
+		case commentInquiryExpression:
+			b.catalogSnapshot = true
+		case deparseExpression:
+			// This family retains STRICT nodes rather than folding them; a
+			// known NULL eliminates only this node's own catalog demand.
+			demand := true
+			for _, child := range inquiry.args {
+				if literal, ok := child.(literalExpression); ok && literal.value.IsNull() {
+					demand = false
+					break
+				}
+			}
+			b.catalogSnapshot = b.catalogSnapshot || demand
+		case indexPropertyExpression:
+			b.catalogSnapshot = b.catalogSnapshot || inquiry.kind != accessMethodProperty
 		}
 		if r.Window != nil {
 			return nil, expressionError("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
@@ -1516,6 +1562,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		u := policy.expected
 		if established := b.updateInputParameters[r.Number]; established.Type != nil {
 			u = established
+		}
+		if r.Number <= len(b.formalParameters) && b.formalParameters[r.Number-1].Type != nil {
+			u = b.parameters[r.Number]
 		}
 		// A retained prepared parameter is an input contract, not the current
 		// destination column's type. Reanalysis adds ordinary coercion from

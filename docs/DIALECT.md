@@ -6,6 +6,56 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### SQL prepared statements — change note
+
+`PREPARE name [(type, ...)] AS statement` supports currently executable
+SELECT/VALUES, INSERT (including supported query sources), UPDATE, DELETE and
+MERGE bodies. It adds no underlying DML capability. Utility bodies (including
+CREATE, SET, SHOW, BEGIN and nested PREPARE) are syntax42601; SELECT INTO is not
+an ordinary preparable SELECT. `EXECUTE name [(expression, ...)]` returns the
+underlying rows, names/types and command count, including currently supported
+RETURNING. Existing MERGE native versus lib/pq command-count differences remain.
+`DEALLOCATE [PREPARE] name` removes one definition; ALL clears only this session,
+including an already empty registry. Empty declaration/actual parentheses are
+syntax errors, not empty lists. CREATE TABLE AS EXECUTE remains unsupported.
+
+Declarations resolve through current catalog/type authority and seed the one
+binder's formal input contract. Unknown declarations remain inferable; concrete
+unused declarations still count as required arguments. Referenced later slots
+can infer types beyond the declared list; gaps and unresolved unused unknown
+slots report42P18 without allocating intermediate sparse slots. Declaration
+typmods do not constrain inputs (`varchar(2)` can receive `long`); actual column
+typmods still enforce assignment. Concrete formal source types precede
+destination contexts, allowing one declared int parameter to feed int and bigint
+destinations through ordinary coercion. Unknown occurrences preserve existing
+target-before-filter fallback/inconsistent-type42P08 behavior.
+
+Actuals use the shared scalar evaluator and assignment coercion, with a fresh
+typed frame per EXECUTE and no table namespace. Current arithmetic, comparisons,
+casts, CASE/COALESCE and scalar functions compose; each demanded volatile actual
+is evaluated once, never at driver description. For nonzero formal counts,
+subqueries are0A000 `cannot use subquery in EXECUTE parameter`, aggregates are42803
+and windows42P20 with EXECUTE-specific English diagnostics/positions.
+Current comment/deparse/index-property and visibility functions in actuals use
+their existing statement-scope catalog/role/path captures before evaluation;
+primitive and known-NULL STRICT actuals do not demand those captures.
+
+Pinned PostgreSQL18.0 independently confirms the zero-formal exception:
+`PREPARE z AS SELECT 1; EXECUTE z(1/0)` returns1, as do extra subqueries,
+aggregates/windows and volatile calls, without analyzing/evaluating those extras.
+For nonzero formal counts, missing/extra actuals instead report42601 with
+`Expected N parameters but got M.` Detail before actual-expression analysis.
+Known incompatible actual types report42804 with the rewrite/cast Hint;
+unknown literals use formal type input diagnostics (for example22P02).
+Missing-name26000 lookup precedes SQL argument analysis. PREPARE analyzes types
+and its body before duplicate-name42P05 lookup; a failed duplicate preserves the
+old callable definition. Diagnostics retain absolute full-source character
+positions, not positions rebased to a reparsed body.
+
+See [session and adapter lifetimes](DRIVER.md#sql-prepared-statements--change-note).
+Independent direct/Go-prepared references use `^TestReferenceSQLPrepared` in both
+quick and pinned modes, with 900-second deadlines per invocation.
+
 ### Transaction and idle timeouts — change note
 
 `transaction_timeout`, `idle_in_transaction_session_timeout` and

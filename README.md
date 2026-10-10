@@ -10,6 +10,18 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
+and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
+for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.
+Definitions belong to the physical session, independently of Go statement handles
+and transaction rollback; each EXECUTE imports a fresh parameter frame.
+See [SQL prepared lifecycle](docs/DRIVER.md#sql-prepared-statements--change-note)
+and [parameter rules](docs/DIALECT.md#sql-prepared-statements--change-note).
+Feature family (900 seconds per invocation):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLPrepared' VERBOSE=0`;
+pinned counterpart:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLPrepared' VERBOSE=0`.
+
 Change note: `CREATE TYPE name AS (...)` and supported user table/view row types
 now share concrete, immutable composite codecs. Named backing relations are
 nonstorage authorities; member constraints remain confined to physical source

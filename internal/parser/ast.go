@@ -5,6 +5,30 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// SQL names belong to the physical session, not to driver statement handles.
+type PrepareSQL struct {
+	Name Identifier
+	Types []TypeName
+	Body Statement
+	Source string
+	Pos Position
+}
+func (*PrepareSQL) statement() {}
+
+type ExecuteSQL struct {
+	Name Identifier
+	Arguments []Expr
+	Pos Position
+}
+func (*ExecuteSQL) statement() {}
+
+type DeallocateSQL struct {
+	Name Identifier
+	All bool
+	Pos Position
+}
+func (*DeallocateSQL) statement() {}
+
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name        string

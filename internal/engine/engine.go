@@ -260,6 +260,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.PrepareSQL, *parser.DeallocateSQL:
+		return StatementDescription{}, nil
+	case *parser.ExecuteSQL:
+		if entry := op.session.preparedSQL.entries[s.Name.Text]; entry != nil {
+			return StatementDescription{Results: entry.description.Results}, nil
+		}
+		return StatementDescription{}, nil
 	case *parser.FetchCursor:
 		if cursor := op.session.cursors.entries[s.Name.Text]; cursor != nil {
 			return StatementDescription{Results: cursor.schema}, nil
@@ -311,7 +318,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission, scope.initialParameters)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -358,9 +365,12 @@ func objectNameText(n parser.ObjectName) string {
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission) (binding, error) {
+func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
+	if len(initial) != 0 && initial[0] != nil {
+		binder.seedParameters(initial[0])
+	}
 	binder.queryLockAdmission = admission
 	binder.queryAuth = &auth
 	if binder.queryLockAdmission == nil {

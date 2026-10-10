@@ -129,12 +129,12 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		reader.qualified = nil
 		c.state.input.Regtype = reader
 	}
-	if err := s.cursorPublicationPreflight(); err != nil {
+	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
 	r.entries[declaration.Name.Text] = c
 	r.ordinal = c.ordinal
-	s.completed, s.cursorCompleted, keep = true, true, true
+	s.completed, s.sessionCompleted, keep = true, true, true
 	return Result{}, nil
 }
 
@@ -149,7 +149,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.visibilityRelationPath, s.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.scope = s
 }
-func (s *StatementScope) cursorPublicationPreflight() error {
+func (s *StatementScope) sessionPublicationPreflight() error {
 	e := s.op.session.Engine()
 	s.owner.mu.Lock()
 	defer s.owner.mu.Unlock()
@@ -222,10 +222,10 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	rows := newFinalRows(c.schema, 0)
 	rows.output = c.state.output
 	if !fetch.All && fetch.Count == 0 || c.position == cursorAfter {
-		if err := s.cursorPublicationPreflight(); err != nil {
+		if err := s.sessionPublicationPreflight(); err != nil {
 			return Result{}, err
 		}
-		s.completed, s.cursorCompleted = true, true
+		s.completed, s.sessionCompleted = true, true
 		return Result{Rows: rows}, nil
 	}
 	if c.stage == nil {
@@ -276,10 +276,10 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 			return Result{}, err
 		}
 	}
-	if err := s.cursorPublicationPreflight(); err != nil {
+	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	s.completed, s.cursorCompleted = true, true
+	s.completed, s.sessionCompleted = true, true
 	return Result{Count: int64(rows.count), Rows: rows}, nil
 }
 func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int) (Result, error) {
@@ -291,7 +291,7 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	if !close.All && c == nil {
 		return Result{}, missingSQLCursor(close.Name.Text)
 	}
-	if err := s.cursorPublicationPreflight(); err != nil {
+	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
 	if close.All {
@@ -300,6 +300,6 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 		c.dispose()
 		delete(r.entries, close.Name.Text)
 	}
-	s.completed, s.cursorCompleted = true, true
+	s.completed, s.sessionCompleted = true, true
 	return Result{}, nil
 }

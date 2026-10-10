@@ -49,7 +49,7 @@ func (s *StatementScope) Finish(err error) error {
 			if !s.completed {
 				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority)
 			}
-		} else if !s.cursorCompleted {
+		} else if !s.sessionCompleted {
 			var deletes map[ObjectAddress]*privateDeletionRoot
 			var writes map[ObjectAddress][]rowVersion
 			if s.projectedRoots {

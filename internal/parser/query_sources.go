@@ -219,6 +219,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		return expressions(r.Targets)
 	}
 	switch s := statement.(type) {
+	case *PrepareSQL:
+		return VisitQuerySources(s.Body, visitQuery, visitTable)
 	case *Select:
 		return query(s)
 	case *DeclareCursor:

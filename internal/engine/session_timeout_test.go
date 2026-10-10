@@ -393,6 +393,10 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This mechanics unit substitutes a failing callback for the SQL-name owner.
+	if err := s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+		t.Fatal(err)
+	}
 	cleanupError := errors.New("independent cleanup result")
 	t.Cleanup(func() {
 		s.RequestEnd(CleanClose)

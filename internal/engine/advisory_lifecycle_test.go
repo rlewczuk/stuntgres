@@ -186,6 +186,10 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		advisoryUnitGrant(t, b, rb, key, advisoryShared)
 		transactionEnd(t, b, rb, false)
 		observed := make(chan bool, 1)
+		// Inject a cleanup observer in place of the now-installed SQL-name owner.
+		if err := b.Detach(b.resources[PreparedSQL].handle, CleanClose); err != nil {
+			t.Fatal(err)
+		}
 		op := transactionOperation(t, b)
 		_, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
 			observed <- b.TransactionState() == TxIdle && advisoryUnitHold(b, key).shared == 1

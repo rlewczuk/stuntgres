@@ -206,6 +206,10 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Replace the production SQL-name owner only in this callback-order unit.
+	if err = s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+		t.Fatal(err)
+	}
 	op, _ := s.Acquire(context.Background())
 	if _, err = e.Begin(op, TxOptions{}); err != nil {
 		t.Fatal(err)
@@ -328,6 +332,9 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	if _, err = s.Acquire(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
+	if err = s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+		t.Fatal(err)
+	}
 	s.mu.Lock()
 	s.serial = ^uint64(0)
 	s.mu.Unlock()
@@ -342,6 +349,10 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 	e := New()
 	s, err := e.StartSession(context.Background(), SessionStart{ID: 1})
 	if err != nil {
+		t.Fatal(err)
+	}
+	// This unit injects cleanup errors rather than exercising SQL definitions.
+	if err = s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())

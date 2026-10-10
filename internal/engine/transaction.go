@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -252,7 +253,7 @@ type StatementScope struct {
 	result                error
 	worked                bool
 	completed             bool
-	cursorCompleted       bool // Successful cursor utilities have no private stage to merge.
+	sessionCompleted      bool // Successful session utilities have no private stage to merge.
 	controlOutcome        controlOutcome
 	replacementRead       bool
 	ticket                *relationTicket
@@ -278,6 +279,7 @@ type StatementScope struct {
 	statementStart        time.Time
 	timeoutRef            TxRef // admission projection for preparse ERROR timer retirement
 	output                sqltype.OutputEnvironment
+	initialParameters     []sqltype.Usage
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
 	similar                sqltype.SimilarExecution
@@ -580,7 +582,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
-	case *parser.FetchCursor, *parser.CloseCursor:
+	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
@@ -610,6 +612,26 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 
 func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
 	// Adapter argument normalization precedes scope admission.
+	if execute, ok := stmt.(*parser.ExecuteSQL); ok {
+		if err := s.active(); err != nil {
+			return Result{}, err
+		}
+		if count != 0 {
+			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		}
+		entry := s.op.session.preparedSQL.entries[execute.Name.Text]
+		if entry == nil {
+			// Establish the ordinary failed-command transaction boundary too.
+			if err := s.gate(stmt); err != nil {
+				return Result{}, err
+			}
+			return Result{}, missingSQLPrepared(execute.Name.Text)
+		}
+		stmt = entry.body
+		s.Expected = &entry.description
+		count = entry.description.Parameters.Count
+		importFrame = s.sqlExecuteImporter(execute)
+	}
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
 	}

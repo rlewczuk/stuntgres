@@ -54,25 +54,22 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, kind := range []engine.ResourceKind{engine.Temporary, engine.PreparedSQL} {
-				k := kind
-				_, err := op.Attach(k, &transactionTerminalObserver{end: func(got engine.SessionToken, r engine.EndReason) error {
-					if got != token || r != reason {
-						t.Error("terminal identity/reason", got, r, token, reason)
-					}
-					if s.TransactionState() != engine.TxIdle {
-						t.Error("transaction cleanup must precede resource cleanup")
-					}
-					order = append(order, k)
-					if k == engine.PreparedSQL {
-						return failure
-					}
-					return nil
-				}})
-				if err != nil {
-					op.Done()
-					t.Fatal(err)
+			// PreparedSQL is now a production-owned attachment. The adapter's
+			// terminal-error witness uses the still-unoccupied Temporary slot;
+			// complete resource ordering is independently checked by engine units.
+			_, err = op.Attach(engine.Temporary, &transactionTerminalObserver{end: func(got engine.SessionToken, r engine.EndReason) error {
+				if got != token || r != reason {
+					t.Error("terminal identity/reason", got, r, token, reason)
 				}
+				if s.TransactionState() != engine.TxIdle {
+					t.Error("transaction cleanup must precede resource cleanup")
+				}
+				order = append(order, engine.Temporary)
+				return failure
+			}})
+			if err != nil {
+				op.Done()
+				t.Fatal(err)
 			}
 			op.Done()
 			switch reason {
@@ -93,7 +90,7 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			if s.IsLive() || s.TransactionState() != engine.TxIdle || c.IsValid() {
 				t.Fatal("terminal session remained live/active/valid")
 			}
-			want := []engine.ResourceKind{engine.PreparedSQL, engine.Temporary}
+			want := []engine.ResourceKind{engine.Temporary}
 			if !reflect.DeepEqual(order, want) {
 				t.Fatal("resource drain order", order, want)
 			}

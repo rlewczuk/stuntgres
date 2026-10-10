@@ -15,6 +15,7 @@ package parser
  objectNames []ObjectName
  dropMode DropMode
  typ TypeName
+ types []TypeName
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -181,6 +182,7 @@ package parser
 %token <tok> OVERLAPS
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
+%token <tok> EXECUTE DEALLOCATE
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
@@ -472,6 +474,9 @@ package parser
 %type <tok> membership_keyword
 %type <desc> membership_option_value
 %type <typ> standalone_type
+%type <stmt> prepare_sql execute_sql deallocate_sql preparable
+%type <types> prepare_types prepare_type_list
+%type <row> execute_arguments execute_argument_list
 %%
 script: separators optional_statements
  | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneType($2) } ;
@@ -491,10 +496,22 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | declare_cursor | fetch_cursor | close_cursor
+ | prepare_sql | execute_sql | deallocate_sql
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
+prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
+prepare_types: /* empty */ { $$=nil } | '(' prepare_type_list ')' { $$=$2 } ;
+prepare_type_list: type { $$=[]TypeName{$1} } | prepare_type_list ',' type { $$=append($1,$3) } ;
+preparable: select | insert | update | delete | merge ;
+execute_sql: EXECUTE name execute_arguments { $$=&ExecuteSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Arguments:$3,Pos:$1.pos} } ;
+execute_arguments: /* empty */ { $$=nil } | '(' execute_argument_list ')' { $$=$2 } ;
+execute_argument_list: scalar_projection { $$=[]Expr{$1} } | execute_argument_list ',' scalar_projection { $$=append($1,$3) } ;
+deallocate_sql: DEALLOCATE name { $$=&DeallocateSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | DEALLOCATE ALL { $$=&DeallocateSQL{All:true,Pos:$1.pos} }
+ | DEALLOCATE PREPARE name { $$=&DeallocateSQL{Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
+ | DEALLOCATE PREPARE ALL { $$=&DeallocateSQL{All:true,Pos:$1.pos} } ;
 declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Query:$7,Pos:$1.pos} } ;
 cursor_scroll: /* empty */ { $$=false }
  | NO SCROLL { $$=false }
@@ -729,8 +746,8 @@ query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos
 create_query_table: query_table_target query_table_options AS query_table_body query_table_data {$1.Query=$4;$1.NoData=$5;$$=$1} ;
 query_table_body: query_select {deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1}
  | TABLE relation_name {sqllex.(*lexer).deferUnsupported($1,"TABLE queries are unsupported");$$=nil}
- | generic_word name {if $1.text!="execute" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil}
- | generic_word name '(' call_args ')' {if $1.text!="execute" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil} ;
+ | EXECUTE name {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil}
+ | EXECUTE name '(' call_args ')' {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil} ;
 query_table_data: /* empty */ {$$=false} | WITH data_word {$$=false} | WITH NO data_word {$$=true} ;
 data_word: name {if $1.text!="data" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 query_table_options: /* empty */
@@ -1658,7 +1675,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
-transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
+transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT

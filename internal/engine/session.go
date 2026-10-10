@@ -94,6 +94,7 @@ type Session struct {
 	transactions         *transactionOwner
 	advisory             sessionAdvisory
 	cursors              *cursorRegistry
+	preparedSQL          *sqlPreparedRegistry
 	authorization        *sessionAuthorization
 	sequences            map[ObjectAddress]*sequenceMemory
 	lastSequence         ObjectAddress
@@ -207,6 +208,13 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		_, err = op.Attach(Cursors, cursors)
 		if err == nil {
 			s.cursors = cursors
+		}
+	}
+	if err == nil {
+		prepared := &sqlPreparedRegistry{entries: make(map[string]*sqlPreparedStatement), token: s.token}
+		_, err = op.Attach(PreparedSQL, prepared)
+		if err == nil {
+			s.preparedSQL = prepared
 		}
 	}
 	e.mu.Lock()
