@@ -168,6 +168,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case datetimeJustifyExpression:
 		return true
+	case datetimeExtractExpression:
+		return true
 	case datetimeAgeFiniteExpression:
 		return true
 	case datetimeMakeExpression:

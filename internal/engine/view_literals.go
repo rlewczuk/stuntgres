@@ -318,6 +318,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(datetimeJustifyExpression); ok {
 			return children(r.Args, n.children())
 		}
+		if n, ok := bound.(datetimeExtractExpression); ok {
+			return children(r.Args, n.children())
+		}
 		if n, ok := bound.(datetimeAgeFiniteExpression); ok {
 			return children(r.Args, n.children())
 		}

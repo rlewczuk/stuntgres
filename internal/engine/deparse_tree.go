@@ -138,6 +138,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case datetimeJustifyExpression:
 		out.WriteString("Datetime " + n.plan.Name())
 		err = args(n.children())
+	case datetimeExtractExpression:
+		out.WriteString("Datetime extraction " + n.plan.Name())
+		err = args(n.children())
 	case datetimeAgeFiniteExpression:
 		out.WriteString("Datetime " + n.plan.Name())
 		err = args(n.children())

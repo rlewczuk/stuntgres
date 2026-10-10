@@ -231,6 +231,56 @@ Each quickcheck invocation has a 900-second deadline. The final fullcheck runs
 after merge under its single 1800-second deadline; neither gate replaces the
 selective dual-mode runs.
 
+The extraction family uses the same shared fixtures and public APIs in both
+modes, with explicit independent values, diagnostics and metadata. Its smoke
+covers all six source types and both APIs, strictness, ISO/BC, interval parts,
+infinities, precision, prepared Execute-time zones and stored-definition replay:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtract' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtract' VERBOSE=0
+```
+
+Each invocation has a900-second deadline. Both complete modes must pass before
+review/integration; the pinned mode is not deferred until final fullcheck.
+Supplemental units use `PACKAGES=./internal/sqltype`, `./internal/parser` or
+`./internal/engine` with `RUN='^TestDatetimeExtract'`. Regenerate grammar with
+`make generate` after parser source changes; generated code is not hand-edited.
+The root performs these checks and the single1800-second final fullcheck.
+Extraction boundary witnesses distinguish unsupported native constrained-domain
+DDL/current_setting/random predicate admission from actual PostgreSQL behavior;
+they do not skip either backend or introduce adjacent capabilities. Plain-domain
+sources and table CHECK cover selected extraction consumers and later-row
+atomicity. The wrapper Context matrix uses the supported CURRENT_DATE field;
+real bound random-provider units supplement its public native syntax boundary.
+Ordinary extraction expression indexes remain shared successes; partial-index
+witnesses separately assert native parser rejection/no effects and real
+PostgreSQL partial descriptors/filtered rows. Catalog definition queries use
+existing same-OID joins. Wrapper units supply the existing fixed transaction
+clock fixture while retaining a real statement/session scope for random.
+COUNT(EXTRACT(month FROM s)) covers actual aggregate-child ownership with an
+independent INT8 count2. Original SUM extraction retains native admission0A000/
+Prepare rejection versus PostgreSQL NUMERIC3. Scoped helper subtests include
+their SQL query for actionable quiet-run diagnostics.
+
+The review lifecycle witnesses are
+`TestReferenceDatetimeExtractNotNullAtomicity` (later NUMERIC/FLOAT8 extraction
+NULLs into NOT NULL, complete23502 diagnostics, unchanged sentinel),
+`TestReferenceDatetimeExtractTransactionAbortRecovery` (runtime22023,
+aborted25P02, rollback of staged rows and successful extraction on the SAME
+connection/held statement), and
+`TestReferenceDatetimeExtractNativeRawRetainedZoneAfterSessionClose`.
+The last is explicitly native-only public-driver ownership evidence: an
+unconsumed NUMERIC/FLOAT8 hour/zone/epoch cursor captured under New York retains
+its original values/metadata after source/peer UTC changes and actual physical
+source close/discard; fresh peer executions independently use UTC. It does not
+invent PostgreSQL raw-driver controls. All three are included by the full family
+selector above; NOT NULL and transaction diagnostics were pinned independently.
+The smoke itself now executes1BC century/millennium-1 and2BC decade-1 pairs.
+
+
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
 held prepared session-zone changes, full calendar/seconds/zone/signature errors,

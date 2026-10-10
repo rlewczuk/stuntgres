@@ -540,6 +540,19 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.arg = arg
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || childChanged, err
+	case datetimeExtractExpression:
+		anyChanged := false
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.args[i], anyChanged = folded, true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
 	case datetimeAgeFiniteExpression:
 		anyChanged := false
 		for i, arg := range e.children() {

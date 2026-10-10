@@ -16,8 +16,10 @@ type lexer struct {
 	current            lexeme
 	// Scanner/lookahead reuse current; this records only tokens returned to yacc.
 	previousToken int
-	err           error
-	statements    []Statement
+	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
+	extractField bool
+	err          error
+	statements   []Statement
 	// Exact grammar row-end evidence bounds private INSERT scalar replay.
 	queryRowEnd       int
 	insertScalarEntry bool
@@ -738,6 +740,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		token.lexeme.text = text
 	}
+	extractFieldIdentifier := l.extractField && token.code == IDENT
 	if IdentityFunctionName(token.lexeme.text) && (token.code == IDENT || l.previousToken == int('.') || token.code == CURRENT_SCHEMA) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
@@ -815,7 +818,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = OPERATOR
 			}
 		}
-	case "overlay", "position", "substring":
+	case "extract", "overlay", "position", "substring":
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == '(' {
@@ -823,6 +826,8 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = CHECK_FUNC
 			} else {
 				switch token.lexeme.text {
+				case "extract":
+					token.code = EXTRACT
 				case "overlay":
 					token.code = OVERLAY
 				case "position":
@@ -899,6 +904,11 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.lexeme.resolutionOnly = true
 		}
 	}
+	if extractFieldIdentifier {
+		// Preserve the word so a following '(' is diagnosed at that token,
+		// rather than treating e.g. lower as a scalar function in field position.
+		token.code = IDENT
+	}
 	// VALUES remains a forbidden stored-expression wrapper. SELECT subqueries
 	// use the shared query AST and consumer binder diagnostics.
 	if l.indexExpression && token.code == int('(') {
@@ -911,7 +921,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = INDEX_SUBQUERY_OPEN
 		}
 	}
-	if l.generationDepth > 0 {
+	if l.generationDepth > 0 && !extractFieldIdentifier {
 		forbiddenCall := false
 		switch token.lexeme.text {
 		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
@@ -997,6 +1007,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.formatDepth--
 		}
 	}
+	l.extractField = token.code == int('(') && l.previousToken == EXTRACT
 	l.current = token.lexeme
 	v.tok = token.lexeme
 	if token.code == int('(') && l.temporalLead {
@@ -1321,7 +1332,8 @@ func indexPropertyCallName(name string) bool {
 
 // Recognize quoted spellings for admission without changing exact resolution.
 func datetimeFunctionName(name string) bool {
-	return strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") ||
+	return strings.EqualFold(name, "extract") || strings.EqualFold(name, "date_part") ||
+		strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") ||
 		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
 		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") ||

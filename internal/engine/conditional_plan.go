@@ -281,6 +281,17 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
 		}
 		expression = e
+	case datetimeExtractExpression:
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i], changed = node, true
+			}
+		}
+		expression = e
 	case datetimeAgeFiniteExpression:
 		for i, old := range e.children() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -579,6 +590,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case datetimeJustifyExpression:
 		return literal(e.arg)
+	case datetimeExtractExpression:
+		return literal(e.args[0]) && literal(e.args[1])
 	case datetimeAgeFiniteExpression:
 		for _, arg := range e.children() {
 			if !literal(arg) {

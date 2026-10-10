@@ -220,6 +220,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
 	case datetimeJustifyExpression:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.children())
+	case datetimeExtractExpression:
+		return n.logicalSQL("pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 	case datetimeAgeFiniteExpression:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.children())
 	case datetimeMakeExpression:
@@ -1016,6 +1018,23 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		rebound = n
 	case datetimeJustifyExpression:
 		n.arg = child(n.arg)
+		if err != nil {
+			return node, false, err
+		}
+		plan, failure := n.plan.Retag(retainedType)
+		if failure != nil {
+			return node, false, failure
+		}
+		changed = changed || plan != n.plan
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, n.expressionInfo = plan, info
+		rebound = n
+	case datetimeExtractExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
 		if err != nil {
 			return node, false, err
 		}

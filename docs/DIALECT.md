@@ -340,8 +340,8 @@ input at Prepare and cursor output at Execute. See [types](TYPES.md#interval--ch
 and [settings](SETTINGS.md#intervalstyle--change-note).
 Malformed/range/precision errors use originating PostgreSQL logical diagnostics
 and atomic publication. [Date/time arithmetic](#date-and-time-arithmetic--change-note)
-adds selected operators separately; extract, wire protocol and physical
-storage remain excluded. Selected constructors and justification are documented below.
+adds selected operators separately; wire protocol and physical storage remain
+excluded. Selected constructors, justification and extraction are documented below.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
 ### Interval justification — change note
@@ -389,7 +389,7 @@ fields, borrowing a partial month's days from the original earlier timestamp's
 month. Thus June1 minus April30 is `1 mon 1 day`, not an elapsed-day interval
 or `1 mon 2 days`. Months, days and microseconds remain separate; reverse age
 negates each component. BC uses astronomical year0 for1BC, so1BC to1AD is1year.
-This age/finite family adds no extract, new temporal casts or excluded executable overloads.
+This age/finite family adds no new temporal casts or excluded executable overloads.
 
 Unary age subtracts from transaction-current local DATE at midnight. It is
 STABLE and responds to Execute-time TimeZone and transaction start; binary
@@ -466,11 +466,111 @@ indexes; timestamptz defaults/views remain dynamic. Existing query/DML/CHECK,
 group/join, stored remapping and native control consumers share the same bound
 nodes. Stored definitions preserve supplied named order and omitted defaults;
 deparse normalizes named separators to `=>`. No general named-function provider,
-new temporal arithmetic, extract, host timezone fallback or wire service
+new temporal arithmetic, host timezone fallback or wire service
 is added.
 
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
 pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
+
+### Datetime extraction — change note
+
+`EXTRACT(field FROM source)` returns unrestricted NUMERIC (OID1700).
+`date_part(text, source)` returns FLOAT8 (OID701), with possible floating-point
+precision loss. Both admit DATE, TIME, TIMETZ, TIMESTAMP, TIMESTAMPTZ and INTERVAL;
+both are strict, but NULL does not hide malformed child input, parameter/domain
+import failures or demanded child arithmetic errors. EXTRACT's field is an
+identifier, quoted identifier, temporal keyword or string literal; date_part's
+field is an arbitrary text expression, including held parameters and columns.
+Unknown temporal sources remain ambiguous rather than defaulting to TIMESTAMP.
+
+Calendar fields are century, day, decade, dow, doy, isodow, isoyear, julian,
+millennium, month, quarter, week and year. Clock fields are hour, microseconds,
+milliseconds, minute and second; zone fields are timezone, timezone_hour and
+timezone_minute. Finite applicability is:
+
+| Source/API | Fields |
+|---|---|
+| EXTRACT DATE | Calendar + epoch |
+| date_part DATE | Calendar + clock + epoch, through midnight TIMESTAMP |
+| TIME | Clock + epoch |
+| TIMETZ | Clock + zone + epoch |
+| TIMESTAMP | Calendar + clock + epoch |
+| TIMESTAMPTZ | Calendar + clock + zone + epoch |
+| INTERVAL | century, day, decade, epoch, hour, microseconds, millennium, milliseconds, minute, month, quarter, second, week, year |
+
+DATE date_part errors identify timestamp without time zone, and dates outside
+the timestamp range fail22008 even though EXTRACT can inspect them. The retained
+literal/parameter SQL wrapper contributes `SQL function "date_part" statement 1`
+Context when both arguments are immutable and not row/stage-dependent. A column,
+STABLE or VOLATILE expression in either argument permits inlining and omits that
+Context; parameter dependence alone does not. Wrapper annotation never replaces
+child input/import/analysis diagnostics. Unsupported units report0A000; unknown units
+report22023, retaining normalized field spelling. ASCII case folding and
+multibyte-safe63-byte truncation do not trim whitespace or fold Unicode. Release
+aliases include m/mm=minute, mon=month and first10-byte microsecon/millisecon/
+timezone_h/timezone_m matches, including longer names sharing those prefixes.
+
+Sunday is dow0/isodow7; ISO week/year can differ from civil year at New Year.
+BC has no output year0. Julian is civil Julian day plus local clock fraction.
+Intervals retain independent months/days/time: month is months%12, hour is not
+mod24, minute/second use signed mod60 and week is days/7, ignoring clock hours.
+Interval epoch counts whole years as365.25days and remaining months as30days.
+Quarter preserves release int32 negation/remainder behavior, including quarter1
+at minimum int32 months. It does not justify or normalize the interval.
+
+Integral fields/microseconds have NUMERIC scale0, milliseconds scale3 and second
+scale6. Epoch has scale6 except EXTRACT DATE's integral epoch. Julian TIMESTAMP
+uses PostgreSQL numeric division display scale (midnight28, noon20). Large
+timestamp epoch uses release default numeric division rounding followed by
+scale6, not a float intermediate or an idealized exact-microsecond replacement;
+the maximum timestamp therefore yields `9224318016000.000000`.
+
+DATE/TIMESTAMP/TIMESTAMPTZ infinity preserves its sign for epoch, julian, year,
+isoyear, decade, century and millennium; oscillating fields return typed NULL.
+DATE EXTRACT still rejects unsupported clock/zone units; infinite TIMESTAMP
+zone fields return NULL despite finite TIMESTAMP rejecting them. Infinite
+INTERVAL preserves its sign for epoch, hour, day, year, decade, century and
+millennium; its supported remaining fields return NULL and unsupported ones
+still fail. Results are genuine typed NUMERIC/FLOAT8 infinities, not strings
+under false metadata.
+
+TIMESTAMPTZ local fields use the Execute-time session zone at the stored instant;
+epoch remains UTC. TIMETZ keeps its fixed offset across session changes, returns
+seconds east of UTC and signed hour/minute components, and does not wrap epoch
+at midnight. TSTZ overloads are STABLE; others IMMUTABLE absent stronger children.
+Immutable calls work in generated columns/indexes; stable defaults/views stay
+dynamic. Grouping, aggregate arguments, writes/RETURNING, table CHECK and
+unconstrained domain sources, stored renames/remapping and native controls use
+the same provider-owned plans. Constrained domains remain an existing native
+capability boundary; extraction does not implement their checks/defaults.
+The shared references separately assert native rejection and real PostgreSQL
+domain failures, while selected extraction uses plain domains and table CHECK.
+Existing scalar-function admission boundaries also remain: the references keep
+the current_setting field and random comparison CASE native boundaries alongside
+their independently observed PostgreSQL extraction errors. A supported
+CURRENT_DATE-derived field exercises STABLE wrapper inlining; the actual bound
+random provider supplements VOLATILE propagation without widening SQL admission.
+Ordinary extraction expression indexes are shared supported consumers. Partial
+indexes remain a native parser boundary; the references retain native0A000/
+no-publication and actual PostgreSQL partial descriptors/filter results.
+COUNT(EXTRACT(...)) exercises the supported aggregate child path with independent
+INT8 counts. The original SUM(EXTRACT(...)) witness remains native function
+admission0A000 versus PostgreSQL's exact NUMERIC sum, not a new SUM implementation.
+Catalog definition tests use existing same-OID pg_attrdef/pg_class joins, not
+new regclass-to-OID casts.
+Later-row extraction NULLs into NOT NULL targets preserve statement atomicity
+and full23502 diagnostics. Extraction runtime errors in explicit transactions
+produce normal aborted25P02 behavior; rollback restores staged writes and permits
+successful extraction on the same connection/held statement. Native raw result
+frames retain captured NUMERIC/FLOAT8 values and metadata across subsequent zone
+changes and physical source-session teardown, independently of fresh executions.
+PG catalog rendering preserves SQL EXTRACT field text verbatim, including unusual
+fields that PG itself does not render as replayable SQL. Native logical Dump
+separately quotes fields safely and rebinds every descriptor/cast during Restore.
+No date_trunc/date_bin/justify, new cast family or general function framework is added.
+
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0`.
 
 ### Date and time arithmetic — change note
 

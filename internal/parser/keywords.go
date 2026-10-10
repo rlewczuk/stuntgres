@@ -231,7 +231,7 @@ var keywords = [...]keyword{
 	{"expression", Unreserved, true, 0},
 	{"extension", Unreserved, true, 0},
 	{"external", Unreserved, true, 0},
-	{"extract", ColumnName, true, 0},
+	{"extract", ColumnName, true, EXTRACT},
 	{"false", Reserved, true, FALSE},
 	{"family", Unreserved, true, 0},
 	{"fetch", Reserved, false, FETCH},

@@ -968,7 +968,7 @@ type CurrentDateTimeExpr struct {
 func (CurrentDateTimeExpr) expression()                {}
 func (e CurrentDateTimeExpr) SourcePosition() Position { return e.Pos }
 
-// FunctionSyntax retains SQL special-form provenance for binary expressions.
+// FunctionSyntax retains SQL special-form provenance for selected scalar families.
 type FunctionSyntax uint8
 
 const (

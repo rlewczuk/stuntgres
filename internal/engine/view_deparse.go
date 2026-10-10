@@ -748,6 +748,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return e.Kind.String() + "(" + text + ")", err
 	case parser.CaseExpr:
 		text := "CASE"
+		separator, ending := " ", " END"
+		if v.presentation.deparse {
+			// Match the existing PG CASE layout without losing the frozen AST
+			// of undemanded extraction branches.
+			text, separator, ending = "    CASE", "\n            ", "\n        END"
+		}
 		if e.Test != nil {
 			part, err := child(e.Test)
 			if err != nil {
@@ -764,16 +770,16 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			if err != nil {
 				return "", err
 			}
-			text += " WHEN " + condition + " THEN " + result
+			text += separator + "WHEN " + condition + " THEN " + result
 		}
 		if e.Else != nil {
 			part, err := child(e.Else)
 			if err != nil {
 				return "", err
 			}
-			text += " ELSE " + part
+			text += separator + "ELSE " + part
 		}
-		return text + " END", nil
+		return text + ending, nil
 	case parser.FunctionExpr:
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
 		if parser.IdentityFunctionName(name) && len(e.Args) == 0 {
@@ -797,6 +803,29 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				}
 			}
 			return trimSyntaxSQL(name, source, set, len(e.Args))
+		}
+		if e.Syntax == parser.SQLFunctionSyntax && name == "extract" {
+			if len(e.Args) != 2 {
+				return "", fmt.Errorf("stuntgres: invalid stored EXTRACT arity")
+			}
+			field, err := child(e.Args[0])
+			if err != nil {
+				return "", err
+			}
+			if v.presentation.deparse {
+				literal, ok := e.Args[0].(parser.LiteralExpr)
+				if !ok {
+					return "", fmt.Errorf("stuntgres: invalid stored EXTRACT field")
+				}
+				// PG's catalog renderer emits raw field text, even when unsafe
+				// for replay. The child call above still advances literal capture.
+				field = literal.Value.Text
+			}
+			source, err := child(e.Args[1])
+			if err != nil {
+				return "", err
+			}
+			return "EXTRACT(" + field + " FROM " + source + ")", nil
 		}
 		if e.Syntax == parser.SQLFunctionSyntax {
 			return renderBinaryCall(name, e.Syntax, e.Args, "pg_catalog."+name, child)

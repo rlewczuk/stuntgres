@@ -51,8 +51,8 @@ components independently default to zero. Negative years mean BC, TIME retains
 24:00, and microseconds round to nearest/even. Timestamptz construction uses an
 explicit zone or the Execute-time session zone; output uses the captured session.
 The constructors compose in queries, writes and stored definitions, including
-native Dump/Restore. General named-function binding and extract remain
-excluded. See [datetime constructors](docs/DIALECT.md#datetime-constructors--change-note).
+native Dump/Restore. General named-function binding remains excluded.
+See [datetime constructors](docs/DIALECT.md#datetime-constructors--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
 
@@ -63,6 +63,17 @@ checked component overflow reports `22008`. See
 [interval justification](docs/DIALECT.md#interval-justification--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0`.
+
+Change note: `EXTRACT(field FROM source)` and `date_part(text, source)` cover
+DATE, TIME, TIMETZ, TIMESTAMP, TIMESTAMPTZ and INTERVAL. EXTRACT returns exact
+NUMERIC with PostgreSQL display scales and division rounding; date_part returns
+FLOAT8. Calendar/ISO fields, component-preserving intervals, signed infinities,
+strict NULL and Execute-time zone fields share query and stored-definition paths.
+The DATE date_part overload is a midnight TIMESTAMP wrapper, not DATE extraction.
+See [date/time extraction](docs/DIALECT.md#datetime-extraction--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0`.
+
 
 Change note: PostgreSQL BIT and BIT VARYING/VARBIT scalar storage preserves
 leading zeroes, empty values and NULL through direct/prepared statements,

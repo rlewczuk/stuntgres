@@ -1919,8 +1919,28 @@ preserves these components and returns unrestricted computed metadata.
 Selected `make_interval` construction is documented above.
 Selected [interval justification](DIALECT.md#interval-justification--change-note)
 normalizes components with unrestricted base INTERVAL output, including NULL,
-restricted and domain inputs; extract and new cross-family cast edges remain excluded.
+restricted and domain inputs. Selected
+[field extraction](DIALECT.md#datetime-extraction--change-note) reads the independent
+interval components. New cross-family cast edges remain excluded.
 See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
+
+Field extraction exposes unrestricted NUMERIC (EXTRACT) or FLOAT8 (date_part),
+not a source typmod. Integral fields and microseconds have NUMERIC display scale0,
+milliseconds scale3 and seconds scale6. Epoch uses scale6 except integral DATE
+EXTRACT; timestamp Julian fractions use default numeric division scales rather
+than a fixed precision. Results use genuine numeric or float signed infinities,
+and oscillating infinity fields are typed NULL.
+Both wire families have unrestricted metadata: lib/pq reports NUMERIC scan type
+interface{}, length unavailable and DecimalSize(65535,65531,true), with raw bytes;
+native NUMERIC scans as string and DecimalSize is unavailable. FLOAT8 scans as
+float64 in both, without decimal metadata. Computed fields report unknown
+Nullable(false,false), rather than inferred true/known nullability. These
+transport differences are asserted independently, not reconciled by converting
+numbers through FLOAT8.
+Native raw hour/zone/epoch extraction frames also assert this metadata before
+and after source-session physical teardown, with retained NUMERIC strings and
+FLOAT8 values from the original execution zone rather than a later session zone.
+
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 The interaction regressions are merged into untagged dual-mode `reference/`
 scenarios, with independent native string and pq byte-slice representations:

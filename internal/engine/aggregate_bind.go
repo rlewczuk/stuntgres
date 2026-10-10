@@ -140,6 +140,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case datetimeJustifyExpression:
 		o, ok := other.(datetimeJustifyExpression)
 		return ok && e.plan.Name() == o.plan.Name() && same(e.arg, o.arg)
+	case datetimeExtractExpression:
+		o, ok := other.(datetimeExtractExpression)
+		return ok && e.plan.Name() == o.plan.Name() && e.plan.InputID() == o.plan.InputID() && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1])
 	case datetimeAgeFiniteExpression:
 		o, ok := other.(datetimeAgeFiniteExpression)
 		if !ok || e.plan.Name() != o.plan.Name() || e.plan.InputID() != o.plan.InputID() || e.count != o.count {
@@ -433,6 +436,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
 		expr = e
+	case datetimeExtractExpression:
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case datetimeAgeFiniteExpression:
 		for i := range e.children() {
 			e.args[i] = rewrite(e.args[i])
@@ -588,6 +597,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case datetimeJustifyExpression:
 		walk(e.arg)
+	case datetimeExtractExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
 	case datetimeAgeFiniteExpression:
 		for _, arg := range e.children() {
 			walk(arg)
