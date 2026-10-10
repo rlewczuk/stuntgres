@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/bits"
+	"strings"
 )
 
 // BinaryPlan implements the selected raw-octet and text conversion signatures.
@@ -22,6 +24,18 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		arity, id = 1, Int4
 	case "crc32", "crc32c":
 		arity, id = 1, Int8
+	case "bit_count":
+		arity, id = 1, Int8
+	case "get_bit", "set_bit":
+		ids, id = [4]ID{Bytea, Int8, Int4}, Int4
+		if name == "set_bit" {
+			arity, id = 3, Bytea
+		}
+	case "get_byte", "set_byte":
+		ids, id = [4]ID{Bytea, Int4, Int4}, Int4
+		if name == "set_byte" {
+			arity, id = 3, Bytea
+		}
 	case "md5":
 		arity, id = 1, Text
 	case "sha224", "sha256", "sha384", "sha512", "reverse":
@@ -113,6 +127,79 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	}
 	a := values[0]
 	switch p.name {
+	case "bit_count":
+		var count int64
+		for i := range len(a.text) {
+			if i&4095 == 0 {
+				if err := ctx.Err(); err != nil {
+					return Value{}, err
+				}
+			}
+			count += int64(bits.OnesCount8(a.text[i]))
+		}
+		if err := ctx.Err(); err != nil {
+			return Value{}, err
+		}
+		return Integer(p.result.Type, count)
+	case "get_bit", "get_byte", "set_bit", "set_byte":
+		offset := values[1].integer
+		index := offset
+		bit := p.name == "get_bit" || p.name == "set_bit"
+		if bit {
+			index = offset / 8
+		}
+		if offset < 0 || index >= int64(len(a.text)) {
+			upper := int64(len(a.text)) - 1
+			if bit {
+				// Saturate only the diagnostic for theoretically unrepresentable
+				// bit lengths; the division-based validity check cannot overflow.
+				upper = math.MaxInt64
+				if int64(len(a.text)) <= math.MaxInt64/8 {
+					upper = int64(len(a.text))*8 - 1
+				}
+			}
+			return Value{}, failure("2202E", fmt.Sprintf("index %d out of valid range, 0..%d", offset, upper))
+		}
+		old := a.text[int(index)]
+		var mask byte
+		if bit {
+			mask = 1 << uint(offset%8)
+		}
+		switch p.name {
+		case "get_byte":
+			return Integer(p.result.Type, int64(old))
+		case "get_bit":
+			if old&mask != 0 {
+				return Integer(p.result.Type, 1)
+			}
+			return Integer(p.result.Type, 0)
+		}
+		next := byte(values[2].integer)
+		if bit {
+			if values[2].integer != 0 && values[2].integer != 1 {
+				return Value{}, failure("22023", "new bit must be 0 or 1")
+			}
+			next = old &^ mask
+			if values[2].integer == 1 {
+				next |= mask
+			}
+		}
+		if next == old {
+			return a, nil
+		}
+		var out strings.Builder
+		out.Grow(len(a.text))
+		if err := stringWrite(ctx, &out, a.text[:int(index)]); err != nil {
+			return Value{}, err
+		}
+		out.WriteByte(next)
+		if err := stringWrite(ctx, &out, a.text[int(index)+1:]); err != nil {
+			return Value{}, err
+		}
+		if err := ctx.Err(); err != nil {
+			return Value{}, err
+		}
+		return Binary(p.result.Type, out.String())
 	case "convert", "convert_from", "convert_to", "encode", "decode":
 		var raw string
 		var err error

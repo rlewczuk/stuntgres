@@ -1189,6 +1189,31 @@ do not add unowned SQL catalogs to make a discovery query run. See
 [hash design](design/PG18-INDEX-HASH.md). Generate retained parser productions
 before selective checks; generation/formatting/verification belong to the root.
 
+### BYTEA access completed definitions
+
+`TestReferenceBinaryAccess*` covers zero-based LSB orientation, raw count and
+reversal, setter truncation/immutability, bounds and input diagnostics, overload
+resolution, authority, empty/NULL metadata, held frames, consumers and native
+symbolic controls with actual emitted SQL replay on PostgreSQL. PostgreSQL
+expectations are independent; BIT execution is asserted only there, with the
+native capability error asserted separately. Portal Context and pq/native BYTEA
+metadata/empty-buffer differences remain explicit, not normalized goldens.
+
+Run each selective quickcheck under a 900-second deadline:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
+```
+
+StringPad protects the reused reverse provider and shared parser/binder.
+Feature smoke exercises the released six-function projection, held frames,
+bounds/new-bit failure and recovery, retained source, empty/NULL metadata and
+controls replay. These gates do not replace root quickcheck or post-merge
+fullcheck (one 1800-second deadline).
+
 ## How the dual-mode fixture works
 
 `newReferenceScenario(t)` creates a fresh native engine, a middleware-wrapped
@@ -1711,3 +1736,41 @@ make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Role|Sessio
 ```
 
 
+
+## BYTEA access oracle-first contract
+
+`TestReferenceBinaryAccess` defines the BYTEA `bit_count`, `get_bit`,
+`get_byte`, `set_bit`, `set_byte` and existing `reverse` contract. Independent
+release/manual and raw-octet goldens precede comparison: LSB-first bit offsets,
+INT8 bit indexes/counts versus INT4 byte indexes/getters, low-eight-bit byte
+replacement, strict NULL, source ownership, complete errors, overload boundaries,
+authorization, metadata, statement/savepoint atomicity and stored consumers.
+The existing StringPad reverse definitions remain unchanged.
+
+During initial discovery only, the shared scenario helper temporarily excludes
+native backends. This is not native support or passing verification: remove that
+filter after pinned PostgreSQL observations and before the native failing proof,
+and never integrate the filter. Body-error stages, portal input Context,
+ambiguous overloads, diagnostic precedence and complete metadata flags require
+root observations before production implementation. Native controls are defined
+now but are not exercised by the PostgreSQL-only discovery phase.
+
+Run each command with a separate 900-second deadline, in this order:
+
+```sh
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryAccess.*$' VERBOSE=0
+# After removing the temporary filter: establish native failing proof.
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccess.*$' VERBOSE=0
+# After implementation: both completed shared definitions and reverse regression union.
+make quickcheck PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
+```
+
+The composed smoke asserts the six-function released projection, orientation and
+wrapping, raw held frames and unchanged storage, exact bounds/newbit errors with
+recovery, empty/NULL metadata before iteration and symbolic native controls with
+actual emitted SQL replay on PostgreSQL. Control replacement failures must leave
+the destination dump byte-for-byte unchanged; parameters in every new argument
+slot remain rejected. Quiet test success alone is not a discovery transcript.

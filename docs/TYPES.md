@@ -733,15 +733,32 @@ string are nonnull empty BYTEA. Other SQL destinations retain textual byte
 binds. Valuer executes once outside engine locks. Input buffers and each
 exported result are detached; mutating returned bytes cannot alter storage or
 retained cursors. BYTEA DatabaseTypeName/ScanType are BYTEA/[]byte even for
-empty/NULL-only results and after EOF/Close. Native physical-column Nullable
-reflects the declaration; computed BYTEA nullability is unknown. Native
-Length/DecimalSize are unavailable; pinned pq reports Length MaxInt64 and
+empty/NULL-only results and after EOF/Close. Native physical-column and stored-view
+column Nullable reflects the declaration; computed BYTEA nullability is unknown.
+Native Length/DecimalSize are unavailable; pinned pq reports Length MaxInt64 and
 unknown nullability. Native empty BYTEA exports nonnil []byte; pq's escape
 decoder exports typed nil []byte for empty, while its hex decoder exports
 nonnil empty. Both differ from SQL NULL's nil interface. Raw BYTEA binds admit
 NUL and invalid UTF8 octets; SQL string decoding still rejects lexical
 NUL/invalid UTF8 before BYTEA input processing.
 Bytewise unsigned lexicographic comparison places shorter prefixes first.
+
+BYTEA access uses raw octets: `bit_count(bytea)` returns INT8; `get_bit(bytea,bigint)`
+and `get_byte(bytea,integer)` return INT4; `set_bit(bytea,bigint,integer)` and
+`set_byte(bytea,integer,integer)` return BYTEA. Zero-based bit n addresses byte
+n/8 with mask 1<<(n%8), least-significant bit first. Byte getters return 0..255.
+Setters preserve the source; changed results own one new buffer, unchanged
+results may share immutable storage. `set_bit` requires exactly 0/1 after bounds
+validation; `set_byte` retains low eight bits, including negative INT4 values.
+All are strict and immutable; `reverse(bytea)` reverses octets, not characters.
+INT2/INT4 bit offsets widen to INT8; INT2 byte offsets/new values widen to INT4,
+but INT8 does not implicitly narrow. Unknown-source BIT overload competition
+does not add BIT execution. See [access boundaries](DIALECT.md#bytea-bit-and-byte-access--change-note).
+Fresh access projections have unknown Nullable; reading the same results from
+stored view columns exposes native nullable declarations `(true,true)`, including
+before iteration and after Reset/Restore on retained cursors. Pinned pq cannot
+expose column nullability and retains `(false,false)` in both cases.
+
 
 `bytea_output` defaults to `hex`; `escape` doubles backslashes and octal-escapes
 bytes below 32 or above 126. SHOW/SET/RESET/DEFAULT and transaction-local unwind

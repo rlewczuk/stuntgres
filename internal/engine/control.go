@@ -878,7 +878,7 @@ func restoreScalar(raw parser.Expr) error {
 		case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
 		case "gen_random_uuid", "uuidv4", "uuidv7":
 		case "format":
-		case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
+		case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 		case "like_escape":
 			if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
 				return fmt.Errorf("stuntgres: invalid restore scalar")

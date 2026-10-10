@@ -96,6 +96,10 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	switch name {
+	case "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
+		return b.bindBinaryAccess(raw, visible, operands, names)
+	}
 	if conversion {
 		arity := 2
 		if name == "convert" {
@@ -201,9 +205,9 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 	}
 	id := sqltype.Bytea
 	switch name {
-	case "length", "octet_length", "bit_length", "position":
+	case "length", "octet_length", "bit_length", "position", "get_bit", "get_byte":
 		id = sqltype.Int4
-	case "crc32", "crc32c":
+	case "crc32", "crc32c", "bit_count":
 		id = sqltype.Int8
 	case "md5", "encode", "convert_from":
 		id = sqltype.Text
@@ -234,6 +238,17 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 
 func binaryArgumentID(name string, index int) sqltype.ID {
 	switch name {
+	case "get_bit", "set_bit":
+		if index == 1 {
+			return sqltype.Int8
+		}
+		if index == 2 {
+			return sqltype.Int4
+		}
+	case "get_byte", "set_byte":
+		if index > 0 {
+			return sqltype.Int4
+		}
 	case "convert", "convert_from":
 		if index > 0 {
 			return sqltype.Name
@@ -254,4 +269,65 @@ func binaryArgumentID(name string, index int) sqltype.ID {
 		return sqltype.Int4
 	}
 	return sqltype.Bytea
+}
+
+// Only the released BYTEA and BIT signatures compete here. BIT participates
+// in analysis, never execution; unknown input is converted after selection.
+func (b *expressionBinder) bindBinaryAccess(raw parser.FunctionExpr, visible bool, operands []comparisonOperand, names []string) (BoundExpr, error) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	arity := 2
+	if name == "bit_count" {
+		arity = 1
+	} else if name == "set_bit" || name == "set_byte" {
+		arity = 3
+	}
+	if !visible || len(operands) != arity {
+		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	}
+	candidates := [2]bool{true, name == "bit_count" || name == "get_bit" || name == "set_bit"}
+	exact := [2]int{}
+	for candidate := range candidates {
+		if !candidates[candidate] {
+			continue
+		}
+		for i, operand := range operands {
+			d := operand.descriptor()
+			if d == nil {
+				continue
+			}
+			target := binaryArgumentID(name, i)
+			if candidate == 1 {
+				if i == 0 {
+					target = sqltype.Bit
+				} else {
+					target = sqltype.Int4
+				}
+			}
+			if d.BaseType().ID() == target {
+				exact[candidate]++
+			}
+			if _, err := sqltype.PlanCoercion(operand.node.ResultUsage(), b.typ(target).Usage(), sqltype.Implicit); err != nil {
+				candidates[candidate] = false
+				break
+			}
+		}
+	}
+	if candidates[0] && candidates[1] {
+		if exact[0] > exact[1] {
+			candidates[1] = false
+		} else if exact[1] > exact[0] {
+			candidates[0] = false
+		} else {
+			// The only differing unknown roles are BYTEA(U)/BIT(V)
+			// and INT8/INT4 (neither preferred). No category winner exists.
+			return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, names, true)
+		}
+	}
+	if candidates[0] {
+		return b.finishBinary(name, raw.Pos, operands, raw.Syntax)
+	}
+	if candidates[1] {
+		return nil, expressionError("0A000", "bit overloads of "+name+" are unsupported", raw.Pos)
+	}
+	return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }

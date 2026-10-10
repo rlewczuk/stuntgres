@@ -910,7 +910,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		text, err := args(e.Args)
 		switch name {
-		case "convert", "convert_from", "convert_to", "encode", "decode", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
+		case "convert", "convert_from", "convert_to", "encode", "decode", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 			if v.presentation.deparse {
 				return name + "(" + text + ")", err
 			}

@@ -2272,6 +2272,59 @@ length, bit types and adjacent TEXT/regex substring remain excluded.
 Independent scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReference(StringLength|BinaryBasic|BinarySlice)' VERBOSE=0`;
 pinned counterpart adds `REFERENCE=1` to that same command.
 
+### BYTEA bit and byte access — change note
+
+Selected signatures are `bit_count(bytea) -> bigint`,
+`get_bit(bytea,bigint) -> integer`, `get_byte(bytea,integer) -> integer`,
+`set_bit(bytea,bigint,integer) -> bytea`, `set_byte(bytea,integer,integer) -> bytea`
+and the existing `reverse(bytea) -> bytea`. All are immutable and strict after
+analysis/import. Count scans raw octets; getters do not decode text. Byte offsets
+start at zero. Bit n uses byte n/8, mask 1<<(n%8): least-significant first within
+each byte, unlike BIT orientation. Reverse reverses every raw octet.
+
+Invalid offsets report 2202E `index N out of valid range, 0..M`, including upper
+-1 on empty input. Bit offsets preserve signed INT8 extremes. Setters validate
+bounds before new values; `set_bit` reports 22023 `new bit must be 0 or 1` for
+anything other than 0/1. `set_byte` wraps to the low eight bits of any INT4,
+including negative values. These body errors have no Position/Detail/Hint/Context.
+NULL in any formal slot suppresses body errors, not invalid signatures, constant
+input, imported input or authorization. Setters never mutate storage or retained
+results. Raw BYTEA binds remain distinct from SQL byteain literals.
+
+Resolution considers released BIT signatures without executing them. Thus
+`bit_count('101')` is ambiguous (42725), `get_bit('101',0)` selects BIT and native
+reports 0A000 `bit overloads of get_bit are unsupported` at the call, while
+`get_bit('10',1::bigint)` selects BYTEA. `set_bit` and `bit_count` use the analogous
+native boundary when BIT wins. All arguments eliminate incompatible candidates
+before that boundary; no implicit INT8-to-INT4 narrowing is added. Existing
+recognized BIT/VARBIT syntax/type capability boundaries are unchanged.
+
+Inherited native admission boundaries remain explicit: direct unbound
+`SELECT bit_count($1)` analyzes overloads before supplied-count validation, so
+native reports 42725 `function bit_count(unknown) is not unique` at position8,
+with `Could not choose a best candidate function. You might need to add explicit type casts.`
+Hint. PostgreSQL's direct no-bind route instead reports 42P02
+`there is no parameter $1` at position18 without Hint; Prepare reports the
+ambiguity on both. Shared native namespace lookup precedes selected child
+binding: `SELECT absent.bit_count(missing) FROM t` reports 3F000
+`schema "absent" does not exist` at position8, while PostgreSQL reports 42703
+`column "missing" does not exist` at position25. Unicode prefixes shift these
+character positions, not byte offsets. These generic boundaries are not widened
+by the access binder. Failed typed integer imports retain
+`unnamed portal parameter $n = '...'` Context on both backends with no Position;
+strict source NULL does not suppress import errors.
+
+The existing query/write/WHERE/order/group/COUNT/SUM/UPDATE RETURNING/CHECK/view,
+generated-column/expression-index and symbolic Dump/Reset/Restore consumers
+share BinaryPlan. Restore rejects parameters recursively in every argument.
+BYTEA DEFAULT functions, INSERT RETURNING and established mixed TEXT/BYTEA
+parameter-cast limitations remain excluded. No adjacent BIT execution or casts
+are introduced.
+
+Witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccess.*$' VERBOSE=0`
+and the same command with `REFERENCE=1`; feature smoke uses
+`RUN='^TestReferenceBinaryAccessFeatureSmoke$'` in both modes.
+
 ### String padding, repetition and reversal — change note
 
 Selected scalar signatures are `lpad(text,integer)`,

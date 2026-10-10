@@ -698,6 +698,19 @@ See [BYTEA](docs/TYPES.md#bytea). Selected witnesses:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
 
+Change note: BYTEA `bit_count`, `get_bit`, `get_byte`, `set_bit` and `set_byte`
+share the immutable raw-octet provider with `reverse`. Byte offsets are zero-based;
+bit offsets are INT8 and number each byte's bits least-significant first.
+Getters return INT4, count returns INT8, and setters return independent BYTEA
+values. New bits must be 0/1; new bytes retain the low eight bits of any INT4.
+Bounds fail with 2202E before new-bit validation (22023). NULL suppresses body
+errors, not input, signature or authority checks. Unknown operands participate
+in PostgreSQL's BYTEA/BIT overload competition; selected BIT overloads remain an
+explicit native capability boundary, not BYTEA reinterpretation.
+See [BYTEA access](docs/DIALECT.md#bytea-bit-and-byte-access--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0`;
+the pinned counterpart adds `REFERENCE=1`.
+
 BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, two-argument
 `btrim`/`ltrim`/`rtrim`, and byte-indexed `overlay`, `position`, `substring`/`substr`.
 SQL `OVERLAY(... PLACING ... FROM ... [FOR ...])`, `POSITION(needle IN source)`,

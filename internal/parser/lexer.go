@@ -789,7 +789,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
-	if token.code == IDENT && (sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
@@ -1320,7 +1320,7 @@ func binaryScalarFunction(name string) bool {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
 		return true
 	}
-	return sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
+	return sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
 }
 
 // Admission recognizes quoted hash spellings without normalizing the AST.
@@ -1336,6 +1336,11 @@ func binaryHashFunction(name string) bool {
 			strings.EqualFold(name, "sha256") || strings.EqualFold(name, "sha384") || strings.EqualFold(name, "sha512")
 	}
 	return false
+}
+
+func binaryAccessFunction(name string) bool {
+	return strings.EqualFold(name, "bit_count") || strings.EqualFold(name, "get_bit") ||
+		strings.EqualFold(name, "get_byte") || strings.EqualFold(name, "set_bit") || strings.EqualFold(name, "set_byte")
 }
 
 func binaryConversionFunction(name string) bool {
