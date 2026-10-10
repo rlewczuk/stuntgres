@@ -79,7 +79,7 @@ func extremaFamilyType(name string) string {
 
 func extremaTextCastExcluded(typ string) bool {
 	switch typ {
-	case "INT2", "NUMERIC", "FLOAT4", "FLOAT8":
+	case "INT2", "NUMERIC":
 		return true
 	}
 	return false

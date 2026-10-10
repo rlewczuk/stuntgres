@@ -131,6 +131,7 @@ package parser
 %token <tok> AT
 %token <tok> INTERVAL HOUR MINUTE SECOND DAY MONTH YEAR
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
+%token <tok> NAMES
 %token <tok> SELECTED_FUNC VARIADIC
 %token <tok> STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD LEADING TRAILING BOTH
 %token <tok> CASE WHEN THEN ELSE COALESCE NULLIF GREATEST LEAST
@@ -566,6 +567,12 @@ set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier
  | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
  | SET LOCAL local_setting_name setting_assignment setting_values { s:=parsedSet($3.identifier(),$5,$1.pos);s.Local=true;$$=s }
  | SET LOCAL local_setting_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Local:true,Pos:$1.pos} }
+ | SET NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{$3.isString}},$1.pos) }
+ | SET NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$2.pos},Default:true,Pos:$1.pos} }
+ | SET SESSION NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString}},$1.pos) }
+ | SET SESSION NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$3.pos},Default:true,Pos:$1.pos} }
+ | SET LOCAL NAMES setting_value { s:=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString}},$1.pos);s.Local=true;$$=s }
+ | SET LOCAL NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$3.pos},Default:true,Local:true,Pos:$1.pos} }
  | SET SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{true}},$1.pos) }
  | SET SESSION SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true}},$1.pos) }
  | SET TIME ZONE zone_setting { $$=$4; $4.Name=Identifier{Text:"timezone",Pos:$2.pos};$4.Pos=$1.pos }
@@ -1478,6 +1485,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING
+ | NAMES
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
@@ -1498,6 +1506,7 @@ transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING
+ | NAMES
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
@@ -1507,6 +1516,7 @@ generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
+ | NAMES
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In

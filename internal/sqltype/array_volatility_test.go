@@ -67,7 +67,7 @@ func TestArrayVolatilityPreservesScalarClassification(t *testing.T) {
 	}{
 		{Bool, false, false}, {Bytea, false, false}, {Name, false, false},
 		{Int2, false, false}, {Int4, false, false}, {Int8, false, false},
-		{Oid, false, false}, {Float4, false, false}, {Float8, false, false},
+		{Oid, false, false}, {Float4, true, false}, {Float8, true, false},
 		{Numeric, false, false}, {UUID, false, false},
 		{Date, true, true}, {Time, false, true}, {Timetz, false, true},
 		{Timestamp, true, true}, {Timestamptz, true, true}, {Interval, true, true},

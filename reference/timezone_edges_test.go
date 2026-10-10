@@ -133,7 +133,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			query := "SHOW ALL"
 			if backend.name == "postgres" {
-				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','default_transaction_deferrable','transaction_deferrable') ORDER BY name"
+				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','default_transaction_deferrable','transaction_deferrable','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits') ORDER BY name"
 			}
 			var rows *sql.Rows
 			var err error
@@ -178,6 +178,13 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 			want["timezone_abbreviations"] = [2]string{"Default", "Selects a file of time zone abbreviations."}
 			want["default_transaction_deferrable"] = [2]string{"off", "Sets the default deferrable status of new transactions."}
 			want["transaction_deferrable"] = [2]string{"off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."}
+			want["client_encoding"] = [2]string{"UTF8", "Sets the client's character set encoding."}
+			want["lc_messages"] = [2]string{"C", "Sets the language in which messages are displayed."}
+			want["lc_monetary"] = [2]string{"C", "Sets the locale for formatting monetary amounts."}
+			want["lc_numeric"] = [2]string{"C", "Sets the locale for formatting numbers."}
+			want["lc_time"] = [2]string{"C", "Sets the locale for formatting date and time values."}
+			want["icu_validation_level"] = [2]string{"warning", "Log level for reporting invalid ICU locale strings."}
+			want["extra_float_digits"] = [2]string{"1", "Sets the number of digits displayed for floating-point values."}
 			expectedNames := map[string]bool{
 				"DateStyle": true, "IntervalStyle": true, "TimeZone": true, "application_name": true,
 				"bytea_output": true, "client_min_messages": true, "default_transaction_isolation": true,
@@ -186,6 +193,8 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				"statement_timeout": true, "transaction_isolation": true, "transaction_read_only": true,
 				"default_transaction_deferrable": true, "transaction_deferrable": true,
 				"timezone_abbreviations": true,
+				"client_encoding":        true, "lc_messages": true, "lc_monetary": true, "lc_numeric": true,
+				"lc_time": true, "icu_validation_level": true, "extra_float_digits": true,
 			}
 			count, last := 0, ""
 			for rows.Next() {
@@ -216,7 +225,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				rows.Close()
 				t.Fatal("registry completeness", rows.Err(), want)
 			}
-			if !backend.pg && (count != 19 || len(expectedNames) != 0) {
+			if !backend.pg && (count != 26 || len(expectedNames) != 0) {
 				rows.Close()
 				t.Fatal("builtin cardinality/set", count, expectedNames)
 			}

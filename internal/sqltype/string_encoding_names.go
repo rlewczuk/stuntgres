@@ -117,3 +117,15 @@ func stringEncodingID(name string) int {
 		return -1
 	}
 }
+
+// ClientEncodingName uses the release GUC hook's NAME-sized candidate on every
+// entry point, including set_config TEXT input. Identity lookup itself is shared
+// with the existing binary conversion functions.
+func ClientEncodingName(input string) (candidate, canonical string) {
+	candidate = clipName(input)
+	id := stringEncodingID(candidate)
+	if id >= 0 {
+		canonical = stringEncodingNames[id]
+	}
+	return candidate, canonical
+}

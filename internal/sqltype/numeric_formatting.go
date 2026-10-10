@@ -22,6 +22,7 @@ type numericTemplate struct {
 	pre, post, multi, zeroStart, zeroEnd, signPre                         int
 	decimal, zero, fm, blank, roman, science, shift, plus, minus, bracket bool
 	sign                                                                  int // 0 absent, 1 leading, 2 trailing
+	localeDecimal                                                         bool
 }
 
 func BindNumericFormat(ctx context.Context, name string, result, source Usage, mask *string) (NumericFormatPlan, error) {
@@ -109,9 +110,9 @@ func (p NumericFormatPlan) Evaluate(ctx context.Context, source, mask Value, inp
 		}
 	}
 	if p.name == "to_number" {
-		return numericFormatInput(ctx, p.result.Type, source.text, t)
+		return numericFormatInput(ctx, p.result.Type, source.text, t, input)
 	}
-	text, err := numericFormatOutput(ctx, source, t)
+	text, err := numericFormatOutput(ctx, source, t, output)
 	if err != nil {
 		return Value{}, err
 	}
@@ -223,6 +224,7 @@ func (t *numericTemplate) prepare(key string) error {
 			return fail(`cannot use "V" and decimal point together`)
 		}
 		t.decimal = true
+		t.localeDecimal = k == "D"
 	case "FM":
 		t.fm = true
 	case "S":

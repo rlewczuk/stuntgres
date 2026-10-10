@@ -10,7 +10,7 @@ func TestStringGenerationOutputDependence(t *testing.T) {
 		dependent bool
 	}{
 		{Bool, false}, {Int2, false}, {Int4, false}, {Int8, false},
-		{Float4, false}, {Float8, false}, {Numeric, false}, {Oid, false},
+		{Float4, true}, {Float8, true}, {Numeric, false}, {Oid, false},
 		{UUID, false}, {Time, false}, {Timetz, false}, {Char, false},
 		{Text, false}, {BPChar, false}, {VarChar, false}, {Name, false},
 		{Bytea, false}, {Date, true}, {Timestamp, true}, {Timestamptz, true},

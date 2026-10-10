@@ -200,7 +200,7 @@ func TestStringPlanSpecializedOutputStability(t *testing.T) {
 		id     ID
 		stable bool
 	}{
-		{Int2, false}, {Int4, false}, {Int8, false}, {Numeric, false}, {Float4, false}, {Float8, false}, {Bool, false}, {Bytea, false}, {Oid, false}, {UUID, false}, {Time, false}, {Timetz, false}, {Char, false}, {Name, false}, {Text, false}, {BPChar, false}, {VarChar, false}, {Void, false},
+		{Int2, false}, {Int4, false}, {Int8, false}, {Numeric, false}, {Float4, true}, {Float8, true}, {Bool, false}, {Bytea, false}, {Oid, false}, {UUID, false}, {Time, false}, {Timetz, false}, {Char, false}, {Name, false}, {Text, false}, {BPChar, false}, {VarChar, false}, {Void, false},
 		{Date, true}, {Timestamp, true}, {Timestamptz, true}, {Interval, true}, {Regclass, true},
 	} {
 		plan, err := BindString("||", text, text, []Usage{types[tc.id].Usage(), text}, [4]bool{false, true}, false)

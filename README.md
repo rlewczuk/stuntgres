@@ -71,6 +71,17 @@ Finite shifts reuse session-zone calendar arithmetic and must fit the exact
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
 
+Change note: seven physical-session presentation settings add UTF8
+client_encoding aliases and SET NAMES, four bounded C/POSIX locale categories,
+ICU validation reporting policy and extra_float_digits. Numeric and temporal masks
+consume captured locale policies; SQL float textual consumers capture execution
+precision, while exact native scalar transport and shortest canonical Dump remain
+unchanged. Only lc_messages mutation consults the current role's real superuser
+flag; unrelated privileged settings remain deny-only.
+See [session settings](docs/SETTINGS.md#format-encoding-and-locale-settings--change-note).
+Feature smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$' VERBOSE=0`.
+
 Change note: numeric `to_char(integer|bigint|numeric|real|double precision,text)`
 and `to_number(text,text)` use strict STABLE typed providers. Exact decimal and
 integer values retain their precision; binary floats retain their rounding and

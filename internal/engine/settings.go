@@ -96,6 +96,13 @@ var builtinSettings = []SettingDefinition{
 	{Name: "intervalstyle", Type: SettingEnum, BootDefault: "postgres", EnumValues: []string{"postgres", "postgres_verbose", "sql_standard", "iso_8601"}, Description: "Sets the display format for interval values."},
 	{Name: "timezone_abbreviations", Type: SettingString, BootDefault: "Default", Description: "Selects a file of time zone abbreviations."},
 	clientMinMessages,
+	{Name: "client_encoding", Type: SettingString, BootDefault: "UTF8", Description: "Sets the client's character set encoding.", Normalize: normalizeClientEncoding},
+	{Name: "lc_messages", Type: SettingString, Access: SettingPrivileged, BootDefault: "C", Description: "Sets the language in which messages are displayed.", Normalize: normalizeLCMessages},
+	{Name: "lc_monetary", Type: SettingString, BootDefault: "C", Description: "Sets the locale for formatting monetary amounts.", Normalize: normalizeLCMonetary},
+	{Name: "lc_numeric", Type: SettingString, BootDefault: "C", Description: "Sets the locale for formatting numbers.", Normalize: normalizeLCNumeric},
+	{Name: "lc_time", Type: SettingString, BootDefault: "C", Description: "Sets the locale for formatting date and time values.", Normalize: normalizeLCTime},
+	icuValidationLevel,
+	{Name: "extra_float_digits", Type: SettingInteger, BootDefault: "1", IntegerMin: -15, IntegerMax: 3, Description: "Sets the number of digits displayed for floating-point values."},
 	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
 	{Name: "server_encoding", Type: SettingString, Access: SettingReadOnly, BootDefault: "UTF8", Description: "Shows the server (database) character set encoding."},
@@ -251,6 +258,7 @@ type settingValue struct {
 	zone                  *sqltype.Zone
 	dateStyle             sqltype.DateStyle
 	timezoneAbbreviations sqltype.TimezoneAbbreviations
+	locale                sqltype.Locale
 }
 
 func settingDiagnostic(message, hint string) error {
@@ -311,6 +319,9 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 		if d.Normalize != nil {
 			var err error
 			v.text, _, err = d.Normalize(input)
+			if err == nil && localeSetting(d.Name) {
+				v.locale, _ = sqltype.ParseCLocale(v.text)
+			}
 			return v, err
 		}
 		return v, nil

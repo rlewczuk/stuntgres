@@ -189,7 +189,8 @@ Query/write/CHECK/view consumers and native Dump/Reset/Restore use the existing
 Binary carrier and staged publication. Generated columns/expression indexes
 accept immutable formats and reject stable convert functions, including under
 immutable wrappers. Existing binary-function DEFAULT exclusion remains native
-0A000; no integer↔BYTEA casts, CREATE CONVERSION or encoding settings are added.
+0A000; no integer↔BYTEA casts or CREATE CONVERSION are added. The separate
+bounded client_encoding/SET NAMES settings do not change these conversion pairs.
 
 One inherited direct-call transport/admission difference remains outside these
 providers: with no supplied bindings, PostgreSQL's simple-query
@@ -1043,7 +1044,7 @@ catalog/path rather than the original schema spelling.
 
 Templates recognize PostgreSQL 18's case-specific calendar/ISO, clock, fraction,
 era, ordinal, Roman-month and zone tokens. `FM` affects the next field; `TM`
-uses the available English names; `TH`/`th` add ordinals and uppercase `SP` is
+uses the captured lc_time C/POSIX English-name provider; `TH`/`th` add ordinals and uppercase `SP` is
 a no-op. Lowercase `sp` remains literal text.
 Quoted text and escapes are template syntax, not Go layouts. Output preserves
 literal text, name padding and interval's separate month/day/time fields:
@@ -1091,7 +1092,8 @@ adjacent cast. General-family VARIADIC ARRAY construction remains excluded;
 the selected flat regclass constructor does not add temporal-array construction.
 The string-category resolver, DATE's implicit source promotion and namespace
 visibility retain the existing overload rules. No temporal arithmetic,
-new general casts, wire protocol or locale provider is added.
+new general casts or wire protocol is added. Locale category settings use the
+separate bounded C/POSIX provider described in [session settings](SETTINGS.md#format-encoding-and-locale-settings--change-note).
 Independent acceptance: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormatting' VERBOSE=0`;
 the pinned PostgreSQL counterpart adds `REFERENCE=1`.
 
@@ -1111,7 +1113,9 @@ space, not a dollar sign. Repeated `FM` sets rather than toggles fill mode;
 mixed-case spellings remain literals. Quotes and escapes follow PostgreSQL
 templates, including unmatched quoted text and the `SP` token collision.
 Descriptor-order validation preserves accepted nonstandard token placements.
-No numeric or monetary locale-setting provider is added.
+`D`, `G` and `S` read the captured lc_numeric policy; `L` reads lc_monetary.
+Both categories support C/POSIX/empty-as-C only, without host-locale loading;
+literal period/comma remain independent mask characters.
 
 Integer and NUMERIC values retain exact coefficients; NUMERIC rounding is
 half away from zero. REAL/DOUBLE PRECISION use binary rounding, six/fifteen

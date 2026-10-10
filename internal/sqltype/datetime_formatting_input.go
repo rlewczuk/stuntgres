@@ -142,21 +142,33 @@ func datetimeInput(ctx context.Context, result *Descriptor, source string, nodes
 			case "MONTH", "Month", "month":
 				localized = node.tm
 				names = datetimeMonths[:]
+				if node.tm {
+					names = env.TimeLocale.policy().months[:]
+				}
 				destination = &fields.month
 				adjust = 1
 			case "MON", "Mon", "mon":
 				localized = node.tm
 				names = datetimeMonths[:]
+				if node.tm {
+					names = env.TimeLocale.policy().months[:]
+				}
 				destination = &fields.month
 				adjust = 1
 				short = true
 			case "DAY", "Day", "day":
 				localized = node.tm
 				names = datetimeDays[:]
+				if node.tm {
+					names = env.TimeLocale.policy().days[:]
+				}
 				destination = &fields.weekday
 			case "DY", "Dy", "dy":
 				localized = node.tm
 				names = datetimeDays[:]
+				if node.tm {
+					names = env.TimeLocale.policy().days[:]
+				}
 				destination = &fields.weekday
 				short = true
 			case "RM", "rm":

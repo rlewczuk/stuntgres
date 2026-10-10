@@ -346,7 +346,7 @@ var keywords = [...]keyword{
 	{"month", Unreserved, false, MONTH},
 	{"move", Unreserved, true, 0},
 	{"name", Unreserved, true, 0},
-	{"names", Unreserved, true, 0},
+	{"names", Unreserved, true, NAMES},
 	{"national", ColumnName, true, 0},
 	{"natural", TypeFunctionName, true, NATURAL},
 	{"nchar", ColumnName, true, 0},

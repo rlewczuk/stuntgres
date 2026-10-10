@@ -34,7 +34,7 @@ func TestReferenceAnyValueTypes(t *testing.T) {
 					textStep := referenceSelect(textQuery, []string{"retained"}, []string{"TEXT"}, [][]any{{tc.text}})
 					if !backend.pg {
 						switch tc.typeName {
-						case "INT2", "NUMERIC", "FLOAT4", "FLOAT8", "UUID", "NAME":
+						case "INT2", "NUMERIC", "UUID", "NAME":
 							// These existing carriers have no explicit cast to
 							// TEXT. The raw aggregate assertion below remains
 							// the native exact-datum/codec witness.

@@ -97,6 +97,22 @@ func appendScientific(dst []byte, c uint64, q int) []byte {
 	dst = append(dst, 'e')
 	return strconv.AppendInt(dst, int64(q), 10)
 }
+
+// Nonpositive extra_float_digits selects significant-digit rounding of the
+// exact stored IEEE value. Positive/unspecified output keeps the release's
+// midpoint-excluding shortest path, also used for canonical SQL literals.
+func floatOutputWithEnvironment(n float64, id ID, env OutputEnvironment) string {
+	if !env.FloatPrecisionSet || env.ExtraFloatDigits > 0 || math.IsNaN(n) || math.IsInf(n, 0) {
+		return floatOutput(n, id)
+	}
+	digits := 15
+	if id == Float4 {
+		digits = 6
+	}
+	digits = max(1, digits+int(env.ExtraFloatDigits))
+	return strconv.FormatFloat(n, 'g', digits, 64)
+}
+
 func floatOutput(n float64, id ID) string {
 	if math.IsNaN(n) {
 		return "NaN"

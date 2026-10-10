@@ -41,6 +41,10 @@ type OutputEnvironment struct {
 	IntervalStyle IntervalStyle
 	Regclass      RegclassFormatter
 	Regtype       RegtypeFormatter
+	// An unspecified precision retains canonical shortest serialization.
+	ExtraFloatDigits                          int32
+	FloatPrecisionSet                         bool
+	NumericLocale, MonetaryLocale, TimeLocale Locale
 }
 
 func hexNibble(text string) (byte, error) {

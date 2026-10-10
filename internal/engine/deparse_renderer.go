@@ -145,6 +145,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return "NULL::" + typ, nil
 	}
 	output := r.output
+	// Persisted literal text must remain lossless even when SQL presentation
+	// requests rounded floats, including nested array and domain leaves.
+	output.FloatPrecisionSet = false
 	if v.Type().BaseType().IsArray() && v.Type().ContainsRegclass() {
 		output.Regclass = catalogRegclassOutput{view: r.view, path: r.path}
 	}

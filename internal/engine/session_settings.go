@@ -182,11 +182,24 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (S
 	}
 	return SettingDefinition{Name: key, Type: SettingString}, nil
 }
-func settingAccess(d SettingDefinition) error {
+func settingAccess(d SettingDefinition, op *Operation) error {
 	switch d.Access {
 	case SettingReadOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
 	case SettingPrivileged:
+		if d.Name == "lc_messages" {
+			view, err := op.Authorization()
+			if err != nil {
+				return err
+			}
+			role, err := view.Roles().Descriptor(view.state.CurrentUser)
+			if err != nil {
+				return err
+			}
+			if role.Superuser {
+				return nil
+			}
+		}
 		return sqlError("42501", fmt.Sprintf(`permission denied to set parameter "%s"`, d.Name))
 	}
 	return nil
@@ -198,7 +211,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
-	if err := settingAccess(d); err != nil {
+	if err := settingAccess(d, op); err != nil {
 		return "", err
 	}
 	var v settingValue
@@ -223,7 +236,13 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		} else {
 			v, err = d.parse(*input)
 		}
+		if err == nil && localeSetting(d.Name) {
+			v.locale, _ = sqltype.ParseCLocale(v.text)
+		}
 		if err != nil {
+			if notice != nil {
+				op.emitNotice(levelWarning, *notice)
+			}
 			return "", err
 		}
 	}
@@ -328,7 +347,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 				return Result{}, err
 			}
 			for key := range owner.values {
-				if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession {
+				if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
 					continue
 				}
 				owner.touch(key, false)

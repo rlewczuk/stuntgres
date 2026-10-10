@@ -22,13 +22,14 @@ const (
 )
 
 type InputEnvironment struct {
-	TransactionStart      time.Time
-	Zone                  *Zone
-	DateStyle             DateStyle
-	IntervalStyle         IntervalStyle
-	TimezoneAbbreviations TimezoneAbbreviations
-	Regclass              RegclassResolver
-	Regtype               RegtypeResolver
+	TransactionStart                          time.Time
+	Zone                                      *Zone
+	DateStyle                                 DateStyle
+	IntervalStyle                             IntervalStyle
+	TimezoneAbbreviations                     TimezoneAbbreviations
+	Regclass                                  RegclassResolver
+	Regtype                                   RegtypeResolver
+	NumericLocale, MonetaryLocale, TimeLocale Locale
 }
 
 type RegclassResolver interface {

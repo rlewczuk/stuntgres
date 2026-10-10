@@ -1327,6 +1327,12 @@ use session-local civil/instant interpretation. See [types](TYPES.md#time-zone-a
 and SHOW/RESET TIME ZONE use the existing settings utility. Optional interval
 precision and HOUR/HOUR TO MINUTE/MINUTE qualifiers apply only to this
 timezone-setting atom, not general INTERVAL expressions.
+`SET [SESSION | LOCAL] NAMES {value | DEFAULT}` lowers to the same ordinary
+assignment AST as client_encoding. UTF8 aliases, four bounded C/POSIX locale
+categories, ICU reporting policy and float textual precision use the existing
+SHOW/RESET/current_setting/set_config routes and transactional setting owner.
+See [session settings](SETTINGS.md#format-encoding-and-locale-settings--change-note)
+for native exclusions, current-role lc_messages authority and canonical output.
 No timezone(...) alias or timezone catalog views are added. The five
 [SQL current date/time producers](DIALECT.md#sql-current-date-and-time--change-note)
 are supported with transaction-start values and distinct DATE/TIME/TIMETZ/

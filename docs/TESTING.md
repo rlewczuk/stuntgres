@@ -182,6 +182,47 @@ handwritten-short-Restore union is covered by the complete
 `TestReferenceInsertImplicitShort` family, not just its cohesive FeatureSmoke.
 INSERT SELECT is included above because INSERT input binding is shared.
 
+### Encoding, locale and float-presentation settings
+
+The eleven shared definitions live in `reference/format_encoding_*_test.go`.
+Their completed selector must run in both modes before review/integration,
+under separate 900-second deadlines, without verbose output:
+
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Settings|UTF8|Locales|ICU|FloatPrecision|Consumers|Privileges|Scope|Atomicity|Controls|FeatureSmoke)$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Settings|UTF8|Locales|ICU|FloatPrecision|Consumers|Privileges|Scope|Atomicity|Controls|FeatureSmoke)$' VERBOSE=0
+```
+
+For changed locale numeric-parsing witnesses, validate the existing nested
+`to_char(to_number(...),'FM9999.00')` TEXT result and raw NUMERIC decimal codec
+against the pinned oracle first; do not admit general Numeric-to-TEXT just to
+make a selected-setting witness executable:
+
+```sh
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Locales|Consumers)$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Locales|Consumers)$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES='./internal/sqltype ./internal/engine ./internal/parser' RUN='^(TestFormatEncoding.*|TestExplicitCoercionMatrix|TestStringPlanSpecializedOutputStability|TestSettingUtilitySnapshotOwnership|TestArrayVolatilityPreservesScalarClassification|TestStringGenerationOutputDependence)$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReference(SettingsBuiltinRegistry|SettingsShowAllPlaceholdersAndLifecycle|SettingsShowAllCurrentOverrides|SettingsAuthenticatedAccessClasses|Float.*|NumericFormatting.*|DatetimeFormatting.*|StringEncoding.*|AnyValueTypes|ExtremaTransitions|ExtremaTypes|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SettingsBuiltinRegistry|SettingsShowAllPlaceholdersAndLifecycle|SettingsShowAllCurrentOverrides|SettingsAuthenticatedAccessClasses|Float.*|NumericFormatting.*|DatetimeFormatting.*|StringEncoding.*|AnyValueTypes|ExtremaTransitions|ExtremaTypes|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0
+```
+
+The executable feature/control smoke is in `format_encoding_controls_test.go`:
+
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$' VERBOSE=0
+```
+
+It asserts UTF8 Unicode transport, C numeric/time masks, current-role message
+authority, transactional precision/restoration, held and retained results, and
+native exact binary/Dump/Reset/Restore/emitted replay controls. PostgreSQL's
+rounded scalar transport and native's exact scalar export are independently
+asserted, not normalized into false equality. Native locale/client-encoding
+capability errors have explicit backend expectations; ICU is policy only.
+Ordinary quickcheck and the single post-integration 1800-second fullcheck remain
+required. Commands above are acceptance instructions, not claims they passed.
+
+
 The serial/identity inquiry family is selected with
 `RUN='^TestReferenceSerialIdentity(Ownership|Lifecycle|Names|Nulls|Diagnostics|Consumers|Controls|FeatureSmoke|SystemColumns)$'`.
 Its shared public scenarios independently assert AUTO/INTERNAL/manual ownership,

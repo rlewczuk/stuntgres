@@ -9,9 +9,23 @@ import (
 
 // numericFormatInput follows template actions rather than requiring complete
 // source consumption. Nondata actions skip codepoints, never arbitrary bytes.
-func numericFormatInput(ctx context.Context, d *Descriptor, source string, t numericTemplate) (Value, error) {
+func numericFormatInput(ctx context.Context, d *Descriptor, source string, t numericTemplate, env InputEnvironment) (Value, error) {
 	if t.science {
 		return Value{}, failure("0A000", `"EEEE" not supported for input`)
+	}
+	numeric, monetary := env.NumericLocale.policy(), env.MonetaryLocale.policy()
+	decimalMark := "."
+	if t.localeDecimal {
+		decimalMark = numeric.decimal
+	}
+	readSign := func(at int) (byte, int) {
+		if strings.HasPrefix(source[at:], numeric.negative) {
+			return '-', len(numeric.negative)
+		}
+		if strings.HasPrefix(source[at:], numeric.positive) {
+			return '+', len(numeric.positive)
+		}
+		return 0, 0
 	}
 	result := make([]byte, 1, 1+min(len(source), len(t.nodes)))
 	result[0] = ' '
@@ -47,9 +61,9 @@ func numericFormatInput(ctx context.Context, d *Descriptor, source string, t num
 			if result[0] == ' ' && (key == "9" || key == "0") && pre+post == 0 {
 				c := source[cursor]
 				if t.sign == 1 {
-					if c == '-' || c == '+' {
-						result[0] = c
-						cursor++
+					if sign, width := readSign(cursor); width > 0 {
+						result[0] = sign
+						cursor += width
 					}
 				} else if c == '-' || (t.bracket && c == '<') {
 					result[0] = '-'
@@ -76,16 +90,17 @@ func numericFormatInput(ctx context.Context, d *Descriptor, source string, t num
 					pre++
 				}
 				read = true
-			} else if t.decimal && !decimal && c == '.' {
+			} else if t.decimal && !decimal && strings.HasPrefix(source[cursor:], decimalMark) {
 				result = append(result, '.')
 				decimal = true
 				read = true
+				cursor += len(decimalMark) - 1
 			}
 			if result[0] == ' ' && pre+post > 0 {
 				if t.sign != 0 && read && cursor+1 < len(source) && (source[cursor+1] < '0' || source[cursor+1] > '9') {
-					if c := source[cursor+1]; c == '-' || c == '+' {
-						result[0] = c
-						cursor++
+					if sign, width := readSign(cursor + 1); width > 0 {
+						result[0] = sign
+						cursor += width
 					}
 				} else if !read && t.sign == 0 && (t.plus || t.minus) && (c == '-' || c == '+') {
 					result[0] = c
@@ -93,11 +108,19 @@ func numericFormatInput(ctx context.Context, d *Descriptor, source string, t num
 			}
 			cursor++
 		case ",", "G":
-			if source[cursor] == ',' {
-				cursor++
+			grouping := ","
+			if key == "G" {
+				grouping = numeric.grouping
+			}
+			if strings.HasPrefix(source[cursor:], grouping) {
+				cursor += len(grouping)
 			}
 		case "L":
-			eat(1)
+			if strings.HasPrefix(source[cursor:], monetary.currency) {
+				cursor += len(monetary.currency)
+			} else {
+				eat(utf8.RuneCountInString(monetary.currency))
+			}
 		case "RN":
 			n, consumed, err := numericReadRoman(ctx, source[cursor:])
 			if err != nil {

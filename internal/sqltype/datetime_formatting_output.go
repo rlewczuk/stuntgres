@@ -237,6 +237,9 @@ func datetimeOutput(ctx context.Context, result *Descriptor, value Value, nodes 
 			}
 			if m > 0 && m <= 12 {
 				s := datetimeMonths[m-1]
+				if node.tm {
+					s = env.TimeLocale.policy().months[m-1]
+				}
 				pad := 0
 				if len(node.key.word) == 3 {
 					s = s[:3]
@@ -254,6 +257,9 @@ func datetimeOutput(ctx context.Context, result *Descriptor, value Value, nodes 
 				break
 			}
 			s := datetimeDays[weekday]
+			if node.tm {
+				s = env.TimeLocale.policy().days[weekday]
+			}
 			pad := 0
 			if len(node.key.word) == 2 {
 				s = s[:3]

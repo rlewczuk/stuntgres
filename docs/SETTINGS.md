@@ -51,12 +51,19 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-The exact supported builtin registry contains these nineteen settings:
+The exact supported builtin registry contains these twenty-six settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |
 | application_name | empty / session | Normalized descriptive session value |
 | client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
+| client_encoding | UTF8 / session | UTF8 aliases and SET NAMES; other client encodings are bounded exclusions |
+| lc_messages | C / current superuser | C/POSIX message policy; individual mutation requires the effective role's superuser flag |
+| lc_numeric | C / session | Captured C/POSIX numeric-mask decimal, grouping and signs |
+| lc_monetary | C / session | Captured C/POSIX numeric-mask currency symbol |
+| lc_time | C / session | Captured C/POSIX temporal-mask localized month/day names |
+| icu_validation_level | warning / session | Reporting-policy enum only; debug aliases debug2 |
+| extra_float_digits | 1 / session | Captured float textual precision, bounded to -15 through 3 |
 | IntervalStyle | postgres / session | Actual interval input/output; immutable statement presentation capture |
 | search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
@@ -83,7 +90,9 @@ Timeout changes apply to the *next* command. Only the
 engine's own timer returns 57014 `canceling statement due to statement timeout`;
 caller cancellation/deadlines remain ordinary context errors. Zero disables
 the timer. RESET ALL resets session-settable definitions and placeholders,
-skipping read-only and privileged definitions.
+skipping read-only and deny-only privileged definitions. It also resets
+`lc_messages` to its captured default, including after switching to an ordinary
+current role; individual RESET still requires current-superuser permission.
 
 Current transaction isolation, read-only and deferrable settings resolve the same
 transaction owner as SQL and Go controls. Current RESET, DEFAULT and set_config
@@ -124,7 +133,8 @@ validation and its effective value expires at implicit completion. Validated
 dotted placeholder names remain recognized in that physical session.
 Function set_config with true outside a transaction returns its transient,
 normalized value without that warning; the next command sees the original.
-NAMES and client_encoding remain unsupported.
+`SET [SESSION | LOCAL] NAMES {value | DEFAULT}` lowers to the ordinary
+`client_encoding` assignment, sharing validation, scope, notices and reset rules.
 
 With `standard_conforming_strings=off`, a `U&'...'` string opener immediately
 fails with 0A000 `unsafe use of string constant with Unicode escapes`, before
@@ -355,4 +365,57 @@ session setting lifecycle. Dump/Restore neither stores nor changes IntervalStyle
 Invalid input is22023 `invalid value for parameter "IntervalStyle": "invalid"`
 with hint `Available values: postgres, postgres_verbose, sql_standard, iso_8601.`
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+
+
+## Format, encoding and locale settings — change note
+
+The database remains UTF8. `client_encoding` reuses the release encoding-name
+resolver: ASCII alphanumeric alias matching is case-insensitive and punctuation
+is ignored. The original input is clipped to a complete UTF8 prefix of at most
+63 bytes before alias cleaning on SET, SET NAMES and set_config alike.
+UTF8 aliases report `UTF8`, except exact uppercase `UNICODE`, whose legacy
+spelling is retained. Unknown names fail22023. Recognized non-UTF8 encodings
+fail native0A000 with `Only UTF8 client encoding is supported.` Detail.
+`MULE_INTERNAL` instead retains PostgreSQL's genuine missing-conversion
+diagnostic and Detail `Conversion between MULE_INTERNAL and UTF8 is not supported.`
+These settings do not add wire-protocol transcoding or change server_encoding.
+Selected bound TEXT UTF8/NUL failures retain the existing portal continuation
+`unnamed portal parameter $1` in both adapters; setting support does not suppress
+the import wrapper's diagnostic Context.
+
+The four locale categories accept exact `C` and `POSIX`; numeric, monetary and
+time also accept empty text and deliberately use the same deterministic C policy.
+Empty lc_messages is invalid22023 without Detail. Other locale names fail22023
+with the generic PostgreSQL invalid-parameter primary and native Detail
+`Only C and POSIX locales are supported by stuntgres.` No host locale inventory,
+libc dependency or process-wide setlocale is consulted. Non-ASCII names first
+emit the filterable WARNING22023 `locale name "<name>" contains non-ASCII characters`.
+Outside-transaction SET LOCAL's 25P01 warning precedes that validation warning.
+Permission checking precedes locale validation: only lc_messages mutation uses
+the real current role's superuser flag; log_statement_stats and custom privileged
+settings remain deny-only.
+
+The captured numeric policy supplies `D`, `G` and `S` mask actions; monetary
+policy supplies `L`; time policy supplies `TM` month/day names in both formatting
+and parsing. Literal period/comma and non-TM names retain their independent mask
+semantics. C/POSIX uses decimal period, grouping comma, plus/minus, currency ASCII
+space and English calendar names. Prepared execution refreshes the environment;
+retained eager rows keep their original capture.
+
+`icu_validation_level` accepts disabled, debug5 through debug1, log, info, notice,
+warning and error, case-insensitively; debug canonicalizes to debug2. PostgreSQL's
+available-values Hint intentionally omits info and debug. This is a reporting
+policy only, not an ICU locale provider or a new collation.
+
+`extra_float_digits` values1..3 select the existing shortest, midpoint-excluding
+float output. Values0..-15 select max(1,6+n) significant digits for REAL and
+max(1,15+n) for DOUBLE PRECISION. SQL float-to-TEXT/VARCHAR/BPCHAR IO, arrays,
+domains, format/string output and failing-row Detail use the Execute capture.
+Explicit VARCHAR/BPCHAR casts apply target truncation and padding after precision
+rendering. Existing assignment and input sizing remain strict; this does not
+relax unrelated coercion contexts or admit additional cast families.
+Native scalar transport still exports exact stored binary values. Canonical SQL
+literals and Dump always use shortest output, independently of session precision;
+Restore therefore preserves payload bits. Exact NUMERIC and temporal presentation
+are not float-precision consumers.
 

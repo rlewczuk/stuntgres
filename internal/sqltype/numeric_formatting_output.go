@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func numericFormatOutput(ctx context.Context, v Value, t numericTemplate) (string, error) {
+func numericFormatOutput(ctx context.Context, v Value, t numericTemplate, env OutputEnvironment) (string, error) {
 	if len(t.nodes) == 0 {
 		return "", nil
 	}
@@ -148,7 +148,7 @@ func numericFormatOutput(ctx context.Context, v Value, t numericTemplate) (strin
 			number = strings.Repeat("#", t.pre) + "." + strings.Repeat("#", t.post)
 		}
 	}
-	return numericRender(ctx, number, negative, spaces, t)
+	return numericRender(ctx, number, negative, spaces, t, env)
 }
 func numericFloatFixed(f float64, precision int) string {
 	if math.IsNaN(f) {
@@ -162,13 +162,15 @@ func numericFloatFixed(f float64, precision int) string {
 	}
 	return strconv.FormatFloat(f, 'f', precision, 64)
 }
-func numericRender(ctx context.Context, number string, negative bool, spaces int, t numericTemplate) (string, error) {
+func numericRender(ctx context.Context, number string, negative bool, spaces int, t numericTemplate, env OutputEnvironment) (string, error) {
 	if t.zeroStart > 0 {
 		t.zeroStart--
 	}
-	sign := byte('+')
+	numeric := env.NumericLocale.policy()
+	monetary := env.MonetaryLocale.policy()
+	sign := numeric.positive
 	if negative {
-		sign = '-'
+		sign = numeric.negative
 	}
 	signWritten := false
 	if t.plus || t.minus {
@@ -219,7 +221,7 @@ func numericRender(ctx context.Context, number string, negative bool, spaces int
 			if !signWritten && (current >= spaces || (t.zero && t.zeroStart == current)) && (!predecimal || (last >= 0 && number[last] == '.')) {
 				if t.sign != 0 {
 					if t.sign == 1 {
-						b.WriteByte(sign)
+						b.WriteString(sign)
 						signWritten = true
 					}
 				} else if t.bracket {
@@ -249,7 +251,11 @@ func numericRender(ctx context.Context, number string, negative bool, spaces int
 				if cursor < len(number) {
 					c := number[cursor]
 					if c == '.' {
-						b.WriteByte('.')
+						if key == "D" {
+							b.WriteString(numeric.decimal)
+						} else {
+							b.WriteByte('.')
+						}
 					} else if last >= 0 && cursor > last && key != "0" {
 					} else if predecimal {
 						if !t.fm {
@@ -282,18 +288,22 @@ func numericRender(ctx context.Context, number string, negative bool, spaces int
 						b.WriteByte(' ')
 					}
 				} else if t.sign == 2 {
-					b.WriteByte(sign)
+					b.WriteString(sign)
 				}
 			}
 			current++
 		case ",", "G":
 			if inside {
-				b.WriteByte(',')
+				if key == "G" {
+					b.WriteString(numeric.grouping)
+				} else {
+					b.WriteByte(',')
+				}
 			} else if !t.fm {
 				b.WriteByte(' ')
 			}
 		case "L":
-			b.WriteByte(' ')
+			b.WriteString(monetary.currency)
 		case "RN":
 			s := number[cursor:]
 			if !t.fm {
@@ -335,7 +345,11 @@ func numericRender(ctx context.Context, number string, negative bool, spaces int
 				b.WriteByte(' ')
 			}
 		case "SG":
-			b.WriteByte(sign)
+			if negative {
+				b.WriteByte('-')
+			} else {
+				b.WriteByte('+')
+			}
 		default:
 			b.WriteString(node.literal)
 		}

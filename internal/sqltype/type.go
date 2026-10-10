@@ -653,7 +653,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	case Int2, Int4, Int8:
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
-		return floatOutput(v.floating, d.id), nil
+		return floatOutputWithEnvironment(v.floating, d.id, env), nil
 	case Char:
 		if len(v.text) > 0 && v.text[0] >= 128 {
 			return fmt.Sprintf("\\%03o", v.text[0]), nil
@@ -1040,6 +1040,10 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = viaIO
 		return p, nil
 	}
+	if context == Explicit && (source.Type.id == Float4 || source.Type.id == Float8) && (target.Type.id == Text || target.Type.id == VarChar || target.Type.id == BPChar) {
+		p.method = viaIO
+		return p, nil
+	}
 	if context == Explicit {
 		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
@@ -1198,6 +1202,11 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 		text, err := p.source.Type.OutputWithEnvironment(ctx, v, output)
 		if err != nil {
 			return Value{}, err
+		}
+		if p.context == Explicit && (p.source.Type.id == Float4 || p.source.Type.id == Float8) && IsCharacter(p.target.Type.id) {
+			// Selected float character casts apply the target's explicit typmod
+			// semantics after captured presentation, rather than input sizing.
+			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
 	case booleanText:

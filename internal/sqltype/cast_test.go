@@ -59,6 +59,12 @@ func TestExplicitCoercionMatrix(t *testing.T) {
 	for _, id := range []ID{Int2, Float4, Float8, Numeric, UUID} {
 		for _, pair := range [][2]ID{{id, Text}, {Text, id}} {
 			_, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit)
+			if (pair[0] == Float4 || pair[0] == Float8) && pair[1] == Text {
+				if err != nil {
+					t.Fatal(pair, err)
+				}
+				continue
+			}
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "0A000" {
 				t.Fatal(pair, err)

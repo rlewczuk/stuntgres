@@ -117,6 +117,8 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 			"lock_timeout": "0", "log_statement_stats": "off",
 			"search_path": `"$user", public`, "server_encoding": "UTF8",
 			"standard_conforming_strings": "on", "statement_timeout": "0",
+			"client_encoding": "UTF8", "lc_messages": "C", "lc_monetary": "C",
+			"lc_numeric": "C", "lc_time": "C", "icu_validation_level": "warning", "extra_float_digits": "1",
 		} {
 			expected[name] = value
 		}

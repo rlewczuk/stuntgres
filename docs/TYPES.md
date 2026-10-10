@@ -1179,7 +1179,8 @@ not aliases. Result DatabaseTypeName is FLOAT4/FLOAT8, ScanType is float64,
 including NULL/empty results; no fictitious DecimalSize or Length is reported.
 
 Decimal inputs may be quoted, inferred numeric tokens or positional binds:
-`INSERT INTO f VALUES(0.1)`. Floating arithmetic and floating-point casts remain unsupported.
+`INSERT INTO f VALUES(0.1)`. Explicit floating-to-character casts use captured
+session presentation; other conversions remain in the bounded typed cast graph.
 Text REAL input rounds directly to binary32 (not through binary64):
 `'7.038531e-26'` stores bits 0x15ae43fd. Bound float32 is already widened by
 database/sql; bound float64 is serialized as pq-compatible decimal parameter
@@ -1207,13 +1208,16 @@ Output is PostgreSQL's default shortest-precise decimal with **open** rounding
 boundaries (not plain Go shortest ties-to-even output), canonical
 NaN/Infinity/-Infinity/-0, at most 9/17 significant digits. REAL uses fixed
 notation at display exponents [-4,6), double at [-4,15); otherwise signed
-lowercase `e` with at least two exponent digits. Selection of legacy
-extra_float_digits output modes is not implemented. Dump quotes every float
-output and emits canonical REAL/DOUBLE PRECISION declarations, so Restore
-roundtrips payloads and specials through the existing supported grammar.
+lowercase `e` with at least two exponent digits. `extra_float_digits` values1..3
+retain this shortest mode; values0..-15 select max(1,6+n) significant digits for
+REAL and max(1,15+n) for DOUBLE PRECISION. Output captures Execute-time precision,
+including explicit TEXT/VARCHAR/BPCHAR IO, domain/array leaves, string formatting
+and failing-row diagnostics. Dump and SQLLiteral always use canonical shortest
+output and canonical REAL/DOUBLE PRECISION declarations, so Restore roundtrips
+payloads and specials independently of live session settings.
 Native REAL export is the exact widened stored binary32; pq instead parses
-the decimal output as binary64. Thus REAL `'0.1'` returns
-0.10000000149011612 natively and 0.1 through pq; reference assertions preserve
+the session-selected decimal output as binary64. Thus REAL `'0.1'` at the default
+precision returns0.10000000149011612 natively and0.1 through pq; reference assertions preserve
 this adapter distinction before comparing binary32 semantics. That comparison
 must decode independently specified output text directly at 32 bits: narrowing
 pq's binary64 export can double-round. For REAL `'7.038531e-26'`, native storage
@@ -1584,6 +1588,9 @@ Formatting readers preserve empty/truncated-input defaults without skipping
 already-demanded fields exhausted by whitespace. `TM` collation demand follows
 reached name conversion, not the entire mask; exact input names and NULL/infinite
 output do not demand a conversion solely because a mask contains `TM`.
+`lc_time` supplies reached `TM` month/day fields in both output and input from the
+captured bounded C/POSIX category provider. Empty lc_time deliberately uses C;
+ordinary non-TM names stay independent of this locale category.
 
 DatabaseTypeName is TEXT, DATE or TIMESTAMPTZ, independent of mask fields,
 source precision, empty results and NULL. Native DATE ScanType is string while
