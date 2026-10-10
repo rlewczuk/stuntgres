@@ -55,6 +55,15 @@ See [index capability inquiries](docs/design/PG18-FUNC-INFO-INDEX-PROPERTIES.md)
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`.
 
+Change note: PostgreSQL date/time arithmetic supports calendar date and timestamp
+operators, elapsed subtraction, offset-preserving clocks and component-exact
+interval arithmetic/scaling. Zoned calendar arithmetic observes embedded DST
+rules and remains STABLE even for a zero interval. Existing comparisons, metadata,
+prepared execution and native Dump/Restore retain their owning contracts.
+See [date/time arithmetic](docs/DIALECT.md#date-and-time-arithmetic--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$' VERBOSE=0`.
+
 Change note: SQL `CURRENT_DATE`, `CURRENT_TIME[(p)]`,
 `CURRENT_TIMESTAMP[(p)]`, `LOCALTIME[(p)]` and `LOCALTIMESTAMP[(p)]` derive
 from the top-level transaction start, with microsecond precision and session

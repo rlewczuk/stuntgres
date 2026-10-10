@@ -24,13 +24,15 @@ func equalityCategory(id ID) byte {
 		return 'S'
 	case Date, Time, Timestamp, Timestamptz, Timetz:
 		return 'D'
+	case Interval:
+		return 'T'
 	case UUID, Bytea:
 		return 'U'
 	}
 	return 0
 }
 func equalityPreferred(id ID) bool {
-	return id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz
+	return id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz || id == Interval
 }
 func equalityImplicit(from, to ID) bool {
 	if from == to {

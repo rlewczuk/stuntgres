@@ -23,38 +23,38 @@ type Arithmetic struct {
 	left, right, result *Descriptor
 }
 
-func BindArithmetic(operator ArithmeticOperator, left, right *Descriptor) (Arithmetic, error) {
-	if left == nil || operator > ArithmeticPower || right == nil && operator > ArithmeticSubtract {
+func BindArithmetic(operator ArithmeticOperator, left, right, result *Descriptor) (Arithmetic, error) {
+	if left == nil || result == nil || operator > ArithmeticPower || result.id == Numeric {
 		return Arithmetic{}, fmt.Errorf("invalid arithmetic signature")
 	}
-	result := left
-	if isFloat(left.id) {
-		if right != nil {
-			if !isFloat(right.id) || operator == ArithmeticRemainder || operator == ArithmeticPower && (left.id != Float8 || right.id != Float8) {
-				return Arithmetic{}, fmt.Errorf("invalid floating arithmetic signature")
-			}
-			if right.id == Float8 {
-				result = right
-			}
+	if right == nil {
+		if operator > ArithmeticSubtract || result.id != left.id ||
+			left.id != Int2 && left.id != Int4 && left.id != Int8 && !isFloat(left.id) &&
+				!(left.id == Interval && operator == ArithmeticSubtract) {
+			return Arithmetic{}, fmt.Errorf("invalid unary arithmetic signature")
 		}
 	} else {
-		if left.id != Int2 && left.id != Int4 && left.id != Int8 {
-			return Arithmetic{}, fmt.Errorf("invalid integer arithmetic signature")
+		valid := false
+		for _, s := range arithmeticCandidates(operator) {
+			if s.Left == left.id && s.Right == right.id && s.Result == result.id {
+				valid = true
+				break
+			}
 		}
-		if right != nil {
-			if (right.id != Int2 && right.id != Int4 && right.id != Int8) || operator == ArithmeticPower || operator == ArithmeticRemainder && right != left {
-				return Arithmetic{}, fmt.Errorf("invalid integer arithmetic signature")
-			}
-			if right.id == Int8 || right.id == Int4 && left.id == Int2 {
-				result = right
-			}
+		if !valid {
+			return Arithmetic{}, fmt.Errorf("invalid binary arithmetic signature")
 		}
 	}
 	return Arithmetic{operator, left, right, result}, nil
 }
 
 func (p Arithmetic) ResultType() *Descriptor { return p.result }
-func (p Arithmetic) Unary(ctx context.Context, a Value) (Value, error) {
+func (p Arithmetic) SessionDependent() bool {
+	return p.left != nil && p.right != nil &&
+		(p.left.id == Timestamptz && p.right.id == Interval ||
+			p.operator == ArithmeticAdd && p.left.id == Interval && p.right.id == Timestamptz)
+}
+func (p Arithmetic) Unary(ctx context.Context, a Value, input InputEnvironment) (Value, error) {
 	if p.right != nil || p.left == nil || a.typ != p.left {
 		return Value{}, fmt.Errorf("invalid unary arithmetic values")
 	}
@@ -63,6 +63,9 @@ func (p Arithmetic) Unary(ctx context.Context, a Value) (Value, error) {
 	}
 	if a.null {
 		return Null(p.result), nil
+	}
+	if p.left.id == Interval {
+		return negateInterval(a, p.result)
 	}
 	if isFloat(p.left.id) {
 		n := a.floating
@@ -80,7 +83,7 @@ func (p Arithmetic) Unary(ctx context.Context, a Value) (Value, error) {
 	}
 	return Integer(p.result, n)
 }
-func (p Arithmetic) Binary(ctx context.Context, a, b Value) (Value, error) {
+func (p Arithmetic) Binary(ctx context.Context, a, b Value, input InputEnvironment) (Value, error) {
 	if p.right == nil || p.left == nil || a.typ != p.left || b.typ != p.right {
 		return Value{}, fmt.Errorf("invalid binary arithmetic values")
 	}
@@ -89,6 +92,9 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value) (Value, error) {
 	}
 	if a.null || b.null {
 		return Null(p.result), nil
+	}
+	if temporalArithmeticType(p.left.id) || temporalArithmeticType(p.right.id) {
+		return p.datetimeBinary(a, b, input)
 	}
 	if isFloat(p.result.id) {
 		return p.floatingBinary(a.floating, b.floating)

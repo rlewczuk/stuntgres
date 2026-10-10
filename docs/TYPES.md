@@ -526,9 +526,11 @@ BOOL and UUID have ordinary comparison but no min/max overload (42883).
 PostgreSQL accepts NAME[] and PG_NODE_TREE through its array/TEXT signatures;
 native explicitly rejects both with positioned0A000 because array ordering is
 not implemented and node trees use private serialization. No general cast or
-array/tree comparison is introduced. In particular existing unsupported explicit
-casts to TEXT remain excluded; raw successful min/max output is independently
-covered instead of using those cast failures as extrema witnesses.
+array/tree comparison is introduced. Unsupported explicit casts to TEXT remain
+excluded; raw successful min/max output is independently covered. The separately
+supported [INTERVAL→TEXT output edge](DIALECT.md#date-and-time-arithmetic--change-note)
+also consumes INTERVAL min/max results, preserving their retained components
+and captured IntervalStyle.
 
 
 
@@ -1278,8 +1280,8 @@ zone field, unlike TIMESTAMP `now`; `allballs` does. Malformed fields, modifiers
 later tuples and staged Restore failures never publish partial state. Dump quotes
 canonical clocks and Restore preserves precisions, NULLs, endpoints and old cursors.
 See the timezone-aware section below for TIMETZ, session settings and conversions.
-General temporal arithmetic/functions remain excluded;
-the selected datetime formatting functions are documented below.
+Selected [temporal arithmetic](DIALECT.md#date-and-time-arithmetic--change-note)
+and datetime formatting are supported separately; unrelated functions remain excluded.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimeSmoke$' VERBOSE=0`.
 Dual-mode migration: the public TIME SQL scenarios now live in `reference/`.
@@ -1375,9 +1377,10 @@ preserves `0001-02-29 BC`; textual BC input avoids that pq encoding limitation.
 `now`, `today`, `yesterday` and `tomorrow` use session-local transaction start;
 prepared typed/contextual constants freeze at analysis, while parameters read
 execution start. DateStyle affects input/output as described below. CURRENT_DATE
-reads transaction start dynamically even when prepared; general temporal arithmetic
-and arrays remain excluded by this DATE type contract. Ordinary no-FROM SELECT
-uses the shared query path.
+reads transaction start dynamically even when prepared. Selected
+[temporal arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) and
+arrays compose through the shared scalar/query paths; ordinary no-FROM SELECT
+uses that same query path.
 
 Malformed input is `22007`; invalid calendar fields and finite-range failures
 are `22008`, preserving original input and English diagnostics.
@@ -1648,7 +1651,7 @@ replacement. Retained cursors keep original values, precision and origin metadat
 across append/Reset/Restore; exported infinity buffers cannot mutate stored values.
 
 Timezone-aware types, DateStyle/TimeZone and selected temporal casts/conversions
-are described below. Other temporal functions/arithmetic remain excluded;
+are described below. Selected [temporal arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) is supported; other temporal functions remain excluded;
 ordinary no-FROM SELECT uses the shared query pipeline. The default ordinary
 input order is MDY; selected datetime formatting uses its explicit template instead.
 Dual-mode migration: public timestamp-without-time-zone SQL scenarios now live
@@ -1747,7 +1750,7 @@ analysis. Parameters, column casts/comparisons and AT LOCAL read execution setti
 Held cursors retain captured presentation and metadata across settings changes
 and native replacement. Dump uses canonical ISO/UTC timestamptz and stored timetz
 offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
-No timezone catalog views, INTERVAL arithmetic or timezone(...) aliases are added.
+No timezone catalog views or timezone(...) aliases are added. Selected [INTERVAL arithmetic](DIALECT.md#date-and-time-arithmetic--change-note) uses these existing codecs.
 The five [SQL current date/time producers](DIALECT.md#sql-current-date-and-time--change-note)
 use these same codecs/settings and remain dynamic under held prepared execution.
 
@@ -1862,9 +1865,11 @@ keep that style through later SET, close, Reset or Restore. Dump/Restore emits
 canonical typed interval input with explicitly signed month, day and exact integer
 microsecond quantities, independent of either session's style. This uniform encoding
 preserves the finite minimum time component through data, defaults and views;
-NULL/infinities retain their existing encoding. Interval arithmetic,
-timestamp+interval and justify/extract are not added. Selected `make_interval`
-construction is documented above; it does not enable new cross-family casts.
+NULL/infinities retain their existing encoding. Selected
+[interval and timestamp arithmetic](DIALECT.md#date-and-time-arithmetic--change-note)
+preserves these components and returns unrestricted computed metadata.
+Selected `make_interval` construction is documented above.
+Justify/extract and new cross-family cast edges are not added.
 See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 The interaction regressions are merged into untagged dual-mode `reference/`
@@ -1888,7 +1893,8 @@ microsecond rounding. It does not use the comparison span or justify components:
 the mean of one month and 30 days is `30 days`; of one day and24hours, `24:00:00`.
 Finite component overflow, reserved infinity tuples, mixed infinity signs and
 division range errors report22008. Finite sums are checked even after infinity.
-General interval arithmetic remains excluded. Public interval AVG contracts:
+Scalar interval division shares only this finite release float8 division kernel;
+AVG retains independent aggregation state/infinity semantics. Public interval AVG contracts:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
 

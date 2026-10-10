@@ -13,6 +13,70 @@ var arithmeticNumericSignatures = [...]ArithmeticSignature{
 var arithmeticPowerSignatures = [...]ArithmeticSignature{{Float8, Float8, Float8}, {Numeric, Numeric, Numeric}}
 var arithmeticRemainderSignatures = [...]ArithmeticSignature{{Int2, Int2, Int2}, {Int4, Int4, Int4}, {Int8, Int8, Int8}, {Numeric, Numeric, Numeric}}
 
+// Combined static candidate sets also participate in unknown-operand inference.
+var arithmeticAddSignatures = [...]ArithmeticSignature{
+	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
+	arithmeticNumericSignatures[3], arithmeticNumericSignatures[4], arithmeticNumericSignatures[5],
+	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
+	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
+	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Date, Int4, Date}, {Int4, Date, Date},
+	{Date, Time, Timestamp}, {Time, Date, Timestamp},
+	{Date, Timetz, Timestamptz}, {Timetz, Date, Timestamptz},
+	{Date, Interval, Timestamp}, {Interval, Date, Timestamp},
+	{Timestamp, Interval, Timestamp}, {Interval, Timestamp, Timestamp},
+	{Timestamptz, Interval, Timestamptz}, {Interval, Timestamptz, Timestamptz},
+	{Time, Interval, Time}, {Interval, Time, Time},
+	{Timetz, Interval, Timetz}, {Interval, Timetz, Timetz},
+	{Interval, Interval, Interval},
+}
+var arithmeticSubtractSignatures = [...]ArithmeticSignature{
+	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
+	arithmeticNumericSignatures[3], arithmeticNumericSignatures[4], arithmeticNumericSignatures[5],
+	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
+	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
+	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Date, Int4, Date}, {Date, Date, Int4}, {Date, Interval, Timestamp},
+	{Timestamp, Interval, Timestamp}, {Timestamptz, Interval, Timestamptz},
+	{Timestamp, Timestamp, Interval}, {Timestamptz, Timestamptz, Interval},
+	{Time, Interval, Time}, {Timetz, Interval, Timetz}, {Time, Time, Interval},
+	{Interval, Interval, Interval},
+}
+var arithmeticMultiplySignatures = [...]ArithmeticSignature{
+	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
+	arithmeticNumericSignatures[3], arithmeticNumericSignatures[4], arithmeticNumericSignatures[5],
+	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
+	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
+	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Interval, Float8, Interval}, {Float8, Interval, Interval},
+}
+var arithmeticDivideSignatures = [...]ArithmeticSignature{
+	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
+	arithmeticNumericSignatures[3], arithmeticNumericSignatures[4], arithmeticNumericSignatures[5],
+	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
+	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
+	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Interval, Float8, Interval},
+}
+
+func arithmeticCandidates(operator ArithmeticOperator) []ArithmeticSignature {
+	switch operator {
+	case ArithmeticAdd:
+		return arithmeticAddSignatures[:]
+	case ArithmeticSubtract:
+		return arithmeticSubtractSignatures[:]
+	case ArithmeticMultiply:
+		return arithmeticMultiplySignatures[:]
+	case ArithmeticDivide:
+		return arithmeticDivideSignatures[:]
+	case ArithmeticRemainder:
+		return arithmeticRemainderSignatures[:]
+	case ArithmeticPower:
+		return arithmeticPowerSignatures[:]
+	}
+	return nil
+}
+
 func ResolveArithmetic(operator ArithmeticOperator, left, right *Descriptor, unary bool) (ArithmeticSignature, error) {
 	if operator > ArithmeticPower || unary && operator > ArithmeticSubtract {
 		return ArithmeticSignature{}, failure("42883", "incompatible arithmetic operands")
@@ -25,24 +89,12 @@ func ResolveArithmetic(operator ArithmeticOperator, left, right *Descriptor, una
 			return ArithmeticSignature{}, failure("42725", "ambiguous arithmetic operands")
 		}
 		id := left.BaseType().ID()
-		if equalityCategory(id) != 'N' || id == Oid {
+		if (equalityCategory(id) != 'N' || id == Oid) && !(operator == ArithmeticSubtract && id == Interval) {
 			return ArithmeticSignature{}, failure("42883", "incompatible arithmetic operands")
 		}
 		return ArithmeticSignature{Left: id, Result: id}, nil
 	}
-	// PostgreSQL also has nonnumeric binary +/- candidates. With two unknown
-	// arguments those categories cannot choose a unique numeric signature.
-	if left == nil && right == nil && (operator == ArithmeticAdd || operator == ArithmeticSubtract) {
-		return ArithmeticSignature{}, failure("42725", "ambiguous arithmetic operands")
-	}
-	signatures := arithmeticNumericSignatures[:]
-	if operator == ArithmeticPower {
-		signatures = arithmeticPowerSignatures[:]
-	}
-	if operator == ArithmeticRemainder {
-		signatures = arithmeticRemainderSignatures[:]
-	}
-	return resolveBinaryArithmetic(signatures, left, right)
+	return resolveBinaryArithmetic(arithmeticCandidates(operator), left, right)
 }
 
 func resolveBinaryArithmetic(signatures []ArithmeticSignature, left, right *Descriptor) (ArithmeticSignature, error) {
@@ -58,7 +110,7 @@ func resolveBinaryArithmetic(signatures []ArithmeticSignature, left, right *Desc
 			return s, nil
 		}
 	}
-	var active [14]bool
+	var active [len(arithmeticAddSignatures)]bool
 	count := 0
 	for i, s := range signatures {
 		if (left == nil || equalityImplicit(l, s.Left)) && (right == nil || equalityImplicit(r, s.Right)) {
@@ -70,8 +122,8 @@ func resolveBinaryArithmetic(signatures []ArithmeticSignature, left, right *Desc
 		if count != 1 {
 			return ArithmeticSignature{}, false
 		}
-		for i, ok := range active {
-			if ok {
+		for i := range signatures {
+			if active[i] {
 				return signatures[i], true
 			}
 		}

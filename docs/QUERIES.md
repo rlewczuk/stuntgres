@@ -807,8 +807,10 @@ Source ACLs apply even to empty or filtered-out input. This adds no relationless
 SELECT, FILTER/DISTINCT/ALL/in-call ORDER/OVER, ordinary arrays, casts or codecs.
 Existing native multi-statement and INSERT RETURNING parser boundaries remain
 `0A000`, before aggregate execution or consumer/signature analysis. Carrier
-eligibility does not add explicit casts to TEXT: use raw aggregate output and
-existing typed-column assignment or admitted typed parameter casts.
+eligibility itself does not add explicit casts to TEXT: raw aggregate output,
+typed-column assignment and admitted casts retain their existing authority.
+The separately supported [INTERVAL→TEXT output edge](DIALECT.md#date-and-time-arithmetic--change-note)
+also consumes INTERVAL aggregate results, with captured IntervalStyle.
 
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`.
 Full shared contracts: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`

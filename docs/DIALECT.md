@@ -226,9 +226,9 @@ IntervalStyle is real per-session input/output state; prepared constants capture
 input at Prepare and cursor output at Execute. See [types](TYPES.md#interval--change-note)
 and [settings](SETTINGS.md#intervalstyle--change-note).
 Malformed/range/precision errors use originating PostgreSQL logical diagnostics
-and atomic publication. No interval arithmetic, date-time cross-family cast,
-justify/extract, wire protocol or physical storage is added. Selected constructors
-are documented below.
+and atomic publication. [Date/time arithmetic](#date-and-time-arithmetic--change-note)
+adds selected operators separately; justify/extract, wire protocol and physical
+storage remain excluded. Selected constructors are documented below.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
 ### Datetime constructors — change note
@@ -280,6 +280,84 @@ is added.
 
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`;
 pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0`.
+
+### Date and time arithmetic — change note
+
+PostgreSQL Table 9.32 operators use SQL-selected operand/result types:
+
+| Family | Operators and results |
+| --- | --- |
+| DATE | date ± integer → DATE; date − date → INTEGER; date ± interval → TIMESTAMP |
+| DATE with clocks | date + time → TIMESTAMP; date + timetz → TIMESTAMPTZ |
+| TIMESTAMP / TIMESTAMPTZ | timestamp ± interval → same timestamp family; same-family subtraction → INTERVAL |
+| TIME / TIMETZ | clock ± interval → same clock family; time − time → INTERVAL |
+| INTERVAL | +, −, unary −, interval × double precision, double precision × interval, interval ÷ double precision → INTERVAL |
+
+Addition commutes where documented, including interval + date/timestamp/clock.
+There is no direct date − time, timetz − timetz, interval − timestamp or
+scalar ÷ interval operator, and no unary + interval. Existing implicit casts
+may select an overload: mixed timestamp/timestamptz subtraction promotes to
+timestamptz. PostgreSQL date − time succeeds through its TIME→INTERVAL cast;
+native retains the existing unsupported-cast boundary (`42883`) on that same SQL.
+
+Calendar arithmetic adds months once, clamps to the destination month end,
+then adds days, then microseconds, checking each finite stage. BC/AD civil
+dates have no SQL year zero. Date's wider domain still admits day arithmetic,
+date subtraction and comparison, but cannot always promote to timestamp.
+TIMESTAMPTZ calendar months/days resolve each session-local destination through
+embedded zone rules before proceeding to the next stage; microseconds are
+elapsed instant time. Thus Denver `2005-04-02 12:00-07` + one day becomes noon −06,
+while +24 hours becomes 13:00 −06. New York `2018-02-11 02:30-05` + one month
+and one day becomes `2018-03-12 03:30-04`: the month stage first resolves the
+March11 gap to03:30, and the day stage retains that resolved clock.
+A zoned day stage may temporarily reach local Julian−1 if resolving the
+destination zone produces a valid instant at or above the timestamp minimum.
+Each resolved instant still has to be within the finite timestamp range;
+this does not widen DATE, plain TIMESTAMP, input or cast domains.
+Timestamp subtraction measures elapsed stored microseconds and carries whole
+24-hour chunks into interval days. Time subtraction retains a time component.
+Clock ± interval ignores months/days, wraps the raw signed64 clock arithmetic
+before reducing modulo24 hours and preserves TIMETZ's complete fixed offset.
+The finite64 wrapping behavior is specific to clocks, not timestamp/interval math.
+
+Interval addition/subtraction preserves separate month/day/microsecond fields
+without justification. Scalar operations truncate month/day components, cascade
+30-day months and24-hour days with PostgreSQL float8 rounding stages, and round
+the final microseconds ties-to-even. Interval infinity uses widened comparison
+span signs for infinite multiplication; indeterminate operations fail `22008`.
+Division by ±0 fails `22012`; a typed NULL interval divided by zero is NULL.
+Finite calendar/component overflow is `22008`; unsupported overloads are `42883`,
+ambiguous unknown operands `42725`, with operator-token diagnostic positions.
+Runtime arithmetic diagnostics carry no invented position. Each child retains
+the existing demand/evaluation order; NULL never conceals a failing child.
+
+The selected result owns unrestricted typmod−1 and no source origin. Aliases,
+empty/all-NULL metadata and native driver codecs are preserved: DATE/TIME/TIMETZ/
+INTERVAL strings, INTEGER int64, finite timestamps time.Time, infinities owned bytes.
+Computed INTERVAL results admit the selected one-way explicit INTERVAL→TEXT
+output edge with postfix, standard and `text(...)` spellings. It uses the existing
+interval output codec and captured IntervalStyle (all four styles), so the
+surviving output coercion is STABLE. This does not add TIME→INTERVAL or broader
+cross-family casts; raw INTERVAL metadata/codecs are unchanged.
+Nine ordered DATE/TIMESTAMP/TIMESTAMPTZ comparison pairs and same-family clocks/
+intervals support all six comparisons and SQL NULL propagation. Existing implicit
+TIME→TIMETZ comparison uses the execution-session offset. Existing interval
+30-day comparison and TIMETZ UTC-clock/offset tie-break remain unchanged.
+
+TIMESTAMPTZ ± interval (including zero) and commuted interval + TIMESTAMPTZ
+are intrinsically STABLE; plain timestamp arithmetic and timestamptz subtraction
+are IMMUTABLE absent stronger children. Held prepared constants freeze input,
+parameters/settings use the execution snapshot and cursors retain output settings.
+Closed STABLE defaults remain symbolic across Dump/Restore and evaluate on INSERT;
+surviving STABLE generated/index expressions fail `42P17` at existing Execute DDL.
+Native ordinary arithmetic projections remain row-owned on empty input, unlike
+PostgreSQL's eager constant/custom planning errors. Existing bounded conditional
+folding still diagnoses demanded row-dependent CASE constant failures.
+Native logical replay, staged atomicity, cancellation and retained cursor ownership
+use existing controls; this adds no age/justify/extract functions or cast families.
+
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$' VERBOSE=0`.
 
 ### Datetime formatting — change note
 
@@ -2130,7 +2208,7 @@ start/resolved type, while missing-operator errors point at the operator.
 Computed results expose `?column?` and INT2/INT4/INT8 metadata, including empty
 and NULL results, with native int64 ScanType and no physical origin.
 Parameter widths follow SQL signature resolution, never Go argument kinds.
-Unary unknown plus and unknown power select FLOAT8; unknown-only binary +/-
+Unary unknown plus and unknown power select FLOAT8; unknown-only binary +/−/*
 and unary minus are ambiguous (`42725`). Exact NUMERIC-only arithmetic remains
 a native capability exclusion; floating `%` is missing (`42883`).
 Existing baseline scalar casts compose with arithmetic without adding cast
@@ -2158,9 +2236,9 @@ staging-to-publication fences, not interruption of an in-flight public Restore.
 
 DELETE arithmetic keeps existing actual-used-column SELECT authorization,
 affected-row counts and atomic deletion staging. Qualified arithmetic remains
-excluded without changing qualified atom predicates. Mixed arithmetic/DATE
-typed-literal projections preserve the existing codecs, not a DATE arithmetic
-provider. Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedDeleteSmoke$' VERBOSE=0`.
+excluded without changing qualified atom predicates. Mixed numeric and temporal
+projections preserve the existing codecs; selected temporal operators are
+documented above. Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedDeleteSmoke$' VERBOSE=0`.
 
 ### Floating arithmetic — change note
 
@@ -2361,7 +2439,7 @@ closed Rows. Native DATE/TIME comparisons reject42883. DATE/TIMESTAMP
 comparisons are supported with the same PostgreSQL semantics, including midnight
 equality, civil-day ordering, infinities and SQL NULL propagation.
 Selected datetime casts and TimeZone/DateStyle are supported as documented in
-[temporal types](TYPES.md#time-zone-aware-values); temporal arithmetic remains excluded. CURRENT_DATE is supported as a bounded SQL value function. Ordinary no-FROM SELECT uses the shared query path. Smoke:
+[temporal types](TYPES.md#time-zone-aware-values); selected [temporal arithmetic](#date-and-time-arithmetic--change-note) is supported. CURRENT_DATE is supported as a bounded SQL value function. Ordinary no-FROM SELECT uses the shared query path. Smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestDateSmoke$' VERBOSE=1`; independent pinned reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDate' VERBOSE=1`.
 
@@ -3181,8 +3259,9 @@ supported in existing scalar positions, including direct and prepared queries.
 For example, `TIMESTAMP 'epoch'::timestamp` preserves the timestamp value and
 `CAST(TIMESTAMP 'epoch' AS text)` renders `1970-01-01 00:00:00` under ISO DateStyle.
 This does not expand unrelated cast families: integer-to-VARCHAR remains excluded.
-Timezone name/abbreviation views, INTERVAL arithmetic and timezone(...) aliases
-are excluded. The five SQL current-date/time producers are supported separately.
+Timezone name/abbreviation views and timezone(...) aliases are excluded.
+Selected [INTERVAL arithmetic](#date-and-time-arithmetic--change-note) and
+the five SQL current-date/time producers are supported separately.
 The timezone-only INTERVAL
 operand of SET TIME ZONE remains bounded independently of the general
 [interval value type](#interval-values--change-note).

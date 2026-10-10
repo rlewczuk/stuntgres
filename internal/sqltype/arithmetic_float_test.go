@@ -13,17 +13,17 @@ func TestFloatingArithmeticSignatures(t *testing.T) {
 	types := testTypes()
 	for _, op := range []ArithmeticOperator{ArithmeticAdd, ArithmeticSubtract, ArithmeticMultiply, ArithmeticDivide} {
 		for _, ids := range [][3]ID{{Float4, Float4, Float4}, {Float4, Float8, Float8}, {Float8, Float4, Float8}, {Float8, Float8, Float8}} {
-			p, err := BindArithmetic(op, types[ids[0]], types[ids[1]])
+			p, err := BindArithmetic(op, types[ids[0]], types[ids[1]], types[ids[2]])
 			if err != nil || p.ResultType() != types[ids[2]] {
 				t.Fatal(ids, p, err)
 			}
 			a, _ := Float(types[ids[0]], 7.5)
 			b, _ := Float(types[ids[1]], 2)
-			v, err := p.Binary(context.Background(), a, b)
+			v, err := p.Binary(context.Background(), a, b, InputEnvironment{})
 			if err != nil || v.Type() != types[ids[2]] {
 				t.Fatal(v, err)
 			}
-			v, err = p.Binary(context.Background(), Null(types[ids[0]]), b)
+			v, err = p.Binary(context.Background(), Null(types[ids[0]]), b, InputEnvironment{})
 			if err != nil || !v.IsNull() || v.Type() != types[ids[2]] {
 				t.Fatal(v, err)
 			}
@@ -31,33 +31,33 @@ func TestFloatingArithmeticSignatures(t *testing.T) {
 	}
 	for _, id := range []ID{Float4, Float8} {
 		for _, op := range []ArithmeticOperator{ArithmeticAdd, ArithmeticSubtract} {
-			p, err := BindArithmetic(op, types[id], nil)
+			p, err := BindArithmetic(op, types[id], nil, types[id])
 			if err != nil {
 				t.Fatal(err)
 			}
 			a, _ := Float(types[id], math.Copysign(0, -1))
-			v, err := p.Unary(context.Background(), a)
+			v, err := p.Unary(context.Background(), a, InputEnvironment{})
 			if err != nil || v.Type() != types[id] || math.Signbit(v.floating) != (op == ArithmeticAdd) {
 				t.Fatal(v, err)
 			}
 		}
-		if _, err := BindArithmetic(ArithmeticRemainder, types[id], types[id]); err == nil {
+		if _, err := BindArithmetic(ArithmeticRemainder, types[id], types[id], types[id]); err == nil {
 			t.Fatal("floating remainder bound")
 		}
 	}
-	if _, err := BindArithmetic(ArithmeticPower, types[Float4], types[Float4]); err == nil {
+	if _, err := BindArithmetic(ArithmeticPower, types[Float4], types[Float4], types[Float4]); err == nil {
 		t.Fatal("float4 power bound")
 	}
-	p, _ := BindArithmetic(ArithmeticAdd, types[Float4], types[Float4])
+	p, _ := BindArithmetic(ArithmeticAdd, types[Float4], types[Float4], types[Float4])
 	a, _ := Float(types[Float4], 0.1)
 	b, _ := Float(types[Float4], 0.2)
-	v, err := p.Binary(context.Background(), a, b)
+	v, err := p.Binary(context.Background(), a, b, InputEnvironment{})
 	if err != nil || math.Float32bits(float32(v.floating)) != 0x3e99999a {
 		t.Fatal(v, err)
 	}
 	// Independently round exact rational quotients to binary32. This covers
 	// normal/subnormal transition and large significand-neighbor divisions.
-	p, _ = BindArithmetic(ArithmeticDivide, types[Float4], types[Float4])
+	p, _ = BindArithmetic(ArithmeticDivide, types[Float4], types[Float4], types[Float4])
 	for _, bits := range [][2]uint32{{0x00800000, 0x40000000}, {0x007fffff, 0x3f800001}, {0x3f800001, 0x3f7fffff}, {0x7f7fffff, 0x40000000}, {0x00000002, 0x3fc00000}} {
 		x, y := float64(math.Float32frombits(bits[0])), float64(math.Float32frombits(bits[1]))
 		exact := new(big.Rat).Quo(new(big.Rat).SetFloat64(x), new(big.Rat).SetFloat64(y))
@@ -65,17 +65,17 @@ func TestFloatingArithmeticSignatures(t *testing.T) {
 		want, _ := rounded.Float32()
 		a, _ := Float(types[Float4], x)
 		b, _ := Float(types[Float4], y)
-		v, err := p.Binary(context.Background(), a, b)
+		v, err := p.Binary(context.Background(), a, b, InputEnvironment{})
 		if err != nil || math.Float32bits(float32(v.floating)) != math.Float32bits(want) {
 			t.Fatal(bits, v, err, want)
 		}
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := p.Binary(canceled, Null(types[Float4]), Null(types[Float4])); !errors.Is(err, context.Canceled) {
+	if _, err := p.Binary(canceled, Null(types[Float4]), Null(types[Float4]), InputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := p.Binary(context.Background(), Null(types[Float8]), Null(types[Float4])); err == nil {
+	if _, err := p.Binary(context.Background(), Null(types[Float8]), Null(types[Float4]), InputEnvironment{}); err == nil {
 		t.Fatal("typed NULL concealed signature mismatch")
 	}
 }

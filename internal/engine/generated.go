@@ -128,7 +128,7 @@ func generationImmutable(node BoundExpr) bool {
 	case coercionExpression:
 		return one(n.child) && (n.mode == sqltype.Assignment || !n.plan.SessionDependent())
 	case arithmeticExpression:
-		return both(n.left, n.right)
+		return !n.provider.SessionDependent() && both(n.left, n.right)
 	case bitwiseExpression:
 		return both(n.left, n.right)
 	case comparisonExpression:

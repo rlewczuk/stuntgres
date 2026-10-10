@@ -587,7 +587,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.right != nil {
 			rightType = n.right.ResultUsage().Type
 		}
-		provider, err := sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType)
+		provider, err := sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType, u.Type)
 		if err != nil || provider != n.provider || provider.ResultType() != u.Type {
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic binding")
 		}
@@ -1196,7 +1196,7 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 			if n.right != nil {
 				rightType = n.right.ResultUsage().Type
 			}
-			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType)
+			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType, info.usage.Type)
 		}
 		n.expressionInfo = info
 		rebound = n

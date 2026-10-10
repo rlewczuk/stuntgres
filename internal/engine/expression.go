@@ -1908,9 +1908,9 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 	return b.bind(o.raw, expressionPolicy{context: projectionContext, expected: typ.Usage()})
 }
 
-// coerceComparisonOperands applies the bounded implicit integer→OID edge for
-// both ordinary and null-safe comparisons, after occurrence-sensitive unknown
-// operand inference. The shared coercion node owns range checks and typed NULLs.
+// Apply existing implicit integer→OID and TIME→TIMETZ edges after
+// occurrence-sensitive unknown inference. Coercion owns NULL/range/environment
+// semantics and volatility; the comparison provider remains homogeneous.
 func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (BoundExpr, BoundExpr, error) {
 	lt, rt := left.ResultUsage().Type, right.ResultUsage().Type
 	integer := func(t *sqltype.Descriptor) bool {
@@ -1923,6 +1923,10 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 		child, target = right, lt.Usage()
 	case rt.ID() == sqltype.Oid && integer(lt):
 		child, target = left, rt.Usage()
+	case lt.ID() == sqltype.Timetz && rt.ID() == sqltype.Time:
+		child, target = right, lt.Usage()
+	case rt.ID() == sqltype.Timetz && lt.ID() == sqltype.Time:
+		child, target = left, rt.Usage()
 	default:
 		return left, right, nil
 	}
@@ -1931,7 +1935,7 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 		return nil, nil, err
 	}
 	converted := coercionExpression{b.info(target, child.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Implicit}
-	if lt.ID() == sqltype.Oid {
+	if lt.ID() == sqltype.Oid || lt.ID() == sqltype.Timetz {
 		right = converted
 	} else {
 		left = converted
@@ -2050,13 +2054,13 @@ func (e arithmeticExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.right == nil {
-		return e.provider.Unary(c.Context, a)
+		return e.provider.Unary(c.Context, a, c.Input)
 	}
 	v, err := e.right.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Binary(c.Context, a, v)
+	return e.provider.Binary(c.Context, a, v, c.Input)
 }
 func arithmeticName(name string) bool {
 	return name == "+" || name == "-" || name == "*" || name == "/" || name == "%" || name == "^"
@@ -2156,7 +2160,7 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 	if len(raw.Args) == 2 {
 		rightType = b.typ(signature.Right)
 	}
-	provider, err := sqltype.BindArithmetic(operator, leftType, rightType)
+	provider, err := sqltype.BindArithmetic(operator, leftType, rightType, typ)
 	if err != nil {
 		return nil, err
 	}
@@ -2196,6 +2200,9 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		p.RowDependent = p.RowDependent || rp.RowDependent
 		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 		p.StageDependent = p.StageDependent || rp.StageDependent
+	}
+	if provider.SessionDependent() && p.Volatility < Stable {
+		p.Volatility = Stable
 	}
 	// Contextual consumers use the cached expression start; signature errors
 	// above retain the raw operator token.

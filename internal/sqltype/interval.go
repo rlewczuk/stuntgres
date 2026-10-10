@@ -134,6 +134,11 @@ func intervalInfinity(v Value) int {
 	}
 	return 0
 }
+
+// Reserved whole tuples represent infinities, never finite saturated results.
+func intervalReserved(months, days int32, micros int64) bool {
+	return months == math.MinInt32 && days == math.MinInt32 && micros == math.MinInt64 || months == math.MaxInt32 && days == math.MaxInt32 && micros == math.MaxInt64
+}
 func adjustInterval(v Value, p int32) (Value, error) {
 	if p == -1 || intervalInfinity(v) != 0 {
 		return v, nil

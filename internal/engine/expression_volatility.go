@@ -35,7 +35,7 @@ func plannedVolatility(node BoundExpr) Volatility {
 	case comparisonExpression:
 		return session(children(n.left, n.right), n.predicate.SessionDependent())
 	case arithmeticExpression:
-		return children(n.left, n.right)
+		return session(children(n.left, n.right), n.provider.SessionDependent())
 	case bitwiseExpression:
 		return children(n.left, n.right)
 	case likeExpression:

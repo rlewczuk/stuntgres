@@ -895,7 +895,8 @@ func TemporalCastType(id ID) bool {
 
 func TemporalCastPair(source, target ID) bool {
 	return TemporalCastType(source) && (TemporalCastType(target) || target == Text) ||
-		source == Text && TemporalCastType(target)
+		source == Text && TemporalCastType(target) ||
+		source == Interval && target == Text
 }
 
 // OIDCastPair admits only OID-related explicit syntax, including unsupported
@@ -1009,7 +1010,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = stringConversion
 		return p, nil
 	}
-	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Oid || TemporalCastType(source.Type.id)) {
+	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Oid || TemporalCastType(source.Type.id) || source.Type.id == Interval) {
 		p.method = viaIO
 		if source.Type.id == Bool {
 			p.method = booleanText
