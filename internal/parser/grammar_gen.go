@@ -8712,7 +8712,6 @@ sqldefault:
 	case 346:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			deferDistinctOnBoundary(sqllex.(*lexer), sqlDollar[1].selectStmt)
 			sqlVAL.selectStmt = sqlDollar[1].selectStmt
 		}
 	case 347:
@@ -11396,7 +11395,6 @@ sqldefault:
 	case 831:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			deferDistinctOnBoundary(sqllex.(*lexer), sqlDollar[1].selectStmt)
 			sqlVAL.selectStmt = sqlDollar[1].selectStmt
 		}
 	case 832:
@@ -12626,7 +12624,6 @@ sqldefault:
 	case 1040:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			deferDistinctOnBoundary(sqllex.(*lexer), sqlDollar[1].selectStmt)
 			sqlVAL.stmt = sqlDollar[1].selectStmt
 		}
 	case 1041:

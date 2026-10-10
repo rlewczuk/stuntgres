@@ -77,6 +77,13 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			copy.child, copy.expressions = input, expressions
 			out = &copy
 		}
+	case *distinctOnNode:
+		input, expressions := child(n.child), args(n.expressions)
+		if changed && err == nil {
+			copy := *n
+			copy.child, copy.expressions = input, expressions
+			out = &copy
+		}
 	case *filterNode:
 		input, predicate := child(n.child), expression(n.predicate)
 		if changed && err == nil {

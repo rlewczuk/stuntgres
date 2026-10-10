@@ -36,9 +36,17 @@ func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog
 	if project == nil {
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
-	previous, previousFrame, previousSimple := renderer.query, renderer.frame, renderer.simple
+	previous, previousFrame, previousSimple, previousNamespace := renderer.query, renderer.frame, renderer.simple, renderer.namespace
 	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.frame
-	defer func() { renderer.query, renderer.frame, renderer.simple = previous, previousFrame, previousSimple }()
+	renderer.namespace = len(renderer.namespaces)
+	if frame, ok := renderer.renderFrames[project.frame]; ok {
+		renderer.namespace = frame.namespace
+	}
+	renderer.depth++
+	defer func() {
+		renderer.query, renderer.frame, renderer.simple, renderer.namespace = previous, previousFrame, previousSimple, previousNamespace
+		renderer.depth--
+	}()
 	presentation := renderer.presentation
 	presentation.columns = columns
 	_, renderer.simple = s.From.(*parser.TableReference)
@@ -99,7 +107,6 @@ func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing frozen VALUES query")
 		}
-		renderer.values = values.viewOrdinal + 1
 		text, err := renderer.valuesSQL(ctx, catalog, s.Values, values.viewOrdinal)
 		if err != nil {
 			return "", err
@@ -222,6 +229,17 @@ func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog
 		}
 	}
 	text := viewTargetsSQL(targets, presentation, s.Distinct != nil)
+	if s.Distinct != nil && len(s.Distinct.On) != 0 {
+		keys := make([]string, len(s.Distinct.On))
+		for i, raw := range s.Distinct.On {
+			key, err := renderer.expressionSQL(ctx, catalog, raw, viewLiteralPath{clause: viewDistinctOnLiteral, target: i})
+			if err != nil {
+				return "", err
+			}
+			keys[i] = key
+		}
+		text = strings.Replace(text, "SELECT DISTINCT ", "SELECT DISTINCT ON ("+strings.Join(keys, ", ")+") ", 1)
+	}
 	clause := " "
 	if presentation.deparse {
 		clause = "\n  "
@@ -573,7 +591,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			name := quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
-		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral || path.clause == viewValuesOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
+		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral || path.clause == viewDistinctOnLiteral || path.clause == viewValuesOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
 			return strconv.FormatInt(e.Value.Integer, 10), nil
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
@@ -594,7 +612,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			root = viewValuesAt(v.query.Root, path.source)
 		}
 		_, ownerSimple := owner.syntax.From.(*parser.TableReference)
-		if v.presentation.deparse && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral)) || (column.frame != path.query && ownerSimple)) {
+		if v.presentation.deparse && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
 			source, ok := root.(*sourceNode)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing simple view source")

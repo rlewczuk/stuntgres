@@ -33,6 +33,8 @@ func viewFromRoot(node LogicalNode) LogicalNode {
 			node = n.child
 		case *distinctNode:
 			node = n.child
+		case *distinctOnNode:
+			node = n.child
 		default:
 			return node
 		}
@@ -62,15 +64,29 @@ func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
 // No SQL is rebound and no persistent execution layout is changed.
 type viewRenderer struct {
 	*viewDefinition
-	query                       *BoundQuery
-	frame                       uint32
-	slots                       map[LogicalNode]map[int]string
-	reserved                    map[string]bool
-	namespace, occurrence, join int
-	values                      int
-	presentation                viewPresentation
-	simple                      bool
-	rowTargets                  map[string]string
+	query        *BoundQuery
+	frame        uint32
+	slots        map[LogicalNode]map[int]string
+	reserved     map[string]bool
+	namespace    int
+	depth        int
+	renderFrames map[uint32]viewRenderFrame
+	aliases      map[viewRenderAlias]string
+	presentation viewPresentation
+	simple       bool
+	rowTargets   map[string]string
+}
+
+type viewRenderFrame struct {
+	namespace int
+	base      [viewDerivedNamespace + 1]int
+	seen      [viewDerivedNamespace + 1]bool
+}
+type viewRenderAlias struct {
+	depth, ordinal  int
+	node            uint8
+	attribute       int32
+	label, physical bool
 }
 type viewRenderColumn struct {
 	name string
@@ -91,7 +107,18 @@ func newViewRenderer(v *viewDefinition) *viewRenderer {
 	if v.syntax != nil && len(v.syntax.Locking) != 0 {
 		r.rowTargets = make(map[string]string)
 	}
-	for _, ns := range v.namespaces {
+	if len(v.namespaces) != 0 {
+		r.renderFrames = make(map[uint32]viewRenderFrame)
+	}
+	for i, ns := range v.namespaces {
+		frame, exists := r.renderFrames[ns.frame]
+		if !exists {
+			frame.namespace = i
+		}
+		if !frame.seen[ns.node] || ns.ordinal < frame.base[ns.node] {
+			frame.base[ns.node], frame.seen[ns.node] = ns.ordinal, true
+		}
+		r.renderFrames[ns.frame] = frame
 		for _, c := range ns.columns {
 			r.reserved[c.name] = true
 		}
@@ -105,14 +132,17 @@ func newViewRenderer(v *viewDefinition) *viewRenderer {
 	return r
 }
 
-func (v *viewRenderer) freshLabel(occurrence int, attribute int32) string {
-	base := "__view_added_" + strconv.Itoa(occurrence) + "_" + strconv.FormatInt(int64(attribute), 10)
-	name := base
-	for suffix := 1; v.reserved[name]; suffix++ {
-		name = base + "_" + strconv.Itoa(suffix)
+func (v *viewRenderer) freshLabel(ns viewNamespace, attribute int32, physical bool) string {
+	key := v.renderAliasKey(ns)
+	key.attribute, key.label, key.physical = attribute, true, physical
+	base := "__view_added_" + strconv.Itoa(int(key.node)) + "_" + strconv.Itoa(key.ordinal) + "_" + strconv.FormatInt(int64(attribute), 10)
+	if physical {
+		base += "_physical"
 	}
-	v.reserved[name] = true
-	return name
+	if key.depth > 1 {
+		base += "_query_" + strconv.Itoa(key.depth-1)
+	}
+	return v.allocateAlias(key, base)
 }
 
 func (v *viewRenderer) slotSQL(ctx context.Context, catalog CatalogRead, root LogicalNode, slot int) (string, error) {
@@ -125,23 +155,41 @@ func (v *viewRenderer) slotSQL(ctx context.Context, catalog CatalogRead, root Lo
 	return "", fmt.Errorf("stuntgres: missing view column namespace slot")
 }
 
-func (v *viewRenderer) sourceAlias(occurrence int) string {
-	base := viewSourceAlias(occurrence)
-	name := base
-	for suffix := 1; v.reserved[name]; suffix++ {
-		name = base + "_" + strconv.Itoa(suffix)
-	}
-	v.reserved[name] = true
-	return name
+// Equivalent sibling queries need identical emitted RTE names for SQL99
+// replay. Normalize generated node IDs within the lexical frame, cache names
+// across siblings, and separate depths so correlations cannot be shadowed.
+func (v *viewRenderer) renderAliasKey(ns viewNamespace) viewRenderAlias {
+	return viewRenderAlias{depth: v.depth, node: ns.node, ordinal: ns.ordinal - v.renderFrames[ns.frame].base[ns.node]}
 }
-
-func (v *viewRenderer) usingAlias(ordinal int) string {
-	base := "__view_using_" + strconv.Itoa(ordinal)
+func (v *viewRenderer) namespaceAlias(ns viewNamespace) string {
+	key := v.renderAliasKey(ns)
+	base := viewSourceAlias(key.ordinal)
+	switch ns.node {
+	case viewJoinNamespace:
+		base = "__view_using_" + strconv.Itoa(key.ordinal)
+	case viewValuesNamespace:
+		base = "__view_values_" + strconv.Itoa(key.ordinal)
+	case viewDerivedNamespace:
+		base = "__view_derived_" + strconv.Itoa(key.ordinal)
+	}
+	if key.depth > 1 {
+		base += "_query_" + strconv.Itoa(key.depth-1)
+	}
+	return v.allocateAlias(key, base)
+}
+func (v *viewRenderer) allocateAlias(key viewRenderAlias, base string) string {
+	if name, ok := v.aliases[key]; ok {
+		return name
+	}
 	name := base
 	for suffix := 1; v.reserved[name]; suffix++ {
 		name = base + "_" + strconv.Itoa(suffix)
 	}
 	v.reserved[name] = true
+	if v.aliases == nil {
+		v.aliases = make(map[viewRenderAlias]string)
+	}
+	v.aliases[key] = name
 	return name
 }
 
@@ -170,7 +218,7 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 			c.name = label
 		}
 		if used[c.name] {
-			c.name = v.freshLabel(v.namespace, int32(i+1))
+			c.name = v.freshLabel(ns, int32(i+1), false)
 		}
 		used[c.name] = true
 		aliases[i] = quoteIdentifier(c.name)
@@ -205,6 +253,11 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 	if err := ctx.Err(); err != nil {
 		return viewRenderFrom{}, err
 	}
+	// Nested expressions can render in a different order from analysis.
+	// Namespace entries retain their owning query frame and bound node ordinal.
+	for v.namespace < len(v.namespaces) && v.namespaces[v.namespace].frame != v.frame {
+		v.namespace++
+	}
 	if v.namespace >= len(v.namespaces) {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view FROM namespace")
 	}
@@ -224,12 +277,11 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		for i, column := range root.Schema() {
 			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 		}
-		aliased := v.aliasFrom(from, ns, v.sourceAlias(len(v.sources)+v.namespace-1))
+		aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 		aliased.relation = "(" + text + ")"
 		return aliased, nil
 	case *parser.ValuesQuery:
-		ordinal := v.values
-		v.values++
+		ordinal := ns.ordinal
 		text, err := v.valuesSQL(ctx, catalog, n, ordinal)
 		if err != nil {
 			return viewRenderFrom{}, err
@@ -240,14 +292,13 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		for i, column := range root.Schema() {
 			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 		}
-		aliased := v.aliasFrom(from, ns, v.sourceAlias(len(v.sources)+ordinal))
+		aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 		// An explicit VALUES alias replaces the renderer's generated alias.
 		aliased.relation = "(" + text + ")"
 		return aliased, nil
 	case *parser.TableReference:
-		occurrence := v.occurrence
-		v.occurrence++
-		if occurrence >= len(v.sources) {
+		occurrence := ns.ordinal
+		if occurrence < 0 || occurrence >= len(v.sources) {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: invalid view source occurrence")
 		}
 		leaf := v.sources[occurrence]
@@ -290,12 +341,12 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			if c, ok := frozen[attribute]; ok {
 				column.name, column.slot = c.name, c.slot
 			} else {
-				column.name = v.freshLabel(occurrence, attribute)
+				column.name = v.freshLabel(ns, attribute, true)
 			}
 			from.columns = append(from.columns, column)
 		}
 		from.text = from.relation
-		alias := v.sourceAlias(occurrence)
+		alias := v.namespaceAlias(ns)
 		aliased := v.aliasFrom(from, ns, alias)
 		if v.rowTargets != nil {
 			aliased.rowTargetSQL = quoteIdentifier(alias)
@@ -314,8 +365,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		}
 		return v.aliasFrom(from, ns, n.Name.Text), nil
 	case *parser.JoinReference:
-		ordinal := v.join
-		v.join++
+		ordinal := ns.ordinal
 		bound := viewJoinAt(viewFromRoot(v.query.Root), ordinal)
 		if bound == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join occurrence")
@@ -328,7 +378,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 				if ns.columns[i].slot >= bound.leftWidth+bound.rightWidth {
 					// Reserve before rendering descendants. This qualifies the
 					// exact merged usage without hiding either physical input.
-					usingAlias = v.usingAlias(ordinal)
+					usingAlias = v.namespaceAlias(ns)
 					break
 				}
 			}

@@ -15,6 +15,10 @@ func sameGroupExpression(a, other BoundExpr) bool {
 }
 
 func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
+	return b.sameGroupExpressionIn(a, other, nil)
+}
+
+func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison *queryTargetComparison) bool {
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
@@ -22,10 +26,13 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return false
 	}
 	same := b.sameGroupExpression
+	if comparison != nil {
+		same = func(a, other BoundExpr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
+	}
 	switch e := a.(type) {
 	case groupingExpression:
 		o, ok := other.(groupingExpression)
-		if !ok || e.frame != o.frame || len(e.args) != len(o.args) {
+		if !ok || !comparison.sameFrame(e.frame, o.frame) || len(e.args) != len(o.args) {
 			return false
 		}
 		for i, arg := range e.args {
@@ -36,11 +43,31 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return true
 	case subqueryExpression:
 		o, ok := other.(subqueryExpression)
-		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || e.queryPlan.Root.(*projectNode).frame != o.queryPlan.Root.(*projectNode).frame || len(e.comparisons) != len(o.comparisons) {
+		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
 			return false
+		}
+		if comparison == nil {
+			if e.queryPlan.Root.(*projectNode).frame != o.queryPlan.Root.(*projectNode).frame {
+				return false
+			}
+		} else if !comparison.sameQuery(b, e.queryPlan.Root, o.queryPlan.Root) {
+			return false
+		}
+		if comparison != nil {
+			if len(e.ordering) != len(o.ordering) {
+				return false
+			}
+			for i, provider := range e.ordering {
+				if provider != o.ordering[i] {
+					return false
+				}
+			}
 		}
 		for i, c := range e.comparisons {
 			if !same(c.left, o.comparisons[i].left) {
+				return false
+			}
+			if comparison != nil && (c.predicate != o.comparisons[i].predicate || !same(c.right, o.comparisons[i].right)) {
 				return false
 			}
 		}
@@ -56,11 +83,14 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return ok && e.kind == o.kind
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
-		return ok && e.slot == o.slot && e.frame == o.frame
+		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
 	case *windowExpression:
 		o, ok := other.(*windowExpression)
-		if !ok || e.frame != o.frame {
+		if !ok || !comparison.sameFrame(e.frame, o.frame) {
 			return false
+		}
+		if comparison != nil {
+			return e.slot == o.slot
 		}
 		if b == nil {
 			// A call slot alone cannot prove window semantic identity.
@@ -73,7 +103,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return b.sameWindowCall(a, c)
 	case groupExpression:
 		o, ok := other.(groupExpression)
-		return ok && e.slot == o.slot && e.frame == o.frame
+		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
 	case currentSchemasExpression:
 		o, ok := other.(currentSchemasExpression)
 		return ok && same(e.arg, o.arg)
@@ -85,7 +115,10 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return e.unknownNull == o.unknownNull && sqltype.SameDatum(e.value, o.value)
 	case columnExpression:
 		o, ok := other.(columnExpression)
-		return ok && e.origin == o.origin && e.scope == o.scope && e.frame == o.frame && e.slot == o.slot
+		return ok && e.origin == o.origin && e.scope == o.scope && comparison.sameFrame(e.frame, o.frame) && e.slot == o.slot
+	case cachedOrderExpression:
+		o, ok := other.(cachedOrderExpression)
+		return comparison != nil && ok && e.slot == o.slot
 	case parameterExpression:
 		o, ok := other.(parameterExpression)
 		return ok && e.number == o.number

@@ -202,41 +202,16 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	b.aggregateClause = "ORDER BY"
-	order, err := b.bindOrder(s.Order, projection, targetNames)
+	order, err := b.bindOrder(s.Order, projection, targetNames, "ORDER BY")
 	if err != nil {
 		return nil, err
 	}
+	var on []sortKey
+	var onFamilies []sqltype.Grouping
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
-		rawKeys := make([]parser.OrderKey, len(s.Distinct.On))
-		for i, raw := range s.Distinct.On {
-			rawKeys[i] = parser.OrderKey{Expr: raw, Pos: raw.SourcePosition()}
-		}
-		distinct, err := b.bindOrder(&parser.Order{Keys: rawKeys}, projection, targetNames)
+		on, onFamilies, err = b.resolveDistinctOn(s, order, projection, targetNames)
 		if err != nil {
 			return nil, err
-		}
-		matched := make([]bool, len(distinct))
-		unmatchedOrder := false
-		for _, key := range order {
-			found := false
-			for i, on := range distinct {
-				if b.sameGroupExpression(key.expression, on.expression) {
-					if unmatchedOrder {
-						return nil, expressionError("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", s.Distinct.On[i].SourcePosition())
-					}
-					matched[i], found = true, true
-				}
-			}
-			if !found {
-				unmatchedOrder = true
-			}
-		}
-		if unmatchedOrder {
-			for i, found := range matched {
-				if !found {
-					return nil, expressionError("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", s.Distinct.On[i].SourcePosition())
-				}
-			}
 		}
 	}
 	var distinctOrder []int
@@ -276,6 +251,18 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		s.Order = &frozen
+	}
+	if (b.noParameters || b.materializedDefinition) && len(on) != 0 {
+		frozen := *s.Distinct
+		frozen.On = append([]parser.Expr(nil), s.Distinct.On...)
+		for i, raw := range frozen.On {
+			if ordinal := on[i].outputOrdinal; ordinal != 0 {
+				frozen.On[i] = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: parser.ExpressionStart(raw)}}
+			} else if err := b.captureViewLiterals(raw, on[i].expression, viewDistinctOnLiteral, i); err != nil {
+				return nil, err
+			}
+		}
+		s.Distinct = &frozen
 	}
 	bounds, err := b.bindQueryBounds(s.Bounds, true)
 	if err != nil {
@@ -383,9 +370,6 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, sqlError("0A000", mode+" is not allowed with "+suffix)
 		}
 	}
-	if s.Distinct != nil && len(s.Distinct.On) != 0 {
-		return nil, sqlError("0A000", "SELECT DISTINCT ON is unsupported")
-	}
 	if grouped {
 		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates)+1)
 		for i, key := range keys {
@@ -417,6 +401,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				return nil, err
 			}
 		}
+		for i := range on {
+			on[i].expression, err = b.rewriteGroup(on[i].expression, keys)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	root, err = b.finishWindows(root, keys, grouped)
 	if err != nil {
@@ -433,14 +423,20 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		projection = slots
 	}
-	root, err = b.finishOrder(root, order, projection)
+	if len(on) != 0 {
+		root, err = b.finishDistinctOn(root, order, on, onFamilies, projection)
+	} else {
+		root, err = b.finishOrder(root, order, projection)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if bounds != nil {
 		bounds.finishTies(root)
 	}
-	root = b.scheduleQueryProjection(root, projection, bounds != nil)
+	if len(on) == 0 {
+		root = b.scheduleQueryProjection(root, projection, bounds != nil)
+	}
 	if len(s.Locking) != 0 {
 		admission := b.queryLockAdmission.queries[s]
 		var local []queryRowMark
@@ -473,6 +469,16 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		results = append([]ColumnDescriptor(nil), results...)
 	}
 	var analysis []BoundExpr
+	if (b.noParameters || b.materializedDefinition) && len(on) != 0 {
+		// Raw captured occurrences can own independently analyzed subquery
+		// frames even when SQL99 resolution shares their physical datum.
+		for _, key := range order {
+			analysis = append(analysis, key.expression)
+		}
+		for _, key := range on {
+			analysis = append(analysis, key.expression)
+		}
+	}
 	for _, definition := range b.windowRaw {
 		spec := b.windowDefinitions[definition.Name.Text]
 		analysis = append(analysis, spec.partition...)

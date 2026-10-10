@@ -114,10 +114,12 @@ func TestGroupingSetsDoNotReplaceOtherExpressionLists(t *testing.T) {
 		t.Fatal(s.GroupBy)
 	}
 	statements, err := Parse("SELECT DISTINCT ON (a,b) a FROM t")
-	var got *sqlstate.Error
-	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "SELECT DISTINCT ON is unsupported", Position: "8"}
-	if len(statements) != 0 || !errors.As(err, &got) || *got != want {
-		t.Fatal(statements, got, err, want)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	on := statements[0].(*Select).Distinct
+	if on == nil || len(on.On) != 2 || on.On[0].SourcePosition().Character != 21 || on.On[1].SourcePosition().Character != 23 {
+		t.Fatal(on)
 	}
 }
 

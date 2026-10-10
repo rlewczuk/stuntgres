@@ -455,7 +455,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			if n.query == nil || n.query.Root == nil || len(n.Schema()) != len(n.query.Root.Schema()) {
 				return fmt.Errorf("stuntgres: invalid stored derived frame")
 			}
-		case *projectNode, *evaluationNode, *filterNode, *sortNode, *aggregateNode, *windowNode, *distinctNode, *singletonNode:
+		case *projectNode, *evaluationNode, *filterNode, *sortNode, *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *singletonNode:
 		default:
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}

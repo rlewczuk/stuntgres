@@ -931,9 +931,10 @@ A clause reaching GROUP BY, HAVING or aggregate output rejects with mode-specifi
 is checked at Execute after successful Prepare, before nullable outer-join
 descendants; direct grouped-query bind restrictions remain unchanged.
 Plain DISTINCT retains its existing materializing provider and prohibits locking.
-DISTINCT ON and structured set-operation syntax is rejection-only. Malformed
-syntax takes precedence; result-level locking is prohibited before set result
-arity/common typing. No adjacent execution provider is introduced.
+DISTINCT ON selects first-per-key occurrences for nonlocking queries and prohibits
+all four row-lock modes, also through views. Expression/ORDER analysis precedes
+that restriction. Structured set result-level locking remains prohibited before
+result arity/common typing; malformed syntax still takes precedence.
 Native virtual catalogs fail0A000 `row locking is not supported for virtual
 catalog relations`, even beneath views or when empty. PostgreSQL physical
 catalog row locking is separately exercised, not claimed as native parity.

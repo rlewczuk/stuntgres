@@ -22,6 +22,7 @@ const (
 	viewValuesOffsetLiteral
 	viewValuesLimitLiteral
 	viewWindowLiteral
+	viewDistinctOnLiteral
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
@@ -514,6 +515,13 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 				return err
 			}
 		}
+		if s.Distinct != nil {
+			for i, raw := range s.Distinct.On {
+				if err := validate(raw, viewDistinctOnLiteral, i); err != nil {
+					return err
+				}
+			}
+		}
 		if err := validate(s.Where, viewWhereLiteral, 0); err != nil {
 			return err
 		}
@@ -658,12 +666,16 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			if root == nil {
 				return fmt.Errorf("stuntgres: missing VALUES order frame")
 			}
-			_, _, err := orderOrdinal(raw, len(root.Schema()))
+			_, _, err := orderOrdinal(raw, len(root.Schema()), "ORDER BY")
 			return err
 		}
-		if integer, ok := raw.(parser.LiteralExpr); ok && (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral) && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
-			if path.clause == viewOrderLiteral {
-				_, _, err := orderOrdinal(raw, len(v.frames[path.query].Schema()))
+		if integer, ok := raw.(parser.LiteralExpr); ok && (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral || path.clause == viewDistinctOnLiteral) && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
+			if path.clause != viewGroupLiteral {
+				clause := "ORDER BY"
+				if path.clause == viewDistinctOnLiteral {
+					clause = "DISTINCT ON"
+				}
+				_, _, err := orderOrdinal(raw, len(v.frames[path.query].Schema()), clause)
 				return err
 			}
 			_, _, err := groupOrdinal(raw, len(v.frames[path.query].Schema()))

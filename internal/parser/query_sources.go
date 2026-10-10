@@ -202,6 +202,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		if err := expression(s.Having); err != nil {
 			return err
 		}
+		if s.Distinct != nil {
+			if err := expressions(s.Distinct.On); err != nil {
+				return err
+			}
+		}
 		for _, definition := range s.Windows {
 			if err := window(&definition.Spec); err != nil {
 				return err

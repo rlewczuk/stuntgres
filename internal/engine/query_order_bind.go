@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func orderOrdinal(raw parser.Expr, width int) (int, bool, error) {
+func orderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) {
 	literal, ok := raw.(parser.LiteralExpr)
 	if !ok {
 		return 0, false, nil
@@ -29,10 +29,10 @@ func orderOrdinal(raw parser.Expr, width int) (int, bool, error) {
 	}
 	ordinal, ok := constant.Ordinal()
 	if !ok {
-		return 0, false, expressionError("42601", "non-integer constant in ORDER BY", raw.SourcePosition())
+		return 0, false, expressionError("42601", "non-integer constant in "+clause, raw.SourcePosition())
 	}
 	if ordinal < 1 || ordinal > int64(width) {
-		return 0, false, expressionError("42P10", fmt.Sprintf("ORDER BY position %d is not in select list", ordinal), raw.SourcePosition())
+		return 0, false, expressionError("42P10", fmt.Sprintf("%s position %d is not in select list", clause, ordinal), raw.SourcePosition())
 	}
 	return int(ordinal) - 1, true, nil
 }
@@ -49,13 +49,13 @@ func (b *expressionBinder) orderOutput(expression BoundExpr) (BoundExpr, error) 
 	return b.finalizeProjection(expression)
 }
 
-func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr, names []string) ([]sortKey, error) {
+func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr, names []string, clause string) ([]sortKey, error) {
 	if order == nil {
 		return nil, nil
 	}
 	keys := make([]sortKey, len(order.Keys))
 	for i, raw := range order.Keys {
-		output, ordinal, err := orderOrdinal(raw.Expr, len(projection))
+		output, ordinal, err := orderOrdinal(raw.Expr, len(projection), clause)
 		if err != nil {
 			return nil, err
 		}
@@ -71,10 +71,12 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 					if err != nil {
 						return nil, err
 					}
-					if output >= 0 && !b.sameGroupExpression(projection[output], projection[j]) {
-						return nil, expressionError("42702", fmt.Sprintf(`ORDER BY "%s" is ambiguous`, name), raw.Pos)
+					if output >= 0 && !b.sameQueryTarget(projection[output], projection[j]) {
+						return nil, expressionError("42702", fmt.Sprintf(`%s "%s" is ambiguous`, clause, name), raw.Pos)
 					}
-					output = j
+					if output < 0 {
+						output = j
+					}
 				}
 			}
 		}
@@ -85,6 +87,15 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 			expression, err = b.bind(raw.Expr, expressionPolicy{context: projectionContext})
 			if err == nil {
 				expression, err = b.finalizeProjection(expression)
+			}
+			if err == nil {
+				for j, candidate := range projection {
+					if b.sameGroupExpression(expression, candidate) {
+						output = j
+						expression = candidate
+						break
+					}
+				}
 			}
 		}
 		if err != nil {
@@ -125,7 +136,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 	computed := 0
 	for i := range keys {
 		key := &keys[i]
-		if !key.expression.CollationIndeterminate() {
+		if !key.expression.CollationIndeterminate() && key.comparison.DefaultBtreeOpclass() == 0 {
 			provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
@@ -154,7 +165,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		// SQL99 resolves against the accumulated ORDER target list, including
 		// preceding hidden targets. Direction and NULL policy remain per key.
 		for previous := range i {
-			if keys[previous].cache >= 0 && b.sameGroupExpression(keys[previous].expression, key.expression) {
+			if keys[previous].cache >= 0 && ((key.targetIdentity != 0 && keys[previous].targetIdentity == key.targetIdentity) || (key.targetIdentity == 0 && b.sameGroupExpression(keys[previous].expression, key.expression))) {
 				key.cache = keys[previous].cache
 				break
 			}

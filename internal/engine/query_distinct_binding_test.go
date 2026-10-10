@@ -84,83 +84,94 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 }
 
 func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
-	for _, override := range []bool{false, true} {
-		t.Run(map[bool]string{false: "assignment", true: "identity override"}[override], func(t *testing.T) {
-			e := New()
-			run(t, e, "CREATE TABLE src(n NUMERIC)")
-			run(t, e, "INSERT INTO src VALUES(1.1),(1.1),(1.2),(1.2)")
-			destination := "CREATE TABLE dst(id INT)"
-			query := "INSERT INTO dst SELECT DISTINCT n FROM src"
-			if override {
-				destination = "CREATE TABLE dst(id INT GENERATED ALWAYS AS IDENTITY)"
-				query = "INSERT INTO dst OVERRIDING USER VALUE SELECT DISTINCT n FROM src"
-			}
-			run(t, e, destination)
-			op, done, err := testOperation(e, context.Background())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer done()
-			scope, err := e.StartStatement(op)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer func() {
-				if err := scope.Finish(nil); err != nil {
-					t.Error(err)
-				}
-			}()
-			ast := statement(t, query)
-			if _, err = scope.Describe(ast); err != nil {
-				t.Fatal(err)
-			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
-			if err != nil {
-				e.mu.Unlock()
-				t.Fatal(err)
-			}
-			b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
-			if err != nil {
-				e.mu.Unlock()
-				t.Fatal(err)
-			}
-			view, err := scope.acquireDataViewLocked(e, b.querySources[0].ref)
-			e.mu.Unlock()
-			if err != nil {
-				t.Fatal(err)
-			}
-			source, err := captureQuerySource(op.ctx, view, b.querySources[0].ref)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer source.close()
-			project := b.query.Root.(*projectNode)
-			node := project.child.(*distinctNode)
-			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || node.Schema()[0].Usage.Type.ID() != sqltype.Numeric {
-				t.Fatal("destination assignment mutated DISTINCT source schema", project.Schema(), node.Schema())
-			}
-			if next, discard := pruneIdentityQueryProducer(node, project.expressions[0]); next != node || discard {
-				t.Fatal("identity pruning crossed DISTINCT boundary", next, discard)
-			}
-			original := node.expressions[0]
-			calls := 0
-			node.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-			rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
-			if err != nil || len(rows) != 2 || calls != 4 || source.view != nil {
-				t.Fatal(rows, calls, err, source.view)
-			}
-			for i, row := range rows {
-				value, err := row[0].Integer()
-				want := int64(1)
+	for _, distinct := range []string{"DISTINCT", "DISTINCT ON(n)"} {
+		for _, override := range []bool{false, true} {
+			t.Run(distinct+"/"+map[bool]string{false: "assignment", true: "identity override"}[override], func(t *testing.T) {
+				e := New()
+				run(t, e, "CREATE TABLE src(n NUMERIC)")
+				run(t, e, "INSERT INTO src VALUES(1.1),(1.1),(1.2),(1.2)")
+				destination := "CREATE TABLE dst(id INT)"
+				query := "INSERT INTO dst SELECT " + distinct + " n FROM src"
 				if override {
-					want = int64(i + 1)
+					destination = "CREATE TABLE dst(id INT GENERATED ALWAYS AS IDENTITY)"
+					query = "INSERT INTO dst OVERRIDING USER VALUE SELECT " + distinct + " n FROM src"
 				}
-				if err != nil || value != want {
-					t.Fatal(row, want, err)
+				run(t, e, destination)
+				op, done, err := testOperation(e, context.Background())
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-		})
+				defer done()
+				scope, err := e.StartStatement(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := scope.Finish(nil); err != nil {
+						t.Error(err)
+					}
+				}()
+				ast := statement(t, query)
+				if _, err = scope.Describe(ast); err != nil {
+					t.Fatal(err)
+				}
+				e.mu.Lock()
+				auth, err := e.authorizationLocked(op)
+				if err != nil {
+					e.mu.Unlock()
+					t.Fatal(err)
+				}
+				b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+				if err != nil {
+					e.mu.Unlock()
+					t.Fatal(err)
+				}
+				view, err := scope.acquireDataViewLocked(e, b.querySources[0].ref)
+				e.mu.Unlock()
+				if err != nil {
+					t.Fatal(err)
+				}
+				source, err := captureQuerySource(op.ctx, view, b.querySources[0].ref)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer source.close()
+				project := b.query.Root.(*projectNode)
+				node := project.child
+				var expressions []BoundExpr
+				switch n := node.(type) {
+				case *distinctNode:
+					expressions = n.expressions
+				case *distinctOnNode:
+					expressions = n.expressions
+				default:
+					t.Fatalf("unexpected DISTINCT producer %T", node)
+				}
+				if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || node.Schema()[0].Usage.Type.ID() != sqltype.Numeric {
+					t.Fatal("destination assignment mutated DISTINCT source schema", project.Schema(), node.Schema())
+				}
+				if next, discard := pruneIdentityQueryProducer(node, project.expressions[0]); next != node || discard {
+					t.Fatal("identity pruning crossed DISTINCT boundary", next, discard)
+				}
+				original := expressions[0]
+				calls := 0
+				expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
+				rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
+				if err != nil || len(rows) != 2 || calls != 4 || source.view != nil {
+					t.Fatal(rows, calls, err, source.view)
+				}
+				for i, row := range rows {
+					value, err := row[0].Integer()
+					want := int64(1)
+					if override {
+						want = int64(i + 1)
+					}
+					if err != nil || value != want {
+						t.Fatal(row, want, err)
+					}
+				}
+			})
+		}
 	}
 }
 

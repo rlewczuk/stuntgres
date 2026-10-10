@@ -2735,3 +2735,37 @@ Passing native alone does not validate the changed reference definitions.
 Ordinary quickcheck precedes review; final fullcheck runs after integration under
 one 1800-second deadline.
 
+## DISTINCT ON reference contracts and feature smoke
+
+The untagged `reference/query_distinct_on_*_test.go` family shares fixture/public
+API bodies in both modes. Latest-row/NULL grouping, visible/hidden metadata,
+direct/fresh/held routes, resolved-prefix diagnostics, typed hidden keys,
+group/window/FETCH/subquery consumers, INSERT source typing, physical authority,
+real cancellation and actual ON view/native-control replay have independent
+expectations. No oracle-discovery backend filter remains.
+
+The pinned18.0 oracle distinguishes analysis target identity from physical output
+sharing: ON(y) random x/y yields four shared draws and continuation5; ON(1,2)
+requires eight interleaved draws and continuation9. Cheap immutable losing
+payloads still fail22012. The unrelated volatile sequence payload executes only
+for winner2, returns INT8 payload1 and leaves nextval2 after independent resequencing.
+Do not replace these expectations with ordinary DISTINCT's eager paired golden.
+
+Run the complete family and executable feature smoke in both modes, each command
+under its own900-second deadline:
+
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOn' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinctOn' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0
+```
+
+Smoke requires seven events→ids3/5/7, hidden payload metadata, NULL grouping,
+empty/nil/repeated held frames, ordinal/duplicate ORDER first-policy resolution,
+bounds→id5, complete42P10 original ON caret, INSERT count3/exact winners and actual
+ON view export/native successful/invalid/canceled Restore with sentinel17 and
+retained nonempty results. Broader typed/window/volatile/ACL/cancellation witnesses
+live in the complete family. Internal key/cache/collision/pin/manifest probes
+supplement these public scenarios; they are not substitute PostgreSQL evidence.
+

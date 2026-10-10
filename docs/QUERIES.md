@@ -502,13 +502,104 @@ pipeline. INSERT SELECT deduplicates **source-typed** keys before destination
 assignment: different numeric source values that round to the same INTEGER still
 insert separate occurrences. OVERRIDING USER VALUE cannot prune a DISTINCT key.
 Failure/cancellation publishes no partial native cursor or INSERT batch.
-DISTINCT ON, ordinary array comparison operators/ordering, general FROM
-expansion and spill/planner machinery remain excluded.
+Ordinary array comparison operators/ordering, general FROM expansion and
+spill/planner machinery remain excluded.
 
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
 Independent pinned18.0 contract:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinct' VERBOSE=0`.
+
+## Distinct on groups — change note (changelog)
+
+`SELECT DISTINCT ON (key, ...)` retains the first occurrence of each complete
+resolved typed key tuple after the explicit ORDER and before OFFSET/LIMIT/FETCH.
+Unlike ordinary DISTINCT, hidden keys are legal and unselected payload columns do
+not need equality. NULL components compare equal; composite tuples with another
+different component remain distinct. Numeric scale, NaN/signed zero, BPCHAR padding,
+enum/domain and structural array/JSONB/tree keys use existing type-owned grouping.
+Equality does not add ordinary array/tree ordering capabilities.
+
+Use a total order to choose portable winners, for example:
+
+```sql
+SELECT DISTINCT ON (k) id, payload
+FROM events
+ORDER BY k ASC NULLS LAST, stamp DESC, id DESC;
+```
+
+This returns the newest timestamp per key, breaking timestamp ties by descending id;
+NULL keys form one group. Without ORDER or with unresolved peers, the winner is a
+valid source member but is not pinned to a particular row or incidental plan order.
+
+ON resolves bare output labels before input names, qualified/compound expressions
+against input columns, and integer ordinals against expanded visible outputs.
+Hidden keys never increase visible width. Exact output occurrences retain analysis
+identity even for structurally identical volatile expressions. Equivalent duplicate
+labels choose the first; unequal labels fail42702 with DISTINCT ON wording.
+This first-match rule includes independently analyzed equivalent scalar-subquery
+outputs under the same label: `(SELECT k FROM only_key) AS x` and
+`(SELECT only_key.k FROM only_key) AS x` resolve through ON(x) and ORDER BY x.
+Both outputs retain their own analyzed occurrences; unequal subqueries report
+42702 with the referencing clause's wording and original label position.
+Ordinary SELECT with ORDER BY x uses the same first-label rule but retains all
+outer rows; equivalent scalar outputs do not introduce ON-style deduplication.
+SQL99 target reuse compares resolved semantics, not expression spelling. Scalar
+subqueries selecting `k` versus `only_key.k` from the same source can match; a
+correlated outer `e.k` does not match the inner key merely because names coincide.
+Comparison pairs generated query-local frames and source occurrences, preserving
+physical source identity, typed operators, source/column alias namespaces and
+unmapped outer correlations. Changing an inner source alias from `q` to `r` does
+not make the subqueries the same SQL99 target. Both occurrences remain fully
+analyzed and authorized even when they share a computed datum.
+
+The effective ORDER removes repeated resolved targets, retaining the first direction
+and NULL policy. For ON(a,b), ORDER b,a,c or ORDER a alone is legal; ORDER a,c,b or
+ORDER a,c is not. Matching keys may occur in any permutation before a non-ON target.
+Missing keys after a gap fail42P10, `SELECT DISTINCT ON expressions must match initial
+ORDER BY expressions`, at the original troublesome ON expression, including Unicode
+character positions. Algebraic variants such as a and a+0 are not equivalent.
+
+Grouping/HAVING and windows run before ON. FETCH WITH TIES uses the actual user ORDER
+peer definition, not omitted ON keys. Required keys share computed values with
+referenced outputs. Cheap immutable payloads can execute below sort/ON, so a losing
+row's division error remains observable. Unrelated volatile payloads are winner-only;
+an unneeded volatile expression structurally matching a required target may reuse
+that datum. The pinned oracle's ON(y) random x/y witness yields x=y/four draws, while
+ON(1,2) demands two distinct occurrences/eight draws. This physical reuse does not
+erase analysis identities or allow ON(x) ORDER y.
+
+Binding, equality capability and physical SELECT authority remain mandatory for empty,
+WHERE FALSE, all-NULL and LIMIT0 inputs. JSON payloads are legal with integer keys;
+JSON/VOID keys fail42883 independently of row demand. Explicit ORDER capability
+diagnostics retain their ORDER position and Hint. All four FOR modes reject with
+mode-specific0A000 without a synthetic Position.
+
+Direct, fresh prepared and repeated held execution preserve visible metadata and
+fresh per-execution seen state. INSERT selects source-typed groups before assignment
+or identity generation. Actual ON views retain frozen output ordinals, hidden physical
+and USING keys and ON-only subquery dependencies across native Dump/Restore. Failed
+key/payload evaluation, cancellation and staged Restore publish no partial native
+cursor, INSERT batch or replacement catalog; sequence effects are not rolled back.
+Stored source namespaces are selected by their analyzed query frame and node
+identity, not by the order in which ON and ORDER SQL happens to be emitted.
+Equivalent sibling subqueries receive stable generated source/column aliases;
+separate lexical depths preserve outer correlations during executable replay.
+Ordinary and materialized definitions capture ON keys and independently analyzed
+ON/ORDER scalar-subquery frames, including WITH NO DATA materialized definitions.
+Populated materialized winners remain snapshots after source writes and native
+Dump/Restore; unpopulated reads retain 55000 and the REFRESH hint. Materialized
+bound-parameter rejection and failed-population atomicity remain unchanged.
+
+Both complete reference definitions and feature smoke require separate900-second runs:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOn' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinctOn' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0
+```
+
 
 ## Expression ordering — change note (changelog)
 
@@ -2854,8 +2945,8 @@ enclosing row marks too. Stored set views have opaque copy-valued output, so an
 outer FOR UPDATE may read them without manufacturing physical arm row identities.
 UNION/INTERSECT/EXCEPT execute with the common-typed tuple semantics below;
 ordinary DISTINCT retains source-typed projected-tuple materialization.
-Without locking, DISTINCT ON remains a parser capability boundary after complete
-syntax validation, including shared INSERT SELECT and stored definitions.
+Nonlocking DISTINCT ON executes first-per-key selection, including shared
+INSERT SELECT and persisted definitions, as described above.
 Expanded GROUP BY/HAVING/aggregate view marks are checked at Execute after a
 successful Prepare, matching PostgreSQL18 planning. Their grouping diagnostic
 takes precedence over descending into a nullable outer-join input. Direct query
@@ -3030,7 +3121,7 @@ inherited row-lock or UPDATE requirements. Locally stored descendant marks still
 apply, and every arm retains its used-column SELECT and dependency admission,
 including empty or LIMIT0 reads. Ordinary non-set views remain transparent to
 inherited marks; inline-derived set output still rejects enclosing marks.
-TABLE, CTE, LATERAL and DISTINCT ON remain outside this change.
+TABLE, CTE and LATERAL remain outside this change.
 
 Independent public API coverage and smoke (both modes required):
 

@@ -163,7 +163,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []BoundE
 	}
 	keys := make([]sortKey, len(order.Keys))
 	for i, raw := range order.Keys {
-		slot, ordinal, err := orderOrdinal(raw.Expr, len(projection))
+		slot, ordinal, err := orderOrdinal(raw.Expr, len(projection), "ORDER BY")
 		if err != nil {
 			return nil, err
 		}

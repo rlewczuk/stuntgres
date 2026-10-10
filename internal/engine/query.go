@@ -58,6 +58,7 @@ type sortKey struct {
 	comparison       sqltype.Comparison
 	position         int // Original ORDER reference character position, not reused output syntax.
 	outputOrdinal    int // One-based resolved output occurrence; zero is a SQL expression.
+	targetIdentity   int // Resolved ON/ORDER target, independent of physical cache sharing.
 	slot, cache      int
 	desc, nullsFirst bool
 	output           bool // This cache slot supplies a visible projection.
@@ -114,6 +115,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return preflightSet(c, n)
 	case *distinctNode:
 		return preflightDistinct(c, n)
+	case *distinctOnNode:
+		return preflightDistinctOn(c, n)
 	case *derivedNode:
 		// Child projections are demanded by the derived stage, not by an
 		// enclosing expression's constant-coercion preflight.
@@ -766,6 +769,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return openJoinNode(ctx, state, n)
 	case *distinctNode:
 		return openDistinctNode(ctx, state, n)
+	case *distinctOnNode:
+		return openDistinctOnNode(ctx, state, n)
 	case *derivedNode:
 		return openDerivedNode(ctx, state, n)
 	case *aggregateNode:
@@ -893,8 +898,13 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if err != nil {
 			return indexedStage{}, err
 		}
+		transferred := false
+		defer func() {
+			if !transferred {
+				child.Close()
+			}
+		}()
 		if err := child.drain(ctx); err != nil {
-			child.Close()
 			return indexedStage{}, err
 		}
 		if child.selection == nil {
@@ -987,6 +997,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			}
 			return 0, ctx.Err()
 		})
+		transferred = err == nil
 		return child, err
 	case *projectNode:
 		if n.frame != 0 {

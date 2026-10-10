@@ -136,42 +136,6 @@ func nonFirstSetInto(query, first *Select) *ObjectName {
 	return nonFirstSetInto(query.Set.Right, first)
 }
 
-// Run only at the complete statement-query frontier: an enclosing set tail can
-// supply the locking clause that requires retaining an arm's DISTINCT ON syntax.
-func deferDistinctOnBoundary(l *lexer, s *Select) {
-	on, marked := queryDistinctOnShape(s)
-	if on != nil && !marked {
-		l.deferUnsupported(lexeme{pos: on.Pos}, "SELECT DISTINCT ON is unsupported")
-	}
-}
-
-func queryDistinctOnShape(s *Select) (*DistinctClause, bool) {
-	if s == nil {
-		return nil, false
-	}
-	if len(s.Locking) != 0 {
-		return nil, true
-	}
-	var on *DistinctClause
-	if s.Distinct != nil && len(s.Distinct.On) != 0 {
-		on = s.Distinct
-	}
-	if s.Set != nil {
-		left, leftMarked := queryDistinctOnShape(s.Set.Left)
-		right, rightMarked := queryDistinctOnShape(s.Set.Right)
-		if leftMarked || rightMarked {
-			return nil, true
-		}
-		if on == nil {
-			on = left
-		}
-		if on == nil {
-			on = right
-		}
-	}
-	return on, false
-}
-
 type lexeme struct {
 	text           string
 	raw            string

@@ -259,7 +259,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		namespace.columns = append(namespace.columns, queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1})
 	}
 	b.queryNamespace = &namespace
-	order, err := b.bindOrder(source.Order, projection, names)
+	order, err := b.bindOrder(source.Order, projection, names, "ORDER BY")
 	if err != nil {
 		return nil, err
 	}
@@ -508,6 +508,8 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 		return n, false // Every set retains source output/key/cardinality demand.
 	case *distinctNode:
 		return n, false // Every projected slot participates in source cardinality.
+	case *distinctOnNode:
+		return n, false // ON keys and ordering determine source winners.
 	case *limitNode:
 		var discard bool
 		n.child, discard = pruneIdentityQueryProducer(n.child, expression)

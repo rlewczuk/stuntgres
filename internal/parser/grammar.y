@@ -746,7 +746,7 @@ query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos
  | CREATE TEMP TABLE IF NOT EXISTS relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true}}
  | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true}} ;
 create_query_table: query_table_target query_table_options AS query_table_body query_table_data {$1.Query=$4;$1.NoData=$5;$$=$1} ;
-query_table_body: query_select {deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1}
+query_table_body: query_select {$$=$1}
  | TABLE relation_name {sqllex.(*lexer).deferUnsupported($1,"TABLE queries are unsupported");$$=nil}
  | EXECUTE name {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil}
  | EXECUTE name '(' call_args ')' {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil} ;
@@ -1188,7 +1188,7 @@ insert_input: insert_select {
    } else {$$=&InsertSource{Select:$1}}
  }
  | '(' insert_input ')' { $$=$2 } ;
-insert_select: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 } ;
+insert_select: query_select { $$=$1 } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
 query_values: VALUES query_rows order bounds { if !sqllex.(*lexer).validateTies($4,$3,nil) {return 1};$$=&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos} } ;
@@ -1395,7 +1395,7 @@ query_set: query_intersection { $$=$1 }
 query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if !sqllex.(*lexer).validateTies($1.Bounds,$1.Order,$1.Locking) {return 1};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 } ;
-select_query: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 }
+select_query: query_select { $$=$1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }

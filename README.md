@@ -1421,10 +1421,20 @@ arrays/domains retain structural equality; supported tree carriers retain their
 binary-compatible structural text equality. Projection is evaluated once before
 deduplication; ORDER must reference projected outputs, and locking DISTINCT is
 rejected. Views/native replay and INSERT SELECT share source-typed deduplication
-before destination assignment. DISTINCT ON, ordinary array operators/order and
-new FROM forms remain excluded.
+before destination assignment. Ordinary array operators/order and new FROM forms
+remain excluded.
 See [distinct projected rows](docs/QUERIES.md#distinct-projected-rows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
+
+Change note: `SELECT DISTINCT ON (keys)` selects the first ordered input occurrence
+per typed, NULL-equal key tuple. Keys may be hidden; payloads need not have equality.
+Resolved ON keys match the initial effective ORDER targets in any permutation;
+proper partial prefixes and repeated targets are supported. Explicit total ordering
+selects deterministic winners; incomplete peers and unordered winners are not pinned.
+Views, held queries, INSERT SELECT and native Dump/Restore retain ON semantics.
+See [distinct on groups](docs/QUERIES.md#distinct-on-groups--change-note-changelog).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0`;
+run the same selector with `REFERENCE=1` for the pinned PostgreSQL contract.
 
 SELECT, shared INSERT SELECT and decorated VALUES support LIMIT/OFFSET and
 FETCH FIRST/NEXT ROW/ROWS ONLY or WITH TIES. WITH TIES requires local ORDER BY,

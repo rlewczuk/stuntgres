@@ -1458,10 +1458,17 @@ Dump/Restore retain the same contract. Arrays/domains use structural key equalit
 Enums and enum domains use declaration-ordinal keys. Explicit ORDER aliases and
 ordinals preserve the selected visible occurrence, including independent repeated
 volatile projections. Projected enum-domain arrays do not widen array storage.
-Ordinary array operators/order and DISTINCT ON remain excluded.
+Ordinary array operators/order remain excluded; ON key equality does not add ordering.
 No implicit order is promised.
 See [distinct projected rows](QUERIES.md#distinct-projected-rows--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
+
+`SELECT DISTINCT ON (expressions)` retains first input occurrences after ORDER and
+before OFFSET/LIMIT/FETCH. Hidden keys do not widen metadata or demand payload
+equality. ON uses output alias/ordinal resolution and matches effective leftmost
+ORDER identities, not textual list order; partial prefixes and duplicates are legal.
+All four row-lock modes still reject DISTINCT queries. See
+[distinct on groups](QUERIES.md#distinct-on-groups--change-note-changelog).
 
 Persistent CREATE VIEW supports the current SELECT body, optional prefix output
 names, security_barrier/security_invoker Boolean options, nested ordinary reads
@@ -1603,8 +1610,8 @@ copy-valued outputs: outer row marks do not propagate to arm row identities,
 relation-lock modes or UPDATE authority, including catalog and sequence sources.
 Every arm still requires its ordinary SELECT admission; locally stored marks
 inside a descendant view retain their own authority and locking behavior.
-DISTINCT ON remains structurally recognized for rejection
-after full syntax validation and does not gain an execution provider. Sequences fail42809
+DISTINCT ON retains full expression/type/ORDER analysis before its mode-specific
+DISTINCT row-lock rejection. Its nonlocking execution is supported. Sequences fail42809
 at Execute even as unselected reference-mark siblings of a marked query, without
 new UPDATE requirements or physical grants on such siblings. Selected virtual
 catalog marks reject0A000 `row locking is not supported for virtual catalog relations`,

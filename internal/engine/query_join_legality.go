@@ -246,7 +246,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 			}
 			emptyInput = rejects
 		}
-	case *distinctNode:
+	case *distinctNode, *distinctOnNode:
 		if inherited.mode != 0 {
 			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}

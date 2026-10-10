@@ -174,7 +174,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		}
 	}
 	switch clause {
-	case "SELECT", "HAVING", "ORDER BY", "window definitions":
+	case "SELECT", "HAVING", "ORDER BY", "DISTINCT ON", "window definitions":
 	case "window RANGE":
 		return nil, expressionError("42803", "aggregate functions are not allowed in window RANGE", e.pos)
 	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER", "UPDATE":

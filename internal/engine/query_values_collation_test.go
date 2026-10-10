@@ -3,10 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestQueryFromValuesCollationProvenance(t *testing.T) {
@@ -19,44 +19,68 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		return literalExpression{expressionInfo: b.info(u, parser.Position{Character: position}, ExprProperties{}), value: sqltype.Null(text)}
 	}
 	info, err := collatedInfo(b.info(usage, parser.Position{Character: 40}, ExprProperties{}), operand(950, 59), operand(951, 64))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	base := literalExpression{expressionInfo: info, value: sqltype.Null(text)}
 	assert := func(name string, expression BoundExpr) {
 		t.Helper()
 		left, right, position := expression.ImplicitCollationConflict()
-		if !expression.CollationIndeterminate() || left.ID != 950 || right.ID != 951 || position.Character != 64 { t.Fatal(name, expression.CollationIndeterminate(), left, right, position) }
+		if !expression.CollationIndeterminate() || left.ID != 950 || right.ID != 951 || position.Character != 64 {
+			t.Fatal(name, expression.CollationIndeterminate(), left, right, position)
+		}
 	}
 	assert("common", base)
 	coerced, err := b.coerceConditional(comparisonOperand{node: base}, b.typ(sqltype.VarChar).Usage(), "VALUES")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert("coercion", coerced)
 	folded, _, err := simplifyConditional(&EvalContext{Context: context.Background()}, coerced, false)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert("folded coercion", folded)
 	grouped, err := b.rewriteGroup(base, []BoundExpr{base})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert("group", grouped)
 	retagged, _, err := retagBoundTypes(base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert("retained descriptor", retagged)
 	projection := []BoundExpr{coerced}
 	_, err = b.finishOrder(&valuesNode{querySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{expression: coerced, cache: -1, slot: -1}}, projection)
-	if err != nil { t.Fatal(err) }
-	if _, ok := projection[0].(cachedOrderExpression); !ok { t.Fatal("ORDER did not cache equivalent output", projection[0]) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := projection[0].(cachedOrderExpression); !ok {
+		t.Fatal("ORDER did not cache equivalent output", projection[0])
+	}
 	assert("cache", projection[0])
 	order := statement(t, "VALUES('a') ORDER BY 1 LIMIT 0").(*parser.Select).Values.Order
 	for _, expression := range []BoundExpr{base, coerced, grouped, projection[0], retagged} {
-		_, err := b.bindOrder(order, []BoundExpr{expression}, []string{"n"})
+		_, err := b.bindOrder(order, []BoundExpr{expression}, []string{"n"}, "ORDER BY")
 		var diagnostic *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P21", Message: `collation mismatch between implicit collations "C" and "POSIX"`, Hint: "You can choose the collation by applying the COLLATE clause to one or both expressions.", Position: "64"}
-		if !errors.As(err, &diagnostic) || *diagnostic != want { t.Fatal(err, diagnostic, want) }
+		if !errors.As(err, &diagnostic) || *diagnostic != want {
+			t.Fatal(err, diagnostic, want)
+		}
 	}
 	defaultC, err := collatedInfo(b.info(usage, parser.Position{}, ExprProperties{}), operand(100, 1), operand(950, 2))
-	if err != nil || defaultC.collationConflict || defaultC.usage.Collation.ID != 950 { t.Fatal(defaultC, err) }
+	if err != nil || defaultC.collationConflict || defaultC.usage.Collation.ID != 950 {
+		t.Fatal(defaultC, err)
+	}
 	explicit := operand(950, 80).(literalExpression)
 	explicit.collationExplicit = parser.Position{Character: 80}
 	overridden, err := collatedInfo(info, explicit)
-	if err != nil || overridden.collationConflict || overridden.collationLeft.ID != 0 || overridden.collationRight.ID != 0 || overridden.collationConflictPos != (parser.Position{}) || overridden.usage.Collation.ID != 950 { t.Fatal(overridden, err) }
+	if err != nil || overridden.collationConflict || overridden.collationLeft.ID != 0 || overridden.collationRight.ID != 0 || overridden.collationConflictPos != (parser.Position{}) || overridden.usage.Collation.ID != 950 {
+		t.Fatal(overridden, err)
+	}
 	b.queryNamespace = &queryNamespace{}
-	if _, err := b.bindOrder(order, []BoundExpr{literalExpression{expressionInfo: overridden, value: sqltype.Null(text)}}, []string{"n"}); err != nil { t.Fatal("explicit override did not restore ordinary ordering", err) }
+	if _, err := b.bindOrder(order, []BoundExpr{literalExpression{expressionInfo: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
+		t.Fatal("explicit override did not restore ordinary ordering", err)
+	}
 }

@@ -432,6 +432,8 @@ func scheduledQueryTarget(node LogicalNode, slot int) BoundExpr {
 			node = n.child
 		case *distinctNode:
 			node = n.child
+		case *distinctOnNode:
+			node = n.child
 		case *rowLockNode:
 			node = n.child
 		case *limitNode:
@@ -453,6 +455,11 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 		copy.presenceOnly = true
 		return &copy
 	case *distinctNode:
+		copy := *n
+		copy.child = presenceQueryInput(n.child)
+		copy.presenceOnly = true
+		return &copy
+	case *distinctOnNode:
 		copy := *n
 		copy.child = presenceQueryInput(n.child)
 		copy.presenceOnly = true

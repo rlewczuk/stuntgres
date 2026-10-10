@@ -32,6 +32,8 @@ func absentLockedQuery(node LogicalNode, inputs *querySource, locks *queryLockCo
 		return absentLockedQuery(n.child, inputs, locks)
 	case *sortNode:
 		return absentLockedQuery(n.child, inputs, locks)
+	case *distinctOnNode:
+		return absentLockedQuery(n.child, inputs, locks)
 	case *limitNode:
 		return absentLockedQuery(n.child, inputs, locks)
 	case *rowLockNode:

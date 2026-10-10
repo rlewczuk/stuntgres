@@ -57,6 +57,8 @@ func (n *limitNode) finishTies(root LogicalNode) {
 			return
 		case *evaluationNode:
 			root = node.child
+		case *distinctOnNode:
+			root = node.child
 		case *rowLockNode:
 			root = node.child
 		default:

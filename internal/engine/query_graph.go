@@ -23,6 +23,8 @@ func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 		return n.child, nil
 	case *distinctNode:
 		return n.child, nil
+	case *distinctOnNode:
+		return n.child, nil
 	case *limitNode:
 		return n.child, nil
 	case *rowLockNode:
@@ -72,6 +74,8 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 			call.expressions(visit)
 		}
 	case *distinctNode:
+		args(n.expressions)
+	case *distinctOnNode:
 		args(n.expressions)
 	case *limitNode:
 		visit(n.offset)
@@ -153,6 +157,8 @@ func queryIgnoresOwnExpressions(node LogicalNode) bool {
 	case *aggregateNode:
 		return n.presenceOnly
 	case *distinctNode:
+		return n.presenceOnly
+	case *distinctOnNode:
 		return n.presenceOnly
 	}
 	return false

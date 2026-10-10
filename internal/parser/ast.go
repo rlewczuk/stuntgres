@@ -820,7 +820,7 @@ const (
 	RowLockNowait
 )
 
-// DISTINCT retains plain execution syntax and rejection-only ON positions.
+// DISTINCT retains plain execution syntax or the positioned ON expression list.
 type DistinctClause struct {
 	On  []Expr
 	Pos Position
