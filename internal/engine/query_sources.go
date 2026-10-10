@@ -17,7 +17,8 @@ type queryLeaf struct {
 	table    *parser.TableReference
 	// DELETE's immediate USING occurrences require reference-kind validation,
 	// not SELECT FOR UPDATE authority or source tuple locks.
-	deleteReference bool
+	deleteReference  bool
+	partialCandidate *relationDescriptor
 }
 
 func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {
@@ -244,6 +245,8 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				if err != nil {
 					source.close()
 					source = nil
+				} else {
+					source.partialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
 				}
 			}
 		default:

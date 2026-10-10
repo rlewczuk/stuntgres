@@ -15,7 +15,6 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 				name, query, message, position, index string
 				execute                               bool
 			}{
-				{"partial", "CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24", "i", false},
 				{"storage", "CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24", "i", true},
 				{"tablespace", "CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24", "i", false},
 			} {
@@ -72,6 +71,43 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 					})
 				})
 			}
+		})
+	}
+}
+
+// Partial definitions now use shared success routes rather than the former
+// native exclusion. Keep the complete direct/held and Context/plain route union.
+func TestReferenceBtreeIndexPartialPublicRoutes(t *testing.T) {
+	for _, plain := range []bool{false, true} {
+		t.Run(map[bool]string{false: "context", true: "plain"}[plain], func(t *testing.T) {
+			p := newReferenceScenario(t)
+			referenceBtreeStreams(t, p, func(t *testing.T, db *sql.DB, recorder *referenceRecorder) {
+				run := func(s referenceStep) {
+					s.nonContext = plain
+					referenceRunStep(t, p.ctx, db, recorder, s)
+				}
+				run(referenceExec("CREATE TABLE t(n INT,c INT,s TEXT)", 0))
+				run(referenceExec("INSERT INTO t VALUES(2,1,'one')", 1))
+				for _, prepared := range []bool{false, true} {
+					s := referenceExec("CREATE INDEX i ON t(n) WHERE n>0", 0)
+					if prepared {
+						s = referencePrepared(s)
+					}
+					run(s)
+					run(referenceSelect("SELECT relname FROM pg_class WHERE relname='i'", []string{"relname"}, []string{"NAME"}, [][]any{{"i"}}))
+					run(referenceSelect("SELECT relname,relkind FROM pg_class WHERE relname='i'", []string{"relname", "relkind"}, []string{"NAME", "CHAR"}, [][]any{{"i", "i"}}))
+					run(referenceSelect("SELECT c,s FROM t", []string{"c", "s"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "one"}}))
+					run(referenceExec("DROP INDEX i", 0))
+				}
+				run(referenceSelect("SELECT relname FROM pg_class WHERE relname='i' OR relname='ix'", []string{"relname"}, []string{"NAME"}, nil))
+				run(referenceExec("CREATE INDEX i ON t(n)", 0))
+				run(referencePrepared(referenceExec("INSERT INTO t VALUES(3,2,'two')", 1)))
+				run(referenceSelect("SELECT n FROM t ORDER BY n", []string{"n"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}))
+				run(referenceExec("DELETE FROM t WHERE n=3", 1))
+				run(referenceSelect("SELECT c,s FROM t", []string{"c", "s"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "one"}}))
+				run(referenceExec("ALTER TABLE t ALTER c TYPE TEXT USING c::text", 0))
+				run(referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"1"}}))
+			})
 		})
 	}
 }

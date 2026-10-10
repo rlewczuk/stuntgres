@@ -31,6 +31,7 @@ type indexDefinition struct {
 	nullsNotDistinct   bool
 	constraint         *uniqueConstraint
 	ready, valid, live bool
+	predicate          *indexPredicate
 }
 
 func (d *indexDefinition) publicationState() (ready, valid, live bool) {
@@ -43,8 +44,9 @@ type logicalIndexEntry struct {
 	version VersionID
 }
 type logicalIndexRoot struct {
-	entries []logicalIndexEntry // Ordered B-tree keys, including NULLs.
-	hash    *hashIndexRoot
+	entries    []logicalIndexEntry // Ordered B-tree keys, including NULLs.
+	hash       *hashIndexRoot
+	membership map[RowID]VersionID // Immutable; partial roots only.
 }
 type indexOrdering struct {
 	slots       []int
@@ -154,6 +156,14 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	err := bindIndexProvider(parent, d)
 	if err != nil {
 		return err
+	}
+	if p := d.predicate; p != nil {
+		if p.definition == nil || p.execution == nil || p.definition.ResultUsage() != p.execution.ResultUsage() || p.execution.ResultUsage().Type == nil || p.execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.execution) != Immutable || !slices.Equal(p.attributes, parent.attributes) {
+			return fmt.Errorf("stuntgres: invalid index predicate")
+		}
+		if _, err := (scalarRenderer{owner: parent}).sql(context.Background(), view, p.definition); err != nil {
+			return err
+		}
 	}
 	for i, key := range d.keys {
 		if key.derived != nil {
@@ -300,7 +310,7 @@ func buildIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 	if err != nil {
 		return nil, err
 	}
-	return &logicalIndexRoot{entries: entries}, nil
+	return newLogicalIndexRoot(d, entries), nil
 }
 
 func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *indexDefinition, store *relationStorage) ([]logicalIndexEntry, error) {
@@ -318,6 +328,13 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 			return nil, err
 		}
 		if liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
+			matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
+			if err != nil {
+				return nil, err
+			}
+			if !matches {
+				continue
+			}
 			entry, err := o.entry(row, &evaluation)
 			if err != nil {
 				return nil, err
@@ -357,6 +374,13 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 			}
 		}
 		if !reconstruct && !rowMaintainsIndex(row, index) {
+			continue
+		}
+		matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
 			continue
 		}
 		entry, err := o.entry(row, &evaluation)
@@ -435,7 +459,7 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 	if !materialize {
 		return nil, ctx.Err()
 	}
-	return &logicalIndexRoot{entries: entries}, ctx.Err()
+	return newLogicalIndexRoot(d, entries), ctx.Err()
 }
 
 func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex, count int) (Result, error) {
@@ -487,6 +511,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if err = validateIndexMethod(s); err != nil {
 			return fail(err)
 		}
+		if s.Concurrent.Character != 0 && s.Predicate != nil {
+			return fail(sqlError("0A000", "partial concurrent indexes are unsupported"))
+		}
 		if len(s.Options) != 0 {
 			method := btreeMethod
 			if s.Method == "hash" {
@@ -496,10 +523,15 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(err)
 			}
 		}
+		predicate, err := e.bindIndexPredicate(scope.op, scope.input, auth, parent, s.Predicate)
+		if err != nil {
+			return fail(err)
+		}
 		definition, columns, attributes, lookup, err := e.bindIndexAttributes(scope.op, scope.input, auth, parent, s)
 		if err != nil {
 			return fail(err)
 		}
+		definition.predicate = predicate
 		name := s.Name.Text
 		if name == "" {
 			var addition strings.Builder

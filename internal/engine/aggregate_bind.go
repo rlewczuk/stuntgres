@@ -8,6 +8,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Persisted predicates have no query-local window-call metadata. A nil binder
+// selects conservative structural comparison without constructing binder state.
+func sameGroupExpression(a, other BoundExpr) bool {
+	return (*expressionBinder)(nil).sameGroupExpression(a, other)
+}
+
 func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	if a == nil || other == nil {
 		return a == nil && other == nil
@@ -43,6 +49,10 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case *windowExpression:
 		o, ok := other.(*windowExpression)
 		if !ok || e.frame != o.frame {
+			return false
+		}
+		if b == nil {
+			// A call slot alone cannot prove window semantic identity.
 			return false
 		}
 		if e.call < 0 || o.call < 0 || e.call >= len(b.windowCalls) || o.call >= len(b.windowCalls) {

@@ -218,8 +218,8 @@ Ordinary nonunique support is unchanged. Grouping uses actual key collation;
 no second hash/comparison provider or spelling-only comparator is introduced.
 Shared standalone/table-UNIQUE consumer assertions and unique-INCLUDE controls
 exercise the same substantive root equality and write authority.
-Physical planner/index-only scans, new inquiry catalogs, partial indexes,
-arbitrary locales/classes and storage parameters/tablespaces remain outside scope.
+Physical planner/index-only scans, new inquiry catalogs, arbitrary locales/classes,
+storage parameters/tablespaces and unique attachment remain outside scope.
 Concurrent creation and ordinary DROP/ALTER/REINDEX supersede earlier boundaries;
 see [concurrent publication](PG18-INDEX-CONCURRENT.md) and
 [maintenance](PG18-INDEX-MAINTENANCE.md).
@@ -227,6 +227,21 @@ Existing expression keys compose their result Usage
 with the selected class/collation through the same IndexComparison; no default
 comparator fallback bypasses explicit providers. Unordered queries are bags,
 never promised index traversal; query sorting retains its selected-view authority.
+Partial WHERE support now composes with these key/payload roles. Its TRUE-only
+membership contract runs before key providers in builds, maintenance and private
+preflight. Original predicate dependencies join TYPE/current-name rendering and
+replacement remapping; rebuilt roots also own immutable membership lookup.
+Unresolved exact immutable conjunction proof permits only a coherently captured
+committed sequential-scan rejection mask, never a key traversal or removed
+residual qual. Private/historical/stale captures use ordinary visibility scans.
+Partial UNIQUE now consumes the same unique B-tree owner. TRUE membership gates
+key/null/provider/reservation/probe work and private/staged/prefix comparisons.
+INCLUDE remains payload, DISTINCT/NND remain key equality policies. Only effective
+nil-predicate indexes supply strong key slots/history: analyzed standalone BOOL
+TRUE canonicalizes nil after validation, but execution folding never erases a
+retained definition. TYPE reconstruction uses the common index renderer with
+old-Usage normalization, preserving UNIQUE/NND and original predicate trees;
+immediate validation consumes final rebound definitions, not an old predicate.
 
 Root commands, each quickcheck invocation bounded to900 seconds:
 

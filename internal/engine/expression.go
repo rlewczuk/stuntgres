@@ -953,6 +953,7 @@ type expressionBinder struct {
 	datetimeZoneOperands       bool
 	checkConsumer              bool
 	indexConsumer              bool
+	indexPredicateConsumer     bool
 	generatedOwner             *relationDescriptor
 	visibilitySnapshot         bool
 	sequenceConstants          []sequenceConstant
@@ -1212,6 +1213,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	var node BoundExpr
 	switch r := raw.(type) {
 	case parser.IndexSubqueryExpr:
+		if b.indexPredicateConsumer {
+			return nil, expressionError("0A000", "cannot use subquery in index predicate", r.Pos)
+		}
 		return nil, expressionError("0A000", "cannot use subquery in index expression", r.Pos)
 	case parser.SubqueryExpr:
 		var err error
@@ -1274,6 +1278,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		parentOwner := b.argumentOwner
 		b.argumentOwner = argumentWindowOwner{active: true}
 		defer func() { b.argumentOwner = parentOwner }()
+		if b.indexPredicateConsumer {
+			return nil, expressionError("42803", "aggregate functions are not allowed in index predicates", r.Pos)
+		}
 		if b.indexConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)
 		}

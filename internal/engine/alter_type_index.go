@@ -2,16 +2,14 @@ package engine
 
 import (
 	"fmt"
-	"slices"
-	"strings"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 type alterTypeIndex struct {
-	index *relationDescriptor
-	keys  []int
-	sql   string
+	index     *relationDescriptor
+	keys      []int
+	predicate bool
+	sql       string
 }
 
 func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
@@ -39,6 +37,21 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 					a := dep.Address
 					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID != 0 && !survivor.hasAttribute(a.SubID) {
 						dropped = true
+					}
+				}
+			}
+		}
+		if predicate := index.sqlIndex.predicate; predicate != nil {
+			for _, dep := range predicate.dependencies {
+				a := dep.Address
+				if a.ClassID != original.address.ClassID || a.ObjectID != original.address.ObjectID || a.SubID == 0 {
+					continue
+				}
+				dropped = dropped || !survivor.hasAttribute(a.SubID)
+				for _, action := range actions {
+					slot, exists := original.index[action.Column.Text]
+					if exists && action.Action == parser.AlterColumnType && original.attributes[slot] == a.SubID {
+						pending.predicate = true
 					}
 				}
 			}
@@ -74,66 +87,12 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 			}
 			pending.keys = append(pending.keys, i)
 		}
-		if len(pending.keys) > 0 {
-			var sql strings.Builder
-			sql.WriteString("CREATE INDEX " + pgIdentifier(index.name) + " ON " + pgIdentifier(catalog.state.descriptors[original.namespace].Name()) + "." + pgIdentifier(original.name) + " USING " + index.sqlIndex.method.String() + " (")
-			renderer := pgRenderer{view: catalog, relation: original, path: scope.deparsePath, output: scope.output}
-			for i, key := range index.sqlIndex.keys {
-				if i > 0 {
-					sql.WriteString(", ")
-				}
-				if key.derived != nil {
-					text, err := renderer.sql(op.Context(), key.derived.definition, pgRenderParent{})
-					if err != nil {
-						return nil, err
-					}
-					if pgIndexFunctionExpression(key.derived.definition) {
-						sql.WriteString(text)
-					} else {
-						sql.WriteString("(" + text + ")")
-					}
-				} else {
-					for slot, attribute := range original.attributes {
-						if attribute == key.attribute {
-							sql.WriteString(pgIdentifier(original.columns[slot].Name))
-							break
-						}
-					}
-				}
-				var usage sqltype.Usage
-				if key.derived != nil {
-					usage = key.derived.definition.ResultUsage()
-				} else {
-					usage = original.columns[slices.Index(original.attributes, key.attribute)].Usage
-				}
-				reconstructed := reconstructIndexKey(key, usage, usage, index.sqlIndex.method)
-				if reconstructed.collation != 0 {
-					sql.WriteString(" COLLATE " + pgIdentifier(builtinCollationName(reconstructed.collation)))
-				}
-				if reconstructed.explicitClass {
-					sql.WriteString(" " + pgIdentifier(reconstructed.class.Name))
-				}
-				if key.desc {
-					sql.WriteString(" DESC")
-				}
-				if key.nullsFirst && !key.desc {
-					sql.WriteString(" NULLS FIRST")
-				} else if !key.nullsFirst && key.desc {
-					sql.WriteString(" NULLS LAST")
-				}
+		if len(pending.keys) > 0 || pending.predicate {
+			text, err := indexDefinitionSQL(op.Context(), catalog, index, indexPresentation{reconstruct: true, path: scope.deparsePath, output: scope.output})
+			if err != nil {
+				return nil, err
 			}
-			sql.WriteByte(')')
-			if len(index.sqlIndex.include) != 0 {
-				sql.WriteString(" INCLUDE (")
-				for i, attribute := range index.sqlIndex.include {
-					if i > 0 {
-						sql.WriteString(", ")
-					}
-					sql.WriteString(pgIdentifier(original.columns[slices.Index(original.attributes, attribute)].Name))
-				}
-				sql.WriteByte(')')
-			}
-			pending.sql = sql.String()
+			pending.sql = text
 			queue = append(queue, pending)
 		}
 	}
@@ -153,6 +112,15 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		syntax, err := parser.ParseWithOptions(pending.sql, parser.Options{Context: scope.op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return err
+		}
+		if pending.predicate {
+			e.mu.Lock()
+			predicate, err := e.bindIndexPredicate(scope.op, scope.input, auth, parent, syntax[0].(*parser.CreateIndex).Predicate)
+			e.mu.Unlock()
+			if err != nil {
+				return err
+			}
+			definition.predicate = predicate
 		}
 		for _, slot := range pending.keys {
 			e.mu.Lock()

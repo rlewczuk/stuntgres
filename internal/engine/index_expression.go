@@ -12,11 +12,7 @@ type derivedIndexKey struct {
 	attributes            []int32 // Immutable parent layout used by both bound row frames.
 }
 
-// Caller holds engine.mu and supplies the same final catalog/parent authority
-// used by the enclosing CREATE or TYPE owner.
-// Ordering admission belongs to the caller's final selected class/collation,
-// not an expression-only default comparator.
-func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, raw parser.Expr, literals []literalExpression) (*derivedIndexKey, string, error) {
+func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor) *expressionBinder {
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
 	columns := make([]queryColumn, len(parent.columns))
 	for i, c := range parent.columns {
@@ -27,6 +23,15 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
 	binder.queryNamespace = &namespace
 	binder.querySources = []queryLeaf{{ref: ref, relation: parent}}
+	return binder
+}
+
+// Caller holds engine.mu and supplies the same final catalog/parent authority
+// used by the enclosing CREATE or TYPE owner.
+// Ordering admission belongs to the caller's final selected class/collation,
+// not an expression-only default comparator.
+func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, raw parser.Expr, literals []literalExpression) (*derivedIndexKey, string, error) {
+	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.checkLiterals = literals
 	definition, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {

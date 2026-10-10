@@ -42,6 +42,9 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	if b.checkConsumer {
 		return nil, expressionError("0A000", "cannot use subquery in check constraint", raw.Pos)
 	}
+	if b.indexPredicateConsumer {
+		return nil, expressionError("0A000", "cannot use subquery in index predicate", raw.Pos)
+	}
 	if b.indexConsumer {
 		return nil, expressionError("0A000", "cannot use subquery in index expression", raw.Pos)
 	}

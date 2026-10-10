@@ -720,7 +720,7 @@ index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos}
  | CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$8.text,Pos:$8.pos},Table:$10,IfNotExists:true,Concurrent:$4.pos,Pos:$1.pos}} ;
 index_method: /* empty */ { sqllex.(*lexer).indexExpression=true; $$=lexeme{text:"btree"} } | USING name { sqllex.(*lexer).indexExpression=true; $$=$2 } ;
 index_definition: index_head index_method '(' index_keys ')' index_include {
- sqllex.(*lexer).indexExpression=false;$1.Method=$2.text;$1.Keys=$4;$1.Include=$6;$$=$1
+ $1.Method=$2.text;$1.Keys=$4;$1.Include=$6;$$=$1
 } ;
 index_null_policy: /* empty */ {$$=lexeme{}} | NULLS_LA DISTINCT {$$=$1;$$.text="distinct"} | NULLS_LA NOT DISTINCT {$$=$1;$$.text="not distinct"} ;
 index_policy: index_definition index_null_policy {$1.NullsNotDistinct=$2.text=="not distinct";$1.NullsPos=$2.pos;$$=$1} ;
@@ -728,8 +728,8 @@ index_storage: index_policy {$$=$1}
  | index_policy WITH '(' maintenance_index_option_list ')' {$1.Options=$4;$1.WithPos=$2.pos;$$=$1} ;
 index_tablespace: index_storage {$$=$1}
  | index_storage TABLESPACE name {sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1} ;
-create_index: index_tablespace {$$=$1}
- | index_tablespace WHERE target_or {sqllex.(*lexer).deferUnsupported($2,"partial indexes are unsupported");$$=$1} ;
+create_index: index_tablespace {sqllex.(*lexer).indexExpression=false;$$=$1}
+ | index_tablespace WHERE {sqllex.(*lexer).indexExpression=true} target_or {sqllex.(*lexer).indexExpression=false;$1.Predicate=$4;$$=$1} ;
 index_include: /* empty */ {$$=nil} | INCLUDE '(' index_keys ')' {$$=$3} ;
 index_keys: index_key { $$=[]IndexKey{$1} } | index_keys ',' index_key { $$=append($1,$3) } ;
 index_key: index_atom column_collation index_class index_direction nulls {

@@ -461,8 +461,8 @@ ambiguous calls report42725, missing signatures42883. Names use normal captured
 relation lookup; missing OIDs/nonmatching kinds yield NULL, missing text names
 error. Invalid nonzero index columns yield nonnull empty TEXT. Pretty/width
 rendering is structural and executable, not original SQL or view evaluation.
-Existing ordinary views and simple/UNIQUE backing indexes are supported; this
-adds no materialized-view, expression/partial/INCLUDE index DDL or catalogs.
+Ordinary views and simple/expression/partial/INCLUDE/UNIQUE backing indexes use
+the current-name renderers; materialized-view DDL remains excluded.
 
 ### Owned sequence introspection — change note
 
@@ -827,9 +827,9 @@ the current_setting field and random comparison CASE native boundaries alongside
 their independently observed PostgreSQL extraction errors. A supported
 CURRENT_DATE-derived field exercises STABLE wrapper inlining; the actual bound
 random provider supplements VOLATILE propagation without widening SQL admission.
-Ordinary extraction expression indexes are shared supported consumers. Partial
-indexes remain a native parser boundary; the references retain native0A000/
-no-publication and actual PostgreSQL partial descriptors/filter results.
+Ordinary and partial B-tree extraction expression indexes are shared supported
+consumers. Partial predicates exclude NULL/FALSE rows; references retain direct/
+prepared creation, filtered results, current definitions and PostgreSQL descriptors.
 COUNT(EXTRACT(...)) exercises the supported aggregate child path with independent
 INT8 counts. SUM(EXTRACT(...)) is a shared direct/prepared supported consumer:
 February2 plus January1 returns exact NUMERIC `"3"` through numeric SUM.
@@ -4342,8 +4342,8 @@ Duplicate names are 42P07 in the shared relation namespace; missing target/key
 are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
 unlike newer development-source behavior. Binding precedes duplicate-name
 checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
-syntax diagnostics retain one-based character positions. Unowned access methods,
-partial definitions and unowned providers are bounded
+syntax diagnostics retain one-based character positions. Unowned access methods
+and unowned providers are bounded
 capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
 42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
 Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
@@ -4363,6 +4363,10 @@ WITH Position. Array hash classes remain recognized native0A000 boundaries.
 TYPE, deparse, Dump/Restore and maintenance preserve actual method/class identity.
 See [hash SQL](SQL.md#hash-equality-indexes) and
 [hash design](design/PG18-INDEX-HASH.md).
+Native HASH WHERE, including syntactic WHERE TRUE, fails at Execute after quiet
+Prepare with unpositioned0A000 `partial indexes are unsupported`. Existing HASH
+UNIQUE/INCLUDE/multikey errors precede this guard; predicate binding and root
+construction never consume a HASH predicate.
 
 
 Expression keys use the existing scalar binder, type/collation providers,
@@ -4403,6 +4407,59 @@ Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeInd
 use the same RUN with `REFERENCE=1` for independent PostgreSQL18.0 outcomes.
 Reference families are `TestReferenceBtreeIndex...`, `TestReferenceExpressionIndex...`
 and `TestReferenceIndexClauses...`.
+
+Ordinary partial B-tree indexes add an immutable same-table Boolean WHERE definition. Aggregates
+and subqueries get predicate-specific 42803/0A000 diagnostics; surviving mutable
+providers get unpositioned 42P17. Predicates bind before keys. Only TRUE qualifies
+(NULL does not); excluded rows never evaluate derived keys, including private
+statement preflight. Failed predicate/key evaluation leaves the batch unchanged.
+Window calls get predicate-specific 42P20 after signature analysis; a window
+function without OVER retains its 42809 diagnostic. Neither path creates an
+index or changes data, and utility Prepare remains quiet.
+Original dependencies survive simplification and join current-name deparse,
+drop, TYPE rebinding and destination Restore root rebuilding.
+Associated-array name displacement retains its OID and retags both predicate
+trees with current row types, including indexes whose only changed type consumer
+is the predicate. Retained native cursors keep their original type metadata and
+values; member uniqueness and outside-array admission remain unchanged.
+
+Eligibility is strong exact immutable conjunction matching on unresolved typed
+trees. Every predicate atom must match a query atom; OR is not split, and no
+inequality/algebra theorem prover is supplied. Parameter atoms cannot prove fixed
+predicates, but unrelated parameters do not disable an independent exact match.
+For a sole direct nonlocking table SELECT only, a root captured under the same
+mutex as the exact committed visibility can reject nonmember row/version pairs
+before the full residual WHERE. Private catalog/writes/deletes, stable/historical
+views and stale epoch/generation/prefix/ends/definition always fall back to the
+ordinary scan. Retained roots/masks and selected rows remain immutable across
+later publication or replacement. There is no key traversal/cost/order optimizer.
+Partial UNIQUE uses the same owner as ordinary/attached uniqueness. Membership
+precedes key/null/hash/reservation/probe work and filters private/staged rows and
+accepted prefixes without hiding future UPDATE candidates. Old member claims
+survive leave/delete until outcome; outside rows claim no partial key. DISTINCT
+and NND apply only to members. Analyzed standalone BOOL TRUE normalizes to nil
+predicate/no WHERE and ordinary strong key/history semantics. Retained logical,
+comparison and converting-cast predicates remain partial even when execution
+folds TRUE; partial-only key/predicate UPDATE does not stamp strong-key history.
+Predicate-dependent TYPE validates final rebound definitions and projected
+committed/private rows at Execute, retaining current disclosure authority.
+Materialized roots include exact immutable row/version membership maps, including
+empty maps; changed predicate identity forces rebuild. Validation-only PREPARE
+publishes no roots/maps; rebuilt predecessor uniqueness is checked before delta.
+INSERT SELECT preserves eager sort/set demand and lazy admission before the next
+completed source row; excluded rows still evaluate demanded expressions/defaults.
+Predicate/INCLUDE values do not become disclosed unique keys. Shared scenarios:
+`make quickcheck PACKAGES=./reference RUN='^TestReferencePartialIndex' VERBOSE=0`;
+use the same RUN with `REFERENCE=1` for independently asserted PostgreSQL18.0.
+PostgreSQL also admits partial HASH indexes; native retains its unpositioned
+0A000 exclusion at Execute for HASH WHERE, including WHERE TRUE. Ordinary HASH
+is unchanged; its UNIQUE/INCLUDE/multikey diagnostics retain precedence.
+Concurrent WHERE likewise remains a native capability boundary: quiet Prepare,
+unpositioned Execute0A000 `partial concurrent indexes are unsupported`, including
+syntactic WHERE TRUE. Ordinary CONCURRENTLY and ordinary partial creation are
+unchanged; no concurrent predicate/snapshot or computed partial-unique consumer
+is introduced. Shared direct/held Context/plain boundary and both same-name
+recoveries: `RUN='^TestReferencePartialIndexConcurrentBoundary$'` in both modes.
 The consolidated source/reference union keeps actual plain maintenance and
 transaction consumers beside recorded Context owners. Standalone CREATE UNIQUE
 INDEX now supports simple/composite keys, default/explicit NULLS DISTINCT and

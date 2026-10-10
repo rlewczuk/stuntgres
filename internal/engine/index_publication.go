@@ -84,6 +84,37 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 		derived.attributes = parent.attributes
 		definition.keys[i].derived = &derived
 	}
+	if predicate := definition.predicate; predicate != nil {
+		for _, dependency := range predicate.dependencies {
+			a := dependency.Address
+			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !dependentAttribute(a.SubID) {
+				return nil, nil
+			}
+		}
+		if !slices.Equal(predicate.attributes, parent.attributes) {
+			slots := make(map[int32]int, len(parent.attributes))
+			for slot, id := range parent.attributes {
+				slots[id] = slot
+			}
+			remap := func(ref ObjectRef) ObjectRef { return ref }
+			node, err := remapBoundExpression(predicate.definition, remap, slots)
+			if err != nil {
+				return nil, err
+			}
+			execution, err := remapBoundExpression(predicate.execution, remap, slots)
+			if err != nil {
+				return nil, err
+			}
+			if definition == index.sqlIndex {
+				copy := *definition
+				copy.keys = append([]indexKey(nil), copy.keys...)
+				definition = &copy
+			}
+			copy := *predicate
+			copy.definition, copy.execution, copy.attributes = node, execution, parent.attributes
+			definition.predicate = &copy
+		}
+	}
 	for _, attribute := range definition.include {
 		if !dependentAttribute(attribute) {
 			return nil, nil
@@ -151,8 +182,14 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent Object
 		if _, removed := stage.removals[a]; removed {
 			continue
 		}
-		if _, changed := stage.descriptors[a]; changed {
-			continue
+		if staged, changed := stage.descriptors[a]; changed {
+			candidate, ok := staged.(*relationDescriptor)
+			if !ok || candidate.sqlIndex == nil || candidate.sqlIndex.parent != typeParent || !uniqueIndexTypeAffected(candidate.sqlIndex, transformations) {
+				continue
+			}
+			// An actual TYPE reconstruction also owns lifecycle repair for
+			// rebound definitions; unrelated staged wrappers cannot heal it.
+			index = candidate
 		}
 		var parent Descriptor
 		if _, removed := stage.removals[index.sqlIndex.parent]; removed {
@@ -365,7 +402,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 		}
 		if materialize {
 			if root == nil {
-				root = &logicalIndexRoot{entries: entries}
+				root = newLogicalIndexRoot(index.sqlIndex, entries)
 			}
 			result[a] = root
 		}
@@ -374,7 +411,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 }
 
 // A backing-constraint rename changes a wrapper, not key/provider semantics.
-// Keep the root only when the actual method and all key identities are unchanged.
+// Keep roots only when method, key/null-policy and predicate identities are unchanged.
 func sameIndexKeySemantics(a, b *relationDescriptor) bool {
 	if a == b {
 		return true
@@ -387,7 +424,7 @@ func sameIndexKeySemantics(a, b *relationDescriptor) bool {
 			return false
 		}
 	}
-	return a.sqlIndex.unique == b.sqlIndex.unique && a.sqlIndex.nullsNotDistinct == b.sqlIndex.nullsNotDistinct
+	return a.sqlIndex.unique == b.sqlIndex.unique && a.sqlIndex.nullsNotDistinct == b.sqlIndex.nullsNotDistinct && a.sqlIndex.predicate == b.sqlIndex.predicate
 }
 
 // Only changed roots require a storage fence. Unchanged siblings may have
@@ -425,21 +462,34 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 		if len(rows) == 0 {
 			continue
 		}
-		for _, key := range index.sqlIndex.keys {
-			if key.derived == nil {
+		if index.sqlIndex.predicate == nil {
+			derived := false
+			for _, key := range index.sqlIndex.keys {
+				derived = derived || key.derived != nil
+			}
+			if !derived {
 				continue
 			}
-			for _, row := range rows {
-				if !rowMaintainsIndex(row, index) {
+		}
+		for _, row := range rows {
+			if !rowMaintainsIndex(row, index) {
+				continue
+			}
+			if !liveVersion(row, CommitSeq(^uint64(0)), nil, deletes[index.sqlIndex.parent]) {
+				continue
+			}
+			matches, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row.values)
+			if err != nil {
+				return err
+			}
+			if !matches {
+				continue
+			}
+			evaluation.Row = row.values
+			for _, key := range index.sqlIndex.keys {
+				if key.derived == nil {
 					continue
 				}
-				if !liveVersion(row, CommitSeq(^uint64(0)), nil, deletes[index.sqlIndex.parent]) {
-					continue
-				}
-				if err := evaluation.Context.Err(); err != nil {
-					return err
-				}
-				evaluation.Row = row.values
 				if _, err := key.derived.execution.Eval(&evaluation); err != nil {
 					return err
 				}

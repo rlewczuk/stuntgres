@@ -1313,8 +1313,8 @@ and trailing NULLS DISTINCT/NULLS NOT DISTINCT, existing-data validation and the
 same immediate write/transaction-key enforcement as table UNIQUE. Directions,
 NULL ordering, compatible classes/collations and INCLUDE retain their meaning.
 Ordinary unique expressions and BPCHAR classes on TEXT/VARCHAR fail explicit0A000;
-ordinary support is unchanged. Partial indexes, unowned methods and providers,
-class parameters and tablespaces remain excluded.
+ordinary support is unchanged. Unowned methods and providers, class parameters,
+storage parameters and tablespaces remain excluded.
 Concurrent creation inherits the supported nonunique hash surface and additionally
 supports full computed/provider-aware B-tree UNIQUE tuples and NULLS NOT DISTINCT
 through the same enforcement; see
@@ -1358,6 +1358,10 @@ at its WITH token, before allocating/building. Hash fillfactor defaults to75 in
 PostgreSQL and valid bounds are10–100; no native physical option is accepted as
 a no-op. Hash ALTER SET rejects deduplicate_items; valid SET/RESET retain the
 existing physical-control exclusion.
+Native HASH WHERE is a separate Execute-time capability exclusion after quiet
+Prepare: unpositioned0A000 `partial indexes are unsupported`, including syntactic
+WHERE TRUE. Existing HASH UNIQUE/INCLUDE/multikey errors take precedence; the
+WHERE guard runs before predicate binding, reloptions and root construction.
 
 Dump and pg_get_indexdef emit USING hash without ASC/NULLS decorations. TYPE
 reselects old-default hash classes; rename/drop/schema movement, REINDEX,
@@ -1441,6 +1445,36 @@ See [the design](design/PG18-INDEX-MAINTENANCE.md).
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
 repeat the same selector with `REFERENCE=1`.
 
+
+The optional WHERE clause occurs once: a second WHERE is a syntax error at that
+keyword, not a replacement predicate. Parsing rejects the complete malformed
+input before any preceding statement can take effect.
+
+Ordinary partial B-tree indexes support same-table immutable Boolean WHERE predicates, independent
+of key/payload columns. TRUE alone qualifies; NULL/FALSE exclude before derived
+key evaluation. Builds, committed maintenance and private statement preflight use
+that same contract. Original predicates/dependencies participate in current-name
+deparse, DROP/TYPE and destination Restore rebuilds. Exact unresolved immutable
+conjunction proof may supply a coherent committed sequential-scan membership
+rejection mask; full residual WHERE and sort remain authoritative. Parameter atoms
+cannot prove fixed predicates. Private/historical/stale views fall back to ordinary
+scanning. No key traversal or cost planner is added. Partial UNIQUE constrains only
+TRUE members through the shared key reservations and committed/private/prefix
+checks, with ordinary DISTINCT or NND null policy. Leaving members retain old-key
+reservations until transaction outcome; outside rows reserve no partial keys.
+Predicate-only TYPE validates final rebound membership immediately, including own
+writes/deletes. Analyzed standalone Boolean TRUE becomes no stored predicate and
+deparses without WHERE; other definitions remain partial despite execution folding.
+Only effective nonpartial unique keys contribute strong UPDATE locks/history.
+Partial replacement/control witnesses retain supported TEMP sequences (including
+cached values and destination identity collisions) and eager selected rows across
+Reset/Restore; they do not require or enable TEMP-table DDL.
+Ordinary HASH is unchanged. Native HASH with WHERE, including WHERE TRUE,
+retains the unsupported0A000 boundary at Execute; PostgreSQL accepts it.
+Native concurrent WHERE retains unpositioned Execute0A000
+`partial concurrent indexes are unsupported`, including syntactic WHERE TRUE.
+Ordinary concurrent and nonconcurrent partial creation remain supported; no
+concurrent-predicate snapshot classification or computed-partial-unique scope is added.
 
 ## Whole-string pattern predicates
 

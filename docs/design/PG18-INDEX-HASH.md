@@ -208,6 +208,15 @@ continued use of separately held valid SELECT/DML handles. Parser units preserve
 the integrated UNIQUE/NULL policy and enforce suffix multiplicity/order without
 changing valid partial-index/tablespace capability diagnostics.
 
+The generic index grammar now preserves a WHERE AST, but HASH retains its native
+partial-index exclusion, including syntactic WHERE TRUE. The existing method
+admission owner returns unpositioned0A000 `partial indexes are unsupported` at
+Execute, after UNIQUE/INCLUDE/multikey checks and before options, predicate/key
+binding or root construction. Prepare remains quiet. PostgreSQL-valid controls,
+full diagnostics, unchanged native state and same-name ordinary-HASH recovery
+are covered by `TestReferencePartialIndexHashBoundary`. No HASH predicate
+build/merge/lookup consumer is introduced.
+
 `TestHashIndexLookupCancellation` calibrates actual duplicate-bucket probing
 and residual consumption, requires terminal cancellation rather than a finite
 successful result, preserves retained source/root identities and recovers on a

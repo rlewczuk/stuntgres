@@ -103,6 +103,12 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 							}
 						}
 					}
+					if predicate := d.sqlIndex.predicate; predicate != nil {
+						for _, dep := range predicate.dependencies {
+							depends = depends || dep.Address == target
+							automatic = automatic || droppedColumns[dep.Address]
+						}
+					}
 					if depends && !automatic {
 						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "index " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
 					}

@@ -161,7 +161,10 @@ actual B-tree class identities are projected, not underlying default substitutes
 primary/exclusion/clustered/replident/checkxmin flags are false; immediate,
 valid, ready and live are true for published implemented indexes. Unique and
 NULLS NOT DISTINCT flags come from the retained constraint definition. Predicate
-is nil because partial indexes are not implemented.
+shares the immutable original analyzed partial definition, preserving dependencies
+even when execution simplifies it. Ordinary and analyzed standalone BOOL TRUE
+definitions have nil Predicate. Retained projections keep their captured meaning
+across later predicate replacement and root publication.
 
 `indexCatalogKey` follows PostgreSQL ComputeIndexAttrs: peel only top-level
 collationExpression wrappers from the original analyzed definition; a column

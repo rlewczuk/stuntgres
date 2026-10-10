@@ -552,6 +552,10 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 				expression(key.derived.execution)
 			}
 		}
+		if predicate := d.sqlIndex.predicate; predicate != nil {
+			expression(predicate.definition)
+			expression(predicate.execution)
+		}
 	}
 	if d.view != nil {
 		for _, usage := range d.view.castUsages {
@@ -712,6 +716,30 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 					derived.dependencies[j] = ref(derived.dependencies[j])
 				}
 				definition.keys[i].derived = &derived
+			}
+			if predicate := definition.predicate; predicate != nil {
+				p := *predicate
+				node, _, err := retagBoundTypes(p.definition, typ)
+				if err != nil {
+					return err
+				}
+				p.definition, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				node, _, err = retagBoundTypes(p.execution, typ)
+				if err != nil {
+					return err
+				}
+				p.execution, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				p.dependencies = append([]ObjectRef(nil), p.dependencies...)
+				for j := range p.dependencies {
+					p.dependencies[j] = ref(p.dependencies[j])
+				}
+				definition.predicate = &p
 			}
 			copy.sqlIndex = &definition
 			d = &copy

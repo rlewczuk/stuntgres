@@ -547,9 +547,9 @@ they do not skip either backend or introduce adjacent capabilities. Plain-domain
 sources and table CHECK cover selected extraction consumers and later-row
 atomicity. The wrapper Context matrix uses the supported CURRENT_DATE field;
 real bound random-provider units supplement its public native syntax boundary.
-Ordinary extraction expression indexes remain shared successes; partial-index
-witnesses separately assert native parser rejection/no effects and real
-PostgreSQL partial descriptors/filtered rows. Catalog definition queries use
+Ordinary and partial B-tree extraction expression indexes are shared successes:
+direct/prepared creation, filtered years, retained row count and stored WHERE.
+The broad pg_index descriptor inquiry remains PostgreSQL-only. Catalog queries use
 existing same-OID joins. Wrapper units supply the existing fixed transaction
 clock fixture while retaining a real statement/session scope for random.
 COUNT(EXTRACT(month FROM s)) covers actual aggregate-child ownership with an
@@ -627,6 +627,33 @@ independent REGTYPE/array transport checks through the small regtype helper.
 These selectors do not replace ordinary quickcheck or the post-merge fullcheck
 under its single 1800-second deadline. Completed definitions are not passing
 verification until the root records successful runs.
+
+`TestReferencePartialIndexTypeGeneration` composes the same supported domain/
+associated-array displacement with a simple-key partial UNIQUE index whose
+predicate is the sole changed stored type consumer. Direct and held routes assert
+stable array OID, renamed current metadata, exact rows and member23505,
+outside-array admission, failed UPDATE atomicity and retained native cursor
+metadata/content. It supplements, not replaces, the complete Regtype family:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(PartialIndexTypeGeneration|RegtypeArrayDisplacement.*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(PartialIndexTypeGeneration|RegtypeArrayDisplacement.*)$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestPartialIndexPredicateTypeGeneration' VERBOSE=0
+```
+
+`TestReferencePartialIndexWindowDiagnostics` retains direct/held and UTF8-position
+routes for window functions in partial predicates: full42P20 predicate-context
+diagnostics, no-OVER42809 precedence, no effects and same-name supported recovery.
+Keep the complete QueryWindow family selected after shared-comparator/binder
+changes. Structural metadata has no native SQL pg_index projection; direct
+`TestPartialIndexMetadataPredicate` consumers assert exact current/retained
+truth/membership and original attribute dependencies despite simplification.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(PartialIndexWindowDiagnostics|QueryWindow)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(PartialIndexWindowDiagnostics|QueryWindow)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestPartialIndexMetadataPredicate' VERBOSE=0
+```
 
 Regtype control witnesses retain a supported TEMP SEQUENCE across Reset/Restore
 to fence physical-session ownership and allocator collisions. Persistent

@@ -9,8 +9,8 @@ outside an explicit transaction block. Read-only rejection precedes this
 restriction, relation lookup and lock acquisition. Ordinary public standalone
 UNIQUE/NND remains supported for its existing bounded simple-key/provider surface;
 concurrent B-tree creation additionally admits computed/provider-aware enforcing
-tuples. Partial indexes, concurrent DROP/REINDEX, physical access methods and
-optimizer/index-only-scan promises remain excluded.
+tuples. Partial concurrent indexes, concurrent DROP/REINDEX, physical access
+methods and optimizer/index-only-scan promises remain excluded.
 
 The concurrent lifecycle, formerly excluded, now publishes real logical roots
 and descriptor states. Successful ordinary and backing-index constructors remain
@@ -22,6 +22,11 @@ the same writer/snapshot lifecycle, readiness admission and per-index rebuild
 intent. Hash phases dispatch through the existing `buildIndexRoot` and hash
 merge implementation; there is no B-tree ordering substitute or second hash
 implementation. UNIQUE hash remains `0A000` before descriptor publication.
+Syntactic concurrent `WHERE`, including `WHERE TRUE`, retains native Execute-time
+unpositioned `0A000` (`partial concurrent indexes are unsupported`) before
+predicate binding or descriptor publication. Ordinary partial B-tree creation
+and ordinary concurrent creation remain available; HASH WHERE retains its
+method-specific exclusion and diagnostic precedence.
 `TestReferenceConcurrentIndexHash` covers both direct and held creation, actual
 first and later writer barriers, permitted writes before either release,
 healthy flags, duplicate-preserving equality reads, and actual emitted Dump SQL

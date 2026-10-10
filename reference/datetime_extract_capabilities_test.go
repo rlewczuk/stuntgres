@@ -54,7 +54,7 @@ func TestReferenceDatetimeExtractDomainConstraintBoundary(t *testing.T) {
 	})
 }
 
-func TestReferenceDatetimeExtractPartialIndexBoundary(t *testing.T) {
+func TestReferenceDatetimeExtractPartialIndex(t *testing.T) {
 	datetimeExtractScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn) {
 		referenceRunStep(t, p.ctx, c, b.recorder, referenceExec("CREATE TABLE dx_stored(s timestamp)", 0))
 		referenceRunStep(t, p.ctx, c, b.recorder, referenceExec("INSERT INTO dx_stored VALUES(TIMESTAMP '2000-02-29'),(TIMESTAMP '2001-01-01'),(TIMESTAMP 'infinity')", 3))
@@ -62,26 +62,22 @@ func TestReferenceDatetimeExtractPartialIndexBoundary(t *testing.T) {
 			for _, prepared := range []bool{false, true} {
 				t.Run(predicate+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 					q := "CREATE INDEX dx_expr ON dx_stored ((EXTRACT(year FROM s))) WHERE " + predicate
-					if !b.pg {
-						d := controlsReferenceDiagnostic("0A000", "partial indexes are unsupported")
-						d.Position = referencePosition(strings.Index(q, "WHERE") + 1)
-						s := referenceErrorDiagnostic(q, d)
-						s.prepared, s.errorStage = prepared, "execute"
-						if prepared {
-							s.errorStage = "prepare"
-						}
-						referenceRunStep(t, p.ctx, c, b.recorder, s)
-						referenceRunStep(t, p.ctx, c, b.recorder, referenceSelect("SELECT relname FROM pg_class WHERE relname='dx_expr'", []string{"relname"}, []string{"NAME"}, nil))
-					} else {
-						s := referenceExec(q, 0)
-						s.prepared = prepared
-						referenceRunStep(t, p.ctx, c, b.recorder, s)
-						// Assert a genuine partial descriptor, not an ordinary index
-						// substituted for the excluded native feature.
+					s := referenceExec(q, 0)
+					s.prepared = prepared
+					referenceRunStep(t, p.ctx, c, b.recorder, s)
+					if b.pg {
+						// The broad pg_index SQL source remains PostgreSQL-only.
 						referenceRunStep(t, p.ctx, c, b.recorder, referenceSelect("SELECT i.indpred IS NOT NULL AS partial FROM pg_index i JOIN pg_class c ON i.indexrelid=c.oid WHERE c.relname='dx_expr'", []string{"partial"}, []string{"BOOL"}, [][]any{{true}}))
-						referenceRunStep(t, p.ctx, c, b.recorder, referenceSelect("SELECT EXTRACT(year FROM s) AS year FROM dx_stored WHERE "+predicate+" ORDER BY EXTRACT(year FROM s)", []string{"year"}, []string{"NUMERIC"}, [][]any{{"2000"}, {"2001"}}))
-						referenceRunStep(t, p.ctx, c, b.recorder, referenceExec("DROP INDEX dx_expr", 0))
 					}
+					var definition string
+					if err := c.QueryRowContext(p.ctx, "SELECT pg_get_indexdef('dx_expr'::regclass)").Scan(&definition); err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(definition, " WHERE ") {
+						t.Fatalf("missing partial predicate in index definition: %s", definition)
+					}
+					referenceRunStep(t, p.ctx, c, b.recorder, referenceSelect("SELECT EXTRACT(year FROM s) AS year FROM dx_stored WHERE "+predicate+" ORDER BY EXTRACT(year FROM s)", []string{"year"}, []string{"NUMERIC"}, [][]any{{"2000"}, {"2001"}}))
+					referenceRunStep(t, p.ctx, c, b.recorder, referenceExec("DROP INDEX dx_expr", 0))
 					referenceRunStep(t, p.ctx, c, b.recorder, referenceSelect("SELECT count(*) AS n FROM dx_stored", []string{"n"}, []string{"INT8"}, [][]any{{int64(3)}}))
 				})
 			}

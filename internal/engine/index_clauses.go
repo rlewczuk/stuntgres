@@ -164,6 +164,9 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 		if len(s.Keys) > 1 {
 			return sqlError("0A000", `access method "hash" does not support multicolumn indexes`)
 		}
+		if s.Predicate != nil {
+			return sqlError("0A000", "partial indexes are unsupported")
+		}
 		return nil
 	case "gin", "gist", "spgist", "brin":
 		if len(s.Include) > 0 && s.Method == "gin" {

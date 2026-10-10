@@ -389,6 +389,21 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
+	// Final rebound predicates and reconstructed attachments must exist before
+	// TYPE validates the effective committed/private row image.
+	e.mu.Lock()
+	if ref.Epoch != e.state.epoch {
+		e.mu.Unlock()
+		return Result{}, ErrCatalogReplaced
+	}
+	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
+	if err == nil {
+		err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return Result{}, err
+	}
 	var uniqueBaselines map[string]*logicalIndexRoot
 	if len(transformations) != 0 {
 		// Recapture effective authority after provider waits and row rewriting.
@@ -404,7 +419,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err != nil {
 			return Result{}, err
 		}
-		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, stage)
+		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations)
 		if err != nil {
 			return Result{}, err
 		}
@@ -437,15 +452,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if ref.Epoch != e.state.epoch {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
-	}
-	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
-	if err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	if err := e.evolveStageIndexesLocked(stage, ref.Address, transformations); err != nil {
-		e.mu.Unlock()
-		return Result{}, err
 	}
 	for a, d := range stage.descriptors {
 		original := grantCatalog.descriptors[a]

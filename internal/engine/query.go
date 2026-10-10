@@ -394,6 +394,7 @@ type querySource struct {
 	view                 *VisibilityView
 	ref                  ObjectRef
 	committed, own       []rowVersion
+	partialMask          *logicalIndexRoot
 	singleton            bool
 	anonymous            [][]sqltype.Value
 	visible              []int
@@ -590,6 +591,7 @@ func (s *querySource) close() {
 	}
 	s.view = nil
 	s.committed, s.own = nil, nil
+	s.partialMask = nil
 	s.anonymous = nil
 	s.visible = nil
 }
@@ -850,6 +852,12 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 					i, present, err = child.nextOccurrence(ctx)
 					if err != nil || !present {
 						return present, err
+					}
+				}
+				if mask := child.source.partialMask; mask != nil {
+					row := child.source.versionAt(child.source.rawIndex(child.index(i)))
+					if !partialMaskContains(mask, row) {
+						continue
 					}
 				}
 				evaluation.Context, evaluation.Row = ctx, child.source.row(child.index(i))

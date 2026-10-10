@@ -42,10 +42,15 @@ func uniqueAsyncUnit(t *testing.T, s *Session, query string) (<-chan deleteOutco
 func uniqueClaimsEmpty(t *testing.T, e *Engine) {
 	t.Helper()
 	lockEmpty(t, e)
+	uniqueKeyBucketsEmpty(t, e)
+}
+
+func uniqueKeyBucketsEmpty(t *testing.T, e *Engine) {
+	t.Helper()
 	e.locks.mu.Lock()
 	defer e.locks.mu.Unlock()
 	if len(e.locks.keyBuckets) != 0 {
-		t.Fatal("retained empty unique key buckets", len(e.locks.keyBuckets))
+		t.Fatal("retained unique key buckets", len(e.locks.keyBuckets))
 	}
 }
 

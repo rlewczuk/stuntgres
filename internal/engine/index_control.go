@@ -13,6 +13,9 @@ type indexPresentation struct {
 	column int64
 	pretty bool
 	path   []ObjectAddress
+	// TYPE buffers retain original expression trees and old-Usage decoration.
+	reconstruct bool
+	output      sqltype.OutputEnvironment
 }
 
 func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relationDescriptor, presentation indexPresentation) (string, error) {
@@ -76,13 +79,15 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 				sql.WriteByte(')')
 			}
 			presented = reconstructIndexKey(key, usage, usage, index.sqlIndex.method)
-			actual, err := indexKeyUsage(parent, key)
-			if err != nil {
-				return "", err
-			}
-			presented.collation = 0
-			if actual.Collation.ID != usage.Collation.ID {
-				presented.collation = actual.Collation.ID
+			if !presentation.reconstruct {
+				actual, err := indexKeyUsage(parent, key)
+				if err != nil {
+					return "", err
+				}
+				presented.collation = 0
+				if actual.Collation.ID != usage.Collation.ID {
+					presented.collation = actual.Collation.ID
+				}
 			}
 		} else if key.derived != nil {
 			text, err := (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
@@ -151,6 +156,19 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if index.sqlIndex.nullsNotDistinct {
 		sql.WriteString(" NULLS NOT DISTINCT")
 	}
+	if predicate := index.sqlIndex.predicate; predicate != nil {
+		var text string
+		var err error
+		if presentation.dump {
+			text, err = (scalarRenderer{owner: parent}).sql(ctx, catalog, predicate.definition)
+		} else {
+			text, err = (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path, output: presentation.output}).sql(ctx, predicate.definition, pgRenderParent{})
+		}
+		if err != nil {
+			return "", err
+		}
+		sql.WriteString(" WHERE " + text)
+	}
 	if presentation.dump {
 		sql.WriteString(";\n")
 	}
@@ -194,6 +212,11 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 // owner. Return the classified column/expression usage, not its type default:
 // PostgreSQL compares full-key collation with that usage. Dump stays canonical.
 func compactIndexKeySQL(ctx context.Context, catalog CatalogRead, parent *relationDescriptor, key indexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
+	if presentation.reconstruct && key.derived != nil {
+		node := key.derived.definition
+		text, err := (pgRenderer{view: catalog, relation: parent, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})
+		return text, !pgIndexFunctionExpression(node), node.ResultUsage(), err
+	}
 	attribute, node, err := indexCatalogKey(parent, key)
 	if err != nil {
 		return "", false, sqltype.Usage{}, err

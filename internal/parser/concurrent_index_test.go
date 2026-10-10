@@ -1,11 +1,6 @@
 package parser
 
-import (
-	"errors"
-	"reflect"
-	"stuntgres/internal/sqlstate"
-	"testing"
-)
+import "testing"
 
 func TestConcurrentIndexHeads(t *testing.T) {
 	for _, tc := range []struct {
@@ -42,7 +37,6 @@ func TestConcurrentIndexHeads(t *testing.T) {
 
 func TestConcurrentIndexOrdinaryParseAuthority(t *testing.T) {
 	query := `CREATE UNIQUE INDEX ui ON public.t(lower(v) COLLATE "C" text_ops DESC NULLS LAST) INCLUDE(payload) NULLS NOT DISTINCT`
-	var diagnostic *sqlstate.Error
 	statements, err := Parse(query)
 	if err != nil || len(statements) != 1 {
 		t.Fatal(statements, err)
@@ -51,13 +45,12 @@ func TestConcurrentIndexOrdinaryParseAuthority(t *testing.T) {
 	if !index.Unique || !index.NullsNotDistinct || index.Concurrent.Character != 0 || index.Name.Text != "ui" || len(index.Include) != 1 {
 		t.Fatal(index)
 	}
-	for _, tc := range []struct{ query, message string }{
-		{"CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n) WHERE n>0", "partial indexes are unsupported"},
-	} {
-		_, err := Parse(tc.query)
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: "45"}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
-			t.Fatal(tc.query, err, diagnostic)
-		}
+	statements, err = Parse("CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n) WHERE n>0")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	index = statements[0].(*CreateIndex)
+	if !index.Unique || index.Concurrent.Character != 21 || index.Predicate == nil {
+		t.Fatal(index)
 	}
 }

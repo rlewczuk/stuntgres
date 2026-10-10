@@ -111,12 +111,13 @@ engine mutex. A permanent zero-allocation evolution witness covers this path.
 
 ## Exclusions and evidence
 
-PK/FK, partial indexes and unowned methods/providers,
+PK/FK and unowned methods/providers,
 storage parameters/tablespaces, physical index-only scans and broad
 pg_index/pg_indexes catalogs remain excluded. Existing pg_get_indexdef is supported.
-PG18-INDEX-UNIQUE admits standalone simple-key uniqueness through the existing
-real roots, immediate checker and transaction-key lock graph. Policy is separate
-from optional genuine constraint attachment; no fake pg_constraint row is added.
+PG18-INDEX-UNIQUE admits standalone simple/composite-key uniqueness through the
+existing real roots, immediate checker and transaction-key lock graph. Policy is
+separate from optional genuine constraint attachment; no fake pg_constraint row
+is added. Standalone unique attachment is not admitted.
 Ordinary hash roots and narrow equality lookup supersede the historical
 non-btree-method exclusion; see [PG18-INDEX-HASH](PG18-INDEX-HASH.md).
 Ordinary DROP/rename/REINDEX are owned by
@@ -130,6 +131,29 @@ and simple INCLUDE payload are now admitted, with the 32 limit counting both rol
 Expression support supersedes the original expression exclusion: the shared
 expression-index reference family retains spaced/Unicode syntax and quiet
 prepared admission, full semantic diagnostics and atomic no-leakage witnesses.
+Partial-index support supersedes the historical WHERE exclusion. Original and
+simplified predicate trees share binder/provider authority and retain original
+dependencies. Build, merge and private preflight include only TRUE, before keys;
+NULL/FALSE exclude. Predicate-only TYPE/drop/remapping join existing lifecycle
+owners. Exact immutable conjunction proof can attach an immutable row/version
+membership rejection mask to a sole direct nonlocking committed SELECT; the
+complete WHERE and sorting remain authoritative. Mask capture rejects the effective
+occurrence row mark (including inherited view marks) and any active query-lock
+context. Private/historical/stale source captures fall back to scanning. This
+supplies no key traversal/cost optimizer.
+Both predicate trees join type-only descriptor-generation detection and reownership,
+including associated-array name displacement. Current rows and predicate usages
+retag together without changing ObjectRefs or dependencies; unchanged consumers
+reuse their descriptors. Prior catalogs, rows, roots, masks and eager cursor
+metadata remain immutable.
+Partial UNIQUE composes this membership contract with the existing unique owner:
+candidate/old-row reservations and private/staged/prefix comparisons qualify
+membership first. Rebuild-only and merged roots share newLogicalIndexRoot;
+immutable predicate pointer identity fences root reuse and afterwait admission.
+Combined publication validates rebuilt predecessor uniqueness before applying
+delta, in both validation-only and materialized modes. Only the latter creates
+roots and exact membership maps. Analyzed standalone BOOL TRUE becomes nil
+predicate; retained execution-folded TRUE definitions remain partial.
 Valid remaining excluded syntax fails explicitly instead of dropping meaning;
 unknown methods report 42704 at execution. Exclusion contracts retain full
 diagnostics, character positions where applicable, prepared admission and no

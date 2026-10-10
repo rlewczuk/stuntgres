@@ -402,8 +402,8 @@ other valid columns give only the key expression or included column name, and
 invalid columns give empty text. Text view arguments resolve relation names, not
 numeric OIDs. Ordinary views and existing simple, expression-key and UNIQUE
 backing indexes are covered, including ordinary indexes with INCLUDE payload.
-Materialized-view DDL and partial indexes remain excluded; the introspection
-change itself adds no index DDL capability.
+Materialized-view DDL remains excluded. Partial index predicates are supported
+through the same current-name index introspection and control paths.
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`.
@@ -851,12 +851,38 @@ or physical index-only promise; unordered SELECT has no new ordering guarantee.
 Dump/Restore serializes actual current definitions and rebuilds entries. TYPE
 reconstruction, including same-type key/payload TYPE with or without USING,
 reselects old-default classes and revalidates retained nondefaults.
-Native ordinary CREATE INDEX remains excluded in explicit transactions; partial
-indexes remain excluded. Ordinary standalone UNIQUE simple keys are supported.
+Native ordinary CREATE INDEX remains excluded in explicit transactions.
+Ordinary standalone UNIQUE simple/composite keys are supported.
 Concurrent creation additionally admits computed/provider-aware UNIQUE tuples,
 including NULLS NOT DISTINCT, but not concurrent maintenance.
 See [clause design](docs/design/PG18-INDEX-CLAUSES.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0`;
+use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL oracle.
+
+Ordinary B-tree partial indexes accept same-table immutable Boolean `WHERE` predicates. Only
+TRUE rows enter the root; FALSE and NULL rows skip even derived-key evaluation.
+Common write publication maintains qualifying/excluded transitions atomically.
+Exact immutable conjunction implication can supply a sequential-scan membership
+rejection mask; complete WHERE evaluation and sorting remain authoritative.
+Unresolved parameter atoms cannot prove a fixed predicate, while independent
+exact conjuncts can. Private/historical/stale views always fall back to scanning.
+Native HASH WHERE remains excluded, including syntactic WHERE TRUE, with
+Execute-time0A000 `partial indexes are unsupported`; ordinary HASH is unchanged.
+Partial CONCURRENTLY creation also remains excluded at Execute with unpositioned
+0A000 `partial concurrent indexes are unsupported`; ordinary concurrent support
+is unchanged, including its computed/provider-aware UNIQUE and nonunique HASH.
+This is not an index traversal, cost or inequality optimizer. Dump/Restore,
+rename, dependency drops and TYPE use original predicate definitions and rebuild
+destination membership. Partial UNIQUE uses the shared uniqueness owner: only
+TRUE members reserve/check keys, including private rows and batch prefixes.
+Default NULLS DISTINCT and explicit NULLS NOT DISTINCT apply within that subset.
+Predicate-only TYPE validates final rebound membership at Execute. Analyzed
+standalone Boolean TRUE normalizes to no predicate/no WHERE and ordinary strong
+key locks; retained predicates stay partial even if execution simplifies TRUE.
+Ordinary HASH remains supported, but its existing native `WHERE` exclusion
+returns `0A000` at Execute, including syntactic `WHERE TRUE`; PostgreSQL admits
+these partial HASH definitions.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePartialIndex(FeatureSmoke|UniqueFeatureSmoke|TypeGeneration|WindowDiagnostics)$' VERBOSE=0`;
 use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL oracle.
 Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
 use the same RUN with `REFERENCE=1` for independent PostgreSQL18.0 outcomes.

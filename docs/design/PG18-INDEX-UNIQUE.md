@@ -24,6 +24,15 @@ logical index roots. There is no second lock manager or constraint-like shadow
 object. INCLUDE columns neither participate in duplicate equality nor upgrade
 payload-only UPDATEs to key-changing row locks.
 
+Partial UNIQUE is a consumer of these same reservations, roots and comparisons.
+Finalized candidate and old-row membership runs before key/null/hash/claim work;
+own writes, staged rows and accepted prefixes compare only members. Old member
+claims survive leave/delete until outcome; excluded rows reserve no partial key.
+Strong key slots/history use only effective nil-predicate indexes. The shared
+predicate binder validates then removes analyzed standalone BOOL TRUE, not
+logical/comparison definitions that merely execute TRUE. Ordinary/attached
+uniqueness and coexisting nonpartial strong-key behavior remain unchanged.
+
 INSERT SELECT captures whether unique enforcement is needed before opening the
 source producer. Only unique targets perform per-row duplicate admission.
 Nonunique targets retain the existing complete-batch evaluation and epoch check
@@ -44,6 +53,13 @@ Required rebuilt predecessor entries are checked before applying deletions or
 replacement rows, so a delta cannot hide an invalid unique build. The merge
 checks uniqueness at adjacent survivor/addition and addition/addition boundaries
 using the same index identity, NULL policy, output settings, and ACL authority.
+Materialized partial roots carry exact immutable RowID-to-VersionID membership,
+including an empty map for an empty subset. Rebuild and merge use one constructor;
+retained immutable predicate pointer identity also fences reuse/afterwait checks.
+TYPE validation consumes final evolved/rebound candidate definitions separately
+from current disclosure authority and merges projected own rows minus ends/deletes.
+Predicate-only TYPE duplicate membership fails at Execute; private baseline roots
+remain owned by catalogChanges.uniqueRoots and savepoint recovery.
 
 ## Diagnostics and authorization
 
@@ -59,12 +75,15 @@ ACL-only descriptor replacement preserves definition identity. Post-wait
 validation checks that identity, row shape, and index key semantics instead of
 requiring the old descriptor pointer, while still rejecting replaced epochs or
 changed definitions.
+Predicate and INCLUDE values are not additional unique-detail authorization keys.
 
 ## Replay and coverage
 
 Dump emits standalone indexes as `CREATE UNIQUE INDEX` with keys, providers,
-INCLUDE, and NULL policy, while attached backing indexes remain folded into their
-constraint definitions. Restore rebuilds through the same uniqueness authority;
+INCLUDE, NULL policy and retained predicate; analyzed standalone TRUE omits WHERE.
+TYPE buffers share that renderer with old-Usage normalization and original trees,
+preserving UNIQUE/NND and reconstructed diagnostic positions. Attached backing
+indexes remain folded into constraint definitions. Restore rebuilds through the same uniqueness authority;
 invalid streams preserve the current catalog, data, and retained handles.
 
 Shared untagged reference scenarios use the `TestReferenceUniqueIndex` prefix.

@@ -635,6 +635,14 @@ It supports simple/composite keys and trailing NULLS DISTINCT/NOT DISTINCT:
 all key components must compare equal, and DISTINCT bypasses conflicts whenever
 any component is NULL. Directions/NULL ordering do not change equality; INCLUDE
 is payload only. Failed builds, multirow writes and TYPE conversion are atomic.
+Same-table immutable Boolean WHERE predicates qualify standalone UNIQUE members:
+FALSE/NULL rows remain stored but do not claim or compare unique keys. This also
+filters private/staged rows and accepted prefixes; member leave/delete retains
+its old-key reservation until outcome. Predicate-only TYPE validates final
+rebound membership with projected own writes/deletes before private installation.
+Only effective nonpartial unique keys supply strong UPDATE locks/history.
+Analyzed standalone Boolean TRUE becomes no predicate/no WHERE; execution-folded
+logical/comparison predicates retain partial status and original dependencies.
 Ordinary unique expressions and BPCHAR classes on TEXT/VARCHAR remain explicit0A000,
 while concurrent UNIQUE admits them through the same tuple authority.
 Ordinary nonunique support is unchanged. Standalone rename preserves identity,
@@ -642,6 +650,8 @@ DROP frees enforcement, and Dump/Restore emits/rebuilds the actual index once
 after parent data. Duplicate-build key disclosure uses the same current SELECT
 authority as TYPE/runtime failures, including owners with revoked SELECT.
 UNIQUE does not enable index-planner or physical PostgreSQL storage claims.
+Partial predicates remain B-tree-only. Ordinary nonunique HASH support is
+unchanged and does not admit WHERE, including syntactic WHERE TRUE.
 The existing native CREATE TABLE exclusion in explicit transactions is unchanged;
 the corresponding PostgreSQL transaction/rollback control is independent.
 Concurrent standalone UNIQUE indexes are independently admitted without a parent
@@ -727,7 +737,7 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-Primary/foreign keys, unowned access methods, partial indexes and
+Primary/foreign keys, unowned access methods and
 unrelated ALTER actions remain excluded engine capabilities.
 Concurrent creation inherits the supported B-tree and nonunique hash methods.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and

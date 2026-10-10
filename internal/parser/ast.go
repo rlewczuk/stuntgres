@@ -187,6 +187,7 @@ type CreateIndex struct {
 	Method           string
 	Keys             []IndexKey
 	Include          []IndexKey
+	Predicate        Expr
 	IfNotExists      bool
 	Unique           bool
 	UniquePos        Position

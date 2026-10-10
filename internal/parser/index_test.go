@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestBtreeIndexSyntaxAndOptions(t *testing.T) {
@@ -53,7 +54,6 @@ func TestBtreeIndexSyntaxDiagnostics(t *testing.T) {
 }
 func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
-		{"CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24"},
 		{"CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24"},
 	} {
 		_, err := Parse(tc.query)
@@ -110,7 +110,6 @@ func TestHashIndexSuffixClauseOrder(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct{ query, token, message string }{
-		{"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=75) WHERE n>0", "WHERE", "partial indexes are unsupported"},
 		{"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=75) TABLESPACE pg_default WHERE n>0", "TABLESPACE", "index tablespaces are unsupported"},
 	} {
 		_, err := Parse(tc.query)
@@ -151,6 +150,47 @@ func TestHashIndexSyntaxAdmission(t *testing.T) {
 	options := statements[0].(*CreateIndex).Options
 	if options[0].Value.Kind != IntegerValue || options[0].Value.Integer != -1 || options[1].Namespace != "toast" || options[1].Name.Text != "fillfactor" {
 		t.Fatal(options)
+	}
+}
+
+func TestBtreeIndexPartialPredicateAST(t *testing.T) {
+	for _, q := range []string{
+		"CREATE INDEX ix ON t(n) WHERE active",
+		"CREATE INDEX ix ON t((10/n)) INCLUDE(active) WHERE active AND n>0",
+		"CREATE INDEX ix ON t(n) WHERE (SELECT TRUE)",
+		"CREATE INDEX ix ON t(n) WHERE (VALUES(TRUE))",
+		"CREATE INDEX ix ON t(n) WHERE count(*)>0",
+		"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=75) WHERE n>0",
+	} {
+		statements, err := Parse(q + "; SELECT count(*) FROM t")
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		index := statements[0].(*CreateIndex)
+		if index.Predicate == nil || index.Predicate.SourcePosition().Character == 0 || len(statements) != 2 {
+			t.Fatal("lost predicate, position or consumer reset", index)
+		}
+	}
+}
+
+func TestBtreeIndexPartialRepeatedWhere(t *testing.T) {
+	for _, predicate := range []string{"FALSE", "(SELECT TRUE)", "(VALUES(TRUE))", "count(*)>0"} {
+		for _, prefix := range []string{"", "/*é*/ ", "INSERT INTO t VALUES(99,TRUE); ", "/*é*/ INSERT INTO t VALUES(99,TRUE); "} {
+			q := prefix + "CREATE INDEX ix ON t(n) WHERE " + predicate + " WHERE active"
+			statements, err := Parse(q)
+			var got *sqlstate.Error
+			want := sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+				Message:  `syntax error at or near "WHERE"`,
+				Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.LastIndex(q, "WHERE")]) + 1),
+			}
+			if !errors.As(err, &got) || !reflect.DeepEqual(*got, want) {
+				t.Fatalf("%s: got %#v want %#v: %v", q, got, want, err)
+			}
+			if len(statements) != 0 {
+				t.Fatal("malformed complete input exposed statements", statements)
+			}
+		}
 	}
 }
 

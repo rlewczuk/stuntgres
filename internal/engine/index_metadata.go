@@ -55,6 +55,9 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]OID, n), IndCollation: make([]OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.unique
 	m.IndNullsNotDistinct = definition.nullsNotDistinct
+	if predicate := definition.predicate; predicate != nil {
+		m.Predicate = predicate.definition
+	}
 	for i, key := range definition.keys {
 		if err := ctx.Err(); err != nil {
 			return indexMetadata{}, indexesMetadata{}, err

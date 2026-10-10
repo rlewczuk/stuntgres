@@ -223,8 +223,8 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ObjectAddr
 		t.Fatal("completion omitted index roots", len(roots), len(f.roots))
 	}
 	root := roots[f.index.address]
-	if root == nil || root == f.roots[f.index.address] {
-		t.Fatal("completion omitted changed substantive root")
+	if root == nil {
+		t.Fatal("completion omitted substantive root")
 	}
 	want := make([]logicalIndexEntry, len(rows))
 	for i, row := range rows {

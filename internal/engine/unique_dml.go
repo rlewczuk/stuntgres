@@ -70,7 +70,7 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 			}
 			slots[at] = slices.Index(parent.attributes, attribute)
 		}
-		if simple {
+		if simple && index.sqlIndex.predicate == nil {
 			for _, slot := range slots[:len(index.sqlIndex.keys)] {
 				if !slices.Contains(b.keySlots, slot) {
 					b.keySlots = append(b.keySlots, slot)
@@ -121,15 +121,35 @@ func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *EvalContext) ([]s
 	return b.key, err
 }
 
+func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.Value) (bool, error) {
+	member, err := indexPredicateMatches(evaluation, b.index.sqlIndex.predicate, values)
+	if err != nil || !member {
+		return false, err
+	}
+	if err := b.ordering.fillKeys(values, b.scratch, evaluation); err != nil {
+		return false, err
+	}
+	cmp, err := b.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: key}, logicalIndexEntry{keys: b.scratch})
+	return cmp == 0, err
+}
+
 func (s *StatementScope) claimUniqueRow(ref ObjectRef, row []sqltype.Value) error {
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return err
 	}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
-		key, err := bound.load(row, &EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1})
+		member, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row)
+		if err != nil {
+			return err
+		}
+		if !member {
+			continue
+		}
+		key, err := bound.load(row, &evaluation)
 		if err != nil {
 			return err
 		}
@@ -178,11 +198,19 @@ retry:
 	}
 	e := s.op.session.Engine()
 	ctx := s.op.Context()
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
 		ordering := bound.ordering
-		key, err := bound.load(row, &EvalContext{Context: ctx, Scope: 1, Frame: 1})
+		member, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row)
+		if err != nil {
+			return err
+		}
+		if !member {
+			continue
+		}
+		key, err := bound.load(row, &evaluation)
 		if err != nil {
 			return err
 		}
@@ -233,13 +261,6 @@ retry:
 		}
 		if root == nil {
 			return errors.New("stuntgres: ready unique index root is missing")
-		}
-		matches := func(values []sqltype.Value) (bool, error) {
-			if err := ordering.fillKeys(values, bound.scratch, &EvalContext{Context: ctx, Scope: 1, Frame: 1}); err != nil {
-				return false, err
-			}
-			cmp, err := ordering.compareKeys(ctx, logicalIndexEntry{keys: key}, logicalIndexEntry{keys: bound.scratch})
-			return cmp == 0, err
 		}
 		conflict := false
 		// Binary lower bound into the real committed B-tree key range.
@@ -296,7 +317,7 @@ retry:
 				if uniqueRowExcluded(own.row, excluded) || uniqueRowDeleted(own.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 					continue
 				}
-				equal, err := matches(own.values)
+				equal, err := bound.matches(&evaluation, own.values, key)
 				if err != nil {
 					return err
 				}
@@ -308,7 +329,7 @@ retry:
 		}
 		if !conflict {
 			for _, accepted := range prefix {
-				equal, err := matches(accepted)
+				equal, err := bound.matches(&evaluation, accepted, key)
 				if err != nil {
 					return err
 				}

@@ -85,8 +85,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 	return next, nil
 }
 
-// TYPE rebuilds keys and INCLUDE payload only when their actual stable
-// attributes/dependencies participate in the transformation.
+// TYPE reconstruction follows actual key, INCLUDE and predicate dependencies.
 func uniqueIndexTypeAffected(definition *indexDefinition, transformations []columnTransformation) bool {
 	for _, change := range transformations {
 		if slices.Contains(definition.include, change.attribute) {
@@ -105,15 +104,21 @@ func uniqueIndexTypeAffected(definition *indexDefinition, transformations []colu
 				}
 			}
 		}
+		if predicate := definition.predicate; predicate != nil {
+			for _, dependency := range predicate.dependencies {
+				if dependency.Address.ClassID == definition.parent.ClassID && dependency.Address.ObjectID == definition.parent.ObjectID && dependency.Address.SubID == change.attribute {
+					return true
+				}
+			}
+		}
 	}
 	return false
 }
 
-// TYPE must fail at Execute, including private writes. Use the staged rebound
-// expression when present, then the same evolution and tuple providers as
-// publication. Only an actual affected TYPE action may repair lifecycle flags.
-func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, stage *CatalogStage) (map[string]*logicalIndexRoot, error) {
-	indexes := uniqueIndexes(auth.catalog, parent.address)
+// TYPE must fail at Execute, including private writes. Merge overlay successors
+// before building a real unique root; this is not a commit-only integrity fence.
+func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation) (map[string]*logicalIndexRoot, error) {
+	indexes := uniqueIndexes(candidate, parent.address)
 	affected := false
 	for _, index := range indexes {
 		if uniqueIndexTypeAffected(index.sqlIndex, transformations) {
@@ -143,43 +148,16 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, parent *r
 			live = append(live, row)
 		}
 	}
-	candidate := relationStorage{versions: live}
-	oldParent := auth.catalog.state.descriptors[parent.address].(*relationDescriptor)
+	liveStore := relationStorage{versions: live}
 	for _, index := range indexes {
 		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			continue
 		}
-		if index.sqlIndex.constraint != nil {
-			for _, attachment := range parent.uniqueConstraints {
-				if attachment.Name == index.name {
-					if staged, ok := stage.descriptors[attachment.Index].(*relationDescriptor); ok {
-						index = staged
-					}
-					break
-				}
-			}
-		}
-		// Prefer actual rebound/reminted staged definitions. Their existing
-		// catalog owner supplies private baseline and diagnostic identity.
-		if staged, ok := stage.descriptors[index.address].(*relationDescriptor); ok {
-			index = staged
-		} else if index.sqlIndex.constraint == nil {
-			if _, removed := stage.removals[index.address]; removed {
-				continue
-			}
-		}
-		next, err := evolveIndex(index, oldParent, parent, transformations)
+		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, &liveStore)
 		if err != nil {
 			return nil, err
 		}
-		if next == nil {
-			continue
-		}
-		root, err := buildIndexRoot(ctx, parent, next.sqlIndex, &candidate)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateUniqueRoot(ctx, parent, next, root, schema, output, &auth, true); err != nil {
+		if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &auth, true); err != nil {
 			return nil, err
 		}
 		if baselines != nil {

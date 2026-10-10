@@ -59,6 +59,8 @@ func (b *expressionBinder) windowAllowed(pos parser.Position) error {
 	clause := b.aggregateClause
 	if b.checkConsumer {
 		clause = "check constraints"
+	} else if b.indexPredicateConsumer {
+		clause = "index predicates"
 	} else if b.indexConsumer {
 		clause = "index expressions"
 	} else if b.defaultConsumer {
