@@ -12,10 +12,11 @@ import (
 )
 
 type conn struct {
-	session       *engine.Session
-	cleanup       runtime.Cleanup
-	closed        atomic.Bool
-	noticeHandler func(Error)
+	session          *engine.Session
+	cleanup          runtime.Cleanup
+	closed           atomic.Bool
+	terminalReported atomic.Bool
+	noticeHandler    func(Error)
 }
 
 type cleanupCapsule struct{ session *engine.Session }
@@ -27,10 +28,24 @@ func (c *conn) check(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if c.closed.Load() || !c.session.IsLive() {
+	if c.terminalReported.Load() {
+		return driver.ErrBadConn
+	}
+	if c.closed.Load() {
 		return errors.New("stuntgres: connection is closed")
 	}
-	return nil
+	return c.terminalError(c.session.Check(ctx))
+}
+
+// An accepted fatal is never ErrBadConn (database/sql could replay it). Only
+// subsequent pre-admission use of this already-reported dead owner gets that
+// sentinel; pool Validator/ResetSession can discard it without any SQL replay.
+func (c *conn) terminalError(err error) error {
+	var diagnostic *Error
+	if errors.As(err, &diagnostic) && diagnostic.Severity == "FATAL" {
+		c.terminalReported.Store(true)
+	}
+	return err
 }
 func (c *conn) Close() error {
 	defer runtime.KeepAlive(c)
@@ -41,12 +56,15 @@ func (c *conn) Close() error {
 }
 func (c *conn) Ping(ctx context.Context) error {
 	defer runtime.KeepAlive(c)
-	op, err := c.session.Acquire(ctx)
-	if err != nil {
+	if err := c.check(ctx); err != nil {
 		return err
 	}
+	op, err := c.session.AcquireActivity(ctx)
+	if err != nil {
+		return c.terminalError(err)
+	}
 	defer op.Done()
-	return op.Context().Err()
+	return c.terminalError(op.CommandError(op.Context().Err()))
 }
 func (c *conn) ResetSession(ctx context.Context) error {
 	defer runtime.KeepAlive(c)
@@ -83,14 +101,14 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 	default:
 		return nil, errors.New("stuntgres: unsupported transaction isolation level")
 	}
-	op, err := c.session.Acquire(ctx)
+	op, err := c.session.AcquireActivity(ctx)
 	if err != nil {
-		return nil, err
+		return nil, c.terminalError(err)
 	}
 	defer op.Done()
 	ref, err := c.session.Engine().Begin(op, engine.TxOptions{Isolation: level, ReadOnly: options.ReadOnly})
 	if err != nil {
-		return nil, err
+		return nil, c.terminalError(op.CommandError(err))
 	}
 	return &tx{conn: c, ref: ref}, nil
 }
@@ -131,17 +149,18 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	}
 	op, options, err := c.session.AcquireCommand(ctx)
 	if err != nil {
+		err = c.terminalError(err)
 		return
 	}
 	defer op.Done()
 	scope, err := c.session.Engine().StartStatement(op)
 	if err != nil {
-		err = op.CommandError(err)
+		err = c.terminalError(op.CommandError(err))
 		return
 	}
 	defer func() {
 		err = scope.Finish(err)
-		err = op.CommandError(err)
+		err = c.terminalError(op.CommandError(err))
 		if err != nil {
 			if r.Rows != nil {
 				r.Rows.Close()

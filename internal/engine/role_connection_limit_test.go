@@ -426,7 +426,7 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 					if teardown {
 						s.RequestEnd(CleanClose)
 					} else {
-						op.cancel()
+						op.cancel(nil)
 					}
 				}
 				op.ctx = ctx
@@ -447,7 +447,7 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 					if err != nil {
 						t.Fatal("same physical session did not recover", err)
 					}
-					probe := &cancelAtErrCheck{Context: recovery.Context(), at: 128, cancel: recovery.cancel}
+					probe := &cancelAtErrCheck{Context: recovery.Context(), at: 128, cancel: func() { recovery.cancel(nil) }}
 					recovery.ctx = probe
 					short := passwordExpectedSecret("notempty", salt, 1)
 					short = strings.Replace(short, "$4096:", "$1:", 1)

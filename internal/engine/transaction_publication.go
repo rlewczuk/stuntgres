@@ -339,3 +339,21 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		return nil
 	}
 }
+
+// Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
+func publicationOperationLocked(e *Engine, op *Operation) error {
+	if op == nil || op.self != op || op.session == nil || op.session.token.owner != e {
+		return errors.New("stuntgres: foreign or missing operation")
+	}
+	if op.done || op.session.state != live {
+		if op.session.timeouts.fatal != nil {
+			copy := *op.session.timeouts.fatal
+			return &copy
+		}
+		return errors.New("stuntgres: inactive operation")
+	}
+	if _, ok := op.session.operations[op]; !ok {
+		return errors.New("stuntgres: inactive operation")
+	}
+	return op.fatalErrorLocked(op.ctx.Err())
+}

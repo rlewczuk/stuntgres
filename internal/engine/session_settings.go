@@ -10,10 +10,12 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync"
+	"time"
 )
 
 type sessionSettings struct {
 	mu               sync.Mutex
+	session          *Session
 	defaults, values map[string]string
 	// typed contains only overrides; captured defaults never require reparsing.
 	typed, defaultTyped map[string]settingValue
@@ -77,8 +79,8 @@ func (s *sessionSettings) touch(name string, local bool) {
 	s.actions[name] = a
 }
 
-// finishTransaction runs under transaction admission; restoration never calls
-// providers, normalizers, parsers, or session/catalog publication locks.
+// finishTransaction runs under transaction admission. Typed timer restoration
+// follows settings -> Session ordering, without providers or external callbacks.
 func (s *sessionSettings) finishTransaction(commit bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,6 +92,11 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 				s.restore(name, a.candidate)
 			}
 		}
+	}
+	if s.session != nil {
+		s.session.mu.Lock()
+		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
+		s.session.mu.Unlock()
 	}
 	s.actions = nil
 }
@@ -269,6 +276,9 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		owner.values[d.Name] = d.format(v)
 		owner.typed[d.Name] = v
 	}
+	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
+		op.session.publishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
+	}
 	if notice != nil {
 		op.emitNotice(levelNotice, *notice)
 	}
@@ -346,6 +356,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 			if err := op.ctx.Err(); err != nil {
 				return Result{}, err
 			}
+			timeoutChanged, transactionAssignment := false, false
 			for key := range owner.values {
 				if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
 					continue
@@ -353,6 +364,15 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 				owner.touch(key, false)
 				delete(owner.values, key)
 				delete(owner.typed, key)
+				switch key {
+				case "transaction_timeout":
+					timeoutChanged, transactionAssignment = true, true
+				case "idle_in_transaction_session_timeout", "idle_session_timeout":
+					timeoutChanged = true
+				}
+			}
+			if timeoutChanged {
+				op.session.publishTimeoutSettingsLocked(owner, transactionAssignment, time.Now())
 			}
 			return Result{}, nil
 		}

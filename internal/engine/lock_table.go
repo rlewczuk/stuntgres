@@ -62,7 +62,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	}
 	e := s.op.session.Engine()
 	mode := explicitLockMode(stmt.Mode)
-	policy := relationLockPolicy{nowait: stmt.Nowait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, nowait: stmt.Nowait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)

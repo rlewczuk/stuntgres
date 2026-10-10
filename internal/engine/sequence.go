@@ -90,7 +90,7 @@ func tableKind(d *relationDescriptor, operation string) error {
 }
 func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode, reserveReplacement bool) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 	if request != nil {
 		if s.replacementRead {

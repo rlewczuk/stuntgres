@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"stuntgres/internal/sqlstate"
 )
 
 var errRelationOwnerEnded = errors.New("stuntgres: transaction ended")
@@ -16,7 +19,8 @@ type relationLockPolicy struct {
 	timeout           time.Duration
 	statementDeadline time.Time
 	source            context.Context
-	provenance        TxRef // current statement owner for a persistent session request
+	provenance        TxRef      // current statement owner for a persistent session request
+	operation         *Operation // exact admitted command, atomic timeout projection only
 }
 
 type relationSourceError struct{ error }
@@ -25,23 +29,18 @@ func (e relationSourceError) Unwrap() error { return e.error }
 
 // Absolute SQL deadlines, not callback scheduling, determine a wait's error.
 func relationWaitError(ctx context.Context, policy relationLockPolicy, lockDeadline, now time.Time) error {
-	if policy.source != nil {
-		if errors.Is(policy.source.Err(), context.Canceled) {
-			return relationSourceError{context.Canceled}
-		}
-		if deadline, ok := policy.source.Deadline(); ok && !now.Before(deadline) &&
-			(lockDeadline.IsZero() || !lockDeadline.Before(deadline)) &&
-			(policy.statementDeadline.IsZero() || !policy.statementDeadline.Before(deadline)) {
-			return relationSourceError{context.DeadlineExceeded}
-		}
+	if cause := relationTimeoutSourceCause(policy, lockDeadline, now); cause != nil {
+		return relationSourceError{cause}
 	}
-	lockExpired := !lockDeadline.IsZero() && !now.Before(lockDeadline)
-	statementExpired := !policy.statementDeadline.IsZero() && !now.Before(policy.statementDeadline)
-	if lockExpired && (!statementExpired || !policy.statementDeadline.Before(lockDeadline)) {
-		return sqlError("55P03", "canceling statement due to lock timeout")
+	if err := relationTimeoutError(relationTimeoutWinner(policy, lockDeadline, now)); err != nil {
+		return err
 	}
-	if statementExpired {
-		return sqlError("57014", "canceling statement due to statement timeout")
+	if cause := context.Cause(ctx); cause != nil {
+		var fatal *sqlstate.Error
+		if errors.As(cause, &fatal) && fatal.Severity == "FATAL" {
+			copy := *fatal
+			return &copy
+		}
 	}
 	return ctx.Err()
 }
@@ -93,20 +92,21 @@ type relationTicket struct {
 	resources  map[lockResource]struct{}
 }
 type relationRequest struct {
-	ticket     *relationTicket
-	provenance TxRef
-	ctx        context.Context
-	mode       relationLockMode
-	done       chan struct{}
-	err        error
-	terminal   bool
-	notifyNext *relationRequest
-	stop       func() bool
-	timer      *time.Timer
-	policy     relationLockPolicy
-	deadline   time.Time
-	ref        lockResource
-	entry      *relationEntry
+	ticket       *relationTicket
+	provenance   TxRef
+	ctx          context.Context
+	mode         relationLockMode
+	done         chan struct{}
+	err          error
+	terminal     bool
+	notifyNext   *relationRequest
+	stop         func() bool
+	timer        *time.Timer
+	policy       relationLockPolicy
+	deadline     time.Time
+	ref          lockResource
+	entry        *relationEntry
+	timeoutState atomic.Uint32
 }
 
 // Ordinary modes remain idempotent; only advisory grants have counted modes.
@@ -290,6 +290,7 @@ func (m *relationLockManager) restoreUnique(t *relationTicket, held relationLock
 	notifyRequests(notify)
 }
 func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
+	err = r.finishTimeout(err)
 	r.err = err
 	r.terminal = true
 	if (err != nil || r.ref.completion != nil) && r.entry.holders[r.ticket].mode == 0 {
@@ -344,7 +345,7 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 			terminalRequest(r, ErrCatalogReplaced, notify)
 			continue
 		}
-		if err := relationWaitError(r.ctx, r.policy, r.deadline, time.Now()); err != nil {
+		if err := r.timeoutWaitError(time.Now()); err != nil {
 			terminalRequest(r, err, notify)
 			continue
 		}
@@ -367,11 +368,14 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 			remaining = append(remaining, r)
 			continue
 		}
-		if err := relationWaitError(r.ctx, r.policy, r.deadline, time.Now()); err != nil {
+		if err := r.timeoutWaitError(time.Now()); err != nil {
 			terminalRequest(r, err, notify)
 			continue
 		}
-		err := m.grant(r.ticket, r.ref, e, r.mode)
+		err := r.claimTimeoutTerminal(nil)
+		if err == nil {
+			err = m.grant(r.ticket, r.ref, e, r.mode)
+		}
 		terminalRequest(r, err, notify)
 	}
 	clear(e.pending[len(remaining):])
@@ -499,11 +503,14 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	if policy.timeout > 0 {
 		r.deadline = time.Now().Add(policy.timeout)
 	}
+	if r.tracksTimeout() {
+		policy.operation.pendingTimeoutRequest.Store(r)
+	}
 	interrupt := func() {
 		var notify *relationRequest
 		m.mu.Lock()
 		if !r.terminal {
-			if err := relationWaitError(ctx, policy, r.deadline, time.Now()); err != nil {
+			if err := r.timeoutWaitError(time.Now()); err != nil {
 				terminalRequest(r, err, &notify)
 			}
 			m.settle(e, &notify)

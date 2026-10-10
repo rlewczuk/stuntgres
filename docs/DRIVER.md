@@ -145,6 +145,35 @@ cast execution errors are not relabeled as parameter input failures.
 Native failed writes/Restore publish no partial state; retained eager values and
 metadata remain owned across Reset/Restore. See [MONEY](TYPES.md#money--change-note).
 
+## Timeouts and terminal physical owners
+
+The five timeout settings use the same physical Session and transaction authority
+as SQL/Go controls. Transaction expiry and both idle categories terminate that
+owner asynchronously, including when no new request arrives. Canonical cleanup
+waits for admitted leases to drain, then rolls back private work and releases
+resources outside lifecycle locks; the first termination reason wins. Returning
+a sql.Conn or closing Rows/Stmt is not physical termination. Retained eager native
+Rows continue to own already-materialized values; they do not suspend idle expiry.
+
+Native accepted Query/Prepare/held Execute/Ping/control work reports an exact
+structured FATAL25P04/25P03/57P05 with unlocalized severity and independently
+specified primary message. Relation-analysis25P04 can carry its relation Position;
+the persisted owner fatal remains location-free. Incomplete native parsing,
+including CPU Prepare, has no fabricated semantic-analysis Position.
+Caller context cancellation is
+still an ordinary context error. A fatal accepted command is never ErrBadConn,
+which would permit database/sql to replay work. After that fatal is reported,
+subsequent pre-admission use is unusable; Validator/ResetSession discard the owner
+before a new pool command, which may safely acquire a fresh default0 session.
+Unpublished accepted INSERT work is rolled back, not retried or published twice.
+
+The pinned pq transport intentionally maps FATAL to ErrBadConn (Conn-held
+Execute can surface ErrConnDone), so those API errors are not portable SQL
+diagnostic fields. Reference tests separately correlate PID, FATAL, SQLSTATE and
+exact message from bounded public real-container logs. No native wire-protocol
+phases, network service or manufactured pq diagnostics are introduced.
+See [settings runtime rules](SETTINGS.md#timeout-behavior--change-note).
+
 ## Enum values and prepared signatures
 
 Enums retain catalog-owned logical identity while native transport exports string

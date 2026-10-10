@@ -25,6 +25,8 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"default_transaction_read_only", "off", "Sets the default read-only status of new transactions."},
 		{"extra_float_digits", "1", "Sets the number of digits displayed for floating-point values."},
 		{"icu_validation_level", "warning", "Log level for reporting invalid ICU locale strings."},
+		{"idle_in_transaction_session_timeout", "0", "Sets the maximum allowed idle time between queries, when in a transaction."},
+		{"idle_session_timeout", "0", "Sets the maximum allowed idle time between queries, when not in a transaction."},
 		{"IntervalStyle", "postgres", "Sets the display format for interval values."},
 		{"lc_messages", "C", "Sets the language in which messages are displayed."},
 		{"lc_monetary", "C", "Sets the locale for formatting monetary amounts."},
@@ -41,6 +43,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"transaction_deferrable", "off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
 		{"transaction_isolation", "read committed", "Sets the current transaction's isolation level."},
 		{"transaction_read_only", "off", "Sets the current transaction's read-only status."},
+		{"transaction_timeout", "0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
 	}
 	for _, tc := range []struct {
 		query    string

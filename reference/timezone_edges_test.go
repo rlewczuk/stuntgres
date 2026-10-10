@@ -133,7 +133,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			query := "SHOW ALL"
 			if backend.name == "postgres" {
-				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','default_transaction_deferrable','transaction_deferrable','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits') ORDER BY name"
+				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','default_transaction_deferrable','transaction_deferrable','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout') ORDER BY name"
 			}
 			var rows *sql.Rows
 			var err error
@@ -185,6 +185,10 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 			want["lc_time"] = [2]string{"C", "Sets the locale for formatting date and time values."}
 			want["icu_validation_level"] = [2]string{"warning", "Log level for reporting invalid ICU locale strings."}
 			want["extra_float_digits"] = [2]string{"1", "Sets the number of digits displayed for floating-point values."}
+			// Independent REL_18_0 guc_tables.c short_desc, not native registry data.
+			want["transaction_timeout"] = [2]string{"0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."}
+			want["idle_in_transaction_session_timeout"] = [2]string{"0", "Sets the maximum allowed idle time between queries, when in a transaction."}
+			want["idle_session_timeout"] = [2]string{"0", "Sets the maximum allowed idle time between queries, when not in a transaction."}
 			expectedNames := map[string]bool{
 				"DateStyle": true, "IntervalStyle": true, "TimeZone": true, "application_name": true,
 				"bytea_output": true, "client_min_messages": true, "default_transaction_isolation": true,
@@ -195,6 +199,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				"timezone_abbreviations": true,
 				"client_encoding":        true, "lc_messages": true, "lc_monetary": true, "lc_numeric": true,
 				"lc_time": true, "icu_validation_level": true, "extra_float_digits": true,
+				"transaction_timeout": true, "idle_in_transaction_session_timeout": true, "idle_session_timeout": true,
 			}
 			count, last := 0, ""
 			for rows.Next() {
@@ -225,7 +230,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				rows.Close()
 				t.Fatal("registry completeness", rows.Err(), want)
 			}
-			if !backend.pg && (count != 26 || len(expectedNames) != 0) {
+			if !backend.pg && (count != 29 || len(expectedNames) != 0) {
 				rows.Close()
 				t.Fatal("builtin cardinality/set", count, expectedNames)
 			}

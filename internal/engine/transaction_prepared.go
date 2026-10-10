@@ -71,6 +71,7 @@ func (e *Engine) installPreparedLocked(p *preparedPublication) {
 	e.prepared[p.entry.gid] = p.entry
 	p.origin.ticket = nil
 	p.origin.clear()
+	p.origin.session.retireTransactionTimeoutLocked()
 }
 
 func (e *Engine) finishPreparedLocked(p *preparedPublication) {
@@ -130,6 +131,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		t.ticket = nil
 		e.endSerializable(ref, false)
 		t.clear()
+		t.session.retireTransactionTimeout()
 		t.session.settings.finishTransaction(false)
 		t.mu.Unlock()
 		e.locks.end(ticket)

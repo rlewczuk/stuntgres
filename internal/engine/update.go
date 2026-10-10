@@ -217,7 +217,7 @@ func (s *StatementScope) acquireUpdateRow(ref ObjectRef, row RowID) error {
 }
 func (s *StatementScope) acquireUpdateRowMode(ref ObjectRef, row RowID, mode relationLockMode) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {

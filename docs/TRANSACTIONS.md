@@ -96,6 +96,43 @@ changes next-transaction defaults. Malformed clauses/suffixes retain `42601`.
 Two-phase SQL controls are described below; their driver Prepare phase is
 metadata-only and never reserves a GID or changes transaction state.
 
+## Transaction timeout lifecycle — change note
+
+`transaction_timeout` follows canonical transaction birth/end for implicit SQL,
+BEGIN/START and Go BeginTx. Parse admission owns a provisional scope deadline,
+not a premature TxRef; actual birth adopts that budget once. The timer projection
+does not own transaction state, catalog roots or publication tickets. A current
+callback validates the exact physical token, scope/TxRef and generation under
+Session.mu, then requests asynchronous canonical termination without acquiring
+transaction/settings/engine/resource-manager locks.
+
+Before accepting transaction FATAL, the same callback recognizes an unfinished
+matching command's already-due statement deadline, queued lock timeout or
+delivered SQL-timeout ERROR, even if its context callback/worker is delayed.
+The physical owner remains LIVE and its transaction budget stops; normal
+statement Finish and full/child recovery retain the winning55P03/57014 ERROR.
+The exact queued request carries an atomic ERROR-versus-terminal claim: a
+successful grant cannot race a claimed ERROR into stopped-budget success.
+Only the lock manager grants/removes requests. Completed commands, successful
+grants, non-SQL terminal requests and old transaction references cannot suppress
+a genuine transaction FATAL; no callback acquires manager or transaction locks.
+
+Full/child ERROR recovery stops the budget. Settings restoration by abort,
+savepoint rollback, COMMIT/ROLLBACK or detach never rearms a positive value;
+explicit off/on assignment can do so. AND CHAIN first retires the old budget and
+starts a fresh incarnation from restored values. Successful PREPARE TRANSACTION
+retires session runtime ownership; the detached private entry remains timer-free
+and survives later transaction/idle death of the origin.
+
+Fatal cleanup rolls back private rows/DDL and releases real row/relation locks,
+TEMP and session-owned advisory/prepared-SQL resources. It does not remove peer
+permanent state or abort detached prepared entries. Ordinary statement/lock ERROR
+remains distinct from physical FATAL termination, with25P02 on later statements
+in an aborted block until recovery. Configured transaction timeout still suppresses
+equal/longer idle-in-transaction limits after its running timer has stopped.
+See [timeout settings](SETTINGS.md#timeout-behavior--change-note) and
+[physical driver lifecycle](DRIVER.md#timeouts-and-terminal-physical-owners).
+
 ## Temporary table lifetime — change note
 
 Owner-TEMP CREATE/DROP, rows, descriptors, ON COMMIT options and dependencies share

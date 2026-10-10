@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"stuntgres/internal/parser"
 )
@@ -45,6 +46,11 @@ func (s *sessionSettings) restoreSavepoint(candidate settingsMark) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values, s.typed, s.actions = candidate.values, candidate.typed, candidate.actions
+	if s.session != nil {
+		s.session.mu.Lock()
+		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
+		s.session.mu.Unlock()
+	}
 }
 
 func (t *transactionOwner) captureSavepoint(name string) savepointMark {
@@ -159,6 +165,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.session.cursors.rollback(mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
+			t.session.publishTimeoutSettingsLocked(t.session.settings, false, time.Now())
 			t.isolation, t.readOnly = mark.isolation, mark.readOnly
 			t.deferrable = mark.deferrable
 			t.session.settings.currentIsolation = isolationText(t.isolation)

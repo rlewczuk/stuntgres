@@ -116,8 +116,8 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 			if err := rows.Err(); err != nil {
 				t.Fatal(err)
 			}
-			if count != 26 {
-				t.Fatalf("native registry has %d rows, want 26", count)
+			if count != 29 {
+				t.Fatalf("native registry has %d rows, want 29", count)
 			}
 			if selected != 7 {
 				t.Fatalf("native registry has %d selected definitions, want 7", selected)

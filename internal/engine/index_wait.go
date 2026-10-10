@@ -57,7 +57,7 @@ func (e *Engine) clearIndexBuildWait(index ObjectAddress, owner TxRef, kind inde
 
 func (s *StatementScope) waitCompletion(owner *relationTicket) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{completion: owner}, transactionCompletion, policy)
 	if request != nil {
 		if s.replacementRead {

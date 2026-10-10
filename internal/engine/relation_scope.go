@@ -72,7 +72,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	ownerOnly := false
 	rename, ifExists, tableRename := false, false, false
 	viewReplacement := false
-	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
 	case *parser.CreateIndex:
 		if !execute {
@@ -264,7 +264,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		// cancellation (57014) deliberately bypasses that callback.
 		if (mode == accessShare || mode == relationRowShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
 			var diagnostic *sqlstate.Error
-			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01") && name.Parts[0].Pos.Character > 0 {
+			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01" || diagnostic.Code == "25P04") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic
 				copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
 				return &copy

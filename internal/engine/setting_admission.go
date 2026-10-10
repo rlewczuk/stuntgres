@@ -14,7 +14,7 @@ var statementTimeoutCause = errors.New("stuntgres: statement timeout")
 // Initialization and native controls deliberately continue to use Acquire.
 func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Options, error) {
 	start := time.Now().UTC().Truncate(time.Microsecond)
-	op, err := s.Acquire(ctx)
+	op, err := s.AcquireActivity(ctx)
 	if err != nil {
 		return nil, parser.Options{}, err
 	}
@@ -23,13 +23,17 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.nonstandardStrings = !standard
 	timeout := s.settings.typedValue("statement_timeout").number
 	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").number) * time.Millisecond
+	transactionTimeout := s.settings.typedValue("transaction_timeout").number
 	op.noticeThreshold, _ = messageLevel(s.settings.value(clientMinMessages.Name))
 	op.commandAdmission = true
 	op.commandStart = start
 	s.settings.mu.Unlock()
-	if timeout > 0 {
-		op.statementDeadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)
-		op.ctx, op.timerCancel = context.WithDeadlineCause(op.ctx, op.statementDeadline, statementTimeoutCause)
+	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
+		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
+		timed, cancel := context.WithDeadlineCause(op.ctx, deadline, statementTimeoutCause)
+		s.mu.Lock()
+		op.statementDeadline, op.ctx, op.timerCancel = deadline, timed, cancel
+		s.mu.Unlock()
 	}
 	return op, parser.Options{StandardConformingStrings: standard, Context: op.ctx, Notice: op.parseNotice}, nil
 }
@@ -44,5 +48,5 @@ func (op *Operation) CommandError(err error) error {
 	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.ctx), statementTimeoutCause) {
 		return sqlError("57014", "canceling statement due to statement timeout")
 	}
-	return err
+	return op.fatalError(err)
 }

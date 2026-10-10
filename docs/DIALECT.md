@@ -6,6 +6,26 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Transaction and idle timeouts — change note
+
+`transaction_timeout`, `idle_in_transaction_session_timeout` and
+`idle_session_timeout` join the existing statement/lock settings as real typed
+millisecond runtime limits, default0. Existing SET/LOCAL, SHOW, current_setting,
+set_config, DEFAULT and RESET routes share assignment validation and transaction/
+savepoint restoration. No SQL grammar, pg_sleep or public scheduler API is added.
+Transaction budgets cover prebirth parsing, semantic Prepare, execution and lock
+waits; successful detach is timer-free, CHAIN gets a fresh restored budget and
+ERROR/savepoint restoration does not rearm stopped timers.
+
+Idle applies only at ready boundaries to the appropriate physical owner category;
+active real work is not idle, while pooled owners and retained eager Rows can be.
+Current transaction/idle expiry performs canonical rollback/resource release and
+reports exact FATAL25P04/25P03/57P05. Accepted native commands never return
+ErrBadConn for replay; later dead pre-admission pool use can safely be discarded.
+This is not libpq wire-phase emulation: pinned pq terminal sentinels and independent
+real-server log evidence remain distinct from native structured diagnostics.
+See [timeout rules](SETTINGS.md#timeout-behavior--change-note).
+
 ### Timezone lookup views — change note
 
 `pg_catalog.pg_timezone_names` exposes `name TEXT, abbrev TEXT,

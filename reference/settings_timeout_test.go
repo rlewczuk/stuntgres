@@ -79,7 +79,7 @@ func settingsTimeoutAttempt(t *testing.T, p *referencePair, backend referenceBac
 	}
 	defer retained.Close()
 	checkRetained := settingsTimeoutCursor(t, retained, backend.pg)
-	query := "INSERT INTO " + name + " VALUES " + strings.Repeat("(8),", size) + "(NULL)"
+	query := settingsTimeoutWorkload(name, size)
 	var heldStmt *sql.Stmt
 	if stage == "prepared-execute" {
 		heldStmt, err = owner.PrepareContext(p.ctx, query)
@@ -180,6 +180,11 @@ func settingsTimeoutAttempt(t *testing.T, p *referencePair, backend referenceBac
 	}
 	// The implicit owner deliberately remains armed until physical disposal.
 	return timedOut
+}
+
+// Both timeout families use the same bounded, atomic CPU workload.
+func settingsTimeoutWorkload(name string, size int) string {
+	return "INSERT INTO " + name + " VALUES " + strings.Repeat("(8),", size) + "(NULL)"
 }
 
 func settingsTimeoutCursor(t *testing.T, retained *sql.Rows, postgres bool) func() {

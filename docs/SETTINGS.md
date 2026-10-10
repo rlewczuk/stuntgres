@@ -51,7 +51,7 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-The exact supported builtin registry contains these twenty-six settings:
+The exact supported builtin registry contains these twenty-nine settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |
@@ -73,6 +73,9 @@ The exact supported builtin registry contains these twenty-six settings:
 | DateStyle | `ISO, MDY` / session | ISO/SQL/Postgres/German output and MDY/DMY/YMD input order |
 | statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
 | lock_timeout | 0 / session | Millisecond limit for each queued lock acquisition; 0 disables |
+| transaction_timeout | 0 / session | Millisecond lifetime budget for implicit/explicit transactions, excluding detached prepared transactions |
+| idle_in_transaction_session_timeout | 0 / session | Millisecond ready/idle limit inside an explicit or aborted transaction |
+| idle_session_timeout | 0 / session | Millisecond ready/idle limit outside a transaction, including pooled physical owners |
 | server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
 | log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
 | default_transaction_isolation | read committed / session | Isolation default for new transactions |
@@ -86,13 +89,21 @@ Prepared literals retain Prepare-time string mode; prepared SHOW/functions read
 Execute-time values. To retain a literal prepared before LOCAL within a transaction,
 prepare it on that `sql.Tx` and execute the same handle: `Tx.Stmt` may reprepare
 a handle created on `sql.Conn` using the transaction's current string mode.
-Timeout changes apply to the *next* command. Only the
-engine's own timer returns 57014 `canceling statement due to statement timeout`;
-caller cancellation/deadlines remain ordinary context errors. Zero disables
-the timer. RESET ALL resets session-settable definitions and placeholders,
-skipping read-only and deny-only privileged definitions. It also resets
-`lc_messages` to its captured default, including after switching to an ordinary
-current role; individual RESET still requires current-superuser permission.
+Statement and lock timeout assignments govern subsequent command admission and
+lock waits. Only the engine's own statement timer returns57014 `canceling
+statement due to statement timeout`; caller cancellation/deadlines remain ordinary
+context errors. All five timeout settings default to0 (disabled), use the typed
+millisecond input rules and accept0 through2147483647ms. Transaction assignment
+has its own current-budget rules described below. RESET ALL resets session-settable
+definitions and placeholders, skipping read-only and deny-only privileged
+definitions. It also resets `lc_messages` to its captured default, including after
+switching to an ordinary current role; individual RESET still requires
+current-superuser permission.
+RESET ALL's batch mutation publishes effective timeout changes once under the same
+settings/lifecycle fence: reset transaction0 stops the running budget before a
+stale callback can terminate the owner. Only a touched transaction setting is a
+transaction assignment; resetting idle settings alone must not rearm a stopped
+transaction budget. Rollback restores the settings journal without rearming it.
 
 Current transaction isolation, read-only and deferrable settings resolve the same
 transaction owner as SQL and Go controls. Current RESET, DEFAULT and set_config
@@ -259,6 +270,48 @@ is fabricated for plain methods. Existing1ms SQL workloads/deadlines remain
 unchanged by the task's external900second aggregate override.
 
 
+
+## Timeout behavior — change note
+
+`transaction_timeout` covers the entire active implicit or explicit transaction,
+including parsing before implicit transaction birth, semantic Prepare, execution
+and real lock waits. A provisional command-scope budget is adopted at actual
+transaction birth without allocating a premature transaction identity or resetting
+its deadline. SQL BEGIN/START and Go BeginTx use the same owner. Successful
+COMMIT/ROLLBACK ends that budget; AND CHAIN gets a fresh budget from restored
+settings. Successful PREPARE TRANSACTION retires it: the detached entry has no
+session timer and remains completable after its origin dies.
+
+Positive-to-positive assignments (including the same value) retain an active
+deadline. Assigning0 stops it; a later explicit positive assignment arms a stopped
+current transaction budget from assignment time. SET, SET LOCAL, set_config and
+RESET share the typed settings journal. Transaction/savepoint restoration is not
+an assignment: exposing a positive value does not restart a stopped timer. Full
+and child ERROR recovery stop the budget; rollback-to-savepoint recovery does not
+restart it until a real subsequent assignment or new transaction birth.
+
+If nonzero `transaction_timeout` is less than or equal to `statement_timeout`,
+the latter is suppressed at command admission. The same comparison suppresses
+idle-in-transaction timing even after ERROR has stopped the transaction timer.
+`lock_timeout` remains an independent per-wait limit with existing absolute
+statement/lock deadline ordering; an earlier lock or statement ERROR aborts
+explicit work without itself terminating the physical owner.
+
+At ready boundaries only one idle category can run: inside an explicit/aborted
+transaction, `idle_in_transaction_session_timeout`; otherwise,
+`idle_session_timeout`. Query, Prepare, held Execute, Ping and Go transaction
+controls count as activity. Real executing/queued work is not idle; retaining
+eager native Rows is not active work. Borrower return does not end a physical
+session: an idle pool owner can expire without a subsequent request.
+
+Expiry asynchronously invokes canonical physical-session termination. Exact
+FATAL diagnostics are25P04 `terminating connection due to transaction timeout`,
+25P03 `terminating connection due to idle-in-transaction timeout` and57P05
+`terminating connection due to idle-session timeout`. Private work is rolled
+back and actual locks, TEMP, prepared-SQL and session resources are released;
+peer permanent data and detached prepared transactions survive. Accepted native
+work returns the structured fatal, never a replay-permitting ErrBadConn. See
+[driver lifecycle](DRIVER.md#timeouts-and-terminal-physical-owners).
 
 ## Temporal settings
 

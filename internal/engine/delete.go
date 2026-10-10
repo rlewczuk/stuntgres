@@ -77,7 +77,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: candidate.ref, row: candidate.row}, rowUpdate, policy)
 	if err != nil {
 		return err

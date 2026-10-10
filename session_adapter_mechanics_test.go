@@ -173,3 +173,26 @@ func TestSessionAdapterMechanics(t *testing.T) {
 		t.Fatal("exhausted allocation changed counter")
 	}
 }
+
+func TestSessionFatalNoReplayMechanics(t *testing.T) {
+	c := adapterMechanicsConn(t, NewDriver(), "fatal-no-replay")
+	fatal := &Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "25P04", Message: "terminating connection due to transaction timeout"}
+	c.session.RequestEnd(engine.Terminated)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.session.WaitEnd(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.terminalError(fatal); err != fatal || errors.Is(err, driver.ErrBadConn) {
+		t.Fatal("accepted diagnostic permits replay", err)
+	}
+	if err := c.check(context.Background()); !errors.Is(err, driver.ErrBadConn) {
+		t.Fatal("subsequent dead use remained admissible", err)
+	}
+	if c.IsValid() {
+		t.Fatal("pool validator retained terminal physical owner")
+	}
+	if err := c.ResetSession(context.Background()); !errors.Is(err, driver.ErrBadConn) {
+		t.Fatal("pool reset retained terminal physical owner", err)
+	}
+}

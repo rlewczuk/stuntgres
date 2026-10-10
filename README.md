@@ -36,6 +36,25 @@ See [MONEY](docs/TYPES.md#money--change-note) and
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceMoneyFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMoneyFeatureSmoke$' VERBOSE=0`.
 
+Change note: PostgreSQL18 transaction and physical idle timeout settings now
+perform real cancellation, rollback, lock/resource release and terminal session
+cleanup. They share existing SET/LOCAL/function/reset journals, SQL/Go controls,
+savepoint nonrearm rules, fresh CHAIN budgets and timer-free prepared detach.
+Accepted native fatal work is never replayed through ErrBadConn; an expired idle
+pool owner can be discarded before a new command. No delay SQL or network server
+is added. See [timeout behavior](docs/SETTINGS.md#timeout-behavior--change-note).
+Feature smoke (900 seconds per invocation):
+`timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceTimeoutFeatureSmoke$' VERBOSE=0`;
+pinned counterpart:
+`timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimeoutFeatureSmoke$' VERBOSE=0`.
+The additional root-owned standalone public Go smoke runs with
+`timeout 60s go run ./.timeout-feature-smoke` from an ephemeral source directory,
+then removes that directory after recording evidence. It asserts full native
+diagnostics and counts, old-owner rejection, private/blocked8 rollback and AX
+release, replacement identity/all five defaults0, and healthy INSERT9 affected1
+with exact final INT4 rows7,9 and no99/private8/blocked8 replay. Reference selectors
+do not replace this executable gate; see [testing](docs/TESTING.md).
+
 Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
 documented eight/four columns with exact current schema/name/owner identities.
 Both disclose underlying objects independent of privileges and search_path, unlike

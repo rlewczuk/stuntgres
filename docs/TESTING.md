@@ -1691,6 +1691,122 @@ Each candidate owns its held statement and physical connection through assertion
 and closure; an untimed fallback disposes the armed implicit owner before the next
 candidate opens a fresh timeout0 owner. Retain all fallback sizes and stage/backend
 assertions without eager million-row preparation or a larger fixture deadline.
+
+The `TestReferenceTimeout` family adds transaction, physical idle, cleanup and
+pool contracts without duplicating the statement/lock corpus. Its ten names
+are selected together below; `settingsTimeoutWorkload` is shared with the
+existing CPU scenarios, and lock workers use `referenceLockOperation` plus the
+PostgreSQL external queue barrier. No new delay SQL is needed.
+
+```sh
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimeoutFeatureSmoke$' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceTimeoutFeatureSmoke$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout' VERBOSE=0
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout' VERBOSE=0
+```
+
+The pinned full ten-definition discovery run passed before production changes.
+The scenario-local PostgreSQL-only filter and its comments were then removed;
+the root observed native regression from the three missing settings. Completed
+checks now run the same shared bodies in both modes, with no discovery filter
+remaining. That oracle result does not claim native or final verification.
+The pinned run established pq's direct/Prepare/idle FATAL API
+sentinel as ErrBadConn and Conn-held Execute as ErrConnDone, not portable
+SQL diagnostic fields. The pinned fixture's `log_line_prefix` includes real
+backend PID and SQLSTATE (`timeout-oracle|%p|%e|`); bounded public container log
+reads independently assert the exact FATAL severity/code/English primary for
+that owner. No sentinel is converted into a manufactured diagnostic object.
+Native still asserts its full structured portable diagnostics. Capture PID/OID
+and log baseline before arming or Go BeginTx, then execute Go work through that
+actual Tx: querying its borrowed Conn deadlocks behind database/sql ownership.
+The pinned run established real server FATAL analysis locations: blocked SELECT
+direct/Prepare has `at character 15`, blocked INSERT and PG CPU semantic Prepare
+have `at character 13`. Assert the full independently specified suffix, not a
+stripped message. Idle, direct CPU parse and cached Execute have absent Position.
+Root native verification established that the1ms CPU Prepare budget instead
+cancels incomplete parsing before scope.Describe; its exact25P04 FATAL has absent
+Position. This is a genuine phase distinction, not a fabricated native semantic
+location or a parsing-cancellation bypass. Deterministic locked semantic Prepare
+still asserts Position15 in both modes. All routes retain full severity/code/
+primary/optional fields, no published result/handle/rows, termination and cleanup.
+Stored physical-session fatal is not blanket-decorated.
+For Go-held execution, prepare `LOCK TABLE timeout_blocked IN ACCESS SHARE MODE`
+on the actual Tx: this is metadata-only and retains no relation lock. Then the
+peer acquires AX and the actual held Exec queues AS. Preparing SELECT inside that
+Tx would retain AS and block the peer before Execute. Conn-held SELECT and
+direct/semantic-Prepare SELECT routes remain separately covered.
+
+The retained-Rows idle witness keeps native immutable Rows through the first
+exact FATAL, reads/checks/closes them, and only then issues the dead-handle probe.
+That later ErrBadConn can make database/sql close sql.Conn; doing so while its
+previous Rows still owns the release callback blocks close until caller deadline.
+This ordering preserves the retained-snapshot assertion, not a cursor lease leak
+workaround. PostgreSQL's streaming Rows are still drained before transport reuse.
+Detached prepared-entry lifetime compares exact identifiers/owner/database,
+time.Time.Equal instant and zone name/offset, never time.Location pointer identity.
+
+The first pooled INSERT99 after idle expiry succeeds through safe pre-work
+replacement on pq; assert affected1 and exactly7,99, then remove99 and verify
+new physical identity/default0. This is distinct from accepted blocked INSERT8,
+which must remain unpublished and never be replayed. Savepoint restoration of
+500ms after SET0 leaves SHOW500 but does not rearm: independently observe a live
+owner beyond500ms, then require an actual off/on assignment to expire it.
+The complete pinned run also confirmed actual Go-Tx-held ErrBadConn transport,
+distinct from Conn-held ErrConnDone. Native caller context cancellation retains
+its ordinary error; pq health stays separate. Native mechanics selectors are
+`timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestSessionTimeout'`
+and `timeout 900s make quickcheck PACKAGES=. RUN='^TestSessionFatalNoReplayMechanics$'`.
+These cover callback generation/token/ref/deadline authority, provisional adoption,
+assignment/restoration, configured idle suppression, active/ready boundaries,
+first end reason, copied fatal diagnostics, canonical RESET ALL batch/journal/cache
+publication/restoration and no-replay adapter classification.
+The root runs these and both completed reference modes after edits; readiness
+or a discovery pass is not production verification.
+
+`timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestSessionTimeoutPending' VERBOSE=0`
+exercises actual Session liveness, not merely relation-wait diagnostic ordering.
+Canonical scopes and real queued requests cover due/delivered lock ERROR,
+absolute statement expiry before context delivery, both SQL deadlines, ERROR
+claim before possible grant, full/child recovery and stopped-budget restoration.
+The inverse grant/non-SQL terminal/completed/old-incarnation cases preserve
+genuine25P04 FATAL. Concurrent grant-versus-expiry units require one atomic
+outcome: LIVE/stopped/55P03 or terminal25P04, never stopped-budget success or
+recoverable ERROR on a physically ended owner. Workers/callbacks join with
+bounds; no SQL text, sleeps or production scheduler hook is used.
+
+Changed complete builtin-inventory definitions also require both modes:
+`timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0`
+and `timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0`.
+The supported native registry is29 independently named definitions, not the
+previous26; the PostgreSQL projection independently checks the new three0-valued
+definitions and exact release short_desc, not whole-server catalog equality.
+
+The root additionally executes the recorded standalone public-API Go feature
+program with `timeout 60s go run ./.timeout-feature-smoke`, from an ephemeral
+root-owned source directory which is removed after evidence capture, not committed.
+Independent assertions include ordinary55P03/57014 same-owner recovery,
+transaction25P04 and idle25P03/57P05 first FATAL. Compare the entire expected
+native Error (both severities, code, English message, contextual Position and
+every remaining optional field), nil failed Rows/results and exact affected
+counts. The old handle must reject INSERT99 without effects; peer ordered INT4
+rows retain7 and exclude private8/99, and an independent blocked-table query
+must be empty. Peer reads also prove actual AX release. Replacements must have
+different physical identities and all five timeout defaults exactly0. Pooled
+idle replacement happens before new work; accepted timed work is never replayed.
+The executable must exit0 only after every assertion and print
+`timeout feature smoke passed`; a selected test pass does not replace this run.
+
+The standalone smoke expects lock ERROR55P03 Position15 and statement ERROR57014
+with absent Position, then transaction FATAL25P04 Position13, idle-in-transaction
+FATAL25P03 and idle-session FATAL57P05 with absent Position. Setup, lock, setting,
+reset and end commands affect0; initial/private/healthy inserts affect1.
+Committed7 survives every death; healthy final INSERT9 affects1 and the peer
+must observe exactly ordered INT4 rows7,9/cardinality2, with the blocked table
+still empty and no99/private8/blocked8 replay.
+Commands are verification instructions, not claims of exercised outcomes.
+
 The superseded `TestSettingsSmoke` is removed; its typed registry, numeric,
 metadata, notice/reentry, parser capture, access and connection-lifecycle
 obligations remain in the existing shared `TestReferenceSettings*` consumers.

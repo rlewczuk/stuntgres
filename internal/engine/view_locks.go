@@ -82,7 +82,7 @@ func (s *StatementScope) acquireBoundViewRelations(refs []ObjectRef) error {
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes map[ObjectRef]relationLockMode) error {
 	e := s.op.session.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	for _, ref := range refs {
 		mode := accessShare
 		if modes[ref] != 0 {

@@ -36,7 +36,8 @@ func referenceStart() error {
 	referenceContainer, err = postgres.Run(ctx, referenceImage,
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
-		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100"),
+		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100",
+			"-c", "log_line_prefix=timeout-oracle|%p|%e|"),
 		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}))
 	if err != nil {
 		return fmt.Errorf("container: %w", err)

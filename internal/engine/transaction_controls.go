@@ -28,6 +28,10 @@ func (e *Engine) transactionAuthority(op *Operation) error {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if op.done || session.state != live {
+		if session.timeouts.fatal != nil {
+			copy := *session.timeouts.fatal
+			return &copy
+		}
 		return errors.New("stuntgres: inactive operation")
 	}
 	if _, ok := session.operations[op]; !ok {
@@ -66,6 +70,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 	t.mu.Lock()
 	if err != nil {
 		t.clear()
+		t.session.retireTransactionTimeout()
 		return TxRef{}, err
 	}
 	t.ticket = ticket
@@ -118,6 +123,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 				t.session.settings.finishTransaction(false)
 				e.endSerializable(t.ref, false)
 				t.clear()
+				t.session.retireTransactionTimeout()
 			}
 			return EndResult{}, err
 		}
@@ -184,6 +190,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	t.session.settings.finishTransaction(committed)
 	e.endSerializable(t.ref, committed)
 	t.clear()
+	t.session.retireTransactionTimeout()
 	if err != nil {
 		return EndResult{}, err
 	}
@@ -203,6 +210,9 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		t.ticket = candidate
 		candidate = nil
 		installedNext = true
+		t.session.mu.Lock()
+		t.session.beginTimeoutLocked(next, true, time.Now())
+		t.session.mu.Unlock()
 	}
 	return EndResult{Committed: committed}, nil
 }

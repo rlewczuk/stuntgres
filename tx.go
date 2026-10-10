@@ -22,18 +22,21 @@ func (t *tx) end(commit bool) error {
 	if !t.done.CompareAndSwap(false, true) {
 		return errors.New("stuntgres: transaction is done")
 	}
-	op, err := t.conn.session.Acquire(context.Background())
-	if err != nil {
+	if err := t.conn.check(context.Background()); err != nil {
 		return err
+	}
+	op, err := t.conn.session.AcquireActivity(context.Background())
+	if err != nil {
+		return t.conn.terminalError(err)
 	}
 	defer op.Done()
 	if !commit {
 		_, err = t.conn.session.Engine().Rollback(op, t.ref)
-		return err
+		return t.conn.terminalError(op.CommandError(err))
 	}
 	result, err := t.conn.session.Engine().Commit(op, t.ref)
 	if err != nil {
-		return err
+		return t.conn.terminalError(op.CommandError(err))
 	}
 	if !result.Committed {
 		return errors.New("pq: could not complete operation in a failed transaction")

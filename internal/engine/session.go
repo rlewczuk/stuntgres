@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -101,6 +102,7 @@ type Session struct {
 	random               randomState
 	uuid                 uuidClock
 	databaseName         string
+	timeouts             sessionTimeouts
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -108,7 +110,7 @@ type Operation struct {
 	self                    *Operation
 	session                 *Session
 	ctx                     context.Context
-	cancel                  context.CancelFunc
+	cancel                  context.CancelCauseFunc
 	done                    bool
 	private                 bool
 	notices                 []sqlstate.Error
@@ -119,6 +121,11 @@ type Operation struct {
 	commandStart            time.Time
 	sourceContext           context.Context
 	commandAdmission        bool
+	sqlActivity             bool
+	sqlFinished             bool // Session.mu: ERROR/completion fence, not transaction state
+	timeoutScope            *StatementScope
+	pendingTimeoutRequest   atomic.Pointer[relationRequest]
+	pendingTimeoutError     atomic.Bool
 	nonstandardStrings      bool
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
@@ -159,11 +166,18 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	if authErr == nil {
 		s.authorization = auth
 	}
-	owner := &sessionSettings{values: make(map[string]string), defaults: make(map[string]string)}
+	owner := &sessionSettings{session: s, values: make(map[string]string), defaults: make(map[string]string)}
 	_, err := op.Attach(Settings, owner)
 	if err == nil {
 		s.settings = owner
 		err = owner.initialize(op.Context(), e.settingDefinitions(), e.settingsOrder, start.Defaults)
+		if err == nil {
+			owner.mu.Lock()
+			s.mu.Lock()
+			s.publishTimeoutSettingsLocked(owner, false, time.Now())
+			s.mu.Unlock()
+			owner.mu.Unlock()
+		}
 	}
 	if err == nil {
 		err = authErr
@@ -239,8 +253,8 @@ func (s *Session) Token() SessionToken { return s.token }
 func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
-	combined, cancel := context.WithCancel(ctx)
-	op := &Operation{session: s, ctx: combined, sourceContext: combined, cancel: cancel, private: private}
+	combined, cancel := context.WithCancelCause(ctx)
+	op := &Operation{session: s, ctx: combined, sourceContext: ctx, cancel: cancel, private: private}
 	op.self = op
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})
@@ -249,16 +263,29 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	return op
 }
 func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
+	return s.acquire(ctx, false)
+}
+func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state != live || s.detaching {
+		if s.timeouts.fatal != nil {
+			copy := *s.timeouts.fatal
+			return nil, &copy
+		}
 		return nil, errors.New("stuntgres: session unavailable")
 	}
 	s.leases++
-	return s.operation(ctx, false), nil
+	op := s.operation(ctx, false)
+	op.sqlActivity = activity
+	if activity {
+		s.timeouts.sqlLeases++
+		s.timeouts.idle.stop()
+	}
+	return op, nil
 }
 func (op *Operation) Context() context.Context { return op.ctx }
 func (op *Operation) Done() {
@@ -272,12 +299,20 @@ func (op *Operation) Done() {
 		return
 	}
 	op.done = true
+	op.pendingTimeoutRequest.Store(nil)
+	op.pendingTimeoutError.Store(false)
 	delete(s.operations, op)
-	op.cancel()
+	op.cancel(nil)
 	if op.timerCancel != nil {
 		op.timerCancel()
 	}
 	s.leases--
+	if op.sqlActivity {
+		s.timeouts.sqlLeases--
+	}
+	if op.sqlActivity || op.private {
+		s.readyTimeoutLocked(time.Now())
+	}
 	s.cond.Broadcast()
 }
 func (e *Engine) validateOperation(op *Operation) error {
@@ -288,9 +323,13 @@ func (e *Engine) validateOperation(op *Operation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if op.done || s.state != live {
+		if s.timeouts.fatal != nil {
+			copy := *s.timeouts.fatal
+			return &copy
+		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	return op.ctx.Err()
+	return op.fatalErrorLocked(op.ctx.Err())
 }
 func nilResource(owner SessionResource) bool {
 	if owner == nil {
@@ -363,13 +402,23 @@ func (s *Session) Detach(h ResourceHandle, reason EndReason) error {
 func (s *Session) RequestEnd(reason EndReason) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.requestEndLocked(reason)
+}
+
+func (s *Session) requestEndLocked(reason EndReason) {
 	if s.state == ending || s.state == ended {
 		return
 	}
 	s.state = ending
 	s.reason = reason
+	s.timeouts.transaction.stop()
+	s.timeouts.idle.stop()
+	var cause error
+	if s.timeouts.fatal != nil {
+		cause = s.timeouts.fatal
+	}
 	for op := range s.operations {
-		op.cancel()
+		op.cancel(cause)
 	}
 	go s.end()
 }

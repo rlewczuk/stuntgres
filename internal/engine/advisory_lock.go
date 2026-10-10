@@ -177,7 +177,7 @@ func (m *relationLockManager) unlockAdvisoryAll(t *relationTicket) error {
 
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, try bool) (bool, error) {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{nowait: try, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, provenance: s.txRef}
+	policy := relationLockPolicy{operation: s.op, nowait: try, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, provenance: s.txRef}
 	request, err := e.locks.startAcquire(ctx, s.op.session.advisory.ticket, ref, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		return false, nil
