@@ -119,7 +119,7 @@ Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
 `pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL
 results. Existing index definitions determine direction, NULL ordering and
-INCLUDE applicability; fixed builtin AM inquiries do not enable non-B-tree DDL.
+INCLUDE applicability; fixed builtin AM inquiries do not enable unowned AM DDL.
 Unknown/inapplicable properties and invalid numeric objects/columns yield NULL.
 Existing native Dump/Restore preserves definitions without extra builtin state.
 See [index capability inquiries](docs/design/PG18-FUNC-INFO-INDEX-PROPERTIES.md).
@@ -180,14 +180,14 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetime
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`.
 
 Change note: ordinary `DROP INDEX`, `ALTER INDEX ... RENAME TO`,
-`REINDEX INDEX` and `REINDEX TABLE` operate on substantive logical B-trees.
+`REINDEX INDEX` and `REINDEX TABLE` operate on substantive logical B-tree/hash roots.
 Grouped drops preflight atomically; backing-index rename retains constraint/index
 identities and ongoing UNIQUE enforcement. Rebuilds replace selected real roots,
 not descriptors or table rows. Native execution is excluded in writable explicit
 transactions, and read-only rejection precedes lookup/locks. Physical options,
 tablespaces, statistics and concurrent/global rebuild requests remain explicit
 capability boundaries, not no-op successes. Internal coherent metadata uses
-central actual B-tree class identities and key/INCLUDE vectors, including admitted
+central actual method-specific class identities and key/INCLUDE vectors, including admitted
 explicit providers and enum domains; no new SQL catalog source is added.
 See [maintenance contracts](docs/SQL.md#index-maintenance) and
 [the design](docs/design/PG18-INDEX-MAINTENANCE.md).
@@ -557,7 +557,7 @@ sources; PostgreSQL's array comparator remains outside the bounded native surfac
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
 
 Change note: standalone `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
-moves ordinary tables, their simple B-tree indexes and every column-owned sequence atomically, preserving
+moves ordinary tables, their B-tree/hash indexes and every column-owned sequence atomically, preserving
 rows, named NOT NULL constraints, defaults, comments, ACLs and stored-view
 dependencies. It requires table ownership, source USAGE and destination CREATE
 (not source CREATE or destination USAGE). Native prepared SQL rebinds its original
@@ -570,6 +570,27 @@ moves only the view's namespace, leaving its sources and dependents in place.
 Explicit-transaction SET SCHEMA, generic standalone sequence/index moves,
 TEMP/system destinations and automatic row types remain bounded native exclusions.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
+
+Change note: ordinary `CREATE INDEX ... USING hash` supports one simple or
+immutable same-table expression key, owned hash operator classes and existing
+scalar/domain/enum usages. Real immutable buckets retain duplicate row/version
+identities and omit NULL keys. A current, proven single-source strict `=` against
+a compatible literal or freshly imported parameter uses actual bucket candidates
+and the original SQL predicate; commuted equality is supported. Mixed types,
+row-side coercions, class-coarser equality, joins/derived/views, explicit
+transactions and unproved snapshots retain ordinary scans. No range, ordering,
+NULL-search, index-only or physical PostgreSQL hash-page promise is made.
+Hash rejects UNIQUE, INCLUDE, multiple keys and explicit direction/NULL options.
+Invalid hash reloptions get PostgreSQL diagnostics; valid physical options remain
+positioned Execute-time capability errors after semantic/collision checks.
+Dump/Restore, TYPE, REINDEX and replacement preserve the actual method.
+See [hash contracts](docs/SQL.md#hash-equality-indexes) and
+[the design](docs/design/PG18-INDEX-HASH.md).
+Feature smoke (each invocation has a900-second deadline):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0`.
+Actual candidate-route witness:
+`make quickcheck PACKAGES=./internal/engine RUN='^TestHashIndexLookupFeatureSmoke$' VERBOSE=0`.
 
 Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]`
 supports multicolumn simple or same-table scalar expression keys with ASC/DESC,
@@ -584,7 +605,7 @@ immutable after constant branch simplification. Aggregate/subquery keys fail
 at Execute after quiet Prepare.
 Definitions share the relation namespace; immutable sorted logical key entries
 stay current through committed batches and supported table lifecycle changes.
-Query correctness still uses ordinary snapshot scan/filter/sort, not an optimizer
+B-tree query correctness still uses ordinary snapshot scan/filter/sort, not an optimizer
 or physical index-only promise; unordered SELECT has no new ordering guarantee.
 Dump/Restore serializes actual current definitions and rebuilds entries. TYPE
 reconstruction, including same-type key/payload TYPE with or without USING,
@@ -693,7 +714,7 @@ Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and
 `pg_conversion_is_visible(oid)` return strict nullable BOOL. Missing identities
 return NULL; existing off-path or shadowed identities return false. Relation
-visibility includes supported tables, views, sequences, ordinary B-tree indexes
+visibility includes supported tables, views, sequences, ordinary B-tree/hash indexes
 and catalog relations. Index identities share the relation namespace, so an
 earlier same-named table, view or sequence can shadow an index and vice versa.
 The subject's SELECT privilege is irrelevant; searchable schema USAGE still

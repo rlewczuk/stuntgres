@@ -291,7 +291,6 @@ func TestReferenceIndexClausesUnownedBoundaries(t *testing.T) {
 		{"array-default", "CREATE INDEX boundary ON t(a)", "index operator class is unsupported"},
 		{"array-explicit", "CREATE INDEX boundary ON t(a array_ops)", "index operator class is unsupported"},
 		{"ucs-basic", `CREATE INDEX boundary ON t(s COLLATE ucs_basic)`, "collation is unsupported"},
-		{"hash", "CREATE INDEX boundary ON t USING hash(n)", "non-btree indexes are unsupported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			indexClausesScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, run func(referenceStep)) {

@@ -17,9 +17,8 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 			}{
 				{"concurrent", "CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14", "i", false},
 				{"partial", "CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24", "i", false},
-				{"storage", "CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24", "i", false},
+				{"storage", "CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24", "i", true},
 				{"tablespace", "CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24", "i", false},
-				{"method", "CREATE INDEX i ON t USING hash(n)", "non-btree indexes are unsupported", "", "i", true},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					p := newReferenceScenario(t)

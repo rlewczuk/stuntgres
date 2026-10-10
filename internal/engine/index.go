@@ -13,7 +13,7 @@ import (
 )
 
 // Definitions use stable parent attributes; roots own current live identities.
-// Query snapshots deliberately keep using the existing visibility/filter path.
+// Hash equality uses captured immutable buckets; all other reads retain scans.
 type indexKey struct {
 	attribute        int32
 	desc, nullsFirst bool
@@ -23,6 +23,7 @@ type indexKey struct {
 	explicitClass    bool
 }
 type indexDefinition struct {
+	method           indexMethod
 	parent           ObjectAddress
 	keys             []indexKey
 	include          []int32
@@ -35,7 +36,10 @@ type logicalIndexEntry struct {
 	row     RowID
 	version VersionID
 }
-type logicalIndexRoot struct{ entries []logicalIndexEntry }
+type logicalIndexRoot struct {
+	entries []logicalIndexEntry // Ordered B-tree keys, including NULLs.
+	hash    *hashIndexRoot
+}
 type indexOrdering struct {
 	slots       []int
 	comparisons []sqltype.IndexComparison
@@ -53,6 +57,9 @@ func indexColumnLabel(name string, suffix int) string {
 }
 
 func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) (indexOrdering, error) {
+	if definition.method != btreeMethod {
+		return indexOrdering{}, fmt.Errorf("stuntgres: non-btree ordering definition")
+	}
 	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.IndexComparison, len(definition.keys)), keys: definition.keys}
 	for i, key := range definition.keys {
 		if key.derived != nil {
@@ -75,7 +82,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 				var exists bool
 				class, exists = sqltype.DefaultIndexClass(usage.Type)
 				if !exists {
-					return o, indexDefaultClassError(usage.Type.DiagnosticName())
+					return o, indexDefaultClassError(usage.Type.DiagnosticName(), btreeMethod)
 				}
 			}
 			o.comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
@@ -103,7 +110,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 			var exists bool
 			class, exists = sqltype.DefaultIndexClass(usage.Type)
 			if !exists {
-				return o, indexDefaultClassError(usage.Type.DiagnosticName())
+				return o, indexDefaultClassError(usage.Type.DiagnosticName(), btreeMethod)
 			}
 		}
 		comparison, err := sqltype.BindIndexOrdering(usage, class)
@@ -135,7 +142,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 			return fmt.Errorf("stuntgres: orphan unique backing index")
 		}
 	}
-	_, err := bindIndexOrdering(parent, d)
+	err := bindIndexProvider(parent, d)
 	if err != nil {
 		return err
 	}
@@ -220,12 +227,11 @@ func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int
 func (o indexOrdering) entry(row rowVersion, evaluation *EvalContext) (logicalIndexEntry, error) {
 	keys := make([]sqltype.Value, len(o.slots))
 	for i, slot := range o.slots {
-		if slot >= 0 {
-			keys[i] = row.values[slot]
-			continue
+		var expression BoundExpr
+		if slot < 0 {
+			expression = o.derived[i]
 		}
-		evaluation.Row = row.values
-		value, err := o.derived[i].Eval(evaluation)
+		value, err := extractIndexKey(slot, expression, row, evaluation)
 		if err != nil {
 			return logicalIndexEntry{}, err
 		}
@@ -276,6 +282,9 @@ func (o indexOrdering) sort(ctx context.Context, entries []logicalIndexEntry) er
 	return nil
 }
 func buildIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, store *relationStorage) (*logicalIndexRoot, error) {
+	if d.method == hashMethod {
+		return buildHashIndexRoot(ctx, parent, d, store, true)
+	}
 	entries, err := buildIndexEntries(ctx, parent, d, store)
 	if err != nil {
 		return nil, err
@@ -454,6 +463,15 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if err = validateIndexMethod(s); err != nil {
 			return fail(err)
 		}
+		if len(s.Options) != 0 {
+			method := btreeMethod
+			if s.Method == "hash" {
+				method = hashMethod
+			}
+			if err := validateIndexReloptions(s.Options, method, false); err != nil {
+				return fail(err)
+			}
+		}
 		definition, columns, attributes, lookup, err := e.bindIndexAttributes(scope.op, scope.input, auth, parent, s)
 		if err != nil {
 			return fail(err)
@@ -496,6 +514,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			if err := validateUniqueProviders(parent, definition, s.Keys); err != nil {
 				return fail(err)
 			}
+		}
+		if len(s.Options) != 0 {
+			return fail(indexCapability("index storage parameters are unsupported", s.WithPos))
 		}
 		oid, err := e.allocateOIDLocked()
 		if err != nil {

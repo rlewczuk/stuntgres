@@ -103,10 +103,10 @@ func evolveIndex(index, oldParent, parent *relationDescriptor, transformations [
 				oldUsage = oldParent.columns[slices.Index(oldParent.attributes, key.attribute)].Usage
 				newUsage = parent.columns[slices.Index(parent.attributes, key.attribute)].Usage
 			}
-			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage)
+			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.method)
 		}
 	}
-	if _, err := bindIndexOrdering(parent, definition); err != nil {
+	if err := bindIndexProvider(parent, definition); err != nil {
 		return nil, err
 	}
 	if definition.unique {
@@ -207,6 +207,7 @@ func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *cat
 		}
 		if store := storage[a]; store != nil {
 			copy := *store
+			copy.indexSource = store
 			captured[a] = &copy
 		}
 	}
@@ -261,6 +262,32 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			entries = root.entries
 		}
 		rebuild := root == nil || old == nil || rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil || !sameIndexKeySemantics(old, index)
+		if index.sqlIndex.method == hashMethod {
+			var err error
+			if rebuild {
+				if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
+					return nil, err
+				}
+				root, err = buildHashIndexRoot(ctx, parent, index.sqlIndex, storage[parent.address], materialize)
+				if err != nil {
+					return nil, err
+				}
+			}
+			for i := range publications {
+				if publications[i].address != parent.address {
+					continue
+				}
+				root, err = mergeHashIndexRoot(ctx, parent, index.sqlIndex, root, &publications[i], materialize)
+				if err != nil {
+					return nil, err
+				}
+				break
+			}
+			if materialize {
+				result[a] = root
+			}
+			continue
+		}
 		if rebuild {
 			if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
 				return nil, err
@@ -314,13 +341,13 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 	return result, nil
 }
 
-// A backing-constraint rename changes a wrapper, not an ordered key. Keep the
-// root only when every actual key/provider/null-policy identity is unchanged.
+// A backing-constraint rename changes a wrapper, not key/provider semantics.
+// Keep the root only when the actual method and all key identities are unchanged.
 func sameIndexKeySemantics(a, b *relationDescriptor) bool {
 	if a == b {
 		return true
 	}
-	if a.sqlIndex == nil || b.sqlIndex == nil || a.sqlIndex.parent != b.sqlIndex.parent || !slices.Equal(a.sqlIndex.keys, b.sqlIndex.keys) || !slices.Equal(a.sqlIndex.include, b.sqlIndex.include) || len(a.columns) != len(b.columns) {
+	if a.sqlIndex == nil || b.sqlIndex == nil || a.sqlIndex.method != b.sqlIndex.method || a.sqlIndex.parent != b.sqlIndex.parent || !slices.Equal(a.sqlIndex.keys, b.sqlIndex.keys) || !slices.Equal(a.sqlIndex.include, b.sqlIndex.include) || len(a.columns) != len(b.columns) {
 		return false
 	}
 	for i, column := range a.columns {

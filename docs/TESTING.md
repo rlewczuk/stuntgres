@@ -440,6 +440,46 @@ The private units retain local wait/strength/diagnostic recipes, ordinary-view
 inheritance, all-arm admission, sequence reference-kind checks and actual acquired
 relation modes. They do not duplicate public adapter scenarios. The stored-set
 barrier changes inherited marks only, never ordinary SELECT/dependency traversal.
+The hash-index feature smoke includes duplicate/NULL/range/order results, genuine
+held probes with fresh parameters, post-Prepare mutation, method capabilities and
+full diagnostics. Its controls contract exercises actual native Dump/Restore,
+self/foreign replacement, retained TEMP/eager rows, failed late replay and real
+PostgreSQL consumption of the unchanged native SQL. Public results alone cannot
+prove indexing, so also run the package-function smoke that asserts the captured
+real root, duplicate bucket candidates and consumption by the original filter:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestHashIndexLookupFeatureSmoke$' VERBOSE=0
+```
+
+Each quickcheck has a900-second deadline. Full changed-definition selectors must
+run identically in both reference modes before review/integration:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
+```
+
+The shared referenceHeldStatement retains its three-field layout and adds actual
+plain DB/Tx Prepare/Exec/Query consumers alongside existing Context consumers.
+Its matched query uses the genuinely held statement; unmatched queries use the
+underlying plain DB/Tx, never a Context stand-in. This central fixture change also
+requires supplemental identical all-reference risk selection (each900 seconds):
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference' VERBOSE=0
+```
+
+
+PG-only relam/vector/type-provider catalog controls are genuine boundary coverage,
+not native compatibility passes or skipped implementation. Native reduced-catalog
+metadata is asserted independently through projectIndexMetadata package functions;
+do not add unowned SQL catalogs to make a discovery query run. See
+[hash design](design/PG18-INDEX-HASH.md). Generate retained parser productions
+before selective checks; generation/formatting/verification belong to the root.
 
 ## How the dual-mode fixture works
 

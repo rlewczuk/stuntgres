@@ -225,8 +225,7 @@ package parser
 %type <stmt> create_view alter_view drop_view
 %type <alterView> view_alter_head
 %type <tok> replace_word
-%type <stmt> create_index
-%type <createIndex> index_head index_definition
+%type <createIndex> index_head index_definition index_policy index_storage index_tablespace create_index
 %type <tok> index_method index_direction index_null_policy
 %type <indexKeys> index_keys index_include
 %type <indexKey> index_key index_atom index_class
@@ -679,21 +678,24 @@ index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos}
  | CREATE INDEX CONCURRENTLY ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$5,Pos:$1.pos} }
  | CREATE INDEX CONCURRENTLY name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$6,Pos:$1.pos} }
  | CREATE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$9,Pos:$1.pos} }
- | CREATE UNIQUE INDEX ON relation_name {$$=&CreateIndex{Unique:true,Table:$5,Pos:$1.pos}}
- | CREATE UNIQUE INDEX name ON relation_name {$$=&CreateIndex{Unique:true,Name:Identifier{Text:$4.text,Pos:$4.pos},Table:$6,Pos:$1.pos}}
- | CREATE UNIQUE INDEX IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,Name:Identifier{Text:$7.text,Pos:$7.pos},Table:$9,IfNotExists:true,Pos:$1.pos}}
- | CREATE UNIQUE INDEX CONCURRENTLY ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,Table:$6,Pos:$1.pos}}
- | CREATE UNIQUE INDEX CONCURRENTLY name ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,Pos:$1.pos}}
- | CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,Name:Identifier{Text:$8.text,Pos:$8.pos},Table:$10,IfNotExists:true,Pos:$1.pos}} ;
+ | CREATE UNIQUE INDEX ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Table:$5,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$4.text,Pos:$4.pos},Table:$6,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$7.text,Pos:$7.pos},Table:$9,IfNotExists:true,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX CONCURRENTLY ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Table:$6,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX CONCURRENTLY name ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name {sqllex.(*lexer).deferUnsupported($4,"concurrent indexes are unsupported");$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$8.text,Pos:$8.pos},Table:$10,IfNotExists:true,Pos:$1.pos}} ;
 index_method: /* empty */ { sqllex.(*lexer).indexExpression=true; $$=lexeme{text:"btree"} } | USING name { sqllex.(*lexer).indexExpression=true; $$=$2 } ;
 index_definition: index_head index_method '(' index_keys ')' index_include {
  sqllex.(*lexer).indexExpression=false;$1.Method=$2.text;$1.Keys=$4;$1.Include=$6;$$=$1
 } ;
 index_null_policy: /* empty */ {$$=lexeme{}} | NULLS_LA DISTINCT {$$=$1;$$.text="distinct"} | NULLS_LA NOT DISTINCT {$$=$1;$$.text="not distinct"} ;
-create_index: index_definition index_null_policy {$1.NullsNotDistinct=$2.text=="not distinct";$1.NullsPos=$2.pos;$$=$1}
- | create_index WHERE target_or { sqllex.(*lexer).deferUnsupported($2,"partial indexes are unsupported");$$=$1 }
- | create_index WITH '(' view_option_list ')' { sqllex.(*lexer).deferUnsupported($2,"index storage parameters are unsupported");$$=$1 }
- | create_index TABLESPACE name { sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1 } ;
+index_policy: index_definition index_null_policy {$1.NullsNotDistinct=$2.text=="not distinct";$1.NullsPos=$2.pos;$$=$1} ;
+index_storage: index_policy {$$=$1}
+ | index_policy WITH '(' maintenance_index_option_list ')' {$1.Options=$4;$1.WithPos=$2.pos;$$=$1} ;
+index_tablespace: index_storage {$$=$1}
+ | index_storage TABLESPACE name {sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1} ;
+create_index: index_tablespace {$$=$1}
+ | index_tablespace WHERE target_or {sqllex.(*lexer).deferUnsupported($2,"partial indexes are unsupported");$$=$1} ;
 index_include: /* empty */ {$$=nil} | INCLUDE '(' index_keys ')' {$$=$3} ;
 index_keys: index_key { $$=[]IndexKey{$1} } | index_keys ',' index_key { $$=append($1,$3) } ;
 index_key: index_atom column_collation index_class index_direction nulls {

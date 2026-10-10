@@ -257,7 +257,9 @@ func (e indexPropertyExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		if e.kind == wholeIndexProperty {
 			switch property {
-			case "clusterable", "index_scan", "bitmap_scan", "backward_scan":
+			case "clusterable":
+				result, known = relation.sqlIndex.method == btreeMethod, true
+			case "index_scan", "bitmap_scan", "backward_scan":
 				result, known = true, true
 			}
 		} else {
@@ -322,6 +324,14 @@ func indexAMProperty(oid uint32, property string) (bool, bool) {
 func indexColumnCapability(index *indexDefinition, ordinal int64, property string) (bool, bool) {
 	if ordinal <= 0 || ordinal > int64(len(index.keys)+len(index.include)) {
 		return false, false
+	}
+	if index.method == hashMethod {
+		switch property {
+		case "asc", "desc", "nulls_first", "nulls_last", "orderable", "distance_orderable", "returnable", "search_array", "search_nulls":
+			return false, true
+		default:
+			return false, false
+		}
 	}
 	key := ordinal <= int64(len(index.keys))
 	switch property {

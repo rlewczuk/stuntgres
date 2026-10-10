@@ -160,7 +160,7 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, keys: make([]indexKey, len(c.Attributes))}
+		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: c, keys: make([]indexKey, len(c.Attributes))}
 		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition, columns: make([]ColumnDescriptor, len(c.Attributes)), attributes: make([]int32, len(c.Attributes)), index: make(map[string]int, len(c.Attributes))}
 		index.attributeHighWater = int32(len(index.attributes))
 		labels := make(map[string]bool)
@@ -169,7 +169,7 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 			column := d.columns[slot]
 			class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 			if !ok {
-				return indexDefaultClassError(column.Usage.Type.DiagnosticName())
+				return indexDefaultClassError(column.Usage.Type.DiagnosticName(), btreeMethod)
 			}
 			definition.keys[j] = indexKey{attribute: a, class: class}
 			label := column.Name

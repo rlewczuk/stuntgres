@@ -218,6 +218,13 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
 		case tableRelation:
 			source, err = captureQueryPrefix(view, leaf.ref)
+			if err == nil {
+				err = e.captureHashIndexesLocked(scope, leaf, source, mark)
+				if err != nil {
+					source.close()
+					source = nil
+				}
+			}
 		default:
 			// Recursive view opening consumes the lock, including failures.
 			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mark, locks)

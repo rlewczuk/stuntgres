@@ -19,7 +19,7 @@ func indexCapability(message string, pos parser.Position) error {
 
 // Validate reloptions in input order. A first malformed value wins over a later
 // duplicate; RESET has a different contract and accepts unknown/repeated names.
-func validateIndexOptions(s *parser.AlterIndex) error {
+func validateIndexOptions(s *parser.AlterIndex, method indexMethod) error {
 	if s.Action == "reset" {
 		for _, o := range s.Options {
 			if o.HasValue {
@@ -28,18 +28,28 @@ func validateIndexOptions(s *parser.AlterIndex) error {
 		}
 		return indexCapability("index storage parameters are unsupported", parser.Position{})
 	}
-	seen := make(map[string]bool, len(s.Options))
-	for _, o := range s.Options {
-		// PostgreSQL ignores toast-namespace index reloptions. Native storage still
-		// cannot honor the original request, so this never becomes success.
-		if o.Namespace == "toast" {
+	if err := validateIndexReloptions(s.Options, method, true); err != nil {
+		return err
+	}
+	return indexCapability("index storage parameters are unsupported", parser.Position{})
+}
+
+// CREATE rejects namespaces; ALTER retains PostgreSQL's toast-ignore policy.
+// This validates the complete list, without accepting physical options as no-ops.
+func validateIndexReloptions(options []parser.IndexOption, method indexMethod, alter bool) error {
+	seen := make(map[string]bool, len(options))
+	for _, o := range options {
+		if alter && o.Namespace == "toast" {
 			continue
 		}
 		name := o.Name.Text
+		if strings.Contains(name, "=") {
+			return sqlError("22023", fmt.Sprintf(`invalid option name "%s": must not contain "="`, name))
+		}
 		if o.Namespace != "" {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter namespace "%s"`, o.Namespace))
 		}
-		if name != "fillfactor" && name != "deduplicate_items" {
+		if name != "fillfactor" && (name != "deduplicate_items" || method == hashMethod) {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
 		if seen[name] {
@@ -71,7 +81,7 @@ func validateIndexOptions(s *parser.AlterIndex) error {
 			}
 		}
 	}
-	return indexCapability("index storage parameters are unsupported", parser.Position{})
+	return nil
 }
 
 // Validate malformed controls in input order before target/schema/ACL admission.

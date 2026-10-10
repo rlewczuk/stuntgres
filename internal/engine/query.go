@@ -394,6 +394,7 @@ type querySource struct {
 	singleton            bool
 	anonymous            [][]sqltype.Value
 	visible              []int
+	hashIndexes          []capturedHashIndex
 	scope                *StatementScope
 	sources              []*querySource
 	flat                 []sqltype.Value
@@ -517,6 +518,7 @@ func (s *querySource) versionAt(i int) rowVersion {
 func (s *querySource) close() {
 	sources := s.sources
 	s.sources = nil
+	s.hashIndexes = nil
 	if s.nestedStage != nil {
 		s.nestedStage.Close()
 		s.nestedStage = nil
@@ -574,6 +576,7 @@ func (s *querySource) close() {
 // delegates to the sole expression evaluator; each stage owns its private state.
 type queryState struct {
 	source     *querySource
+	hashFilter *filterNode
 	parameters []sqltype.Value
 	input      sqltype.InputEnvironment
 	output     sqltype.OutputEnvironment
@@ -586,6 +589,7 @@ type queryState struct {
 type indexedStage struct {
 	source           *querySource
 	selection        []int
+	hashCandidates   *hashCandidateSelection
 	permutation      []int
 	orderValues      []sqltype.Value
 	cacheOccurrences []int
@@ -684,6 +688,7 @@ func (s *indexedStage) release() {
 	// The query execution owner, not this borrowed stage, owns the view pin.
 	s.source = nil
 	s.selection = nil
+	s.hashCandidates = nil
 	s.expressions = nil
 	s.permutation = nil
 	s.orderValues = nil
@@ -798,13 +803,30 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if err != nil {
 			return indexedStage{}, err
 		}
+		candidates, err := hashFilterCandidates(ctx, state, n, child.source)
+		if err != nil {
+			child.Close()
+			return indexedStage{}, err
+		}
 		out := producingStage(&child, n.Schema())
+		out.hashCandidates = candidates
 		evaluation := state.evaluation(nil)
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			for {
-				i, present, err := child.nextOccurrence(ctx)
-				if err != nil || !present {
-					return present, err
+				var i int
+				if candidates := out.hashCandidates; candidates != nil {
+					if candidates.position == len(candidates.occurrences) {
+						return false, ctx.Err()
+					}
+					i = candidates.occurrences[candidates.position]
+					candidates.position++
+				} else {
+					var present bool
+					var err error
+					i, present, err = child.nextOccurrence(ctx)
+					if err != nil || !present {
+						return present, err
+					}
 				}
 				evaluation.Context, evaluation.Row = ctx, child.source.row(child.index(i))
 				value, err := n.predicate.Eval(&evaluation)
@@ -1175,7 +1197,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
-	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil}
+	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
 	if source.scope != nil {
 		state.input, state.output = source.scope.input, source.scope.output
 	}

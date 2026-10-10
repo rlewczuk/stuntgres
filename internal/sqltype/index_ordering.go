@@ -6,19 +6,22 @@ import (
 	"strings"
 )
 
-// IndexClass is an immutable released B-tree class identity. Its input/family
-// belongs here, not to namespace lookup or the SQL expression coercion graph.
+// IndexClass is an immutable released method-specific class identity. Its input
+// and family belong here, not to namespace lookup or expression coercion.
 type IndexClass struct {
 	Name   string
 	Family string
 	input  ID
 	oid    uint32
 	enum   bool
+	hash   bool
 }
 
-// OID is the released identity of this implemented B-tree class. Unsupported
-// diagnostic-only classes do not advertise an ordering identity.
+// OID is the released identity. Unowned B-tree diagnostic classes do not
+// advertise an implemented ordering provider.
 func (c IndexClass) OID() uint32 { return c.oid }
+
+func (c IndexClass) IsHash() bool { return c.hash }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
 	c := IndexClass{Name: name, Family: name}
@@ -197,6 +200,9 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	if !t.Concrete() {
 		return false
 	}
+	if c.hash && c.input == NameArray {
+		return t.BaseType().IsArray()
+	}
 	if c.enum {
 		return t.BaseType().IsEnum()
 	}
@@ -243,6 +249,9 @@ type IndexComparison struct {
 }
 
 func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
+	if c.hash {
+		return IndexComparison{}, fmt.Errorf("hash class has no ordering provider")
+	}
 	if !c.Accepts(u.Type) {
 		return IndexComparison{}, failure("42804", fmt.Sprintf("operator class %q does not accept data type %s", c.Name, u.Type.DiagnosticName()))
 	}

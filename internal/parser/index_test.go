@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -54,7 +55,6 @@ func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
 		{"CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14"},
 		{"CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24"},
-		{"CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24"},
 		{"CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24"},
 	} {
 		_, err := Parse(tc.query)
@@ -81,6 +81,77 @@ func TestUniqueIndexPolicySyntax(t *testing.T) {
 		if index.Unique != strings.HasPrefix(query, "CREATE UNIQUE") || index.NullsNotDistinct != strings.HasSuffix(query, "NULLS NOT DISTINCT") {
 			t.Fatal(query, index)
 		}
+	}
+}
+
+func TestHashIndexSuffixClauseOrder(t *testing.T) {
+	q := "CREATE UNIQUE INDEX ix ON t USING btree(n) INCLUDE(p) NULLS NOT DISTINCT WITH(fillfactor=75)"
+	statements, err := Parse(q)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	index := statements[0].(*CreateIndex)
+	if !index.Unique || index.UniquePos.Character != 8 || !index.NullsNotDistinct || len(index.Include) != 1 || len(index.Options) != 1 || index.Options[0].Value.Integer != 75 || index.WithPos.Character != strings.Index(q, "WITH")+1 || index.NullsPos.Character != strings.Index(q, "NULLS")+1 {
+		t.Fatal("ordered suffix lost integrated UNIQUE policy or storage options", index)
+	}
+	for _, tc := range []struct{ query, token string }{
+		{"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=75) WITH(fillfactor=80)", "WITH"},
+		{"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=9) WITH(fillfactor=75)", "WITH"},
+		{"CREATE INDEX ix ON t USING hash(n) TABLESPACE pg_default WITH(fillfactor=75)", "WITH"},
+		{"CREATE INDEX ix ON t USING hash(n) WHERE n>0 WITH(fillfactor=75)", "WITH"},
+		{"CREATE INDEX ix ON t USING hash(n) WHERE n>0 TABLESPACE pg_default", "TABLESPACE"},
+		{"CREATE INDEX ix ON t USING hash(n) TABLESPACE pg_default TABLESPACE pg_default", "TABLESPACE"},
+		{"CREATE INDEX ix ON t USING hash(n) WHERE n>0 WHERE n<3", "WHERE"},
+	} {
+		statements, err := Parse(tc.query)
+		var diagnostic *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "` + tc.token + `"`, Position: strconv.Itoa(strings.LastIndex(tc.query, tc.token) + 1)}
+		if statements != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
+			t.Fatal("malformed suffix bypassed complete syntax validation", tc.query, statements, diagnostic, want, err)
+		}
+	}
+	for _, tc := range []struct{ query, token, message string }{
+		{"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=75) WHERE n>0", "WHERE", "partial indexes are unsupported"},
+		{"CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=75) TABLESPACE pg_default WHERE n>0", "TABLESPACE", "index tablespaces are unsupported"},
+	} {
+		_, err := Parse(tc.query)
+		var diagnostic *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.query, tc.token) + 1)}
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
+			t.Fatal("released clause order changed the existing capability boundary", tc.query, diagnostic, want, err)
+		}
+	}
+}
+
+func TestHashIndexSyntaxAdmission(t *testing.T) {
+	for _, q := range []string{
+		`CREATE UNIQUE INDEX ON t USING hash(n) WITH(fillfactor=-1,toast.fillfactor=80)`,
+		`CREATE UNIQUE INDEX ix ON t USING hash(n) WITH(fillfactor=75)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS ix ON t USING hash(n) WITH(fillfactor=80.0)`,
+		`CREATE INDEX ix ON t USING btree(n) WITH(fillfactor=80)`,
+	} {
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		index := statements[0].(*CreateIndex)
+		if len(index.Options) == 0 || index.WithPos.Character == 0 || index.Options[0].Name.Text != "fillfactor" || !index.Options[0].HasValue {
+			t.Fatal("storage options lost before execution admission", q, index)
+		}
+		if index.Method == "hash" && (!index.Unique || index.UniquePos.Character != 8) {
+			t.Fatal(q, index)
+		}
+		if index.Method == "btree" && index.Unique {
+			t.Fatal(q, index)
+		}
+	}
+	statements, err := Parse(`CREATE INDEX ix ON t USING hash(n) WITH(fillfactor=-1,toast.fillfactor=80)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := statements[0].(*CreateIndex).Options
+	if options[0].Value.Kind != IntegerValue || options[0].Value.Integer != -1 || options[1].Namespace != "toast" || options[1].Name.Text != "fillfactor" {
+		t.Fatal(options)
 	}
 }
 

@@ -3624,13 +3624,28 @@ Duplicate names are 42P07 in the shared relation namespace; missing target/key
 are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
 unlike newer development-source behavior. Binding precedes duplicate-name
 checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
-syntax diagnostics retain one-based character positions. Non-btree/
+syntax diagnostics retain one-based character positions. Unowned access methods,
 partial/concurrent definitions and unowned providers are bounded
 capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
 42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
 Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
 Ordinary DROP/rename/rebuild utilities are described below; unique attachment
 and broad index SQL inquiry catalogs remain excluded.
+
+Ordinary USING hash is independently owned: one simple or immutable scalar
+expression key, real duplicate-preserving non-NULL buckets and a narrowly proved
+current-view strict equality probe with original-comparison residual. It supplies
+neither range/order/NULL search nor a physical PostgreSQL hash implementation.
+Mixed/coerced/provider-mismatched comparisons and unproved snapshots/private data
+retain ordinary evaluation. Hash UNIQUE/INCLUDE/multikey/direction requests get
+method-specific PostgreSQL errors. Complete reloptions validation precedes key
+binding; a valid physical request is excluded only after class/type/collation/
+direction, collision/IF NOT EXISTS and builtin class-parameter checks, at retained
+WITH Position. Array hash classes remain recognized native0A000 boundaries.
+TYPE, deparse, Dump/Restore and maintenance preserve actual method/class identity.
+See [hash SQL](SQL.md#hash-equality-indexes) and
+[hash design](design/PG18-INDEX-HASH.md).
+
 
 Expression keys use the existing scalar binder, type/collation providers,
 constant simplifier and evaluator, not an index-specific interpreter. Admission

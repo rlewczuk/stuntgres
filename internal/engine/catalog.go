@@ -34,9 +34,10 @@ type ObjectRef struct {
 // One immutable physical head per logical row, plus immutable end markers.
 // Published vectors/end roots are retained by views; generation guards either.
 type relationStorage struct {
-	versions   []rowVersion
-	ends       *deletionRoot
-	generation uint64
+	versions    []rowVersion
+	ends        *deletionRoot
+	generation  uint64
+	indexSource *relationStorage // Origin only on detached index-build captures.
 }
 
 const (
@@ -814,6 +815,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			a := index.sqlIndex.parent
 			if indexStores[a] == nil && currentStorage[a] != nil {
 				copy := *currentStorage[a]
+				copy.indexSource = currentStorage[a]
 				indexStores[a] = &copy
 			}
 		}

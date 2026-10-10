@@ -553,7 +553,7 @@ skipping`, or `schema "name" does not exist, skipping`). DROP requires table
 owner, schema owner or superuser authority, not ordinary table privileges, and
 preserves current schema lookup/USAGE authorization.
 
-The supported dependency set includes stored views, owned sequences and B-tree indexes.
+The supported dependency set includes stored views, owned sequences and B-tree/hash indexes.
 Both modes remove the selected tables and their contained columns, storage and
 relation/column ACL records; dependent views retain the RESTRICT/CASCADE policy
 described below. Namespace,
@@ -561,7 +561,7 @@ builtin types, owner roles and unrelated tables survive. Real DROP ROLE ownershi
 and ACL blockers disappear with the removed definitions. LIKE clones, prepared
 statements and held cursors are not persistent dependents; held cursors retain old
 rows/metadata, while prepared executions rebind (absent table `42P01`,
-incompatible recreation `42703`). B-tree indexes and column-owned
+incompatible recreation `42703`). B-tree/hash indexes and column-owned
 sequences disappear automatically with their parent; views retain their existing
 RESTRICT/CASCADE dependency policy. Foreign keys remain excluded.
 Explicit-transaction CREATE/DROP TABLE remains unsupported.
@@ -720,8 +720,8 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-Primary/foreign keys, non-btree/partial/concurrent indexes and unrelated ALTER
-actions remain excluded engine capabilities.
+Primary/foreign keys, unowned access methods, partial/concurrent indexes and
+unrelated ALTER actions remain excluded engine capabilities.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
 transactions. PostgreSQL pass order is DROP, TYPE, original SET, transformed
@@ -791,7 +791,7 @@ remains rejected rather than silently losing grants. These are process-local
 controls, not pg_dump, physical storage durability or network protocol support.
 Stored CHECK constraints and supported views have real descriptors/dependencies;
 views continue to reference stable relation/attribute identities through supported
-renames. Simple B-tree keys also retain stable attribute identities, and Dump
+renames. B-tree/hash keys also retain stable attribute identities, and Dump
 renders current parent/key names without renaming the index itself. Foreign keys,
 automatic row types, inheritance and broader transactional DDL remain excluded.
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
@@ -845,7 +845,7 @@ dense evaluation slots. Independent columns/tables and plain LIKE clones survive
 Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
 Canonical Dump renders current names and survivor metadata; Reset/Restore
 preserves definitions/data even though replay allocates fresh attribute IDs.
-B-tree indexes mentioning a dropped attribute, including expression dependencies, are removed automatically,
+B-tree/hash indexes mentioning a dropped attribute, including expression dependencies, are removed automatically,
 even with RESTRICT; unaffected indexes survive dense-slot compaction. FK,
 inheritance and partition dependencies remain unsupported.
 
@@ -1007,12 +1007,16 @@ for Docker-free native and pinned PostgreSQL runs, including held frames,
 dependency ordering, cancellation and actual native replay controls.
 
 
-## Ordinary B-tree index maintenance
+## Ordinary logical index maintenance
 
-CREATE INDEX builds actual immutable sorted logical entries from committed live
-rows under Share admission. INSERT VALUES/SELECT/default/identity/CHECK writes,
-UPDATE and DELETE maintain entries at the same Finish/commit boundary as rows.
-Duplicate keys keep distinct RowID/VersionID membership; NULL keys are included.
+CREATE INDEX builds immutable ordered B-tree entries or equality hash buckets
+from committed live rows under Share admission. INSERT VALUES/SELECT/default/
+identity/CHECK writes, UPDATE and DELETE maintain roots at the same Finish/commit
+boundary as rows. Duplicate keys retain distinct RowID/VersionID membership.
+B-tree NULL entries are retained; hash NULL keys are omitted. Hash is one key
+without INCLUDE/ordering, and stores captured physical positions for safe candidate
+translation, never a full-table row-identity recovery map. Its narrow current-view
+strict equality route keeps the original SQL predicate and ordinary fallbacks.
 INCLUDE attributes are stable parent IDs in metadata, separate from logical keys.
 The total key+INCLUDE limit is 32, repetitions count, and included types need storage
 but no ordering provider. Payload-only updates never introduce payload comparisons
@@ -1041,6 +1045,10 @@ collision-checked publication. DROP TABLE/schema CASCADE leave no index/root/nam
 orphans. Dump captures actual options/current names; Restore/replacement rebuild
 key-only roots with destination identities.
 See [B-tree design](design/PG18-INDEX-BTREE.md) and [clause design](design/PG18-INDEX-CLAUSES.md).
+See [hash design](design/PG18-INDEX-HASH.md) for method-specific providers, captured
+prefix/generation proofs, immutable touched-bucket publication and no range/order/
+NULL-search claim. Native Dump/Restore and real PG replay preserve USING hash
+without B-tree direction decorations; valid physical options remain exclusions.
 
 Ordinary index RENAME preserves its substantive root and stable parent/key
 identities; a UNIQUE backing rename atomically changes its parent constraint
@@ -1056,7 +1064,7 @@ unselected sibling roots. No-index TABLE is a NOTICE/no-op, not a synthetic
 definition publication. Failed waits/builds/final publication preserve all prior
 state. Valid physical options remain unsupported rather than simulated.
 Internal detached metadata projects complete flags/vectors, retained analyzed
-expression lists, actual key collations and central actual B-tree class identities
+expression lists, actual key collations and central actual method-specific class identities
 from one immutable CatalogRead. Total attributes include repeated INCLUDE payload
 attributes; class/collation/direction vectors contain keys only. Maintenance
 preserves every implemented explicit provider and included payload, including

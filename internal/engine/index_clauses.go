@@ -14,10 +14,10 @@ func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
 	return u
 }
 
-func reconstructIndexKey(key indexKey, oldUsage, newUsage sqltype.Usage) indexKey {
-	oldDefault, _ := sqltype.DefaultIndexClass(oldUsage.Type)
+func reconstructIndexKey(key indexKey, oldUsage, newUsage sqltype.Usage, method indexMethod) indexKey {
+	oldDefault, _ := method.defaultClass(oldUsage.Type)
 	if key.class.Name == "" || key.class == oldDefault {
-		key.class, _ = sqltype.DefaultIndexClass(newUsage.Type)
+		key.class, _ = method.defaultClass(newUsage.Type)
 		key.explicitClass = false
 	}
 	if key.collation == oldUsage.Collation.ID {
@@ -37,22 +37,22 @@ func indexSemanticError(err error) error {
 	return err
 }
 
-func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName) (sqltype.IndexClass, error) {
+func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method indexMethod) (sqltype.IndexClass, error) {
 	path, err := e.lookupNamespaces(auth, raw, operatorLookup)
 	if err != nil {
 		return sqltype.IndexClass{}, indexSemanticError(err)
 	}
 	for i := range path.count() {
 		if path.at(i) == (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) {
-			if c, ok := sqltype.LookupIndexClass(raw.Parts[len(raw.Parts)-1].Text); ok {
+			if c, ok := method.lookupClass(raw.Parts[len(raw.Parts)-1].Text); ok {
 				return c, nil
 			}
 		}
 	}
-	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "btree"`, objectNameText(raw)))
+	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, objectNameText(raw), method))
 }
 
-func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey) (indexKey, error) {
+func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method indexMethod) (indexKey, error) {
 	key := indexKey{desc: raw.Desc, nullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
 	if raw.Collation != nil {
 		id, err := e.lookupCollation(*raw.Collation, op)
@@ -64,10 +64,10 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		}
 		key.collation = id
 	}
-	c, exists := sqltype.DefaultIndexClass(u.Type)
+	c, exists := method.defaultClass(u.Type)
 	if raw.Opclass != nil {
 		var err error
-		c, err = e.lookupIndexClass(auth, *raw.Opclass)
+		c, err = e.lookupIndexClass(auth, *raw.Opclass, method)
 		if err != nil {
 			return key, err
 		}
@@ -78,23 +78,30 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		exists = true
 	}
 	if !exists {
-		return key, indexDefaultClassError(u.Type.DiagnosticName())
+		return key, indexDefaultClassError(u.Type.DiagnosticName(), method)
 	}
 	key.class = c
+	if method == hashMethod {
+		if err := validateHashKeyDirection(raw); err != nil {
+			return key, err
+		}
+		_, err := sqltype.BindIndexHash(indexKeyCollation(u, key), c)
+		return key, err
+	}
 	_, err := sqltype.BindIndexOrdering(indexKeyCollation(u, key), c)
 	return key, err
 }
 
-func indexDefaultClassError(name string) error {
+func indexDefaultClassError(name string, method indexMethod) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704",
-		Message: fmt.Sprintf("data type %s has no default operator class for access method %q", name, "btree"),
+		Message: fmt.Sprintf("data type %s has no default operator class for access method %q", name, method.String()),
 		Hint:    "You must specify an operator class for the index or define a default operator class for the data type."}
 }
 
 // Validate released system attribute identity without manufacturing an owned
 // storage descriptor or comparator. Final system prohibition stays after all
 // attributes, so a later ordinary missing column can still win.
-func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, raw parser.IndexKey) error {
+func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, raw parser.IndexKey, method indexMethod) error {
 	id, name := sqltype.SystemAttributeType(raw.Column.Text)
 	if raw.Collation != nil {
 		_, err := e.lookupCollation(*raw.Collation, op)
@@ -106,15 +113,15 @@ func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, r
 		return sqlError("42804", "collations are not supported by type "+name)
 	}
 	if raw.Opclass != nil {
-		class, err := e.lookupIndexClass(auth, *raw.Opclass)
+		class, err := e.lookupIndexClass(auth, *raw.Opclass, method)
 		if err != nil {
 			return err
 		}
 		if !class.AcceptsID(id) {
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, objectNameText(*raw.Opclass), name))
 		}
-	} else if _, exists := sqltype.DefaultIndexClassID(id); !exists {
-		return indexDefaultClassError(name)
+	} else if _, exists := method.defaultClassID(id); !exists {
+		return indexDefaultClassError(name, method)
 	}
 	return nil
 }
@@ -133,16 +140,37 @@ func validateIndexInclude(raw parser.IndexKey) error {
 	return nil
 }
 
+func validateHashKeyDirection(key parser.IndexKey) error {
+	if key.DirectionExplicit {
+		return sqlError("0A000", `access method "hash" does not support ASC/DESC options`)
+	}
+	if key.Nulls != parser.NullsDefault {
+		return sqlError("0A000", `access method "hash" does not support NULLS FIRST/LAST options`)
+	}
+	return nil
+}
+
 func validateIndexMethod(s *parser.CreateIndex) error {
 	switch s.Method {
 	case "btree":
 		return nil
-	case "hash", "gin", "gist", "spgist", "brin":
-		if len(s.Include) > 0 && (s.Method == "hash" || s.Method == "gin") {
-			return sqlError("0A000", fmt.Sprintf("access method %q does not support included columns", s.Method))
+	case "hash":
+		if s.Unique {
+			return sqlError("0A000", `access method "hash" does not support unique indexes`)
 		}
-		if len(s.Keys) > 1 && (s.Method == "hash" || s.Method == "spgist") {
-			return sqlError("0A000", fmt.Sprintf("access method %q does not support multicolumn indexes", s.Method))
+		if len(s.Include) > 0 {
+			return sqlError("0A000", `access method "hash" does not support included columns`)
+		}
+		if len(s.Keys) > 1 {
+			return sqlError("0A000", `access method "hash" does not support multicolumn indexes`)
+		}
+		return nil
+	case "gin", "gist", "spgist", "brin":
+		if len(s.Include) > 0 && s.Method == "gin" {
+			return sqlError("0A000", `access method "gin" does not support included columns`)
+		}
+		if len(s.Keys) > 1 && s.Method == "spgist" {
+			return sqlError("0A000", `access method "spgist" does not support multicolumn indexes`)
 		}
 		for _, key := range s.Keys {
 			if key.DirectionExplicit {
@@ -160,7 +188,10 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 
 func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, s *parser.CreateIndex) (*indexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	d := &indexDefinition{parent: parent.address, keys: make([]indexKey, len(s.Keys)), include: make([]int32, len(s.Include))}
+	d := &indexDefinition{method: btreeMethod, parent: parent.address, keys: make([]indexKey, len(s.Keys)), include: make([]int32, len(s.Include))}
+	if s.Method == "hash" {
+		d.method = hashMethod
+	}
 	columns := make([]ColumnDescriptor, total)
 	attributes := make([]int32, total)
 	lookup := make(map[string]int, total)
@@ -186,7 +217,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 				return fail(err)
 			}
 			label = name
-			key, err := e.bindIndexKey(op, auth, derived.execution.ResultUsage(), raw)
+			key, err := e.bindIndexKey(op, auth, derived.execution.ResultUsage(), raw, d.method)
 			if err != nil {
 				return fail(err)
 			}
@@ -205,8 +236,13 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 					if err := validateIndexInclude(raw); err != nil {
 						return fail(err)
 					}
-				} else if err := e.validateSystemIndexKey(op, auth, raw); err != nil {
+				} else if err := e.validateSystemIndexKey(op, auth, raw, d.method); err != nil {
 					return fail(err)
+				}
+				if !included && d.method == hashMethod {
+					if err := validateHashKeyDirection(raw); err != nil {
+						return fail(err)
+					}
 				}
 				continue
 			}
@@ -221,7 +257,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 				}
 				d.include[i-len(s.Keys)] = parent.attributes[slot]
 			} else {
-				key, err := e.bindIndexKey(op, auth, columns[i].Usage, raw)
+				key, err := e.bindIndexKey(op, auth, columns[i].Usage, raw, d.method)
 				if err != nil {
 					return fail(err)
 				}

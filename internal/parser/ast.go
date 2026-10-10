@@ -185,8 +185,11 @@ type CreateIndex struct {
 	Include          []IndexKey
 	IfNotExists      bool
 	Unique           bool
+	UniquePos        Position
 	NullsNotDistinct bool
 	NullsPos         Position
+	Options          []IndexOption
+	WithPos          Position
 	Pos              Position
 }
 

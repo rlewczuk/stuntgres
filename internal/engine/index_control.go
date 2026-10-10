@@ -57,7 +57,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if index.sqlIndex.unique {
 		sql.WriteString("UNIQUE ")
 	}
-	sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING btree (")
+	sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING " + index.sqlIndex.method.String() + " (")
 	for i, key := range index.sqlIndex.keys {
 		if i > 0 {
 			sql.WriteString(", ")
@@ -75,7 +75,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			if wrapped {
 				sql.WriteByte(')')
 			}
-			presented = reconstructIndexKey(key, usage, usage)
+			presented = reconstructIndexKey(key, usage, usage, index.sqlIndex.method)
 			actual, err := indexKeyUsage(parent, key)
 			if err != nil {
 				return "", err
@@ -116,6 +116,9 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 				sql.WriteString(quoteIdentifier("pg_catalog") + ".")
 			}
 			sql.WriteString(identifier(presented.class.Name))
+		}
+		if index.sqlIndex.method == hashMethod {
+			continue
 		}
 		if key.desc {
 			sql.WriteString(" DESC")

@@ -67,7 +67,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			clone.columns[j].Usage = parent.columns[slot].Usage
 			class, ok := sqltype.DefaultIndexClass(clone.columns[j].Usage.Type)
 			if !ok {
-				return nil, indexDefaultClassError(clone.columns[j].Usage.Type.DiagnosticName())
+				return nil, indexDefaultClassError(clone.columns[j].Usage.Type.DiagnosticName(), btreeMethod)
 			}
 			definition.keys[j].class = class
 			clone.columns[j].OriginTable = uint32(id)

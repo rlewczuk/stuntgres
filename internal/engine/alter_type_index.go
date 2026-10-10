@@ -76,7 +76,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 		}
 		if len(pending.keys) > 0 {
 			var sql strings.Builder
-			sql.WriteString("CREATE INDEX " + pgIdentifier(index.name) + " ON " + pgIdentifier(catalog.state.descriptors[original.namespace].Name()) + "." + pgIdentifier(original.name) + " USING btree (")
+			sql.WriteString("CREATE INDEX " + pgIdentifier(index.name) + " ON " + pgIdentifier(catalog.state.descriptors[original.namespace].Name()) + "." + pgIdentifier(original.name) + " USING " + index.sqlIndex.method.String() + " (")
 			renderer := pgRenderer{view: catalog, relation: original, path: scope.deparsePath, output: scope.output}
 			for i, key := range index.sqlIndex.keys {
 				if i > 0 {
@@ -106,7 +106,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				} else {
 					usage = original.columns[slices.Index(original.attributes, key.attribute)].Usage
 				}
-				reconstructed := reconstructIndexKey(key, usage, usage)
+				reconstructed := reconstructIndexKey(key, usage, usage, index.sqlIndex.method)
 				if reconstructed.collation != 0 {
 					sql.WriteString(" COLLATE " + pgIdentifier(builtinCollationName(reconstructed.collation)))
 				}
@@ -169,7 +169,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			if err != nil {
 				return err
 			}
-			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage)
+			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.method)
 		}
 		// The captured TYPE queue already normalized every key against its
 		// original Usage while retaining the newly rebound expression trees.

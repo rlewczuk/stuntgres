@@ -217,7 +217,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		case *parser.AlterIndex:
 			switch v.Action {
 			case "set", "reset":
-				return fail(validateIndexOptions(v))
+				return fail(validateIndexOptions(v, g.descriptors[g.targets[0].Address].sqlIndex.method))
 			case "tablespace":
 				return fail(indexCapability("index tablespaces are unsupported", v.ActionPos))
 			case "statistics":

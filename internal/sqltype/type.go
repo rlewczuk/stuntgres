@@ -1377,6 +1377,11 @@ type ComparisonPredicate struct {
 
 func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
 
+// EqualityFor proves the owned strict same-type predicate used by hash probes.
+func (p ComparisonPredicate) EqualityFor(t *Descriptor) bool {
+	return t.Concrete() && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
+}
+
 func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor) (ComparisonPredicate, error) {
 	if operator > CompareGreaterEqual || result == nil || result.id != Bool || !result.Concrete() {
 		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")

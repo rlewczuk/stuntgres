@@ -96,6 +96,10 @@ CREATE INDEX [name] ON [schema.]table [USING btree]
 CREATE INDEX IF NOT EXISTS name ON [schema.]table [USING btree]
   (key [COLLATE [schema.]collation] [[schema.]opclass]
     [ASC|DESC] [NULLS FIRST|LAST] [, ...]) [INCLUDE (column [, ...])]
+CREATE INDEX [name] ON [schema.]table USING hash
+  (key [COLLATE [schema.]collation] [[schema.]opclass])
+CREATE INDEX IF NOT EXISTS name ON [schema.]table USING hash
+  (key [COLLATE [schema.]collation] [[schema.]opclass])
 element := column type [COLLATE [schema.]name] [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
          | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
 check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
@@ -223,7 +227,7 @@ through search_path. Stored views retain dependencies and deparse current names.
 Dump/Restore preserves current persistent definitions/data rather than ALTER history.
 Explicit transactions exclude this standalone SET SCHEMA utility, not the supported
 TYPE/nullability/DROP COLUMN lists. Generic moves of sequences or indexes,
-temporary/system destinations and automatic row types are not added. B-tree
+temporary/system destinations and automatic row types are not added. B-tree/hash
 indexes, including expression definitions, move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
@@ -1058,12 +1062,57 @@ and trailing NULLS DISTINCT/NULLS NOT DISTINCT, existing-data validation and the
 same immediate write/transaction-key enforcement as table UNIQUE. Directions,
 NULL ordering, compatible classes/collations and INCLUDE retain their meaning.
 Unique expressions and BPCHAR classes on TEXT/VARCHAR fail explicit0A000;
-ordinary support is unchanged. Partial/concurrent indexes, non-btree methods,
+ordinary support is unchanged. Partial/concurrent indexes, unowned methods,
 unowned providers, class parameters, storage parameters/tablespaces remain excluded.
+Hash equality indexes are described below.
 No unique-index attachment, planner, physical index-only scan or physical tree
 claim is made. Admitted collations are default, C, POSIX, pg_c_utf8 and
 pg_unicode_fast; class/provider inventory and directional binary compatibility
 are documented in the clause design.
+
+## Hash equality indexes
+
+`CREATE INDEX [name] ON table USING hash (key)` admits exactly one simple or
+immutable same-table scalar expression key on existing supported usages. Owned
+defaults and explicit hash classes cover BOOL, BYTEA, NAME, integer widths,
+TEXT/VARCHAR/BPCHAR, OID, floats, NUMERIC, temporal types, INTERVAL, UUID, enums
+and their existing admitted domains. Released text/varchar/bpchar pattern classes
+are explicit choices. Provider coverage of internal CHAR/REGCLASS does not add
+stored-type admission. Hash array_ops is recognized, but native Execute returns
+unpositioned0A000 `index operator class is unsupported`; no array `=` is added.
+JSON has no default hash class (42704 with PostgreSQL's complete hint).
+
+Buckets contain non-NULL keys and distinct row/version identities, not physical
+PostgreSQL pages. Shared publication maintains duplicate membership atomically.
+Only a proven current implicit single-source whole WHERE predicate using owned
+strict `=` on a bare indexed column and same-Usage literal/imported parameter
+uses bucket candidates. Commuted equality is supported; class equality guards
+collisions and the original SQL comparison remains the residual. NULL probes
+match no rows. Mixed/provider/coercion mismatches, compound predicates,
+expression matching, joins/derived/views, row marks, explicit/private/old views
+and unproved storage generations use the ordinary evaluator. IS NULL, range and
+ordering never claim hash search/order; normal sorting retains query semantics.
+
+Hash UNIQUE/INCLUDE/multiple-key requests and explicit ASC/DESC/NULLS options get
+method-specific PostgreSQL diagnostics at Execute after quiet Prepare. After
+existing read-only/explicit and target/owner gates, validation checks AM shape,
+the complete reloptions list, key/class/type/collation/direction, name collision/
+IF NOT EXISTS and class parameters in that order. Only then does a PG-valid
+physical request return positioned0A000 `index storage parameters are unsupported`
+at its WITH token, before allocating/building. Hash fillfactor defaults to75 in
+PostgreSQL and valid bounds are10–100; no native physical option is accepted as
+a no-op. Hash ALTER SET rejects deduplicate_items; valid SET/RESET retain the
+existing physical-control exclusion.
+
+Dump and pg_get_indexdef emit USING hash without ASC/NULLS decorations. TYPE
+reselects old-default hash classes; rename/drop/schema movement, REINDEX,
+Reset/Restore and self/foreign replacement use the common atomic owners.
+Metadata retains released hash class OIDs and zero indoption without adding SQL
+catalog surfaces. Hash whole-index clusterable is false; scan/bitmap/backward
+properties are true. Key direction/order/return/array/NULL-search properties are
+false; unknown/out-of-range results remain NULL. See
+[the hash design](design/PG18-INDEX-HASH.md) for independent contracts and smoke.
+
 
 ### Index maintenance
 

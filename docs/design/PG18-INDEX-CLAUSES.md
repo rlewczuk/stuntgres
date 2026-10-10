@@ -108,8 +108,10 @@ replacement fences remain unchanged. Total33 precedes method/attribute/schema
 CREATE validation after existing target/owner acquisition. Keys bind left to
 right, then includes. Column lookup precedes simple INCLUDE-decoration rejection;
 raw included expressions fail0A000 without expression lookup. Decorations fail
-42P17. Known hash capability combinations get actual PostgreSQL diagnostics,
-rather than the generic valid-non-btree boundary.
+42P17. Ordinary hash now owns one real equality key/bucket root with method-
+specific classes and diagnostics, rather than a generic valid-non-btree boundary;
+see [PG18-INDEX-HASH](PG18-INDEX-HASH.md). Its complete reloptions validation
+precedes key binding, while valid physical exclusion follows collision/parameters.
 
 System key diagnostics use released type/class identity only, without adding a
 tid/xid/cid descriptor, codec or comparator. Name lookup and type/class checks
