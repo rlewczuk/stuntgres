@@ -1255,6 +1255,62 @@ length, bit types and adjacent TEXT/regex substring remain excluded.
 Independent scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReference(StringLength|BinaryBasic|BinarySlice)' VERBOSE=0`;
 pinned counterpart adds `REFERENCE=1` to that same command.
 
+### String padding, repetition and reversal — change note
+
+Selected scalar signatures are `lpad(text,integer)`,
+`lpad(text,integer,text)`, `rpad(text,integer)`,
+`rpad(text,integer,text)`, `repeat(text,integer)`, `reverse(text)` and
+`reverse(bytea)`. Each is immutable and strict after full analysis. The two
+padding arities remain distinct; omitted fill is U+0020, not NULL fill.
+Scalar VARIADIC spelling follows the fixed PostgreSQL signatures without
+enabling arrays or a general variadic routine catalog.
+
+Padding width counts UTF8 codepoints, not encoded bytes, terminal columns or
+graphemes. Both directions truncate the right side of an overlong source.
+Fill repeats from its beginning with a codepoint-safe final prefix; empty fill
+prevents extension but not truncation. Negative/zero widths and repeat counts
+produce empty TEXT. Repeat preserves exact bytes and spaces. Text reversal
+preserves each original codepoint encoding while reversing codepoint order,
+including combining marks and ZWJ; binary reversal instead reverses every raw
+octet, including NUL, high bytes and invalid UTF8.
+
+Textual inputs consume existing type-owned TEXT conversions: BPCHAR trims
+trailing ASCII spaces in source and fill, whereas TEXT/VARCHAR retain them.
+INT2 converts implicitly to INT4; INT8/numeric/float/typed TEXT counts require
+an existing explicit cast. Unknown literals/parameters infer TEXT or INT4 by
+formal role. Unknown reverse prefers TEXT; known BYTEA/domain-base BYTEA
+selects the binary result without rebinding its operand. NULL does not hide
+invalid signatures, input conversions, explicit collation conflicts or ACLs.
+Text results propagate collation without requiring collation-sensitive work;
+BYTEA remains noncollatable. Computed TEXT/BYTEA descriptors have typmod-1,
+no source attribute origin and unchanged empty/NULL cursor metadata.
+
+Before allocation, UTF8 padding checks `4 * effective_width + 4 <= 0x3fffffff`;
+empty fill reduces effective width to the truncated source character count.
+Repeat checks `source_byte_length * max(count,0) + 4 <= 0x3fffffff`.
+Failures report54000 `requested length too large`, with no Position/Hint/Detail.
+Two-argument pad body failures additionally carry
+`SQL function "lpad" statement 1` or the rpad equivalent; three-argument pads
+and repeat do not. Child/import errors retain their own diagnostics, including
+22021's index-only portal Context. Long scans, emission and reversal check
+cancellation without rune arrays or an intermediate full padding string.
+
+The providers compose through existing query/write, grouping, RETURNING,
+parenthesized DEFAULT/CHECK, view/generated/index and native control consumers.
+Late row-dependent output errors publish no partial statement writes.
+Restore traverses every selected operand and rejects parameters recursively;
+held cursors retain values/descriptors across replacement. The existing general
+BYTEA DEFAULT-function and INSERT RETURNING boundaries remain unchanged.
+No TEXT-to-BYTEA cast edge is added: an earlier bare `reverse($1)` resolves
+that parameter as TEXT, and subsequently casting the same parameter to BYTEA
+retains the existing native0A000 cast boundary (PostgreSQL accepts that cast).
+Independent TEXT and explicitly BYTEA parameters select their respective
+overloads, and held bare reverse frames retain the preferred TEXT descriptor.
+Independent family proof:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceStringPad' VERBOSE=0`;
+the same command with `REFERENCE=1` validates pinned PostgreSQL18.0.
+Feature smoke uses `RUN='^TestReferenceStringPadFeatureSmoke$'` in both modes.
+
 ### String replacement and prefix — change note
 
 `overlay(source,replacement,start[,count])` and

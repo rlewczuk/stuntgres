@@ -774,7 +774,7 @@ func restoreScalar(raw parser.Expr) error {
 			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		switch r.Name.Parts[len(r.Name.Parts)-1].Text {
-		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with":
+		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse":
 		case "format":
 		case "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
 		case "like_escape":

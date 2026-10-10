@@ -10,6 +10,19 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: `lpad(text,integer[,text])`, `rpad(text,integer[,text])`,
+`repeat(text,integer)` and `reverse(text)` reuse the selected immutable string
+providers. Padding counts UTF8 codepoints, repeats fill from its beginning and
+truncates the source on the right; omitted fill is one space. Negative widths
+and repeat counts produce empty text. `reverse(bytea)` reverses raw octets,
+including NUL and invalid UTF8, rather than decoding them as text.
+Strict NULL, character conversions, retained metadata and native Dump/Restore
+use the existing typed seams. Oversized outputs report PostgreSQL54000 with
+the two-argument pad wrapper Context preserved.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringPadFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringPadFeatureSmoke$' VERBOSE=0`.
+See [padding and reversal](docs/DIALECT.md#string-padding-repetition-and-reversal--change-note).
+
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
 `pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL

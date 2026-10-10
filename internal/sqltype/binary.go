@@ -24,7 +24,7 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		arity, id = 1, Int8
 	case "md5":
 		arity, id = 1, Text
-	case "sha224", "sha256", "sha384", "sha512":
+	case "sha224", "sha256", "sha384", "sha512", "reverse":
 		arity = 1
 	case "||", "btrim", "ltrim", "rtrim":
 	case "position":
@@ -145,6 +145,13 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return binaryChecksum(ctx, p.name, p.result.Type, a.text)
 	case "md5", "sha224", "sha256", "sha384", "sha512":
 		return binaryDigest(ctx, p.name, p.result.Type, a.text)
+	}
+	if p.name == "reverse" {
+		text, err := stringReverse(ctx, a.text, true)
+		if err != nil {
+			return Value{}, err
+		}
+		return Binary(p.result.Type, text)
 	}
 	if p.arity == 1 {
 		return integerLength(p.result.Type, int64(len(a.text)), p.name == "bit_length")

@@ -698,7 +698,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
@@ -1214,7 +1214,7 @@ func binaryScalarFunction(name string) bool {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
 		return true
 	}
-	return binaryHashFunction(name) || stringReplacementFunction(name) || strings.EqualFold(name, "format")
+	return binaryHashFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || strings.EqualFold(name, "format")
 }
 
 // Admission recognizes quoted hash spellings without normalizing the AST.
@@ -1235,6 +1235,10 @@ func binaryHashFunction(name string) bool {
 // Admission preserves quoted case in the AST; routine resolution stays exact.
 func stringReplacementFunction(name string) bool {
 	return strings.EqualFold(name, "replace") || strings.EqualFold(name, "translate") || strings.EqualFold(name, "starts_with")
+}
+
+func stringPaddingFunction(name string) bool {
+	return strings.EqualFold(name, "lpad") || strings.EqualFold(name, "rpad") || strings.EqualFold(name, "repeat") || strings.EqualFold(name, "reverse")
 }
 
 // Preserve quoted case for ordinary signature diagnostics. Prefix admission

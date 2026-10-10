@@ -651,6 +651,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		text, err := args(e.Args)
 		switch name {
+		case "lpad", "rpad", "repeat", "reverse":
+			if v.presentation.deparse {
+				return name + "(" + text + ")", err
+			}
+			return "pg_catalog." + name + "(" + text + ")", err
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}

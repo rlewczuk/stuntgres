@@ -71,7 +71,7 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 			return false, false
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
-		found = strings.EqualFold(name, "format") || name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name) || datetimeFunctionName(name)
+		found = strings.EqualFold(name, "format") || name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name) || stringPaddingFunction(name) || datetimeFunctionName(name)
 		if !found && !singletonArgument(e) {
 			return false, false
 		}

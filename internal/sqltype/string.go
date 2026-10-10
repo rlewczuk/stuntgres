@@ -139,6 +139,18 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		if len(args) != 2 || result != result.Type.Usage() || result.Type.ID() != Int4 || !textual[0] || !textual[1] {
 			return p, fmt.Errorf("invalid string search signature")
 		}
+	case "lpad", "rpad":
+		if (len(args) != 2 && len(args) != 3) || result.Type.ID() != Text || !textual[0] || textual[1] || len(args) == 3 && !textual[2] {
+			return p, fmt.Errorf("invalid string padding signature")
+		}
+	case "repeat":
+		if len(args) != 2 || result.Type.ID() != Text || !textual[0] || textual[1] {
+			return p, fmt.Errorf("invalid string repeat signature")
+		}
+	case "reverse":
+		if len(args) != 1 || result.Type.ID() != Text || !textual[0] {
+			return p, fmt.Errorf("invalid string reverse signature")
+		}
 	case "overlay":
 		if (len(args) != 3 && len(args) != 4) || result.Type.ID() != Text || !textual[0] || !textual[1] || textual[2] || textual[3] {
 			return p, fmt.Errorf("invalid string overlay signature")
@@ -160,9 +172,9 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		}
 		p.args[i] = u
 		target := text
-		if name == "overlay" && i >= 2 {
+		if StringIntegerArgument(name, i) {
 			if u.Type.ID() != Int4 || u != u.Type.Usage() {
-				return p, fmt.Errorf("invalid string overlay integer input")
+				return p, fmt.Errorf("invalid string integer input")
 			}
 			p.formal[i] = u
 			continue
@@ -208,7 +220,7 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	var texts [4]string
 	for i := range int(p.count) {
 		v := values[i]
-		if p.name == "overlay" && i >= 2 {
+		if StringIntegerArgument(p.name, i) {
 			continue
 		}
 		var err error
@@ -235,6 +247,9 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	}
 	if p.result.Type.ID() == Int4 {
 		return p.evaluateLength(ctx, texts)
+	}
+	if p.name == "lpad" || p.name == "rpad" || p.name == "repeat" || p.name == "reverse" {
+		return p.evaluatePadding(ctx, texts, values)
 	}
 	if p.name == "overlay" || p.name == "replace" || p.name == "translate" || p.name == "starts_with" {
 		return p.evaluateReplacement(ctx, texts, values)

@@ -106,7 +106,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		operands = make([]comparisonOperand, len(raw.Args))
 	}
 	for i, r := range raw.Args {
-		o, err := b.stringOperand(r, name != "overlay" || i < 2)
+		o, err := b.stringOperand(r, !sqltype.StringIntegerArgument(name, i))
 		if err != nil {
 			return nil, err
 		}
@@ -140,10 +140,10 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	// positions do not participate in TEXT/BYTEA candidate selection.
 	binary := visible && ((!raw.Variadic && len(operands) == 2 && (name == "btrim" || name == "ltrim" || name == "rtrim")) ||
 		(!raw.Variadic && len(operands) == 1 && (name == "length" || name == "octet_length" || name == "bit_length")) ||
-		(len(operands) == 2 && name == "position") || (name == "overlay" && (len(operands) == 3 || len(operands) == 4)))
+		(len(operands) == 2 && name == "position") || (name == "reverse" && len(operands) == 1) || (name == "overlay" && (len(operands) == 3 || len(operands) == 4)))
 	knownBinary := false
 	for i, o := range operands {
-		if name == "overlay" && i >= 2 {
+		if sqltype.StringIntegerArgument(name, i) {
 			continue
 		}
 		if d := o.descriptor(); d != nil {
@@ -170,8 +170,14 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			return b.finishBinary(name, raw.Pos, operands, syntax)
 		}
 	}
-	valid := visible && (!raw.Variadic || count || search || replacement)
+	valid := visible && (!raw.Variadic || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse")
 	switch {
+	case name == "lpad" || name == "rpad":
+		valid = valid && (len(operands) == 2 || len(operands) == 3)
+	case name == "repeat":
+		valid = valid && len(operands) == 2
+	case name == "reverse":
+		valid = valid && len(operands) == 1
 	case name == "overlay":
 		valid = valid && (len(operands) == 3 || len(operands) == 4)
 	case name == "replace" || name == "translate":
@@ -185,7 +191,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	}
 	for i, o := range operands {
 		if d := o.descriptor(); d != nil {
-			if name == "overlay" && i >= 2 {
+			if sqltype.StringIntegerArgument(name, i) {
 				_, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Implicit)
 				valid = valid && err == nil
 			} else {
@@ -208,7 +214,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	for i, o := range operands {
 		target := b.typ(sqltype.Text)
 		textual[i] = true
-		if name == "overlay" && i >= 2 {
+		if sqltype.StringIntegerArgument(name, i) {
 			target = b.typ(sqltype.Int4)
 			textual[i] = false
 		}
