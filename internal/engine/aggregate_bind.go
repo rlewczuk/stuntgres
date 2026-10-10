@@ -34,6 +34,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case currentDateTimeExpression:
 		o, ok := other.(currentDateTimeExpression)
 		return ok && e.kind == o.kind && e.hasPrecision == o.hasPrecision
+	case transactionTimeExpression:
+		o, ok := other.(transactionTimeExpression)
+		return ok && e.kind == o.kind
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
 		return ok && e.slot == o.slot && e.frame == o.frame

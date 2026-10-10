@@ -351,6 +351,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case currentDateTimeExpression:
 		text, err := n.sql()
 		return strings.ToUpper(text), err
+	case transactionTimeExpression:
+		return n.sql()
 	case identityExpression:
 		if err := validateDeparseIdentity(n); err != nil {
 			return "", err

@@ -1040,6 +1040,13 @@ type FunctionExpr struct {
 	Syntax         FunctionSyntax
 	StringSyntax   StringSyntax
 	Window         *WindowSpec
+	// Selected time providers retain modifiers only for ordinary-function
+	// diagnostics; these fields never authorize aggregate/window execution.
+	Star     bool
+	Distinct bool
+	All      bool
+	Order    []OrderKey
+	Filter   Expr
 }
 
 // AggregateExpr retains ordinary aggregate arguments and call-local modifiers.

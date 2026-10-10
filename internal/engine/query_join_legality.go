@@ -470,7 +470,7 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	}
 	var children []BoundExpr
 	switch e := expr.(type) {
-	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression:
+	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		return 0, nil
 	case regclassArrayExpression:
 		children = e.elements

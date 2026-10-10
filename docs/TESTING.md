@@ -155,6 +155,27 @@ week2006-01-01→2005-12-26, quarter2001-02-16→2001-01-01, negative interval
 seconds→-1second and TIME24:00→zero-day24hour INTERVAL. These selected gates
 do not replace ordinary quickcheck or post-merge fullcheck.
 
+The transaction-time family uses the same completed public body for all five
+providers: direct/held metadata and raw codecs, transaction/statement ownership,
+peer/autocommit/CHAIN contexts, demanded wall variation, TimeZone and fixed
+timeofday layout, bounded defaults/consumers, complete invalid-call diagnostics,
+symbolic replay and native controls. Non-ISO DateStyle witnesses use TEXT-only
+timeofday and explicit timestamp casts; raw pq temporal codecs are checked in ISO.
+Shared prepared/parameterized tests allow now <= statement time; native one-command
+equality and fixed microsecond/formatter outcomes have package-owned units.
+The full legacy TestTimestampSQLTransactionChainSmoke union remains in
+TestReferenceTimestampSQLTransactionChainClock; the superseded smoke file is removed.
+
+Each selective invocation has its own 900-second deadline:
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES='./internal/engine ./internal/parser' RUN='^TestTransactionTime' VERBOSE=0
+```
+
+
 The numeric-formatting family independently asserts the five numeric
 `to_char` overloads, preferred FLOAT8 SMALLINT route, `to_number`, exact/binary
 rounding, C currency space, global FM, signs, Roman/ordinal/V/scientific

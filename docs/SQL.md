@@ -223,6 +223,17 @@ default_expression := value | scalar comparison_operator scalar | (logical_targe
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
 
+Selected current-time ordinary scalar calls are `now()`,
+`transaction_timestamp()`, `statement_timestamp()`, `clock_timestamp()` and
+`timeofday()`, including `pg_catalog` qualification. They take no arguments or
+precision modifiers. The first four return TIMESTAMPTZ; the last returns TEXT.
+Transaction aliases are STABLE, statement time is STABLE within one execution,
+and wall-clock/timeofday calls are VOLATILE at demand. Existing scalar casts,
+comparisons, DML, closed selected defaults, CHECK and views compose them.
+Aggregate/window decorations are rejected, not implemented capabilities.
+See [time semantics and presentation](DIALECT.md#transaction-and-statement-time--change-note).
+
+
 SET/DROP DEFAULT are standalone utilities: no comma action lists, TYPE/DEFAULT
 mixtures or explicit transactions. Selected TYPE/nullability/DROP COLUMN lists
 are supported in explicit transactions; their pass order is DROP, TYPE, SET NOT

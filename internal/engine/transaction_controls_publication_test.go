@@ -162,7 +162,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			case "ref_before":
 				bad := old
 				bad.id++
-				_, err = e.endAdmitted(op, a.transactions, bad, true, true, true)
+				_, err = e.endAdmitted(op, a.transactions, bad, true, true, true, scope.statementStart)
 			default:
 				_, err = scope.Execute(query, 0, nil)
 			}

@@ -48,7 +48,7 @@ func (e *Engine) transactionAdmission(op *Operation) error {
 }
 
 // Admission is held by the Go entrypoint or the SQL scope, never recursively.
-func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner) (TxRef, error) {
+func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Time) (TxRef, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := e.transactionAdmission(op); err != nil {
@@ -57,7 +57,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner) (TxRef, error
 	if t.state != TxIdle {
 		return TxRef{}, errors.New("stuntgres: transaction already active")
 	}
-	if err := e.beginLocked(op, t, TxActive); err != nil {
+	if err := e.beginLocked(op, t, TxActive, start); err != nil {
 		return TxRef{}, err
 	}
 	ref := t.ref
@@ -82,7 +82,7 @@ func (e *Engine) endPreflight(op *Operation) error {
 	return publicationOperationLocked(e, op)
 }
 
-func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, commit, chain, sqlEnd bool) (EndResult, error) {
+func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, commit, chain, sqlEnd bool, nextStart time.Time) (EndResult, error) {
 	// Registration can fail. A short replacement fence keeps the prospective
 	// ticket's epoch current through installation, without a lifetime fence.
 	if chain {
@@ -199,7 +199,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		t.entryIsolation, t.entryReadOnly = isolation, readOnly
 		t.entryDeferrable = deferrable
 		t.syncCharacteristics()
-		t.start = time.Now().UTC().Truncate(time.Microsecond)
+		t.start = nextStart
 		t.ticket = candidate
 		candidate = nil
 		installedNext = true
@@ -234,7 +234,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	}
 	if control.Kind == parser.KindStart {
 		if state == TxIdle {
-			_, err = e.beginAdmitted(s.op, t)
+			_, err = e.beginAdmitted(s.op, t, s.statementStart)
 			if err == nil {
 				t.mu.Lock()
 				err = t.assignModes(control.Modes)
@@ -258,7 +258,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 	} else {
-		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true)
+		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, s.statementStart)
 	}
 	if err == nil {
 		s.controlOutcome = controlExecuted

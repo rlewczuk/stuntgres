@@ -112,6 +112,7 @@ type Operation struct {
 	timerCancel             context.CancelFunc
 	lockTimeout             time.Duration
 	statementDeadline       time.Time
+	commandStart            time.Time
 	sourceContext           context.Context
 	commandAdmission        bool
 	nonstandardStrings      bool

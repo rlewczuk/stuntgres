@@ -309,6 +309,16 @@ types remain distinct. See [current date/time](docs/DIALECT.md#sql-current-date-
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeCurrentFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeCurrentFeatureSmoke$' VERBOSE=0`.
 
+Change note: `now()` and `transaction_timestamp()` are identical transaction-start
+TIMESTAMPTZ providers; `statement_timestamp()` captures each command's start.
+`clock_timestamp()` and TEXT `timeofday()` sample the wall clock when demanded.
+All five are zero-argument calls, with microsecond precision, execution-time
+TimeZone presentation and symbolic DEFAULT/CHECK/view/native replay.
+See [transaction and statement time](docs/DIALECT.md#transaction-and-statement-time--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$' VERBOSE=0`.
+
+
 Change note: JSON scalar storage now validates syntax while retaining exact
 source whitespace, key order, duplicate keys, numbers and escape spelling.
 SQL NULL and JSON `null` remain distinct. Direct/prepared columns, bound values,

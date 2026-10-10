@@ -283,6 +283,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
 			return nil
 		}
+		if n, ok := bound.(transactionTimeExpression); ok && len(r.Args) == 0 {
+			return validateTransactionTime(n)
+		}
 		if n, ok := bound.(randomExpression); ok {
 			return children(r.Args, n.args)
 		}

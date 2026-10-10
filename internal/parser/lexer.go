@@ -926,6 +926,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
+	if token.code == CHECK_FUNC && TransactionTimeFunctionName(token.lexeme.text) {
+		token.code = TX_TIME_FUNC
+	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
 	// Outside that actual call context, existing capability guards remain.
 	if l.formatDepth > 0 && token.code == IDENT && token.lexeme.keyword == nil && !ordinaryCastFunction(token.lexeme) {
@@ -1379,5 +1382,12 @@ func datetimeFunctionName(name string) bool {
 		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
 		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || strings.EqualFold(name, "to_number") ||
-		datetimeMakeFunctionName(name)
+		datetimeMakeFunctionName(name) || TransactionTimeFunctionName(name)
+}
+
+// Admission folds spelling; the binder still resolves quoted names exactly.
+func TransactionTimeFunctionName(name string) bool {
+	return strings.EqualFold(name, "now") || strings.EqualFold(name, "transaction_timestamp") ||
+		strings.EqualFold(name, "statement_timestamp") || strings.EqualFold(name, "clock_timestamp") ||
+		strings.EqualFold(name, "timeofday")
 }

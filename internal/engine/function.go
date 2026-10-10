@@ -51,6 +51,9 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if parser.TransactionTimeFunctionName(name) {
+		return b.bindTransactionTime(raw)
+	}
 	// Shared syntax must never silently discard labels in adjacent providers.
 	if len(raw.ArgNames) != 0 && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)

@@ -823,6 +823,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			// decoded quoted keyword names cannot be replayed unqualified.
 			return "pg_catalog." + name + "()", nil
 		}
+		if transactionTimeKindForName(name) != 0 && len(e.Args) == 0 {
+			if v.presentation.deparse {
+				return name + "()", nil
+			}
+			return "pg_catalog." + name + "()", nil
+		}
 		if e.StringSyntax == parser.TrimStringSyntax {
 			if len(e.Args) < 1 || len(e.Args) > 2 {
 				return "", fmt.Errorf("stuntgres: invalid stored TRIM arity")

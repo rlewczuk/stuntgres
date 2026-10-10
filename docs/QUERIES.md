@@ -251,6 +251,15 @@ frontier, so OFFSET consumes their effects; an ORDER-referenced target shares
 its existing cache instead of drawing again. Public execution remains eager and
 atomic: `Rows.Next` never resumes SQL work or exposes a successful prefix.
 
+The selected time functions follow this same demand boundary: now() and
+transaction_timestamp() share a transaction instant, statement_timestamp() is
+one command instant, and clock_timestamp()/timeofday() draw per demanded
+occurrence. Reusing an ORDER alias reuses its produced value; spelling another
+wall-clock call is a separate occurrence. LIMIT0 still analyzes signatures and
+metadata without drawing a runtime clock. Prepare and stored view creation do
+not freeze values, and introspection never samples these providers.
+
+
 Pending stored rowmarks pass through scalar qualification, including a mark
 owner's own ORDER, but settle before a consuming outer Sort or aggregate.
 A local count is an irreversible frontier: marks settle before skipped and

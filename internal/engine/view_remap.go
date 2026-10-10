@@ -58,7 +58,7 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 			n.comparisons[i] = mapped.(comparisonExpression)
 		}
 		next = n
-	case identityExpression, currentDateTimeExpression:
+	case identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		next = n
 	case literalExpression:
 		if n.regclassRef != (ObjectRef{}) {

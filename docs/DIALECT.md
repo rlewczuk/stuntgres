@@ -313,11 +313,64 @@ bare `current_time` is a new SQL value function, not a column reference.
 These current-derived scalar expressions, including
 `normalize(CURRENT_DATE::TEXT)` and `CURRENT_DATE::TEXT IS NORMALIZED`,
 use the ordinary query pipeline and its no-FROM local input. This does not add
-adjacent now/clock_timestamp/statement_timestamp/transaction_timestamp functions,
 datetime arithmetic or additional catalogs.
 Full shared scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeCurrent' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeCurrent' VERBOSE=0`.
 Feature smoke uses the same commands with `RUN='^TestReferenceDatetimeCurrentFeatureSmoke$'`.
+
+### Transaction and statement time — change note
+
+`now()`, `transaction_timestamp()`, `statement_timestamp()` and
+`clock_timestamp()` return TIMESTAMPTZ; `timeofday()` returns TEXT. These five
+ordinary functions take exactly zero arguments (no precision overload). Lowercase,
+unquoted folded names, exact quoted lowercase and `pg_catalog` qualification
+resolve through the existing builtin namespace rules.
+
+`now()` and `transaction_timestamp()` read the same top-level transaction start,
+also witnessed by CURRENT_TIMESTAMP and TIMESTAMPTZ 'now'. Savepoint recovery
+does not restart that clock. Statement time is fixed across demanded occurrences
+of one command and refreshes at the next command. The first three calls are
+STABLE; the wall-clock calls are VOLATILE and sample at actual demand, not
+Prepare or stored-definition creation. Adjacent wall samples may be equal;
+strict monotonicity is not promised. All samples use microsecond precision.
+
+Native direct and held-prepared execution each own one public-command sample.
+A fresh implicit transaction uses that same sample for its birth and statement
+start. PostgreSQL simple-query execution agrees; pq extended-protocol Bind can
+start a transaction before Execute refreshes statement time. Thus the shared
+prepared/parameterized contract is now <= statement_timestamp, while native
+single-command execution additionally gives equality. No artificial wire phase
+or delay is introduced. Explicit BEGIN/BeginTx and AND CHAIN capture fresh births;
+physical peer sessions remain independent.
+
+TimeZone controls typed export and casts at execution without changing instants.
+timeofday instead retains its English `Mon Jan DD HH:MM:SS.ffffff YYYY zone`
+layout regardless of DateStyle: two-digit day, six fractional digits and the
+session provider's abbreviation. Numeric `SET TIME ZONE 5.5` gives east +05:30
+and suffix `+05:30`; textual `'+05:30'` uses POSIX west-offset interpretation
+and an empty abbreviation, retaining the final space. TEXT exports/ScanType are
+string with known unbounded Length; four temporal exports/ScanTypes are time.Time.
+Computed nullability and temporal length/precision remain unknown.
+
+Existing queries, DML, CHECK and views compose these producers; deparse and
+Dump/Restore retain symbolic call names, including the two transaction aliases.
+Closed selected clock/timeofday default trees are admitted without allowing
+unrelated volatile defaults. Surviving selected calls remain nonimmutable for
+generated columns and expression indexes. Selected aggregate/window decorations
+are failure-only syntax, never successful aggregate/window functionality for
+these five providers. A call permits at most one FILTER followed by at most one
+OVER clause; repeated or misordered clauses are syntax errors (42601). A
+syntactically valid FILTER-OVER call fails as a nonaggregate (42809), after
+argument and FILTER child analysis. Named argument structure is checked after
+that child analysis and the 100-argument guard: duplicate labels and positional
+arguments after named ones fail with 42601 at the offending label/expression,
+before missing-signature resolution.
+
+Full shared selector: `^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)`.
+Feature smoke uses `RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$'` in both
+`make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference`, each under 900 seconds.
+
 
 ### Domains — change note
 

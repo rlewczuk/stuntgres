@@ -78,6 +78,11 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			return err
 		}
 		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.kind, n.hasPrecision, n.precision)
+	case transactionTimeExpression:
+		if err := validateTransactionTime(n); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "TransactionTime kind %d", n.kind)
 	case columnExpression:
 		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
 	case regclassArrayExpression:

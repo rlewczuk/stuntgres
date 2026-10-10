@@ -16,6 +16,25 @@ describe types without drawing; each execution uses its current physical session
 No generator state is serialized into Dump. Feature smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 
+## Command and transaction clocks
+
+Each native public SQL request captures a microsecond-quantized command sample
+before session/settings and transaction admission waits. A fresh implicit
+transaction reuses it; an existing explicit transaction retains its own birth.
+BeginTx, SQL BEGIN and AND CHAIN obtain fresh transaction starts. Pin a sql.Conn
+or sql.Tx to observe stability across statements and independent physical peers.
+
+Held statements retain analysis/type contracts, not clock samples. Direct and
+held Execute both start a new command scope. Native prepared autocommit has
+now() = transaction_timestamp() = statement_timestamp(); pq may start a
+transaction at Bind before Execute, so portable extended-protocol assertions use
+now() <= statement_timestamp(). Native does not emulate transport phases.
+clock_timestamp()/timeofday() sample only when demanded. Already-open native rows
+retain values and presentation settings across later commands and native controls.
+Four selected temporal providers export time.Time/TIMESTAMPTZ; timeofday exports
+string/TEXT. Its fixed English six-digit layout is independent of DateStyle.
+
+
 ## Enum values and prepared signatures
 
 Enums retain catalog-owned logical identity while native transport exports string

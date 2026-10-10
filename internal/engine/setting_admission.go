@@ -13,6 +13,7 @@ var statementTimeoutCause = errors.New("stuntgres: statement timeout")
 // AcquireCommand captures prior settings before parsing or executing a SET.
 // Initialization and native controls deliberately continue to use Acquire.
 func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Options, error) {
+	start := time.Now().UTC().Truncate(time.Microsecond)
 	op, err := s.Acquire(ctx)
 	if err != nil {
 		return nil, parser.Options{}, err
@@ -24,6 +25,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").number) * time.Millisecond
 	op.noticeThreshold, _ = messageLevel(s.settings.value(clientMinMessages.Name))
 	op.commandAdmission = true
+	op.commandStart = start
 	s.settings.mu.Unlock()
 	if timeout > 0 {
 		op.statementDeadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)

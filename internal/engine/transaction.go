@@ -141,7 +141,7 @@ func (s *Session) TransactionState() TxState {
 	return t.state
 }
 
-func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) error {
+func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, start time.Time) error {
 	if t.next == TxID(^uint64(0)) {
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
@@ -172,11 +172,12 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) 
 	settings.currentReadOnly = t.readOnly
 	settings.currentDeferrable = t.deferrable
 	e.enrollSerializableLocked(t.ref, t.isolation)
-	t.start = time.Now().UTC().Truncate(time.Microsecond)
+	t.start = start
 	return nil
 }
 
 func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
+	start := time.Now().UTC().Truncate(time.Microsecond)
 	if options.Isolation > Serializable {
 		return TxRef{}, errors.New("stuntgres: unsupported transaction isolation level")
 	}
@@ -186,7 +187,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	ref, err := e.beginAdmitted(op, t)
+	ref, err := e.beginAdmitted(op, t, start)
 	if err == nil {
 		t.mu.Lock()
 		if options.Isolation != DefaultIsolation {
@@ -219,7 +220,7 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	return e.endAdmitted(op, t, ref, false, false, false)
+	return e.endAdmitted(op, t, ref, false, false, false, time.Time{})
 }
 
 func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
@@ -230,7 +231,7 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	return e.endAdmitted(op, t, ref, true, false, false)
+	return e.endAdmitted(op, t, ref, true, false, false, time.Time{})
 }
 
 // StatementScope serializes one session's statement, from parsing through Finish.
@@ -267,6 +268,7 @@ type StatementScope struct {
 	Expected               *StatementDescription
 	implicit               bool
 	input                  sqltype.InputEnvironment
+	statementStart         time.Time
 	output                 sqltype.OutputEnvironment
 	catalog                *catalogChanges
 	catalogAuthority       *catalogAuthority
@@ -293,6 +295,12 @@ type WriteStage struct {
 }
 
 func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
+	var start time.Time
+	if op != nil && !op.commandStart.IsZero() {
+		start = op.commandStart
+	} else {
+		start = time.Now().UTC().Truncate(time.Microsecond)
+	}
 	if err := e.transactionAdmission(op); err != nil {
 		return nil, err
 	}
@@ -302,7 +310,7 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 		t.admission.Unlock()
 		return nil, err
 	}
-	s := &StatementScope{owner: t, op: op}
+	s := &StatementScope{owner: t, op: op, statementStart: start}
 	s.self = s
 	s.stage.scope = s
 	s.stage.self = &s.stage
@@ -393,7 +401,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.state == TxIdle {
-		if err := e.beginLocked(s.op, t, TxImplicit); err != nil {
+		if err := e.beginLocked(s.op, t, TxImplicit, s.statementStart); err != nil {
 			return err
 		}
 	}

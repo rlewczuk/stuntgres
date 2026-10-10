@@ -171,9 +171,12 @@ Existing literal/NULL, typed temporal/interval constants, same-type scalar Usage
 CAST/`::` annotations, existing directional numeric and baseline/character/OID/
 temporal casts, bounded function-style casts, INT4/INT8 unary/binary arithmetic,
 scalar comparisons and IS [NOT] DISTINCT FROM are admitted
-at the outer level. Volatile producers remain unsupported except a fixed
-early-bound `nextval('sequence')` leaf with assignment/cast wrappers;
-execution-stage-dependent nodes remain unsupported defaults.
+at the outer level. Volatile producers remain unsupported except the existing
+fixed early-bound `nextval('sequence')` allowance, closed selected UUID-generator
+trees and closed `clock_timestamp()`/`timeofday()` trees through already admitted
+scalar wrappers. The selected time exception does not admit random, sequence,
+UUID or other unrelated volatile descendants through a mixed tree.
+Row/parameter/execution-stage dependence remains prohibited.
 CREATE DEFAULT Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
 `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
 parameters are prohibited even inside casts or decisive logical branches.
@@ -230,9 +233,10 @@ ADD serial/identity/generated/unique/FK declarations remain excluded.
 
 Schema metadata and stored shapes change atomically under the existing owner-only
 AX grant. Old rows receive typed NULL without a default. Supported Immutable/Stable
-defaults are evaluated once at ADD, even when no old rows exist; fixed-nextval
-volatile defaults draw once per effective live row (never ended/deleted/replaced
-predecessors). Future INSERT omission/DEFAULT evaluates the retained original
+defaults are evaluated once at ADD, even when no old rows exist; admitted volatile
+defaults, including clock_timestamp()/timeofday(), draw once per effective live
+row (never ended/deleted/replaced predecessors). Future INSERT omission/DEFAULT
+evaluates the retained original
 expression. A later standalone SET DEFAULT changes only future requests.
 Structural DEFAULT NULL creates no pg_attrdef definition, subject to the
 domain-coercion NULL pruning limitation described above.

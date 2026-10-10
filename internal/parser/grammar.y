@@ -146,6 +146,7 @@ package parser
 %token <tok> CONSTRAINT ADD INHERITS
 %token <tok> CHECK
 %token <tok> CHECK_FUNC
+%token <tok> TX_TIME_FUNC
 %token <tok> INDEX_SUBQUERY_OPEN
 %token <tok> GENERATION_OVER GENERATION_PARTITION
 %token <tok> OVERLAY POSITION SUBSTRING PLACING
@@ -192,7 +193,7 @@ package parser
 %nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U FRAME_UNIT KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX '.'
 %nonassoc FRAME_EDGE FRAME_START
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
-%nonassoc CHECK_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
+%nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
 %nonassoc GENERATION_OVER
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
@@ -342,6 +343,7 @@ package parser
 %type <tok> conditional_word
 %type <tok> comparison_operator
 %type <call> function_args function_argument_list
+%type <call> transaction_time_head transaction_time_args transaction_time_base transaction_time_filtered transaction_time_call
 %type <predicate> truth_kind
 %type <selectStmt> projection projection_item
 %type <insertSource> insert_input
@@ -1081,6 +1083,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
  | check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,ArgNames:$2.ArgNames,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos} }
+ | transaction_time_call { $$=$1 }
  | EXTRACT '(' extract_field FROM scalar ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"extract",Pos:$1.pos}}},Args:[]Expr{LiteralExpr{Value:Value{Kind:StringValue,Text:$3.text,Pos:$3.pos}},$5},Syntax:SQLFunctionSyntax,Pos:$1.pos} }
  | OVERLAY '(' scalar PLACING scalar FROM scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7}) }
  | OVERLAY '(' scalar PLACING scalar FROM scalar FOR scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7,$9}) }
@@ -1095,6 +1098,25 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | name '.' check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos} } ;
 /* Only an actual scalar/index call can enter the failure-only argument context. */
 check_function_head: CHECK_FUNC '(' {$$=$1;sqllex.(*lexer).formatCallHead($1)} ;
+/* Selected ordinary time calls carry failure-only modifiers to resolution.
+ * ORDER requires an argument; argument-free ORDER remains a syntax error. */
+transaction_time_head: TX_TIME_FUNC '(' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | name '.' TX_TIME_FUNC '(' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} } ;
+transaction_time_args: function_args { $$=$1 }
+ | '*' { $$=FunctionExpr{Star:true} }
+ | DISTINCT function_argument_list aggregate_order { $$=$2;$$.Distinct=true;$$.Order=$3 }
+ | ALL function_argument_list aggregate_order { $$=$2;$$.All=true;$$.Order=$3 }
+ | function_argument_list ORDER BY order_keys { $$=$1;$$.Order=$4 } ;
+transaction_time_base: transaction_time_head transaction_time_args ')' { $$=$2;$$.Name=$1.Name;$$.Pos=$1.Pos } ;
+transaction_time_filtered: transaction_time_base %prec ')' { $$=$1 }
+ | transaction_time_base FILTER '(' WHERE target_or ')' { $$=$1;$$.Filter=$5 } ;
+/* Keep selected decorations ordered and nonrepeating. Invalid continuations
+ * fail at their token rather than falling through to generic bare-label guards. */
+transaction_time_call: transaction_time_filtered %prec ')' { $$=$1 }
+ | transaction_time_filtered over_clause %prec ')' { $$=$1;spec:=$2.spec;$$.Window=&spec }
+ | transaction_time_filtered FILTER { sqllex.(*lexer).syntax($2);return 1 }
+ | transaction_time_filtered over_clause FILTER { sqllex.(*lexer).syntax($3);return 1 }
+ | transaction_time_filtered over_clause OVER { sqllex.(*lexer).syntax($3);return 1 } ;
 extract_field: IDENT { $$=$1 } | STRING { $$=$1 } | YEAR { $$=$1 } | MONTH { $$=$1 } | DAY { $$=$1 } | HOUR { $$=$1 } | MINUTE { $$=$1 } | SECOND { $$=$1 } ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
  | conditional_call { $$=$1 } ;
@@ -1439,7 +1461,8 @@ non_between_name: window_name | PARTITION | FRAME_UNIT ;
 window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
- | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+ | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
+ | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
@@ -1447,14 +1470,14 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
- | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
+ | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
- | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */

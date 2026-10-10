@@ -36,7 +36,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	if err != nil {
 		return nil, err
 	}
-	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) {
+	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) {
 		return nil, expressionError("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
@@ -124,7 +124,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	typ, ok := view.LookupType(u.Type.ID())
@@ -509,6 +509,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return n.kind.spelling(), nil
 	case currentDateTimeExpression:
+		return n.sql()
+	case transactionTimeExpression:
 		return n.sql()
 	case literalExpression:
 		if n.regclassRef != (ObjectRef{}) {
@@ -1368,6 +1370,9 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		n.expressionInfo = info
 		rebound = n
 	case currentDateTimeExpression:
+		n.expressionInfo = info
+		rebound = n
+	case transactionTimeExpression:
 		n.expressionInfo = info
 		rebound = n
 	case literalExpression:
