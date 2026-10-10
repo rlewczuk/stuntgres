@@ -478,6 +478,28 @@ Native: `make quickcheck PACKAGES=./reference RUN='^TestReferenceOID.*$' VERBOSE
 Providers: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestOID.*$' VERBOSE=0`.
 Pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
 
+### Cast catalog metadata — change note
+
+`pg_catalog.pg_cast` projects metadata declared by the existing type/coercion
+implementation owner, not a second graph of all PostgreSQL casts. Exactly65
+complete-context existing edges expose source/target OIDs, fixed function OIDs,
+context i/a/e and method f/b/i, plus stable local generated row identities.
+Function identities are metadata references; this does not expose pg_proc or
+execute an arbitrary function by OID. Binary and I/O methods use function0.
+Catalog methods need not equal native execution opcodes: INT4/OID signed
+conversion is still necessary despite binary metadata, and identity sizing
+implements genuine same-type typmod function rows.
+
+Successful automatic scalar/string I/O or domain/base conversion does not imply
+a catalog row; ordinary INT4/TEXT/BOOL self identities are omitted. Partial
+NAME/REGCLASS/BIT/VARBIT/internal-CHAR/PG_NODE_TREE and absent JSONB-scalar or
+TIME-INTERVAL providers cannot advertise complete PostgreSQL context closure.
+This metadata addition changes no coercion admission or conversion execution.
+All four numeric fields are OID, not INTEGER; both character fields are internal
+CHAR, not SQL CHAR(n). Native OID/CHAR ScanType is int64/string; pinned pq reports
+interface{} for both despite its raw decimal-byte/string codecs.
+See [exact65 tuples and owner/control contract](design/PG18-CAT-PG-CAST.md).
+
 ### View catalog supporting types — change note
 
 Bounded catalog sources expose the same OID scalar described above and PostgreSQL

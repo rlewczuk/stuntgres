@@ -797,6 +797,24 @@ are represented, automatic rowtypes and enum arrays are not. Catalog reads do no
 expand REGCLASS column storage, TEMP-table creation or transactional DDL admission.
 See [the exact dependency contract](SQL.md#pg_depend-catalog--change-note).
 
+`pg_catalog.pg_cast` is readonly relation2605, PUBLIC SELECT, with ordered
+`oid OID`, `castsource OID`, `casttarget OID`, `castfunc OID`,
+`castcontext CHAR`, `castmethod CHAR`, all known NOT NULL natively.
+Exactly65 complete-context existing numeric/OID/temporal/character/BOOL/typmod/
+JSON edges are owner-declared. Contexts i/a/e mean implicit/assignment/explicit
+with upward closure; methods f/b/i mean function/binary/I/O, not native opcodes.
+Non-function methods have castfunc0. Ordinary automatic string I/O, domain/base
+coercion and identity are not a row inventory. Incomplete NAME/REGCLASS/BIT/
+VARBIT/PG_NODE_TREE/internal-CHAR families and absent JSONB-scalar/TIME-INTERVAL
+providers remain omitted without changing existing conversion behavior.
+Row IDs are stable local generated identities, not another server's allocator
+sequence; source/target/function IDs and relation2605 are exact PostgreSQL IDs.
+Native writes/row locking retain0A000 virtual-source boundaries. Existing native
+controls rebuild fixed metadata and retain old captured values/descriptors.
+No CREATE/DROP CAST or pg_type/pg_proc inventory is implied.
+See [exact boundary, lifetime and smoke](design/PG18-CAT-PG-CAST.md).
+
+
 CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
 comments and dependents while replacing the definition and outgoing dependencies.
 Existing names/types/typmods/collations form a required prefix; trailing columns

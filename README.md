@@ -824,6 +824,21 @@ See [catalog contract](docs/SQL.md#pg_sequence-catalog--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0`,
 and the same command with `REFERENCE=1`.
 
+**Cast catalog change note:** `pg_catalog.pg_cast` is readonly relation2605 with
+six known NOT NULL fields: four OIDs (`oid`, `castsource`, `casttarget`, `castfunc`)
+and two internal CHARs (`castcontext`, `castmethod`). The coercion implementation
+owner publishes exactly65 existing complete-context numeric/OID/temporal/
+character/BOOL/typmod/JSON edges with exact fixed type/function identities and
+stable local generated row IDs. This is not a complete conversion inventory:
+automatic string I/O, domain/base conversions and ordinary identities have no
+rows, and partial NAME/REGCLASS/BIT/internal-CHAR providers remain omitted.
+No new cast execution or CREATE/DROP CAST is added. Native Dump omits virtual
+rows; Reset/Restore reconstruct them while retained results remain usable.
+See [bounded owner metadata and omissions](docs/design/PG18-CAT-PG-CAST.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0`,
+and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
+
+
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,
 keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards
 advance UTF8 code points; existing BYTEA LIKE advances octets. BPCHAR left

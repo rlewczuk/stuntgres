@@ -16,6 +16,10 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{2605, "pg_cast", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"castsource", sqltype.Oid}, {"casttarget", sqltype.Oid}, {"castfunc", sqltype.Oid}, {"castcontext", sqltype.Char}, {"castmethod", sqltype.Char}}},
 		{2224, "pg_sequence", []struct {
 			name string
 			typ  sqltype.ID
@@ -62,7 +66,7 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 {
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == 2609 {
@@ -81,6 +85,9 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 2605 {
+		return capturePGCast(ctx, catalog, ref, source)
+	}
 	if source.address.ObjectID == 2224 {
 		return capturePGSequence(ctx, catalog.state, nil, ref, source)
 	}

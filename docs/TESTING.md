@@ -830,3 +830,39 @@ positions, source occurrence order and child-specific rowmark ownership.
 Run those private units with
 `make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestQuery(Subquery|DerivedSubquerySyntax)'`.
 
+
+## Cast metadata catalog discovery and smoke
+
+The shared `TestReferencePGCast` family asserts the complete independently
+specified65-row supported boundary, exact six-column shape and raw codecs,
+fixed type/function identities, generated row identity invariants, direct/
+prepared/held consumers, full diagnostics, omissions versus automatic coercion,
+PUBLIC SELECT and native retained-row/Reset/Restore controls. PostgreSQL reads
+are restricted to the same candidate pairs; additional PostgreSQL catalog rows
+are legitimate. Domain identity via pg_typeof is a PostgreSQL-only phase;
+native domain creation/conversion plus its unchanged exact complete bag excludes
+domain rows without a new type identity API.
+
+The genuine feature smoke combines empty shape, representative eight-row
+metadata, held valid/missing/NULL/error/recovery, signed OID conversion, BOOL
+text, JSON I/O, VARCHAR sizing/atomicity, UTF8 diagnostic and actual native user
+Dump replay against PostgreSQL. Discovery-only filters have been removed.
+Run the same completed definitions in both modes before review/integration:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGCast' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGCast' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestCastCatalog' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestPGCast' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(OID|CastExplicit|Character|JSON|JSONB|PGSequence|PGDepend|PGDescription|QueryOrderCatalogChar)' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(OID|CastExplicit|Character|JSON|JSONB|PGSequence|PGDepend|PGDescription|QueryOrderCatalogChar)' VERBOSE=0
+```
+
+Every quickcheck invocation has a900-second deadline. Private units exercise
+owner planning/application in all claimed and excluded contexts and projection
+ownership/cancellation/generation retention, without issuing SQL. Selective
+runs and smoke do not replace ordinary quickcheck or the post-merge fullcheck
+under its single1800-second deadline.
+
