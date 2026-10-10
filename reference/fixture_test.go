@@ -104,9 +104,10 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 		resetCtx, resetCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer resetCancel()
 		// A replay can return a pooled connection authenticated as postgres.
-		// Session authorization is physical-session state; discard idle handles
-		// before reset, then retain fresh admin sessions for subsequent probes.
-		// Serial fixtures return borrowed admin handles before their cleanup.
+		// Recycle probe/admin idle sessions at both boundaries so stale auth or
+		// roles cannot reach later probes. Serial fixtures return borrowed admin
+		// handles before cleanup. Reset SQL uses its own pristine pinned connection,
+		// never a session that replay or a probe can mutate.
 		referenceAdmin.SetMaxIdleConns(0)
 		referenceAdmin.SetMaxIdleConns(2)
 		if _, err := referenceResetConn.ExecContext(resetCtx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
@@ -698,9 +699,11 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	// Compare recorded consumed values, not middleware call counts or fast-path choices.
 	recorder.mu.Lock()
 	var recorded *referenceOperation
-	for _, op := range recorder.operations {
+	for i := len(recorder.operations) - 1; i >= 0; i-- {
+		op := recorder.operations[i]
 		if op.SQL == s.query && op.Err == nil && op.Columns != nil {
 			recorded = op
+			break
 		}
 	}
 	if recorded == nil {

@@ -18,30 +18,40 @@ import (
 
 // This instrumentation belongs only to the release oracle. It never synthesizes
 // a pq diagnostic: pq intentionally translates FATAL to driver.ErrBadConn.
-// PostgreSQL log_line_prefix %p/%e supplies real server PID/SQLSTATE, separately
-// from the exact exported API sentinel and native portable diagnostic fields.
+// PostgreSQL log_line_prefix %p/%c/%e supplies real backend incarnation/SQLSTATE,
+// separately from exported API sentinels and native portable diagnostic fields.
 func (f *timeoutReferenceFixture) captureOwner() {
 	f.t.Helper()
 	if !f.b.pg {
 		return
 	}
-	f.ownerPID = referenceLockPID(f.t, f.p.ctx, f.owner)
 	ctx, cancel := context.WithTimeout(f.p.ctx, 2*time.Second)
 	defer cancel()
-	f.logBaseline = f.oracleLogs(ctx, client.ContainerLogsOptions{Tail: "1", Timestamps: true})
-	var err error
-	f.logSince, err = timeoutOracleBaselineTimestamp(f.logBaseline)
-	if err != nil {
-		f.t.Fatal("reading pinned PostgreSQL baseline timestamp", err)
+	var backendStart time.Time
+	// PostgreSQL documents this %c derivation. Capture before any timer is armed;
+	// PID plus session ID distinguishes process incarnations despite log overlap.
+	if err := f.owner.QueryRowContext(ctx, "SELECT pid,backend_start,to_hex(trunc(EXTRACT(EPOCH FROM backend_start))::integer)||'.'||to_hex(pid) FROM pg_stat_activity WHERE pid=pg_backend_pid()").Scan(&f.ownerPID, &backendStart, &f.ownerSessionID); err != nil {
+		f.t.Fatal("capturing pinned PostgreSQL backend incarnation", err)
 	}
+	if f.ownerPID <= 0 || backendStart.IsZero() || f.ownerSessionID == "" {
+		f.t.Fatal("invalid pinned PostgreSQL backend incarnation")
+	}
+	// The daemon and PG container share a clock. One-second overlap retains the
+	// boundary record; exact %c matching and the baseline prevent stale matches.
+	f.logSince = backendStart.Add(-time.Second).UTC().Format(time.RFC3339Nano)
+	f.logBaseline = f.oracleLogs(ctx)
 }
 
-func (f timeoutReferenceFixture) oracleLogs(ctx context.Context, options client.ContainerLogsOptions) string {
+func (f timeoutReferenceFixture) oracleLogs(ctx context.Context) string {
 	f.t.Helper()
-	options.ShowStdout, options.ShowStderr = true, true
-	reader, err := referenceLogClient.ContainerLogs(ctx, referenceContainerID, options)
+	if referenceLogClient == nil || referenceContainerID == "" || f.logSince == "" {
+		f.t.Fatal("pinned PostgreSQL log capture is not initialized")
+	}
+	reader, err := referenceLogClient.ContainerLogs(ctx, referenceContainerID, client.ContainerLogsOptions{
+		ShowStdout: true, ShowStderr: true, Since: f.logSince,
+	})
 	if err != nil {
-		f.t.Fatal("reading pinned PostgreSQL logs", err)
+		f.t.Fatal("reading pinned PostgreSQL log suffix", err)
 	}
 	// Own the raw response, not testcontainers' per-frame pipe wrapper. Its
 	// cancellation and close cover both payload and transport on every path.
@@ -52,34 +62,10 @@ func (f timeoutReferenceFixture) oracleLogs(ctx context.Context, options client.
 	return data
 }
 
-func timeoutOracleBaselineTimestamp(logs string) (string, error) {
-	var earliest time.Time
-	var result string
-	for _, line := range strings.Split(logs, "\n") {
-		if line == "" {
-			continue
-		}
-		timestamp, _, ok := strings.Cut(line, " ")
-		if !ok {
-			return "", fmt.Errorf("baseline log record has no Docker timestamp")
-		}
-		parsed, err := time.Parse(time.RFC3339Nano, timestamp)
-		if err != nil {
-			return "", fmt.Errorf("baseline Docker timestamp: %w", err)
-		}
-		if result == "" || parsed.Before(earliest) {
-			earliest, result = parsed, timestamp
-		}
-	}
-	if result == "" {
-		return "", fmt.Errorf("baseline has no timestamped Docker log record")
-	}
-	return result, nil
-}
-
-// Decode the non-TTY Docker frames synchronously. Validate the evidence cap
-// before reading a frame payload, without allocating its advertised length.
-func timeoutReadOracleLogs(ctx context.Context, body io.ReadCloser, maximum int) (string, error) {
+// Decode non-TTY Docker frames synchronously, validating the cumulative wire
+// cap, including headers, before reading each payload. Join cancellation's raw
+// Close before returning; no demultiplexer goroutine retains response ownership.
+func timeoutReadOracleLogs(ctx context.Context, body io.ReadCloser, maxWire int) (string, error) {
 	var closeOnce sync.Once
 	var closeErr error
 	closeBody := func() { closeOnce.Do(func() { closeErr = body.Close() }) }
@@ -91,6 +77,7 @@ func timeoutReadOracleLogs(ctx context.Context, body io.ReadCloser, maximum int)
 		var header [8]byte
 		var scratch [32 << 10]byte
 		limited := io.LimitedReader{R: reader}
+		remaining := int64(maxWire)
 		for {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -102,11 +89,18 @@ func timeoutReadOracleLogs(ctx context.Context, body io.ReadCloser, maximum int)
 			if err != nil {
 				return fmt.Errorf("Docker log frame header: %w", err)
 			}
+			if remaining < int64(len(header)) {
+				return errors.New("pinned PostgreSQL log evidence exceeds bounded capture")
+			}
+			remaining -= int64(len(header))
 			if header[0] != 1 && header[0] != 2 {
 				return fmt.Errorf("unknown Docker log stream: %d", header[0])
 			}
+			if header[1] != 0 || header[2] != 0 || header[3] != 0 {
+				return fmt.Errorf("invalid Docker log stream header %v", header)
+			}
 			length := int64(binary.BigEndian.Uint32(header[4:]))
-			if length > int64(maximum-data.Len()) {
+			if length > remaining {
 				return errors.New("pinned PostgreSQL log evidence exceeds bounded capture")
 			}
 			limited.N = length
@@ -117,6 +111,7 @@ func timeoutReadOracleLogs(ctx context.Context, body io.ReadCloser, maximum int)
 			if n != length {
 				return fmt.Errorf("Docker log frame payload: %w", io.ErrUnexpectedEOF)
 			}
+			remaining -= length
 		}
 	}()
 	// If cancellation already dispatched Close, join it before returning.
@@ -137,21 +132,21 @@ func (f timeoutReferenceFixture) serverFatal(code string, position ...string) {
 	if want.Severity != "FATAL" {
 		f.t.Fatal("server fatal assertion requires FATAL")
 	}
-	prefix := fmt.Sprintf("timeout-oracle|%d|", f.ownerPID)
+	prefix := fmt.Sprintf("timeout-oracle|%d|%s|", f.ownerPID, f.ownerSessionID)
 	exact := prefix + code + "|FATAL:  " + want.Message
 	if len(position) != 0 && position[0] != "" {
 		exact += " at character " + position[0]
 	}
-	// Capture only the last pre-arming record, then use its Docker-server
-	// timestamp as an inclusive fence. Keep baseline assertions for that
-	// boundary record; post-arming reads have no tail limit.
+	// Compare the exact controlled PG prefix, including the documented %c
+	// incarnation. Scoped Since reads overlap the baseline but never silently
+	// tail away an expected fatal or accept a reused PID from an older session.
 	if strings.Contains(f.logBaseline, exact) {
 		f.t.Fatal("fatal already existed before owner was armed", exact)
 	}
 	ctx, cancel := context.WithTimeout(f.p.ctx, 2*time.Second)
 	defer cancel()
 	for {
-		logs := f.oracleLogs(ctx, client.ContainerLogsOptions{Since: f.logSince})
+		logs := f.oracleLogs(ctx)
 		for _, line := range strings.Split(logs, "\n") {
 			at := strings.Index(line, prefix)
 			if at < 0 {

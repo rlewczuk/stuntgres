@@ -13,7 +13,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-// Log instrumentation shares the pinned fixture's startup and teardown owner.
+// One suite-owned client reads bounded timeout-oracle log suffixes. Individual
+// responses retain their own synchronous read/close ownership.
 var referenceLogClient *testcontainers.DockerClient
 
 // Only serialized fixture boundary resets use this pinned session. Never lend
@@ -40,11 +41,15 @@ func referenceStart() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	var err error
+	referenceLogClient, err = testcontainers.NewDockerClientWithOpts(ctx)
+	if err != nil {
+		return fmt.Errorf("oracle Docker client: %w", err)
+	}
 	referenceContainer, err = postgres.Run(ctx, referenceImage,
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
 		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100",
-			"-c", "log_line_prefix=timeout-oracle|%p|%e|"),
+			"-c", "log_line_prefix=timeout-oracle|%p|%c|%e|"),
 		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}))
 	if err != nil {
 		return fmt.Errorf("container: %w", err)
@@ -58,10 +63,6 @@ func referenceStart() error {
 	referenceAdmin, err = sql.Open("postgres", referenceDSN)
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
-	}
-	referenceLogClient, err = testcontainers.NewDockerClientWithOpts(ctx)
-	if err != nil {
-		return fmt.Errorf("log client: %w", err)
 	}
 	return referenceInitialize(ctx)
 }

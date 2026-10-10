@@ -33,20 +33,20 @@ func TestReferenceTimeoutOracleCaptureDataAndErrors(t *testing.T) {
 	all := append(append([]byte{}, first...), second...)
 	want := "before\ntimeout-oracle|42|57P05|FATAL:  terminating connection due to idle-session timeout\n"
 	t.Run("ordered_streams_exact_cap", func(t *testing.T) {
-		got, err := timeoutReadOracleLogs(context.Background(), io.NopCloser(bytes.NewReader(all)), len(want))
+		got, err := timeoutReadOracleLogs(context.Background(), io.NopCloser(bytes.NewReader(all)), len(all))
 		if err != nil || got != want {
 			t.Fatalf("capture=%q/%v want %q", got, err, want)
 		}
 	})
 	t.Run("empty_frames", func(t *testing.T) {
 		input := append(timeoutOracleFrame(1, ""), timeoutOracleFrame(2, "x")...)
-		got, err := timeoutReadOracleLogs(context.Background(), io.NopCloser(bytes.NewReader(input)), 1)
+		got, err := timeoutReadOracleLogs(context.Background(), io.NopCloser(bytes.NewReader(input)), len(input))
 		if err != nil || got != "x" {
 			t.Fatalf("capture=%q/%v", got, err)
 		}
 	})
 	t.Run("cumulative_cap", func(t *testing.T) {
-		got, err := timeoutReadOracleLogs(context.Background(), io.NopCloser(bytes.NewReader(all)), len(want)-1)
+		got, err := timeoutReadOracleLogs(context.Background(), io.NopCloser(bytes.NewReader(all)), len(all)-1)
 		if got != "" || err == nil || !strings.Contains(err.Error(), "exceeds bounded capture") {
 			t.Fatalf("capture=%q/%v", got, err)
 		}
@@ -128,24 +128,5 @@ func TestReferenceTimeoutOracleCaptureCancellation(t *testing.T) {
 	}
 	if _, err := writer.Write([]byte("x")); !errors.Is(err, io.ErrClosedPipe) {
 		t.Fatalf("canceled response still writable: %v", err)
-	}
-}
-
-func TestReferenceTimeoutOracleBaselineTimestamp(t *testing.T) {
-	for _, tc := range []struct{ name, input, want string }{
-		{"single", "2026-10-10T17:18:12.123456789Z timeout-oracle|42|00000|LOG:  ready\n", "2026-10-10T17:18:12.123456789Z"},
-		{"inclusive_earliest", "2026-10-10T17:18:12.123456790Z stderr\n2026-10-10T17:18:12.123456789Z stdout\n", "2026-10-10T17:18:12.123456789Z"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := timeoutOracleBaselineTimestamp(tc.input)
-			if err != nil || got != tc.want {
-				t.Fatalf("timestamp=%q/%v want %q", got, err, tc.want)
-			}
-		})
-	}
-	for _, input := range []string{"", "no_timestamp", "not-a-time message\n"} {
-		if got, err := timeoutOracleBaselineTimestamp(input); err == nil || got != "" {
-			t.Fatalf("invalid baseline %q gave %q/%v", input, got, err)
-		}
 	}
 }

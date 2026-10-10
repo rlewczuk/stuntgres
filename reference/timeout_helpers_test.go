@@ -24,8 +24,9 @@ type timeoutReferenceFixture struct {
 	owner, peer       *sql.Conn
 	ownerPID, peerPID int
 	blockedOID        int64
-	logBaseline       string
+	ownerSessionID    string
 	logSince          string
+	logBaseline       string
 }
 
 func newTimeoutReferenceFixture(t *testing.T, p *referencePair, b referenceBackend) timeoutReferenceFixture {

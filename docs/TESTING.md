@@ -253,9 +253,11 @@ Do not invent a PostgreSQL control API or duplicate the main SQL test body.
 Pinned timeout FATAL instrumentation keeps the real server PID, SQLSTATE and
 exact primary message/analysis position separate from pq's public bad-connection
 sentinel. Its Docker log client belongs to the existing pinned fixture lifecycle,
-not a separate container or startup owner. Before arming an owner, capture the
-last timestamped Docker log record; later reads use that Docker-server timestamp
-inclusively, preserving baseline rejection and imposing no post-arming tail limit.
+not a separate container or startup owner. Before arming an owner, capture its
+official PostgreSQL `%c` incarnation from `pg_stat_activity` backend-start time
+and PID. Baseline and later reads use `Since` backend-start minus one second;
+exact PID/incarnation matching and baseline rejection preserve stale-evidence
+protection without imposing any post-arming tail limit.
 Read raw non-following responses synchronously with a 32 MiB evidence cap checked
 before frame payload allocation. Cancellation closes the owned response and joins
 its close callback; malformed/truncated frames, size/read/close errors fail rather
@@ -1958,6 +1960,24 @@ owns a 30-second context and pool cleanup; real fixtures reset `public` before
 and after each case. All real fixtures share one bounded-lifecycle container:
 **do not use `t.Parallel()`**.
 
+Schema-reset SQL runs only through a suite-owned pristine PostgreSQL connection,
+borrowed once from `referenceAdmin` and held across serialized fixtures, never
+lent to replay or probes. Retaining it avoids two needless PostgreSQL connection
+handshakes per fixture while preserving both before/after `DROP SCHEMA public
+CASCADE; CREATE SCHEMA public` operations. The shared probe/admin pool
+still discards idle sessions (`SetMaxIdleConns(0)` then `2`) at **both** reset
+boundaries, so replay-altered session authorization or roles cannot leak into
+later probes. Startup failure and final teardown return the reset connection
+before closing its owning admin pool.
+The existing pinned `TestReferenceFixtureSessionAuthorizationReset` independently
+asserts discarded replay authorization, a pristine `stuntgres` probe, an empty
+schema and the `stuntgres` schema owner after cleanup and before the next case;
+its SQL expectations and both boundary assertions are unchanged.
+
+```sh
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFixtureSessionAuthorizationReset$' VERBOSE=0
+```
+
 Non-public schemas are not reset by the fixture. Register
 `schemaReferenceCleanup(t, "schema_name")` before constructing the scenario
 when a case creates or moves objects into another schema; otherwise a later
@@ -2057,9 +2077,32 @@ remaining. That oracle result does not claim native or final verification.
 The pinned run established pq's direct/Prepare/idle FATAL API
 sentinel as ErrBadConn and Conn-held Execute as ErrConnDone, not portable
 SQL diagnostic fields. The pinned fixture's `log_line_prefix` includes real
-backend PID and SQLSTATE (`timeout-oracle|%p|%e|`); bounded public container log
-reads independently assert the exact FATAL severity/code/English primary for
-that owner. No sentinel is converted into a manufactured diagnostic object.
+backend PID, session incarnation and SQLSTATE (`timeout-oracle|%p|%c|%e|`).
+PostgreSQL [documents `%c`](https://www.postgresql.org/docs/18/runtime-config-logging.html#RUNTIME-CONFIG-LOGGING-WHAT)
+as hexadecimal backend-start seconds plus hexadecimal PID; PG-only
+`pg_stat_activity` instrumentation captures that identity before arming.
+Docker `Since` reads start one second before that backend's start, preserving
+boundary records without repeatedly fetching/reparsing the suite's full log
+history. No `Tail` limit truncates expected errors. Exact PID/incarnation/code
+matching and the same-suffix pre-arm baseline reject stale evidence; the exact
+FATAL severity/English primary/Position remain independently asserted.
+A suite-owned Docker client reads each raw response synchronously, closes it
+on every exit, and validates complete eight-byte frame headers and bodies under
+a 32 MiB cumulative wire cap. Truncation, excess, daemon error streams and
+read/close errors fail visibly; no unjoined pipe demultiplexer owns the response.
+`TestTimeoutOracleLogFrames` exercises framing, cap and close/error ownership
+without SQL. This fixture-cost remedy addresses cumulative reference race-suite
+work, not an established single-test hang. The remedy changes no timed witnesses,
+fixture budgets or check deadlines. Recorder comparisons likewise scan
+backward to the latest successful matching query under the existing lock, with
+the same predicate and owned-buffer assertions. No sentinel is converted into
+a manufactured diagnostic object.
+
+```sh
+timeout 900s make quickcheck PACKAGES=./reference RUN='^TestTimeoutOracleLogFrames$' VERBOSE=0
+timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestTimeoutOracleLogFrames$' VERBOSE=0
+```
+
 Native still asserts its full structured portable diagnostics. Capture PID/OID
 and log baseline before arming or Go BeginTx, then execute Go work through that
 actual Tx: querying its borrowed Conn deadlocks behind database/sql ownership.
