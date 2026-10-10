@@ -176,6 +176,40 @@ func TestArrayConstructionShapeAndLimits(t *testing.T) {
 	arraySubscriptOutput(t, child, "[0:1]={1,2}")
 }
 
+func TestArrayConstructionRankCollision(t *testing.T) {
+	ctx := context.Background()
+	d := testTypes()[1007]
+	rankSix := arraySubscriptInput(t, d, "{{{{{{1}}}}}}")
+	empty := arraySubscriptInput(t, d, "{}")
+	short := arraySubscriptInput(t, d, "{2}")
+	for _, children := range [][]Value{
+		{rankSix, Null(d)},
+		{rankSix, empty},
+		{rankSix, short},
+		{Null(d), rankSix},
+		{empty, rankSix},
+		{rankSix, rankSix},
+	} {
+		_, err := ConstructArray(ctx, d, children, true)
+		arrayUnitDiagnostic(t, err, "54000", "number of array dimensions (7) exceeds the maximum allowed (6)", "")
+	}
+	// A smaller first nonempty shape makes the later rank-six child a shape
+	// mismatch: rank adoption checks only the first nonempty child's outer rank.
+	_, err := ConstructArray(ctx, d, []Value{short, rankSix}, true)
+	arrayUnitDiagnostic(t, err, "2202E", "multidimensional arrays must have array expressions with matching dimensions", "")
+	value, err := ConstructArray(ctx, d, []Value{empty, Null(d), empty}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value.Type() != d || value.ArrayLen() != 0 || len(value.array.dimensions) != 0 {
+		t.Fatal("all-empty construction lost canonical typed shape")
+	}
+	arraySubscriptOutput(t, value, "{}")
+	arraySubscriptOutput(t, rankSix, "{{{{{{1}}}}}}")
+	arraySubscriptOutput(t, empty, "{}")
+	arraySubscriptOutput(t, short, "{2}")
+}
+
 func TestArrayElementwiseCoercionContexts(t *testing.T) {
 	types := testTypes()
 	ctx := context.Background()

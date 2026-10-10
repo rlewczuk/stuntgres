@@ -218,10 +218,10 @@ func evaluateArrayBounds(c *EvalContext, subs []boundArraySubscript, slice bool,
 }
 
 func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]boundArraySubscript, bool, error) {
-	if len(raw) > 6 {
-		return nil, false, expressionError("54000", fmt.Sprintf("number of array dimensions (%d) exceeds the maximum allowed (6)", len(raw)), parser.Position{})
+	var subs []boundArraySubscript
+	if len(raw) <= 6 {
+		subs = make([]boundArraySubscript, len(raw))
 	}
-	subs := make([]boundArraySubscript, len(raw))
 	slice := false
 	bind := func(raw parser.Expr) (BoundExpr, error) {
 		if raw == nil {
@@ -253,8 +253,13 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 		if err != nil {
 			return nil, false, err
 		}
-		subs[i] = boundArraySubscript{lower, upper, s.Slice}
+		if subs != nil {
+			subs[i] = boundArraySubscript{lower, upper, s.Slice}
+		}
 		slice = slice || s.Slice
+	}
+	if len(raw) > 6 {
+		return nil, false, expressionError("54000", fmt.Sprintf("number of array dimensions (%d) exceeds the maximum allowed (6)", len(raw)), parser.Position{})
 	}
 	return subs, slice, nil
 }

@@ -13,6 +13,9 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
+// Log instrumentation shares the pinned fixture's startup and teardown owner.
+var referenceLogClient *testcontainers.DockerClient
+
 func referenceEnsureStarted() error {
 	referenceStartup.Do(func() {
 		defer func() {
@@ -52,6 +55,10 @@ func referenceStart() error {
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
+	referenceLogClient, err = testcontainers.NewDockerClientWithOpts(ctx)
+	if err != nil {
+		return fmt.Errorf("log client: %w", err)
+	}
 	return referenceInitialize(ctx)
 }
 
@@ -86,14 +93,19 @@ func referenceInitialize(ctx context.Context) (err error) {
 // Release ownership before cleanup so a failed startup cannot leave resources
 // for test callbacks or cause final teardown to close/terminate them twice.
 func referenceReleaseResources() error {
-	admin, container := referenceAdmin, referenceContainer
-	referenceAdmin, referenceContainer = nil, nil
+	admin, logClient, container := referenceAdmin, referenceLogClient, referenceContainer
+	referenceAdmin, referenceLogClient, referenceContainer = nil, nil, nil
 	referenceDSN, referenceContainerID = "", ""
 	referenceStarted = false
 	var cleanupErr error
 	if admin != nil {
 		if err := admin.Close(); err != nil {
 			cleanupErr = fmt.Errorf("reference close: %w", err)
+		}
+	}
+	if logClient != nil {
+		if err := logClient.Close(); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("reference log client close: %w", err))
 		}
 	}
 	if container != nil {

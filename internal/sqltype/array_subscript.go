@@ -39,6 +39,9 @@ func ConstructArray(ctx context.Context, d *Descriptor, children []Value, multid
 		}
 		if dims == nil {
 			dims = v.array.dimensions
+			if len(dims) >= 6 {
+				return Value{}, failure("54000", "number of array dimensions (7) exceeds the maximum allowed (6)")
+			}
 		} else if !slices.Equal(dims, v.array.dimensions) {
 			return Value{}, failure("2202E", "multidimensional arrays must have array expressions with matching dimensions")
 		}
@@ -52,9 +55,6 @@ func ConstructArray(ctx context.Context, d *Descriptor, children []Value, multid
 	}
 	if empty {
 		return Value{}, failure("2202E", "multidimensional arrays must have array expressions with matching dimensions")
-	}
-	if len(dims) >= 6 {
-		return Value{}, failure("54000", "number of array dimensions (7) exceeds the maximum allowed (6)")
 	}
 	elements := make([]Value, 0, size)
 	for _, v := range children {

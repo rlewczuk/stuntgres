@@ -201,6 +201,18 @@ in the same dual-mode reference scenario, with explicit native-only control
 phases and independently specified PostgreSQL SQL outcomes where applicable.
 Do not invent a PostgreSQL control API or duplicate the main SQL test body.
 
+Pinned timeout FATAL instrumentation keeps the real server PID, SQLSTATE and
+exact primary message/analysis position separate from pq's public bad-connection
+sentinel. Its Docker log client belongs to the existing pinned fixture lifecycle,
+not a separate container or startup owner. Before arming an owner, capture the
+last timestamped Docker log record; later reads use that Docker-server timestamp
+inclusively, preserving baseline rejection and imposing no post-arming tail limit.
+Read raw non-following responses synchronously with a 32 MiB evidence cap checked
+before frame payload allocation. Cancellation closes the owned response and joins
+its close callback; malformed/truncated frames, size/read/close errors fail rather
+than accepting partial oracle evidence. This avoids rereading the full accumulated
+suite history through per-frame pipes. All test deadlines remain unchanged.
+
 ## Required implementation order
 
 1. **Write the shared reference scenario and run real PostgreSQL first.** Use

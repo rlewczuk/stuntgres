@@ -103,3 +103,88 @@ func TestReferenceArrayExpressionReviewRegression(t *testing.T) {
 		}
 	}
 }
+
+// Release ExecEvalArrayExpr evaluates every child before inspecting the first
+// nonempty child's added outer rank. array_subscript_transform analyzes lower
+// then upper within each lexical dimension before rejecting a seventh bound.
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/executor/execExprInterp.c
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/arraysubs.c
+func TestReferenceArrayExpressionRankPrecedence(t *testing.T) {
+	const rankSix = "'{{{{{{1}}}}}}'::int[]"
+	const rankMessage = "number of array dimensions (7) exceeds the maximum allowed (6)"
+	const boundMessage = "array subscript must have type integer"
+	failures := []struct {
+		name, q, code, message, position string
+		analysis                         bool
+	}{
+		{"constructor_rank6_then_null", "SELECT ARRAY[" + rankSix + ",NULL::int[]] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_rank6_then_empty", "SELECT ARRAY[" + rankSix + ",ARRAY[]::int[]] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_rank6_then_different_rank", "SELECT ARRAY[" + rankSix + ",'{2}'::int[]] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_null_before_rank6", "SELECT ARRAY[NULL::int[]," + rankSix + "] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_empty_before_rank6", "SELECT ARRAY[ARRAY[]::int[]," + rankSix + "] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_rank7_control", "SELECT ARRAY[" + rankSix + "] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_children_demanded_before_rank", "SELECT ARRAY[" + rankSix + ",ARRAY[1/(id-id)]] FROM public.ax WHERE id=1", "22012", "division by zero", "", false},
+		{"constructor_child_left_to_right", "SELECT ARRAY[" + rankSix + ",ARRAY[2147483647+id],ARRAY[1/(id-id)]] FROM public.ax WHERE id=1", "22003", "integer out of range", "", false},
+		{"fetch_bad_first", "SELECT m[TRUE][1][1][1][1][1][1] FROM public.ax", "42804", boundMessage, "10", true},
+		{"fetch_bad_later", "SELECT m[1][1][1][1][1][1][TRUE] FROM public.ax", "42804", boundMessage, "28", true},
+		{"insert_bad_first", "INSERT INTO public.ax(id,m[TRUE][1][1][1][1][1][1]) VALUES(5,7)", "42804", boundMessage, "28", true},
+		{"insert_bad_later", "INSERT INTO public.ax(id,m[1][1][1][1][1][1][TRUE]) VALUES(5,7)", "42804", boundMessage, "46", true},
+		{"update_bad_first", "UPDATE public.ax SET m[TRUE][1][1][1][1][1][1]=7 WHERE id=1", "42804", boundMessage, "24", true},
+		{"update_bad_later", "UPDATE public.ax SET m[1][1][1][1][1][1][TRUE]=7 WHERE id=1", "42804", boundMessage, "42", true},
+		{"slice_lower_before_upper", "SELECT m[TRUE:TRUE][1][1][1][1][1][1] FROM public.ax", "42804", boundMessage, "10", true},
+		{"slice_earlier_upper_before_later_lower", "SELECT m[1:TRUE][TRUE:1][1][1][1][1][1] FROM public.ax", "42804", boundMessage, "12", true},
+		{"insert_slice_bad_later_upper", "INSERT INTO public.ax(id,m[1][1][1][1][1][1][1:TRUE]) VALUES(5,ARRAY[7])", "42804", boundMessage, "48", true},
+		{"update_slice_bad_later_lower", "UPDATE public.ax SET m[1][1][1][1][1][1][TRUE:1]=ARRAY[7] WHERE id=1", "42804", boundMessage, "42", true},
+		{"fetch_valid_seven_control", "SELECT m[1][1][1][1][1][1][1] FROM public.ax", "54000", rankMessage, "", true},
+		{"insert_valid_seven_control", "INSERT INTO public.ax(id,m[1][1][1][1][1][1][1]) VALUES(5,7)", "54000", rankMessage, "", true},
+		{"update_valid_seven_control", "UPDATE public.ax SET m[1][1][1][1][1][1][1]=7 WHERE id=1", "54000", rankMessage, "", true},
+	}
+	for _, tc := range failures {
+		for _, prepared := range []bool{false, true} {
+			name := tc.name
+			if prepared {
+				name += "_prepared"
+			}
+			t.Run(name, func(t *testing.T) {
+				arrayExpressionScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn) {
+					arrayExpressionFixture(t, p, b, c)
+					want := controlsReferenceDiagnostic(tc.code, tc.message)
+					want.Position = tc.position
+					step := referenceErrorDiagnostic(tc.q, want)
+					step.prepared = prepared
+					step.selectRows = tc.q[0] == 'S'
+					step.errorStage = "execute"
+					if prepared && tc.analysis {
+						step.errorStage = "prepare"
+					}
+					referenceRunStep(t, p.ctx, c, b.recorder, step)
+					arrayReviewCheck(t, p, b, c, arrayReviewFixtureRows())
+				})
+			})
+		}
+	}
+	for _, tc := range []struct {
+		name, expression, typ string
+		value                 any
+	}{
+		{"all_empty_null_children", "ARRAY[ARRAY[]::int[],NULL::int[],ARRAY[]::int[]]", "_INT4", "{}"},
+		{"all_null_children", "ARRAY[NULL::int[],NULL::int[]]", "_INT4", "{}"},
+		{"six_valid_bounds_control", "(" + rankSix + ")[1][1][1][1][1][1]", "INT4", int64(1)},
+	} {
+		for _, prepared := range []bool{false, true} {
+			name := tc.name
+			if prepared {
+				name += "_prepared"
+			}
+			t.Run(name, func(t *testing.T) {
+				arrayExpressionScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn) {
+					arrayExpressionFixture(t, p, b, c)
+					step := arrayReferenceSelect("SELECT "+tc.expression+" AS a FROM public.one", []string{"a"}, []string{tc.typ}, []string{tc.typ}, [][]any{{tc.value}}, b.pg)
+					step.prepared = prepared
+					referenceRunStep(t, p.ctx, c, b.recorder, step)
+					arrayReviewCheck(t, p, b, c, arrayReviewFixtureRows())
+				})
+			})
+		}
+	}
+}

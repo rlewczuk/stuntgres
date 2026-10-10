@@ -412,8 +412,11 @@ exact current descriptor generation. Builtin codec IDs alone are not authority.
 Nested shorthand `ARRAY[[1,2],[3,4]]` and array-valued children build rectangular
 arrays with matching ranks, extents and inner lower bounds. The new outer lower
 bound is one. Domain-over-array children remain scalar domain elements.
-All empty/NULL subarrays yield canonical empty; mixing them with a nonempty child
-fails2202E, distinct from a valid scalar NULL cell.
+All empty/NULL subarrays yield canonical empty; within the rank limit, mixing
+them with a nonempty child fails2202E, distinct from a valid scalar NULL cell.
+All child expressions are evaluated before construction shape checks. Adopting
+the first nonempty child checks the added outer rank against the maximum six
+before sibling shape or mixed-empty errors.
 
 Parenthesized general expressions, columns and parameters support element access
 and slices. Adjacent brackets are one multidimensional operation; parenthesized
@@ -423,6 +426,9 @@ whole group to slicing: a plain `[n]` then means `[1:n]`, whereas omitted bounds
 use existing dimension limits. Slices fill trailing dimensions, clip overlap,
 preserve rank and reset output lower bounds to one. Outside/inverted/excess-rank
 fetches return canonical empty; explicit NULL slice bounds return SQL NULL.
+
+Present bounds are analyzed lower then upper within each lexical dimension
+before the group rank limit; more than six dimensions never reach execution.
 
 INSERT/UPDATE element and slice targets preserve ordinary atomic constraints.
 Partial INSERT starts with typed NULL and does not consume the column DEFAULT.

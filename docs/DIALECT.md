@@ -552,6 +552,9 @@ See [complete type/transport/shape contract](TYPES.md#composites--change-note).
 constructors. An explicitly cast empty constructor obtains its element type
 from that cast. Constructors are not assignment-context typed; existing scalar
 coercion rules apply elementwise without adding new scalar cast routes.
+All child expressions are evaluated before constructor shape checks. The first
+nonempty child's added outer rank is checked against six before sibling shape
+or mixed-empty errors; all-empty/NULL children retain canonical empty.
 
 Array access supports adjacent subscripts, parenthesized expression bases and
 parameters. Element reads respect actual lower bounds; NULL, missing and
@@ -574,6 +577,9 @@ remain errors. Empty originals check source sufficiency before final bounds,
 including final bounds when another span is zero. NULL slice RHS bypasses span
 checks after bound NULL validation.
 
+Bound analysis coerces lower then upper within each lexical dimension before
+rejecting a group longer than six. This lexical analysis order is distinct from
+runtime demand; the executor's rank-six storage limit is unchanged.
 Execution demands the base, all upper bounds, then all lower bounds. Reads of
 a whole-NULL array skip bounds; assignments do not. Assignment NULL-bound
 validation precedes its replacement RHS. Existing source-first INSERT query
@@ -4712,10 +4718,10 @@ Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceRegclassInputSmoke$' 
 Both `value::regclass` and `CAST(value AS regclass)` share the bounded explicit
 matrix: OID/TEXT/VARCHAR/integer inputs and OID/INT4/INT8/TEXT outputs. INT4 uses
 unsigned bits; INT8 checks the OID range. Direct scalar/array columns, domains,
-DEFAULT/CHECK/views and writes are admitted. Flat ARRAY constructors accept
-scalar regclass elements, NULLs, contextually typed empty arrays and parameters
-inferred from a regclass-array cast or regclass peer, but not
-nested or general-family construction. Scalar stored input constants retain
+DEFAULT/CHECK/views and writes are admitted. REGCLASS constructors share the
+[array-expression contract](#array-expressions-and-partial-assignments), including
+nested rectangles, explicitly cast typed empties and inferred parameters.
+Scalar stored input constants retain
 relation dependencies across rename/move; numeric coercion trees and opaque
 array/domain-array input do not gain DROP dependencies. Ordinary prepared SQL
 reanalyzes its source spelling, unlike stored definitions.

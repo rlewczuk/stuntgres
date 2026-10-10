@@ -25,6 +25,7 @@ type timeoutReferenceFixture struct {
 	ownerPID, peerPID int
 	blockedOID        int64
 	logBaseline       string
+	logSince          string
 }
 
 func newTimeoutReferenceFixture(t *testing.T, p *referencePair, b referenceBackend) timeoutReferenceFixture {
