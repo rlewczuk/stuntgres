@@ -173,6 +173,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case randomExpression:
 		out.WriteString("Random " + n.name)
 		err = args(n.args)
+	case uuidGenerationExpression:
+		out.WriteString("UUIDGeneration " + n.name)
+		err = args(n.args)
 	case nullCountExpression:
 		fmt.Fprintf(out, "NullCount %d", n.kind)
 		err = args(n.args)

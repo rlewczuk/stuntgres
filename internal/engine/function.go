@@ -52,7 +52,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
@@ -79,6 +79,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	var kind nullCountKind
 	switch name {
+	case "gen_random_uuid", "uuidv4", "uuidv7":
+		return b.bindUUIDGeneration(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef":
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":

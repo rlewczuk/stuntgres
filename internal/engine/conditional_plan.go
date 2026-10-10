@@ -409,6 +409,23 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case uuidGenerationExpression:
+		if len(e.args) != 0 {
+			node, did, failure := simplifyConditional(c, e.args[0], decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args = []BoundExpr{node}
+				changed = true
+			}
+			if randomLiteralNull(node) {
+				// Strictness eliminates demand even for a volatile provider.
+				// Preserve analyzed metadata; the surviving literal is immutable.
+				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		expression = e
 	case randomExpression:
 		var args []BoundExpr
 		for i, old := range e.args {

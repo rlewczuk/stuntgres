@@ -6,6 +6,44 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### UUID generation — change note
+
+`gen_random_uuid()` and `uuidv4()` generate cryptographic version4 UUIDs.
+`uuidv7()` and `uuidv7(interval shift)` generate version7 UUIDs from current UNIX
+time with submillisecond precision and cryptographic random tails; all four
+signatures are volatile and return UUID, not TEXT. The interval overload is
+strict (`uuidv7(NULL)` returns typed NULL), accepts contextual interval strings
+and parameters, and permits the selected named `shift=>`/`shift:=` spelling.
+Known TEXT/integer arguments require an explicit interval conversion.
+
+One physical session shares an ascending v7 clock across both overloads,
+prepared executions, transaction rollback and native Reset/Restore. Unshifted
+and zero-shift calls on that session strictly increase; there is no ordering
+promise across sessions or different shifts. Prepare, metadata and Dump do not
+generate values. Months, days and elapsed microseconds are applied in that order,
+using Execute-time TimeZone (month-end clamping and DST are not fixed durations).
+Native accepts shifted UNIX microseconds0 through281474976710655000 inclusive,
+rejects infinite shifts and out-of-range timestamps with exact22008 diagnostics,
+and preserves ordinary timestamp-arithmetic overflow errors.
+
+The manual18.6 guard contract differs from the unchanged pinned18.0 oracle:
+18.0 unchecked infinite shifts succeed with valid version/variant bits but have
+no portable timestamp expectation because sentinel arithmetic overflows;
+finite outside-48-bit shifts encode wrapped timestamps. Shared reference tests
+assert these known release differences explicitly, not weakened parity.
+Closed selected UUID defaults generate per row; stored CHECK/views/DML and
+native symbolic Dump/Restore use the existing typed expression/control paths.
+Generated columns and expression indexes reject surviving volatile generators,
+but strict `uuidv7(NULL::interval)` reduces to typed UUID NULL before immutability
+validation and is admitted. Simplified constant-NULL CASE/COALESCE arguments obey
+the same rule without demanding clock or entropy. Stored definitions remain
+symbolic across Dump/Restore; genuine unshifted/non-NULL generation stays volatile.
+No UUID extraction functions, binary wire API or external provider is added.
+See [UUID generation](TYPES.md#uuid-generation).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
+
+
 ### Bit strings — change note
 
 Scalar `BIT`, `BIT(n)`, `BIT VARYING[(n)]` and `VARBIT[(n)]` support stored

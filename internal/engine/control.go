@@ -872,6 +872,7 @@ func restoreScalar(raw parser.Expr) error {
 		case "age", "isfinite":
 		case "justify_days", "justify_hours", "justify_interval":
 		case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
+		case "gen_random_uuid", "uuidv4", "uuidv7":
 		case "format":
 		case "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
 		case "like_escape":

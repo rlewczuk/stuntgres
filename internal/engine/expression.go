@@ -660,6 +660,20 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
+	case uuidGenerationExpression:
+		childChanged := false
+		if len(e.args) != 0 {
+			folded, changed, err := preflightCoercionsWithPolicy(c, e.args[0], decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.args = []BoundExpr{folded}
+				childChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || childChanged, err
 	case randomExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {

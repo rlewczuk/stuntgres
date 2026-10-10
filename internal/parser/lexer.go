@@ -845,6 +845,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
+	case "gen_random_uuid", "uuidv4", "uuidv7":
+		if token.code == IDENT {
+			token.code = SELECTED_FUNC
+		}
 	case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
@@ -884,7 +888,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || token.lexeme.text == "current_schemas") {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || token.lexeme.text == "current_schemas" || token.lexeme.text == "gen_random_uuid" || token.lexeme.text == "uuidv4" || token.lexeme.text == "uuidv7") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {

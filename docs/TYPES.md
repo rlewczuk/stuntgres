@@ -913,10 +913,83 @@ existing atomic native Dump/Reset/Restore controls, with retained UUID snapshots
 and metadata unchanged. Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestUUIDSmoke$'`;
 real reference coverage: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUID.*$'`.
 
-UUID typed literals, casts, arrays, generators, version/timestamp extraction
-functions and binary wire UUID APIs remain excluded. PostgreSQL disk storage,
-network protocol serving, and the external pg_dump process/custom archives are
+UUID typed literals, casts, arrays, version/timestamp extraction functions and
+binary wire UUID APIs remain outside this UUID storage/generation feature.
+PostgreSQL disk storage, network protocol serving, and the external pg_dump process/custom archives are
 non-engine boundaries, not successful no-op implementations.
+
+### UUID generation
+
+`gen_random_uuid()` and `uuidv4()` are zero-argument, cryptographic version4
+providers (122random bits). `uuidv7()` and `uuidv7(interval shift)` are separate
+overloads, not an interval default argument. Both return version7 UUIDs with a
+48-bit big-endian UNIX millisecond timestamp, a12-bit submillisecond field and
+62random tail bits. Every result sets the RFC variant10 bits. On macOS/Windows
+coarse-clock platforms the low2fraction bits additionally mix cryptographic
+randomness, following PostgreSQL's977ns minimum clock step rather than245ns.
+The selected functions are volatile; the interval overload is strict and returns
+UUID NULL without demanding clock/entropy when its child is NULL. Contextual
+quoted strings/parameters infer INTERVAL; known TEXT/integer has no implicit
+interval edge. Only the selected one-argument `shift=>`/`shift:=` name is admitted.
+Result metadata retains UUID identity and adapter ScanType even for empty/all-NULL
+cursors. Native declared columns retain their known declared nullability;
+arbitrary generated expressions do not acquire a UUID-specific nullability
+inference. If expression Nullable is unavailable, do not interpret its returned
+boolean as a NOT NULL promise. Any available proof must agree with the selected
+overload/argument semantics. Pinned pq does not expose Nullable proofs.
+
+
+The v7 ascending clock belongs to a physical session, shared by both overloads,
+not a table, prepared statement or transaction. Tie/backward wall-clock readings
+advance by the minimum step. Consecutive unshifted and zero-shift calls on that
+session are strictly UUID-ordered; differing shifts or different sessions have
+no such guarantee. Pin `sql.Conn` when observing a series. Rollback and native
+catalog Reset/Restore do not reset this clock; replacement sessions start fresh.
+UUID entropy is independent of `setseed` and is never serialized into Dump.
+
+Shift arithmetic captures current time at execution, preserves submicrosecond
+remainder, and uses the existing TIMESTAMPTZ+INTERVAL provider: months with
+month-end clamping, then local calendar days, then elapsed microseconds.
+Execute-time TimeZone governs offset resolution even on a held prepared call.
+Literal interval input meaning retains Prepare-time IntervalStyle; parameter
+input uses Execute-time IntervalStyle. Far-future UUID packing uses microseconds
+directly, not overflowing int64 UNIX nanoseconds.
+
+Native's PostgreSQL18.6 contract accepts UNIX microseconds
+`0 <= timestamp <= 281474976710655000` inclusive. This upper guard is exactly the
+start of the final48-bit millisecond, not another999microseconds beyond it.
+Infinite intervals fail22008 `interval out of range for UUID version 7`, Detail
+`UUID version 7 does not support infinite intervals.` Finite timestamp results
+outside the guard fail22008 `timestamp out of range for UUID version 7`, Detail
+`UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889.`
+Arithmetic overflow still reports22008 `timestamp out of range` without UUID
+Detail. Runtime guards do not invent Position/Context/object fields; malformed
+interval input retains ordinary22007 character Position or parameter Context.
+Valid infinite/out-of-range literals prepare successfully and fail on demand.
+
+The unchanged PostgreSQL18.0 pinned oracle predates these guards: its infinite
+shifts succeed with canonical UUID/version7/variant10, but unchecked signed
+sentinel overflow prevents a portable timestamp golden. Finite outside-48-bit
+results wrap modulo2^48. Dual-mode scenarios independently assert native guards
+and these observed/source-grounded18.0 differences.
+
+Closed selected UUID defaults (including closed stable/immutable compositions)
+generate fresh values per inserted row, never at CREATE/Prepare/Dump. Unrelated
+volatile defaults remain unsupported. Normal views/CHECK/RETURNING/aggregates
+and joins visit the interval child and retain typed UUID dependencies. Generated
+columns and expression indexes reject surviving volatile generation. A strict
+constant-NULL interval call, including a child simplified from CASE/COALESCE,
+instead has an immutable typed UUID NULL physical tree and is permitted there.
+Planning does not invoke clock/entropy or erase the analyzed symbolic definition.
+Non-NULL `uuidv7()`/`uuidv7(interval '0')` remain volatile and rejected.
+Native Dump saves committed UUID literals and qualified symbolic provider calls;
+Restore preserves saved values and generates fresh values on subsequent demand.
+Within a selected UUID shift's stored expression subtree, captured concrete
+interval NULLs retain their type casts, including all-NULL COALESCE children,
+so replay preserves the formal interval overload rather than inferring TEXT.
+Unrelated scalar and row-data NULL serialization remain unchanged.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
 
 ## Exact NUMERIC
 

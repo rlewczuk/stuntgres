@@ -10,6 +10,19 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: PostgreSQL UUID generation supports `gen_random_uuid()`, `uuidv4()`,
+`uuidv7()` and `uuidv7(interval shift)`, returning typed UUID values. Version4
+uses cryptographic random bits; version7 combines current UNIX milliseconds,
+submillisecond time and cryptographic randomness. Successive unshifted/zero-shift
+v7 calls on one physical session are strictly ordered, including across rollback
+and native catalog replacement. Closed UUID defaults execute per inserted row;
+views, CHECK, prepared calls and native Dump/Restore retain symbolic providers.
+Finite shifts reuse session-zone calendar arithmetic and must fit the exact
+48-bit timestamp guard; native follows PostgreSQL18.6 guards, while the pinned
+18.0 oracle lacks those guards. See [UUID generation](docs/TYPES.md#uuid-generation).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
+
 Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
 `unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
 providers. `ascii` returns the first UTF8 codepoint (empty text returns0);

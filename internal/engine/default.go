@@ -35,7 +35,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	if err != nil {
 		return nil, err
 	}
-	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) {
+	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) {
 		return nil, expressionError("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
@@ -86,8 +86,8 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 }
 
 // One recursive serializer validates persisted scalar trees without Eval.
-// DEFAULT admits closed Immutable/Stable trees and fixed nextval leaves with
-// coercion wrappers. CHECK also admits its owner row and volatile providers.
+// DEFAULT admits closed Immutable/Stable trees, selected UUID generation trees,
+// and fixed nextval leaves with coercion wrappers. CHECK also admits its owner row.
 type scalarRenderer struct {
 	owner              *relationDescriptor
 	dependencies       *[]ObjectRef
@@ -99,6 +99,9 @@ type scalarRenderer struct {
 	// Final CHECK replay may compare a retained REAL literal with a widened
 	// column. Preserve its exact promoted value, not shortest float32 input.
 	checkReplayPrecision bool
+	// The selected UUID shift's formal interval type must survive all-NULL
+	// compositions. This context belongs only to its rendered child subtree.
+	uuidShiftIntervalNulls bool
 }
 
 func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
@@ -119,7 +122,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable && !closedSequenceDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	typ, ok := view.LookupType(u.Type.ID())
@@ -161,6 +164,15 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		r.record(n.origin)
 		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
+	case uuidGenerationExpression:
+		if u.Type.ID() != sqltype.UUID || (n.name != "uuidv7" && n.name != "uuidv4" && n.name != "gen_random_uuid") || len(n.args) > 1 || len(n.args) != 0 && n.name != "uuidv7" {
+			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")
+		}
+		if len(n.args) != 0 && n.args[0].ResultUsage().Type.ID() != sqltype.Interval {
+			return "", fmt.Errorf("stuntgres: invalid stored UUID shift")
+		}
+		r.uuidShiftIntervalNulls = len(n.args) != 0
+		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
 	case randomExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -516,6 +528,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			if !math.IsNaN(value) && !math.IsInf(value, 0) {
 				return "'" + strconv.FormatFloat(value, 'g', -1, 64) + "'", nil
 			}
+		}
+		if r.uuidShiftIntervalNulls && u.Type.ID() == sqltype.Interval && n.value.IsNull() {
+			declaration, err := u.Declaration()
+			if err != nil {
+				return "", err
+			}
+			return "CAST(NULL AS " + declaration + ")", nil
 		}
 		return catalogLiteralSQL(ctx, view, n)
 	case timeZoneExpression:
@@ -990,6 +1009,21 @@ func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descrip
 		n.args = append([]BoundExpr(nil), n.args...)
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
+		}
+		n.expressionInfo = info
+		rebound = n
+	case uuidGenerationExpression:
+		if len(n.args) != 0 {
+			next := child(n.args[0])
+			if changed {
+				n.args = []BoundExpr{next}
+			}
+			nextType := retainedType(n.timestamp)
+			changed = changed || nextType != n.timestamp
+			n.timestamp = nextType
+			if err == nil {
+				n.addition, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, n.timestamp, n.args[0].ResultUsage().Type, n.timestamp)
+			}
 		}
 		n.expressionInfo = info
 		rebound = n

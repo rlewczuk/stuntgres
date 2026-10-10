@@ -518,6 +518,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case randomExpression:
 		children = e.args
+	case uuidGenerationExpression:
+		children = e.args
 	case sequenceCallExpression:
 		children = e.args
 	case indexPropertyExpression:

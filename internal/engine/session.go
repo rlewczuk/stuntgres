@@ -95,6 +95,7 @@ type Session struct {
 	temporaryNamespace ObjectAddress
 	sequencePath       sequencePathCache
 	random             randomState
+	uuid               uuidClock
 	databaseName       string
 }
 

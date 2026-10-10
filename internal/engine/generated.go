@@ -125,6 +125,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.elements)
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
+	case uuidGenerationExpression:
+		return false
 	case collationExpression:
 		return one(n.child)
 	case coercionExpression:
@@ -287,6 +289,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case nullCountExpression:
 		return args(n.args)
 	case formatExpression:
+		return args(n.args)
+	case uuidGenerationExpression:
 		return args(n.args)
 	case timeZoneExpression:
 		return both(n.value, n.zone)

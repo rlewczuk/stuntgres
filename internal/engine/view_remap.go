@@ -193,6 +193,9 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 	case randomExpression:
 		n.args = args(n.args)
 		next = n
+	case uuidGenerationExpression:
+		n.args = args(n.args)
+		next = n
 	case sequenceCallExpression:
 		n.ref = ref(n.ref)
 		n.args = args(n.args)
