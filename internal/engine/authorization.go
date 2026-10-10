@@ -650,7 +650,8 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
-	if _, query := stmt.(*parser.Select); query {
+	switch stmt.(type) {
+	case *parser.Select, *parser.CreateQueryTable:
 		return v.checkQuerySources(b.querySources)
 	}
 	if b.relation == nil {

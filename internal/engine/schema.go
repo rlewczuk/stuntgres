@@ -82,21 +82,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		}
 	}
-	oid, err := e.allocateOIDLocked()
+	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, nil)
 	if err != nil {
 		return err
-	}
-	rev, err := e.revisionLocked()
-	if err != nil {
-		return err
-	}
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: rev, owner: owner, columns: b.createColumns, index: make(map[string]int, len(b.createColumns)), attributes: make([]int32, len(b.createColumns))}
-	d.attributeHighWater = int32(len(d.attributes))
-	for i, c := range d.columns {
-		d.index[c.Name] = i
-		d.attributes[i] = int32(i + 1)
-		d.columns[i].OriginTable = uint32(oid)
-		d.columns[i].OriginAttribute = int16(i + 1)
 	}
 	d.notNullConstraints = b.createNotNull
 	if err := nameCreateNotNull(d, auth.catalog); err != nil {
@@ -157,6 +145,33 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		}
 	}
 	return e.stageCreateUniques(stage, d, s)
+}
+
+// The table identity owner is shared by declared and query-derived schemas.
+// The caller transfers a private column slice; source definitions are not mutated.
+func (e *Engine) newTableDescriptorLocked(ns ObjectAddress, name string, owner PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*relationDescriptor, error) {
+	oid, err := e.allocateOIDLocked()
+	if err != nil {
+		return nil, err
+	}
+	revision, err := e.revisionLocked()
+	if err != nil {
+		return nil, err
+	}
+	if index == nil {
+		index = make(map[string]int, len(columns))
+		for i, column := range columns {
+			index[column.Name] = i
+		}
+	}
+	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: revision, owner: owner, columns: columns, index: index, attributes: make([]int32, len(columns))}
+	d.attributeHighWater = int32(len(columns))
+	for i := range columns {
+		d.attributes[i] = int32(i + 1)
+		d.columns[i].OriginTable = uint32(oid)
+		d.columns[i].OriginAttribute = int16(i + 1)
+	}
+	return d, nil
 }
 func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {

@@ -107,6 +107,43 @@ notifications and exported snapshots retain their preexisting exclusions.
 Ordinary driver Rows and prepared statements do not prohibit preparation.
 See [transaction lifecycle and diagnostics](TRANSACTIONS.md#prepared-transactions).
 
+### Query-created tables — change note
+
+Ordinary `CREATE TABLE [IF NOT EXISTS] name [(columns)] AS query
+[WITH [NO] DATA]` and top-level `SELECT ... INTO [TABLE] name` create independent
+tables through the existing SELECT/query-VALUES producer. Populated commands
+return stored-row counts with no public columns; NO DATA, empty producers and
+existing-target skips return0. Source analysis/parameter import stays active for
+NO DATA and skips, but planning and runtime evaluation do not run.
+See [storage shape/publication](TABLES.md#query-derived-tables--change-note)
+and [consumer phases](QUERIES.md#query-created-table-consumers).
+
+Native writable explicit transactions reject these utilities with0A000
+`statement is unsupported in an explicit transaction` before source acquisition,
+including semantic Prepare. Execute read-only25006 rejection precedes initial
+snapshot acquisition and source lookup/ACLs/locks, with command tags CREATE TABLE AS
+and SELECT INTO. Native explicit read-only Prepare retains its ordinary0A000
+utility exclusion, including the sticky error from Conn-prepared→Tx.StmtContext
+repreparation. These rejected utilities never enter a deferrable safe-snapshot
+wait. PostgreSQL can instead encounter source-analysis errors or, with an unresolved
+serializable writer,57014 `canceling statement due to statement timeout` before its
+utility gate, including Prepare and the held route. Owner recovery requires the
+ordinary rollback after an admitted failure. Normal SELECT and admitted standalone
+query creation retain their existing snapshot acquisition.
+
+Temporary/TEMPORARY/unlogged creation, temporary namespaces, access methods,
+storage parameters, tablespaces, ON COMMIT, AS EXECUTE and AS TABLE remain explicit
+capability boundaries. Deferred option rejection still consumes the complete
+input before effects. Native pg_temp namespace rejection retains destination
+character Position; other CTAS destination schema errors are unpositioned.
+This adds no array constructors/subscripts, new set/query providers, SQL GRANT
+surface, native pg_type/pg_attribute source or broader Restore whitelist.
+
+Full shared definitions: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryTableCreate' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryTableCreate' VERBOSE=0`.
+Feature smoke uses the same commands with `RUN='^TestReferenceQueryTableCreateFeatureSmoke'`.
+
+
 ### SQL current date and time — change note
 
 `CURRENT_DATE` returns DATE; `CURRENT_TIME[(p)]` returns TIMETZ;

@@ -55,6 +55,8 @@ package parser
  settingName settingName
  tables []*CreateTable
  table *CreateTable
+ queryTable *CreateQueryTable
+ into *ObjectName
  modes []TransactionMode
  mode TransactionMode
  isolation TransactionIsolation
@@ -198,6 +200,12 @@ package parser
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
+%type <queryTable> query_table_target
+%type <stmt> create_query_table
+%type <selectStmt> query_table_body
+%type <desc> query_table_data
+%type <tok> data_word
+%type <into> into_clause
 %type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
 %type <stmt> create_domain drop_domain create_enum
@@ -563,6 +571,24 @@ local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
 create_table: CREATE TABLE relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true} } ;
+query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
+ | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
+ | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
+ | CREATE TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$6,Columns:$8,Pos:$1.pos,IfNotExists:true}} ;
+create_query_table: query_table_target query_table_options AS query_table_body query_table_data {$1.Query=$4;$1.NoData=$5;$$=$1} ;
+query_table_body: query_select {deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1}
+ | TABLE relation_name {sqllex.(*lexer).deferUnsupported($1,"TABLE queries are unsupported");$$=nil}
+ | generic_word name {if $1.text!="execute" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil}
+ | generic_word name '(' call_args ')' {if $1.text!="execute" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil} ;
+query_table_data: /* empty */ {$$=false} | WITH data_word {$$=false} | WITH NO data_word {$$=true} ;
+data_word: name {if $1.text!="data" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+query_table_options: /* empty */
+ | query_table_options USING name {sqllex.(*lexer).deferUnsupported($2,"table access methods are unsupported")}
+ | query_table_options WITH '(' view_option_list ')' {sqllex.(*lexer).deferUnsupported($2,"table storage parameters are unsupported")}
+ | query_table_options TABLESPACE name {sqllex.(*lexer).deferUnsupported($2,"table tablespaces are unsupported")}
+ | query_table_options ON COMMIT KW_U KW_U {if $4.text!="preserve" || $5.text!="rows" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
+ | query_table_options ON COMMIT DELETE KW_U {if $5.text!="rows" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
+ | query_table_options ON COMMIT DROP {sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")} ;
 create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} }
  | CREATE OR replace_word VIEW relation_name view_columns view_options AS select { query,ok:=$9.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$5,Columns:$6,Options:$7,Query:query,Replace:true,Pos:$1.pos} } ;
 replace_word: name { if $1.text!="replace" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
@@ -585,6 +611,7 @@ view_option_list: view_option { $$=[]ViewOption{$1} } | view_option_list ',' vie
 view_option: name { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"true"} } | name '=' view_option_value { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text,HasValue:true} } ;
 view_option_value: name | STRING | NUMBER | TRUE | FALSE | ON ;
 create: create_table { $$=$1 }
+ | create_query_table { $$=$1 }
  | create_view { $$=$1 }
  | create_index { $$=$1 }
  | create_domain { $$=$1 }
@@ -1074,8 +1101,15 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
 select_projection: projection { $$=$1 }
  | DISTINCT projection { $2.Distinct=&DistinctClause{Pos:$1.pos};$$=$2 }
  | DISTINCT ON '(' group_keys ')' projection { $6.Distinct=&DistinctClause{On:$4,Pos:$1.pos};$$=$6 } ;
-select_core: SELECT select_projection optional_from where group having { $2.From=$3;$2.Where=$4;$2.GroupBy=$5;$2.Having=$6;$2.Pos=$1.pos;$$=$2 }
- | SELECT optional_from where group having %prec NAME_LIST { $$=&Select{From:$2,Where:$3,GroupBy:$4,Having:$5,Pos:$1.pos} } ;
+into_clause: /* empty */ %prec NAME_LIST {$$=nil}
+ | INTO relation_name {n:=$2;$$=&n}
+ | INTO TABLE relation_name {n:=$3;$$=&n}
+ | INTO TEMP relation_name {sqllex.(*lexer).deferUnsupported($2,"temporary tables are unsupported");n:=$3;$$=&n}
+ | INTO TEMP TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"temporary tables are unsupported");n:=$4;$$=&n}
+ | INTO UNLOGGED relation_name {sqllex.(*lexer).deferUnsupported($2,"unlogged tables are unsupported");n:=$3;$$=&n}
+ | INTO UNLOGGED TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"unlogged tables are unsupported");n:=$4;$$=&n} ;
+select_core: SELECT select_projection into_clause optional_from where group having { $2.Into=$3;$2.From=$4;$2.Where=$5;$2.GroupBy=$6;$2.Having=$7;$2.Pos=$1.pos;$$=$2 }
+ | SELECT into_clause optional_from where group having %prec NAME_LIST { $$=&Select{Into:$2,From:$3,Where:$4,GroupBy:$5,Having:$6,Pos:$1.pos} } ;
 /* Absorb consecutive parentheses before selecting the scalar, FROM or set-arm
  * category; these category reductions stay below ')' shift precedence. */
 select_with_parens: '(' query_select ')' { $$=parenthesizedQuery{Query:$2,Pos:$1.pos} }
@@ -1091,7 +1125,6 @@ query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 } ;
 select_query: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 }
- | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }

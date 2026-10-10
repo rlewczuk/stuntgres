@@ -182,7 +182,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 }
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	switch stmt.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.SettingCall:
+	case *parser.Select, *parser.CreateQueryTable, *parser.Insert, *parser.Update, *parser.Delete, *parser.SettingCall:
 	default:
 		return nil
 	}
@@ -293,6 +293,11 @@ func modifyingTag(stmt parser.Statement) string {
 		return "UPDATE"
 	case *parser.Delete:
 		return "DELETE"
+	case *parser.CreateQueryTable:
+		if stmt.(*parser.CreateQueryTable).Form == parser.SelectInto {
+			return "SELECT INTO"
+		}
+		return "CREATE TABLE AS"
 	case *parser.CreateTable:
 		return "CREATE TABLE"
 	case *parser.DropTable:
@@ -352,7 +357,7 @@ func explicitUtility(stmt parser.Statement) bool {
 	switch stmt.(type) {
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
-	case *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
+	case *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateQueryTable:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

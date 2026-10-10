@@ -188,6 +188,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		return query(s)
 	case *CreateView:
 		return query(s.Query)
+	case *CreateQueryTable:
+		return query(s.Query)
 	case *Insert:
 		if s.Source != nil {
 			if s.Source.Select != nil {

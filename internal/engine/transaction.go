@@ -482,18 +482,9 @@ func (w *WriteStage) applyValidated(ref ObjectRef, rows [][]sqltype.Value) error
 	if len(rows) == 0 {
 		return nil
 	}
-	n := uint64(len(rows))
-	if n > ^uint64(0)-e.nextRow {
-		return errors.New("stuntgres: row identity exhausted")
-	}
-	if n > ^uint64(0)-e.nextVersion {
-		return errors.New("stuntgres: version identity exhausted")
-	}
-	versions := make([]rowVersion, len(rows))
-	for i, row := range rows {
-		e.nextRow++
-		e.nextVersion++
-		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
+	versions, err := e.allocateRowVersionsLocked(rows)
+	if err != nil {
+		return err
 	}
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		for _, row := range versions {
@@ -529,11 +520,17 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if _, ok := stmt.(*parser.TransactionCharacteristics); ok {
 		return StatementDescription{}, nil
 	}
+	_, queryCreation := stmt.(*parser.CreateQueryTable)
+	if queryCreation {
+		if err := s.executionEligibility(stmt); err != nil {
+			return StatementDescription{}, err
+		}
+	}
 	if err := s.snapshotPhase(stmt); err != nil {
 		return StatementDescription{}, err
 	}
 	indexBuild := earlyIndexUtility(stmt)
-	if s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
+	if !queryCreation && s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	if err := s.acquireRelation(stmt, false); err != nil {
@@ -556,6 +553,16 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	if characteristics, ok := stmt.(*parser.TransactionCharacteristics); ok {
 		return s.executeCharacteristics(characteristics, count)
 	}
+	_, queryCreation := stmt.(*parser.CreateQueryTable)
+	if queryCreation {
+		// Rejected creation utilities must not enter a deferrable safe-snapshot wait.
+		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		if err := s.executionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+	}
 	if err := s.snapshotPhase(stmt); err != nil {
 		return Result{}, err
 	}
@@ -564,11 +571,14 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	}
 	// Utility read-only restrictions precede object resolution, ACL checks and
 	// locks. DML keeps its separate analysis-before-read-only execution gate.
-	if err := s.readOnlyUtilityEligibility(stmt); err != nil {
-		return Result{}, err
+	if !queryCreation {
+		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
+			return Result{}, err
+		}
 	}
 	indexBuild := earlyIndexUtility(stmt)
-	if indexBuild {
+	earlyEligibility := indexBuild || queryCreation
+	if earlyEligibility && !queryCreation {
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
@@ -579,12 +589,31 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	if _, ok := stmt.(*parser.LockTable); ok {
 		return Result{}, nil
 	}
-	if !indexBuild {
+	if !earlyEligibility {
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
 	}
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
+}
+
+// Both ordinary writes and initial catalog data reserve globally nonreused
+// identities. Engine.mu protects both checked counters; failed work may leave gaps.
+func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value) ([]rowVersion, error) {
+	n := uint64(len(rows))
+	if n > ^uint64(0)-e.nextRow {
+		return nil, errors.New("stuntgres: row identity exhausted")
+	}
+	if n > ^uint64(0)-e.nextVersion {
+		return nil, errors.New("stuntgres: version identity exhausted")
+	}
+	versions := make([]rowVersion, len(rows))
+	for i, row := range rows {
+		e.nextRow++
+		e.nextVersion++
+		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
+	}
+	return versions, nil
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.

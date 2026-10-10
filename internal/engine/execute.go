@@ -301,6 +301,22 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
+	var creationStage *CatalogStage
+	var creationDescriptor *relationDescriptor
+	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
+		var skipped bool
+		creationStage, creationDescriptor, skipped, err = e.prepareQueryTableLocked(op, auth, creation, b)
+		if err != nil || skipped {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		defer e.DiscardCatalogStage(creationStage)
+		if creation.NoData {
+			e.mu.Unlock()
+			err = e.publishQueryTable(scope, creationStage)
+			return Result{}, err
+		}
+	}
 	expressions := b.expressions
 	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, Input: scope.input, Output: scope.output}
@@ -654,6 +670,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, viewErr
 		}
 		return scope.executeDelete(b, view, inputs, canonical)
+	case *parser.CreateQueryTable:
+		return e.executeQueryTableLocked(scope, s, b, queryRoot, canonical, creationStage, creationDescriptor)
 	case *parser.Select:
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.From == nil && s.Values == nil)
 		e.mu.Unlock()

@@ -419,6 +419,11 @@ type CatalogStage struct {
 	dependencyPath       []ObjectAddress
 	domainTargets        []ObjectAddress
 	domainBases          []Descriptor
+	// New query-derived tables carry private initial storage, never replacements
+	// of live storage. Publication installs the definition and data together.
+	initialTables map[ObjectAddress]*relationStorage
+	initialTx     TxRef
+	querySources  []Descriptor
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
@@ -631,6 +636,9 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := s.validateInitialTables(); err != nil {
+		return nil, err
+	}
 	e.mu.Lock()
 	if err := s.validateIndexMaintenance(e.state); err != nil {
 		e.mu.Unlock()
@@ -725,6 +733,12 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		for _, base := range s.domainBases {
 			if current.descriptors[base.Address()] != base {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+		}
+		for _, source := range s.querySources {
+			if current.descriptors[source.Address()] != source {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -831,7 +845,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		for a, d := range s.descriptors {
 			next.descriptors[a] = d
 			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == tableRelation && storage[a] == nil {
-				storage[a] = &relationStorage{}
+				if initial := s.initialTables[a]; initial != nil {
+					storage[a] = initial
+				} else {
+					storage[a] = &relationStorage{}
+				}
 			}
 		}
 		for a, shape := range s.rowShapes {
@@ -981,6 +999,12 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				err = next.advanceNamespaceGeneration()
 			}
 		}
+		if err == nil && len(s.initialTables) != 0 && e.commitSeq == CommitSeq(math.MaxUint64) {
+			err = fmt.Errorf("stuntgres: commit sequence exhausted")
+		}
+		if err == nil && s.initialTx != (TxRef{}) {
+			err = e.serializablePrecommitLocked(s.initialTx)
+		}
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
@@ -992,6 +1016,19 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 						nextRevision++
 					}
 				}
+			}
+			if len(s.initialTables) != 0 {
+				frontier := e.commitSeq + 1
+				for _, initial := range s.initialTables {
+					for i := range initial.versions {
+						initial.versions[i].born = frontier
+					}
+					initial.generation = 1
+				}
+				e.commitSeq = frontier
+			}
+			if s.initialTx != (TxRef{}) {
+				e.serializableCommittedLocked(s.initialTx, e.commitSeq)
 			}
 			e.state = next
 			e.storage = storage

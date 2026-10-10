@@ -1101,6 +1101,54 @@ func (r *finalRows) Close() error {
 	return nil
 }
 
+// A command sink takes already-finalized values, never evaluating expressions
+// again. Owned flat values transfer directly; a borrowed projection is copied
+// once to sever its source lifetime and slot mapping before catalog publication.
+func (r *finalRows) takeTableRows(ctx context.Context) (rows [][]sqltype.Value, err error) {
+	if r == nil || r.self != r || r.closed || r.position != 0 {
+		return nil, fmt.Errorf("stuntgres: invalid query table result owner")
+	}
+	defer func() {
+		closeErr := r.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if r.anonymous != nil {
+		rows = r.anonymous
+		r.anonymous = nil
+		return rows, nil
+	}
+	rows = make([][]sqltype.Value, r.count)
+	width := len(r.schema)
+	values := r.values
+	if r.source != nil {
+		values = make([]sqltype.Value, r.count*width)
+		for i := range rows {
+			row := values[i*width : (i+1)*width]
+			ok, nextErr := r.Next(ctx, row)
+			if nextErr != nil {
+				return nil, nextErr
+			}
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: truncated query table result")
+			}
+		}
+	} else {
+		r.values = nil
+	}
+	for i := range rows {
+		rows[i] = values[i*width : (i+1)*width]
+	}
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // SELECT and INSERT settle residual qualified marks at the eager publication
 // frontier. A nested scalar bridge is not a publication frontier.
 func openQueryProjectStage(ctx context.Context, state *queryState, project *projectNode) (indexedStage, error) {

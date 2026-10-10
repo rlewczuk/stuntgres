@@ -90,6 +90,23 @@ See [set operations](docs/QUERIES.md#set-operations--change-note-changelog).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0`.
 
+Change note: ordinary `CREATE TABLE [IF NOT EXISTS] name [(columns)] AS query
+[WITH [NO] DATA]` and top-level `SELECT ... INTO [TABLE] name` create independent
+typed tables using the current query pipeline. Populated commands execute the
+producer once and return its stored-row count, never its result columns.
+`WITH NO DATA` analyzes the query and imports parameters without planning or
+running it; an existing `IF NOT EXISTS` target likewise skips runtime work.
+Schema and initial rows publish atomically. Native explicit-transaction DDL
+exclusion and early read-only admission precede safe-snapshot acquisition; temporary/storage options and
+new query providers are not added. Native Dump/Restore reconstructs ordinary
+definitions/data, including already supported catalog output types, without
+exposing additional raw declaration types.
+See [query-created tables](docs/TABLES.md#query-derived-tables--change-note)
+and [query consumer phases](docs/QUERIES.md#query-created-table-consumers).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryTableCreateFeatureSmoke' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryTableCreateFeatureSmoke' VERBOSE=0`.
+
+
 Change note: PostgreSQL 18 index capability inquiries support
 `pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
 `pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL

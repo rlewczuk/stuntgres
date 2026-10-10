@@ -29,6 +29,22 @@ In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.
 
+Query-derived permanent tables (`CREATE TABLE AS` and `SELECT INTO`) are native
+standalone utilities, not transactional DDL exceptions. Execute rejects read-only
+work with `25006` and writable explicit blocks with `0A000` before safe-snapshot
+acquisition, source lookup, ACL checks or relation waits. Standalone Prepare analyzes the source normally;
+native explicit Prepare instead retains the `0A000` utility exclusion. A
+Conn-prepared statement passed to `Tx.StmtContext` is reprepared inside the block;
+its sticky Prepare error surfaces from the held Execute call, before Execute's
+read-only gate. These native exclusions also precede the initial safe-snapshot
+wait in `SERIALIZABLE READ ONLY DEFERRABLE`; rejected utilities acquire no snapshot
+or producer evidence. PostgreSQL supports the commands transactionally but requires
+an initial safe snapshot during their analysis: with an unresolved serializable
+writer, a statement timer produces `57014` for direct Execute, explicit Prepare,
+and the original Conn-prepared → `Tx.StmtContext` held route. The reference tests
+assert that intentional phase difference independently. Normal SELECT and admitted
+standalone creation retain their existing snapshot acquisition.
+
 Sequence nextval/setval and session currval/lastval are immediate, non-MVCC state:
 REPEATABLE READ retains its table snapshot, not a frozen generator. Ordinary
 allocation and setval survive rollback and later row-expression errors.
@@ -167,6 +183,14 @@ committed participants, and cleared when the cohort drains. Whole-relation
 predicates can reject same-relation workloads PostgreSQL's finer predicates would
 allow; continuous overlap can retain graph memory for longer. Unrelated relations
 or an unrelated commit-frontier advance alone do not create conflicts.
+
+For standalone query-derived tables, an executed producer keeps its source-read
+graph through the atomic definition/data installation fence, even if a runtime
+predicate filters out every row. A doomed producer cannot install an empty target;
+a healthy empty producer commits its graph at the current row frontier. A nonempty
+initial batch advances that frontier once. Successful statement cleanup does not
+commit the graph a second time. `WITH NO DATA` and existing-target skips omit the
+producer entirely and do not attach executed source-read evidence.
 
 An unsafe write skew cannot publish both participants. Failures use SQLSTATE
 `40001`, Message `could not serialize access due to read/write dependencies among

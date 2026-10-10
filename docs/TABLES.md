@@ -2,6 +2,58 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Query-derived tables — change note
+
+```sql
+CREATE TABLE copy (key) AS SELECT i, label FROM source;
+CREATE TABLE empty_copy AS SELECT i, label FROM source WITH NO DATA;
+SELECT i, label INTO copied_again FROM source;
+```
+
+These create ordinary independent tables, not views or stored query definitions.
+Default population and `WITH DATA` store the complete query result, preserving
+duplicate multiplicities and zero-column occurrences. A supplied column-name list
+renames an output prefix; its remaining labels come from the analyzed query.
+Too many names fail42601, duplicate normalized/clipped labels fail42701, and
+reserved system labels fail42701. Pseudo-types and indeterminate collations cannot
+be stored. Diagnostics belong to destination execution, not returned row metadata.
+
+Column Usage retains resolved type identity, typmod and collation, including
+existing domains, enums, arrays and concrete catalog output types. New attributes
+and origin metadata belong to the destination; stored columns are nullable.
+Source table NOT NULL/default/generated/identity/CHECK/UNIQUE constraints, indexes,
+comments and ACLs are not copied. A domain retains its own existing type semantics;
+this feature does not add native domain constraints or defaults.
+
+The effective creator owns the destination. Initial population requires schema
+CREATE and the query's ordinary executor source privileges, not destination
+INSERT. Successful creation publishes the definition and all initial rows at one
+catalog/storage frontier; query, cleanup, cancellation or publication failure
+leaves no partial destination. Sequence effects retain ordinary nonrollback
+semantics. Dropping a source does not remove or change the copied table.
+
+SELECT and ordinary writes/drop operate on the resulting table. Native Dump emits
+ordinary definitions and literal rows (DEFAULT VALUES for zero-column rows),
+and Restore remains restricted to its existing replay whitelist, not CTAS/INTO.
+Isolated Restore column reconstruction can recover builtin internal CHAR,
+REGCLASS/its existing arrays and scalar XID already stored by a query. XID retains
+its canonical unsigned scalar codec and nullable shape, without admitting raw XID
+declarations, casts, domains or arrays. Other ordinary raw declaration/cast/domain
+admission is not widened. Named REGCLASS references use
+the existing codec/replacement mapping, not foreign numeric relation identities.
+Generated nonnull REGCLASS row literals use a name-only `CAST('name' AS REGCLASS)`
+and the existing binder resolves the restored identity. Restore admits only that
+literal child, not parameter, column, function, query or effectful reference
+expressions; stored NULL follows the ordinary NULL literal path.
+
+PG_NODE_TREE remains a nonphysical structural catalog carrier, not ordinary
+stored SQL data. Native query-table descriptor admission rejects it with `0A000`
+`query table output type pg_node_tree is unsupported`, including DATA, NO DATA and
+existing domain/array physical wrappers. An existing-target IF NOT EXISTS skip
+still precedes this descriptor check. Its SELECT/catalog/deparser capabilities
+remain unchanged; PostgreSQL can materialize its physical node serialization.
+
+
 ## Decompiled definitions — change note
 
 CHECK/default/NOT NULL definitions have generated catalog identities distinct from

@@ -1,0 +1,252 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
+	t.Helper()
+	e.mu.Lock()
+	oid, err := e.allocateOIDLocked()
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	typ, err := sqltype.Domain(sqltype.ID(oid), "query_domain", "query_domain", testUsage(e, sqltype.Int4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := &typeDescriptor{typ: typ, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: e.roles.names["postgres"]}
+	stage := e.BeginCatalogStage(e.CatalogRead())
+	if err = stage.Create(descriptor); err != nil {
+		t.Fatal(err)
+	}
+	queryCreatePublish(t, e, stage)
+	return descriptor
+}
+
+func TestQueryTableCreateDescriptor(t *testing.T) {
+	e := New()
+	domain := queryCreateDomain(t, e)
+	op, done, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	sized := testUsage(e, sqltype.VarChar)
+	sized.Typmod = 8
+	sized.Collation.ID = 950
+	schema := querySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.typ.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
+	calls := 0
+	expressions := make([]BoundExpr, len(schema))
+	for i, column := range schema {
+		usage := column.Usage
+		expressions[i] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Null(usage.Type), nil })
+	}
+	query := &BoundQuery{Root: &projectNode{querySchema: schema, child: &singletonNode{}, expressions: expressions}}
+	syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: []parser.Identifier{{Text: "renamed"}}, Query: &parser.Select{}, NoData: true}
+	e.mu.Lock()
+	auth, err := e.authorizationLocked(op)
+	var stage *CatalogStage
+	var d *relationDescriptor
+	var skipped bool
+	if err == nil {
+		stage, d, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: query})
+	}
+	e.mu.Unlock()
+	if err != nil || skipped {
+		t.Fatal(err, skipped)
+	}
+	defer e.DiscardCatalogStage(stage)
+	if calls != 0 || len(d.columns) != 2 || d.columns[0].Name != "renamed" || d.columns[1].Name != "d" || d.columns[0].Usage != sized || d.columns[1].Usage != domain.typ.Usage() {
+		t.Fatal(calls, d.columns)
+	}
+	if &d.columns[0] == &schema[0] || schema[0].Name != "old" || schema[0].Nullable || schema[0].OriginTable != 19000 {
+		t.Fatal("source metadata mutated", schema)
+	}
+	for i, column := range d.columns {
+		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(d.address.ObjectID) || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[column.Name] != i {
+			t.Fatal(column, d.attributes, d.index)
+		}
+	}
+	if len(d.notNullConstraints)+len(d.checkConstraints)+len(d.uniqueConstraints)+len(d.defaults)+len(d.generations)+len(d.identities)+len(d.columnACL) != 0 || !reflect.DeepEqual(d.acl, ACLValue{}) || d.owner != auth.state.CurrentUser {
+		t.Fatal("source table decorations inherited", d)
+	}
+	if len(stage.domainBases) != 1 || stage.domainBases[0] != domain {
+		t.Fatal("logical domain generation lost", stage.domainBases)
+	}
+	queryCreatePublish(t, e, stage)
+	if calls != 0 || len(e.storage[d.address].versions) != 0 {
+		t.Fatal("descriptor-only phase demanded rows")
+	}
+	// The actual dependency closure records the destination's stable attribute.
+	drop := e.BeginCatalogStage(e.CatalogRead())
+	drop.domainTargets = []ObjectAddress{domain.Address()}
+	edges, err := domainDependencyClosure(context.Background(), drop)
+	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].relation != d || edges[0].column != "d" || edges[0].address.SubID != 2 {
+		t.Fatal("stored domain dependency lost", edges, err)
+	}
+}
+
+func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		name, code, message string
+		labels              []parser.Identifier
+		conflict            bool
+	}{
+		{"duplicate", "42701", `column "x" specified more than once`, []parser.Identifier{{Text: "x"}, {Text: "x"}}, false},
+		{"system", "42701", `column name "ctid" conflicts with a system column name`, []parser.Identifier{{Text: "ctid"}}, false},
+		{"arity", "42601", "too many column names were specified", []parser.Identifier{{Text: "a"}, {Text: "b"}, {Text: "c"}}, false},
+		{"collation", "42P22", `no collation was derived for column "x" with collatable type text`, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+			op, done, err := testOperation(e, context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer done()
+			usage := testUsage(e, sqltype.Text)
+			info := expressionInfo{usage: usage, collationConflict: tc.conflict}
+			project := &projectNode{querySchema: querySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, expressions: []BoundExpr{literalExpression{expressionInfo: info, value: sqltype.Null(usage.Type)}, literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.Null(usage.Type)}}}
+			syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: tc.labels, Query: &parser.Select{}}
+			registry := queryCreateTypes(e)
+			e.mu.Lock()
+			auth, authErr := e.authorizationLocked(op)
+			var stage *CatalogStage
+			if authErr == nil {
+				stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
+			} else {
+				err = authErr
+			}
+			e.mu.Unlock()
+			var diagnostic *sqlstate.Error
+			if stage != nil || !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Position != "" {
+				t.Fatal(stage, err)
+			}
+			wantHint := ""
+			if tc.conflict {
+				wantHint = "Use the COLLATE clause to set the collation explicitly."
+			}
+			if diagnostic.Hint != wantHint {
+				t.Fatal(diagnostic.Hint)
+			}
+			queryCreateAssertTypes(t, e, registry)
+		})
+	}
+}
+
+func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
+	e := New()
+	domain := queryCreateDomain(t, e)
+	stage, d := queryCreateStage(t, e, "copy", 0)
+	stage.domainBases = []Descriptor{domain}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := *domain
+	next.revision++
+	peer := e.BeginCatalogStage(e.CatalogRead())
+	if err = peer.Replace(&next); err != nil {
+		t.Fatal(err)
+	}
+	queryCreatePublish(t, e, peer)
+	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	var conflict CatalogConflict
+	if !errors.As(err, &conflict) {
+		t.Fatal(err)
+	}
+	queryCreateAssertAbsent(t, e, d)
+}
+
+func TestQueryTableCreateStructuralOutputWrappers(t *testing.T) {
+	e := New()
+	tree := testUsage(e, sqltype.PgNodeTree).Type
+	domain, err := sqltype.Domain(61001, "tree_domain", "tree_domain", tree.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	array, err := sqltype.Array(61002, "_tree_domain", domain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer, err := sqltype.Domain(61003, "tree_array_domain", "tree_array_domain", array.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, typ := range []*sqltype.Descriptor{tree, domain, array, outer} {
+		err := validateQueryTableOutputType(typ)
+		var got *sqlstate.Error
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "query table output type pg_node_tree is unsupported"}
+		if !errors.As(err, &got) || *got != *want {
+			t.Fatal("structural wrapper crossed physical output boundary", typ.Name(), err)
+		}
+	}
+	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Char, sqltype.Name, sqltype.Regclass, sqltype.Xid} {
+		if err := validateQueryTableOutputType(testUsage(e, id).Type); err != nil {
+			t.Fatal("ordinary stored output rejected", id, err)
+		}
+	}
+}
+
+func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
+	for _, noData := range []bool{false, true} {
+		e := New()
+		op, done, err := testOperation(e, context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(done)
+		usage := testUsage(e, sqltype.PgNodeTree)
+		calls := 0
+		probe := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+			calls++
+			return sqltype.Null(usage.Type), nil
+		})
+		project := &projectNode{querySchema: querySchema{{Name: "tree", Usage: usage}}, expressions: []BoundExpr{probe}}
+		syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Query: &parser.Select{}, NoData: noData}
+		registry := queryCreateTypes(e)
+		beforeRow, beforeVersion, beforeFrontier := e.nextRow, e.nextVersion, e.commitSeq
+		e.mu.Lock()
+		auth, err := e.authorizationLocked(op)
+		var stage *CatalogStage
+		if err == nil {
+			stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
+		}
+		e.mu.Unlock()
+		var got *sqlstate.Error
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "query table output type pg_node_tree is unsupported"}
+		if stage != nil || !errors.As(err, &got) || *got != *want || calls != 0 {
+			done()
+			t.Fatal("structural DATA/NO DATA admission reached runtime or stage", noData, stage, err, calls)
+		}
+		queryCreateAssertTypes(t, e, registry)
+		if e.nextRow != beforeRow || e.nextVersion != beforeVersion || e.commitSeq != beforeFrontier {
+			done()
+			t.Fatal("structural admission reserved rows/frontier")
+		}
+		existing, d := queryCreateStage(t, e, "copy", 1)
+		queryCreatePublish(t, e, existing)
+		syntax.IfNotExists = true
+		e.mu.Lock()
+		auth, err = e.authorizationLocked(op)
+		var skipped bool
+		if err == nil {
+			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
+		}
+		e.mu.Unlock()
+		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().state.descriptors[d.address] != d {
+			done()
+			t.Fatal("existing-target skip reached structural validator/runtime", noData, stage, skipped, err, calls)
+		}
+		done()
+	}
+}

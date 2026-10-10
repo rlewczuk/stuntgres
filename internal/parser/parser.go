@@ -58,6 +58,39 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 		l.failAt("0A000", l.pendingMessage, l.pendingOffset)
 		return nil, l.err
 	}
+	for i, statement := range l.statements {
+		if query, ok := statement.(*Select); ok {
+			first := LeftmostSelect(query)
+			if first != nil && first.Into != nil {
+				destination := *first.Into
+				first.Into = nil
+				statement = &CreateQueryTable{Name: destination, Query: query, Pos: query.Pos, Form: SelectInto}
+				l.statements[i] = statement
+			}
+		}
+		var viewQuery *Select
+		if view, ok := statement.(*CreateView); ok {
+			viewQuery = LeftmostSelect(view.Query)
+		}
+		if err := VisitQuerySources(statement, func(query *Select) error {
+			if query.Set != nil {
+				first := LeftmostSelect(query)
+				if first.Into == nil || first == viewQuery {
+					if into := nonFirstSetInto(query, first); into != nil {
+						l.failAt("42601", "INTO is only allowed on first SELECT of UNION/INTERSECT/EXCEPT", into.Parts[0].Pos.Offset)
+						return l.err
+					}
+				}
+			}
+			if query.Into != nil && query != viewQuery {
+				l.failAt("42601", "SELECT ... INTO is not allowed here", query.Into.Parts[0].Pos.Offset)
+				return l.err
+			}
+			return nil
+		}, nil); err != nil {
+			return nil, err
+		}
+	}
 	return l.statements, nil
 }
 
@@ -79,6 +112,19 @@ func (l *lexer) validateInsertValues(values *ValuesQuery) bool {
 	}
 	values.Rows = replay.statements[0].(*Insert).Rows
 	return true
+}
+
+func nonFirstSetInto(query, first *Select) *ObjectName {
+	if query.Set == nil {
+		if query != first {
+			return query.Into
+		}
+		return nil
+	}
+	if into := nonFirstSetInto(query.Set.Left, first); into != nil {
+		return into
+	}
+	return nonFirstSetInto(query.Set.Right, first)
 }
 
 // Run only at the complete statement-query frontier: an enclosing set tail can

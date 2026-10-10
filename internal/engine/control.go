@@ -835,6 +835,15 @@ func restoreScalar(raw parser.Expr) error {
 		return nil
 	case parser.CollateExpr:
 		return restoreScalar(r.Child)
+	case parser.RegclassExpr:
+		// Stored nonnull references emit CAST('name' AS REGCLASS). Admit only
+		// that literal shape; the existing binder resolves its current identity.
+		// Stored NULL uses the ordinary literal path, not a REGCLASS cast.
+		literal, ok := r.Child.(parser.LiteralExpr)
+		if !ok || literal.Value.Kind != parser.StringValue {
+			return fmt.Errorf("stuntgres: invalid restore scalar")
+		}
+		return nil
 	case parser.CastExpr:
 		return restoreScalar(r.Child)
 	case parser.TimeZoneExpr:

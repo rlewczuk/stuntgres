@@ -332,7 +332,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	binder := newExpressionBinder(ctx, e, input, op, expected)
 	binder.queryLockAdmission = admission
 	binder.queryAuth = &auth
-	if admission == nil || admission.queries == nil {
+	if binder.queryLockAdmission == nil {
 		manifest, _, _, err := newQueryLockAdmission(stmt)
 		if err != nil {
 			return b, err
@@ -341,9 +341,16 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	}
 	var view *parser.CreateView
 	if s, ok := stmt.(*parser.CreateView); ok {
+		if parser.LeftmostSelect(s.Query).Into != nil {
+			return b, sqlError("0A000", "views must not contain SELECT INTO")
+		}
 		view = s
 		stmt = s.Query
 		binder.noParameters = true
+		b.commandQuery = true
+	}
+	if s, ok := stmt.(*parser.CreateQueryTable); ok {
+		stmt = s.Query
 		b.commandQuery = true
 	}
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
@@ -383,16 +390,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if lowered := serialTypeName(typeName); lowered != "" {
 					typeName.Name = lowered
 				}
-				u, err := e.resolveType(typeName, op)
+				u, err := e.resolveTableColumnType(typeName, op)
 				if err != nil {
 					return b, err
 				}
 				u, err = e.resolveColumnCollation(u, c.Collation, op)
 				if err != nil {
 					return b, err
-				}
-				if u.Type.ID() == sqltype.Regclass || u.Type.IsArray() && u.Type.Element().ID() == sqltype.Regclass {
-					return b, typeDiagnostic(c.TypeName, "0A000", "unsupported column type")
 				}
 				declaration, err := bindCreateColumnDeclaration(c, table)
 				if err != nil {

@@ -43,6 +43,61 @@ cursors, Restore and future defaults; PostgreSQL executes the actual native
 Dump SQL and independently checks its catalog/data effects. Native controls are
 host mechanisms, not PostgreSQL APIs or physical pg_dump/durability emulation.
 
+## Query-created table consumers
+
+`CREATE TABLE ... AS query` and top-level `SELECT ... INTO name` use the same
+analysis, source manifest, parameter inference, snapshots, source ACLs, row marks
+and eager finalization as current SELECT. Supported joins, derived/scalar and
+predicate subqueries, grouping, DISTINCT, ordering/bounds, views, catalog sources
+and query VALUES retain their existing capabilities and exclusions. The sink
+stores finalized typed values, never adapter-rendered text or a second evaluation.
+
+Prepare analyzes sources and parameters but creates no table and executes no
+producer. Direct and SAME held Execute reanalyze current source definitions;
+the command has no public result schema, so a held SELECT-star creation can
+derive the current destination shape. Parameters still use the existing Bind
+count/type/codec contract. Destination existence, names, storage validity and
+permissions are checked when the command executes.
+
+Native query-creation utility admission precedes snapshot acquisition: explicit
+Prepare rejects with `0A000`, and Execute rejects read-only work with `25006`
+before the explicit-block exclusion. Neither enters a serializable read-only
+deferrable safe-snapshot wait. Conn-prepared handles converted by `Tx.StmtContext`
+retain their sticky Prepare exclusion. With an unresolved serializable writer,
+PostgreSQL instead requires a safe snapshot during analysis; a statement timer
+reports `57014` on direct Execute, explicit Prepare and that held route.
+Ordinary SELECT and permitted standalone query creation retain the snapshot owner.
+
+`WITH NO DATA` still analyzes names, operators, types and literals and imports
+arguments. It skips planning-owned conversions/folding, executor source SELECT
+checks, data capture, runtime row marks and producer evaluation—not an evaluated
+query with discarded rows or LIMIT0. Analysis may acquire source relation locks;
+source namespace/type authority still applies. A valid existing IF NOT EXISTS
+destination skips before schema CREATE permission, preserves its definition/data,
+returns count0 and emits one Execute notice. Source analysis remains active.
+
+Populated execution finalizes the producer once before atomic destination
+publication. Required source Close errors veto success; a primary query failure
+is not replaced by a cleanup failure. No partial caller rows or affected count
+escape a failed command. Exec returns the stored occurrence count; Query returns
+zero columns and EOF, including zero-column tables with a nonzero stored count.
+
+Only an enclosing top-level SELECT promotes INTO, including its leftmost set
+arm. Right-arm INTO reports42601 with the first-SELECT diagnostic; ordinary nested
+and CTAS-body INTO report42601 `SELECT ... INTO is not allowed here`. Views retain
+their own0A000 `views must not contain SELECT INTO` boundary (native eager Prepare,
+PostgreSQL utility Execute). Set producers use the existing set owner, including
+pairwise common types, leftmost output labels and DISTINCT/ALL tuple multiplicities;
+CTAS validates its final output collation even with WITH NO DATA.
+
+Source `pg_prepared_xacts.transaction` retains its concrete XID Usage in stored
+query output; ordinary canonical string/held inputs and native controls use the
+existing unsigned codec. This does not enable raw XID type syntax or casts.
+`pg_attrdef.adbin` remains readable as PG_NODE_TREE for its existing deparser, but
+the native sink rejects that structural carrier at descriptor Execute, for both
+DATA and NO DATA, rather than storing an opaque key as replayable SQL data.
+
+
 ## Constraint and expression deparsing
 
 `pg_get_constraintdef(oid)` and `pg_get_constraintdef(oid, boolean)` return the
@@ -393,7 +448,7 @@ captured-source ownership and atomic INSERT publication. Dump/Restore persists
 existing data/sequence state and analyzed view definitions, never sort datum caches.
 Native public SQL/API ACL mutation remains absent: exact column grants use engine units and
 independent PostgreSQL GRANT scenarios. ORDER USING, general COLLATE/ICU,
-sets/windows and unadmitted aggregate-internal ordering remain excluded.
+windows and unadmitted aggregate-internal ordering remain excluded.
 The existing AND/OR bare-label ambiguity remains a bounded
 logical-grammar difference; AS and quoted forms can label those outputs.
 

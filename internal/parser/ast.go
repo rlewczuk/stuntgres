@@ -147,6 +147,25 @@ type CreateTable struct {
 
 func (*CreateTable) statement() {}
 
+type QueryTableForm uint8
+
+const (
+	CreateTableAs QueryTableForm = iota
+	SelectInto
+)
+
+type CreateQueryTable struct {
+	Name        ObjectName
+	Columns     []Identifier
+	Query       *Select
+	Pos         Position
+	Form        QueryTableForm
+	IfNotExists bool
+	NoData      bool
+}
+
+func (*CreateQueryTable) statement() {}
+
 type IndexKey struct {
 	Column            Identifier
 	Expression        Expr
@@ -510,6 +529,7 @@ type Select struct {
 	Having        Expr
 	Order         *Order
 	Pos           Position
+	Into          *ObjectName
 	Locking       []RowLockClause
 	Bounds        *QueryBounds
 	Distinct      *DistinctClause
@@ -518,6 +538,15 @@ type Select struct {
 }
 
 func (*Select) statement() {}
+
+// LeftmostSelect follows set arms only; FROM and expression subqueries are
+// separate statement frontiers and must never supply an outer INTO destination.
+func LeftmostSelect(query *Select) *Select {
+	for query != nil && query.Set != nil {
+		query = query.Set.Left
+	}
+	return query
+}
 
 // parenthesizedQuery retains the syntax wrapper's position independently of SELECT.
 type parenthesizedQuery struct {

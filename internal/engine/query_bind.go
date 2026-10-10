@@ -33,6 +33,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	return b.bindSelectScoped(s, contextual, false)
 }
 func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (*BoundQuery, error) {
+	if s.Into != nil {
+		return nil, insertError("42601", "SELECT ... INTO is not allowed here", s.Into.Parts[0].Pos)
+	}
 	if b.queryLockAdmission == nil || b.queryLockAdmission.queries == nil {
 		admission, _, _, err := newQueryLockAdmission(s)
 		if err != nil {
