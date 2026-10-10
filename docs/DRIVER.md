@@ -66,6 +66,27 @@ Four selected temporal providers export time.Time/TIMESTAMPTZ; timeofday exports
 string/TEXT. Its fixed English six-digit layout is independent of DateStyle.
 
 
+## MONEY transport and prepared signatures
+
+MONEY/OID790 exports native monetary strings (`$1,234.50`, `-$1.24`) and
+string ScanType, with unknown Length/DecimalSize even before iteration or for
+empty/all-NULL results. Pinned pq independently exports []byte/interface{}
+ScanType. Scan into string or []byte preserves the monetary output; NULL is nil.
+Declared native column nullability and existing expression metadata conventions
+remain unchanged; pq does not provide Nullable metadata.
+
+Inferred MONEY parameters use captured monetary textual input for string,
+owned nonnil bytes, int64 and float64. Bytes are currency text, not binary raw
+minor units; nil and typed-nil bytes are NULL. Held executions refresh captured
+session presentation and parameter frames; Go kinds never resolve operators.
+Use `$1::numeric::money` for exact numeric conversion instead of interpreting
+Go float64 as exact decimal data. Literal input errors keep source character
+Position (including Prepare); bound input errors have no query Position and
+carry the actual `unnamed portal parameter $n = '...'` Context. Arithmetic and
+cast execution errors are not relabeled as parameter input failures.
+Native failed writes/Restore publish no partial state; retained eager values and
+metadata remain owned across Reset/Restore. See [MONEY](TYPES.md#money--change-note).
+
 ## Enum values and prepared signatures
 
 Enums retain catalog-owned logical identity while native transport exports string

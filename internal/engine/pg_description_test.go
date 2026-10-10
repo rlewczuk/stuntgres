@@ -218,7 +218,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 			expected[ObjectAddress{ClassID: group.class, ObjectID: seed.oid}] = seed.text
 		}
 	}
-	if len(bag) != 164 || !reflect.DeepEqual(bag, expected) {
+	if len(bag) != 165 || !reflect.DeepEqual(bag, expected) {
 		t.Fatal("complete independent baseline", bag, expected)
 	}
 	for _, oid := range []OID{4401, 4450, 4451, 4532} {

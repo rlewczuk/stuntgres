@@ -665,7 +665,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			d.element = byID[fact.element]
 			d.delimiter = d.element.Delimiter()
 			d.sql = d.element.SQLName() + "[]"
-			d.lookupOnly = !d.element.Concrete() || !d.element.IsDomain() && !StoredScalarCastType(d.element.ID()) && d.element.ID() != Regclass
+			d.lookupOnly = d.element.ID() == Money || !d.element.Concrete() || !d.element.IsDomain() && !StoredScalarCastType(d.element.ID()) && d.element.ID() != Regclass
 		}
 	}
 	return result

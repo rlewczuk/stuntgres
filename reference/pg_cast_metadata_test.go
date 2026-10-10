@@ -85,6 +85,10 @@ func pgCastFacts() [][]any {
 		{int64(1700), int64(1700), int64(1703), "i", "f"},
 		{int64(114), int64(3802), int64(0), "a", "i"},
 		{int64(3802), int64(114), int64(0), "a", "i"},
+		{int64(20), int64(790), int64(3812), "a", "f"},
+		{int64(23), int64(790), int64(3811), "a", "f"},
+		{int64(790), int64(1700), int64(3823), "a", "f"},
+		{int64(1700), int64(790), int64(3824), "a", "f"},
 	}
 }
 
@@ -170,7 +174,7 @@ func pgCastIdentities(t *testing.T, p *referencePair, b referenceBackend) map[[2
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if index != 65 {
+	if index != 69 {
 		t.Fatal("complete supported cast count", index)
 	}
 	return ids

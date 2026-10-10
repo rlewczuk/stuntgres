@@ -100,6 +100,9 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value, input InputEnvironme
 	if a.null || b.null {
 		return Null(p.result), nil
 	}
+	if p.left.id == Money || p.right.id == Money {
+		return p.moneyBinary(a, b)
+	}
 	if temporalArithmeticType(p.left.id) || temporalArithmeticType(p.right.id) {
 		return p.datetimeBinary(a, b, input)
 	}

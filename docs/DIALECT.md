@@ -1292,7 +1292,7 @@ See [the exact dependency contract](SQL.md#pg_depend-catalog--change-note).
 `pg_catalog.pg_cast` is readonly relation2605, PUBLIC SELECT, with ordered
 `oid OID`, `castsource OID`, `casttarget OID`, `castfunc OID`,
 `castcontext CHAR`, `castmethod CHAR`, all known NOT NULL natively.
-Exactly65 complete-context existing numeric/OID/temporal/character/BOOL/typmod/
+Exactly69 complete-context numeric/MONEY/OID/temporal/character/BOOL/typmod/
 JSON edges are owner-declared. Contexts i/a/e mean implicit/assignment/explicit
 with upward closure; methods f/b/i mean function/binary/I/O, not native opcodes.
 Non-function methods have castfunc0. Ordinary automatic string I/O, domain/base
@@ -3351,6 +3351,49 @@ The floating cutover introduces no new power() function, general no-FROM SELECT,
 types, cast families or storage mechanisms. Exact NUMERIC is covered separately below.
 Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`;
 pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic' VERBOSE=0`.
+
+### Monetary operators and casts — change note
+
+MONEY uses static PostgreSQL scalar signatures: MONEY+MONEY and MONEY-MONEY
+return MONEY; MONEY multiplied by SMALLINT/INTEGER/BIGINT/REAL/FLOAT8, in
+either order, returns MONEY. MONEY divided by those five scalar widths returns
+MONEY; MONEY/MONEY returns DOUBLE PRECISION. Integer division truncates raw
+minor units toward zero without a float intermediate (`±878.08/11` → `±$79.82`).
+Float multiplication/division converts raw units to binary double and rounds
+nearest-even (`878.08/11::float8` → `$79.83`). REAL retains binary32 operand
+precision. MONEY/MONEY converts each raw operand to FLOAT8 before division,
+including binary precision loss for large units; `123::money/2::money` is61.5.
+
+Unknown divisor `'2'` selects MONEY/MONEY, unlike integer2. NUMERIC scalar
+peers select the implicit FLOAT8 route, not a new exact monetary overload.
+Unary ±MONEY, MONEY*MONEY, integer/MONEY, monetary remainder/power and
+MONEY+integer are absent42883 operators. Strict NULL retains the resolved
+MONEY or FLOAT8 result identity. Raw comparisons, ordering, grouping and the
+owned default money_ops B-tree class share exact signed-unit comparison;
+no MONEY hash class or aggregate family is added.
+
+Zero divisors fail22012 `division by zero`. Checked monetary overflow/NaN/
+nonrepresentable float results fail22003 `money out of range`; floating
+intermediate overflow/underflow retain ordinary FLOAT8 range messages.
+INTEGER/BIGINT→MONEY and NUMERIC↔MONEY are exactly four assignment/function
+pg_cast facts (functions3811/3812/3824/3823). Cast scaling/rounding stays exact;
+cast overflow is22003 `bigint out of range`, not the monetary operation error.
+SMALLINT and direct float casts to MONEY, and MONEY outgoing integer/float
+casts, fail42846. Generic textual I/O adds no fictitious pg_cast facts.
+
+Monetary I/O and all four monetary conversions are STABLE and consume the
+captured statement policy; raw arithmetic/comparison is IMMUTABLE. Existing
+C/POSIX/empty-as-C support is unchanged, including to_char's currency **space**,
+which is distinct from MONEY's dollar fallback. No libc/ICU locale loading,
+cash_words, array execution or general function-style cast widening is added.
+
+Safety exception: native guards minimum signed raw units divided by -1 at
+SMALLINT/INTEGER/BIGINT provider boundaries and returns22003 `money out of
+range`. PostgreSQL18.0 REL_18_0 cash_div_int64 contains an unguarded division;
+we do not issue that dangerous SQL in the shared oracle fixture or claim an
+observed crash. Genuine provider units cover the native exception.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceMoneyFeatureSmoke$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMoneyFeatureSmoke$' VERBOSE=0`.
 
 ### Numeric arithmetic — change note
 

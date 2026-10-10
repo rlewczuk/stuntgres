@@ -60,7 +60,7 @@ The exact supported builtin registry contains these twenty-six settings:
 | client_encoding | UTF8 / session | UTF8 aliases and SET NAMES; other client encodings are bounded exclusions |
 | lc_messages | C / current superuser | C/POSIX message policy; individual mutation requires the effective role's superuser flag |
 | lc_numeric | C / session | Captured C/POSIX numeric-mask decimal, grouping and signs |
-| lc_monetary | C / session | Captured C/POSIX numeric-mask currency symbol |
+| lc_monetary | C / session | Captured C/POSIX/empty-as-C MONEY precision2 and dollar I/O; numeric-mask currency remains a space |
 | lc_time | C / session | Captured C/POSIX temporal-mask localized month/day names |
 | icu_validation_level | warning / session | Reporting-policy enum only; debug aliases debug2 |
 | extra_float_digits | 1 / session | Captured float textual precision, bounded to -15 through 3 |
@@ -207,6 +207,11 @@ The nonreserved name local remains a parameter name in `SET local TO value`
 and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
 Native Reset/Restore preserve live settings and use default-on parsing;
 Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
+MONEY Dump uses typed canonical C literals because all supported monetary
+policies are equivalent; it does not rescale raw units or serialize locale
+settings. Restore retains live lc_monetary. No host monetary locale is loaded,
+and unsupported locale rejection leaves the previous captured policy intact.
+
 
 Migrated settings SQL uses the same external definitions in both modes:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`

@@ -95,7 +95,7 @@ func (d *Descriptor) CheckModifierSupport() error {
 	switch d.id {
 	case Bit, VarBit, Numeric, Timestamp, Time, Timestamptz, Timetz, Interval, BPChar, VarChar:
 		return nil
-	case Int2, Int4, Int8, JSON, JSONB, JSONPath:
+	case Int2, Int4, Int8, Money, JSON, JSONB, JSONPath:
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	case Text:
 		return failure("42601", `type modifier is not allowed for type "text"`)

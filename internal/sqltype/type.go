@@ -31,6 +31,7 @@ const (
 	Float4      ID = 700
 	Float8      ID = 701
 	Unknown     ID = 705
+	Money       ID = 790
 	NameArray   ID = 1003
 	BPChar      ID = 1042
 	VarChar     ID = 1043
@@ -165,6 +166,7 @@ func Builtins() []*Descriptor {
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
 		{id: Float4, name: "float4", sql: "REAL", database: "FLOAT4", associatedArray: 1021},
 		{id: Float8, name: "float8", sql: "DOUBLE PRECISION", database: "FLOAT8", associatedArray: 1022},
+		{id: Money, name: "money", sql: "MONEY", database: "MONEY", associatedArray: 791},
 		{id: Date, name: "date", sql: "DATE", database: "DATE", associatedArray: 1182},
 		{id: Time, name: "time", sql: "TIME", database: "TIME", associatedArray: 1183},
 		{id: Timestamp, name: "timestamp", sql: "TIMESTAMP", database: "TIMESTAMP", associatedArray: 1115},
@@ -437,6 +439,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.enumInput(text, env)
 	}
 	switch d.id {
+	case Money:
+		return d.moneyInput(text, env.MonetaryLocale)
 	case Bit, VarBit:
 		return d.bitInput(text, typmod)
 	case JSON:
@@ -654,6 +658,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.enumOutput(v)
 	}
 	switch d.id {
+	case Money:
+		return moneyOutput(v.integer, env.MonetaryLocale), nil
 	case Bit, VarBit:
 		return v.text, nil
 	case PgNodeTree:
@@ -741,6 +747,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid literal value")
 	}
 	if v.null {
+		if d.BaseType().id == Money {
+			return "CAST(NULL AS money)", nil
+		}
 		return "NULL", nil
 	}
 	if d.IsDomain() {
@@ -768,6 +777,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
 	switch d.id {
+	case Money:
+		return "MONEY '" + moneyOutput(v.integer, Locale{}) + "'", nil
 	case Bit, VarBit:
 		return "B'" + v.text + "'", nil
 	case Bytea:
@@ -841,6 +852,7 @@ type coercionMethod uint8
 
 const (
 	identity coercionMethod = iota
+	moneyConversion
 	integerConversion
 	viaIO
 	booleanText
@@ -968,6 +980,10 @@ var baselineCasts = [...]castSpec{
 	{Numeric, Float8, Implicit, numericConversion, castCatalogFact{20029, 1746, 'i', 'f'}},
 	{Float4, Numeric, Assignment, numericConversion, castCatalogFact{20019, 1742, 'a', 'f'}},
 	{Float8, Numeric, Assignment, numericConversion, castCatalogFact{20024, 1743, 'a', 'f'}},
+	{Money, Numeric, Assignment, moneyConversion, castCatalogFact{20065, 3823, 'a', 'f'}},
+	{Numeric, Money, Assignment, moneyConversion, castCatalogFact{20066, 3824, 'a', 'f'}},
+	{Int4, Money, Assignment, moneyConversion, castCatalogFact{20067, 3811, 'a', 'f'}},
+	{Int8, Money, Assignment, moneyConversion, castCatalogFact{20068, 3812, 'a', 'f'}},
 }
 
 func BaselineCastType(id ID) bool {
@@ -979,7 +995,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype:
+		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype:
 		return true
 	}
 	return false
@@ -1113,6 +1129,22 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = viaIO
 		return p, nil
 	}
+	if context == Explicit && (source.Type.id == Money || target.Type.id == Money) {
+		if IsCharacter(source.Type.id) || IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		if source.Type == target.Type {
+			return p, nil
+		}
+		for _, spec := range baselineCasts {
+			if spec.source == source.Type.id && spec.target == target.Type.id {
+				p.method = spec.method
+				return p, nil
+			}
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if context == Explicit {
 		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
@@ -1178,6 +1210,8 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case moneyConversion:
+		return moneyCoercion(v, p.target, input.MonetaryLocale)
 	case bitStringConversion:
 		v.typ = p.target.Type
 		return sizeBitString(v, p.target.Typmod)
@@ -1311,7 +1345,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	}
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
-		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8,
+		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Text, VarChar, Time,
 			Timestamp, Timestamptz, Timetz, UUID, JSONB:
 		case Void:
@@ -1484,7 +1518,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 				return 1, nil
 			}
 		}
-	case Int2, Int4, Int8, Timestamp, Timestamptz, Time, Date:
+	case Int2, Int4, Int8, Money, Timestamp, Timestamptz, Time, Date:
 		if a.integer < b.integer {
 			return -1, nil
 		}

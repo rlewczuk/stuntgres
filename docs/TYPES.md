@@ -2,7 +2,7 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, interval, uuid, bytea, json, bit and varbit. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, canonical UUID, exact JSON source and canonical BIT/VARBIT digits), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, bytea, json, bit and varbit. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID, exact JSON source and canonical BIT/VARBIT digits), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
 BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
@@ -17,6 +17,9 @@ OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID/BIT/VARBIT and exact NUMERIC a
 DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+MONEY/OID790 is also a distinct stored scalar, exported as monetary `string`;
+its associated `_money`/OID791 identity remains lookup-only, not an executable array.
+
 
 `pg_prepared_xacts.transaction` has a distinct narrow XID descriptor (OID28,
 four-byte unsigned storage, database/SQL name XID, category U). Decimal output
@@ -1182,6 +1185,63 @@ so replay preserves the formal interval overload rather than inferring TEXT.
 Unrelated scalar and row-data NULL serialization remain unchanged.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
+
+## MONEY — change note
+
+MONEY stores a signed eight-byte count of minor units, not text, NUMERIC or a
+binary float. Captured `lc_monetary` determines interpretation and presentation,
+not storage rescaling. Supported C, POSIX and empty-as-C policies all have two
+fraction digits, decimal period, comma grouping, `$` currency and `-$` negatives.
+The exact range is -92233720368547758.08 through 92233720368547758.07.
+Zero renders `$0.00`; there is no negative zero.
+
+```sql
+CREATE TABLE amounts(id INT, v MONEY DEFAULT MONEY '1.235');
+INSERT INTO amounts VALUES(1, '$878.08'), (2, NULL);
+SELECT v/11::bigint, v/11::float8 FROM amounts WHERE id=1;
+-- MONEY $79.82, MONEY $79.83
+SELECT '92233720368547758.07'::money::numeric;
+-- exact NUMERIC 92233720368547758.07
+```
+
+Text input follows PostgreSQL's permissive cash grammar: optional currency,
+signs, whitespace and parentheses; grouping placement is not validated.
+Empty/space/currency-only input is zero. The first discarded fraction digit
+rounds half away from zero; later digits are ignored. Numeric exponent syntax,
+NaN and infinity are not money text. Malformed text fails22P02; input overflow
+fails22003 `value "<original>" is out of range for type money`, including
+rounding carry past either endpoint.
+
+NUMERIC↔MONEY and INTEGER/BIGINT→MONEY are assignment casts, not implicit
+numeric interchange. Numeric conversion is exact and rounds half away from
+zero; MONEY→NUMERIC retains exactly two display places. Cast overflow is22003
+`bigint out of range`; numeric specials retain the bigint conversion0A000 errors.
+SMALLINT→MONEY, direct float→MONEY and MONEY→integer/float are unavailable;
+float→NUMERIC→MONEY remains explicit. Use `::`, `CAST` or MONEY typed literals;
+general function-style conversion is not expanded.
+
+DatabaseTypeName is MONEY; native ScanType is string and raw values are string
+or nil even for empty/all-NULL results. Length and DecimalSize are unknown:
+fixed currency precision is not a NUMERIC typmod. Textual string/owned-byte,
+int64 and float64 binds use the inferred MONEY input codec; nil and typed-nil
+bytes are NULL. Go argument kinds never select an operator overload.
+
+Monetary input/output and conversion casts are STABLE; arithmetic and raw-unit
+comparison are IMMUTABLE. Column money→numeric/text casts cannot be generated
+or indexed immutable expressions. Canonical native Dump emits typed MONEY
+leaves (including typed NULL), preserving default/check/view identity on replay.
+View serialization reuses these owning typed leaves instead of adding redundant
+same-type casts, so typed NULL and currency leaves remain deterministic across
+Dump/Restore/redump.
+Dump excludes settings and Restore preserves live settings. This is an
+equivalent-C-policy restore contract, not arbitrary-locale dump portability or
+pg_dump emulation. Existing atomic failed/canceled Restore and retained
+cursor/metadata ownership apply without a monetary side channel.
+
+Native safely rejects minimum raw int64 divided by -1 for all three integer
+widths with22003 `money out of range`. This is an explicit safety deviation from
+the unguarded REL_18_0 cash_div_int64 source, not observed backend-crash parity.
+See [operator boundaries](DIALECT.md#monetary-operators-and-casts--change-note).
 
 ## Exact NUMERIC
 

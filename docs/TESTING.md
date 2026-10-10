@@ -61,6 +61,46 @@ read-only rejection; VALUES column-reference0A000 is an explicit native capabili
 boundary, not a PostgreSQL parity claim. Smoke includes nil-bound empty metadata
 and semantic-error savepoint recovery. Provider units exercise DST transitions,
 negative DST, historical matching, inventory and cancellation without public SQL.
+MONEY definitions use `RUN='^TestReferenceMoney'` in both
+`make quickcheck PACKAGES=./reference` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds per invocation).
+Run affected catalog/locale definitions with
+`RUN='^TestReference(PGCast|PGDescription|FormatEncoding)'` in both modes.
+Feature smoke is `RUN='^TestReferenceMoneyFeatureSmoke$'` in both modes: exact
+integer versus float division, FLOAT8 monetary ratio metadata, prepared bytes,
+numeric endpoint conversion, recoverable overflow and typed native Dump replay
+have independently specified observations. Native controls stay explicitly
+native-only inside the shared scenario; discovery filters are not retained.
+The exact money_ops catalog inventory (OID10047/family2099/input790/method403/
+defaulttrue) is explicitly PostgreSQL-only: native pg_opclass projection is
+outside this part. `TestMoneyDefaultOrderingProvider` asserts actual native
+class ownership/default identity, input admission and endpoint comparison;
+the shared monetary arithmetic scenario independently exercises real index
+creation, ordering and grouping in both modes. Native declared MONEY columns
+have known nullability; literal/computed expression nullability remains unknown,
+including a typed NULL literal. Tests assert these distinct metadata contracts.
+`TestReferenceMoneyUniqueIndexes` covers constraint-backed and standalone unique
+keys, direct/prepared differently spelled equal amounts, exact large-unit
+neighbors, default NULL DISTINCT behavior, complete23505 diagnostics and atomic
+failed writes. Locale/stability coverage queries the immutable arithmetic
+expression index before and after INSERT/UPDATE/DELETE maintenance.
+
+MONEY Restore cancellation distinguishes precanceled API rejection from a live
+request canceled at reader EOF after consuming a nonempty actual Dump. The latter
+proves complete reader progress beyond admission, before parsing or staged SQL
+execution. Both preserve exact original rows/view and byte-identical catalog
+Dump; subsequent default insertion establishes recovery and retained defaults.
+
+Actual provider units use
+`make quickcheck PACKAGES=./internal/sqltype RUN='^TestMoney' VERBOSE=0`.
+`TestMoneyMinimumDivisionOverflow` binds the real MONEY/INT2/INT4/INT8
+Arithmetic providers with minimum raw units and -1, asserting complete native
+22003 diagnostics, no result, unchanged operands and subsequent valid division.
+This is the approved native safety exception: REL_18_0 cash_div_int64 lacks
+an overflow guard. It is not a pinned oracle result, and no minimum/-1 SQL may
+run in the shared singleton PostgreSQL fixture, discovery or smoke. Safe
+neighboring negative division and checked overflow remain dual-mode witnesses.
+
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control
@@ -1642,7 +1682,7 @@ Run those private units with
 ## Cast metadata catalog discovery and smoke
 
 The shared `TestReferencePGCast` family asserts the complete independently
-specified65-row supported boundary, exact six-column shape and raw codecs,
+specified69-row supported boundary, exact six-column shape and raw codecs,
 fixed type/function identities, generated row identity invariants, direct/
 prepared/held consumers, full diagnostics, omissions versus automatic coercion,
 PUBLIC SELECT and native retained-row/Reset/Restore controls. PostgreSQL reads

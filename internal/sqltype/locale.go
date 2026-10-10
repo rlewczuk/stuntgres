@@ -7,12 +7,15 @@ type Locale struct{ data *localeData }
 
 type localeData struct {
 	decimal, grouping, positive, negative, currency string
+	moneyPrecision                                  int
+	moneyCurrency                                   string
 	months                                          *[12]string
 	days                                            *[7]string
 }
 
 var cLocale = localeData{
 	decimal: ".", grouping: ",", positive: "+", negative: "-", currency: " ",
+	moneyPrecision: 2, moneyCurrency: "$",
 	months: &datetimeMonths, days: &datetimeDays,
 }
 

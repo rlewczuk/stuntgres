@@ -80,7 +80,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 func pgCastUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
 	t.Helper()
 	bag, pairs := map[uint32][]any{}, map[[2]uint32]bool{}
-	if len(rows.anonymous) != 65 {
+	if len(rows.anonymous) != 69 {
 		t.Fatal("cast count", len(rows.anonymous))
 	}
 	for _, row := range rows.anonymous {
@@ -133,7 +133,7 @@ func TestPGCastProjection(t *testing.T) {
 	}
 	bag := pgCastUnitBag(t, rows, d)
 	// Projection must faithfully carry each owner value, not infer functions
-	// or methods. sqltype units and public oracle assert the independent65 bag.
+	// or methods. sqltype units and public oracle assert the independent69 bag.
 	for i := range sqltype.CastMetadataCount() {
 		fact, ok := sqltype.CastMetadataAt(i)
 		if !ok {

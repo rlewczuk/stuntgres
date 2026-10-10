@@ -511,6 +511,50 @@ func compareNumericViews(av, bv numericView) int {
 	}
 	return result
 }
+
+// numericInteger rounds an exact coefficient and checks the selected integer
+// width without minting a temporary descriptor or retaining decimal scratch.
+func numericInteger(v Value, id ID) (int64, error) {
+	name, limit := "integer", uint64(1)<<31
+	if id == Int2 {
+		name, limit = "smallint", 32768
+	}
+	if id == Int8 {
+		name, limit = "bigint", uint64(1)<<63
+	}
+	if v.special != numericFinite {
+		special := "infinity"
+		if v.special == numericNaN {
+			special = "NaN"
+		}
+		return 0, failure("0A000", "cannot convert "+special+" to "+name)
+	}
+	rounded := roundNumeric(v, 0)
+	length := int64(len(rounded.text)) + rounded.exponent
+	if length > 19 {
+		return 0, failure("22003", name+" out of range")
+	}
+	if !rounded.negative {
+		limit--
+	}
+	var magnitude uint64
+	for i := range length {
+		digit := uint64(0)
+		if i < int64(len(rounded.text)) {
+			digit = uint64(rounded.text[i] - '0')
+		}
+		if magnitude > (limit-digit)/10 {
+			return 0, failure("22003", name+" out of range")
+		}
+		magnitude = magnitude*10 + digit
+	}
+	n := int64(magnitude)
+	if rounded.negative {
+		n = -int64(magnitude-1) - 1
+	}
+	return n, nil
+}
+
 func numericCoercion(ctx context.Context, v Value, target Usage) (Value, error) {
 	if target.Type.id == Numeric {
 		var result Value
@@ -531,42 +575,9 @@ func numericCoercion(ctx context.Context, v Value, target Usage) (Value, error) 
 		return sizeNumeric(result, target.Typmod)
 	}
 	if target.Type.id == Int2 || target.Type.id == Int4 || target.Type.id == Int8 {
-		name, limit := "integer", uint64(1)<<31
-		if target.Type.id == Int2 {
-			name, limit = "smallint", 32768
-		}
-		if target.Type.id == Int8 {
-			name, limit = "bigint", uint64(1)<<63
-		}
-		if v.special != numericFinite {
-			special := "infinity"
-			if v.special == numericNaN {
-				special = "NaN"
-			}
-			return Value{}, failure("0A000", "cannot convert "+special+" to "+name)
-		}
-		rounded := roundNumeric(v, 0)
-		length := int64(len(rounded.text)) + rounded.exponent
-		if length > 19 {
-			return Value{}, failure("22003", name+" out of range")
-		}
-		if !rounded.negative {
-			limit--
-		}
-		var magnitude uint64
-		for i := range length {
-			digit := uint64(0)
-			if i < int64(len(rounded.text)) {
-				digit = uint64(rounded.text[i] - '0')
-			}
-			if magnitude > (limit-digit)/10 {
-				return Value{}, failure("22003", name+" out of range")
-			}
-			magnitude = magnitude*10 + digit
-		}
-		n := int64(magnitude)
-		if rounded.negative {
-			n = -int64(magnitude-1) - 1
+		n, err := numericInteger(v, target.Type.id)
+		if err != nil {
+			return Value{}, err
 		}
 		return Integer(target.Type, n)
 	}

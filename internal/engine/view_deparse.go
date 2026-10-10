@@ -639,9 +639,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
-			if literal, ok := v.literals[literalPath]; ok && (literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name) {
+			if literal, ok := v.literals[literalPath]; ok && (literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money) {
 				// The binder types these literal children directly as the cast
-				// target. OID/NAME literalSQL already supplies the canonical cast;
+				// target. OID/NAME/MONEY literalSQL supplies the owning typed leaf;
 				// wrapping it again would grow another cast on every replay.
 				return text, nil
 			}

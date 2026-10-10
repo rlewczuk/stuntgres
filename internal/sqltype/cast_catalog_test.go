@@ -26,12 +26,14 @@ func castCatalogExpected() []CastMetadata {
 		{20055, 1042, 1042, 668, 'i', 'f'}, {20056, 1043, 1043, 669, 'i', 'f'}, {20057, 1083, 1083, 1968, 'i', 'f'}, {20058, 1114, 1114, 1961, 'i', 'f'},
 		{20059, 1184, 1184, 1967, 'i', 'f'}, {20060, 1186, 1186, 1200, 'i', 'f'}, {20061, 1266, 1266, 1969, 'i', 'f'}, {20062, 1700, 1700, 1703, 'i', 'f'},
 		{20063, 114, 3802, 0, 'a', 'i'}, {20064, 3802, 114, 0, 'a', 'i'},
+		{20065, 790, 1700, 3823, 'a', 'f'}, {20066, 1700, 790, 3824, 'a', 'f'},
+		{20067, 23, 790, 3811, 'a', 'f'}, {20068, 20, 790, 3812, 'a', 'f'},
 	}
 }
 
 func TestCastCatalogMetadata(t *testing.T) {
 	want := castCatalogExpected()
-	if CastMetadataCount() != 65 || len(want) != 65 {
+	if CastMetadataCount() != 69 || len(want) != 69 {
 		t.Fatal("cast count", CastMetadataCount(), len(want))
 	}
 	ids, pairs := map[uint32]bool{}, map[[2]ID]bool{}
@@ -54,7 +56,7 @@ func TestCastCatalogMetadata(t *testing.T) {
 			t.Fatal("mutable metadata escaped", i, again)
 		}
 	}
-	for _, i := range []int{-1, 65, 66} {
+	for _, i := range []int{-1, 69, 70} {
 		if got, ok := CastMetadataAt(i); ok || got != (CastMetadata{}) {
 			t.Fatal("out of range", i, got, ok)
 		}
@@ -136,6 +138,12 @@ func TestCastCatalogCompleteContextClosure(t *testing.T) {
 			}
 			text, err := types[row.Target].OutputWithEnvironment(ctx, got, output)
 			want := castCatalogText(row.Target)
+			if row.Target == Money {
+				want = "$7.00"
+			}
+			if row.Source == Money && row.Target == Numeric {
+				want = "7.00"
+			}
 			if row.Source == Bool && row.Target == Int4 {
 				want = "1"
 			}

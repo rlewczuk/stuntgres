@@ -397,7 +397,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	case "smallserial", "serial2", "serial", "serial4", "bigserial", "serial8":
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
-	case "money", "char",
+	case "char",
 		"timetz",
 		"timestamptz", "xml",
 		"name", "inet", "cidr", "macaddr", "macaddr8", "point", "line",

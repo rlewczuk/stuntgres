@@ -23,7 +23,7 @@ func timezoneIntervalPrecision(l sqlLexer, tok lexeme) (int64, bool) {
 	return n, true
 }
 func qualifiedTypedLiteral(l sqlLexer, schema, name lexeme) (TypeName, bool) {
-	if schema.text != "pg_catalog" || name.text != "timestamptz" && name.text != "timetz" && name.text != "json" && name.text != "jsonpath" {
+	if schema.text != "pg_catalog" || name.text != "timestamptz" && name.text != "timetz" && name.text != "json" && name.text != "jsonpath" && name.text != "money" {
 		l.(*lexer).failAt("0A000", "typed literals are unsupported", schema.pos.Offset)
 		return TypeName{}, false
 	}

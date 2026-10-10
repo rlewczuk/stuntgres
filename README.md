@@ -22,6 +22,20 @@ Feature smoke (900 seconds per invocation):
 pinned counterpart:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceComposite(FeatureSmoke|MixedControls|ControlLifetime)$' VERBOSE=0`.
 
+Change note: MONEY (OID790) stores exact signed eight-byte minor units and uses
+captured C/POSIX/empty-as-C monetary policy for dollar output with two fraction
+digits. Exact integer/NUMERIC assignment casts, checked monetary arithmetic,
+integer truncating division and MONEY/MONEY FLOAT8 division reuse the existing
+typed engine, metadata and atomic native Dump/Restore. MONEY exports Go string,
+not a float; monetary I/O/casts are STABLE. Arrays, aggregates, host locales and
+general function-style casts are not added. Native minimum-money/-1 integer
+division safely rejects22003 rather than executing PostgreSQL18.0's unguarded
+release-source division; no backend crash is asserted.
+See [MONEY](docs/TYPES.md#money--change-note) and
+[operators](docs/DIALECT.md#monetary-operators-and-casts--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceMoneyFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMoneyFeatureSmoke$' VERBOSE=0`.
+
 Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
 documented eight/four columns with exact current schema/name/owner identities.
 Both disclose underlying objects independent of privileges and search_path, unlike
@@ -522,7 +536,7 @@ pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^Test
 
 
 Change note: arrays now provide catalog-owned storage and literal input/output
-over every supported stored scalar family and domains, including arrays of
+over the supported array scalar families and domains (MONEY remains scalar-only), including arrays of
 domains, domains over arrays and nested array-valued domains. `type[]`, repeated
 brackets and standard `type ARRAY[n]` declarations resolve the element before its
 associated array; declared bounds do not constrain stored shape. Native values
@@ -1228,7 +1242,7 @@ and the same command with `REFERENCE=1`.
 **Cast catalog change note:** `pg_catalog.pg_cast` is readonly relation2605 with
 six known NOT NULL fields: four OIDs (`oid`, `castsource`, `casttarget`, `castfunc`)
 and two internal CHARs (`castcontext`, `castmethod`). The coercion implementation
-owner publishes exactly65 existing complete-context numeric/OID/temporal/
+owner publishes exactly69 complete-context numeric/MONEY/OID/temporal/
 character/BOOL/typmod/JSON edges with exact fixed type/function identities and
 stable local generated row IDs. This is not a complete conversion inventory:
 automatic string I/O, domain/base conversions and ordinary identities have no

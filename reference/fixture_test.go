@@ -419,7 +419,7 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 	case "TEXT", "CHAR", "BPCHAR", "VARCHAR":
 		// pq textDecode returns BPCHAR as string despite its any ScanType.
 		want = reflect.TypeFor[string]()
-	case "BIT", "VARBIT", "NUMERIC", "UUID", "NAME", "INTERVAL", "REGCLASS", "VOID", "_NAME", "PG_NODE_TREE", "JSON", "JSONB", "JSONPATH":
+	case "BIT", "VARBIT", "NUMERIC", "MONEY", "UUID", "NAME", "INTERVAL", "REGCLASS", "VOID", "_NAME", "PG_NODE_TREE", "JSON", "JSONB", "JSONPATH":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[[]byte]()

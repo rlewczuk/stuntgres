@@ -22,6 +22,7 @@ var pgDescriptionExpectedTypes = []pgDescriptionExpectedSeed{
 	{700, "single-precision floating point number, 4-byte storage"},
 	{701, "double-precision floating point number, 8-byte storage"},
 	{705, "pseudo-type representing an undetermined type"},
+	{790, "monetary amounts, $d,ddd.cc"},
 	{1042, "'char(length)' blank-padded string, fixed storage length"},
 	{1043, "'varchar(length)' non-blank-padded string, variable storage length"},
 	{1082, "date"},

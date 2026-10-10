@@ -28,6 +28,7 @@ var pgDescriptionScalarTypes = []pgDescriptionSeed{
 	{700, "single-precision floating point number, 4-byte storage"},
 	{701, "double-precision floating point number, 8-byte storage"},
 	{705, "pseudo-type representing an undetermined type"},
+	{790, "monetary amounts, $d,ddd.cc"},
 	{1042, "'char(length)' blank-padded string, fixed storage length"},
 	{1043, "'varchar(length)' non-blank-padded string, variable storage length"},
 	{1082, "date"},
@@ -76,7 +77,7 @@ func TestReferencePGDescriptionBuiltins(t *testing.T) {
 					expected = append(expected, []any{seed.oid, group.class, int64(0), seed.text})
 				}
 			}
-			if len(expected) != 162 {
+			if len(expected) != 163 {
 				t.Fatal("represented baseline inventory", len(expected))
 			}
 			for _, observed := range [][][]any{direct, prepared} {
@@ -95,10 +96,21 @@ func TestReferencePGDescriptionBuiltins(t *testing.T) {
 				pgDescriptionRows(t, p, backend, s)
 				pgDescriptionRows(t, p, backend, referencePrepared(s))
 			}
-			for _, seed := range []pgDescriptionSeed{{114, "JSON stored as text"}, {194, "string representing an internal node tree"}} {
-				s := referenceSelect("SELECT obj_description($1,'pg_type')", []string{"obj_description"}, []string{"TEXT"}, [][]any{{seed.text}}, seed.oid)
-				commentInquiryStep(t, p, backend, backend.db, s)
-				commentInquiryStep(t, p, backend, backend.db, referencePrepared(s))
+			// Migrated complete native-only builtin inquiry assertions. Each
+			// description and wrong-class NULL is now checked against both backends.
+			for _, seed := range append(append([]pgDescriptionSeed{}, pgDescriptionScalarTypes...), pgDescriptionSeed{3802, "Binary JSON"}) {
+				for _, prepared := range []bool{false, true} {
+					inquiry := referenceSelect("SELECT obj_description($1,'pg_type')", []string{"obj_description"}, []string{"TEXT"}, [][]any{{seed.text}}, seed.oid)
+					wrong := referenceSelect("SELECT obj_description($1,'pg_namespace')", []string{"obj_description"}, []string{"TEXT"}, [][]any{{nil}}, seed.oid)
+					inquiry.prepared, wrong.prepared = prepared, prepared
+					commentInquiryStep(t, p, backend, backend.db, inquiry)
+					commentInquiryStep(t, p, backend, backend.db, wrong)
+				}
+			}
+			for _, class := range []string{"pg_type", "pg_namespace"} {
+				inquiry := referenceSelect("SELECT obj_description(1003,'"+class+"')", []string{"obj_description"}, []string{"TEXT"}, [][]any{{nil}})
+				commentInquiryStep(t, p, backend, backend.db, inquiry)
+				commentInquiryStep(t, p, backend, backend.db, referencePrepared(inquiry))
 			}
 			for _, tc := range []struct {
 				oid           int64

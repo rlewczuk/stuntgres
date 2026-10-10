@@ -44,6 +44,8 @@ func builtinTypeComment(id sqltype.ID) string {
 		return "double-precision floating point number, 8-byte storage"
 	case 705:
 		return "pseudo-type representing an undetermined type"
+	case sqltype.Money:
+		return "monetary amounts, $d,ddd.cc"
 	case 1042:
 		return "'char(length)' blank-padded string, fixed storage length"
 	case 1043:

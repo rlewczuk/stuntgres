@@ -20,6 +20,7 @@ var arithmeticAddSignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
 	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
 	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Money, Money, Money},
 	{Date, Int4, Date}, {Int4, Date, Date},
 	{Date, Time, Timestamp}, {Time, Date, Timestamp},
 	{Date, Timetz, Timestamptz}, {Timetz, Date, Timestamptz},
@@ -36,6 +37,7 @@ var arithmeticSubtractSignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
 	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
 	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Money, Money, Money},
 	{Date, Int4, Date}, {Date, Date, Int4}, {Date, Interval, Timestamp},
 	{Timestamp, Interval, Timestamp}, {Timestamptz, Interval, Timestamptz},
 	{Timestamp, Timestamp, Interval}, {Timestamptz, Timestamptz, Interval},
@@ -48,6 +50,8 @@ var arithmeticMultiplySignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
 	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
 	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Money, Int2, Money}, {Money, Int4, Money}, {Money, Int8, Money}, {Money, Float4, Money}, {Money, Float8, Money},
+	{Int2, Money, Money}, {Int4, Money, Money}, {Int8, Money, Money}, {Float4, Money, Money}, {Float8, Money, Money},
 	{Interval, Float8, Interval}, {Float8, Interval, Interval},
 }
 var arithmeticDivideSignatures = [...]ArithmeticSignature{
@@ -56,6 +60,8 @@ var arithmeticDivideSignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[6], arithmeticNumericSignatures[7], arithmeticNumericSignatures[8],
 	arithmeticNumericSignatures[9], arithmeticNumericSignatures[10], arithmeticNumericSignatures[11],
 	arithmeticNumericSignatures[12], arithmeticNumericSignatures[13],
+	{Money, Money, Float8},
+	{Money, Int2, Money}, {Money, Int4, Money}, {Money, Int8, Money}, {Money, Float4, Money}, {Money, Float8, Money},
 	{Interval, Float8, Interval},
 }
 
@@ -89,7 +95,7 @@ func ResolveArithmetic(operator ArithmeticOperator, left, right *Descriptor, una
 			return ArithmeticSignature{}, failure("42725", "ambiguous arithmetic operands")
 		}
 		id := left.BaseType().ID()
-		if (equalityCategory(id) != 'N' || id == Oid) && !(operator == ArithmeticSubtract && id == Interval) {
+		if (equalityCategory(id) != 'N' || id == Oid || id == Money) && !(operator == ArithmeticSubtract && id == Interval) {
 			return ArithmeticSignature{}, failure("42883", "incompatible arithmetic operands")
 		}
 		return ArithmeticSignature{Left: id, Result: id}, nil

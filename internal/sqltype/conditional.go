@@ -8,6 +8,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Oid, Oid},
 	{Int2, Int2}, {Int2, Int4}, {Int2, Int8}, {Int4, Int2}, {Int4, Int4}, {Int4, Int8}, {Int8, Int2}, {Int8, Int4}, {Int8, Int8},
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
+	{Money, Money},
 	{Text, Text}, {BPChar, BPChar}, {Name, Name}, {Name, Text}, {Text, Name},
 	{Date, Date}, {Time, Time}, {Timestamp, Timestamp}, {Date, Timestamp}, {Timestamp, Date}, {UUID, UUID}, {Bytea, Bytea},
 	{Timestamptz, Timestamptz}, {Timetz, Timetz},
@@ -18,7 +19,7 @@ func equalityCategory(id ID) byte {
 	switch id {
 	case Bool:
 		return 'B'
-	case Oid, Int2, Int4, Int8, Numeric, Float4, Float8:
+	case Oid, Int2, Int4, Int8, Numeric, Money, Float4, Float8:
 		return 'N'
 	case Text, VarChar, BPChar, Name:
 		return 'S'

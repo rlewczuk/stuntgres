@@ -2,13 +2,16 @@ package sqltype
 
 func (p CoercionPlan) SessionDependent() bool {
 	source, target := p.source.Type.id, p.target.Type.id
+	if p.method == moneyConversion {
+		return true
+	}
 	if p.method == datetimeConversion {
 		return source == Timestamptz || target == Timestamptz || target == Timetz
 	}
 	if p.method == viaIO {
 		// CoerceViaIO invokes both the source output and target input procedure.
 		// array_in and interval_in are STABLE even for immutable TEXT input.
-		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == Regclass || target == Regtype || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
+		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == Money || target == Regclass || target == Regtype || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
 	}
 	return false
 }
@@ -21,7 +24,7 @@ func (d *Descriptor) OutputSessionDependent() bool {
 		return true
 	}
 	switch d.BaseType().ID() {
-	case Regclass, Regtype, Date, Timestamp, Timestamptz, Interval, Float4, Float8:
+	case Money, Regclass, Regtype, Date, Timestamp, Timestamptz, Interval, Float4, Float8:
 		return true
 	default:
 		return false
