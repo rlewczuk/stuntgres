@@ -37,6 +37,17 @@ See [numeric formatting](docs/DIALECT.md#numeric-formatting--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0`.
 
+Change note: `convert(bytea,name,name)`, `convert_from(bytea,name)` and
+`convert_to(text,name)` use PostgreSQL18's 42 encoding identities and 128 direct
+conversion pairs, with a fixed UTF8 database. `encode(bytea,text)` and
+`decode(text,text)` support exactly base64, escape and hex. Conversion validates
+the entire source before dispatch; there is no automatic UTF8 pivot for missing
+pairs. All five are strict; convert functions are STABLE, formats IMMUTABLE.
+Existing BYTEA-function DEFAULT exclusion and integer-cast boundaries remain.
+See [binary conversion](docs/DIALECT.md#binary-conversion--change-note).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0`.
+
 Change note: `ascii(text)`, `chr(integer)`, `to_ascii(text[,integer|name])`,
 `unistr(text)` and `unicode_assigned(text)` reuse the immutable, strict string
 providers. `ascii` returns the first UTF8 codepoint (empty text returns0);

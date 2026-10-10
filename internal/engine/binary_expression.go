@@ -72,6 +72,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	conversion := name == "convert" || name == "convert_from" || name == "convert_to" || name == "encode" || name == "decode"
 	var operands []comparisonOperand
 	var names []string
 	if len(raw.Args) <= 100 {
@@ -79,7 +80,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		names = make([]string, len(raw.Args))
 	}
 	for i, r := range raw.Args {
-		o, err := b.comparisonOperand(r)
+		o, err := b.stringOperand(r, conversion && binaryArgumentID(name, i) != sqltype.Bytea)
 		if err != nil {
 			return nil, err
 		}
@@ -95,6 +96,23 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	if conversion {
+		arity := 2
+		if name == "convert" {
+			arity = 3
+		}
+		if !visible || len(operands) != arity {
+			return missing()
+		}
+		for i, o := range operands {
+			if o.descriptor() != nil {
+				if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(binaryArgumentID(name, i)).Usage(), sqltype.Implicit); err != nil {
+					return missing()
+				}
+			}
+		}
+		return b.finishBinary(name, raw.Pos, operands, raw.Syntax)
+	}
 	hash := false
 	switch name {
 	case "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512":
@@ -169,16 +187,9 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 	properties := ExprProperties{Volatility: Immutable}
 	for i, o := range operands {
 		target := b.typ(binaryArgumentID(name, i))
-		arg, err := b.finalizeOperand(o, target)
+		arg, err := b.likeOperand(o, target)
 		if err != nil {
 			return nil, err
-		}
-		if arg.ResultUsage() != target.Usage() {
-			plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target.Usage(), sqltype.Implicit)
-			if err != nil {
-				return nil, err
-			}
-			arg = coercionExpression{b.info(target.Usage(), arg.SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit}
 		}
 		args[i] = arg
 		usages[i] = arg.ResultUsage()
@@ -194,15 +205,27 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 		id = sqltype.Int4
 	case "crc32", "crc32c":
 		id = sqltype.Int8
-	case "md5":
+	case "md5", "encode", "convert_from":
 		id = sqltype.Text
 	}
 	usage := b.typ(id).Usage()
-	plan, err := sqltype.BindBinary(name, usage, usages[:len(operands)]...)
+	info := b.info(usage, pos, properties)
+	if name == "convert" || name == "convert_from" || name == "convert_to" {
+		info.properties.Volatility = max(info.properties.Volatility, Stable)
+	}
+	inputInfo, err := collatedInfo(b.info(b.typ(sqltype.Text).Usage(), pos, properties), args...)
 	if err != nil {
 		return nil, err
 	}
-	node := binaryExpression{expressionInfo: b.info(usage, pos, properties), plan: plan, args: args, syntax: syntax}
+	if id == sqltype.Text {
+		inputInfo.properties = info.properties
+		info = inputInfo
+	}
+	plan, err := sqltype.BindBinary(name, info.usage, usages[:len(operands)]...)
+	if err != nil {
+		return nil, err
+	}
+	node := binaryExpression{expressionInfo: info, plan: plan, args: args, syntax: syntax}
 	if err := node.validateSyntax(); err != nil {
 		return nil, err
 	}
@@ -210,6 +233,23 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 }
 
 func binaryArgumentID(name string, index int) sqltype.ID {
+	switch name {
+	case "convert", "convert_from":
+		if index > 0 {
+			return sqltype.Name
+		}
+	case "convert_to":
+		if index == 0 {
+			return sqltype.Text
+		}
+		return sqltype.Name
+	case "encode":
+		if index > 0 {
+			return sqltype.Text
+		}
+	case "decode":
+		return sqltype.Text
+	}
 	if ((name == "substring" || name == "substr") && index >= 1) || (name == "overlay" && index >= 2) {
 		return sqltype.Int4
 	}

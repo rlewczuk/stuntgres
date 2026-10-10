@@ -666,7 +666,7 @@ func singletonArgument(expr Expr) bool {
 			case "gen_random_uuid", "uuidv4", "uuidv7":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if !binaryHashFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !binaryConversionFunction(name) && !binaryHashFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}

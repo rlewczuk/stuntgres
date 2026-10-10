@@ -55,7 +55,7 @@ func plannedVolatility(node BoundExpr) Volatility {
 	case conditionalExpression:
 		return session(children(n.args...), n.comparison.SessionDependent())
 	case binaryExpression:
-		return children(n.args...)
+		return session(children(n.args...), !n.plan.Immutable())
 	case datetimeJustifyExpression:
 		return children(n.arg)
 	case datetimeExtractExpression:

@@ -1,6 +1,7 @@
 package sqltype
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -56,49 +57,16 @@ func hexNibble(text string) (byte, error) {
 	_, size := utf8.DecodeRuneInString(text)
 	return 0, failure("22023", fmt.Sprintf("invalid hexadecimal digit: \"%s\"", text[:size]))
 }
-func (d *Descriptor) byteaInput(text string) (Value, error) {
-	var b strings.Builder
-	b.Grow(len(text))
+func (d *Descriptor) byteaInput(ctx context.Context, text string) (Value, error) {
+	kind := "escape"
 	if strings.HasPrefix(text, `\x`) {
-		for i := 2; i < len(text); {
-			if text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r' {
-				i++
-				continue
-			}
-			hi, err := hexNibble(text[i:])
-			if err != nil {
-				return Value{}, err
-			}
-			i++
-			if i == len(text) {
-				return Value{}, failure("22023", "invalid hexadecimal data: odd number of digits")
-			}
-			lo, err := hexNibble(text[i:])
-			if err != nil {
-				return Value{}, err
-			}
-			i++
-			b.WriteByte(hi<<4 | lo)
-		}
-	} else {
-		for i := 0; i < len(text); i++ {
-			if text[i] != '\\' {
-				b.WriteByte(text[i])
-				continue
-			}
-			if i+1 < len(text) && text[i+1] == '\\' {
-				b.WriteByte('\\')
-				i++
-				continue
-			}
-			if i+3 >= len(text) || text[i+1] < '0' || text[i+1] > '3' || text[i+2] < '0' || text[i+2] > '7' || text[i+3] < '0' || text[i+3] > '7' {
-				return Value{}, failure("22P02", "invalid input syntax for type bytea")
-			}
-			b.WriteByte((text[i+1]-'0')<<6 | (text[i+2]-'0')<<3 | (text[i+3] - '0'))
-			i += 3
-		}
+		kind, text = "hex", text[2:]
 	}
-	return Binary(d, b.String())
+	raw, err := binaryFormat(ctx, text, kind, false)
+	if err != nil {
+		return Value{}, err
+	}
+	return Binary(d, raw)
 }
 func byteaHex(raw string, quoted bool) string {
 	const digits = "0123456789abcdef"

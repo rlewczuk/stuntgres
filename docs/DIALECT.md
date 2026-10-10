@@ -43,6 +43,55 @@ See [UUID generation](TYPES.md#uuid-generation).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUIDGenerationFeatureSmoke$' VERBOSE=0`.
 
+### Binary conversion — change note
+
+| Strict signature | Result | Intrinsic volatility |
+|---|---|---|
+| `convert(bytea,name,name)` | BYTEA | STABLE |
+| `convert_from(bytea,name)` | TEXT | STABLE |
+| `convert_to(text,name)` | BYTEA | STABLE |
+| `encode(bytea,text)` | TEXT | IMMUTABLE |
+| `decode(text,text)` | BYTEA | IMMUTABLE |
+
+The database encoding is UTF8. All42 PostgreSQL18 encoding identities and all128
+documented directed default pairs are implemented, including MULE_INTERNAL and
+the direct Japanese, BIG5/CNS, Cyrillic and LATIN2/WIN1250 algorithms. Names use
+the existing release aliases after NAME's63-byte complete-UTF8 clipping. Resolve
+source then destination, validate the entire source (including NUL), then apply
+empty/equal-encoding/SQL_ASCII shortcuts or exactly one direct pair. Missing
+nonempty pairs report42883 even for ASCII; empty input succeeds after name
+resolution. No arbitrary pathfinding or implicit UTF8 pivot is provided.
+
+Format names are TEXT, matched case-insensitively without whitespace trimming or
+alias normalization. Only hex/base64/escape are accepted. Hex emits lowercase
+digits without a BYTEA prefix, accepts either case, and ignores SP/TAB/LF/CR only
+between complete pairs. Base64 uses the RFC2045 alphabet, with LF after each
+complete76-character line; a padded final quartet does not itself add LF. Its
+decoder uses PostgreSQL18's padding state machine, not Go's stricter decoder.
+Escape encodes NUL/high bytes as three-digit octal and doubles backslashes;
+other ASCII bytes, including controls and DEL, remain literal. This intentionally
+differs from `bytea_output=escape`. Decode accepts doubled backslashes and valid
+three-digit octal; ordinary UTF8 bytes are copied.
+
+Character inputs retain the existing implicit TEXT/NAME coercions (CHAR loses
+trailing spaces); raw BYTEA binds remain octets. NULL skips runtime conversion,
+not child analysis/input errors. Runtime codec errors have no invented SQL
+Position. Outputs and retained metadata preserve BYTEA/TEXT ownership.
+Query/write/CHECK/view consumers and native Dump/Reset/Restore use the existing
+Binary carrier and staged publication. Generated columns/expression indexes
+accept immutable formats and reject stable convert functions, including under
+immutable wrappers. Existing binary-function DEFAULT exclusion remains native
+0A000; no integer↔BYTEA casts, CREATE CONVERSION or encoding settings are added.
+
+One inherited direct-call transport/admission difference remains outside these
+providers: with no supplied bindings, PostgreSQL's simple-query
+`SELECT convert($1,$1,'UTF8')` rejects the first parameter with42P02,
+`there is no parameter $1`, Position16. Native direct execution analyzes before
+its supplied-argument count check and reports42P08,
+`inconsistent types deduced for parameter $1`, Detail `bytea versus name`,
+Position19. Genuine Prepare on both backends reports that same42P08 formal-role
+conflict. This does not relax selected format/name/source-data diagnostics or
+change generic parameter admission, adapter contracts or prepared inference.
 
 ### Bit strings — change note
 
@@ -2706,8 +2755,8 @@ including `sha256('abc')`. Nested parameters remain rejected with 42P02 at the
 parameter token. Parameter/input/read/cancellation failures publish no replacement,
 even after a valid staged prefix, and retained results stay detached.
 BYTEA hash functions remain excluded from DEFAULT; TEXT MD5 is supported through
-the string provider. No SHA1, encode/decode, pgcrypto, routine catalog/OID
-publication, new cast edges or adjacent function family is implied.
+the string provider. No SHA1, pgcrypto, routine catalog/OID publication or new cast edges are implied.
+The separately documented binary conversion family now supplies encode/decode.
 
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;

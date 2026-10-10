@@ -10,6 +10,18 @@ make fullcheck  # after merge: build, quickcheck + native/reference race, bench/
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
+Binary conversion is grounded in PostgreSQL **REL_18_0**, not local20devel:
+the latter adds formats and changes legacy conversion source layout.
+`internal/sqltype/pgencoding18/` contains release mapping inputs, attribution and
+the deterministic offline generator; its static directional maps avoid runtime
+initialization, host codecs and inverted reverse tables. Format algorithms follow
+[release encode.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/utils/adt/encode.c);
+the standard-library-only charset provider consumes the release direct registry,
+verifiers and specialized conversion algorithms. Preserve release licenses and
+file-specific notices when regenerating data. The pinned18.0 public reference
+goldens remain independent of these production tables. See the selected
+[verification commands](TESTING.md).
+
 
 Parser generation uses `internal/parser/generate.sh` through the existing
 `go:generate` directive. The helper runs pinned `goyacc@v0.50.0` with the unchanged

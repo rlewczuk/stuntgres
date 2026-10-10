@@ -150,6 +150,56 @@ underflow, immutable plan/diagnostic ownership, Retag and cancellation.
 The smoke also demands numeric/UUID defaults before and after native replacement;
 these defaults must return0 rather than fail the closed UUID admission walker.
 
+Binary conversion uses independent pinned18.0 goldens for all128 directed pairs,
+all42 identities, format/padding boundaries, complete diagnostics, held statements,
+volatility and late-write atomicity. Native lifecycle phases retain readers and
+metadata across replacement and failed/canceled imports, and replay actual emitted
+SQL on PostgreSQL. Select the whole affected family and smoke in both modes,
+each invocation under900 seconds:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversion' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversion' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestBinary(Conversion|Encoding|Format)' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestBinaryConversion' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestBinaryConversion' VERBOSE=0
+```
+
+The shared hex/escape cores also serve BYTEA input; run existing
+`^TestReferenceBytea` regressions selectively in both modes before review.
+
+Stored-view metadata uses the established native declared nullable contract
+`true,true`; pq reports unknown `false,false`. Computed conversion expressions
+continue to require unknown nullability. Actual emitted-SQL replay uses the pq
+contract explicitly, not metadata captured from the native backend.
+Replay objects have bounded deferred cleanup before the next backend body,
+including failure exits; the shared scenario resets schemas per test, not backend.
+
+`TestReferenceBinaryConversionActiveCancellation` separately exercises admitted
+aggregate encode reads and ordered staged convert writes on a32MiB LATIN1 source.
+Native observes the worker's actual provider stack before canceling its context;
+PostgreSQL observes the actual query active on the held backend PID and uses
+server cancellation, preserving the same session. Workers have bounded joins on
+every exit. Assertions require no successful cursor/result, unchanged sentinel,
+ordinary native context cancellation or the complete PostgreSQL57014 diagnostic,
+then independently expected read sum4 and write count2/UTF8 bytes through the
+same pre-held read/write statements. No pg_sleep substitute or production delay
+is used. Existing precanceled/expired contexts remain separate coverage.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversionActiveCancellation$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversionActiveCancellation$' VERBOSE=0
+```
+
+The no-bind direct repeated-parameter witness asserts an explicit inherited
+transport boundary (PG42P02 Position16 versus native42P08 Position19/Detail
+`bytea versus name`); genuine Prepare remains shared42P08. See DIALECT's binary
+conversion note. Codec diagnostics and all independent pair/identity goldens
+remain unchanged.
+
+
 The integer-base/TEXT-MD5 family asserts independent 32/64-bit two's-complement
 vectors, RFC/UTF8 digest constants, unknown-TEXT versus known-BYTEA selection,
 held parameter recovery and retained TEXT metadata, complete diagnostics,

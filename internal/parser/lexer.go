@@ -780,7 +780,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (sizeFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
@@ -1308,7 +1308,7 @@ func binaryScalarFunction(name string) bool {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
 		return true
 	}
-	return sizeFunction(name) || binaryHashFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
+	return sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
 }
 
 // Admission recognizes quoted hash spellings without normalizing the AST.
@@ -1324,6 +1324,11 @@ func binaryHashFunction(name string) bool {
 			strings.EqualFold(name, "sha256") || strings.EqualFold(name, "sha384") || strings.EqualFold(name, "sha512")
 	}
 	return false
+}
+
+func binaryConversionFunction(name string) bool {
+	return strings.EqualFold(name, "convert") || strings.EqualFold(name, "convert_from") ||
+		strings.EqualFold(name, "convert_to") || strings.EqualFold(name, "encode") || strings.EqualFold(name, "decode")
 }
 
 func stringNumericBaseFunction(name string) bool {

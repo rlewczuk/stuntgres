@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// BinaryPlan implements only the selected immutable raw-octet signatures.
+// BinaryPlan implements the selected raw-octet and text conversion signatures.
 type BinaryPlan struct {
 	name   string
 	args   [4]Usage
@@ -39,6 +39,16 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		if len(args) == 4 {
 			arity = 4
 		}
+	case "convert":
+		ids, arity = [4]ID{Bytea, Name, Name}, 3
+	case "convert_from":
+		ids, id = [4]ID{Bytea, Name}, Text
+	case "convert_to":
+		ids = [4]ID{Text, Name}
+	case "encode":
+		ids, id = [4]ID{Bytea, Text}, Text
+	case "decode":
+		ids = [4]ID{Text, Text}
 	default:
 		return p, fmt.Errorf("invalid binary operation")
 	}
@@ -46,7 +56,7 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		return p, fmt.Errorf("invalid binary arity")
 	}
 	for i, u := range args {
-		if !u.Valid() || u != u.Type.Usage() || u.Type.ID() != ids[i] {
+		if !u.Valid() || u.Typmod != -1 || u.Type.ID() != ids[i] {
 			return p, fmt.Errorf("invalid binary argument usage")
 		}
 		for j := range i {
@@ -56,16 +66,23 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		}
 		p.args[i] = u
 	}
-	if !result.Valid() || result != result.Type.Usage() || result.Type.ID() != id {
+	if !result.Valid() || result.Typmod != -1 || result.Type.ID() != id {
 		return p, fmt.Errorf("invalid binary result usage")
 	}
-	if id == Bytea && result.Type != args[0].Type {
-		return p, fmt.Errorf("mismatched binary result owner")
+	for i, u := range args {
+		if ids[i] == id && result.Type != u.Type {
+			return p, fmt.Errorf("mismatched binary result owner")
+		}
 	}
 	return p, nil
 }
 func (p BinaryPlan) Name() string       { return p.name }
 func (p BinaryPlan) ResultUsage() Usage { return p.result }
+
+// Immutable reports intrinsic volatility, independently of argument properties.
+func (p BinaryPlan) Immutable() bool {
+	return p.name != "convert" && p.name != "convert_from" && p.name != "convert_to"
+}
 
 func integerLength(d *Descriptor, count int64, bits bool) (Value, error) {
 	if bits {
@@ -95,6 +112,28 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		}
 	}
 	a := values[0]
+	switch p.name {
+	case "convert", "convert_from", "convert_to", "encode", "decode":
+		var raw string
+		var err error
+		switch p.name {
+		case "convert":
+			raw, err = ConvertBinaryEncoding(ctx, a.text, values[1].text, values[2].text)
+		case "convert_from":
+			raw, err = ConvertBinaryEncoding(ctx, a.text, values[1].text, "UTF8")
+		case "convert_to":
+			raw, err = ConvertBinaryEncoding(ctx, a.text, "UTF8", values[1].text)
+		case "encode", "decode":
+			raw, err = binaryFormat(ctx, a.text, values[1].text, p.name == "encode")
+		}
+		if err != nil {
+			return Value{}, err
+		}
+		if p.result.Type.ID() == Text {
+			return String(p.result.Type, raw), nil
+		}
+		return Binary(p.result.Type, raw)
+	}
 	if p.name == "substring" || p.name == "substr" {
 		start := values[1].integer
 		end := int64(len(a.text)) + 1

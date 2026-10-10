@@ -162,7 +162,7 @@ func generationImmutable(node BoundExpr) bool {
 		}
 		return true
 	case binaryExpression:
-		return args(n.args)
+		return n.plan.Immutable() && args(n.args)
 	case datetimeJustifyExpression:
 		return args(n.children())
 	case datetimeExtractExpression:

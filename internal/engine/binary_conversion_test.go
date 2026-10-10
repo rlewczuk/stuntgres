@@ -1,0 +1,103 @@
+package engine
+
+import (
+	"context"
+	"reflect"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestBinaryConversionCarrier(t *testing.T) {
+	types := map[sqltype.ID]*sqltype.Descriptor{}
+	replacement := map[sqltype.ID]*sqltype.Descriptor{}
+	for _, d := range sqltype.Builtins() {
+		types[d.ID()] = d
+	}
+	for _, d := range sqltype.Builtins() {
+		replacement[d.ID()] = d
+	}
+	for _, tc := range []struct {
+		name       string
+		ids        []sqltype.ID
+		result     sqltype.ID
+		raw        []string
+		want       string
+		volatility Volatility
+	}{
+		{"convert", []sqltype.ID{sqltype.Bytea, sqltype.Name, sqltype.Name}, sqltype.Bytea, []string{"\xe9", "LATIN1", "UTF8"}, "é", Stable},
+		{"convert_from", []sqltype.ID{sqltype.Bytea, sqltype.Name}, sqltype.Text, []string{"\xe9", "LATIN1"}, "é", Stable},
+		{"convert_to", []sqltype.ID{sqltype.Text, sqltype.Name}, sqltype.Bytea, []string{"é", "LATIN1"}, "\xe9", Stable},
+		{"encode", []sqltype.ID{sqltype.Bytea, sqltype.Text}, sqltype.Text, []string{"\xe9", "hex"}, "e9", Immutable},
+		{"decode", []sqltype.ID{sqltype.Text, sqltype.Text}, sqltype.Bytea, []string{"e9", "hex"}, "\xe9", Immutable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			usages := make([]sqltype.Usage, len(tc.ids))
+			args := make([]BoundExpr, len(tc.ids))
+			var order []int
+			for i, id := range tc.ids {
+				d := types[id]
+				usages[i] = d.Usage()
+				var v sqltype.Value
+				if id == sqltype.Bytea {
+					var err error
+					v, err = sqltype.Binary(d, tc.raw[i])
+					if err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					v = sqltype.String(d, tc.raw[i])
+				}
+				args[i] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: v, order: &order, index: i}
+			}
+			usage := types[tc.result].Usage()
+			plan, err := sqltype.BindBinary(tc.name, usage, usages...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expr := binaryExpression{expressionInfo: expressionInfo{usage: usage}, plan: plan, args: args}
+			got, err := expr.Eval(&EvalContext{Context: context.Background()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var raw string
+			if tc.result == sqltype.Bytea {
+				raw, err = got.Binary()
+			} else {
+				raw, err = got.Text()
+			}
+			if err != nil || raw != tc.want {
+				t.Fatal(raw, tc.want, err)
+			}
+			wantOrder := []int{0, 1}
+			if len(args) == 3 {
+				wantOrder = append(wantOrder, 2)
+			}
+			if !reflect.DeepEqual(order, wantOrder) {
+				t.Fatal(order)
+			}
+			if plannedVolatility(expr) != tc.volatility {
+				t.Fatal("intrinsic volatility lost")
+			}
+			for i, arg := range args {
+				observed := arg.(mathObservedArgument)
+				args[i] = literalExpression{expressionInfo: observed.expressionInfo, value: observed.value}
+			}
+			if generationImmutable(expr) != (tc.volatility == Immutable) {
+				t.Fatal("generation intrinsic volatility lost")
+			}
+			rebound, changed, err := retagBoundTypes(expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+			if err != nil || !changed {
+				t.Fatal(changed, err)
+			}
+			next := rebound.(binaryExpression)
+			result, err := next.Eval(&EvalContext{Context: context.Background()})
+			want, retagErr := got.Retag(replacement[tc.result])
+			if err != nil || retagErr != nil || result != want {
+				t.Fatal(result, want, err, retagErr)
+			}
+			if expr.plan.ResultUsage().Type != types[tc.result] || next.plan.ResultUsage().Type != replacement[tc.result] {
+				t.Fatal("descriptor ownership")
+			}
+		})
+	}
+}

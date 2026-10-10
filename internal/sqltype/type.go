@@ -429,7 +429,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	case Name:
 		return String(d, clipName(text)), nil
 	case Bytea:
-		return d.byteaInput(text)
+		return d.byteaInput(ctx, text)
 	case UUID:
 		return d.uuidInput(text)
 	case Date:
