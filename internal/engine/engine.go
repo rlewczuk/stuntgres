@@ -67,6 +67,8 @@ type binding struct {
 	viewNamespaces     []viewNamespace
 	commandQuery       bool
 	update             *boundUpdate
+	deleteUsing        LogicalNode
+	deleteSourceWidth  int
 	returning          *boundReturning
 	dependencies       []expressionDependency
 	parameters         ParameterInfo
@@ -663,6 +665,25 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 		binder.relation, binder.ref = b.relation, b.ref
 		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
+		binder.queryAuth = &auth
+		if s.Using != nil {
+			target := binder.mutationTargetNamespace()
+			binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+			var sources queryNamespace
+			binder.deleteUsingSources = true
+			b.deleteUsing, sources, err = binder.bindFrom(s.Using)
+			binder.deleteUsingSources = false
+			if err != nil {
+				return b, err
+			}
+			b.deleteSourceWidth = len(sources.frame)
+			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.columns)))
+			if err != nil {
+				return b, err
+			}
+			binder.queryNamespace = &target
+			binder.aggregateClause = "DELETE"
+		}
 		if s.Where != nil {
 			b.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
 			if err != nil {

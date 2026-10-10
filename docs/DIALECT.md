@@ -1010,19 +1010,19 @@ at that occurrence. Already-known INT4 outputs may assignment-cast to BIGINT
 without changing the input parameter type; per-target NUMERIC/time/timestamp
 typmods size each value independently.
 
-DELETE FROM [schema.]target [[AS] alias] [WHERE predicate] removes real live row
+DELETE FROM [schema.]target [[AS] alias] [USING from_list] [WHERE predicate] removes real live row
 occurrences and retains the table/schema. WHERE reuses typed scalar comparisons,
 Boolean AND/OR/NOT and True-only selection, including contextual BOOL parameters.
 DELETE predicate columns accept visible target/alias qualification; alias hides
-the original target name. Query FROM aliases/qualification are separate supported features. Direct
+the original target name. USING reuses the supported SELECT source tree. Direct
 and held prepared executions report exact affected counts, zero for no matches,
 and unsupported LastInsertId. Omitted RETURNING has no result relation.
 Qualified missing-column diagnostics use decoded identifier components without
 SQL quoting, including `column D.Zzzzz does not exist` for `"D"."Zzzzz"`.
 DELETE admits the same nullness, truth and DISTINCT predicate forms as SELECT,
-including qualified target/alias operands. Baseline scalar CAST/`::`/function
+including qualified target/alias operands. Without USING, baseline scalar CAST/`::`/function
 casts admit unqualified children only; qualified cast children remain excluded
-with whole-input rejection before effects. Frame-only conversions precede
+with whole-input rejection before effects. USING uses query qualification. Frame-only conversions precede
 executor ACL checks and candidate capture even on empty input or decisive Boolean
 branches; row-dependent conversions still evaluate per row, without guaranteed
 logical short-circuiting. With stored `s='oops'`, native `FALSE AND int4(s)=42`
@@ -1063,18 +1063,35 @@ replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
 a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
-PostgreSQL-only witness. Native FKs, triggers, DELETE USING/CURRENT OF,
+PostgreSQL-only witness. Native FKs, triggers, DELETE CURRENT OF,
 CTE/inheritance targets and adjacent unsupported row mechanisms remain excluded.
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`;
-reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
-Integrated expressions: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0`;
+reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsing' VERBOSE=0`.
+Migrated baseline expressions: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedExpressions' VERBOSE=0`.
 
-DELETE RETURNING supports mixed target/OLD/NEW stars and all already-admitted
+USING admits currently supported relations/self-relations, comma/CROSS/inner/outer
+joins, ON/USING/NATURAL, aliases/parentheses, derived SELECT and VALUES, views,
+and catalog sources; existing FULL-path execution restrictions apply.
+Immediate sequence USING sources pass effect-free Prepare but fail Execute with
+42809: DELETE's reference-kind validation does not grant source tuple locks or
+UPDATE privileges.
+Source-local ON/derived analysis cannot read the mutation target. WHERE/RETURNING
+see the combined namespace. Nonempty products delete each target once; empty
+sources delete none, including zero-width cardinality. Deduplication is by physical
+target identity, never values. Duplicate source winners/order are unspecified.
+All source read manifests require SELECT, even for FALSE/empty/constant queries;
+target SELECT is required only for actual reads, independently of target DELETE.
+Sources and qualifying pair identities are frozen before the first row wait.
+Rechecks use the latest same target and original source occurrence; a rejected
+pair does not suppress later eligible pairs. Publication, abort/savepoint,
+cancellation and committed-survivor Dump/Restore use the existing DELETE authority.
+
+DELETE RETURNING supports mixed target/source/OLD/NEW stars and all already-admitted
 general scalar projections, labels, parameters and sequences, with
 `WITH (OLD AS o, NEW AS n)` output aliases. Actual successful deletion
 predecessors provide OLD/default values; ordinary NEW is source-typed NULL
 with nullable metadata and the same source-column SELECT requirement.
-Explicit aliases/visible target names mask implicit OLD/NEW; output namespaces
+Explicit aliases/visible target or source names mask implicit OLD/NEW; output namespaces
 do not leak into WHERE. Prepare is effect-free; held execution rebinds, checks
 current ACLs and validates its output signature. Finalized rows are owned,
 eager and never reevaluated by Next, including when Exec ignores output.
@@ -1086,7 +1103,7 @@ RETURNING cursors/history; its mutation-script whitelist is not widened.
 Whole-row records, absent windows/SRFs, triggers/FKs,
 view writes/rewrite-to-UPDATE and physical tuple/C/wire metadata remain
 PostgreSQL-only boundaries. See [output details](QUERIES.md#delete-returning--change-note).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`;
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedReturning' VERBOSE=0`;
 reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteReturning' VERBOSE=0`.
 
 UPDATE RETURNING shares scalar projection/alias binding and eager result ownership
@@ -2992,7 +3009,7 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions, primary
-keys, UPDATE FROM/row-subqueries/CURRENT OF and DELETE USING/CURRENT OF.
+keys, UPDATE FROM/row-subqueries/CURRENT OF and DELETE CURRENT OF.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ/SERIALIZABLE, READ ONLY/READ WRITE
 and [NOT] DEFERRABLE modes. SET TRANSACTION changes current owner modes;
@@ -3441,8 +3458,8 @@ DELETE of a sequence itself fails at execution with `42809` / `cannot change
 sequence "s"` before predicate allocation. Retained row results and new
 INSERT SELECT/Dump consumers respectively retain their captured snapshot and
 observe only live survivors. Feature smoke:
-`make quickcheck PACKAGES=./smoke RUN='^TestSequenceDeleteCompositionSmoke$' VERBOSE=1` (also a
-`TestSequenceSmoke` subtest).
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedSequence' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigratedSequence' VERBOSE=0`.
 
 ## Timezone-aware temporal extension
 

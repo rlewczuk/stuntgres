@@ -286,10 +286,15 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		}
 		relation := b.queryAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if relation.relationKind == indexRelation {
+			if b.deleteUsingSources {
+				err := expressionError("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), n.Name.Parts[0].Pos).(*sqlstate.Error)
+				err.Detail = "This operation is not supported for indexes."
+				return nil, queryNamespace{}, err
+			}
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
 		}
 		leaf := len(b.querySources)
-		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n]})
+		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n], deleteReference: b.deleteUsingSources && len(b.queryScopes) == 0})
 		columns := make([]queryColumn, len(relation.columns))
 		for i, c := range relation.columns {
 			columns[i] = queryColumn{c, i, leaf, i}

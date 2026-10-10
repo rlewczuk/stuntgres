@@ -279,7 +279,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		return nil
 	}
 	for _, leaf := range leaves {
-		if err := visit(leaf.relation, leaf.mark, leaf.query != nil && len(leaf.query.Locking) != 0); err != nil {
+		if err := visit(leaf.relation, leaf.mark, leaf.deleteReference || leaf.query != nil && len(leaf.query.Locking) != 0); err != nil {
 			return err
 		}
 	}

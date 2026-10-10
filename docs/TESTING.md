@@ -130,6 +130,41 @@ pq NULL; do not erase this inherited adapter difference or use Go kinds for
 signature selection. These selectors do not replace ordinary quickcheck or
 post-merge fullcheck.
 
+DELETE USING coverage lives in the untagged `TestReferenceDeleteUsing` family:
+physical occurrence/count/output deduplication, actual joined producers, alias/self
+scopes, diagnostics, held parameters/source metadata, privileges, atomicity,
+contention/isolation/cancellation and committed-state/native retained-output controls.
+`MigratedCore`, `MigratedExpressions`, `MigratedReturning`,
+`MigratedReturningControls`, `MigratedSequenceBoundary` and
+`MigratedSequenceComposition` preserve the superseded public smoke assertion/route
+union. Native no-USING qualified-cast and eager decisive-FALSE sequence demand
+boundaries are explicit, not adjacent compatibility fixes. Held-dependency
+invalidation asserts shared missing-name/no-draw behavior with independent state
+expectations and restores the fixture search path on every exit.
+Native ACL mutation/queue authority units supplement explicit PostgreSQL ACL phases.
+Fast pre-cancelled DELETE calls are a native adapter boundary: lib/pq may complete
+them before cancellation is reported. Shared PostgreSQL cancellation evidence comes
+from `TestReferenceDeleteUsingWaitTimeout` at actual admitted target/source waits,
+with complete diagnostics, no partial effects and explicit transaction recovery.
+Sequence USING rejection requires the Execute stage, including a genuine held
+Prepare followed by target/source/sequence no-effect assertions before execution.
+Index-source analysis diagnostics remain separate; neither policy changes ordinary
+SELECT/UPDATE source semantics. Internal admission/contender workers register
+cancellation and a five-second, exactly-once outcome/exit join before queue
+assertions; failure cleanup closes any retained result before session teardown.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsing|^TestReferenceDeleteCoreExcludedForms' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsing|^TestReferenceDeleteCoreExcludedForms' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0
+```
+
+Each selective invocation has a900-second deadline. Real oracle evidence precedes
+native implementation; final verification uses the same completed bodies in both
+modes. Internal `TestDeleteUsing` parser/engine tests exercise positioned traversal,
+captured identity/authority, successful-only suppression and failure/cleanup seams.
+
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
 held prepared session-zone changes, full calendar/seconds/zone/signature errors,

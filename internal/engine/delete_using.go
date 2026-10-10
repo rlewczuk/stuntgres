@@ -1,0 +1,147 @@
+package engine
+
+import (
+	"errors"
+
+	"stuntgres/internal/sqltype"
+)
+
+type deleteUsingCandidate struct {
+	deleteCandidate
+	sourceIndex int
+}
+
+// The source stage owns immutable joined frames. Only qualifying identities and
+// occurrence indexes are retained, before any target row arbitration can wait.
+func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext) (Result, error) {
+	ctx := evaluation.Context
+	stage, err := openQueryNode(ctx, evaluation.query, b.deleteUsing)
+	if err != nil {
+		return Result{}, err
+	}
+	stage, err = settlePendingQueryMarks(ctx, evaluation.query, b.deleteUsing, stage)
+	if err != nil {
+		return Result{}, err
+	}
+	defer stage.Close()
+	if err := stage.drain(ctx); err != nil {
+		return Result{}, err
+	}
+	var frame []sqltype.Value
+	sourceCount := stage.count()
+	targetCount := 0
+	if sourceCount != 0 {
+		frame = make([]sqltype.Value, len(b.relation.columns)+b.deleteSourceWidth)
+		targetCount = source.count()
+	}
+	var candidates []deleteUsingCandidate
+	for i := range targetCount {
+		ordinal := source.rawIndex(i)
+		version := source.versionAt(ordinal)
+		candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.row, version: version.version, ordinal: ordinal}
+		if ordinal >= len(source.committed) {
+			candidate.own = true
+			candidate.ordinal -= len(source.committed)
+		}
+		for j := range sourceCount {
+			if err := ctx.Err(); err != nil {
+				return Result{}, err
+			}
+			copy(frame, version.values)
+			copy(frame[len(version.values):], stage.source.row(stage.index(j)))
+			evaluation.Row = frame
+			matches, err := updateMatches(evaluation, b.predicate)
+			if err != nil {
+				return Result{}, err
+			}
+			if matches {
+				candidates = append(candidates, deleteUsingCandidate{deleteCandidate: candidate, sourceIndex: j})
+			}
+		}
+	}
+	var deletedIDs map[RowID]bool
+	if len(candidates) != 0 {
+		deletedIDs = make(map[RowID]bool, min(len(candidates), source.count()))
+	}
+	var rows *finalRows
+	keep := false
+	if b.returning != nil {
+		rows = newFinalRows(b.returning.schema, 0)
+		rows.output = s.output
+		defer func() {
+			if !keep {
+				rows.Close()
+			}
+		}()
+	}
+	var count int64
+	for _, pair := range candidates {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
+		candidate := pair.deleteCandidate
+		if deletedIDs[candidate.row] {
+			continue
+		}
+		if err := s.acquireRow(candidate); err != nil {
+			return Result{}, err
+		}
+		current, live, err := s.latestDeleteRow(candidate)
+		if err != nil {
+			return Result{}, err
+		}
+		if !live {
+			continue
+		}
+		copy(frame, current.values)
+		copy(frame[len(current.values):], stage.source.row(stage.index(pair.sourceIndex)))
+		evaluation.Row = frame
+		if current.version != candidate.version {
+			matches, err := updateMatches(evaluation, b.predicate)
+			if err != nil {
+				return Result{}, err
+			}
+			if !matches {
+				continue
+			}
+		}
+		if err := s.claimUniqueRow(b.ref, current.values); err != nil {
+			return Result{}, err
+		}
+		deleted, err := s.Writes().Delete(candidate)
+		if err != nil {
+			return Result{}, err
+		}
+		if !deleted {
+			continue
+		}
+		deletedIDs[candidate.row] = true
+		count++
+		if rows != nil {
+			for output, expr := range b.returning.expressions {
+				value, err := expr.Eval(evaluation)
+				if err != nil {
+					return Result{}, err
+				}
+				if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.schema[output].Usage.Type {
+					return Result{}, errors.New("stuntgres: invalid finalized DELETE value")
+				}
+				rows.values = append(rows.values, value)
+			}
+			rows.count++
+		}
+	}
+	if rows != nil && b.returning.regclassOutput && count != 0 {
+		if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+			return Result{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	keep = true
+	if rows != nil {
+		return Result{Count: count, Rows: rows}, nil
+	}
+	return Result{Count: count}, nil
+}

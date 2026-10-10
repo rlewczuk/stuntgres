@@ -33,7 +33,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	parent.relation = b.relation
 	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
 	if parent.namespace == nil && b.relation != nil && (b.updateParameters || b.deleteTarget) {
-		ns := b.updateTargetNamespace()
+		ns := b.mutationTargetNamespace()
 		parent.namespace = &ns
 	}
 	oldFrame := b.queryFrame

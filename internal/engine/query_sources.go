@@ -15,6 +15,9 @@ type queryLeaf struct {
 	mark     queryRowMark
 	query    *parser.Select
 	table    *parser.TableReference
+	// DELETE's immediate USING occurrences require reference-kind validation,
+	// not SELECT FOR UPDATE authority or source tuple locks.
+	deleteReference bool
 }
 
 func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {

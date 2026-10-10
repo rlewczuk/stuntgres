@@ -17,7 +17,6 @@ func TestSequenceSmoke(t *testing.T) {
 	t.Run("physical-end", TestSequenceTemporaryPhysicalEndSmoke)
 	t.Run("prepared-invalidation", sequencePreparedSmoke)
 	t.Run("merged-producer", TestSequenceMergedProducerSmoke)
-	t.Run("delete-composition", TestSequenceDeleteCompositionSmoke)
 	t.Run("producer-boundary", TestSequenceProducerBoundarySmoke)
 	ctx := context.Background()
 	connector, err := stuntgres.NewDriver().OpenConnector("sequence-smoke")

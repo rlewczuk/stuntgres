@@ -218,7 +218,11 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			return Result{}, err
 		}
 		state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
+		inputs.scope = s
 		evaluation.query = state
+	}
+	if b.deleteUsing != nil {
+		return s.deleteUsingSource(b, source, &evaluation)
 	}
 	var count int64
 	var rows *finalRows

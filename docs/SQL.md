@@ -122,7 +122,7 @@ INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
        [ORDER BY ordering_key [, ...]] [query_bounds]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
-DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
+DELETE FROM [schema.]name [[AS] alias] [USING from_list] [WHERE delete_predicate]
        [RETURNING [WITH (returning_alias [, ...])] projection_target [, ...]]
 returning_alias := (OLD | NEW) AS name
 SELECT [projection_target [, ...]] FROM from_list
@@ -258,9 +258,9 @@ than comma lists and associate left; parentheses preserve boundaries. ON sees
 only its operands. Aliases hide original qualifiers; a whole-join alias hides
 operand qualifiers. A special USING AS alias exposes only merged keys without
 hiding operands and admits no column-alias list. Query qualification applies to
-SELECT/INSERT SELECT and UPDATE FROM consumers. DELETE and UPDATE RETURNING
-retain target/OLD/NEW namespaces; UPDATE additionally exposes its FROM sources.
-UPDATE SET RHS/WHERE use query qualification; DELETE WHERE's guard is unchanged.
+SELECT/INSERT SELECT, UPDATE FROM and DELETE USING consumers. Mutation RETURNING
+exposes target/OLD/NEW and visible FROM/USING sources. DELETE USING WHERE uses query
+qualification; the no-USING DELETE qualification guard remains unchanged.
 Raw guards remain at DEFAULT, VALUES and settings-call scalar entry points. Previously
 admitted conditional arguments
 retain their consumer diagnostics, including metadata-only utility Prepare
@@ -937,7 +937,7 @@ LATERAL joins, CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity/UNIQUE, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,
-UPDATE row assignments/CURRENT OF, DELETE USING/CURRENT OF,
+UPDATE row assignments/CURRENT OF, DELETE CURRENT OF,
 INSERT RETURNING and whole-row RETURNING records,
 general COLLATE, two-phase commit, transactional table DDL outside selected
 TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,

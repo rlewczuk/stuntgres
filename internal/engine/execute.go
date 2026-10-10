@@ -323,7 +323,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
-	if inserting || b.update != nil || b.query != nil || (deleting && (b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
+	if inserting || b.update != nil || b.query != nil || (deleting && (b.deleteUsing != nil || b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
@@ -369,7 +369,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				err = validateQueryJoinExecution(&evaluation, queryRoot, auth.catalog, 0)
 			}
 		} else if deleting {
-			if b.predicate != nil {
+			if b.deleteUsing != nil {
+				b.deleteUsing, err = preflightQuery(&evaluation, b.deleteUsing)
+				if err == nil {
+					err = validateQueryJoinExecution(&evaluation, b.deleteUsing, auth.catalog, 0)
+				}
+			}
+			if err == nil && b.predicate != nil {
 				b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
 			}
 		}
@@ -659,7 +665,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			view, viewErr = scope.acquireDataViewLocked(e, b.ref)
 		}
 		var inputs *querySource
-		if viewErr == nil && b.subqueryDemand {
+		if viewErr == nil && (b.deleteUsing != nil || b.subqueryDemand) {
 			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.querySources, false)
 		} else if viewErr == nil && b.returning != nil {
 			viewErr = e.captureCommentSnapshotLocked(scope)

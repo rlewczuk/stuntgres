@@ -344,6 +344,17 @@ missing-name diagnostics without changing resolution or physical privileges.
 See [query labels and relation aliases](docs/QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
 Public feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
 
+DELETE also accepts the supported query `USING` source trees, including joins,
+derived SELECT/VALUES, views and self-joins. WHERE/RETURNING share target/source
+scope; the target is inaccessible inside source JOIN ON and derived queries.
+Each matched physical target is deleted/counts/returns once despite repeated
+source matches; identical target rows remain distinct. Source rows and qualifying
+pair identities stay captured through row waits; only the same target predecessor
+and predicate are refreshed. No arbitrary source winner or output order is promised.
+See [DELETE USING](docs/QUERIES.md#delete-using--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0`.
+
 DELETE supports `RETURNING *`, scalar expressions and PostgreSQL18 OLD/NEW
 output aliases. Deleted occurrences return their actual pre-deletion values
 (including committed updates encountered after a row wait); ordinary NEW columns
@@ -353,7 +364,8 @@ the actual count. Output failure or prepublication cancellation discards all
 transactional deletions, while sequence draws retain their usual nonrollback
 semantics. Native Dump/Restore records surviving objects/data, not result history.
 See [DELETE RETURNING](docs/QUERIES.md#delete-returning--change-note).
-Feature smokes: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
+Migrated public routes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigrated' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsingMigrated' VERBOSE=0`.
 
 UPDATE supports PostgreSQL18 `RETURNING` expressions, mixed stars and output-only
 OLD/NEW aliases. Ordinary outputs read the completed new row; OLD reads the actual

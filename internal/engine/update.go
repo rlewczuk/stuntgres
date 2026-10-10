@@ -80,7 +80,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	}()
 	u := &boundUpdate{assignments: make([]BoundExpr, len(s.Assignments))}
 	var err error
-	target := binder.updateTargetNamespace()
+	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
 	if s.From != nil {
 		var sources queryNamespace

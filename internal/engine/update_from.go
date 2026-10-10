@@ -1,8 +1,8 @@
 package engine
 
-// The target prefix has independent physical UPDATE/SELECT authority. FROM's
-// exposed columns follow it; source-internal ON expressions stay local.
-func (b *expressionBinder) updateTargetNamespace() queryNamespace {
+// Mutation target columns retain independent physical write/read authority.
+// Exposed source columns follow them; source-internal ON expressions stay local.
+func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 	columns := make([]queryColumn, len(b.relation.columns))
 	for i, descriptor := range b.relation.columns {
 		columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}

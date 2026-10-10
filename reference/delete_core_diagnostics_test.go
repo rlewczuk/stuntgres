@@ -114,55 +114,6 @@ func TestReferenceDeleteCoreDiagnosticBoundaries(t *testing.T) {
 	}
 }
 
-func TestReferenceDeleteCoreExcludedForms(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			a, _ := referenceLockConnections(t, p.ctx, db)
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
-			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT)", 0)
-			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1),(2)", 2)
-			if i == 0 {
-				for _, tc := range []struct{ query, message, position string }{
-					{"DELETE FROM t USING t AS other WHERE t.id=other.id", "DELETE suffix is unsupported", "15"},
-					{"DELETE FROM t WHERE CURRENT OF c", "DELETE CURRENT OF is unsupported", "21"},
-				} {
-					for _, prepared := range []bool{false, true} {
-						s := referenceImplicitError(tc.query, referenceDiagnostic{Code: "0A000", Message: tc.message, Position: tc.position})
-						s.prepared, s.selectRows, s.errorStage = prepared, true, "execute"
-						if prepared {
-							s.errorStage = "prepare"
-						}
-						referenceRunStep(t, p.ctx, a, r, s)
-						deleteReferenceRows(t, p, a, r, 1, 2)
-					}
-				}
-				return
-			}
-			// These are genuine PostgreSQL successes, not syntax-error parity
-			// with the explicitly excluded native capabilities above.
-			referenceLockExec(t, p.ctx, a, "DELETE FROM t USING t AS other WHERE t.id=other.id AND t.id=1", 1)
-			deleteReferenceRows(t, p, a, r, 2)
-			referenceRunStep(t, p.ctx, a, r, referenceSelect("DELETE FROM t RETURNING id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
-			deleteReferenceRows(t, p, a, r)
-			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1),(2)", 2)
-			tx, err := a.BeginTx(p.ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tx.Rollback()
-			referenceLockExec(t, p.ctx, tx, "DECLARE c CURSOR FOR SELECT id FROM t ORDER BY id FOR UPDATE", 0)
-			referenceRunStep(t, p.ctx, tx, r, referenceSelect("FETCH NEXT FROM c", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
-			referenceLockExec(t, p.ctx, tx, "DELETE FROM t WHERE CURRENT OF c", 1)
-			deleteReferenceRows(t, p, tx, r, 2)
-			if err = tx.Commit(); err != nil {
-				t.Fatal(err)
-			}
-			deleteReferenceRows(t, p, a, r, 2)
-		})
-	}
-}
-
 func TestReferenceDeleteCorePermissionDiagnostic(t *testing.T) {
 	roleReferenceCleanup(t, []string{"delete_denied"})
 	p := newReferencePair(t)

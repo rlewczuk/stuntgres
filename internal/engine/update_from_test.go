@@ -18,7 +18,24 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := e.StartStatement(op)
+	var scope *StatementScope
+	var source, from *querySource
+	// Register ownership before parsing, admission or capture can fail. Normal
+	// callers still release immediately; these idempotent fallbacks also cover
+	// Fatal/panic exits before a caller reaches Finish/Done.
+	t.Cleanup(func() {
+		if from != nil {
+			from.close()
+		}
+		if source != nil {
+			source.close()
+		}
+		if scope != nil && !scope.finished {
+			scope.Finish(errors.New("abandoned mutation capture fixture"))
+		}
+		op.Done()
+	})
+	scope, err = e.StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -35,7 +52,6 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	auth, err := e.authorizationLocked(op)
 	var b binding
 	var view *VisibilityView
-	var source, from *querySource
 	if err == nil {
 		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}

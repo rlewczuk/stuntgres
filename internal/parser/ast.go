@@ -482,6 +482,7 @@ func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSour
 type Delete struct {
 	Name      ObjectName
 	Alias     Identifier
+	Using     FromItem
 	Where     Expr
 	Returning *Returning
 	Pos       Position

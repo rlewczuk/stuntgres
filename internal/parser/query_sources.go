@@ -218,6 +218,9 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			}
 		}
 	case *Delete:
+		if err := from(s.Using, &Select{From: s.Using}); err != nil {
+			return err
+		}
 		if err := expression(s.Where); err != nil {
 			return err
 		}

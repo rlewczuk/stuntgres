@@ -814,6 +814,7 @@ type expressionBinder struct {
 	temporals                  []temporalConstant
 	anyParameters              []parameterExpression
 	deleteTarget               bool
+	deleteUsingSources         bool
 	targetName                 string
 	targetAlias                string
 	returningAliases           *returningAliases

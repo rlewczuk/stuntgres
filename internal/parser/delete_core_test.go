@@ -66,7 +66,6 @@ func TestDeleteCoreGrammar(t *testing.T) {
 
 func TestDeleteCoreParserBoundaries(t *testing.T) {
 	for _, tc := range []struct{ query, code, message, position string }{
-		{"DELETE FROM t USING u", "0A000", "DELETE suffix is unsupported", "15"},
 		{"DELETE FROM t WHERE CURRENT OF c", "0A000", "DELETE CURRENT OF is unsupported", "21"},
 		{"DELETE FROM t WHERE", "42601", "syntax error at end of input", "20"},
 		{"CREATE TABLE t(v int4 delete)", "42601", `syntax error at or near "delete"`, "23"},

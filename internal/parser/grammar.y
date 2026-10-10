@@ -293,7 +293,7 @@ package parser
 %type <typ> qualified_call_head
 %type <targets> insert_targets
 %type <objectName> relation_name
-%type <fromItem> from_list joined_table from_atom from_base update_from
+%type <fromItem> from_list joined_table from_atom from_base update_from delete_using
 %type <identifiers> alias_columns using_columns
 %type <identifier> using_alias
 %type <joinKind> inner_join
@@ -920,9 +920,9 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_override insert_input { s:=insertStatement($3,$5,$8,$1.pos);s.Override=$7;$$=s }
  | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
 insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER VALUE { $$=OverrideUser } ;
-delete: DELETE FROM relation_name delete_alias delete_where returning { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Returning:$6,Pos:$1.pos} }
- | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 }
- | DELETE FROM relation_name delete_alias delete_where USING { sqllex.(*lexer).failAt("0A000","DELETE suffix is unsupported",$6.pos.Offset);return 1 } ;
+delete: DELETE FROM relation_name delete_alias delete_using delete_where returning { if $5==nil {if token:=deleteQualification($6,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6,Returning:$7,Pos:$1.pos} }
+ | DELETE FROM relation_name delete_alias delete_using delete_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
+delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 returning: /* empty */ { $$=nil }
  | RETURNING returning_aliases projection { $$=&Returning{Targets:$3.Targets,Labels:$3.Labels,Aliases:$2,Pos:$1.pos} } ;
