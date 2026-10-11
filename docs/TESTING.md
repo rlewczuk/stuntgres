@@ -340,6 +340,64 @@ rejection for builtin/plain/nested-domain operands. Success is quiet exit0, not 
 test-shelling. Root runs whole-project Docker-free quickcheck after edits and
 post-integration finalcheck; those do not replace selected dual-mode evidence.
 
+## COPY binary selected proof
+
+Shared untagged `reference/dml/copy_binary_*_test.go` definitions use the existing
+genuine pgx stream fixture, handwritten binary builders and complete independent
+diagnostics. Provider goldens include raw SELECT/ColumnTypes and independently
+encoded canonical exports; dynamic user OIDs come independently from native
+`regtype::bigint` or the actual PostgreSQL catalog.
+Header/EOF/options and malformed nested precedence were discovered against pinned
+PostgreSQL18 before production. Native unsupported domain-constraint DDL and SQL
+server observation functions are explicitly asserted, never fake parity or skips.
+Private lifecycle units use actual Operation statement/transaction expiry and
+caller cancellation; pinned server phases observe ClientRead/deadlines and release
+complete valid payload/trailer framing before joining. Controls genuinely import
+binary native state, Dump/Reset/Restore, re-export and replay its actual dump on PG.
+`TestReferenceCopyBinaryReviewRegressions` distinguishes actual nullable plain
+domain-array receive/NULL/base-error/OID/metadata proof from constrained-domain
+setup boundaries. It includes pinned canonical NUMERIC infinity/NaN range and
+multirange bytes, raw/direct-prepared consumers, real persistence controls,
+complete-first UTF8 versus later missing array length, declared member truncation,
+and canonical character/temporal/array OID mismatch records. Actual catalog CHAR
+and admitted query-derived XID outputs supplement raw table-DDL exclusions;
+pgx XID int64 and native decimal byte carriers are asserted separately.
+
+Each command has an external900-second deadline. Run every shared group in both
+native and real pinned modes; race proof remains a separate native invocation:
+
+```sh
+make check RUN='^TestReferenceCopyBinary(RoundTrip|Framing|EOFBehavior|HeaderDiagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyBinary(RoundTrip|Framing|EOFBehavior|HeaderDiagnostics)$'
+make check RUN='^TestReferenceCopyBinary(CodecsScalar|CodecsTemporal|CodecsStructured|CodecsNested|OutputOnly)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyBinary(CodecsScalar|CodecsTemporal|CodecsStructured|CodecsNested|OutputOnly)$'
+make check RUN='^TestReferenceCopyBinary(Diagnostics|Options|Admission|DatabaseSQLBoundary)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyBinary(Diagnostics|Options|Admission|DatabaseSQLBoundary)$'
+make check RUN='^TestReferenceCopyBinary(QueryAndColumns|Consumers|Atomicity|Transactions)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyBinary(QueryAndColumns|Consumers|Atomicity|Transactions)$'
+make check RUN='^TestReferenceCopyBinary(Lifecycle|Controls|FeatureSmoke|ForbiddenInput|AdditionalProviders)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyBinary(Lifecycle|Controls|FeatureSmoke|ForbiddenInput|AdditionalProviders)$'
+make check RUN='^TestReferenceCopyBinaryReviewRegressions$'
+make check REFERENCE=1 RUN='^TestReferenceCopyBinaryReviewRegressions$'
+make check RUN='^TestBinary(Scalar|Temporal|Structured|Nested)$'
+make check RUN='^TestCopyBinary(Options|Framing|Output|Lifecycle|FinalCancellationVeto)$'
+make check RUN='^TestCopyParser'
+make check RACE=1 RUN='^(TestCopyBinary(Lifecycle|FinalCancellationVeto)|TestReferenceCopyBinaryLifecycle)$'
+```
+
+Keep selected text/CSV option/framing/consumer regressions below. `make quickcheck`
+is the whole-project Docker-free gate, not a replacement for selected pinned proof.
+The separate ephemeral public feature program (`local://copy-binary-smoke.go`,
+root-materialized `.copy-binary-smoke/main.go`) runs as
+`go run ./.copy-binary-smoke`. Remove that materialization after evidence. Success
+is exit0/empty stderr and exactly three LF-terminated stdout lines: `COPY 2`,
+`COPY 2`, `COPY binary smoke passed`. Its expected bytes are not native exports.
+The program additionally binary-populates canonical infinity NUMRANGE/
+NUMMULTIRANGE and a nullable plain domain-element array, checks direct/prepared
+raw metadata and text/binary exports after native and fresh restore, and checks
+real catalog CHAR plus nonempty query-derived XID output. Its XID SQL seed is
+solely an admitted output witness, not a substitute for binary population.
+
 ## COPY CSV selected proof
 
 Untagged `reference/dml/copy_csv_*_test.go` shares the existing public COPY

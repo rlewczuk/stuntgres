@@ -315,7 +315,7 @@ package parser
 %type <expr> policy_using policy_check
 %type <stmt> copy
 %type <copyStmt> copy_target copy_endpoint
-%type <desc> copy_direction
+%type <tok> copy_direction
 %type <copyOptions> copy_options copy_option_list copy_legacy_options
 %type <copyOption> copy_option copy_option_value copy_legacy_option
 %type <tok> copy_option_name
@@ -669,12 +669,13 @@ drop_policy: DROP POLICY name ON relation_name drop_mode {
  $$=&DropPolicy{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
 } ;
 copy: COPY copy_target copy_direction copy_endpoint copy_options copy_where {
- $$=$2;$2.Pos=$1.pos;$2.From=$3;$2.Endpoint=$4.Endpoint;$2.Filename=$4.Filename;$2.Options=$5;$2.Where=$6
- if ($2.Query!=nil && $2.From)||($2.From && $2.Endpoint==CopyStdout)||(!$2.From && $2.Endpoint==CopyStdin) {sqllex.(*lexer).syntax($1);return 1}
+ $$=$2;$2.Pos=$1.pos;$2.From=$3.text=="from";$2.Endpoint=$4.Endpoint;$2.Filename=$4.Filename;$2.Options=$5;$2.Where=$6
+ if $2.Query!=nil && $2.From {sqllex.(*lexer).syntax($3);return 1}
+ if ($2.From && $2.Endpoint==CopyStdout)||(!$2.From && $2.Endpoint==CopyStdin) {sqllex.(*lexer).syntax($1);return 1}
 } ;
 copy_target: relation_name view_columns { $$=&Copy{Name:$1,Columns:$2} }
  | '(' query_select ')' { $$=&Copy{Query:$2} } ;
-copy_direction: FROM { $$=true } | TO { $$=false } ;
+copy_direction: FROM { $$=$1 } | TO { $$=$1 } ;
 copy_endpoint: generic_word {
  switch $1.text {case "stdin":$$=&Copy{Endpoint:CopyStdin};case "stdout":$$=&Copy{Endpoint:CopyStdout};default:sqllex.(*lexer).syntax($1);return 1}
  }

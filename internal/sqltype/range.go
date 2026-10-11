@@ -193,40 +193,48 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 		}
 		datum.upper = bound
 	}
-	if !lowerAbsent && !upperAbsent {
-		cmp := d.compareRangeBounds(datum.lower, datum.upper)
+	datum, err = d.canonicalRange(datum)
+	if err != nil {
+		return Value{}, err
+	}
+	return Value{typ: d, rangeDatum: datum}, nil
+}
+func (d *Descriptor) canonicalRange(x rangeDatum) (rangeDatum, error) {
+	lo, hi := x.flags&rangeLowerUnbounded != 0, x.flags&rangeUpperUnbounded != 0
+	if !lo && !hi {
+		cmp := d.compareRangeBounds(x.lower, x.upper)
 		if cmp > 0 {
-			return Value{}, failure("22000", "range lower bound must be less than or equal to range upper bound")
+			return x, failure("22000", "range lower bound must be less than or equal to range upper bound")
 		}
-		if cmp == 0 && datum.flags&(rangeLowerInclusive|rangeUpperInclusive) != rangeLowerInclusive|rangeUpperInclusive {
-			return Value{typ: d, rangeDatum: rangeDatum{flags: rangeEmpty}}, nil
+		if cmp == 0 && x.flags&(rangeLowerInclusive|rangeUpperInclusive) != rangeLowerInclusive|rangeUpperInclusive {
+			return rangeDatum{flags: rangeEmpty}, nil
 		}
 	}
 	if d.id == NumRange {
-		return Value{typ: d, rangeDatum: datum}, nil
+		return x, nil
 	}
 	maximum, name := int64(math.MaxInt32), "integer"
 	if d.id == Int8Range {
 		maximum, name = math.MaxInt64, "bigint"
 	}
-	if !lowerAbsent && datum.flags&rangeLowerInclusive == 0 {
-		if datum.lower.magnitude == maximum {
-			return Value{}, failure("22003", name+" out of range")
+	if !lo && x.flags&rangeLowerInclusive == 0 {
+		if x.lower.magnitude == maximum {
+			return x, failure("22003", name+" out of range")
 		}
-		datum.lower.magnitude++
-		datum.flags |= rangeLowerInclusive
+		x.lower.magnitude++
+		x.flags |= rangeLowerInclusive
 	}
-	if !upperAbsent && datum.flags&rangeUpperInclusive != 0 {
-		if datum.upper.magnitude == maximum {
-			return Value{}, failure("22003", name+" out of range")
+	if !hi && x.flags&rangeUpperInclusive != 0 {
+		if x.upper.magnitude == maximum {
+			return x, failure("22003", name+" out of range")
 		}
-		datum.upper.magnitude++
-		datum.flags &^= rangeUpperInclusive
+		x.upper.magnitude++
+		x.flags &^= rangeUpperInclusive
 	}
-	if !lowerAbsent && !upperAbsent && datum.lower.magnitude >= datum.upper.magnitude {
-		datum = rangeDatum{flags: rangeEmpty}
+	if !lo && !hi && x.lower.magnitude >= x.upper.magnitude {
+		x = rangeDatum{flags: rangeEmpty}
 	}
-	return Value{typ: d, rangeDatum: datum}, nil
+	return x, nil
 }
 
 func (b rangeBound) validNumeric(d *Descriptor) bool {

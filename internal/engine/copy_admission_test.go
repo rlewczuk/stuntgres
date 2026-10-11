@@ -74,19 +74,27 @@ func copyUnitSyntax() *parser.Copy {
 	return &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}, Columns: []parser.Identifier{{Text: "v"}}, From: true, Endpoint: parser.CopyStdin}
 }
 func TestCopyTextOwnerReservation(t *testing.T) {
-	copyOwnerReservation(t, false)
+	copyOwnerReservation(t, copyFormatText)
 }
-func copyOwnerReservation(t *testing.T, csv bool) {
+func copyOwnerReservation(t *testing.T, format copyFormat) {
 	for _, entry := range []string{"statement", "begin", "commit", "rollback"} {
 		t.Run(entry, func(t *testing.T) {
 			e, session, op, scope := copyUnitStart(t, true)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
 			syntax := copyUnitSyntax()
-			if csv {
+			if format == copyFormatCSV {
 				syntax.Options = []parser.CopyOption{{Name: "format", Value: "csv", HasValue: true, Argument: parser.CopyArgumentScalar}}
 				reader.first = true
 				reader.prefix = strings.NewReader("\"1\n")
 				reader.suffix = strings.NewReader("\"\n")
+			}
+			if format == copyFormatBinary {
+				syntax = copyBinaryUnitSyntax()
+				stream := copyBinaryUnitStream(t)
+				split := len(stream) - 5
+				reader.first = true
+				reader.prefix = strings.NewReader(string(stream[:split]))
+				reader.suffix = strings.NewReader(string(stream[split:]))
 			}
 			copyDone := make(chan error, 1)
 			go func() {
@@ -189,13 +197,25 @@ func copyOwnerReservation(t *testing.T, csv bool) {
 	}
 }
 func TestCopyTextReplacement(t *testing.T) {
+	copyReplacement(t, copyFormatText)
+}
+func copyReplacement(t *testing.T, format copyFormat) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e, _, op, scope := copyUnitStart(t, explicit)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
+			syntax := copyUnitSyntax()
+			if format == copyFormatBinary {
+				syntax = copyBinaryUnitSyntax()
+				stream := copyBinaryUnitStream(t)
+				split := len(stream) - 5
+				reader.first = true
+				reader.prefix = strings.NewReader(string(stream[:split]))
+				reader.suffix = strings.NewReader(string(stream[split:]))
+			}
 			done := make(chan error, 1)
 			go func() {
-				_, err := scope.Copy(copyUnitSyntax(), reader, nil)
+				_, err := scope.Copy(syntax, reader, nil)
 				err = scope.Finish(err)
 				op.Done()
 				done <- err

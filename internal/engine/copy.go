@@ -190,7 +190,16 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	if err = s.reserveCopy(); err != nil {
 		return
 	}
-	cursor := newCopyCursor(s, b, options, source)
+	var cursor interface {
+		RowCursor
+		rowDefaults() []bool
+		diagnostic(error) error
+	}
+	if options.format == copyFormatBinary {
+		cursor = newCopyBinaryCursor(s, b, source)
+	} else {
+		cursor = newCopyCursor(s, b, options, source)
+	}
 	rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0, nil, nil)
 	if err != nil {
 		return 0, cursor.diagnostic(err)

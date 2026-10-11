@@ -1,0 +1,58 @@
+package reference_test
+
+import "testing"
+
+func TestReferenceCopyBinaryCodecsStructured(t *testing.T) {
+	h := copyBinaryHex
+	cases := []copyBinaryProviderCase{
+		{name: "numeric_12_34", typ: "numeric", payload: h("0002000000000002000c0d48"), valid: true, wire: h("0002000000000002000c0d48")},
+		{name: "numeric_negative", typ: "numeric", payload: h("0002000040000002000c0d48"), valid: true, wire: h("0002000040000002000c0d48")},
+		{name: "numeric_exact_large", typ: "numeric", payload: h("00040003000000000009000707c615f1"), valid: true, wire: h("00040003000000000009000707c615f1")},
+		{name: "numeric_zero", typ: "numeric", payload: h("0000000000000000"), valid: true, wire: h("0000000000000000")},
+		{name: "numeric_nan", typ: "numeric", payload: h("00000000c0000000")},
+		{name: "numeric_infinity", typ: "numeric", payload: h("00000000d0000000")},
+		{name: "numeric_negative_infinity", typ: "numeric", payload: h("00000000f0000000")},
+		{name: "numeric_hidden_digits", typ: "numeric", payload: h("0002000000000000000c0d48")},
+		{name: "numeric_typmod", typ: "numeric(4,1)", payload: h("0002000000000002000c0d48")},
+		{name: "numeric_bad_digit", typ: "numeric", payload: h("00010000000000002710")},
+		{name: "numeric_bad_sign", typ: "numeric", payload: h("0000000020000000")},
+		{name: "numeric_negative_count", typ: "numeric", payload: h("ffff000000000000")},
+		{name: "numeric_bad_scale", typ: "numeric", payload: h("0000000000004000")},
+		{name: "numeric_short_header", typ: "numeric", payload: h("00000000")},
+		{name: "numeric_short_digit", typ: "numeric", payload: h("0001000000000000")},
+		{name: "numeric_trailing", typ: "numeric", payload: h("000000000000000000")},
+		{name: "json", typ: "json", payload: []byte(`{"a":1}`), valid: true, wire: []byte(`{"a":1}`)},
+		{name: "json_invalid", typ: "json", payload: []byte(`{"a":}`)},
+		{name: "json_nul", typ: "json", payload: []byte{'"', 0, '"'}},
+		{name: "jsonb", typ: "jsonb", payload: append([]byte{1}, []byte(`{"a":1}`)...)},
+		{name: "jsonb_version_zero", typ: "jsonb", payload: []byte{0}},
+		{name: "jsonb_version_two", typ: "jsonb", payload: []byte{2, '{', '}'}},
+		{name: "jsonb_empty", typ: "jsonb", payload: []byte{}},
+		{name: "jsonb_invalid", typ: "jsonb", payload: []byte{1, '{'}},
+		{name: "jsonpath", typ: "jsonpath", payload: []byte{1, '$', '.', 'a'}},
+		{name: "jsonpath_version_zero", typ: "jsonpath", payload: []byte{0}},
+		{name: "jsonpath_version_two", typ: "jsonpath", payload: []byte{2, '$'}},
+		{name: "jsonpath_empty", typ: "jsonpath", payload: []byte{}},
+		{name: "jsonpath_invalid", typ: "jsonpath", payload: []byte{1, '$', '.'}},
+		{name: "bit", typ: "bit(3)", payload: h("00000003a0"), valid: true, wire: h("00000003a0")},
+		{name: "varbit", typ: "varbit", payload: h("00000003a0"), valid: true, wire: h("00000003a0")},
+		{name: "bit_padding", typ: "bit(3)", payload: h("00000003bf")},
+		{name: "bit_typmod", typ: "bit(4)", payload: h("00000003a0")},
+		{name: "varbit_typmod", typ: "varbit(2)", payload: h("00000003a0")},
+		{name: "bit_negative_count", typ: "varbit", payload: h("ffffffff")},
+		{name: "bit_huge_count", typ: "varbit", payload: h("7fffffff")},
+		{name: "bit_truncated", typ: "varbit", payload: h("00000009ff")},
+		{name: "bit_trailing", typ: "varbit", payload: h("00000003a000")},
+		{name: "inet_v4", typ: "inet", payload: h("02180004c0000201"), valid: true, wire: h("02180004c0000201")},
+		{name: "cidr_v4", typ: "cidr", payload: h("02180104c0000200"), valid: true, wire: h("02180104c0000200")},
+		{name: "inet_v6", typ: "inet", payload: h("0380001020010db8000000000000000000000001"), valid: true, wire: h("0380001020010db8000000000000000000000001")},
+		{name: "inet_ignored_cidr_flag", typ: "inet", payload: h("0218ff04c0000201")},
+		{name: "cidr_host_bits", typ: "cidr", payload: h("02180104c0000201")},
+		{name: "inet_bad_family", typ: "inet", payload: h("04200004c0000201")},
+		{name: "inet_bad_bits", typ: "inet", payload: h("02210004c0000201")},
+		{name: "inet_bad_length", typ: "inet", payload: h("02200003c00002")},
+		{name: "inet_truncated", typ: "inet", payload: h("02200004c00002")},
+		{name: "inet_trailing", typ: "inet", payload: h("02200004c000020100")},
+	}
+	copyBinaryProviders(t, cases, copyBinaryStructuredExpected)
+}

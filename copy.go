@@ -18,8 +18,8 @@ type CopyResult struct {
 	CommandTag string
 }
 
-// CopyFrom imports text or CSV COPY FROM STDIN on an already pinned, unwrapped native
-// connection. The caller owns source; Read callbacks must not reenter this Conn.
+// CopyFrom imports text, CSV, or binary COPY FROM STDIN on an already pinned,
+// unwrapped native connection. The caller owns source; Read callbacks must not reenter this Conn.
 func CopyFrom(ctx context.Context, connection *sql.Conn, statement string, source io.Reader) (CopyResult, error) {
 	if source == nil {
 		return CopyResult{}, errors.New("stuntgres: COPY source is nil")
@@ -27,7 +27,7 @@ func CopyFrom(ctx context.Context, connection *sql.Conn, statement string, sourc
 	return copyStream(ctx, connection, statement, source, nil, true)
 }
 
-// CopyTo exports text or CSV COPY TO STDOUT. A failure may leave an irreversible output
+// CopyTo exports text, CSV, or binary COPY TO STDOUT. A failure may leave an irreversible output
 // prefix, but returns no success result. The caller owns destination; Write
 // callbacks must not reenter this Conn.
 func CopyTo(ctx context.Context, connection *sql.Conn, statement string, destination io.Writer) (CopyResult, error) {

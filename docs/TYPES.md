@@ -2,6 +2,66 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Binary COPY providers — change note
+
+The pinned stream helpers use descriptor-owned binary receive/send, independently
+of ordinary `database/sql` parameter/Scan representations. Network-order providers
+cover signed integers, OID/XID/regclass/regtype, Boolean/internal CHAR, IEEE floats,
+MONEY minor units, UUID bytes, BYTEA, UTF8 text/varchar/bpchar/NAME, exact base10000
+NUMERIC, DATE/TIME/TIMETZ/TIMESTAMP/TIMESTAMPTZ/INTERVAL, JSON, version1 JSONB/
+JSONPath, BIT/VARBIT, INET/CIDR, admitted enums/domains, arrays/composites and the
+existing three range/multirange families. Finite temporal values use the2000 epoch;
+infinities/signed zero are retained. NULL is framing, not a receiver byte spelling.
+Binary TIMETZ receive validates the civil clock before the displacement, which
+must be strictly between -16h and +16h; its typmod rounding follows both checks.
+This narrower wire contract does not reduce explicitly configured POSIX zone
+offsets admitted by the existing general temporal provider.
+
+Structured values own their decoded storage. Arrays/records validate built-in
+member OIDs, descriptor generation and member typmods; user wire OIDs do not grant
+catalog identity or new constructor authority. Domains use physical base/typmod
+receive and logical ownership. Numeric I/O never roundtrips through binary float
+or SQL text. Container-specific malformed/consumption diagnostics remain distinct:
+range bounds permit receiver padding, arrays/records demand exact member input.
+JSON preserves source text; JSONB/JSONPath export canonical versioned text.
+Received special NUMERIC values normalize to native scale0 with no finite
+coefficient/exponent/sign baggage after validating the complete wire header and
+digits. Send retains PostgreSQL's NaN scale0 and positive/negative infinity
+scale32. NUMRANGE/NUMMULTIRANGE bounds therefore share the existing textual datum
+invariant, structural identity, output and persistence authority.
+Array fields receive incrementally in declared order. An earlier complete
+invalid receiver wins over a missing later length; owned element storage grows
+only with successfully received or NULL fields, not an announced cardinality.
+Multirange members likewise receive in order: a complete reversed first range
+rejects22000 before missing later headers, and a zero-length first range rejects
+08P01 `no data left in message`. Owned member storage grows only after successful
+nonempty receives, never from the announced count. Negative or oversized counts
+retain their existing XX000 allocation-size diagnostic; normalization still uses
+the shared range authority.
+Array/record declared member lengths beyond remaining bytes reject22P03;
+incomplete lengths and complete-but-short child receive remain08P01. Range and
+multirange underflow retain their own existing classification. Nested builtin
+OID errors use the shared canonical DiagnosticName authority, including recursive
+array and temporal names, not raw internal catalog spellings.
+
+This does not add excluded array families, casts, domain constraint DDL, catalog
+mutation, protocol serving or physical disk/WAL persistence. Native table DDL
+still rejects raw internal CHAR/XID declarations and enum arrays with its existing0A000 boundary;
+the represented MONEY array remains lookup-only and cannot become a stored
+table member. Private descriptor tests cover codecs independently of table
+admission; pinned PostgreSQL reference cases retain their genuine receiver
+outcomes. VOID output is an empty non-NULL field on genuine existing function
+surfaces. pg_node_tree sends the existing deterministic native semantic tree,
+not PostgreSQL's heap Datum implementation serialization, and rejects arbitrary
+binary receive. Ordinary byte binds retain their existing textual/BYTEA rules.
+These boundaries do not replace admitted public proof: constraint-free nullable
+domain scalars and domain-element arrays receive/export actual binary values;
+pg_class.relkind supplies CHAR output, and existing CTAS carriers derived from
+pg_prepared_xacts.transaction supply nonempty XID output. The latter SELECT
+carrier remains native decimal bytes versus pinned pgx int64. Constrained-domain
+DDL exclusions are asserted separately from those supported consumers.
+
+
 Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, inet, cidr, bytea, json, bit, varbit, int4range, int8range, numrange, int4multirange, int8multirange and nummultirange. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID/INET/CIDR, exact JSON source, canonical BIT/VARBIT digits and canonical ranges/multiranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
@@ -245,7 +305,7 @@ pq raw values are bytes, ScanType any and nullability unknown.
 Native Dump/Restore preserves normalized values, defaults and typed NULLs,
 replays ordinary SQL, retains old cursors and replaces atomically.
 JSON-specific operators/functions, GIN, containment/path/extraction, JSON scalar
-constructors and physical PostgreSQL binary/disk persistence remain out of scope.
+constructors and physical PostgreSQL disk/WAL persistence remain out of scope.
 
 Feature smoke (900-second deadline per invocation):
 `make check RUN='^TestReferenceJSONBFeatureSmoke$'`
@@ -1166,9 +1226,9 @@ Dump writes OID declarations and quoted canonical decimals, and atomic
 Restore preserves defaults, NULL, empty tables and failure/cancellation safety.
 
 This feature does not populate metadata catalogs, allocate/resolve objects,
-add reg* families, oidvector/arrays or OID arithmetic. Physical/binary wire
-receive/send, a network server, disk/WAL durability and external pg_dump
-process/archive support are non-engine mechanisms, not successful no-ops.
+add reg* families, oidvector/arrays or OID arithmetic. Binary COPY providers
+now supply receive/send for admitted identifiers; a network server, disk/WAL
+durability and external pg_dump process/archive support remain separate mechanisms.
 
 Feature smoke: `make check RUN='^TestOIDSmoke$'`.
 Native: `make check RUN='^TestReferenceOID.*$'`.
@@ -1311,8 +1371,9 @@ and empty results still retain NAME metadata. Dump/Reset/Restore preserve NAME
 declarations, visible values, NULL and empty tables; retained cursors keep their
 original descriptor/data, and failed staged Restore does not replace the target.
 
-PostgreSQL's physical64-byte padded representation, binary
-`namerecv`/`namesend`, unregistered locale providers and wire serving are external-only.
+PostgreSQL's physical64-byte padded representation, unregistered locale providers
+and wire serving remain external-only. Binary COPY NAME receive/send uses the
+actual bounded unpadded value; it does not expose disk storage layout.
 Bounded NAME[] textual input/storage is described in the domain section above;
 general array operations are not implied.
 Binary NAME receive rejects64 bytes with42622 `identifier too long`, rather

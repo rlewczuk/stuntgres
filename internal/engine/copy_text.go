@@ -49,7 +49,7 @@ func (c *copyCursor) lineError(message string, hint string) error {
 	return d
 }
 func (c *copyCursor) readLine() (present bool, err error) {
-	if c.options.csv {
+	if c.options.format == copyFormatCSV {
 		return c.readCSVLine()
 	}
 	if c.ended {
@@ -198,7 +198,7 @@ func decodeCopyField(dst, raw []byte) []byte {
 	return dst
 }
 func (c *copyCursor) split(defaultMarkers bool) error {
-	if c.options.csv {
+	if c.options.format == copyFormatCSV {
 		return c.splitCSV(defaultMarkers)
 	}
 	c.fields = c.fields[:0]
@@ -299,7 +299,7 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		field := c.fields[i]
 		dst[i] = sqltype.Null(column.Usage.Type)
 		isNull := field.isNull
-		if c.options.csv {
+		if c.options.format == copyFormatCSV {
 			if isNull && copyForced(c.options.notNullFields, i) {
 				isNull = false
 			} else if field.quoted && copyForced(c.options.nullFields, i) && string(field.decoded) == c.options.null {
@@ -382,6 +382,9 @@ func appendCopyText(dst []byte, text string, delimiter byte) []byte {
 	return dst
 }
 func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) (count int64, err error) {
+	if o.format == copyFormatBinary {
+		return s.copyBinaryOutput(rows, w)
+	}
 	schema := rows.Schema()
 	values := make([]sqltype.Value, len(schema))
 	buffer := make([]byte, 0, 4096)
@@ -398,7 +401,7 @@ func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) 
 			if i != 0 {
 				buffer = append(buffer, o.delimiter)
 			}
-			if o.csv {
+			if o.format == copyFormatCSV {
 				buffer = appendCopyCSV(buffer, column.Name, o, false, len(schema) == 1)
 			} else {
 				buffer = appendCopyText(buffer, column.Name, o.delimiter)
@@ -430,7 +433,7 @@ func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) 
 			if outputErr != nil {
 				return 0, outputErr
 			}
-			if o.csv {
+			if o.format == copyFormatCSV {
 				buffer = appendCopyCSV(buffer, text, o, copyForced(o.quoteFields, i), len(schema) == 1)
 			} else {
 				buffer = appendCopyText(buffer, text, o.delimiter)

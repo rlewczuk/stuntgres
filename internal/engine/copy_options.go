@@ -25,8 +25,16 @@ type copyForce struct {
 	columns        []parser.Identifier
 }
 
+type copyFormat uint8
+
+const (
+	copyFormatText copyFormat = iota
+	copyFormatCSV
+	copyFormatBinary
+)
+
 type copyOptions struct {
-	csv                                    bool
+	format                                 copyFormat
 	delimiter, quote, escape               byte
 	null, def                              string
 	hasDefault                             bool
@@ -56,9 +64,9 @@ func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
 			switch v.Value {
 			case "text":
 			case "csv":
-				o.csv = true
+				o.format = copyFormatCSV
 			case "binary":
-				return o, sqlError("0A000", "COPY BINARY format is unsupported")
+				o.format = copyFormatBinary
 			default:
 				return o, insertError("22023", fmt.Sprintf("COPY format \"%s\" not recognized", v.Value), v.Pos)
 			}
@@ -123,14 +131,27 @@ func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
 			return o, insertError("42601", fmt.Sprintf("option \"%s\" not recognized", name), v.Pos)
 		}
 	}
+	if o.format == copyFormatBinary {
+		for _, option := range []struct {
+			name string
+			set  bool
+		}{{"DELIMITER", delimiterSet}, {"NULL", nullSet}, {"DEFAULT", o.hasDefault}} {
+			if option.set {
+				return o, sqlError("42601", "cannot specify "+option.name+" in BINARY mode")
+			}
+		}
+		if o.header != 0 {
+			return o, sqlError("0A000", "cannot specify HEADER in BINARY mode")
+		}
+	}
 	if !delimiterSet {
-		if o.csv {
+		if o.format == copyFormatCSV {
 			o.delimiter = ','
 		} else {
 			o.delimiter = '\t'
 		}
 	}
-	if !nullSet && !o.csv {
+	if !nullSet && o.format != copyFormatCSV {
 		o.null = `\N`
 	}
 	if !quoteSet {
@@ -139,7 +160,7 @@ func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
 	if !escapeSet {
 		o.escape = o.quote
 	}
-	if !o.csv {
+	if o.format != copyFormatCSV {
 		for _, option := range []struct {
 			name string
 			set  bool
@@ -151,6 +172,12 @@ func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
 				return o, sqlError("0A000", "COPY "+option.name+" requires CSV mode")
 			}
 		}
+	}
+	if o.format == copyFormatBinary {
+		if s.Where != nil {
+			return o, sqlError("0A000", "COPY FROM WHERE is unsupported")
+		}
+		return o, nil
 	}
 	if o.forceQuote.specified && s.From {
 		return o, sqlError("0A000", "COPY FORCE_QUOTE cannot be used with COPY FROM")
@@ -171,16 +198,16 @@ func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
 		return o, sqlError("22023", "COPY default representation cannot use newline or carriage return")
 	}
 	d := o.delimiter
-	if !o.csv && (d == '\\' || d == '.' || d >= 'a' && d <= 'z' || d >= '0' && d <= '9') {
+	if o.format != copyFormatCSV && (d == '\\' || d == '.' || d >= 'a' && d <= 'z' || d >= '0' && d <= '9') {
 		return o, sqlError("22023", fmt.Sprintf("COPY delimiter cannot be \"%c\"", d))
 	}
-	if o.csv && d == o.quote {
+	if o.format == copyFormatCSV && d == o.quote {
 		return o, sqlError("22023", "COPY delimiter and quote must be different")
 	}
 	if strings.IndexByte(o.null, d) >= 0 {
 		return o, sqlError("22023", "COPY delimiter character must not appear in the NULL specification")
 	}
-	if o.csv && strings.IndexByte(o.null, o.quote) >= 0 {
+	if o.format == copyFormatCSV && strings.IndexByte(o.null, o.quote) >= 0 {
 		return o, sqlError("22023", "CSV quote character must not appear in the NULL specification")
 	}
 	if o.hasDefault {
@@ -190,7 +217,7 @@ func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
 		if strings.IndexByte(o.def, d) >= 0 {
 			return o, sqlError("0A000", "COPY delimiter character must not appear in the DEFAULT specification")
 		}
-		if o.csv && strings.IndexByte(o.def, o.quote) >= 0 {
+		if o.format == copyFormatCSV && strings.IndexByte(o.def, o.quote) >= 0 {
 			return o, sqlError("0A000", "CSV quote character must not appear in the DEFAULT specification")
 		}
 		if o.null == o.def {

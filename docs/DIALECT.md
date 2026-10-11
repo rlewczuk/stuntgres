@@ -47,14 +47,14 @@ FROM routes through existing DML; virtual partitioned-table TO is rejected with
 the query-variant hint rather than silently exporting descendants.
 
 Modern WITH options and bounded legacy DELIMITER/NULL/HEADER syntax support
-FORMAT text/csv, one-byte DELIMITER, NULL, DEFAULT (FROM only), and HEADER
+FORMAT text/csv/binary, one-byte DELIMITER, NULL, DEFAULT (FROM only), and HEADER
 Boolean or FROM HEADER MATCH. Boolean forms true/false, on/off and numeric1/0
 are accepted; yes/no and quoted numeric values are not generic Boolean aliases.
 DEFAULT requires a different marker from NULL; a NULL-valued or absent default
 does not provide an effective default for a marker. Duplicate/unknown options
-retain source positions. Binary, encoding overrides, FREEZE, WHERE and
+retain source positions. Encoding overrides, FREEZE, WHERE and
 error-skipping/logging options are not silently accepted.
-FORMAT string literals are case-sensitive: `'text'`/`'csv'` are accepted, while
+FORMAT string literals are case-sensitive: `'text'`/`'csv'`/`'binary'` are accepted, while
 uppercase/mixed-case strings return22023 with original spelling and FORMAT position.
 Unquoted identifiers retain ordinary lexer case folding. Table COPY resolves and
 locks the target and checks columns/INSERT-or-SELECT rights before processing
@@ -110,6 +110,31 @@ quote byte before testing record boundaries, including accepted CR/LF QUOTE.
 Distinct ESCAPE uses raw-byte parity and resets at unrelated bytes; field
 decoding separately consumes escape pairs. Alternate legacy `CSV`/`FORCE QUOTE`
 spellings are outside this modern FORMAT csv scope.
+
+Binary COPY uses the19-byte PostgreSQL header, network-order tuple counts and
+field lengths, length-1 NULL and the signed-1 tuple trailer. Output has zero
+flags/extensions; input ignores low flag bits, rejects unknown critical flags
+and WITH OIDS, and skips bounded extensions. HEADER false is accepted; true/MATCH
+and text delimiters/NULL/default markers are incompatible. CSV-only options still
+require CSV mode. ON_ERROR/ENCODING remain genuine native unsupported boundaries,
+not silently accepted no-ops despite some valid PostgreSQL binary combinations.
+
+PostgreSQL18 accepts EOF during the next tuple count, including a one-byte count
+prefix. It does not accept missing field sizes/payloads or header truncation.
+Bytes after a trailer are rejected, and its actual caller-stream EOF is drained
+before publication. Complete fields decode in order; the first receiver failure
+precedes malformed later fields. Header errors have no COPY Context; body errors
+identify row/column without quoting binary bytes. Ordinary caller errors retain
+identity, while SQL-owned operation expiry retains its full SQL diagnostic.
+No field allocation follows an unfulfilled huge length declaration.
+
+Binary providers cover existing scalar/temporal/structured/nested admission,
+not new storage/cast/DDL/catalog-write capabilities. pg_node_tree receives reject
+0A000; genuine catalog COPY FROM keeps native non-table42809. Domain constraints
+remain native DDL0A000; their actual PostgreSQL receiver/constraint observations
+do not invent that prerequisite. Native timeout/cancellation proofs use real
+Operation state; PostgreSQL server cancellation uses its own supported functions.
+
 
 
 

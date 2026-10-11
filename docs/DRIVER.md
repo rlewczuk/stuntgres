@@ -26,6 +26,28 @@ Defaults and identities, generated columns, real type input/output, constraints,
 partition routing, ACLs and publication use existing native authorities.
 See [the bounded dialect](DIALECT.md#copy-text-streams--change-note).
 
+Modern `WITH(FORMAT binary)` uses these same pinned stream helpers, ownership,
+atomicity and result contracts; no prepared COPY or protocol server is added.
+Caller bytes are PostgreSQL18 binary COPY data, not ordinary SQL parameter
+encoding. For example `COPY t FROM STDIN WITH(FORMAT binary)` imports a genuine
+header/tuple/field/trailer stream; `COPY (SELECT * FROM t ORDER BY id) TO STDOUT
+WITH(FORMAT binary)` emits deterministic network-order bytes. NULL field length-1
+is distinct from empty length0. After trailer, caller EOF is still required.
+Typed SELECT/ColumnTypes and held statements see the actual imported state,
+and native Dump/Reset/Restore re-exports it through the same binary providers.
+Nullable domain-element arrays retain the logical element OID; discover that
+identity independently through the existing native `regtype::bigint` SQL surface
+or the PostgreSQL catalog, not a previous binary export. Domain scalar metadata
+continues to describe the physical base, while native array metadata uses its
+actual associated array name. Binary NUMERIC special values use the same native
+invariant as text input, including inside ranges and multiranges; wire infinity
+display scale32 does not become native special-value scale.
+An unsupported raw CHAR/XID declaration is not an output exclusion: existing
+catalog CHAR fields and query-derived XID table carriers export real binary
+values. XID SELECT remains native canonical decimal bytes versus pgx int64;
+COPY output itself is the same four-byte unsigned network-order field.
+
+
 COPY is one admitted command on the physical session. Explicit transactions must
 stay pinned; malformed SQL and SQL COPY errors preserve ordinary transaction
 abort semantics. Native caller I/O errors retain their error identity rather

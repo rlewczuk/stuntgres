@@ -46,16 +46,25 @@ even definition/count/stored/join reads; FALSE/name-rejected rows do not.
 See [sequence view contract](docs/SQL.md#pg_sequences-view--change-note).
 
 Change note: native `CopyFrom` and `CopyTo` on a pinned `*sql.Conn` stream
-PostgreSQL text and CSV COPY through real type codecs and atomic DML staging.
+PostgreSQL text, CSV and binary COPY through real type codecs and atomic DML staging.
 CSV preserves quoted empty strings versus unquoted NULL, embedded separators/
 quotes/newlines, HEADER MATCH, custom QUOTE/ESCAPE and column-selective FORCE
 options. Table FROM STDIN, table/query TO STDOUT, ordered columns, defaults,
 ACLs and transactions share existing authorities. Caller I/O runs without
 engine/owner mutexes; same-owner commands wait on a cancellable reservation.
-File/PROGRAM and binary remain explicit capability boundaries.
+Binary uses PostgreSQL18 network-order framing and descriptor-owned scalar/nested
+providers, preserving NULL/empty and exact numeric/temporal values. File/PROGRAM,
+encoding overrides and error-skipping remain explicit capability boundaries.
+Nullable constraint-free domain scalars/element arrays are actual receive/export
+paths, distinct from excluded constraint DDL. Canonical numeric infinity bounds
+retain valid native range/multirange values through typed reads and Dump/Restore.
+Catalog CHAR and existing query-derived XID carriers supply real binary output
+without enabling raw CHAR/XID table declarations.
 See [COPY streams](docs/DRIVER.md#pinned-copy-text-streams--change-note).
-Feature smoke: `make check RUN='^TestReferenceCopyCSVFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyCSVFeatureSmoke$'`.
+Binary feature smoke: `make check RUN='^TestReferenceCopyBinaryFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyBinaryFeatureSmoke$'`.
+Review-regression proof: `make check RUN='^TestReferenceCopyBinaryReviewRegressions$'`
+and `make check REFERENCE=1 RUN='^TestReferenceCopyBinaryReviewRegressions$'`.
 
 Change note: expression comparisons retain their resolved collation capability,
 including hidden inputs of BOOL results and native stored-expression remapping.

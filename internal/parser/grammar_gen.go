@@ -9517,12 +9517,16 @@ sqldefault:
 		{
 			sqlVAL.stmt = sqlDollar[2].copyStmt
 			sqlDollar[2].copyStmt.Pos = sqlDollar[1].tok.pos
-			sqlDollar[2].copyStmt.From = sqlDollar[3].desc
+			sqlDollar[2].copyStmt.From = sqlDollar[3].tok.text == "from"
 			sqlDollar[2].copyStmt.Endpoint = sqlDollar[4].copyStmt.Endpoint
 			sqlDollar[2].copyStmt.Filename = sqlDollar[4].copyStmt.Filename
 			sqlDollar[2].copyStmt.Options = sqlDollar[5].copyOptions
 			sqlDollar[2].copyStmt.Where = sqlDollar[6].expr
-			if (sqlDollar[2].copyStmt.Query != nil && sqlDollar[2].copyStmt.From) || (sqlDollar[2].copyStmt.From && sqlDollar[2].copyStmt.Endpoint == CopyStdout) || (!sqlDollar[2].copyStmt.From && sqlDollar[2].copyStmt.Endpoint == CopyStdin) {
+			if sqlDollar[2].copyStmt.Query != nil && sqlDollar[2].copyStmt.From {
+				sqllex.(*lexer).syntax(sqlDollar[3].tok)
+				return 1
+			}
+			if (sqlDollar[2].copyStmt.From && sqlDollar[2].copyStmt.Endpoint == CopyStdout) || (!sqlDollar[2].copyStmt.From && sqlDollar[2].copyStmt.Endpoint == CopyStdin) {
 				sqllex.(*lexer).syntax(sqlDollar[1].tok)
 				return 1
 			}
@@ -9540,12 +9544,12 @@ sqldefault:
 	case 103:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.desc = true
+			sqlVAL.tok = sqlDollar[1].tok
 		}
 	case 104:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.desc = false
+			sqlVAL.tok = sqlDollar[1].tok
 		}
 	case 105:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
