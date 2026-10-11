@@ -45,7 +45,7 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 1 && (id == Int8 || id == Numeric)
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		valid = len(args) == 1 && (id == Numeric || id == Float8)
-	case "acos", "acosd", "asin", "asind", "atan", "atand":
+	case "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
 		valid = len(args) == 1 && id == Float8
 	case "atan2", "atan2d":
 		valid = len(args) == 2 && id == Float8 && args[1] == args[0]
@@ -157,6 +157,12 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 		switch p.name {
 		case "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d":
 			result, err := inverseTrig(p.name, n, b.floating)
+			if err != nil {
+				return Value{}, err
+			}
+			return Float(p.result.Type, result)
+		case "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
+			result, err := directTrig(p.name, n)
 			if err != nil {
 				return Value{}, err
 			}

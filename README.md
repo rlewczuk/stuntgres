@@ -940,13 +940,16 @@ builtin functions/operators; `pg_catalog` qualification and
 `OPERATOR(pg_catalog.+)` preserve their provider boundaries.
 The selected `min_scale`, `round`, `scale`, `trim_scale`, `trunc`, `sign`, `mod`,
 `abs`, `ceil`, `ceiling`, `div`, `exp`, `factorial`, `floor`, `acos`, `acosd`,
-`asin`, `asind`, `atan`, `atand`, `atan2` and `atan2d` providers use the same
+`asin`, `asind`, `atan`, `atand`, `atan2`, `atan2d`, `cos`, `cosd`, `cot`, `cotd`,
+`sin`, `sind`, `tan` and `tand` providers use the same
 namespace checks. `abs` preserves integer/REAL widths; decimal division and
 factorial are exact, and decimal exponential preserves independently selected
-precision (up to 1000 fractional places). Inverse trig uses FLOAT8 signatures,
-with exact notable degree angles and atan2(y,x) quadrant/IEEE semantics. See the
+precision (up to 1000 fractional places). Trig uses FLOAT8 signatures,
+with exact notable degree angles, direct-function poles and atan2(y,x)
+quadrant/IEEE semantics. See the
 [mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
-Feature smoke: `make check RUN='^TestMathScalarSmoke$'`.
+Selected public checks: `make check RUN='^TestReferenceMathScalar'` and
+`make check RUN='^TestReferenceMathTrigDirectFeatureSmoke$'`, each also with `REFERENCE=1`.
 
 Change note: explicit BYTEA→TEXT (`v::text`, `CAST(v AS text)`, `text(v)`)
 uses the statement's `bytea_output`: lowercase hex by default, or PostgreSQL
@@ -1766,7 +1769,8 @@ Exact scale and rounding functions include `min_scale`, `round`, `scale`,
 FLOAT8 and integer overloads. NUMERIC ties round away from zero; negative
 scales and exact remainder never pass through floating point. See
 [the signature and behavior note](docs/DIALECT.md#scale-and-rounding-functions--change-note).
-Public feature smoke: `make check RUN='^TestMathSmoke$'`.
+Selected public coverage: `make check RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$'`
+and the same command with `REFERENCE=1`.
 
 Inverse trigonometric functions `acos`, `acosd`, `asin`, `asind`, `atan`, `atand`,
 `atan2` and `atan2d` each return FLOAT8, with implicit numeric widening and fixed
@@ -1786,6 +1790,27 @@ and the same command with `REFERENCE=1`; full independent coverage selects
 The additional root-owned temporary public Go program runs with
 `timeout 60s go run ./.math-trig-feature-smoke` and is removed after recording
 its observed angles/quadrants/NULL/diagnostics/reuse result.
+
+Direct trigonometric functions `cos`, `cot`, `sin` and `tan` consume radians;
+`cosd`, `cotd`, `sind` and `tand` consume degrees. All eight are strict unary
+FLOAT8→FLOAT8 providers with implicit numeric widening and fixed prepared
+inference. Degree evaluation reduces finite arguments before conversion and
+preserves exact special angles: sind(30)=.5, cosd(60)=.5, tand(45)=cotd(45)=1.
+Degree poles return signed infinities, not division-by-zero errors; radian
+approximations of π and π/2 are not snapped to ideal poles.
+NaN propagates, NULL remains typed, and either infinite input fails with `22003`,
+English primary `input is out of range`, without execution Position or portal
+Context. Signed zeros follow PostgreSQL's degree operation order: sind(-0)=-0,
+tand(-0)=+0, cotd(-0)=-Infinity. Tiny degree results may round to zero without
+an underflow error. Go math and PostgreSQL's host C libm can vary in ordinary
+last bits and boundary behavior; no arbitrary-precision or host-errno emulation
+is implied. See [the direct-trig change note](docs/DIALECT.md#direct-trigonometric-functions--change-note).
+Public feature smoke selects `RUN='^TestReferenceMathTrigDirectFeatureSmoke$'`
+with `make check` and `make check REFERENCE=1`; complete direct and inverse
+regression proof selects `RUN='^TestReferenceMathTrig'` in both modes
+(900-second external deadlines). The root-owned temporary public Go smoke runs
+as `timeout 60s go run ./.math-trig-direct-feature-smoke` after materializing
+the living plan's Appendix A source, and is removed after evidence capture.
 
 INTERVAL retains independent months/days/microseconds, permitted field ranges
 and fractional precision, verbose/SQL/ISO input, SQL comparison/grouping and

@@ -3256,6 +3256,7 @@ also admits these immutable, strict PostgreSQL18 mathematical overloads:
 | `factorial` | INT8 → NUMERIC |
 | `acos`, `acosd`, `asin`, `asind`, `atan`, `atand` | FLOAT8 → FLOAT8 |
 | `atan2`, `atan2d` | FLOAT8,FLOAT8 → FLOAT8 (`y,x` argument order) |
+| `cos`, `cosd`, `cot`, `cotd`, `sin`, `sind`, `tan`, `tand` | FLOAT8 → FLOAT8 |
 
 Exact NUMERIC selects its numeric overload. Unary integer/REAL
 `round`/`trunc`/`sign` select the preferred FLOAT8 overload. Unknown unary
@@ -3318,8 +3319,7 @@ Selected calls remain projection/nested-call roots, not new CASE result leaves
 or general GROUP BY expressions. Math around an existing CASE with scalar arms
 and `round(count(*),1)` are admitted; min/max use the ordinary aggregate stage.
 
-Feature smoke: `make check RUN='^TestMathSmoke$'`.
-Independent reference:
+Independent public reference:
 `make check REFERENCE=1 RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$'`.
 
 ### Inverse trigonometric functions — change note
@@ -3362,7 +3362,7 @@ child simplification precedes strict literal-NULL elimination; for example
 be eliminated beside literal NULL. Runtime NULL still evaluates demanded siblings.
 Existing projection/nesting, aggregate, INSERT SELECT, UPDATE and stored-view
 consumers retain statement atomicity and native Dump/Restore/retained-reader rules.
-No forward trig, hyperbolic, pi/radians/degrees providers, general function registry
+No hyperbolic, pi/radians/degrees providers, general function registry
 or new DEFAULT/WHERE/INSERT VALUES admission is implied.
 
 PostgreSQL uses host C libm, whereas native evaluation uses Go math. Ordinary
@@ -3378,6 +3378,66 @@ command with `REFERENCE=1` (900-second external deadlines).
 The separate root-owned temporary public Go smoke is invoked as
 `timeout 60s go run ./.math-trig-feature-smoke` after materializing its source;
 it is removed after evidence capture, not installed as a permanent executable.
+
+### Direct trigonometric functions — change note
+
+`cos`, `cot`, `sin`, `tan` and their degree-input counterparts `cosd`, `cotd`,
+`sind`, `tand` each have one unconstrained FLOAT8→FLOAT8 signature. They reuse
+the mathematical binder, namespace resolution, implicit SMALLINT/INTEGER/BIGINT/
+REAL/NUMERIC widening, unknown FLOAT8 input and held-parameter inference.
+Known TEXT/BOOL arguments, wrong arity, named/VARIADIC calls and invisible or
+quote-mismatched function names retain full `42883` diagnostics and explicit-casts
+Hint. Invalid unknown input uses `22P02` with English double-precision wording:
+SQL literals have character-based Position, wire bound input has portal Context
+without Position, and SQL EXECUTE literal conversion has SQL Position.
+
+Degree functions use the REL_18_0 scaled first-quadrant formulas with finite
+argument reduction modulo360 before conversion. Notable results are exact:
+sind at0/30/90/150/180/210/270/330/360 gives0/.5/1/.5/0/-.5/-1/-.5/0;
+cosd at0/60/90/120/180/240/270/300/360 gives1/.5/0/-.5/-1/-.5/0/.5/1.
+At0/45/90/135/180/225/270/315/360, tand gives
+0/1/+Infinity/-1/0/1/-Infinity/-1/0 and cotd gives
++Infinity/1/0/-1/-Infinity/1/0/-1/+Infinity. These lists describe individual
+unary calls, not additional signatures. Negative rotations and large finite
+arguments retain the release's reduction and zero/pole signs.
+
+NaN propagates and NULL is strict, distinct from NaN, with FLOAT8 metadata even
+for empty results. Every selected function rejects either infinite input with
+`22003`, exact English primary `input is out of range`, absent Position/Detail/
+Hint/Context and all other optional logical fields. Runtime errors do not invent
+C source locations. Tangent/cotangent poles permit signed infinities, without
+`22012`; finite tiny values may round to zero, without an underflow exception.
+Radian sin/tan preserve negative zero and cot(-0)=-Infinity. Degree sind(-0)=-0,
+cosd(-0)=1, tand(-0)=+0 and cotd(-0)=-Infinity; degree tan/cot normalize every
+zero result to+0. Degree subnormals follow binary64 operation order, not ideal
+real-number scaling.
+
+Prepare establishes types without provider execution, including bad infinite
+constants. Existing immutable execution preflight and strict literal-NULL
+simplification remain shared: `atan2(NULL,sin('Infinity'))` fails at Execute,
+whereas a row-dependent child beside literal NULL can be eliminated; runtime
+NULL still demands siblings. Existing projections, aggregates, INSERT SELECT,
+UPDATE, SQL PREPARE/EXECUTE and stored views retain statement atomicity, recovery
+and native Dump/Restore/retained-reader behavior. No new DEFAULT/WHERE/INSERT VALUES
+admission, inverse/hyperbolic overload, pi/radians/degrees function or generalized
+registry is added.
+
+PostgreSQL uses host C libm; native uses Go math without C errno emulation.
+Ordinary accuracy and boundary behavior can vary. Independent normal-range
+nonzero targets permit at most2ULP; exact degree specials and IEEE signs/categories
+do not. Near-zero radian/degree boundary witnesses assert finite nonzero category,
+sign and bounded magnitude rather than universal ULP parity. Approximate binary
+π/π/2 inputs are not snapped to ideal radian zeros/poles. Release provenance and
+the pinned PostgreSQL18.0 UTF8/C oracle are unchanged.
+
+Shared smoke: `make check RUN='^TestReferenceMathTrigDirectFeatureSmoke$'` and
+the same command with `REFERENCE=1`. Complete direct/inverse public proof selects
+`RUN='^TestReferenceMathTrig'` in both modes; private provider/parser/binder units
+select `RUN='^TestMathTrig'`. Selected checks have900-second external deadlines.
+The root-owned temporary standalone source comes from the living plan Appendix A:
+`timeout 60s go run ./.math-trig-direct-feature-smoke`; remove it after recording
+observations, not install it as a permanent executable.
+
 
 ### Numeric scalar functions — change note
 
@@ -3425,7 +3485,7 @@ Host floating results remain subject to the PostgreSQL manual's libm caveat.
 Provider errors above have no invented Position/Detail/Hint. Prepare fixes types
 without evaluating these immutable operations; domain errors belong to Execute.
 
-Scalar feature smoke: `make check RUN='^TestMathScalarSmoke$'`.
+Selected scalar coverage: `make check RUN='^TestReferenceMathScalar'`.
 Independent pinned coverage: `make check REFERENCE=1 RUN='^TestReferenceMathScalar'`.
 
 

@@ -510,6 +510,25 @@ unknown PostgreSQL results, then encode those results as explicit expectations
 and remove discovery scaffolding. `p.Step` validates expectations; it does not
 learn or update them. Do not weaken assertions to accommodate native failures.
 
+Direct trigonometric definitions use `RUN='^TestReferenceMathTrigDirect'` in both
+`make check` and `make check REFERENCE=1`, with900-second external deadlines.
+Complete direct/inverse regression proof uses `RUN='^TestReferenceMathTrig'`;
+private parser/binder/provider units use `RUN='^TestMathTrig'`.
+Feature smoke selects `RUN='^TestReferenceMathTrigDirectFeatureSmoke$'` in both
+modes: all eight FLOAT8 direct/prepared functions, exact degree poles and zero
+signs, NULL, complete22003/22P02 diagnostics, fresh held bindings and recovery.
+Independent degree matrices, rotations, subnormal order, ordinary at-most2ULP
+targets and finite/sign/bounded-magnitude near-zero witnesses precede comparison.
+All discovery backend filters must be absent from completed definitions.
+Native precancellation and Reset/Dump/Restore/retained readers are explicit native
+phases; actual native-emitted SQL replays on PostgreSQL when the real mode runs.
+SQL PREPARE/EXECUTE uses a held physical connection and checks source Position
+instead of inventing wire-portal Context. After edits the root runs `make quickcheck`;
+post-integration verification remains `make finalcheck`.
+The separate root-owned public smoke source is the living plan Appendix A;
+materialize it temporarily, run `timeout 60s go run ./.math-trig-direct-feature-smoke`,
+record quiet exit0 or full failure evidence, and remove its directory.
+
 PG_USER coverage uses `RUN='^TestReferencePGUser'` in both
 `make check` and
 `make check REFERENCE=1`, with a 900-second deadline

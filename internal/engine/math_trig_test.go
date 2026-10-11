@@ -12,7 +12,7 @@ import (
 )
 
 func TestMathTrigBinding(t *testing.T) {
-	for _, name := range []string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d"} {
+	for _, name := range []string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
 		binary := name == "atan2" || name == "atan2d"
 		arity := 1
 		if binary {
@@ -78,7 +78,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("constant execution preflight", err)
 	}
-	for _, query := range []string{"SELECT atan2(NULL,asin(2))", "SELECT atan2d(NULL,asind(2))"} {
+	for _, query := range []string{"SELECT atan2(NULL,asin(2))", "SELECT atan2d(NULL,asind(2))", "SELECT atan2(NULL,sin('Infinity'))", "SELECT atan2d(NULL,sind('Infinity'))"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		node, err := b.bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -89,6 +89,26 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 			t.Fatal("constant child before strict NULL", query, err)
 		}
+	}
+	for _, name := range []string{"cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
+		t.Run(name, func(t *testing.T) {
+			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+			raw := statement(t, "SELECT "+name+"('Infinity')").(*parser.Select).Targets[0]
+			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			if err != nil {
+				t.Fatal("binding executed direct provider", err)
+			}
+			_, err = node.Eval(c)
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+				t.Fatal("direct execution domain diagnostic", err)
+			}
+			_, _, err = preflightCoercions(c, node)
+			diagnostic = nil
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+				t.Fatal("direct constant execution preflight", err)
+			}
+		})
 	}
 }
 
@@ -125,5 +145,25 @@ func TestMathTrigRuntimeDemand(t *testing.T) {
 	got, err = expr.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || got != sqltype.Null(d) || len(order) != 0 {
 		t.Fatal("literal NULL eliminated runtime sibling", got, order, err)
+	}
+	for _, name := range []string{"cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
+		plan, err := sqltype.BindMath(name, d.Usage(), d.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		order = nil
+		expr := mathExpression{expressionInfo: expressionInfo{usage: d.Usage()}, plan: plan, args: []BoundExpr{
+			mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
+		}}
+		got, err := expr.Eval(&EvalContext{Context: context.Background()})
+		if err != nil || got != sqltype.Null(d) || !reflect.DeepEqual(order, []int{0}) {
+			t.Fatal("direct runtime typed NULL", name, got, order, err)
+		}
+		order = nil
+		expr.args[0] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, order: &order, index: 0, err: demanded}
+		_, err = expr.Eval(&EvalContext{Context: context.Background()})
+		if !errors.Is(err, demanded) || !reflect.DeepEqual(order, []int{0}) {
+			t.Fatal("direct runtime argument failure", name, order, err)
+		}
 	}
 }

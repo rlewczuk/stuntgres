@@ -13,7 +13,7 @@ import (
 func TestMathTrigSignatures(t *testing.T) {
 	types, foreign := mathTypes(), mathTypes()
 	u, other := types[Float8].Usage(), foreign[Float8].Usage()
-	for _, name := range []string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d"} {
+	for _, name := range []string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
 		t.Run(name, func(t *testing.T) {
 			args := []Usage{u}
 			binary := name == "atan2" || name == "atan2d"
@@ -85,6 +85,10 @@ func TestMathTrigSignatures(t *testing.T) {
 			var diagnostic *sqlstate.Error
 			if errors.As(err, &diagnostic) {
 				t.Fatal("cancellation acquired SQLSTATE", err)
+			}
+			got, err = plan.Evaluate(ctx, Null(u.Type), Null(u.Type))
+			if !errors.Is(err, context.Canceled) || got.typ != nil {
+				t.Fatal("cancellation precedes strict NULL", got, err)
 			}
 			foreignValue, _ := Float(other.Type, 0.5)
 			if _, err := plan.Evaluate(context.Background(), foreignValue, a); err == nil {
@@ -218,7 +222,7 @@ func TestMathTrigDomainAndNaN(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d"} {
+	for _, name := range []string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
 		args := []Usage{d.Usage()}
 		binary := name == "atan2" || name == "atan2d"
 		if binary {
@@ -239,6 +243,110 @@ func TestMathTrigDomainAndNaN(t *testing.T) {
 			if err != nil || v.typ != d || v.null || !math.IsNaN(v.floating) {
 				t.Fatal("NaN propagation", name, v, err)
 			}
+		}
+	}
+}
+
+func TestMathTrigDirectValues(t *testing.T) {
+	d := mathTypes()[Float8]
+	negativeZero := math.Copysign(0, -1)
+	cases := []struct {
+		name        string
+		input, want float64
+		ulps        uint64
+	}{
+		{"cos", 0, 1, 0}, {"cosd", 60, .5, 0},
+		{"cot", .5, 1.830487721712452, 2}, {"cotd", 45, 1, 0},
+		{"sin", 1, .8414709848078965, 2}, {"sind", 30, .5, 0},
+		{"tan", 1, 1.5574077246549023, 2}, {"tand", 45, 1, 0},
+		{"sin", negativeZero, negativeZero, 0}, {"sind", negativeZero, negativeZero, 0},
+		{"tan", negativeZero, negativeZero, 0}, {"tand", negativeZero, 0, 0},
+		{"cot", negativeZero, math.Inf(-1), 0}, {"cotd", negativeZero, math.Inf(-1), 0},
+		{"cos", negativeZero, 1, 0}, {"cosd", negativeZero, 1, 0},
+		{"sind", -180, negativeZero, 0}, {"sind", -360, negativeZero, 0},
+		{"tand", -90, math.Inf(-1), 0}, {"tand", -270, math.Inf(1), 0},
+		{"cotd", -180, math.Inf(1), 0}, {"cotd", -360, math.Inf(-1), 0},
+		{"cotd", -90, 0, 0}, {"cotd", -270, 0, 0},
+		{"sind", 360000000030, .5, 0}, {"cosd", -360000000060, .5, 0},
+		{"tand", 360000000045, 1, 0}, {"cotd", -360000000045, -1, 0},
+		{"sind", 15, .25881904510252074, 2}, {"cosd", 75, .25881904510252074, 2},
+		{"tand", 15, .2679491924311227, 2}, {"cotd", 75, .2679491924311227, 2},
+	}
+	// Independently specified REL_18_0 exact degree regression matrix.
+	for _, tc := range []struct {
+		name   string
+		inputs [9]float64
+		wants  [9]float64
+	}{
+		{"sind", [9]float64{0, 30, 90, 150, 180, 210, 270, 330, 360}, [9]float64{0, .5, 1, .5, 0, -.5, -1, -.5, 0}},
+		{"cosd", [9]float64{0, 60, 90, 120, 180, 240, 270, 300, 360}, [9]float64{1, .5, 0, -.5, -1, -.5, 0, .5, 1}},
+		{"tand", [9]float64{0, 45, 90, 135, 180, 225, 270, 315, 360}, [9]float64{0, 1, math.Inf(1), -1, 0, 1, math.Inf(-1), -1, 0}},
+		{"cotd", [9]float64{0, 45, 90, 135, 180, 225, 270, 315, 360}, [9]float64{math.Inf(1), 1, 0, -1, math.Inf(-1), 1, 0, -1, math.Inf(1)}},
+	} {
+		for i, input := range tc.inputs {
+			cases = append(cases, struct {
+				name        string
+				input, want float64
+				ulps        uint64
+			}{tc.name, input, tc.wants[i], 0})
+		}
+	}
+	for _, sign := range []float64{1, -1} {
+		zero, pole := float64(0), math.Inf(1)
+		if sign < 0 {
+			zero, pole = negativeZero, math.Inf(-1)
+		}
+		for _, tc := range []struct {
+			name string
+			want float64
+		}{
+			{"sin", sign * math.SmallestNonzeroFloat64}, {"tan", sign * math.SmallestNonzeroFloat64},
+			{"cos", 1}, {"cot", pole}, {"sind", zero}, {"cosd", 1}, {"tand", 0}, {"cotd", pole},
+		} {
+			cases = append(cases, struct {
+				name        string
+				input, want float64
+				ulps        uint64
+			}{tc.name, sign * math.SmallestNonzeroFloat64, tc.want, 0})
+		}
+	}
+	for _, tc := range cases {
+		plan, err := BindMath(tc.name, d.Usage(), d.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		a, _ := Float(d, tc.input)
+		before := math.Float64bits(a.floating)
+		got, err := plan.Evaluate(context.Background(), a, Value{})
+		if err != nil || got.typ != d || got.null || !mathTrigMatches(got.floating, tc.want, tc.ulps) {
+			t.Fatalf("%s(%g): actual %g bits%x want %g bits%x err%v", tc.name, tc.input, got.floating, math.Float64bits(got.floating), tc.want, math.Float64bits(tc.want), err)
+		}
+		if math.Float64bits(a.floating) != before {
+			t.Fatal("changed direct input")
+		}
+	}
+}
+
+func TestMathTrigDirectDomainAndNaN(t *testing.T) {
+	d := mathTypes()[Float8]
+	for _, name := range []string{"cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
+		plan, err := BindMath(name, d.Usage(), d.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, input := range []float64{math.Inf(-1), math.Inf(1)} {
+			a, _ := Float(d, input)
+			got, err := plan.Evaluate(context.Background(), a, Value{})
+			var diagnostic *sqlstate.Error
+			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "input is out of range"}
+			if got.typ != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+				t.Fatal(name, input, got, err)
+			}
+		}
+		a, _ := Float(d, math.NaN())
+		got, err := plan.Evaluate(context.Background(), a, Value{})
+		if err != nil || got.typ != d || got.null || !math.IsNaN(got.floating) {
+			t.Fatal("direct NaN", name, got, err)
 		}
 	}
 }

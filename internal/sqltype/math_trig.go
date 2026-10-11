@@ -95,3 +95,100 @@ func inverseTrig(name string, y, x float64) (float64, error) {
 	}
 	return result, nil
 }
+
+// Forward degree constants are evaluated once, independently of inverse scaling.
+// Round the conversion factor to binary64 before constant angle products, just
+// as runtime FLOAT8 multiplication does. Untyped constant products round only
+// after multiplication and would give different normalization denominators.
+const directRadiansPerDegree = float64(0.0174532925199432957692)
+
+var (
+	directSinThirty = math.Sin(30 * directRadiansPerDegree)
+	directCosSixty  = 1 - math.Cos(60*directRadiansPerDegree)
+	directTanOne    = directSindQ1(45) / directCosdQ1(45)
+	directCotOne    = directCosdQ1(45) / directSindQ1(45)
+)
+
+func directSindQ1(x float64) float64 {
+	if x > 30 {
+		return directCosdQ1(90 - x)
+	}
+	return math.Sin(float64(x*directRadiansPerDegree)) / directSinThirty / 2
+}
+
+func directCosdQ1(x float64) float64 {
+	if x > 60 {
+		return directSindQ1(90 - x)
+	}
+	// Explicit rounding preserves the release's subtraction/division order,
+	// including tiny inputs; do not contract this into a fused subtraction.
+	scaled := float64(float64(1-math.Cos(float64(x*directRadiansPerDegree))) / directCosSixty)
+	return 1 - float64(scaled/2)
+}
+
+// directTrig is called only for a validated unary FLOAT8 MathPlan. Radian
+// evaluation uses Go math rather than host C errno; do not invent range cutoffs.
+func directTrig(name string, x float64) (float64, error) {
+	if math.IsNaN(x) {
+		return math.NaN(), nil
+	}
+	if math.IsInf(x, 0) {
+		return 0, failure("22003", "input is out of range")
+	}
+	var result float64
+	switch name {
+	case "cos":
+		result = math.Cos(x)
+	case "sin":
+		result = math.Sin(x)
+	case "tan":
+		return math.Tan(x), nil
+	case "cot":
+		return 1 / math.Tan(x), nil
+	default:
+		// Reduce before conversion so large finite degree arguments retain
+		// their remainder. The comparisons deliberately preserve negative zero.
+		x = math.Mod(x, 360)
+		sign := float64(1)
+		if x < 0 {
+			x = -x
+			if name != "cosd" {
+				sign = -sign
+			}
+		}
+		if x > 180 {
+			x = 360 - x
+			if name != "cosd" {
+				sign = -sign
+			}
+		}
+		if x > 90 {
+			x = 180 - x
+			if name != "sind" {
+				sign = -sign
+			}
+		}
+		switch name {
+		case "cosd":
+			result = sign * directCosdQ1(x)
+		case "sind":
+			result = sign * directSindQ1(x)
+		case "tand":
+			result = sign * ((directSindQ1(x) / directCosdQ1(x)) / directTanOne)
+		case "cotd":
+			result = sign * ((directCosdQ1(x) / directSindQ1(x)) / directCotOne)
+		}
+		if name == "tand" || name == "cotd" {
+			// Degree tangent/cotangent permit infinite poles and normalize
+			// every zero result, unlike sine/cosine and radian tangent.
+			if result == 0 {
+				result = 0
+			}
+			return result, nil
+		}
+	}
+	if math.IsInf(result, 0) {
+		return 0, failure("22003", "value out of range: overflow")
+	}
+	return result, nil
+}
