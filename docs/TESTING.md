@@ -396,19 +396,42 @@ Parser scratch reuse is an internal allocation change, not a parsed-result cache
 Each SQL parse, restricted INSERT replay and standalone type-input parse borrows
 an exclusive generated receiver. The whole receiver is cleared before return,
 including on error or panic; lexers, options, contexts and ASTs are never pooled.
-The bounded nonblocking channel retains at most the initial GOMAXPROCS count of
-fully cleared receivers: empty checkout allocates, full return discards, and
-neither operation waits or limits active parses. Grammar cells use owned Column,
-AlterTableAction and WindowSpec pointers and compact ON COMMIT action/position
-metadata; existing public AST value/pointer storage boundaries stay unchanged.
+One private `sync.Pool` retains fixed-size cleared receivers; retention is
+GC-evictable, not bounded by a hard object count. Checkout does not wait for
+another invocation or cap active parses. No test may assume a particular
+post-return receiver identity, guaranteed hit, or GC eviction. Grammar cells use
+owned Column, AlterTableAction and WindowSpec pointers and compact ON COMMIT
+action/position metadata; existing public AST storage boundaries stay unchanged.
 Invocation-local grown stacks are not retained. `^TestParseScratch` in
-`./internal/parser` covers retained AST/type data and complex table/composite/ALTER/
-CTAS declarations, lexical options, recursive callback entry, cancellation,
-callback error/panic propagation and concurrent independent results.
+`./internal/parser` covers deterministic full typed-zero reset after actual SQL/
+type success, syntax error, in-flight cancellation and callback error/panic,
+notice ownership/reentry, deep stacks, retained parameters/source positions,
+declarations, lexical options and concurrent independent results/cancellation.
+The production-used explicit receiver helper lets reset tests observe a known
+receiver without manipulating the pool. Generated cleanup precedes full reset,
+which precedes return; original panics are not recovered by production code.
 Run `make quickcheck PACKAGES=./internal/parser RUN='^TestParseScratch'` and its
-`RACE=1` counterpart, then the complete parser package. Allocation profiles are
-motivation, not proof of a speedup: rerun the complete real-reference race command
-under the unchanged 900-second quickcheck deadline before claiming an improvement.
+`RACE=1` counterpart, then the complete parser package and ordinary quickcheck.
+
+Performance evidence must compare the identical
+`internal/parser/parser_scratch_bench_test.go` harness before and after changes.
+`BenchmarkParseScratchMixed` measures one complete fifteen-input cycle;
+`BenchmarkParseScratchNested` measures one restricted multirow INSERT.
+Record serial/parallel samples, ns/op, B/op and allocs/op, absolute and percentage
+deltas, toolchain/environment and actual commands/exits. Measure both default
+startup P and a separate process started with `GOMAXPROCS=1`; `-cpu` alone does
+not change a cache capacity initialized at startup. Attribute scratch bytes and
+object counts at every actual receiver allocation site using matched profiles,
+not only the unused generated constructor. GC and race-mode pool discards are
+normal; neither warm identity assumptions nor disabled GC are acceptable.
+The prior channel can already reuse ordinary serial parses at default P; reduced
+P1 nested allocations do not promise default-P or whole-suite runtime gains.
+Historical fresh-parser allocation profiles are motivation, not candidate
+deltas. Rerun the complete real-reference race command under the unchanged
+900-second quickcheck deadline before claiming a corpus improvement; disclose
+timeouts/failures honestly. Selected dual-mode reference families and the actual
+public executable smoke supplement, never replace, complete verification and
+postintegration fullcheck.
 
 
 ### Commands and oracle-first discovery

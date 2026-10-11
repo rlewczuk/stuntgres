@@ -39,7 +39,24 @@ Grammar actions must never publish addresses of goyacc semantic cells (`&$n`)
 into ASTs or retain them through helpers. Copy a value to an owned local before
 taking its address, or publish an independently allocated node. Semantic cells
 are overwritten during parsing and the entire receiver is cleared before its
-bounded scratch-cache return; AST ownership must not depend on parser lifetime.
+scratch-pool return; AST ownership must not depend on parser lifetime.
+
+SQL parsing, nested restricted INSERT replay and standalone type input use one
+private `sync.Pool` of exclusively borrowed generated receivers. The
+production-used `parseWithScratch` helper runs generated cleanup before a full
+typed-zero reset; the checkout wrapper returns the receiver only after that reset,
+including on errors, cancellation and propagated callback panics. Lexers, options,
+contexts, notices and results are never pooled. Each receiver is fixed-sized;
+expanded goyacc stacks remain invocation-local. Pool retention is GC-evictable,
+not a hard object-count bound, and checkout does not limit active parses.
+
+Measure changes against the current implementation with the identical
+`BenchmarkParseScratchMixed` and `BenchmarkParseScratchNested` corpus, including
+serial/parallel workloads and both default startup P and process-startup
+`GOMAXPROCS=1`. Report allocation bytes/counts and runtime samples separately;
+profiles must attribute all actual receiver allocation sites. Historical
+fresh-parser profiles and a microbenchmark reduction do not establish a
+whole-suite speedup. See [testing policy](TESTING.md) for required evidence.
 
 Prepared transaction oracle scenarios use the existing pinned PostgreSQL18.0
 UTF8/C fixture with startup `max_prepared_transactions=100`, preserving its

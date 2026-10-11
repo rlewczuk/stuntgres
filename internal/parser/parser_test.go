@@ -755,7 +755,7 @@ func TestUnicodeEscapesCompositionDiagnostics(t *testing.T) {
 func TestUnicodeEscapesPendingQueryPrecedence(t *testing.T) {
 	const query = `INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`
 	l := &lexer{input: query}
-	result := sqlParse(l)
+	result := parseLexer(l)
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape", Position: "67", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`}
 	var got *sqlstate.Error
 	if result == 0 || !errors.As(l.err, &got) || *got != want || got.SQLState() != want.Code || len(l.statements) != 1 || l.statements[0].(*Insert).Source == nil {
