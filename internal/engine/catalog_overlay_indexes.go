@@ -45,6 +45,16 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			delete(c.uniqueRoots, a)
 			continue
 		}
+		// Virtual indexes own ancestry/validity metadata, never heap captures or
+		// installation roots. Their exact descriptor fences were captured above.
+		if parent.partition != nil {
+			continue
+		}
+		// Unchanged key semantics permit root reuse only on the same storage
+		// incarnation; a replacement heap needs its own physical baseline.
+		if previous, ok := stage.base.state.descriptors[a].(*relationDescriptor); !storageChanged && ok && previous.sqlIndex != nil && previous.sqlIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.attributes, parent.attributes) && sameIndexKeySemantics(previous, index) {
+			continue
+		}
 		store := e.privateStorageLocked(c, parent.address)
 		if store == nil {
 			e.mu.Unlock()

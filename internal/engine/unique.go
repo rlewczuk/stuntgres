@@ -18,12 +18,14 @@ type uniqueConstraint struct {
 	Primary          bool
 	NullsNotDistinct bool
 	Index            ObjectAddress
+	Parent           OID
+	IsLocal          bool
 }
 
 func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	primary := false
 	for _, c := range parent.uniqueConstraints {
-		if parent.relationKind != tableRelation || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
+		if (parent.relationKind != tableRelation && parent.relationKind != partitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
 		}
 		names[c.Name] = true
@@ -83,6 +85,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 	d.uniqueConstraints = make([]uniqueConstraint, len(declarations))
 	for i := range declarations {
 		d.uniqueConstraints[i] = declarations[i].uniqueConstraint
+		d.uniqueConstraints[i].IsLocal = true
 		if source := declarations[i].source; source != nil {
 			stage.captureLikeSource(source)
 		}
@@ -175,6 +178,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.sqlIndex
 			definition.parent, definition.constraint = d.address, uniqueBacking(c)
+			definition.partitionParent = ObjectAddress{}
 			definition.ready, definition.valid, definition.live = true, true, true
 			definition.keys = slices.Clone(source.sqlIndex.keys)
 			for j := range definition.keys {
@@ -258,17 +262,23 @@ func uniqueHasNull(key []sqltype.Value) bool {
 
 // DDL ownership is independent of ordinary key SELECT disclosure rights.
 func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexKey) (bool, error) {
+	// RLS applicability is captured metadata/role authority, not a policy-row
+	// evaluation. Table SELECT alone cannot reveal a hidden physical key.
+	descriptor, ok := auth.catalog.Descriptor(ref.Address)
+	parent, relation := descriptor.(*relationDescriptor)
+	if !ok || !relation {
+		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
+	}
+	decision, err := rowSecurityDecision(auth, parent, auth.state.CurrentUser, policySelect, false)
+	if err != nil || decision != rlsUnrestricted {
+		return false, err
+	}
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return false, err
 	}
 	if rights&SelectPrivilege != 0 {
 		return true, nil
-	}
-	descriptor, ok := auth.catalog.Descriptor(ref.Address)
-	parent, relation := descriptor.(*relationDescriptor)
-	if !ok || !relation {
-		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
 	for _, key := range keys {
 		attribute, expression, err := indexCatalogKey(parent, key)

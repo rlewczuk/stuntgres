@@ -23,6 +23,7 @@ type AlterIndex struct {
 	IfExists  bool
 	Action    string
 	Target    Identifier
+	Partition ObjectName
 	Options   []IndexOption
 	ActionPos Position
 	Pos       Position

@@ -882,12 +882,14 @@ Queryable catalog sources have this deliberately bounded exact schema:
 
 | Source | Columns and PostgreSQL logical types |
 |---|---|
-| `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL`, `relispopulated BOOL` |
+| `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL`, `relispopulated BOOL`, `reloftype OID`, `relispartition BOOL` |
 | `pg_catalog.pg_rewrite` | `oid OID`, `rulename NAME`, `ev_class OID`, `ev_type CHAR`, `ev_enabled CHAR`, `is_instead BOOL` |
 | `pg_catalog.pg_views` | `schemaname NAME`, `viewname NAME`, `viewowner NAME`, `definition TEXT` |
 | `pg_catalog.pg_matviews` | `schemaname NAME`, `matviewname NAME`, `matviewowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `ispopulated BOOL`, `definition TEXT` |
 | `pg_catalog.pg_tables` | `schemaname NAME`, `tablename NAME`, `tableowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `hasrules BOOL`, `hastriggers BOOL`, `rowsecurity BOOL` |
 | `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
+| `pg_catalog.pg_index` | `indexrelid OID`, `indrelid OID`, `indisunique BOOL`, `indisprimary BOOL`, `indisvalid BOOL`, `indisready BOOL`, `indislive BOOL`, `indnullsnotdistinct BOOL` |
+| `pg_catalog.pg_constraint` | `oid OID`, `conname NAME`, `contype CHAR`, `conrelid OID`, `conbin PG_NODE_TREE`, `conindid OID`, `conparentid OID`, `conislocal BOOL`, `coninhcount INT2` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
 | `pg_catalog.pg_sequences` | `schemaname NAME`, `sequencename NAME`, `sequenceowner NAME`, `data_type REGTYPE`, `start_value INT8`, `min_value INT8`, `max_value INT8`, `increment_by INT8`, `cycle BOOL`, `cache_size INT8`, `last_value INT8` |
 | `pg_catalog.pg_user` | `usename NAME`, `usesysid OID`, `usecreatedb BOOL`, `usesuper BOOL`, `userepl BOOL`, `usebypassrls BOOL`, `passwd TEXT`, `valuntil TIMESTAMPTZ`, `useconfig TEXT[]` |
@@ -1059,7 +1061,7 @@ initial invalid-index publication retains true. This adds no VACUUM/ANALYZE.
 
 The represented builtin table inventory is `pg_cast`, `pg_extension`, `pg_sequence`, `pg_depend`,
 `pg_description`, `pg_shdescription`, `pg_constraint`, `pg_attrdef`, `pg_class`,
-`pg_rewrite`. Their released compatibility metadata has hasindexes=true and
+`pg_rewrite`, `pg_index`. Their released compatibility metadata has hasindexes=true and
 hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
 `pg_shdescription`'s `pg_global`. These flags do not invent native system backing
 indexes or physical storage. The represented builtin views are `pg_views`,
@@ -1788,10 +1790,11 @@ Pinned builtin type/function/operator/collation/opclass/conversion references
 and pg_catalog namespace11 are omitted, not synthetic `p` rows. public is not
 pinned; discover its actual OID because the reference fixture recreates it.
 Automatic rowtypes, enum arrays, pg_shdepend owner/ACL/membership relationships,
-partitions, triggers and unsupported physical objects are not invented. Registered
-installed extensions and their actual member/helper/namespace/consumer edges,
-domain arrays, view rules and FK child/parent/key dependencies are represented.
-Unsupported extension/object families do not acquire fabricated dependencies.
+triggers and unsupported physical objects are not invented. Registered installed
+extensions and their actual member/helper/namespace/consumer edges, domain arrays,
+view rules, FK child/parent/key dependencies and partition index/inherited-key
+PRIMARY(P)/SECONDARY(S) ancestry are represented. Unsupported extension/object
+families do not acquire fabricated dependencies.
 PUBLIC SELECT requires no endpoint SELECT/schema USAGE and applies no per-edge
 privilege filtering. Native mutation reports0A000
 `catalog source mutation is unsupported`; row locking reports0A000
@@ -2312,8 +2315,10 @@ phases. No meaningful option is discarded.
 
 Compact full/column/pretty pg_get_indexdef uses original analyzed keys and current
 names, including correct expression parentheses and actual collations. Dump
-retains canonical replay rendering. The internal pg_index-shaped projection
-remains internal; `pg_catalog.pg_indexes` is a readonly normal query source.
+retains canonical replay rendering. Broad pg_index-shaped metadata remains
+internal; narrow readonly `pg_catalog.pg_index` exposes actual identity, unique/
+primary, validity, readiness, liveness and NULL-policy fields listed above.
+`pg_catalog.pg_indexes` is a readonly normal query source.
 It emits each actual index once, including constraint-backed and retained
 ready-invalid concurrent indexes. Access method is inside `indexdef`, not an
 extra column. Definitions are compact logical SQL: the parent is always

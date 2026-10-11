@@ -48,6 +48,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			stage.captureLikeSource(source)
 			definition := *old
 			definition.parent = destination.address
+			definition.partitionParent = ObjectAddress{}
 			definition.ready, definition.valid, definition.live = true, true, true
 			definition.constraint = nil
 			definition.keys = slices.Clone(old.keys)
@@ -127,7 +128,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			}
 			address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 			if old.constraint != nil && old.constraint.kind == uniqueBackingKind {
-				c := uniqueConstraint{Name: name, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.keys))}
+				c := uniqueConstraint{Name: name, IsLocal: true, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.keys))}
 				c.OID, err = e.allocateOIDLocked()
 				if err != nil {
 					return err

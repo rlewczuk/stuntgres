@@ -410,6 +410,108 @@ observes the actual private Operation signal; caller cancellation/I/O identities
 remain ordinary errors. Every blocked callback is released and its worker joined
 before connection teardown.
 
+## Partitioned constraints — selected proof
+
+The untagged `reference/tables/partition_constraints_*_test.go` definitions use
+the shared case/direct-or-prepared/backend matrix. Native and genuine pinned
+PostgreSQL18.0 execute the same definitions; independently observed PostgreSQL
+diagnostics, catalog types and control replay witnesses are not native-derived.
+Keep each group small, with an external900-second command deadline:
+
+```sh
+make check RUN='^TestReferencePartitionConstraints(Coverage|CoveragePrecedence|CompoundAdmission|Clones|Values|NestedValues|TypedEquality|PreparedMetadata)$'
+make check RUN='^TestReferencePartitionConstraints(Attachment|AttachmentDiagnostics|AttachmentEquivalence|Admission|HeldCurrentRole|Atomicity)$'
+make check RUN='^TestReferencePartitionConstraints(Drops|DropPrecedence|Transactions|Authorization|Privacy|Cancellation|IndexCancellation)$'
+make check RUN='^TestReferencePartitionConstraints(Controls|ControlCollision|FeatureSmoke|NonuniqueCatalog|IncompleteReuse|CatalogMetadata)$'
+make check RUN='^TestReferencePartitionConstraintsMultiKey(Collision|NestedOrder)'
+make check RUN='^TestReferencePartitionConstraintsRegclass(References|Controls)$'
+```
+
+Repeat each command with `REFERENCE=1` before review/integration of changed
+reference definitions. Retained generated/identity/serial/exclusion RANGE boundary
+witnesses remain selected by `TestReferenceRangePartitionConstraintBoundaries`;
+UNIQUE/PRIMARY KEY are positive partitioned-constraint witnesses, not boundaries.
+Catalog OIDs are compared relationally; coninhcount is INT2 and virtual index kind
+is internal CHAR I. Actual P/S edges and raw empty/nonempty metadata are asserted.
+The Regclass definitions cover renamed root UNIQUE, inherited intermediate UNIQUE
+and local intermediate PRIMARY KEY identities, actual local primary NULL errors,
+scalar/opaque/whole-NULL stored arrays, raw metadata, inline and inherited definitions,
+future defaults, two exact native redumps and unmodified PostgreSQL replay. Opaque
+identity checks use every scalar OID subscript and NULL position; general array
+comparison remains excluded. Selected race proof uses the same Regclass selector
+with `RACE=1`.
+
+
+Private structural and immutable-publication tests use the real catalog stage,
+physical key roots, admitted locking and transaction owners. Include the selected
+`TestPartitionConstraints` family in native proof. Race proof is separately:
+
+```sh
+make check RACE=1 RUN='^TestPartitionConstraints(AdmittedCancellation|TransactionOverlay|PublicationFences|PreservesNewestPhysicalRoot|FinalPublicationCancellation|DropFinalPublicationCancellation|RecursiveBuildFailure|IncompleteReplacementAdmission|OwnedProviderReplay)$'
+```
+
+For canonical scheduling remedies, retain the exact byte assertion in
+ControlCollision and select the private source-priority/dependency regressions:
+
+```sh
+make check RUN='^(TestPartitionConstraintsDump(LogicalOrder|PriorityLifecycle|CollisionProvenance|MultiKeyNames|IndexDeclarationOrder|CollisionDefinitionReservation)|TestIndexPropertyDumpRemappedTopology|TestInheritanceControlsTopology|TestInheritanceControlsRetainedTemporaryCollision)$'
+```
+
+The private order witness remints only one root above unrelated graph nodes.
+Sparse replay provenance retains that root's original priority while every dependency
+continues to precede its consumer; unchanged addresses retain their original order.
+MultiKeyCollision independently checks DISTINCT/NND keys sharing a generated stem,
+actual selective earlier-backing TEMP remapping, unchanged noncolliding identities,
+current-name NULL-duplicate diagnostics, two exact redumps and future cloning.
+MultiKeyNestedOrder pins inherited DISTINCT before nested local NND. Both public
+definitions require fresh selected native and pinned proof; their native controls
+also replay the actual unmodified emitted SQL. DumpMultiKeyNames privately checks
+whole-sibling generated-name reservation and parent-identity matching;
+DumpIndexDeclarationOrder checks inherited/local/prebuilt categories and sparse
+standalone priority without mutating captured constraint slices.
+DumpCollisionDefinitionReservation exercises actual TEMP preservation with the
+replacement allocator positioned at an imported leaf constraint OID, requiring
+unchanged noncolliding definition identities, backing/parent synchronization and
+immutable source/retained TEMP authority.
+
+Blocked cancellation tests establish an actual wait before cancellation; measured
+final-publication cancellation reaches the last genuine veto boundary rather
+than entering with an already canceled context. Failed actions preserve graph,
+rows and actual physical roots, followed by healthy retry. Controls cover renamed/
+manual/partial/nested trees, local provenance, reminted references, live TEMP
+collisions, deterministic repeated redump, retained cursors and failed/canceled
+replacement. The separate public executable additionally replays the actual
+unmodified emitted SQL into a clean isolated pinned PostgreSQL database.
+
+Executable smoke source is the session evidence artifact
+`local://partition-constraints-smoke.go`, not a staged package executable.
+Materialize it outside repository package roots and launch from the worktree:
+The executable retains both same-stem cases and the original PK/manual/partial/
+rollback/metadata baseline. It measures actual TEMP sequence collisions with only
+the earlier backing, preserves all noncolliding and TEMP identities, checks two
+byte-equal redumps and future clones. Stored references cover all three renamed
+UNIQUE/PRIMARY root/intermediate backings, inline/inherited definitions, late
+defaults/data, populated native materialized rows and policy definitions. Native
+policy-expression execution explicitly retains its0A000 boundary; PostgreSQL
+independently checks actual filtering. PostgreSQL ignores native snapshot comments,
+so replay explicitly REFRESHes the emitted materialized definition before checking
+its rows. The actual collision-destination stream is submitted unmodified; these
+instructions do not substitute for recorded executable observations.
+
+```sh
+go run /absolute/session/path/partition-constraints-smoke.go -mode native -dump /tmp/partition-constraints-smoke.sql
+go run /absolute/session/path/partition-constraints-smoke.go -mode replay -dump /tmp/partition-constraints-smoke.sql -dsn "$PG_DSN"
+```
+
+Expected terminal observations, only after all assertions, are
+`partition constraints native smoke passed` and
+`partition constraints PostgreSQL replay smoke passed`. Root-observed selected
+source/replay proof authorizes support documentation; these commands are
+verification instructions, not claims that every listed group was exercised.
+Reserve quickcheck for whole-project Docker-free verification. Root owns generation,
+checks, review and integration; agents do not invoke refcheck.
+
+
 ## COPY text selected proof
 
 Shared untagged `reference/dml/copy_text_*_test.go` definitions run on the native
@@ -4158,7 +4260,8 @@ make check RUN='^TestPartialIndexPredicateTypeGeneration'
 routes for window functions in partial predicates: full42P20 predicate-context
 diagnostics, no-OVER42809 precedence, no effects and same-name supported recovery.
 Keep the complete QueryWindow family selected after shared-comparator/binder
-changes. Structural metadata has no native SQL pg_index projection; direct
+changes. Broad structural pg_index fields remain internal; the narrow SQL
+projection does not expose expression/predicate trees. Direct
 `TestPartialIndexMetadataPredicate` consumers assert exact current/retained
 truth/membership and original attribute dependencies despite simplification.
 

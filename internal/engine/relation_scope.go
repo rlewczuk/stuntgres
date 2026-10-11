@@ -424,9 +424,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		return err
 	}
+	partitionDrop := false
 	e.mu.Lock()
 	if ref.owner != nil {
 		err = s.observePartitionRelationLocked(e, ref)
+		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
+			d, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+			partitionDrop = exists && hierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
+		}
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -438,6 +443,16 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if err = s.acquirePartitionDefinitionDefault(ref); err != nil {
 				return err
 			}
+		}
+	case *parser.AlterTable:
+		if partitionDrop {
+			if err = s.acquirePartitionDescendants(ref, accessExclusive); err != nil {
+				return err
+			}
+		}
+	case *parser.CreateIndex:
+		if err = s.acquirePartitionDescendants(ref, relationShare); err != nil {
+			return err
 		}
 	case *parser.Select, *parser.Insert:
 		if err = s.acquirePartitionDescendants(ref, accessShare); err != nil {

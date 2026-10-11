@@ -706,14 +706,18 @@ native0A000 `ON CONFLICT on partition hierarchies is unsupported` and
 `merging partition hierarchies is unsupported`, with all optional fields empty.
 Ordinary nonpartitioned conflict admission/revalidation/counts are preserved;
 cursor SELECT continues through the ordinary complete hierarchy provider.
-Virtual CREATE INDEX/REINDEX report `partitioned indexes are unsupported`;
-excluded parsed constraint combinations report
-`partitioned table constraint combination is unsupported`. These diagnostics have
-empty optional fields. Earlier actual malformed key/bound/type/owner diagnostics
-remain authoritative. Integrated PRIMARY KEY syntax parses normally; a virtual
-PRIMARY KEY declaration reaches the same execution-time constraint-combination
-0A000, not a parser/Prepare rejection. Physical leaves retain ordinary local
-UNIQUE/PRIMARY KEY/EXCLUDE/index construction and enforcement through existing producers.
+Virtual nonunique CREATE INDEX and REINDEX retain `partitioned indexes are unsupported`.
+RANGE UNIQUE/PRIMARY KEY and unique indexes cover all simple partition keys;
+INCLUDE is not key coverage, and expression partition keys reject these keys.
+Real immediate-parent constraint/index ancestry links storage-free virtual indexes
+to enforcing physical leaves. Recursive creation, ON ONLY, ALTER INDEX ATTACH
+PARTITION and future clones preserve identities and actual nested validity.
+Selected attach and index/key-drop operations support transaction overlays and
+savepoint rollback. Independent physical leaf keys retain ordinary admission.
+Excluded EXCLUDE/generated/identity/serial combinations retain0A000
+`partitioned table constraint combination is unsupported`, with empty optional
+fields. Earlier malformed key/bound/type/owner diagnostics remain authoritative.
+See [the complete selected contract](TABLES.md#partitioned-keys--change-note).
 Manual sequence OWNED BY logical root/intermediate columns retains ordinary
 owner/schema/live-attribute authority, AUTO dependencies and symbolic controls;
 this does not widen virtual serial/identity creation combinations.
@@ -1349,13 +1353,14 @@ column default or typed NULL. Explicit NULL/bound nil remain NULL in both modes.
 ### Constraint/expression introspection — change note
 
 The native catalog sources add exactly `pg_catalog.pg_constraint`
-(`oid OID, conname NAME, contype CHAR, conrelid OID, conbin PG_NODE_TREE`) and
+(`oid OID, conname NAME, contype CHAR, conrelid OID, conbin PG_NODE_TREE,
+conindid OID, conparentid OID, conislocal BOOL, coninhcount INT2`) and
 `pg_catalog.pg_attrdef` (`oid OID, adrelid OID, adnum INT2, adbin PG_NODE_TREE`).
 They project existing CHECK (c), NOT NULL (n), UNIQUE (u), PRIMARY KEY (p),
 EXCLUDE (x) and FOREIGN KEY (f) identities, plus explicit nontrivial defaults
 from immutable descriptors. NOT NULL, index and FK constraints have NULL conbin.
-Attribute numbers are stable, not dense evaluation slots. Additional metadata
-catalogs remain absent. STORED generated
+Attribute numbers are stable, not dense evaluation slots. Broad PostgreSQL metadata
+catalogs remain outside the bounded sources described here. STORED generated
 definitions share existing pg_attrdef/pg_get_expr; no pg_attribute or
 information_schema rollout is implied.
 
@@ -1777,7 +1782,8 @@ prepared transfer reuse existing owners and completion/deadlock/cancellation
 resources. READ DEFERRABLE is unrelated. Uncontested deferred admission does not
 invent an obligation for later peers. Ordinary query MVCC visibility is unchanged.
 Native metadata adds contype x and symbolic pg_get_constraintdef to existing
-projections, not SQL pg_index or new pg_constraint columns. Native process-local
+projections. Narrow SQL pg_index and backing/ancestry pg_constraint fields are
+available; exclusion deferrability and broad index metadata remain internal. Native process-local
 Dump/Reset/Restore preserves the real definition/index closure; physical/WAL,
 extension, GiST/SP-GiST/range and server pg_dump support is not implied.
 See [the full contract](TABLES.md#exclusion-constraints--change-note) and
@@ -7239,8 +7245,9 @@ The operation invoker, not a stored-view owner, controls this policy.
 Prepared executions use fresh catalog/ACL captures; existing eager results
 remain owned through mutation and Reset/Restore. Generic native catalog reads
 use latest committed state plus their own supported overlay, not an RR catalog
-snapshot. SQL pg_index, node-tree lists, optimizer and physical storage behavior
-remain outside this surface. See [the SQL contract](SQL.md#indexes).
+snapshot. Broad pg_index fields, node-tree lists, optimizer and physical storage
+behavior remain outside this surface; the narrow readonly pg_index projection
+is available. See [the SQL contract](SQL.md#indexes).
 See [the design](design/PG18-INDEX-MAINTENANCE.md).
 Feature smoke: `make check RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)'`;
 repeat with `REFERENCE=1` for the independent pinned oracle.

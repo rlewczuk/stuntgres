@@ -131,6 +131,38 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 	return false
 }
 
+// Descriptor and owned-definition OIDs share one identity space. Replacement
+// must reserve both before allocating any collision replacement.
+func reserveDefinitionOIDs(reserved map[OID]bool, d *relationDescriptor) {
+	if d.view != nil {
+		reserved[d.view.rule] = true
+	}
+	for _, p := range d.policies {
+		reserved[p.OID] = true
+	}
+	for _, c := range d.notNullConstraints {
+		reserved[c.OID] = true
+	}
+	for _, c := range d.checkConstraints {
+		reserved[c.OID] = true
+	}
+	for _, c := range d.uniqueConstraints {
+		reserved[c.OID] = true
+	}
+	for _, c := range d.exclusionConstraints {
+		reserved[c.OID] = true
+	}
+	for _, c := range d.foreignKeys {
+		reserved[c.OID] = true
+	}
+	for _, c := range d.defaults {
+		reserved[c.OID] = true
+	}
+	for _, c := range d.generations {
+		reserved[c.OID] = true
+	}
+}
+
 func validateDefinitionOIDs(view CatalogRead) error {
 	used := make(map[OID]bool)
 	for address := range view.state.descriptors {
@@ -206,33 +238,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		reserved[address.ObjectID] = true
 		if d, ok := descriptor.(*relationDescriptor); ok {
 			relations = append(relations, d)
-			if d.view != nil {
-				reserved[d.view.rule] = true
-			}
-			for _, c := range d.notNullConstraints {
-				reserved[c.OID] = true
-			}
-			for _, c := range d.checkConstraints {
-				reserved[c.OID] = true
-			}
-			for _, p := range d.policies {
-				reserved[p.OID] = true
-			}
-			for _, c := range d.uniqueConstraints {
-				reserved[c.OID] = true
-			}
-			for _, c := range d.exclusionConstraints {
-				reserved[c.OID] = true
-			}
-			for _, c := range d.foreignKeys {
-				reserved[c.OID] = true
-			}
-			for _, c := range d.defaults {
-				reserved[c.OID] = true
-			}
-			for _, definition := range d.generations {
-				reserved[definition.OID] = true
-			}
+			reserveDefinitionOIDs(reserved, d)
 		}
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
@@ -290,6 +296,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 		}
 	}
+	uniqueMapping := make(map[OID]OID)
 	for _, old := range relations {
 		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
 			continue
@@ -348,6 +355,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			if err != nil {
 				return err
 			}
+			uniqueMapping[def.OID] = id
 			if id == def.OID {
 				continue
 			}
@@ -446,6 +454,28 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if changed {
 			replacement := d
 			next.descriptors[d.address] = &replacement
+		}
+	}
+	for _, descriptor := range next.descriptors {
+		table, ok := descriptor.(*relationDescriptor)
+		if !ok || len(table.uniqueConstraints) == 0 {
+			continue
+		}
+		var changed *relationDescriptor
+		for i, constraint := range table.uniqueConstraints {
+			parent, exists := uniqueMapping[constraint.Parent]
+			if !exists || parent == constraint.Parent {
+				continue
+			}
+			if changed == nil {
+				copy := *table
+				copy.uniqueConstraints = append([]uniqueConstraint(nil), table.uniqueConstraints...)
+				changed = &copy
+			}
+			changed.uniqueConstraints[i].Parent = parent
+		}
+		if changed != nil {
+			next.descriptors[changed.address] = changed
 		}
 	}
 	return nil

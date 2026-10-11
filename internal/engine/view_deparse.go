@@ -689,6 +689,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
+		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && usage.Type.ContainsRegclass() {
+			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
+				// The captured datum already supplies its exact owning typed cast.
+				// Rewrapping it would add another source cast on every replay.
+				return text, nil
+			}
+		}
 		if v.presentation.deparse {
 			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty, output: v.presentation.output}
 			_, simpleColumn := e.Child.(parser.ColumnExpr)

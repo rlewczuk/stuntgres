@@ -403,7 +403,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	return nil
 }
 func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
-	if !explicitUtility(stmt) {
+	if !explicitUtility(stmt) || s.partitionIndexTransaction(stmt) {
 		return nil
 	}
 	switch stmt.(type) {

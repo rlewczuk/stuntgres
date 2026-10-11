@@ -120,6 +120,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		}
 		if d == nil {
 			delete(n.descriptors, a)
+			delete(n.dumpPriorities, a)
 		} else {
 			n.descriptors[a] = d
 		}

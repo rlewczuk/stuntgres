@@ -36,7 +36,7 @@ func PrimaryKeyReferenceIDs(t *testing.T, p *Pair, b Backend, name string) [3]in
 	if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid,conrelid FROM pg_constraint WHERE conname=$1 AND contype='p'", name).Scan(&ids[0], &ids[1]); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_class WHERE relname=$1 AND relkind='i'", name).Scan(&ids[2]); err != nil {
+	if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_class WHERE relname=$1 AND (relkind='i' OR relkind='I')", name).Scan(&ids[2]); err != nil {
 		t.Fatal(err)
 	}
 	if ids[0] <= 0 || ids[1] <= 0 || ids[2] <= 0 || ids[0] == ids[1] || ids[0] == ids[2] || ids[1] == ids[2] {

@@ -148,9 +148,9 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 			option.WriteString(" DEFAULT " + childSQL)
 			changed = true
 		}
-		if !column.Nullable && parent.columns[i].Nullable {
+		if !column.Nullable {
 			for _, constraint := range d.notNullConstraints {
-				if constraint.Attribute == d.attributes[i] {
+				if constraint.Attribute == d.attributes[i] && (parent.columns[i].Nullable || constraint.partitionLocal) {
 					option.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
 					changed = true
 					break
@@ -187,6 +187,9 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		appendOption(option)
 	}
 	for _, constraint := range d.uniqueConstraints {
+		if constraint.Parent != 0 {
+			continue
+		}
 		definition, err := (pgRenderer{view: catalog}).uniqueConstraintSQL(d, &constraint)
 		if err != nil {
 			return "", err

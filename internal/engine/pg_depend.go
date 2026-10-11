@@ -128,6 +128,10 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			add(d.address, d.ofType, 'n')
 			if d.sqlIndex != nil {
 				definition := d.sqlIndex
+				if definition.partitionParent != (ObjectAddress{}) {
+					add(d.address, definition.partitionParent, 'P')
+					add(d.address, definition.parent, 'S')
+				}
 				if definition.constraint != nil {
 					add(d.address, ObjectAddress{ClassID: 2606, ObjectID: definition.constraint.OID}, 'i')
 					continue
@@ -248,6 +252,10 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.address, c.Attribute), 'a')
 			}
 			for _, c := range d.uniqueConstraints {
+				if c.Parent != 0 {
+					add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ObjectAddress{ClassID: 2606, ObjectID: c.Parent}, 'P')
+					add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, d.address, 'S')
+				}
 				for _, sub := range c.Attributes {
 					if err := ctx.Err(); err != nil {
 						return nil, err

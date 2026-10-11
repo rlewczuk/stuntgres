@@ -90,11 +90,7 @@ func TestReferenceIndexMaintenanceUnique(t *testing.T) {
 		run(fixture.Exec("ALTER INDEX u RENAME TO u_new", 0))
 		run(fixture.Select("SELECT oid::bigint,relkind FROM pg_class WHERE relname='u_new'", []string{"oid", "relkind"}, []string{"INT8", "CHAR"}, [][]any{{index, "i"}}))
 		run(fixture.Select("SELECT oid::bigint,conname FROM pg_constraint WHERE conname='u_new'", []string{"oid", "conname"}, []string{"INT8", "NAME"}, [][]any{{constraint, "u_new"}}))
-		if b.PG {
-			// Native exposes independent relation/constraint identity, not conindid.
-			// Its internal backing-descriptor units prove this relationship directly.
-			run(fixture.Select("SELECT conindid::bigint FROM pg_constraint WHERE conname='u_new'", []string{"conindid"}, []string{"INT8"}, [][]any{{index}}))
-		}
+		run(fixture.Select("SELECT conindid::bigint FROM pg_constraint WHERE conname='u_new'", []string{"conindid"}, []string{"INT8"}, [][]any{{index}}))
 		for _, q := range []string{"REINDEX INDEX u_new", "REINDEX TABLE q"} {
 			run(fixture.Prepared(fixture.Exec(q, 0)))
 		}

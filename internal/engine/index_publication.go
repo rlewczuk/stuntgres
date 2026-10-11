@@ -231,6 +231,9 @@ func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *cat
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
+		if parent, ok := catalog.descriptors[index.sqlIndex.parent].(*relationDescriptor); ok && parent.partition != nil {
+			continue
+		}
 		if captured == nil {
 			captured = make(map[ObjectAddress]*relationStorage)
 		}
@@ -256,6 +259,9 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 			continue
 		}
 		a := index.sqlIndex.parent
+		if parent, ok := next.descriptors[a].(*relationDescriptor); ok && parent.partition != nil {
+			continue
+		}
 		live, old := storage[a], captured[a]
 		if current.descriptors[a] == nil {
 			if live != nil || old != nil {
@@ -293,6 +299,21 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
+		parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		if parent.partition != nil {
+			if current.descriptors[a] != index {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+			}
+			if err := validateIndexDefinition(catalog, index); err != nil {
+				return nil, err
+			}
+			if roots[a] != nil {
+				return nil, fmt.Errorf("stuntgres: virtual index has physical storage")
+			}
+			continue
+		}
 		intent := rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil
 		if !index.sqlIndex.ready && rebuildIndexes[a] == nil {
 			if current.descriptors[a] != index {
@@ -307,7 +328,6 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 		}
 		root := roots[a]
 		old, _ := current.descriptors[a].(*relationDescriptor)
-		parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 		if roots != nil && root == nil && old != nil && old.sqlIndex.ready && !intent {
 			return nil, fmt.Errorf("stuntgres: ready index root is missing")
 		}

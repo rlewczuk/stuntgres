@@ -74,7 +74,11 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		if index.sqlIndex.unique {
 			sql.WriteString("UNIQUE ")
 		}
-		sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING " + method + " (")
+		only := ""
+		if parent.partition != nil {
+			only = "ONLY "
+		}
+		sql.WriteString("INDEX " + identifier(index.name) + " ON " + only + parentName + " USING " + method + " (")
 	}
 	for i, key := range index.sqlIndex.keys {
 		if i > 0 {

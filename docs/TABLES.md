@@ -1297,8 +1297,8 @@ kind `n` identities for nonnullable keys. Both pg_get_constraintdef signatures
 render PRIMARY KEY using current labels; pg_indexes renders CREATE UNIQUE INDEX.
 Native result metadata knows key columns are nonnullable, including empty and
 prepared cursors; lib/pq does not expose nullable metadata. The backing attachment
-supplies primary/unique/immediate index metadata internally without adding native
-catalog columns.
+supplies actual conindid and narrow pg_index primary/unique flags; broad immediate
+and deferrability metadata remains internal.
 
 Renames, schema-group moves and REINDEX preserve the primary discriminator and
 reciprocal attachment. Direct backing-index DROP, even CASCADE, fails2BP01;
@@ -1437,8 +1437,9 @@ INCLUDE never participates in the exclusion operator vector.
 Each definition owns a distinct constraint OID and real nonunique integrity index.
 Existing pg_constraint exposes contype x; pg_get_constraintdef renders the current
 symbolic keys/operators/properties. Internal index metadata sets IndIsExclusion,
-not IndIsUnique, and IndImmediate reflects definition-time deferrability. This
-does not add SQL pg_index or condeferrable/condeferred columns to native projections.
+not IndIsUnique, and IndImmediate reflects definition-time deferrability.
+Narrow SQL pg_index is available; exclusion-specific flags and
+condeferrable/condeferred columns remain outside native projections.
 Exclusion keys never strengthen KEY SHARE/NO KEY UPDATE row-lock eligibility.
 
 DEFERRABLE and INITIALLY IMMEDIATE/DEFERRED are supported independently of UNIQUE
@@ -1584,7 +1585,7 @@ the existing same-owner, same-schema and stable-attribute checks. This is a real
 AUTO metadata dependency, not a virtual heap or new serial/identity declaration;
 the symbolic ownership, inquiry, remapping and subtree DROP closure are preserved.
 Native UPDATE, DELETE, row marks, explicit hierarchy LOCK inside a transaction,
-unsafe ALTER and virtual CREATE INDEX/REINDEX fail with explicit0A000 boundaries.
+unsafe ALTER, virtual nonunique CREATE INDEX and virtual REINDEX fail with explicit0A000 boundaries.
 An outside-transaction LOCK retains its ordinary25P01 admission error.
 ON CONFLICT and MERGE also retain explicit hierarchy boundaries, including direct
 physical members: native0A000 `ON CONFLICT on partition hierarchies is unsupported`
@@ -1592,12 +1593,11 @@ and `merging partition hierarchies is unsupported`. Normal analysis and target
 rights precede rejection; no omitted-default, source/route demand or write is
 published. Ordinary ON CONFLICT skip/revalidation/affected counts remain unchanged.
 SQL cursor SELECT reuses the same complete hierarchy provider and metadata.
-Virtual UNIQUE/PRIMARY KEY/EXCLUDE and parsed generated/identity/serial constraint
-combinations fail execution with0A000
-`partitioned table constraint combination is unsupported`, with optional fields
-empty. Integrated PRIMARY KEY syntax is accepted by the ordinary parser and
-utility Prepare; physical leaves retain ordinary local constraint/index producers.
-LIST/HASH, ATTACH/DETACH and row movement are not implemented. Existing ordinary
+Virtual EXCLUDE and parsed generated/identity/serial constraint combinations
+fail execution with0A000 `partitioned table constraint combination is unsupported`,
+with optional fields empty. RANGE UNIQUE/PRIMARY KEY and unique virtual indexes
+are supported as described below; physical leaves retain independent local keys.
+LIST/HASH, table-partition ATTACH/DETACH and row movement are not implemented. Existing ordinary
 INHERITS definitions do not permit a partitioned inheritance child or inheritance
 from a virtual partitioned parent or physical partition member.
 Nested partition definitions inside CREATE SCHEMA are an adjacent unsupported
@@ -2341,4 +2341,54 @@ Selected proof (both commands required):
 `make check RUN='^TestReferenceGeneratedVirtual'`;
 `make check REFERENCE=1 RUN='^TestReferenceGeneratedVirtual'`.
 
+
+
+## Partitioned keys — change note
+
+RANGE UNIQUE and PRIMARY KEY constraints must include every simple partition key
+as a key attribute with the same effective collation/equality capability.
+INCLUDE does not cover missing keys; expression partition keys reject these
+constraints. Independent physical leaf keys need not include ancestor keys.
+Real constraint OIDs and backing-index OIDs form immediate-parent ancestry at
+every level. Virtual indexes have no physical storage; physical leaves enforce
+cloned keys, NULLS NOT DISTINCT and primary NOT NULL identities. Future partitions
+clone supported keys even below incomplete ON ONLY indexes.
+
+`CREATE UNIQUE INDEX ... ON ONLY ...` leaves existing children unattached.
+Recursive creation reuses equivalent child indexes, including incomplete virtual
+children without completing their missing descendants. `ALTER INDEX parent ATTACH
+PARTITION child` validates real immediate membership and equivalent definitions,
+preserves identities, is idempotent and propagates validity upward only when every
+immediate child is represented and valid. DESC/NULLS-order differences are
+compatible; key order, INCLUDE, predicate, effective collation/operator family
+and NULL policy differences are not.
+
+Selected attachment and index/constraint-drop operations use transaction-private
+overlays and savepoint rollback. Attached child indexes require dropping their
+parent. A standalone parent with a local constraint-backed child rejects RESTRICT
+with the actual dependent constraint; CASCADE removes that local backing closure.
+Dropping the local attached constraint itself is rejected even with CASCADE.
+Root key-constraint DROP removes inherited key backing, preserving independent
+leaf keys and NOT NULL definitions. Later failing selected actions publish none
+of the preceding actions. Unrelated hierarchy mutation boundaries remain intact.
+
+Readonly `pg_constraint` appends conindid OID, conparentid OID, conislocal BOOL and
+coninhcount INT2. `pg_class` appends relispartition BOOL and reports virtual
+indexes as internal CHAR I. Narrow `pg_index` projects actual backing and validity
+flags; `pg_depend` represents index and inherited key constraint PRIMARY(P)/
+SECONDARY(S) ancestry. Inherited CHECK/NOT NULL retain conparentid0. Explicitly
+repeated inherited CHECK remains nonlocal; explicitly redeclared NOT NULL is
+local=true/count1. Ordinary FK conindid names its referenced supporting index.
+
+Native Dump/Restore preserves renamed/independently named key trees, complete and
+partial manual attachments, nested validity, independent leaf keys and local
+NOT NULL provenance. Collision-safe temporary key names reuse the existing naming
+authority, restore final names and actual relationships, and remap imported OID
+references against retained live TEMP objects. Redump is deterministic. Emitted
+logical SQL is replayable on PostgreSQL; native controls are not PostgreSQL APIs.
+No broad PostgreSQL index schema, optimizer, physical-storage or excluded hierarchy
+mutation support is implied.
+
+See [design](design/PG18-DDL-PARTITION-CONSTRAINTS.md) and
+[selected proofs](TESTING.md#partitioned-constraints--selected-proof).
 

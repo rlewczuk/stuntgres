@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var pgTableBuiltinNames = []string{"pg_attrdef", "pg_cast", "pg_class", "pg_constraint", "pg_depend", "pg_description", "pg_rewrite", "pg_sequence", "pg_shdescription"}
+var pgTableBuiltinNames = []string{"pg_attrdef", "pg_cast", "pg_class", "pg_constraint", "pg_depend", "pg_description", "pg_index", "pg_rewrite", "pg_sequence", "pg_shdescription"}
 var pgViewBuiltinNames = []string{"pg_group", "pg_indexes", "pg_prepared_xacts", "pg_roles", "pg_tables", "pg_views"}
 
 func pgTableViewsNames(column string, names []string) string {
@@ -22,7 +22,7 @@ func TestReferencePGTableViewsBuiltins(t *testing.T) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			var expected [][]any
-			for _, name := range []string{"pg_attrdef", "pg_cast", "pg_class", "pg_constraint", "pg_depend", "pg_description", "pg_rewrite", "pg_sequence", "pg_shdescription"} {
+			for _, name := range pgTableBuiltinNames {
 				row := pgTableRow("pg_catalog", name, pgTableViewsOwner(b), true)
 				if name == "pg_shdescription" {
 					row[3] = "pg_global"

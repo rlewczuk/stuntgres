@@ -993,6 +993,7 @@ partition_elements: partition_element {$$=[]TableElement{$1}}
 partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$2,Pos:$1.pos};$$=TableElement{Column:&c,Pos:$1.pos}}
  | check_constraint {$$=TableElement{Check:$1,Pos:$1.Pos}}
  | unique_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
+ | primary_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
  | exclusion_constraint {$$=TableElement{Exclusion:$1,Pos:$1.Pos}} ;
 typed_options: /* empty */ {$$=nil} | '(' typed_elements ')' {$$=$2} ;
 typed_elements: typed_element {$$=[]TableElement{$1}}
@@ -1168,9 +1169,12 @@ drop_collation: DROP COLLATION relation_names drop_mode {$$=&DropCollation{Names
 maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;
 drop_index: DROP INDEX maintenance_concurrent relation_names drop_mode {$$=&DropIndex{Names:$4,Concurrent:$3.pos,Mode:$5,Pos:$1.pos}}
  | DROP INDEX maintenance_concurrent IF EXISTS relation_names drop_mode {$$=&DropIndex{Names:$6,IfExists:true,Concurrent:$3.pos,Mode:$7,Pos:$1.pos}} ;
+/* ATTACH is a literal KW_U action, not an arbitrary name: allowing EXISTS as
+ * action lookahead would steal IF EXISTS from the shared index target prefix. */
 alter_index_head: ALTER INDEX relation_name {$$=&AlterIndex{Name:$3,Pos:$1.pos}}
  | ALTER INDEX IF EXISTS relation_name {$$=&AlterIndex{Name:$5,IfExists:true,Pos:$1.pos}} ;
 alter_index: alter_index_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.ActionPos=$2.pos;$$=$1}
+ | alter_index_head KW_U PARTITION relation_name {if $2.text!="attach"{sqllex.(*lexer).syntax($2);return 1};$1.Action="attach";$1.Partition=$4;$1.ActionPos=$2.pos;$$=$1}
  | alter_index_head SET '(' maintenance_index_option_list ')' {$1.Action="set";$1.Options=$4;$1.ActionPos=$2.pos;$$=$1}
  | alter_index_head RESET '(' maintenance_index_option_list ')' {$1.Action="reset";$1.Options=$4;$1.ActionPos=$2.pos;$$=$1}
  | alter_index_head SET name name {if $3.text!="tablespace"{sqllex.(*lexer).syntax($3);return 1};$1.Action="tablespace";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.ActionPos=$3.pos;$$=$1}
@@ -1207,6 +1211,9 @@ index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos}
  | CREATE UNIQUE INDEX IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$7.text,Pos:$7.pos},Table:$9,IfNotExists:true,Pos:$1.pos}}
  | CREATE UNIQUE INDEX CONCURRENTLY ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Table:$6,Concurrent:$4.pos,Pos:$1.pos}}
  | CREATE UNIQUE INDEX CONCURRENTLY name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,Concurrent:$4.pos,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX name ON ONLY relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$4.text,Pos:$4.pos},Only:true,Table:$7,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX ON ONLY relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Only:true,Table:$6,Pos:$1.pos}}
+ | CREATE UNIQUE INDEX IF NOT EXISTS name ON ONLY relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$7.text,Pos:$7.pos},Only:true,Table:$10,IfNotExists:true,Pos:$1.pos}}
  | CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name {$$=&CreateIndex{Unique:true,UniquePos:$2.pos,Name:Identifier{Text:$8.text,Pos:$8.pos},Table:$10,IfNotExists:true,Concurrent:$4.pos,Pos:$1.pos}} ;
 index_method: /* empty */ { sqllex.(*lexer).indexExpression=true; $$=lexeme{text:"btree"} } | USING name { sqllex.(*lexer).indexExpression=true; $$=$2 } ;
 index_definition: index_head index_method '(' index_keys ')' index_include {

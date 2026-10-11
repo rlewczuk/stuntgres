@@ -42,6 +42,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
+	if hierarchyRelation(old) && partitionConstraintDropActions(old, s.Actions) {
+		return e.executePartitionConstraintDropLocked(scope, auth, old, s)
+	}
 	if len(s.Actions) == 0 {
 		return fail(fmt.Errorf("stuntgres: empty ALTER TABLE"))
 	}
@@ -537,6 +540,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		for _, c := range old.uniqueConstraints {
 			if c.Name == action.Constraint.Text {
+				if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
+					return Result{}, err
+				}
 				if _, removed := stage.removals[c.Index]; removed {
 					if err := scope.stageExpressionDependents(stage, []ObjectAddress{c.Index}, action.Mode, changes); err != nil {
 						return Result{}, err
@@ -739,6 +745,16 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 		}
 		for i, c := range old.uniqueConstraints {
 			if c.Name == a.Constraint.Text {
+				if c.Parent != 0 {
+					return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, old.name))
+				}
+				index, exists := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				if !exists {
+					return nil, ErrCatalogReplaced
+				}
+				if err := partitionIndexDropDependency(catalog, index); err != nil {
+					return nil, err
+				}
 				next := *old
 				next.uniqueConstraints = make([]uniqueConstraint, 0, len(old.uniqueConstraints)-1)
 				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[:i]...)

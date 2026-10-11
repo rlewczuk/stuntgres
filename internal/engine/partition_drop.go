@@ -39,7 +39,10 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 	}
 	next.partition = &definition
 	next.revision++
-	return stage.Replace(&next)
+	if err := stage.Replace(&next); err != nil {
+		return err
+	}
+	return stage.owner.stagePartitionIndexValidity(stage)
 }
 
 func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {

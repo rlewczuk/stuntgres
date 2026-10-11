@@ -47,7 +47,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 		return Result{}, nil
 	}
-	if s, ok := stmt.(*parser.AlterIndex); ok {
+	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "rename" {
 		return e.renameRelationLocked(scope, scope.op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, count)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -56,8 +56,14 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage.indexParents = make(map[ObjectAddress]*relationDescriptor, len(g.parents))
 	for _, ref := range g.parents {
 		stage.indexParents[ref.Address] = g.descriptors[ref.Address]
+		stage.domainBases = append(stage.domainBases, g.descriptors[ref.Address])
 	}
 	stage.indexSets = g.indexSets
+	for address, observed := range g.descriptors {
+		if observed.sqlIndex != nil {
+			stage.domainBases = append(stage.domainBases, g.descriptors[address])
+		}
+	}
 	if _, reindex := stmt.(*parser.Reindex); reindex {
 		stage.indexRebuilds = make(map[ObjectAddress]*relationDescriptor, len(g.indexes))
 		for _, ref := range g.indexes {
@@ -79,11 +85,20 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 			}
 		}
 	}
+	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "attach" {
+		parent := g.descriptors[g.targets[0].Address]
+		child := g.descriptors[g.attach.Address]
+		if err := e.stagePartitionIndexAttach(scope.op, stage, parent, child); err != nil {
+			e.mu.Unlock()
+			e.DiscardCatalogStage(stage)
+			return Result{}, err
+		}
+	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.indexes {
-			if err := stage.Remove(ref); err != nil {
+			if err := e.stagePartitionIndexDrop(stage, g.descriptors[ref.Address]); err != nil {
 				return Result{}, err
 			}
 		}
@@ -96,8 +111,17 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 			return Result{}, err
 		}
 	}
+	if _, ok := stmt.(*parser.DropIndex); ok {
+		if err := e.stagePartitionIndexValidity(stage); err != nil {
+			return Result{}, err
+		}
+	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 	if err != nil {
+		return Result{}, err
+	}
+	if scope.partitionIndexTransaction(stmt) {
+		err := e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
 		return Result{}, err
 	}
 	_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})

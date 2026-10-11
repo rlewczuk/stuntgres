@@ -26,6 +26,7 @@ type indexKey struct {
 type indexDefinition struct {
 	method             indexMethod
 	parent             ObjectAddress
+	partitionParent    ObjectAddress
 	keys               []indexKey
 	include            []int32
 	unique             bool
@@ -147,13 +148,16 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
 	parent, ok := view.state.descriptors[d.parent].(*relationDescriptor)
-	if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) || parent.owner != index.owner || parent.namespace != index.namespace {
+	if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) || parent.owner != index.owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.constraint != nil {
 		if !backingConstraintPresent(parent, index) || d.unique != (d.constraint.kind == uniqueBackingKind) {
 			return fmt.Errorf("stuntgres: orphan constraint backing index")
 		}
+	}
+	if err := validatePartitionIndex(view, index, parent); err != nil {
+		return err
 	}
 	err := bindIndexProvider(parent, d)
 	if err != nil {
@@ -499,7 +503,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Keys)+len(s.Include) > 32 {
 			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
 		}
-		if parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation {
+		if parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation {
 			if parent.relationKind == indexRelation {
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.name), Detail: "This operation is not supported for indexes."})
 			}
@@ -575,6 +579,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(err)
 			}
 		}
+		if err := partitionUniqueCoverage(parent, definition); err != nil {
+			return fail(err)
+		}
 		if len(s.Options) != 0 {
 			return fail(indexCapability("index storage parameters are unsupported", s.WithPos))
 		}
@@ -603,6 +610,13 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
 		stage.indexOutput = scope.output
 		err = stage.Create(d)
+		if err == nil && parent.partition != nil {
+			if s.Only {
+				definition.valid = len(parent.partition.children) == 0
+			} else {
+				err = e.stagePartitionIndexChildren(scope.op, stage, parent, d)
+			}
+		}
 		e.mu.Unlock()
 		if err != nil {
 			e.DiscardCatalogStage(stage)

@@ -81,6 +81,16 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = nameCreateNotNull(d, auth.catalog); err != nil {
 		return nil, err
 	}
+	for i := range d.notNullConstraints {
+		constraint := &d.notNullConstraints[i]
+		slot := d.indexForAttribute(constraint.Attribute)
+		constraint.partitionLocal = declarations[slot].columnNotNull
+		for _, element := range syntax.Elements {
+			if element.NotNull != nil && element.NotNull.Column.Text == d.columns[slot].Name {
+				constraint.partitionLocal = true
+			}
+		}
+	}
 	if err = e.stageCreateIdentities(auth, stage, d, syntax); err != nil {
 		return nil, err
 	}

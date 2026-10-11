@@ -393,12 +393,32 @@ Named-target partition errors disclose supplied or SELECT-authorized columns,
 not inaccessible omitted defaults. Bounds transform each finite datum, lower tuple
 then upper; failed definitions retain reached sequence draws and select
 positions/overlap witnesses by typed bound order. Native mutation, row-locking,
-virtual-index and virtual constraint-combination safety boundaries remain explicit.
+nonunique virtual-index/REINDEX and unsafe hierarchy alteration boundaries remain explicit.
 Existing schema-wide table GRANT/REVOKE includes virtual roots and intermediates;
 missing-key details use PostgreSQL expression and identifier quoting after privilege checks.
 See [RANGE partitions](docs/TABLES.md#range-partition-definitions--change-note).
 Feature smoke: `make check RUN='^TestReferenceRangePartitionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'`.
+
+Change note: RANGE UNIQUE/PRIMARY KEY constraints cover every simple partition key;
+real immediate-parent constraint/index ancestry connects virtual, storage-free
+indexes to enforced physical leaf keys. UNIQUE NULLS NOT DISTINCT, primary NOT NULL,
+future clones, recursive creation, ON ONLY and ALTER INDEX ATTACH PARTITION retain
+their actual identities and nested validity. Selected attachment and key/index
+drop support transaction overlays, savepoints and dependency-aware CASCADE.
+Native Dump/Restore preserves renamed, manual, partial and nested trees and
+collision-safe reminted references; emitted logical SQL replays on PostgreSQL.
+Dependency-ordered declarations retain source identity priority across actual
+retained-TEMP collisions without changing unrelated identities or declaration order.
+Automatic same-stem child keys retain their declaration-order NULL policies and
+immediate parents, including inherited keys before nested local keys.
+Table-level PRIMARY KEY declarations on PARTITION OF use the same local key and
+NOT NULL authorities. Stored scalar and opaque regclass references to renamed
+virtual backings retain their identities through logical replay and byte-stable
+redumps, including views, inherited inline definitions, late defaults and row values.
+See [partitioned keys](docs/TABLES.md#partitioned-keys--change-note).
+Feature smoke: `make check RUN='^TestReferencePartitionConstraintsFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePartitionConstraintsFeatureSmoke$'`.
 
 Change note: readonly `pg_catalog.pg_indexes` exposes actual index schema,
 table/name, NULL default tablespace and compact reconstructable definition.

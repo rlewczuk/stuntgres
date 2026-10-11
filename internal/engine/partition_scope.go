@@ -24,7 +24,7 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 	case *parser.LockTable:
 		message = "locking partition hierarchies is unsupported"
 	case *parser.CreateIndex:
-		if d.partition != nil {
+		if d.partition != nil && !s.Unique {
 			message = "partitioned indexes are unsupported"
 		}
 	case *parser.Reindex:
@@ -33,6 +33,9 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 		}
 	case *parser.AlterTable:
 		if rowSecurityActions(s.Actions) {
+			return nil
+		}
+		if partitionConstraintDropActions(d, s.Actions) {
 			return nil
 		}
 		for _, action := range s.Actions {

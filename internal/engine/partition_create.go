@@ -123,7 +123,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	}
 	// Invalid keys/bounds and inherited definitions win over this declared
 	// implementation boundary; neither path publishes allocated auxiliaries.
-	pending.unsupportedCombination = len(child.generations) != 0 || len(child.identities) != 0 || child.partition != nil && (len(child.uniqueConstraints) != 0 || len(child.exclusionConstraints) != 0)
+	pending.unsupportedCombination = len(child.generations) != 0 || len(child.identities) != 0 || child.partition != nil && len(child.exclusionConstraints) != 0
 	for _, element := range syntax.Elements {
 		if element.Column != nil && serialTypeName(element.Column.TypeName) != "" {
 			pending.unsupportedCombination = true
@@ -135,6 +135,12 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p == nil {
 		return nil
+	}
+	for _, constraint := range p.child.uniqueConstraints {
+		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
+		if err := partitionUniqueCoverage(p.child, index.sqlIndex); err != nil {
+			return err
+		}
 	}
 	if p.parent == nil {
 		if p.unsupportedCombination {
@@ -214,7 +220,19 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	}
 	parent.partition = &definition
 	parent.revision++
-	return p.stage.Replace(&parent)
+	if err := p.stage.Replace(&parent); err != nil {
+		return err
+	}
+	e := scope.op.session.Engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, index := range partitionIndexDeclarationOrder(p.stage.base, p.parent) {
+		child := e.stageRead(p.stage).state.descriptors[p.child.address].(*relationDescriptor)
+		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func partitionTupleSQL(ctx context.Context, tuple []partitionDatum) (string, error) {

@@ -20,7 +20,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 			descriptor = stage.base.state.descriptors[address]
 		}
 		parent, ok := descriptor.(*relationDescriptor)
-		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) {
+		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
 		if parent.hasIndexes {
@@ -60,7 +60,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 			continue
 		}
 		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) {
+		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
 		if !parent.hasIndexes {
@@ -76,7 +76,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
 func representedSummaryTable(oid OID) bool {
 	switch oid {
-	case 2605, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2618:
+	case 2605, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618:
 		return true
 	}
 	return false

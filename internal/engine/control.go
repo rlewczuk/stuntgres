@@ -53,6 +53,10 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
 	return publicUse == publicRights && publicOptions == 0 &&
 		ownerUse == UsagePrivilege|CreatePrivilege && ownerOptions == UsagePrivilege|CreatePrivilege
 }
+
+// Dump emits replayable logical definitions and rows, including renamed,
+// manual, partial and nested partitioned key/index trees. Virtual indexes have
+// no physical roots; their actual ancestry and incomplete validity are retained.
 func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if dst == nil {
 		return fmt.Errorf("stuntgres: nil dump writer")
@@ -80,6 +84,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if namespace.temporary != (SessionToken{}) || index.sqlIndex.ready && index.sqlIndex.valid && index.sqlIndex.live {
 			continue
 		}
+		parent, ok := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		if ok && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live && index.sqlIndex.valid == partitionIndexValid(CatalogRead{owner: e, state: e.state}, index) {
+			continue
+		}
 		if invalid == nil || namespace.name < invalidSchema || namespace.name == invalidSchema && index.name < invalid.name {
 			invalid, invalidSchema = index, namespace.name
 		}
@@ -90,6 +98,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
+	originalCatalog := catalog
+	// Declarations bind private key names until the terminal renames. Later
+	// definitions and values must render against the original captured names.
+	catalog, constraintReplay := partitionConstraintDumpCatalog(catalog)
 	domainRoles := RoleRead{e, e.roles}
 	if err := e.validateTemporaryCollationDump(ctx, catalog); err != nil {
 		e.mu.Unlock()
@@ -365,7 +377,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			// without injecting synthetic source aliases during replay. A nil
 			// path qualifies identities for portable, executable dump SQL.
 			presentation := viewPresentation{columns: r.columns, deparse: r.relationKind == materializedViewRelation}
-			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state}, presentation)
+			body, err := r.view.selectSQL(ctx, catalog, presentation)
 			if err != nil {
 				e.mu.Unlock()
 				return err
@@ -604,7 +616,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
-	policyGroups, err := policyDumpGroups(ctx, catalog, domainRoles)
+	policyGroups, err := policyDumpGroups(ctx, originalCatalog, domainRoles)
 	if err != nil {
 		return err
 	}
@@ -658,12 +670,23 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			viewDependencies[oid] = predecessors
 		}
 	}
-	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
+	// Capture collision-remap provenance from the same immutable snapshot as
+	// the graph, before any dump-private naming substitutions.
+	var priorities map[OID]OID
+	for address, priority := range originalCatalog.state.dumpPriorities {
+		if _, emitted := viewDependencies[address.ObjectID]; emitted {
+			if priorities == nil {
+				priorities = make(map[OID]OID)
+			}
+			priorities[address.ObjectID] = priority
+		}
+	}
+	viewOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil && !deferDefaults && ctx.Err() == nil && len(inlinePredecessors) != 0 {
 		for oid, predecessors := range inlinePredecessors {
 			viewDependencies[oid] = predecessors
 		}
-		viewOrder, err = viewDumpOrder(ctx, viewDependencies)
+		viewOrder, err = viewDumpOrder(ctx, viewDependencies, priorities)
 		deferDefaults = err == nil
 	}
 	if err != nil {
@@ -756,6 +779,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if err := emit(index.sql); err != nil {
 				return err
 			}
+			descriptor := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}]
+			if constraintReplay.occupied[descriptor.Namespace()] == nil {
+				constraintReplay.occupied[descriptor.Namespace()] = make(map[string]bool)
+			}
+			constraintReplay.occupied[descriptor.Namespace()][descriptor.Name()] = true
 			continue
 		}
 		if index, isView := viewIndices[oid]; isView {
@@ -772,6 +800,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		t := tables[tableIndices[oid]]
+		t.descriptor = catalog.state.descriptors[t.descriptor.address].(*relationDescriptor)
 		if t.owner != currentOwner {
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
 				return err
@@ -980,6 +1009,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 		}
+		renames, err := constraintReplay.tableRenames(catalog, t.descriptor)
+		if err != nil {
+			return err
+		}
+		if err := emit(renames); err != nil {
+			return err
+		}
 		if t.comment != "" {
 			if err := emit("COMMENT ON TABLE " + qualified + " IS " + commentLiteral(t.comment) + ";\n"); err != nil {
 				return err
@@ -991,6 +1027,28 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 			}
+		}
+	}
+	for _, sql := range constraintReplay.finalRenames() {
+		if currentOwner != "postgres" {
+			if err := emit("SET SESSION AUTHORIZATION 'postgres';\n"); err != nil {
+				return err
+			}
+			currentOwner = "postgres"
+		}
+		if err := emit(sql); err != nil {
+			return err
+		}
+	}
+	for _, sql := range partitionIndexDumpAttachments(originalCatalog) {
+		if currentOwner != "postgres" {
+			if err := emit("SET SESSION AUTHORIZATION 'postgres';\n"); err != nil {
+				return err
+			}
+			currentOwner = "postgres"
+		}
+		if err := emit(sql); err != nil {
+			return err
 		}
 	}
 	if deferDefaults {
@@ -1006,7 +1064,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				currentOwner = t.owner
 			}
-			if err := t.emitDeferredDefaults(ctx, catalog, emit); err != nil {
+			if err := t.emitDeferredDefaults(ctx, originalCatalog, emit); err != nil {
 				return err
 			}
 		}
@@ -1023,7 +1081,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			currentOwner = t.owner
 		}
-		if err := t.emitRows(ctx, catalog, emit); err != nil {
+		if err := t.emitRows(ctx, originalCatalog, emit); err != nil {
 			return err
 		}
 	}
@@ -1039,7 +1097,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return strings.Compare(a.name, b.name)
 	})
 	for i := range materialized {
-		if err := materialized[i].emitMaterializedSnapshot(ctx, catalog, emit); err != nil {
+		if err := materialized[i].emitMaterializedSnapshot(ctx, originalCatalog, emit); err != nil {
 			return err
 		}
 	}
@@ -1083,6 +1141,11 @@ func (r contextReader) Read(p []byte) (int, error) {
 	}
 	return n, err
 }
+
+// Restore replaces the persistent logical catalog atomically from Dump SQL.
+// Partitioned key/index references are reminted against retained live TEMP
+// objects; failed or canceled replacement leaves the old tree usable.
+// Native replacement is not a PostgreSQL control API.
 func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if src == nil {
 		return fmt.Errorf("stuntgres: nil restore reader")
@@ -1194,6 +1257,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only unpopulated materialized view definitions")
 			}
 		case *parser.CreateIndex:
+		case *parser.AlterIndex:
+			if s.Action != "rename" && s.Action != "attach" {
+				return sqlError("0A000", "restore accepts only index rename and partition attachment")
+			}
 		case *parser.CreatePolicy:
 		case *parser.AlterTable:
 			if rowSecurityActions(s.Actions) {

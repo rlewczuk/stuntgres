@@ -148,9 +148,10 @@ func (d *relationDescriptor) hasAttribute(sub int32) bool {
 }
 
 type notNullConstraint struct {
-	OID       OID
-	Name      string
-	Attribute int32
+	OID            OID
+	Name           string
+	Attribute      int32
+	partitionLocal bool // Explicit NN declaration merged with an inherited definition.
 }
 
 type NameKey struct {
@@ -165,6 +166,9 @@ type catalogState struct {
 	descriptors         map[ObjectAddress]Descriptor
 	names               map[NameKey]ObjectAddress
 	defaultACLs         map[defaultACLKey]*defaultACLRecord
+	// Sparse replay identity provenance for collision-remapped declarations.
+	// Absent entries use their current OID; dependencies remain the order authority.
+	dumpPriorities map[ObjectAddress]OID
 	// Replacement-candidate-only translation, cleared before publication.
 	// Keys are exact source codecs, never numeric identity coincidences.
 	enumImports map[*sqltype.Descriptor]*sqltype.Descriptor
@@ -848,7 +852,16 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	for k, v := range s.names {
 		ns[k] = v
 	}
-	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs)}}
+	priorities := s.base.state.dumpPriorities
+	if len(priorities) != 0 && len(s.removals) != 0 {
+		priorities = make(map[ObjectAddress]OID, len(s.base.state.dumpPriorities))
+		for address, priority := range s.base.state.dumpPriorities {
+			if _, exists := ds[address]; exists {
+				priorities[address] = priority
+			}
+		}
+	}
+	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs), dumpPriorities: priorities}}
 }
 func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil {
@@ -1119,6 +1132,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		for a, removal := range s.removals {
 			d := removal.descriptor
 			delete(next.descriptors, a)
+			delete(next.dumpPriorities, a)
 			delete(next.names, descriptorNameKey(d))
 			delete(storage, a)
 		}
@@ -1712,6 +1726,14 @@ func cloneCatalog(s *catalogState) *catalogState {
 	}
 	for k, v := range s.names {
 		n.names[k] = v
+	}
+	if len(s.dumpPriorities) != 0 {
+		n.dumpPriorities = make(map[ObjectAddress]OID, len(s.dumpPriorities))
+		for address, priority := range s.dumpPriorities {
+			if _, exists := n.descriptors[address]; exists {
+				n.dumpPriorities[address] = priority
+			}
+		}
 	}
 	return n
 }

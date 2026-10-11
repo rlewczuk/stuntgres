@@ -33,9 +33,12 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 	if d, ok := view.Descriptor(ns); !ok || d.Name() != "information_schema" {
 		t.Fatal("initialized namespace", d, ok)
 	}
-	for _, name := range []string{"pg_type", "pg_class", "pg_sequence", "pg_attribute"} {
+	for _, name := range []string{"pg_type", "pg_class", "pg_index", "pg_sequence", "pg_attribute"} {
 		address := view.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name}]
 		relation, exists := view.state.descriptors[address].(*relationDescriptor)
+		if name == "pg_index" && !exists {
+			t.Fatal("missing represented pg_index projection")
+		}
 		if !exists {
 			// Lookup-only identities do not create executable projections.
 			types := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})

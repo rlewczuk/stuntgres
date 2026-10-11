@@ -93,7 +93,7 @@ func (e *Engine) initializeCatalogSources() error {
 		{2606, "pg_constraint", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"conname", sqltype.Name}, {"contype", sqltype.Char}, {"conrelid", sqltype.Oid}, {"conbin", sqltype.PgNodeTree}}},
+		}{{"oid", sqltype.Oid}, {"conname", sqltype.Name}, {"contype", sqltype.Char}, {"conrelid", sqltype.Oid}, {"conbin", sqltype.PgNodeTree}, {"conindid", sqltype.Oid}, {"conparentid", sqltype.Oid}, {"conislocal", sqltype.Bool}, {"coninhcount", sqltype.Int2}}},
 		{2604, "pg_attrdef", []struct {
 			name string
 			typ  sqltype.ID
@@ -101,7 +101,11 @@ func (e *Engine) initializeCatalogSources() error {
 		{1259, "pg_class", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}, {"relispopulated", sqltype.Bool}, {"reloftype", sqltype.Oid}}},
+		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}, {"relispopulated", sqltype.Bool}, {"reloftype", sqltype.Oid}, {"relispartition", sqltype.Bool}}},
+		{2610, "pg_index", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"indexrelid", sqltype.Oid}, {"indrelid", sqltype.Oid}, {"indisunique", sqltype.Bool}, {"indisprimary", sqltype.Bool}, {"indisvalid", sqltype.Bool}, {"indisready", sqltype.Bool}, {"indislive", sqltype.Bool}, {"indnullsnotdistinct", sqltype.Bool}}},
 		{2618, "pg_rewrite", []struct {
 			name string
 			typ  sqltype.ID
@@ -138,7 +142,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 3456 {
 				d.columns[i].Nullable = i >= 7
 			}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 {
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2610 || spec.oid == 2606 && i >= 5 || spec.oid == 1259 && i >= 8 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -249,27 +253,38 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		switch source.address.ObjectID {
 		case 2606:
 			for _, definition := range relation.notNullConstraints {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "n"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
+				local, count := nonuniqueConstraintProvenance(catalog, relation, definition.Name, definition.Attribute, false)
+				local = local || definition.partitionLocal
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "n"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, 0), oid(6, 0), boolean(7, local), integer(8, count)})
 			}
 			for _, definition := range relation.checkConstraints {
 				tree, err := catalogTree(source.columns[4].Usage.Type, definition.expression)
 				if err != nil {
 					return nil, err
 				}
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "c"), oid(3, uint32(relation.address.ObjectID)), tree})
+				local, count := nonuniqueConstraintProvenance(catalog, relation, definition.Name, 0, true)
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "c"), oid(3, uint32(relation.address.ObjectID)), tree, oid(5, 0), oid(6, 0), boolean(7, local), integer(8, count)})
 			}
 			for _, definition := range relation.uniqueConstraints {
 				kind := "u"
 				if definition.Primary {
 					kind = "p"
 				}
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, kind), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
+				count := int64(0)
+				if definition.Parent != 0 {
+					count = 1
+				}
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, kind), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, uint32(definition.Index.ObjectID)), oid(6, uint32(definition.Parent)), boolean(7, definition.IsLocal), integer(8, count)})
 			}
 			for _, definition := range relation.exclusionConstraints {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "x"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "x"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, uint32(definition.Index.ObjectID)), oid(6, 0), boolean(7, true), integer(8, 0)})
 			}
 			for _, definition := range relation.foreignKeys {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "f"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "f"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, uint32(definition.Index.ObjectID)), oid(6, 0), boolean(7, true), integer(8, 0)})
+			}
+		case 2610:
+			if definition := relation.sqlIndex; definition != nil {
+				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), oid(1, uint32(definition.parent.ObjectID)), boolean(2, definition.unique), boolean(3, definition.constraint != nil && definition.constraint.Primary), boolean(4, definition.valid), boolean(5, definition.ready), boolean(6, definition.live), boolean(7, definition.nullsNotDistinct)})
 			}
 		case 2604:
 			for attribute, definition := range relation.defaults {
@@ -296,12 +311,16 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				kind = "v"
 			} else if relation.relationKind == indexRelation {
 				kind = "i"
+				if parent, ok := catalog.state.descriptors[relation.sqlIndex.parent].(*relationDescriptor); ok && parent.partition != nil {
+					kind = "I"
+				}
 			} else if relation.relationKind == compositeRelation {
 				kind = "c"
 			} else if relation.relationKind == partitionedRelation {
 				kind = "p"
 			}
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated), oid(8, uint32(relation.ofType.ObjectID))})
+			isPartition := relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ObjectAddress{})
+			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated), oid(8, uint32(relation.ofType.ObjectID)), boolean(9, isPartition)})
 		case 2618:
 			if relation.view == nil {
 				continue
@@ -315,4 +334,33 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		}
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil
+}
+
+func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescriptor, name string, attribute int32, check bool) (bool, int64) {
+	if graph := table.inheritance; graph != nil {
+		provenance, exists := graph.notNull[attribute]
+		if check {
+			provenance, exists = graph.checks[name]
+		}
+		if exists {
+			return provenance.local, int64(len(provenance.origins))
+		}
+	}
+	if table.membership != nil {
+		parent := catalog.state.descriptors[table.membership.parent].(*relationDescriptor)
+		if check {
+			for _, constraint := range parent.checkConstraints {
+				if constraint.Name == name {
+					return false, 1
+				}
+			}
+		} else {
+			for _, constraint := range parent.notNullConstraints {
+				if constraint.Name == name {
+					return false, 1
+				}
+			}
+		}
+	}
+	return true, 0
 }

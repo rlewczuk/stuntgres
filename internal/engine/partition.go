@@ -45,7 +45,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		return invalid()
 	}
 	if p := d.partition; p != nil {
-		if len(p.keys) == 0 || len(p.keys) > 32 || len(d.generations) != 0 || len(d.identities) != 0 || len(d.uniqueConstraints) != 0 {
+		if len(p.keys) == 0 || len(p.keys) > 32 || len(d.generations) != 0 || len(d.identities) != 0 {
 			return invalid()
 		}
 		for _, check := range d.checkConstraints {

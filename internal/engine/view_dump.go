@@ -52,7 +52,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if source.relationKind == indexRelation && source.sqlIndex != nil && source.sqlIndex.constraint != nil {
 		unique := source.sqlIndex.constraint
 		parent, ok := view.state.descriptors[source.sqlIndex.parent].(*relationDescriptor)
-		if !ok || parent.relationKind != tableRelation || parent.namespace != source.namespace || parent.owner != source.owner || unique.Index != source.address {
+		if !ok || (parent.relationKind != tableRelation && parent.relationKind != partitionedRelation) || parent.namespace != source.namespace || parent.owner != source.owner || unique.Index != source.address {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
 		if !backingConstraintPresent(parent, source) {
@@ -85,35 +85,50 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	return source.address.ObjectID, nil
 }
 
-// OIDs break ties among tables/views whose persistent predecessors are ready.
-// Restore may remap a source above its dependent, so topology takes precedence
-// over creation-address order in that exceptional case.
-type viewDumpReady []OID
+// Ready declarations retain source allocation order. Only collision-remapped
+// imports need captured priorities; other declarations keep their actual OIDs.
 
-func (h viewDumpReady) Len() int           { return len(h) }
-func (h viewDumpReady) Less(i, j int) bool { return h[i] < h[j] }
-func (h viewDumpReady) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *viewDumpReady) Push(value any)    { *h = append(*h, value.(OID)) }
+type viewDumpReady struct {
+	ids        []OID
+	priorities map[OID]OID
+}
+
+func (h viewDumpReady) Len() int { return len(h.ids) }
+func (h viewDumpReady) Less(i, j int) bool {
+	a, b := h.ids[i], h.ids[j]
+	if priority := h.priorities[a]; priority != 0 {
+		a = priority
+	}
+	if priority := h.priorities[b]; priority != 0 {
+		b = priority
+	}
+	if a != b {
+		return a < b
+	}
+	return h.ids[i] < h.ids[j]
+}
+func (h viewDumpReady) Swap(i, j int)   { h.ids[i], h.ids[j] = h.ids[j], h.ids[i] }
+func (h *viewDumpReady) Push(value any) { h.ids = append(h.ids, value.(OID)) }
 func (h *viewDumpReady) Pop() any {
-	last := len(*h) - 1
-	value := (*h)[last]
-	*h = (*h)[:last]
+	last := len(h.ids) - 1
+	value := h.ids[last]
+	h.ids = h.ids[:last]
 	return value
 }
 
 // This sorts the captured dump graph, without reading a possibly replaced
 // catalog after unlock. Cyclic replacement graphs, including self edges, fail.
-func viewDumpOrder(ctx context.Context, predecessors map[OID][]OID) ([]OID, error) {
+func viewDumpOrder(ctx context.Context, predecessors map[OID][]OID, priorities map[OID]OID) ([]OID, error) {
 	indegree := make(map[OID]int, len(predecessors))
 	dependents := make(map[OID][]OID, len(predecessors))
-	ready := make(viewDumpReady, 0, len(predecessors))
+	ready := viewDumpReady{ids: make([]OID, 0, len(predecessors)), priorities: priorities}
 	for oid, sources := range predecessors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		indegree[oid] = len(sources)
 		if len(sources) == 0 {
-			ready = append(ready, oid)
+			ready.ids = append(ready.ids, oid)
 		}
 		for _, source := range sources {
 			if _, exists := predecessors[source]; !exists {

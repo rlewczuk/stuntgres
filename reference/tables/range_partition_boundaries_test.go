@@ -90,7 +90,7 @@ func TestReferenceRangePartitionBoundaries(t *testing.T) {
 }
 
 func TestReferenceRangePartitionConstraintBoundaries(t *testing.T) {
-	for _, c := range []struct{ name, columns string }{{"generated", "k INT,g INT GENERATED ALWAYS AS(k+1) STORED"}, {"identity", "k INT GENERATED ALWAYS AS IDENTITY"}, {"serial", "k SERIAL"}, {"unique", "k INT UNIQUE"}, {"primary", "k INT PRIMARY KEY"}} {
+	for _, c := range []struct{ name, columns string }{{"generated", "k INT,g INT GENERATED ALWAYS AS(k+1) STORED"}, {"identity", "k INT GENERATED ALWAYS AS IDENTITY"}, {"serial", "k SERIAL"}} {
 		for _, route := range []struct {
 			name     string
 			prepared bool

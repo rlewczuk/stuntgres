@@ -202,7 +202,7 @@ func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *rel
 	if err != nil {
 		return nil, err
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.sqlIndex.nullsNotDistinct, Index: index.address}
+	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.sqlIndex.nullsNotDistinct, Index: index.address}
 	next := *parent
 	next.uniqueConstraints = make([]uniqueConstraint, len(parent.uniqueConstraints)+1)
 	copy(next.uniqueConstraints, parent.uniqueConstraints)

@@ -17,6 +17,8 @@ type indexMaintenanceGrant struct {
 	descriptors map[ObjectAddress]*relationDescriptor
 	indexSets   map[ObjectAddress]int
 	notices     []sqlstate.Error
+	attach      ObjectRef
+	partition   bool
 }
 
 func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statement, strict bool) error {
@@ -37,6 +39,9 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				return indexWrongKind(d, true)
 			}
 			if err := relationDropOwner(auth, ref, d); err != nil {
+				return err
+			}
+			if err := partitionIndexDropDependency(auth.catalog, d); err != nil {
 				return err
 			}
 			if d.sqlIndex.constraint != nil {
@@ -211,6 +216,28 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			}
 		}
 	}
+	if v, ok := stmt.(*parser.AlterIndex); ok && v.Action == "attach" && len(g.targets) > 0 {
+		ref, err := e.resolveRelationReference(auth, v.Partition, true)
+		if err != nil {
+			return fail(err)
+		}
+		child := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		if child.sqlIndex == nil {
+			diagnostic := indexWrongKind(child, false).(*sqlstate.Error)
+			diagnostic.Code = "42P17"
+			return fail(diagnostic)
+		}
+		g.attach = ref
+		g.descriptors[ref.Address] = child
+		g.indexes = append(g.indexes, ref)
+		parent := g.descriptors[g.targets[0].Address]
+		if err := partitionIndexAttachCheck(s.op, auth.catalog, parent, child); err != nil {
+			return fail(err)
+		}
+	}
+	if err := g.collectPartitionIndexes(auth, stmt); err != nil {
+		return fail(err)
+	}
 	if len(g.targets) > 0 {
 		switch v := stmt.(type) {
 		case *parser.DropIndex:
@@ -261,13 +288,17 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if err := g.check(auth, stmt, false); err != nil {
 			return err
 		}
-		for address := range g.descriptors {
-			g.descriptors[address] = auth.catalog.state.descriptors[address].(*relationDescriptor)
+		for address, observed := range g.descriptors {
+			current := auth.catalog.state.descriptors[address].(*relationDescriptor)
+			if g.partition && current != observed {
+				return ErrCatalogReplaced
+			}
+			g.descriptors[address] = current
 		}
 		return nil
 	}
 	parentMode := relationShare
-	if drop {
+	if drop || g.attach != (ObjectRef{}) {
 		parentMode = accessExclusive
 	}
 	for _, ref := range g.parents {
@@ -286,8 +317,10 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if g.descriptors[ref.Address].relationKind == indexRelation {
 			mode = shareUpdateExclusive
 		}
-		if err := acquire(ref, mode); err != nil {
-			return err
+		if !slices.Contains(g.indexes, ref) {
+			if err := acquire(ref, mode); err != nil {
+				return err
+			}
 		}
 		s.lockedRef = ref
 		s.lockedDescriptor = g.descriptors[ref.Address]

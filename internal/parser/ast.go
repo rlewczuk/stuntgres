@@ -459,6 +459,7 @@ type IndexKey struct {
 type CreateIndex struct {
 	Name             Identifier
 	Table            ObjectName
+	Only             bool
 	Method           string
 	Keys             []IndexKey
 	Include          []IndexKey

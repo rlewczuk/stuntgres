@@ -261,41 +261,18 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for address, descriptor := range temporary {
 		retainedIDs[address.ObjectID] = true
 		if relation, ok := descriptor.(*relationDescriptor); ok {
-			for _, policy := range relation.policies {
-				retainedIDs[policy.OID] = true
-			}
-			for _, definition := range relation.notNullConstraints {
-				retainedIDs[definition.OID] = true
-			}
-			for _, definition := range relation.checkConstraints {
-				retainedIDs[definition.OID] = true
-			}
-			for _, definition := range relation.uniqueConstraints {
-				retainedIDs[definition.OID] = true
-			}
-			for _, definition := range relation.exclusionConstraints {
-				retainedIDs[definition.OID] = true
-			}
-			for _, definition := range relation.foreignKeys {
-				retainedIDs[definition.OID] = true
-			}
-			for _, definition := range relation.defaults {
-				retainedIDs[definition.OID] = true
-			}
-			for _, definition := range relation.generations {
-				retainedIDs[definition.OID] = true
-			}
-			if relation.view != nil {
-				retainedIDs[relation.view.rule] = true
-			}
+			reserveDefinitionOIDs(retainedIDs, relation)
 		}
 	}
 	reservedIDs := make(map[OID]bool, len(next.descriptors)+len(retainedIDs))
 	for id := range retainedIDs {
 		reservedIDs[id] = true
 	}
-	for address := range next.descriptors {
+	for address, descriptor := range next.descriptors {
 		reservedIDs[address.ObjectID] = true
+		if relation, ok := descriptor.(*relationDescriptor); ok {
+			reserveDefinitionOIDs(reservedIDs, relation)
+		}
 	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
 	for address := range next.descriptors {
@@ -340,6 +317,15 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			target := a
 			if dest, ok := mapping[a]; ok {
 				target = dest
+				if next.dumpPriorities == nil {
+					next.dumpPriorities = make(map[ObjectAddress]OID)
+				}
+				priority := a.ObjectID
+				if captured := next.dumpPriorities[a]; captured != 0 {
+					priority = captured
+					delete(next.dumpPriorities, a)
+				}
+				next.dumpPriorities[target] = priority
 			}
 			switch r := d.(type) {
 			case *namespaceDescriptor:
@@ -415,6 +401,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				}
 				if r.sqlIndex != nil {
 					definition := *r.sqlIndex
+					if parent, remapped := mapping[definition.partitionParent]; remapped {
+						definition.partitionParent = parent
+					}
 					if parent, remapped := mapping[definition.parent]; remapped {
 						definition.parent = parent
 					}
