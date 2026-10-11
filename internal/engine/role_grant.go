@@ -132,7 +132,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			return Result{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
-	if s.Kind != "" || s.OptionOnly || s.Cascade {
+	if s.Kind != "" {
 		return Result{}, sqlError("0A000", "statement is not supported")
 	}
 	targets, err := e.objectGrantTargets(op, v, s)
@@ -250,7 +250,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 			grantWarning(op, relation.name, "", tableMask, available, tableAll, s.Revoke)
 			if available != 0 {
-				nextTable, tableChanged, err = changeObjectACL(op.Context(), v.roles, materializeRelationACL(originalTable, relation.owner), relation.owner, source, grantees, available, s.GrantOption, s.Revoke)
+				nextTable, tableChanged, err = changeObjectACL(op.Context(), v.roles, materializeRelationACL(originalTable, relation.owner), relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			}
 			if err != nil {
 				return Result{}, err
@@ -278,7 +278,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if column.sub <= 0 {
 				continue
 			}
-			next, didChange, err := changeObjectACL(op.Context(), v.roles, old, relation.owner, source, grantees, available, s.GrantOption, s.Revoke)
+			next, didChange, err := changeObjectACL(op.Context(), v.roles, old, relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			if err != nil {
 				return Result{}, err
 			}

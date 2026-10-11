@@ -329,9 +329,10 @@ Two connectors with the same Driver/exact DSN share data, never session state.
 GRANT {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
   ON [TABLE] relation [, ...] TO grantee [, ...]
   [WITH GRANT OPTION] [GRANTED BY role];
-REVOKE {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
+REVOKE [GRANT OPTION FOR]
+  {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
   ON [TABLE] relation [, ...] FROM grantee [, ...]
-  [GRANTED BY role] [RESTRICT];
+  [GRANTED BY role] [CASCADE | RESTRICT];
 ```
 
 `ON ALL TABLES IN SCHEMA schema [, ...]` expands currently existing tables,
@@ -341,13 +342,16 @@ Grantees include PUBLIC, optional GROUP before a role specification, CURRENT_USE
 CURRENT_ROLE and SESSION_USER. The decoded exact lowercase spelling `public`
 denotes PUBLIC even when quoted; quoted `"PUBLIC"` is a distinct role name.
 PUBLIC includes future roles but cannot receive grant options (`0LP01`).
+REVOKE GRANT OPTION FOR FROM PUBLIC is legal and preserves its ordinary use.
 Table privileges are SELECT, INSERT, UPDATE, DELETE,
 TRUNCATE, REFERENCES, TRIGGER and MAINTAIN; column privileges are SELECT, INSERT,
 UPDATE and REFERENCES. ALL expands the applicable mask, never ownership.
 
 Absent table ACLs give owners ordinary use rights; absent column ACLs are empty.
-The first table mutation materializes owner defaults. Revoking an owner's
-ordinary privileges does not remove ownership or implicit grant options.
+The first authorized table mutation materializes owner defaults, including an
+option-only request with no removable stored options. Repeating an explicit
+effect-free request does not publish a new authorization revision. Revoking an
+owner's ordinary privileges does not remove ownership or implicit grant options.
 Table privileges OR matching column privileges authorize column operations:
 column-only REVOKE cannot negate a table grant. Whole-table checks never combine
 arbitrary column grants into a table grant.
@@ -360,29 +364,43 @@ superuser/inherited-owner grants use the owner origin. PostgreSQL18.0 object
 GRANTED BY must name the exact current user, even for superusers or inherited
 owners; another existing role fails `0A000`, and a missing role fails `42704`
 before object lookup.
+An owner or superuser revoking a delegate-origin grant directly does not remove
+that origin: revoke as the delegate, or revoke its upstream support with CASCADE.
 
 WITH GRANT OPTION grants use plus delegation rights. Partial table requests
 warn `01007`; table ALL silently grants an eligible nonempty subset. Column
 requests merge by stable attribute identity: a final mask containing all four
 column privileges suppresses partial warnings, whether spelled ALL or enumerated
-across separate privilege items. Plain REVOKE applies the same distinction with
+across separate privilege items. REVOKE applies the same distinction with
 `01006`. A zero-option request still warns even for a full mask. Having ordinary
 rights but no requested options yields a warning and no grant, not a permission
-token. No rights can fail `42501`. REVOKE removes only the selected source's
-rights/options; default/explicit RESTRICT protects dependent privileges with
-`2BP01` and Hint `Use CASCADE to revoke them too.` Circular grant options fail
-`0LP01`. These checks are scoped to each table or individual column ACL.
-Table options participate in column grantor selection, but do not create a
-cross-ACL dependency graph: revoking an upstream table option can preserve a
-distinct-origin downstream column grant. A same-column dependent chain remains
-protected. Table REVOKE independently selects each column source using the
-original requested mask and original table ACL, not its already reduced result.
+token. No rights can fail `42501`. Warning masks describe authority, not the
+number of changed ACL entries: fully authorized repeated or wrong-origin
+revocations are quiet.
+
+Plain REVOKE removes the selected source's use and options; GRANT OPTION FOR
+removes only its options, preserving use. Default/explicit RESTRICT protects
+unsupported dependent privileges with `2BP01` and Hint
+`Use CASCADE to revoke them too.` CASCADE recursively removes only the bits
+whose delegation support was lost, preserving other bits, independent origins
+and alternative inherited grant-option support. Ordinary alternate use or PUBLIC
+access does not protect delegation, but can still authorize a downstream reader.
+Circular grant options fail `0LP01`. Dependency checks stay within each table or
+individual column ACL, not a combined graph. Table options participate only in
+column grantor selection: revoking an upstream table option can preserve a
+distinct-origin downstream column grant; a same-column dependent chain is
+protected by RESTRICT and removed by CASCADE. Table REVOKE also processes the
+corresponding SELECT/INSERT/UPDATE/REFERENCES grants to its targeted recipients
+in each column, selecting each source from the original requested mask and
+original table ACL, not its already reduced result.
 
 Utilities affect zero rows. Autocommit Go Prepare resolves no objects/roles and
 emits no notices; Execute resolves fresh identities and publishes one atomic
 catalog candidate. Late missing targets/columns/grantees, option errors,
-RESTRICT failures and cancellation publish no earlier ACL changes. Reached
-warnings remain observable before a later failure. Explicit and implicit merged
+RESTRICT failures and native cooperative cancellation publish no earlier ACL
+changes. The native adapter's pre-canceled context guarantee does not imply that
+lib/pq must reject a fast PostgreSQL utility before it completes.
+Reached warnings remain observable before a later failure. Explicit and implicit merged
 column requests traverse ascending signed stable attribute numbers, not textual
 request order or column-name order; duplicate column mentions warn only once.
 Table REVOKE emits its table warning before system attributes
@@ -396,16 +414,19 @@ and delegated without inventing FK/trigger commands. Table INSERT does not
 grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas
 IDENTITY's internal generation remains supported. Direct sequence grants,
 including TABLE syntax resolving a sequence, remain native `0A000`; schema/type/
-routine grants, defaults, CASCADE and GRANT OPTION FOR are outside this surface.
+routine grants and defaults are outside this surface.
 Object utilities remain unsupported in native explicit read-write transactions.
 Read-only execution first fails `25006` for GRANT/REVOKE, before object lookup.
 Explicit relation/column ACLs make native Dump fail before output; Restore does
-not accept GRANT, and Reset removes object ACLs while retaining roles/membership.
+not accept GRANT/REVOKE, and Reset removes object ACLs while retaining roles/membership.
 
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`
 and
 `make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.
+The revoke counterpart selects `TestReferenceRoleRevokeFeatureSmoke` with the
+same native and `REFERENCE=1` commands. See [testing](TESTING.md) for the bounded
+family selectors and root-owned standalone revoke smoke.
 
 New tables belong to current_user and have owner use rights, with no PUBLIC
 table privileges. Central checks cover schema CREATE/USAGE, all actually used

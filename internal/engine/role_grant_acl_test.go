@@ -64,15 +64,15 @@ func TestObjectGrantSingleSourceAndImmutableOrigins(t *testing.T) {
 		t.Fatal("same source table/column options", source, available, sourceErr)
 	}
 	before := slices.Clone(old.Entries)
-	next, changed, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, old, owner, a, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, false)
+	next, changed, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, old, owner, a, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, false, false, false)
 	if err != nil || !changed || !slices.Equal(old.Entries, before) || next.Entries[2].Grantor != a {
 		t.Fatal(next, changed, err, old)
 	}
-	next, _, err = changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, next, owner, b, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, false)
+	next, _, err = changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, next, owner, b, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, false, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, _, err = changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, next, owner, a, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, true)
+	next, _, err = changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, next, owner, a, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, true, false, false)
 	if err != nil || aclRights(next, owner, []PrincipalRef{reader}, SelectPrivilege, false) != SelectPrivilege {
 		t.Fatal("independent origin removed", next, err)
 	}
@@ -81,35 +81,35 @@ func TestObjectGrantSingleSourceAndImmutableOrigins(t *testing.T) {
 func TestObjectGrantPerACLCircularityAndRestrict(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
 	chain := ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege), grantUnitEntry(a, b, SelectPrivilege, SelectPrivilege), grantUnitEntry(b, reader, SelectPrivilege, 0)}}
-	_, changed, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, chain, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true)
+	_, changed, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, chain, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true, false, false)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "dependent privileges exist", Hint: "Use CASCADE to revoke them too."}
 	if changed || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal(changed, err)
 	}
-	_, _, err = changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, chain, owner, b, []ACLGrantee{{Role: a}}, SelectPrivilege, true, false)
+	_, _, err = changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, chain, owner, b, []ACLGrantee{{Role: a}}, SelectPrivilege, true, false, false, false)
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "0LP01" {
 		t.Fatal("circular backgrant", err)
 	}
 	alternate := ACLValue{Explicit: true, Entries: append(slices.Clone(chain.Entries), grantUnitEntry(owner, b, SelectPrivilege, SelectPrivilege))}
-	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, alternate, owner, b, []ACLGrantee{{Role: a}}, SelectPrivilege, true, false); err != nil {
+	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, alternate, owner, b, []ACLGrantee{{Role: a}}, SelectPrivilege, true, false, false, false); err != nil {
 		t.Fatal("same ACL independent support", err)
 	}
 	// The table option is only a source-selection input. It cannot support a
 	// column ACL's circularity check, nor impose a cross-ACL RESTRICT graph.
 	table := ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege)}}
 	column := ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(a, reader, SelectPrivilege, 0)}}
-	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, table, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true); err != nil {
+	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, table, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true, false, false); err != nil {
 		t.Fatal("invented cross-ACL dependency", err)
 	}
 	if aclRights(column, PrincipalRef{}, []PrincipalRef{reader}, SelectPrivilege, false) != SelectPrivilege {
 		t.Fatal("downstream column use lost")
 	}
-	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, column, owner, a, []ACLGrantee{{Role: b}}, SelectPrivilege, true, false); err == nil {
+	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, column, owner, a, []ACLGrantee{{Role: b}}, SelectPrivilege, true, false, false, false); err == nil {
 		t.Fatal("table options used for column circularity")
 	}
 	alternate = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege), grantUnitEntry(b, a, SelectPrivilege, SelectPrivilege), grantUnitEntry(a, reader, SelectPrivilege, 0)}}
-	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, alternate, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true); err != nil {
+	if _, _, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, alternate, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true, false, false); err != nil {
 		t.Fatal("alternate origin support ignored", err)
 	}
 }
@@ -117,13 +117,13 @@ func TestObjectGrantPerACLCircularityAndRestrict(t *testing.T) {
 func TestObjectGrantACLNoopAndCancellation(t *testing.T) {
 	owner, a, _, reader := grantUnitRoles()
 	old := ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege)}}
-	next, changed, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, old, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, true, false)
+	next, changed, err := changeObjectACL(context.Background(), RoleRead{owner.owner, owner.owner.roles}, old, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, true, false, false, false)
 	if err != nil || changed || !slices.Equal(next.Entries, old.Entries) {
 		t.Fatal(next, changed, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	next, changed, err = changeObjectACL(ctx, RoleRead{owner.owner, owner.owner.roles}, old, owner, a, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, false)
+	next, changed, err = changeObjectACL(ctx, RoleRead{owner.owner, owner.owner.roles}, old, owner, a, []ACLGrantee{{Role: reader}}, SelectPrivilege, false, false, false, false)
 	if !errors.Is(err, context.Canceled) || changed || !slices.Equal(next.Entries, old.Entries) {
 		t.Fatal(next, changed, err)
 	}
@@ -138,12 +138,12 @@ func TestObjectGrantInheritedAlternateSupport(t *testing.T) {
 		grantUnitEntry(owner, b, SelectPrivilege, SelectPrivilege),
 		grantUnitEntry(a, reader, SelectPrivilege, 0),
 	}}
-	next, changed, err := changeObjectACL(context.Background(), roles, acl, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true)
+	next, changed, err := changeObjectACL(context.Background(), roles, acl, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true, false, false)
 	if err != nil || !changed || aclRights(next, owner, []PrincipalRef{reader}, SelectPrivilege, false) != SelectPrivilege {
 		t.Fatal("inherited same-ACL alternate support lost", next, changed, err)
 	}
 	roles.state.edges[0].Inherit = false
-	if _, _, err := changeObjectACL(context.Background(), roles, acl, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true); err == nil {
+	if _, _, err := changeObjectACL(context.Background(), roles, acl, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true, false, false); err == nil {
 		t.Fatal("disabled inheritance supported dependent grants")
 	}
 }

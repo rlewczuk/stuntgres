@@ -313,6 +313,34 @@ column rights separate from a same-column chain's RESTRICT failure. Warning
 assertions retain the complete release system/live-attribute traversal, without
 claiming native system-column query support.
 
+`TestReferenceRoleRevoke` adds option-only/PUBLIC/owner boundaries, selective
+recursive CASCADE with alternate grant-option support, atomic RESTRICT,
+origin-specific table/column selection, complete warnings and held-query/control
+lifecycles. Each definition runs direct and prepared public routes. Selected
+gates (external 900-second deadline each; run every line in native mode and again
+with `REFERENCE=1` for the pinned PostgreSQL oracle):
+
+```sh
+make check RUN='^TestReferenceRoleRevoke(OptionOnly|PublicOwner|TableLike|Cascade|AlternateSupport|SelectiveBits|IndependentAccess)$'
+make check RUN='^TestReferenceRoleRevoke(Columns|Provenance|Diagnostics|Notices|RestrictAtomicity)$'
+make check RUN='^TestReferenceRoleRevoke(Lifecycle|Transactions|FeatureSmoke)$'
+```
+
+Oracle-first discovery may select `/(direct|prepared)/postgres` after the
+top-level family expression with `REFERENCE=1`. Do not put `$` immediately
+before `/` in Make's RUN value: Make consumes that pair and can silently select
+no tests. Discovery is not complete dual-mode proof. Native pre-canceled utility
+execution is an explicit adapter guarantee; lib/pq can complete a fast utility
+before observing cancellation. The shared SQL lifecycle assertions remain the
+same in both modes.
+
+The additional root-owned revoke smoke source stays in the OMP session, is
+temporarily materialized as `./.role-revoke-feature-smoke/main.go`, run with
+`go run ./.role-revoke-feature-smoke` (900 seconds), and removed after recording
+the observations. Its shared reference counterpart is selected with
+`make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'`.
+
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control

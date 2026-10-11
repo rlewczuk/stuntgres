@@ -71,8 +71,8 @@ func scopedACLGrantOptions(ctx context.Context, roles RoleRead, acl ACLValue, ow
 	return aclRights(acl, PrincipalRef{}, principals, tableGrantPrivileges, true), nil
 }
 
-// Temporary recursive removal mirrors PostgreSQL's per-ACL support check.
-// It is used for circularity only; public CASCADE is not implemented.
+// Recursive removal checks remaining support within this ACL only. Circularity
+// uses a private copy; revocation uses the statement's private mutation candidate.
 func cascadeACLBits(ctx context.Context, roles RoleRead, acl *ACLValue, owner, role PrincipalRef, lost Privileges) error {
 	if role == owner {
 		return nil
@@ -132,7 +132,7 @@ func checkACLGrantCycle(ctx context.Context, roles RoleRead, acl ACLValue, owner
 	return nil
 }
 
-func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, source PrincipalRef, grantees []ACLGrantee, mask Privileges, option, revoke bool) (ACLValue, bool, error) {
+func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, source PrincipalRef, grantees []ACLGrantee, mask Privileges, option, revoke, optionOnly, cascade bool) (ACLValue, bool, error) {
 	if mask == 0 {
 		return old, false, nil
 	}
@@ -148,7 +148,11 @@ func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, s
 			}
 			found = true
 			if revoke {
-				needsChange = needsChange || entry.Privileges&mask != 0
+				if optionOnly {
+					needsChange = needsChange || entry.GrantOptions&mask != 0
+				} else {
+					needsChange = needsChange || entry.Privileges&mask != 0
+				}
 			} else {
 				needsChange = needsChange || entry.Privileges&mask != mask || option && entry.GrantOptions&mask != mask
 			}
@@ -184,17 +188,28 @@ func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, s
 			}
 			entry := &candidate.Entries[found]
 			removed := entry.GrantOptions & mask
-			entry.Privileges &^= mask
+			if !optionOnly {
+				entry.Privileges &^= mask
+			}
 			entry.GrantOptions &^= mask
 			if !grantee.Public && removed != 0 && grantee.Role != owner {
-				options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, grantee.Role)
-				if err != nil {
-					return old, false, err
-				}
-				lost := removed &^ options
-				for _, dependent := range candidate.Entries {
-					if dependent.Grantor == grantee.Role && dependent.Privileges&lost != 0 {
-						return old, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "dependent privileges exist", Hint: "Use CASCADE to revoke them too."}
+				if cascade {
+					if err := cascadeACLBits(ctx, roles, &candidate, owner, grantee.Role, removed); err != nil {
+						return old, false, err
+					}
+				} else {
+					options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, grantee.Role)
+					if err != nil {
+						return old, false, err
+					}
+					lost := removed &^ options
+					for _, dependent := range candidate.Entries {
+						if err := ctx.Err(); err != nil {
+							return old, false, err
+						}
+						if dependent.Grantor == grantee.Role && dependent.Privileges&lost != 0 {
+							return old, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "dependent privileges exist", Hint: "Use CASCADE to revoke them too."}
+						}
 					}
 				}
 			}

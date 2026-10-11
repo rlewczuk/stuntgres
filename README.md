@@ -795,22 +795,29 @@ while retained rows keep their snapshots. The exact opaque DSN is the database k
 its NAME display silently clips to a complete UTF8 prefix of at most 63 bytes,
 without URL parsing, trimming or merging distinct keys. See
 [authorization](docs/AUTHORIZATION.md) for forms and authority boundaries.
-Change note: table/column GRANT and plain REVOKE now retain independent grantor
+Change note: table/column GRANT and REVOKE now retain independent grantor
 origins, owner implicit options, PUBLIC and inherited role authority. All eight
 table privileges and four column privileges are represented; real supported
 consumers use the same ACL checks, including MAINTAIN REINDEX and TRUNCATE LOCK.
 Column-only revoke cannot subtract a table grant. ALL TABLES IN SCHEMA expands
 existing tables/views/materialized views, never future tables or sequences.
-Release18.0 GRANTED BY/current-user and per-ACL circular/RESTRICT semantics are
-documented in [authorization](docs/AUTHORIZATION.md#table-and-column-grants--change-note).
+REVOKE GRANT OPTION FOR removes delegation without removing use; CASCADE removes
+unsupported dependent grant bits, while default/explicit RESTRICT is atomic.
+Independent grants and inherited options survive; PUBLIC option-only revocation
+is legal and owner implicit grant authority remains. Release18.0
+GRANTED BY/current-user and per-ACL dependency semantics are documented in
+[authorization](docs/AUTHORIZATION.md#table-and-column-grants--change-note).
 Merged column requests follow stable attribute order, including duplicate and
 reversed lists. Enumerating all four column privileges has the same partial-option
 warning suppression as column ALL; zero-option requests still warn.
-Sequence/other-object grants, broader revoke forms and native explicit-transaction
+Sequence/other-object grants, defaults and native explicit-transaction
 object utilities remain excluded; explicit ACL Dump fails before output.
 Feature smoke (900 seconds each):
 `make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`;
 `make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.
+Selected revoke smoke:
+`make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'`;
+`make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'`.
 
 Change note: role membership GRANT/REVOKE supports ADMIN/INHERIT/SET options,
 independent grantor origins, source-aware CASCADE/RESTRICT and cycle prevention.

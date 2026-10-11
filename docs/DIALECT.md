@@ -50,7 +50,7 @@ and [selected proofs](TESTING.md#predefined-role-oracle-first-contracts).
 
 ### Table and column grants — change note
 
-Autocommit GRANT and plain REVOKE support SELECT, INSERT, UPDATE, DELETE,
+Autocommit GRANT and REVOKE support SELECT, INSERT, UPDATE, DELETE,
 TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on tables/views/materialized views;
 column lists support SELECT, INSERT, UPDATE and REFERENCES. Optional TABLE,
 multiple targets/grantees, ALL [PRIVILEGES], PUBLIC, WITH GRANT OPTION,
@@ -58,16 +58,20 @@ GRANTED BY and current-only ALL TABLES IN SCHEMA use the existing immutable ACLs
 Column grants remain independent of table grants; ownership and implicit owner
 options are not ordinary revocable use rights. Delegation records one inherited
 direct source rather than a union of option sources. PostgreSQL18.0 requires
-explicit GRANTED BY to name current_user. Circularity and RESTRICT are checked
-within each ACL, not an invented table-column dependency graph.
+explicit GRANTED BY to name current_user. REVOKE GRANT OPTION FOR preserves use
+while removing delegation; plain REVOKE removes both. Default/explicit RESTRICT
+protects dependent grants; CASCADE removes only unsupported downstream bits,
+retaining independent origins and inherited option support within each ACL,
+not an invented table-column dependency graph. Option-only PUBLIC/owner requests
+are legal; PUBLIC use and implicit owner grant authority survive.
 
 Prepare is effect/name-resolution free; Execute publishes all reached ACL changes
 atomically or none, retaining reached warnings. Existing consumers enforce exact
 columns, including empty/filtered sources. MAINTAIN authorizes actual REINDEX;
 TRUNCATE has a LOCK consumer. REFERENCES/TRIGGER do not add absent commands.
 Table grants never confer sequence privileges, including SERIAL defaults.
-Sequence/other-object grants, CASCADE/GRANT OPTION FOR, defaults and native
-explicit-transaction object utilities remain excluded. Native explicit-ACL Dump
+Sequence/other-object grants, defaults and native explicit-transaction object
+utilities remain excluded. Native explicit-ACL Dump
 rejects before output; Restore's whitelist is unchanged.
 REFERENCES retains its canonical reserved-word category and existing excluded
 foreign-key constraint path; grant support does not add foreign keys.
@@ -77,6 +81,9 @@ syntax, owner/PUBLIC/INHERIT behavior, grantor provenance and warning contracts.
 Feature smoke (900 seconds each):
 `make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`;
 `make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.
+The selected revocation path has corresponding
+`make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'` gates.
 
 ### SQL prepared statements — change note
 
