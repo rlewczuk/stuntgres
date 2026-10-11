@@ -131,6 +131,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		d.relationKind, d.view, d.populated = materializedViewRelation, definition, !s.NoData
 	}
+	d.acl = stage.creationACL(owner, ns.Address, defaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, nil, false, err
 	}

@@ -36,6 +36,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
+	d.acl = stage.creationACL(d.owner, namespace, defaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, err
 	}

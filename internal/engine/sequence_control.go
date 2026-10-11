@@ -41,6 +41,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 			delete(next.names, key)
 		}
 	}
+	pruneRemovedNamespaceDefaults(view.state, next)
 	return CatalogRead{owner: view.owner, state: next}, nil
 }
 
@@ -331,6 +332,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 	}
 	if len(mapping) != 0 {
+		remapDefaultSchemas(next, mapping)
 		originals := next.descriptors
 		next.descriptors = make(map[ObjectAddress]Descriptor, len(originals)+len(temporary))
 		next.names = make(map[NameKey]ObjectAddress, len(originals)+len(temporary))

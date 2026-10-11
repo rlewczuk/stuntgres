@@ -121,14 +121,15 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	}
 	array := sqltype.LookupArray(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
 	relation.rowType = typ.ID()
-	acl := ACLValue{}
+	baseline := defaultBaseline(relation.owner, defaultTypes, false)
+	acl := baseline
 	if relation.relationKind == compositeRelation {
-		acl = ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: relation.owner, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}, {Grantor: relation.owner, Grantee: ACLGrantee{Role: relation.owner}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege}}}
+		acl = stage.creationACL(relation.owner, relation.namespace, defaultTypes)
 	}
 	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, array: array.ID(), owningRelation: relation.address}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, owningRelation: relation.address})
+	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: baseline, owningRelation: relation.address})
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {
@@ -160,6 +161,9 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 		return nil
 	}
 	next := *row
+	if row.owner != relation.owner {
+		next.acl = schemaACLOwner(row.acl, row.owner, relation.owner)
+	}
 	next.namespace, next.owner, next.revision = relation.namespace, relation.owner, relation.revision
 	if row.typ.IsComposite() {
 		ns := stage.descriptors[relation.namespace]
@@ -183,6 +187,9 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 			array = staged
 		}
 		copy := *array
+		if array.owner != relation.owner {
+			copy.acl = schemaACLOwner(array.acl, array.owner, relation.owner)
+		}
 		copy.namespace, copy.owner, copy.revision = relation.namespace, relation.owner, relation.revision
 		arrayName := array.Name()
 		if row.Name() != relation.name {

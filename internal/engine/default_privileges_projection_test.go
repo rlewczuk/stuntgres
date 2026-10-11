@@ -1,0 +1,188 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"math"
+	"reflect"
+	"sort"
+	"strings"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
+	t.Helper()
+	source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tablePrivilegesOID}].(*relationDescriptor)
+	ref := ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: source.address}
+	rows, err := captureTablePrivileges(context.Background(), catalog, auth, "unit_database", ref, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actual [][]string
+	for _, row := range rows.anonymous {
+		name, err := row[4].Text()
+		if err != nil {
+			t.Fatal("projection name carrier", err)
+		}
+		if !strings.HasPrefix(name, "proof_") {
+			continue
+		}
+		values := make([]string, len(row))
+		for i, value := range row {
+			values[i], err = value.Text()
+			if err != nil || value.Type() != source.columns[i].Usage.Type {
+				t.Fatal("projection type/null", i, value, err)
+			}
+		}
+		actual = append(actual, values)
+	}
+	sort.Slice(actual, func(i, j int) bool { return strings.Join(actual[i], "\x00") < strings.Join(actual[j], "\x00") })
+	return rows, actual
+}
+func defaultUnitSortRows(rows [][]string) {
+	sort.Slice(rows, func(i, j int) bool { return strings.Join(rows[i], "\x00") < strings.Join(rows[j], "\x00") })
+}
+
+func TestDefaultPrivilegesProjection(t *testing.T) {
+	f := newDefaultUnitFixture(t)
+	state := cloneCatalog(f.e.state)
+	ownerSelect := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.owner}, Privileges: SelectPrivilege}
+	publicInsert := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Public: true}, Privileges: InsertPrivilege}
+	memberUpdate := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.member}, Privileges: UpdatePrivilege}
+	specs := []struct {
+		name string
+		kind relationKind
+		acl  ACLValue
+	}{
+		{"proof_absent", tableRelation, ACLValue{}},
+		{"proof_named", viewRelation, ACLValue{Explicit: true, Entries: []ACLEntry{ownerSelect, defaultUnitReaderEntry(f, SelectPrivilege, SelectPrivilege), publicInsert}}},
+		{"proof_empty", tableRelation, ACLValue{Explicit: true}},
+		{"proof_partition", partitionedRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
+		{"proof_member", tableRelation, ACLValue{Explicit: true, Entries: []ACLEntry{memberUpdate}}},
+		{"proof_update_only", tableRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, UpdatePrivilege, 0)}}},
+		{"proof_maintain", tableRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, MaintainPrivilege, MaintainPrivilege)}}},
+		{"proof_column_only", tableRelation, ACLValue{Explicit: true}},
+		{"proof_mv", materializedViewRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
+		{"proof_sequence", sequenceRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
+		{"proof_index", indexRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
+		{"proof_composite", compositeRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
+	}
+	for i, spec := range specs {
+		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(20100 + i)}, namespace: f.schema, name: spec.name, owner: f.owner, revision: 2, relationKind: spec.kind, acl: spec.acl}
+		if spec.name == "proof_column_only" {
+			d.columnACL = map[int32]ACLValue{1: {Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}}
+		}
+		state.descriptors[d.address] = d
+	}
+	catalog := CatalogRead{f.e, state}
+	f.e.mu.Lock()
+	auth, err := f.e.authorizationLocked(f.op)
+	f.e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.catalog = catalog
+	held, got := defaultUnitProjection(t, catalog, auth)
+	var want [][]string
+	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
+		hierarchy := "NO"
+		if privilege == "SELECT" {
+			hierarchy = "YES"
+		}
+		want = append(want, []string{"default_owner", "default_owner", "unit_database", "default_schema", "proof_absent", privilege, "YES", hierarchy})
+	}
+	want = append(want,
+		[]string{"default_owner", "default_owner", "unit_database", "default_schema", "proof_named", "SELECT", "YES", "YES"},
+		[]string{"default_owner", "default_reader", "unit_database", "default_schema", "proof_named", "SELECT", "YES", "YES"},
+		[]string{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"},
+		[]string{"default_owner", "default_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"},
+		[]string{"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "YES", "NO"},
+		[]string{"default_owner", "default_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"},
+	)
+	defaultUnitSortRows(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatal("projection origins/kinds/bits/options", got, want)
+	}
+	auth.state.CurrentUser = f.reader
+	_, readerRows := defaultUnitProjection(t, catalog, auth)
+	readerWant := [][]string{
+		{"default_owner", "default_reader", "unit_database", "default_schema", "proof_named", "SELECT", "YES", "YES"},
+		{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"},
+		{"default_owner", "default_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"},
+		{"default_owner", "default_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"},
+	}
+	defaultUnitSortRows(readerWant)
+	if !reflect.DeepEqual(readerRows, readerWant) {
+		t.Fatal("grantee visibility was filtered by namespace/table SELECT or invented inherited origins", readerRows)
+	}
+	auth.state.CurrentUser = f.member
+	_, memberRows := defaultUnitProjection(t, catalog, auth)
+	if !reflect.DeepEqual(memberRows, want) {
+		t.Fatal("inherited grantor visibility", memberRows)
+	}
+	roles := cloneRoles(auth.roles.state)
+	roles.edges = append([]Membership(nil), roles.edges...)
+	for i := range roles.edges {
+		if roles.edges[i].Member == f.member {
+			roles.edges[i].Inherit = false
+			roles.edges[i].Set = true
+		}
+	}
+	auth.roles = RoleRead{f.e, roles}
+	_, setRows := defaultUnitProjection(t, catalog, auth)
+	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
+	defaultUnitSortRows(setWant)
+	if !reflect.DeepEqual(setRows, setWant) {
+		t.Fatal("SET-only disclosed grantor rows or inferred ownership", setRows)
+	}
+	// Source rows are detached from live role/catalog changes; a later opening
+	// captures those changes, never mutating already returned anonymous rows.
+	before := make([][]sqltype.Value, len(held.anonymous))
+	for i, row := range held.anonymous {
+		before[i] = append([]sqltype.Value(nil), row...)
+	}
+	changed := cloneCatalog(state)
+	named := *changed.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 20101}].(*relationDescriptor)
+	named.acl = ACLValue{Explicit: true}
+	changed.descriptors[named.address] = &named
+	actor := cloneRoles(roles)
+	renamed := actor.roles[f.reader]
+	renamed.Name = "renamed_reader"
+	actor.roles[f.reader] = renamed
+	delete(actor.names, "default_reader")
+	actor.names["renamed_reader"] = f.reader
+	auth.catalog = CatalogRead{f.e, changed}
+	auth.roles = RoleRead{f.e, actor}
+	auth.state.CurrentUser = f.reader
+	_, fresh := defaultUnitProjection(t, auth.catalog, auth)
+	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}
+	defaultUnitSortRows(freshWant)
+	if !reflect.DeepEqual(fresh, freshWant) || !reflect.DeepEqual(held.anonymous, before) {
+		t.Fatal("fresh capture/returned row lifetime", fresh)
+	}
+	source := state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tablePrivilegesOID}].(*relationDescriptor)
+	names := []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}
+	for i, column := range source.columns {
+		typ := sqltype.Name
+		length, known := int64(0), false
+		if i >= 5 {
+			typ = sqltype.VarChar
+			length, known = math.MaxInt64, true
+		}
+		if i >= 6 {
+			length = 3
+		}
+		actualLength, actualKnown := column.Usage.Length()
+		if column.Name != names[i] || column.Usage.Type.ID() != typ || column.Usage.Type.IsDomain() || actualLength != length || actualKnown != known || !column.Nullable || !column.NullabilityKnown || i >= 5 && column.Usage.Collation.ID != 950 {
+			t.Fatal("source carriers", i, column, actualLength, actualKnown)
+		}
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	ref := ObjectRef{owner: f.e.owner, Epoch: catalog.Epoch(), Address: source.address}
+	rows, err := captureTablePrivileges(canceled, catalog, AuthorizationView{}, "unit_database", ref, source)
+	if rows != nil || !errors.Is(err, context.Canceled) {
+		t.Fatal("canceled source exposed partial rows", rows, err)
+	}
+}

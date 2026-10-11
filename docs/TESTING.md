@@ -1597,6 +1597,124 @@ the observations. Its shared reference counterpart is selected with
 `make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'`.
 
+`TestReferenceRoleDefaultPrivileges` has 21 independently specified shared
+direct/prepared definitions covering grammar/all stored classes, target authority
+and current-role selection, every supported creation seam, additive scoped
+precedence, grant options/ordinary owner use, exact ACL-origin exposure/metadata,
+atomicity/dependencies/lifecycles and native transaction/control boundaries.
+No routine/large-object creation providers, adjacent direct non-table grants or
+generic information-schema domains are substituted for the selected witnesses.
+Private namespace rights use ownership or SCHEMAS defaults, not native schema
+GRANT. All changed definitions require both complete native and pinned real modes.
+Projection witnesses use the uncast five NAME and three VARCHAR columns, with
+unchanged independently specified ACL values and exact raw transport/metadata.
+Controls use uncast current_user/session_user NAME identities. No adjacent cast
+provider is required. Enum-array creation preserves PostgreSQL's real success
+or element-ACL denial and native's positioned 0A000 storage boundary; private
+ArrayAuthority units exercise the actual descriptor-level element redirect.
+Creation and Schemas also assert granted TEMP reads after same-connection actor
+switches; Creation retains table-ACL revoke denial and a peer's missing relation.
+TemporaryNamespace units cover exact physical token ordinary rights, peer/private/
+foreign isolation, unchanged ownership/delegation and independent table ACLs.
+Creation preserves inherited child ACL use and independently asserts parent
+rows7,9 on both backends using the integrated recursive scan provider. A separate
+ordinary source explicitly populated7,9 drives CTAS and SELECT INTO, each
+affecting2 and exposing ordered7,9 to the default-granted reader. This part adds
+no recursive scan provider. Unit table construction owns Engine.mu and
+reads its immutable stage-base carrier without reentering CatalogRead.
+Diagnostics independently covers both schema-list orders for prohibited classes,
+PUBLIC grant options and canonical TEMP/TEMPORARY errors, with complete records
+and Execute-stage utility failures. Atomicity checks subsequent denied tables
+after late-schema/creator and ordered PUBLIC-option failures. Private Atomicity
+retains untouched catalog/role roots on error; Revision checks real multi-schema
+updates plus repeated operands publish once, canonical no-ops publish nothing,
+and reversal/overflow remain atomic.
+`TestReferenceRoleDefaultPrivilegesDiagnostics` also checks quoted lowercase
+`"select"` through a future-table reader result7, reversal and retention of the
+earlier grant. Quoted `"SELECT"`, `"Select"`, `"Usage"`, `"TEMP"` and `"TEMPORARY"`
+each have exact original-spelling `42601` records at Execute on both shared
+direct/prepared routes. Future-table reader42501 after each rejection and an
+actual future enum dependency CREATE denial after rejected `"Usage"` ON TYPES
+prove no policy publication; revoked PUBLIC TYPES defaults prevent baseline
+USAGE from masking the latter. The existing unquoted TEMP/TEMPORARY cases keep
+their canonical `0LP01` TEMP spelling.
+Creation also covers permanent/TEMP CREATE TABLE OF old/new/reversed defaults,
+owner INSERT7/9, reader old/next denial and new read9, plus exact SELECT origins.
+Types proves source TYPES denial despite the other creator's TABLES policy,
+later scoped-source authorization, creator INSERT/read13, recipient read13 and
+the table creator's SELECT origin; an earlier denied source stays denied.
+Controls asserts rejected native Restore through the SQLSTATE interface and
+retained data/default-policy consumers, not its evolving utility whitelist text.
+Dump refusal remains an ordinary non-SQL error before any output for stored
+defaults and materialized ACLs.
+Selected gates have an external 900-second deadline each; run the first five
+commands natively and again with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceRoleDefaultPrivileges(Grammar|Diagnostics|StoredClasses|Authority|CurrentRole)$'
+make check RUN='^TestReferenceRoleDefaultPrivileges(Tables|Creation|OwnerOptions|Precedence)$'
+make check RUN='^TestReferenceRoleDefaultPrivileges(Sequences|Types|Schemas)$'
+make check RUN='^TestReferenceRoleDefaultPrivileges(Exposure|ExposureVisibility|Metadata)$'
+make check RUN='^TestReferenceRoleDefaultPrivileges(Atomicity|Dependencies|Lifecycle|Transactions|Controls|FeatureSmoke)$'
+make check RUN='^TestParseAlterDefaultPrivileges'
+make check RUN='^TestDefaultPrivileges(Masks|Baselines|Storage|Merge|CreatorSelection|CloneStage|RetainedMessage|Replacement|Dependencies|SchemaLifecycle|Controls|Projection|ArrayAuthority|TemporaryNamespace|Atomicity|Cancellation|PublicationFence|Revision|CreationFence)'
+make check RACE=1 RUN='^TestDefaultPrivileges(Atomicity|Cancellation|PublicationFence|CreationFence|RetainedMessage|Replacement|TemporaryNamespace)'
+make check RUN='^TestReference(SerialSequenceAuthority|CompositeAuthority|DomainDependencies|RoleRevokeTransactions|RoleRevokeLifecycle)$'
+make check REFERENCE=1 RUN='^TestReference(SerialSequenceAuthority|CompositeAuthority|DomainDependencies|RoleRevokeTransactions|RoleRevokeLifecycle)$'
+make check RUN='^TestReference(TemporaryViewUnauthorized|SequenceTemporaryTableCapability|SequenceTempCreationLifetime|TypedTableTemporaryControls|TypedTableTemporaryReaderFence)$'
+make check REFERENCE=1 RUN='^TestReference(TemporaryViewUnauthorized|SequenceTemporaryTableCapability|SequenceTempCreationLifetime|TypedTableTemporaryControls|TypedTableTemporaryReaderFence)$'
+```
+
+Oracle-first discovery appends `/(direct|prepared)/postgres` to a family
+expression without `$` before `/`; it must reach the actual postgres subtests.
+There are no permanent discovery-only backend filters. Discovery/native red
+evidence does not replace complete dual-mode proof. Exact structured diagnostics
+and independent semantic/metadata values precede backend parity. PostgreSQL18.0
+global-empty creation normalization is independently distinguished from actual
+object REVOKE ALL, and nonempty scoped-only creation proves stored empty matters.
+NAME uses existing unknown Length; privilege_type has native MaxInt64/true versus
+pq -5/true unsized VARCHAR Length, while is_grantable/with_hierarchy both have
+VARCHAR(3) Length3/true. No generic adapter or domain support is inferred.
+
+Private units complement public SQL with immutable map/tombstone/cache/remap
+invariants, hardwired dependent rowtype/array baselines, exact consumed-key fences
+including absence, deterministic paused creation, terminal cancellation/session
+fences, revision/no-op/overflow and final dependency retirement. Whole-project
+Docker-free verification remains `make quickcheck`, not a selected-proof alias.
+`TestMaterializedAlterOwnerAttachments` preserves coherent ownership and
+descriptor/storage/index roots, independently checks new-owner owner/PUBLIC USAGE
+origins on both dependent types, excludes former-owner retirement dependencies
+and retains immutable old type ACL snapshots. It does not repin an incidental
+implicit-versus-materialized ACL flag.
+`TestReferenceRoleDefaultPrivilegesLifecycle` creates one constant MV7 under an
+otherwise unencumbered ordinary creator's TABLES defaults, reverses that policy,
+transfers ownership and restores public-schema ownership before retiring the
+former creator while the MV remains live. The distinct default-granted reader
+retains7 before and after the new owner's actual REFRESH/read7. Shared
+direct/prepared native and pinned modes exercise the complete definition;
+cleanup skips retired recipients rather than recreating them. No TYPES-default
+reapplication, suppressed dependencies or adjacent schema GRANT is substituted.
+The root-owned standalone public Go source stays in the OMP session, is
+temporarily materialized as `./.default-privileges-feature-smoke/main.go`, run
+with `go run ./.default-privileges-feature-smoke` (external 900 seconds), then
+removed. Expected exit0 with no output requires actual old/new/held table values,
+scoped addition/reversal, current creator versus inherited defaults, independent
+SERIAL sequence authority and exact eight-column origins/carriers.
+The executable also uses quoted lowercase `"select"` for the new-table grant
+and requires quoted uppercase `"SELECT"` to fail with42601 before a subsequent
+table remains unreadable to that recipient.
+Its ownership-lifecycle footer grants creator dp_retired TABLES SELECT defaults
+to dp_reader, temporarily transfers public-schema ownership for ordinary creation
+of the constant MV dp_transferred(x=7), then reverses the directive, transfers the
+MV to dp_owner and restores public ownership to postgres. DROP dp_retired must
+succeed while the MV remains live; dp_reader reads7, dp_owner performs REFRESH0
+and reads7, and dp_reader still reads7 afterward. These are executable assertions,
+not an execution claim; the root must record the changed source's actual quiet
+exit0 after correction.
+Its shared counterpart is `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
+and the same command with `REFERENCE=1`; neither substitutes for the executable.
+
+
 Virtual generated-column coverage uses the shared untagged
 `TestReferenceGeneratedVirtual` family: lazy demand, joined/outer/RETURNING
 frames, definition/security diagnostics, column grants, constraints/index

@@ -1,0 +1,132 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+type defaultUnitFixture struct {
+	e                     *Engine
+	op                    *Operation
+	owner, reader, member PrincipalRef
+	schema                ObjectAddress
+}
+
+func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
+	t.Helper()
+	e := New()
+	roles := cloneRoles(e.roles)
+	refs := make([]PrincipalRef, 3)
+	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
+		ref := PrincipalRef{owner: e, id: uint64(20001 + i)}
+		refs[i] = ref
+		roles.roles[ref] = RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true}
+		roles.names[name] = ref
+	}
+	roles.edges = append(append([]Membership(nil), roles.edges...), Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.names["postgres"], Inherit: true, Set: true})
+	e.roles = roles
+	schema := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20010}
+	next := cloneCatalog(e.state)
+	namespace := &namespaceDescriptor{address: schema, name: "default_schema", revision: 2, owner: refs[0]}
+	next.descriptors[schema] = namespace
+	next.names[descriptorNameKey(namespace)] = schema
+	e.state = next
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	return defaultUnitFixture{e: e, op: op, owner: refs[0], reader: refs[1], member: refs[2], schema: schema}
+}
+
+func defaultUnitStatement(class, privilege string, creators, schemas, grantees []string) *parser.AlterDefaultPrivileges {
+	s := &parser.AlterDefaultPrivileges{Class: class, Privileges: []parser.GrantPrivilege{{Name: privilege, All: privilege == "all"}}}
+	if creators != nil {
+		option := parser.DefaultPrivilegesOption{Roles: make([]parser.RoleSpec, len(creators))}
+		for i, name := range creators {
+			option.Roles[i] = parser.RoleSpec{Name: name}
+		}
+		s.Options = append(s.Options, option)
+	}
+	if schemas != nil {
+		option := parser.DefaultPrivilegesOption{Schemas: make([]parser.Identifier, len(schemas))}
+		for i, name := range schemas {
+			option.Schemas[i] = parser.Identifier{Text: name}
+		}
+		s.Options = append(s.Options, option)
+	}
+	for _, name := range grantees {
+		s.Grantees = append(s.Grantees, parser.GrantGrantee{Public: name == "PUBLIC", Role: parser.RoleSpec{Name: name}})
+	}
+	return s
+}
+func (f defaultUnitFixture) apply(s *parser.AlterDefaultPrivileges) error {
+	f.e.mu.Lock()
+	defer f.e.mu.Unlock()
+	auth, err := f.e.authorizationLocked(f.op)
+	if err != nil {
+		return err
+	}
+	_, err = f.e.alterDefaultPrivilegesLocked(f.op, auth, s)
+	return err
+}
+func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas []string) *parser.AlterDefaultPrivileges {
+	t.Helper()
+	s := defaultUnitStatement(class, privilege, []string{"default_owner"}, schemas, []string{"default_reader"})
+	if err := f.apply(s); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+func (f defaultUnitFixture) actor(ref PrincipalRef) {
+	f.e.mu.Lock()
+	f.op.session.mu.Lock()
+	f.op.session.authorization.state.CurrentUser = ref
+	f.op.session.authorization.revision++
+	f.op.session.mu.Unlock()
+	f.e.mu.Unlock()
+}
+func defaultUnitDiagnostic(t *testing.T, err error, code, message string) {
+	t.Helper()
+	var d *sqlstate.Error
+	if !errors.As(err, &d) || d.Code != code || d.Message != message || d.Severity != "ERROR" || d.SeverityUnlocalized != "ERROR" {
+		t.Fatalf("diagnostic = %#v; want %s %q", err, code, message)
+	}
+}
+func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options Privileges) ACLEntry {
+	return ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.reader}, Privileges: privileges, GrantOptions: options}
+}
+
+// defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
+// immutable stage-base carrier first, without a locking Engine.CatalogRead.
+func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner PrincipalRef) *relationDescriptor {
+	t.Helper()
+	typ, ok := stage.base.LookupType(sqltype.Int4)
+	if !ok {
+		t.Fatal("stage has no int4 carrier")
+	}
+	f.e.mu.Lock()
+	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []ColumnDescriptor{{Name: "x", Usage: typ.Usage()}}, nil)
+	if err == nil {
+		d.acl = stage.creationACL(owner, f.schema, defaultTables)
+		err = f.e.stageRowTypeLocked(stage, d)
+	}
+	f.e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = stage.Create(d); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+func defaultUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) error {
+	t.Helper()
+	p, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		return err
+	}
+	_, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()})
+	return err
+}

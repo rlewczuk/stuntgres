@@ -364,6 +364,8 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP SCHEMA"
 	case *parser.CreateRole:
 		return "CREATE ROLE"
+	case *parser.AlterDefaultPrivileges:
+		return "ALTER DEFAULT PRIVILEGES"
 	case *parser.ObjectGrant:
 		if stmt.(*parser.ObjectGrant).Revoke {
 			return "REVOKE"
@@ -437,7 +439,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true
-	case *parser.RoleMembership, *parser.ObjectGrant:
+	case *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
 		return true
 	}
 	return false

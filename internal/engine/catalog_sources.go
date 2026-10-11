@@ -127,10 +127,8 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
-		owner := e.roles.names["postgres"]
-		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
+		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		d.virtualView = spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
-		d.attributeHighWater = int32(len(d.attributes))
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
 			if !ok {
@@ -170,19 +168,28 @@ func (e *Engine) initializeCatalogSources() error {
 			d.attributes[i] = int32(i + 1)
 			d.index[column.name] = i
 		}
-		if address, ok := e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
-			row := e.state.descriptors[address].(*typeDescriptor)
-			row.owningRelation, row.owner = d.address, owner
-			d.rowType = row.typ.ID()
-			if row.array != 0 {
-				array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
-				array.owningRelation, array.owner = d.address, owner
-			}
-		}
-		e.state.descriptors[d.address] = d
-		e.state.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+		e.registerCatalogSource(d)
 	}
-	return nil
+	return e.initializeTablePrivileges()
+}
+
+func (e *Engine) catalogSourceDescriptor(oid OID, namespace ObjectAddress, name string, count int) *relationDescriptor {
+	owner := e.roles.names["postgres"]
+	return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
+}
+
+func (e *Engine) registerCatalogSource(d *relationDescriptor) {
+	if address, ok := e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
+		row := e.state.descriptors[address].(*typeDescriptor)
+		row.owningRelation, row.owner = d.address, d.owner
+		d.rowType = row.typ.ID()
+		if row.array != 0 {
+			array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
+			array.owningRelation, array.owner = d.address, d.owner
+		}
+	}
+	e.state.descriptors[d.address] = d
+	e.state.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {

@@ -279,6 +279,7 @@ const (
 	TruncatePrivilege
 	ReferencesPrivilege
 	TriggerPrivilege
+	ExecutePrivilege
 )
 
 type ACLGrantee struct {
@@ -600,6 +601,14 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 		mask = columnGrantPrivileges
 	}
 	if actorExists && actor.Superuser {
+		return mask, nil
+	}
+	// PostgreSQL's own TEMP namespace follows the physical backend, not the
+	// current role. Keep this ordinary namespace authority separate from object
+	// ACLs, namespace ownership and delegation, and from private maintenance.
+	if ns, ok := d.(*namespaceDescriptor); ok && !grantOptions && v.session != nil &&
+		v.session.token != (SessionToken{}) && v.session.token.owner == v.engine &&
+		v.session.token.private == nil && ns.temporary == v.session.token {
 		return mask, nil
 	}
 	principals := []PrincipalRef{v.state.CurrentUser}

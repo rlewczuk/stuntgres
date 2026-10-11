@@ -240,6 +240,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 }
 
 func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalogChanges) {
+	e.stageDefaultChangesLocked(stage, changes)
 	for a, rowShape := range stage.rowShapes {
 		shape, exists := changes.storage[a]
 		if !exists {

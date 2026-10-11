@@ -73,6 +73,8 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 	switch s := stmt.(type) {
 	case *parser.ObjectGrant:
 		return e.objectGrantLocked(op, v, s)
+	case *parser.AlterDefaultPrivileges:
+		return e.alterDefaultPrivilegesLocked(op, v, s)
 	case *parser.RoleMembership:
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
@@ -186,8 +188,14 @@ func descriptorRoleDependencies(d Descriptor, ref PrincipalRef, deps *[]roleDepe
 		}
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
-		// Internal row/array ownership belongs to the parent relation.
-		return false
+		// Dependent row/array ownership belongs to the relation; independent
+		// composite types still carry their own named ACL dependency.
+		if !typ.typ.IsComposite() {
+			return false
+		}
+		if typ.owner == ref {
+			return false
+		}
 	}
 	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == indexRelation {
 		// Index ownership belongs to its validated parent relation.
@@ -388,6 +396,7 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 		for _, object := range v.catalog.state.descriptors {
 			descriptorRoleDependencies(object, ref, &dependencies)
 		}
+		defaultRoleDependencies(v.catalog, v.roles, ref, &dependencies)
 		for _, edge := range retained {
 			if edge.Grantor == ref {
 				member, _ := v.roles.Descriptor(edge.Member)

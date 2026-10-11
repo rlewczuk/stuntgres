@@ -406,6 +406,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		copy(d.attributes, old.attributes)
 		d.index = make(map[string]int, len(d.columns))
 	}
+	if old == nil {
+		d.acl = stage.creationACL(d.owner, d.namespace, defaultTables)
+	}
 	if scope.viewPersistence == "temporary" {
 		definition.consumer = d.address
 	}

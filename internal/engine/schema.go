@@ -100,6 +100,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.ofType = b.createOfType.Address()
 		stage.domainBases = append(stage.domainBases, b.createOfType)
 	}
+	d.acl = stage.creationACL(owner, ns, defaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
@@ -429,6 +430,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 		ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: name, revision: rev, owner: owner}
+		ns.acl = stage.creationACL(owner, ObjectAddress{}, defaultSchemas)
 		if err = stage.Create(ns); err != nil {
 			return nil, err
 		}

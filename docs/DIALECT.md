@@ -363,7 +363,7 @@ columns, including empty/filtered sources. MAINTAIN authorizes actual REINDEX;
 TRUNCATE authorizes TRUNCATE TABLE as well as an existing LOCK alternative.
 REFERENCES authorizes FK declarations; TRIGGER has no native command consumer.
 Table grants never confer sequence privileges, including SERIAL defaults.
-Sequence/other-object grants, defaults and native explicit-transaction object
+Sequence/other-object direct grants and native explicit-transaction object
 utilities remain excluded. Native explicit-ACL Dump
 rejects before output; Restore's whitelist is unchanged.
 REFERENCES retains its canonical reserved-word category and also introduces
@@ -377,6 +377,45 @@ Feature smoke (900 seconds each):
 The selected revocation path has corresponding
 `make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'` gates.
+
+### Default privileges — change note
+
+ALTER DEFAULT PRIVILEGES accepts FOR ROLE/USER, global or IN SCHEMA GRANT/REVOKE,
+ALL, PUBLIC/GROUP/current/session role forms, grant options and CASCADE/RESTRICT
+for TABLES, SEQUENCES, FUNCTIONS/ROUTINES, TYPES, SCHEMAS and LARGE OBJECTS.
+All classes have real creator-scoped catalog policy and DROP ROLE dependencies;
+FUNCTIONS/ROUTINES are aliases. Only existing creation providers apply it:
+tables/views/materialized views, explicit/SERIAL/IDENTITY sequences, standalone
+types and explicit schemas. No routine/large-object providers or direct
+non-table grants are introduced. Actual creation owner selects defaults, not
+inherited roles; named-owner schemas and contained objects use their named owner.
+Dependent rowtypes/generated arrays use hardwired type baselines, not independent
+TYPES defaults, and array use retains element authorization.
+Enum-array SQL storage remains an explicit native 0A000 boundary. The owning
+physical session retains ordinary TEMP namespace USAGE/CREATE after actor
+switches; table ACLs, ownership, delegation and peer isolation remain independent.
+
+Scoped grants add to global defaults; scoped revocation never subtracts globals.
+IN SCHEMA is invalid for SCHEMAS/LARGE OBJECTS; columns, duplicate clauses and
+malformed/singular/object-target syntax retain PostgreSQL diagnostics. Self,
+superuser or all-INHERIT privileges-of target authorizes alteration, not SET-only,
+ADMIN or schema ownership. Prepare is effect/name-resolution free; Execute
+publishes one atomic candidate and does not rewrite older objects. Stored empty
+globals remain policy/dependency state, but an empty creation merge falls back
+to hardwired rights; actual-object explicit emptiness does not.
+
+The genuine bounded information_schema.table_privileges source reports visible
+ACL origins and seven ordinary bits, excluding MAINTAIN, column-only grants,
+sequences/MVs/indexes/composite backing relations. Visibility uses grantor OR
+grantee privileges-of OR PUBLIC, not schema/table-use filters. Existing NAME,
+unsized VARCHAR and VARCHAR(3) carriers are used; no new domains or ACLITEM codec.
+Uncast projections expose those carriers directly, without adding TEXT casts.
+Native explicit-transaction utility limits remain; Dump rejects nonempty policy
+before bytes, Restore rejects the utility, and Reset clears policy but retains
+roles/membership. See [authorization](AUTHORIZATION.md#default-privileges--change-note).
+Feature smoke: `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
+and the same command with `REFERENCE=1` (external 900 seconds each).
+
 
 ### SQL prepared statements — change note
 

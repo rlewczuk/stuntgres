@@ -93,7 +93,7 @@ func defaultDomainACL(d *typeDescriptor) bool {
 			options |= entry.GrantOptions
 		}
 	}
-	return public == UsagePrivilege && owner == UsagePrivilege && options == UsagePrivilege
+	return public == UsagePrivilege && owner == UsagePrivilege && options == 0
 }
 
 // Catalog rendering resolves the captured namespace, including renamed schemas;

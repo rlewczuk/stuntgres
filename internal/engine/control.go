@@ -65,6 +65,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return err
 	}
+	if len(e.state.defaultACLs) != 0 {
+		e.mu.Unlock()
+		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
+	}
 	var invalid *relationDescriptor
 	var invalidSchema string
 	for _, descriptor := range e.state.descriptors {

@@ -164,6 +164,7 @@ type catalogState struct {
 	namespaceGeneration uint64
 	descriptors         map[ObjectAddress]Descriptor
 	names               map[NameKey]ObjectAddress
+	defaultACLs         map[defaultACLKey]*defaultACLRecord
 	// Replacement-candidate-only translation, cleared before publication.
 	// Keys are exact source codecs, never numeric identity coincidences.
 	enumImports map[*sqltype.Descriptor]*sqltype.Descriptor
@@ -506,6 +507,8 @@ type CatalogStage struct {
 	base                 CatalogRead
 	descriptors          map[ObjectAddress]Descriptor
 	names                map[NameKey]ObjectAddress
+	defaultACLs          map[defaultACLKey]*defaultACLRecord
+	defaultReads         map[defaultACLKey]*defaultACLRecord
 	touched              map[NameKey]ObjectAddress
 	removals             map[ObjectAddress]catalogRemoval
 	rowShapes            map[ObjectAddress]catalogRowShape
@@ -780,6 +783,9 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		s.removals = make(map[ObjectAddress]catalogRemoval)
 	}
 	s.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
+	if namespace {
+		s.removeSchemaDefaults(ref.Address)
+	}
 	// A removal retires any rebound private candidate as well as its base
 	// generation. Preserve the original removal/name observations, but do not
 	// resurrect or validate that candidate beside a same-named replacement.
@@ -842,7 +848,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	for k, v := range s.names {
 		ns[k] = v
 	}
-	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns}}
+	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs)}}
 }
 func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil {
@@ -951,6 +957,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
 		current := e.state
+		if err := s.defaultPreflight(current); err != nil {
+			e.mu.Unlock()
+			return ChangeSet{}, err
+		}
 		currentStorage := e.storage
 		if p.epoch != current.epoch || token.Epoch != current.epoch {
 			e.mu.Unlock()
@@ -1101,6 +1111,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		e.mu.Unlock()
 		next := cloneCatalog(current)
+		next.defaultACLs = overlayDefaultACLs(current.defaultACLs, s.defaultACLs)
 		storage := make(map[ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
 		for a, v := range currentStorage {
 			storage[a] = v
@@ -1282,6 +1293,9 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		err := p.ctx.Err()
 		if err == nil && op != nil {
 			err = publicationOperationLocked(e, op)
+		}
+		if err == nil {
+			err = validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, next})
 		}
 		if err == nil {
 			for _, d := range s.descriptors {
@@ -1525,6 +1539,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 			return ChangeSet{}, err
 		}
+		if err := validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, next}); err != nil {
+			return ChangeSet{}, err
+		}
 		nextRevision := e.nextRevision
 		for _, d := range next.descriptors {
 			if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
@@ -1635,6 +1652,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 		return ChangeSet{}, err
 	}
+	if err := validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, next}); err != nil {
+		return ChangeSet{}, err
+	}
 	nextRevision := e.nextRevision
 	for _, d := range next.descriptors {
 		if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
@@ -1686,6 +1706,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 
 func cloneCatalog(s *catalogState) *catalogState {
 	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[NameKey]ObjectAddress, len(s.names))}
+	n.defaultACLs = s.defaultACLs
 	for k, v := range s.descriptors {
 		n.descriptors[k] = v
 	}

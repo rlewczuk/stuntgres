@@ -11,6 +11,9 @@ type catalogChanges struct {
 	originals          map[ObjectAddress]Descriptor
 	descriptors        map[ObjectAddress]Descriptor
 	names              map[NameKey]ObjectAddress
+	defaultACLs        map[defaultACLKey]*defaultACLRecord
+	defaultOriginals   map[defaultACLKey]*defaultACLRecord
+	defaultReads       map[defaultACLKey]*defaultACLRecord
 	generators         map[ObjectAddress]*sequenceGenerator
 	storage            map[ObjectAddress]catalogStorageChange
 	uniqueRoots        map[ObjectAddress]*logicalIndexRoot
@@ -39,6 +42,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	if c == nil {
 		return n
 	}
+	cloneDefaultChanges(c, n)
 	if c.enumCreated != nil {
 		n.enumCreated = make(map[ObjectAddress]bool, len(c.enumCreated))
 		for a, v := range c.enumCreated {
@@ -103,12 +107,13 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	if c.cachedBase == e.state && c.cached.state != nil {
 		return c.cached
 	}
-	if len(c.descriptors) == 0 {
+	if len(c.descriptors) == 0 && len(c.defaultACLs) == 0 {
 		c.cachedBase = e.state
 		c.cached = CatalogRead{e, e.state}
 		return c.cached
 	}
 	n := cloneCatalog(e.state)
+	n.defaultACLs = overlayDefaultACLs(e.state.defaultACLs, c.defaultACLs)
 	for a, d := range c.descriptors {
 		if old := n.descriptors[a]; old != nil {
 			delete(n.names, descriptorNameKey(old))
@@ -200,6 +205,16 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.rolesBase != nil && e.roles != c.rolesBase {
 		return CatalogConflict{}
+	}
+	if !defaultRecordsUnchanged(e.state, c.defaultOriginals) || !defaultRecordsUnchanged(e.state, c.defaultReads) {
+		return CatalogConflict{}
+	}
+	roles := e.roles
+	if c.roles != nil {
+		roles = c.roles
+	}
+	if err := validateDefaultACLs(RoleRead{e, roles}, e.privateCatalogLocked(c)); err != nil {
+		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {
 		return err

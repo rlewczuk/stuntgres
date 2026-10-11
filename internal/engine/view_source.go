@@ -48,6 +48,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			roles := scope.commentRoles
 			e.mu.Unlock()
 			return capturePGGroup(ctx, roles, ref, d)
+		case tablePrivilegesOID:
+			source, err := captureTablePrivileges(ctx, scope.commentCatalog, scope.deparseAuth, scope.op.session.databaseName, ref, d)
+			e.mu.Unlock()
+			return source, err
 		}
 		if d.virtualView {
 			e.mu.Unlock()

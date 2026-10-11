@@ -255,6 +255,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		columns := e.sequenceColumnsLocked()
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
+		d.acl = e.creationACLChangesLocked(changes, auth.catalog, d.owner, d.namespace, defaultSequences)
 		d.attributeHighWater = 3
 		for _, option := range s.Options {
 			if option.Name == "owned" {

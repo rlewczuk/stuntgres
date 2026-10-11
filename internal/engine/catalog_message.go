@@ -65,6 +65,9 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, current *catalogState, authority *catalogAuthority) error {
+	if err := s.defaultPreflight(current); err != nil {
+		return err
+	}
 	if r := s.materializedReplacement; r != nil {
 		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.original.address)); err != nil {
 			return err

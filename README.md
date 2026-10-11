@@ -1143,7 +1143,7 @@ GRANTED BY/current-user and per-ACL dependency semantics are documented in
 Merged column requests follow stable attribute order, including duplicate and
 reversed lists. Enumerating all four column privileges has the same partial-option
 warning suppression as column ALL; zero-option requests still warn.
-Sequence/other-object grants, defaults and native explicit-transaction
+Sequence/other-object direct grants and native explicit-transaction
 object utilities remain excluded; explicit ACL Dump fails before output.
 Feature smoke (900 seconds each):
 `make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`;
@@ -1151,6 +1151,30 @@ Feature smoke (900 seconds each):
 Selected revoke smoke:
 `make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'`;
 `make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'`.
+
+Change note: `ALTER DEFAULT PRIVILEGES` stores global and schema-scoped defaults
+for TABLES, SEQUENCES, FUNCTIONS/ROUTINES, TYPES, SCHEMAS and LARGE OBJECTS.
+Only subsequently created supported tables/views/materialized views, sequences,
+standalone types and explicit schemas consume them. No routine or large-object
+creation provider is introduced. Creation uses its actual effective owner, not
+inherited roles' defaults; schema grants add to global grants, and schema REVOKE
+cannot subtract global or hardwired rights. Owner grant authority remains
+implicit even when ordinary owner use is revoked. Stored global empty ACLs remain
+real policy/dependency state, although an empty creation merge falls back to
+hardwired rights; revoking all privileges on an actual object remains truly empty.
+`information_schema.table_privileges` exposes seven ordinary table privilege
+bits per visible grantor/grantee origin using existing NAME/VARCHAR carriers,
+not effective-rights summaries or a new ACLITEM/domain implementation.
+Read those carriers uncast; no additional TEXT casts or enum-array storage are
+introduced. Ordinary namespace rights for an owning physical session's TEMP
+schema survive actor switches, without bypassing table ACLs or peer isolation.
+Default utilities retain native explicit-transaction boundaries; nonempty
+default policy makes Dump fail before output, Restore rejects the utility, and
+Reset clears policy while retaining roles/membership. See
+[default privilege contracts](docs/AUTHORIZATION.md#default-privileges--change-note).
+Feature smoke: `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
+and the same command with `REFERENCE=1` (900 seconds each).
+
 
 Change note: role membership GRANT/REVOKE supports ADMIN/INHERIT/SET options,
 independent grantor origins, source-aware CASCADE/RESTRICT and cycle prevention.

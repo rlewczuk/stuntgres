@@ -422,12 +422,15 @@ and TRIGGER is stored/delegated without introducing trigger commands.
 Table INSERT does not
 grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas
 IDENTITY's internal generation remains supported. Direct sequence grants,
-including TABLE syntax resolving a sequence, remain native `0A000`; schema/type/
-routine grants and defaults are outside this surface.
+including TABLE syntax resolving a sequence, remain native `0A000`; direct
+schema/type/routine grants are outside this surface. Creation-time defaults are
+described separately below.
 Object utilities remain unsupported in native explicit read-write transactions.
 Read-only execution first fails `25006` for GRANT/REVOKE, before object lookup.
 Explicit relation/column ACLs make native Dump fail before output; Restore does
-not accept GRANT/REVOKE, and Reset removes object ACLs while retaining roles/membership.
+not accept GRANT/REVOKE. Reset replaces persistent objects and their ACLs while
+retaining roles, membership and the existing live-TEMP object/ACL preservation
+contract.
 
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`
@@ -437,8 +440,133 @@ The revoke counterpart selects `TestReferenceRoleRevokeFeatureSmoke` with the
 same native and `REFERENCE=1` commands. See [testing](TESTING.md) for the bounded
 family selectors and root-owned standalone revoke smoke.
 
-New tables belong to current_user and have owner use rights, with no PUBLIC
-table privileges. Central checks cover schema CREATE/USAGE, all actually used
+## Default privileges — change note
+
+```sql
+ALTER DEFAULT PRIVILEGES
+  [FOR {ROLE | USER} creator [, ...]]
+  [IN SCHEMA schema [, ...]]
+  GRANT {privilege [, ...] | ALL [PRIVILEGES]}
+  ON {TABLES | SEQUENCES | FUNCTIONS | ROUTINES | TYPES | SCHEMAS | LARGE OBJECTS}
+  TO grantee [, ...] [WITH GRANT OPTION];
+ALTER DEFAULT PRIVILEGES
+  [FOR {ROLE | USER} creator [, ...]]
+  [IN SCHEMA schema [, ...]]
+  REVOKE [GRANT OPTION FOR] {privilege [, ...] | ALL [PRIVILEGES]}
+  ON {TABLES | SEQUENCES | FUNCTIONS | ROUTINES | TYPES | SCHEMAS | LARGE OBJECTS}
+  FROM grantee [, ...] [CASCADE | RESTRICT];
+```
+
+FOR and IN clauses may appear in either order; duplicate clauses fail `42601`
+at the second introducer, while repeated names are legal. Columns fail `0LP01`;
+singular classes, object names, ON ALL TABLES IN SCHEMA and GRANTED BY are not
+default-privilege syntax. IN SCHEMA is invalid for SCHEMAS and LARGE OBJECTS.
+Grantees use the existing PUBLIC/GROUP/current-user/session-user role forms.
+PUBLIC cannot receive grant options; option-only revoke from PUBLIC is legal.
+TABLES has all eight table bits, SEQUENCES has SELECT/UPDATE/USAGE, routines have
+EXECUTE, TYPES has USAGE, SCHEMAS has CREATE/USAGE, and LARGE OBJECTS has
+SELECT/UPDATE. FUNCTIONS and ROUTINES address the same stored class.
+Unquoted privilege names fold to lowercase; quoted names must match the exact
+lowercase recognized spelling, so `"select"` is valid but `"SELECT"`, `"Select"`,
+`"Usage"`, `"TEMP"` and `"TEMPORARY"` fail `42601` with the original spelling in
+the unrecognized-privilege diagnostic. A rejected name publishes no defaults.
+Recognized unquoted or quoted lowercase temp/temporary remain invalid for these
+classes; both report the canonical privilege spelling TEMP in the `0LP01`
+diagnostic.
+
+Omitted creators mean the current effective role. Self, superuser and an
+all-INHERIT privileges-of path may alter a target's defaults; SET-only, ADMIN
+or schema ownership alone are insufficient (`42501`). Altering defaults in an
+existing schema does not require its USAGE or CREATE privilege; actual object
+creation still requires normal namespace authority. Every default origin's
+grantor is the target creator, not the issuing member/superuser. Prepare performs
+syntax/full-input admission only; Execute resolves fresh roles and schemas.
+Duplicate clauses, all grantees and privilege/column validation precede creator
+authority. Each schema is then resolved and its class/PUBLIC-option restrictions
+checked before its private ACL update, before resolving the next schema.
+An invalid action on an existing first schema therefore precedes a missing
+second schema; reversing the list reports the missing schema first. Every
+creator/schema action shares one unpublished candidate. A late error or native
+cooperative cancellation publishes no earlier change. A changed statement
+advances authorization once; canonical no-ops do not.
+
+Defaults are separate immutable catalog policy, never retroactive object grants.
+Global defaults replace the class's hardwired baseline; scoped defaults add
+matching origin bits to the global result. Scoped REVOKE undoes scoped grants
+only: global SELECT plus scoped INSERT still permits SELECT after scoped
+REVOKE SELECT. Ordinary owner bits in the baseline have zero stored options;
+ownership/inherited ownership still supplies implicit grant authority.
+Stored fully empty global ACLs retain creator dependencies. PostgreSQL18.0's
+creation merge of empty global and absent/empty scoped ACL becomes absent,
+restoring hardwired object rights. With nonempty scoped grants it instead
+materializes only those grants, without ordinary owner rights. This creation-only
+normalization does not turn an actual object's explicit REVOKE ALL into owner use.
+
+Existing creation providers consume only their own class: ordinary/TEMP/LIKE/
+inherited/partitioned tables, CTAS/SELECT INTO/materialized views and new views
+consume TABLES; explicit/TEMP/SERIAL/IDENTITY sequences consume SEQUENCES.
+CREATE OR REPLACE VIEW retains the existing view ACL. Standalone enum, simple
+domain and composite bases consume TYPES; dependent table/view/MV rowtypes and
+generated associated arrays instead retain explicit hardwired PUBLIC/owner USAGE,
+without independently consulting TYPES or copying selected named ACL origins.
+Relation ownership transfer remaps both dependent rowtype and array ACL ownership
+origins to the new owner, merging collisions without consulting current TYPES
+defaults. Retained snapshots, unrelated origins and absent versus explicit-empty
+ACLs stay unchanged; stale origins must not prevent the former owner's retirement.
+Array use follows the existing element-authority redirect; enum-array SQL
+storage remains a native 0A000 capability boundary. Explicit/named-owner schemas
+consume SCHEMAS; contained objects use that named owner, not the issuer.
+Automatic TEMP namespaces do not consume SCHEMAS. Ordinary USAGE/CREATE for the
+exact owning physical session's TEMP namespace survives current-role/session-
+authorization switches; it does not grant table rights, namespace ownership or
+delegation, or any peer/private-session namespace authority. Routines/large
+objects have real stored defaults and dependencies, but no new creation providers.
+
+Creator/grantor/recipient dependencies block DROP ROLE even before any object
+exists. Baseline reversal removes the policy dependency, not materialized object
+grants. Schema rename preserves scoped identity; schema drop removes scoped
+policy atomically, retaining globals, and recreation cannot resurrect it.
+Retained messages expose earlier private defaults to later creation and discard
+both on failure. Catalog replacement remaps exact principal and imported schema
+identities privately; persistent projection strips source TEMP-scoped directives,
+while live target TEMP objects retain their materialized ACLs. Physical TEMP
+namespace retirement removes its scoped directives too.
+
+`information_schema.table_privileges` is a bounded genuine source over supported
+ordinary/partitioned tables, views and existing catalog relations. It reports one
+row per stored grantor/grantee/ordinary-bit origin; absent table ACLs show the
+hardwired owner, explicit empty ACLs show no rows. Its seven bits exclude MAINTAIN,
+column-only grants, sequences, materialized views, indexes and composite backing
+relations. Visibility is privileges-of grantor OR grantee OR PUBLIC, not namespace
+USAGE/table SELECT. No inherited-member origin is invented. `is_grantable` is YES
+for stored options or grantee privileges-of owner; `with_hierarchy` is YES only
+for SELECT. Each execution captures one catalog/roles/actor snapshot; held
+statements refresh and already returned rows remain stable.
+
+The first five columns (grantor, grantee, table_catalog, table_schema, table_name)
+use NAME; privilege_type is unsized VARCHAR and is_grantable/with_hierarchy are
+VARCHAR(3), using C collation. This uses existing carriers, not new information-
+schema domains. Native unsized VARCHAR Length is MaxInt64/true; lib/pq's unsized
+character_data transport reports -5/true, while both three-character columns
+report 3/true. The actual current database supplies table_catalog.
+Read these carriers directly; general NAME/VARCHAR-to-TEXT casts are not added.
+
+Default utilities affect zero rows and retain native explicit-transaction
+exclusions: read-only Execute fails `25006` before lookup; read-write utility
+execution remains `0A000` (PostgreSQL supports transactional defaults). Dump
+rejects any nonempty default policy, including stored empty or missing-provider
+records, before output. Restore's whitelist rejects ALTER DEFAULT PRIVILEGES;
+Reset clears all default policy and replaces persistent objects/ACLs while
+retaining roles, membership and live TEMP objects with their materialized ACLs.
+No direct non-table grants, privilege predicates, pg_default_acl/relacl exposure,
+ACLITEM codecs, richer type constraints or routine/large-object providers are added.
+Feature smoke: `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`.
+See [testing](TESTING.md) for complete selected proof and standalone smoke.
+
+
+New tables belong to current_user. Without changed creation defaults they have
+owner use rights and no PUBLIC table privileges. Central checks cover schema CREATE/USAGE, all actually used
 SELECT projection/predicate/order columns, assigned INSERT/UPDATE columns, and UPDATE RHS/WHERE reads.
 When a SELECT or INSERT column manifest is empty, table privileges or the
 corresponding privilege on **any live column** suffice. Empty/filtered INSERT

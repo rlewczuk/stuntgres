@@ -278,6 +278,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		delete(next.names, descriptorNameKey(next.descriptors[a]))
 		delete(next.descriptors, a)
 	}
+	pruneRemovedNamespaceDefaults(stage.base.state, next)
 	nextRevision := e.nextRevision
 	for _, descriptor := range stage.descriptors {
 		if revision := descriptorRevisionFrontier(descriptor); revision >= nextRevision {

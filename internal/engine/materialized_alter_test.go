@@ -48,6 +48,11 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	root := e.indexRoots[index.address]
 	store := e.storage[d.address]
 	actor := roleAttributeCreate(t, e, op, "mv_next", true, parser.RoleOptions{})
+	oldRow := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}].(*typeDescriptor)
+	oldArray := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(oldRow.array)}].(*typeDescriptor)
+	rowACL, arrayACL := oldRow.acl, oldArray.acl
+	rowACL.Entries = slices.Clone(rowACL.Entries)
+	arrayACL.Entries = slices.Clone(arrayACL.Entries)
 	stmt := &parser.AlterView{Materialized: true, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}, Action: "owner", Target: parser.Identifier{Text: "mv_next"}}
 	if err := extensionUnitExecute(t, e, op, stmt); err != nil {
 		t.Fatal(err)
@@ -59,8 +64,25 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	if next.owner != actor.Ref || attached.owner != actor.Ref || row.owner != actor.Ref || array.owner != actor.Ref || d.owner == actor.Ref || index.owner == actor.Ref || attached.sqlIndex != index.sqlIndex || e.indexRoots[index.address] != root || e.storage[d.address] != store {
 		t.Fatal("owner group not coherent or roots rebuilt")
 	}
-	if next.acl.Explicit || attached.acl.Explicit || row.acl.Explicit || array.acl.Explicit {
-		t.Fatal("implicit owner defaults became explicit ACLs")
+	expected := []ACLEntry{
+		{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: UsagePrivilege},
+		{Grantor: actor.Ref, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
+	}
+	for _, typ := range []*typeDescriptor{row, array} {
+		if len(typ.acl.Entries) != len(expected) {
+			t.Fatal("dependent type lost or added ACL origins", typ.Name(), typ.acl)
+		}
+		for _, entry := range expected {
+			if !slices.Contains(typ.acl.Entries, entry) {
+				t.Fatal("dependent type ACL ownership origin not transferred", typ.Name(), typ.acl)
+			}
+		}
+		if descriptorRoleDependencies(typ, d.owner, nil) {
+			t.Fatal("dependent type prevents former owner's retirement", typ.Name())
+		}
+	}
+	if row == oldRow || array == oldArray || oldRow.owner != d.owner || oldArray.owner != d.owner || !reflect.DeepEqual(oldRow.acl, rowACL) || !reflect.DeepEqual(oldArray.acl, arrayACL) {
+		t.Fatal("ownership transfer mutated retained dependent type ACL snapshots")
 	}
 }
 func TestMaterializedAlterExtensionAuthority(t *testing.T) {

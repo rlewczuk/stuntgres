@@ -62,7 +62,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}, {Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Role: auth.state.CurrentUser}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege}}}
+	acl := stage.creationACL(auth.state.CurrentUser, ns.Address, defaultTypes)
 	arrayOID, err := e.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -74,5 +74,5 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, array: array.ID()}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl})
+	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: defaultBaseline(auth.state.CurrentUser, defaultTypes, false)})
 }

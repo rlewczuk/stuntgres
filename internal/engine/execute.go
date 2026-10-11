@@ -78,7 +78,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant:
+	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
 		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 			return e.executeDatabaseGrant(scope, grant, count)
 		}

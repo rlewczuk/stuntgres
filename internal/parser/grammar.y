@@ -85,6 +85,9 @@ package parser
  grantGrantees []GrantGrantee
  grantGrantee GrantGrantee
  objectGrant *ObjectGrant
+ defaultPrivileges *AlterDefaultPrivileges
+ defaultOptions []DefaultPrivilegesOption
+ defaultOption DefaultPrivilegesOption
  settingName settingName
  tables []*CreateTable
  table *CreateTable
@@ -572,6 +575,11 @@ package parser
 %type <tok> merge_target_class
 %type <tok> merge_excluded_action
 %type <stmt> role_membership
+%type <stmt> alter_default_privileges
+%type <defaultPrivileges> default_privileges_action
+%type <defaultOptions> default_privileges_options
+%type <defaultOption> default_privileges_option
+%type <tok> default_privileges_class
 %type <roleSpec> membership_role_spec membership_role_name
 %type <roleSpecs> membership_role_specs membership_role_names
 %type <membershipOptions> membership_options membership_option_list
@@ -610,6 +618,7 @@ tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | truncate_table
+ | alter_default_privileges
  | copy
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
@@ -2257,6 +2266,35 @@ role_membership: GRANT grant_privileges TO membership_role_specs membership_opti
  }
  | REVOKE GRANT OPTION FOR grant_privileges ON grant_targets FROM grant_grantees membership_grantor drop_behavior {
  g:=$7;g.Privileges=$5;g.Grantees=$9;g.Grantor=$10;g.Revoke=true;g.OptionOnly=true;g.Cascade=$11;$$=g
+ } ;
+alter_default_privileges: ALTER DEFAULT name default_privileges_options default_privileges_action {
+ if $3.text!="privileges" || $3.keyword==nil {sqllex.(*lexer).syntax($3);return 1}
+ s:=$5;s.Options=$4;$$=s
+ } ;
+default_privileges_options: /* empty */ {$$=nil}
+ | default_privileges_options default_privileges_option {$$=append($1,$2)} ;
+default_privileges_option: FOR ROLE membership_role_specs {$$=DefaultPrivilegesOption{Pos:$1.pos,Roles:$3}}
+ | FOR USER membership_role_specs {$$=DefaultPrivilegesOption{Pos:$1.pos,Roles:$3}}
+ | IN SCHEMA grant_schema_list {$$=DefaultPrivilegesOption{Pos:$1.pos,Schemas:$3}} ;
+default_privileges_class: name {
+ if $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1}
+ switch $1.text {case "tables","sequences","functions","routines","types","schemas":case "large":sqllex.(*lexer).Error("");return 1;default:sqllex.(*lexer).syntax($1);return 1};$$=$1
+ }
+ | name name {
+ if $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1}
+ if $1.text!="large" {
+  switch $1.text {case "tables","sequences","functions","routines","types","schemas":sqllex.(*lexer).syntax($2);default:sqllex.(*lexer).syntax($1)};return 1
+ }
+ if $2.text!="objects" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.text="large objects"
+ } ;
+default_privileges_action: GRANT grant_privileges ON default_privileges_class TO grant_grantees grant_option {
+ $$=&AlterDefaultPrivileges{Class:$4.text,Privileges:$2,Grantees:$6,GrantOption:$7}
+ }
+ | REVOKE grant_privileges ON default_privileges_class FROM grant_grantees drop_behavior {
+ $$=&AlterDefaultPrivileges{Class:$4.text,Privileges:$2,Grantees:$6,Revoke:true,Cascade:$7}
+ }
+ | REVOKE GRANT OPTION FOR grant_privileges ON default_privileges_class FROM grant_grantees drop_behavior {
+ $$=&AlterDefaultPrivileges{Class:$7.text,Privileges:$5,Grantees:$9,Revoke:true,OptionOnly:true,Cascade:$10}
  } ;
 grant_privileges: grant_privilege { $$=[]GrantPrivilege{$1} }
  | grant_privileges ',' grant_privilege { $$=append($1,$3) } ;
