@@ -92,7 +92,7 @@ MAINTAIN drives real REINDEX INDEX/TABLE and AX LOCK exclusion through existing
 authorization/transaction seams. Supported settings remain readable but
 monitoring grants do not change protected SET gates. Statistics/scan extensions,
 OS files/programs, physical checkpoints, subscriptions/replication, PostgreSQL
-PID signaling, reserved slots and native RLS execution remain unavailable;
+PID signaling, reserved slots and policy-expression enforcement remain unavailable;
 CHECKPOINT and CREATE SUBSCRIPTION explicitly fail0A000 rather than succeeding
 as no-ops. Reset/Restore retain the shared roles and deliberately revoked monitor
 edges; local public ownership/ACL references remap by validated identity.
@@ -150,14 +150,24 @@ roles, independently of trusted ownership/provider authorization. Dump emits
 the resolved named target occurrences, including duplicates; Restore leaves
 the caller's session identity unchanged.
 
-**This is native metadata support only.** No row-security enablement/force
-toggles, read filtering, proposed-row checking, BYPASSRLS enforcement or native
-default-deny behavior is added. Dropping the last native policy leaves ordinary
-reads/writes unchanged. Native policy utilities are autocommit-only
-(`0A000` in explicit transactions); read-only execution fails `25006`.
-PostgreSQL transactional DDL and enabled-table default-deny are independently
-witnessed differences, not native enforcement claims. No policy catalog
-projection, wire server or physical persistence is implied.
+Policy expressions remain metadata only; row-security flags/default deny/bypass
+are implemented separately. `ALTER TABLE [IF EXISTS] [ONLY] table [*]
+ENABLE | DISABLE | FORCE | NO FORCE ROW LEVEL SECURITY` supports action lists
+and independent enabled/forced flags on ordinary and partitioned named tables.
+Flags do not recurse to children and require owner authority/AccessExclusive
+locking even for no-ops. Disabled tables use ordinary ACLs; enabled tables
+exclude existing rows/reject demanded proposals when no applicable permissive
+expression exists. Owners bypass unless FORCE; direct superuser/BYPASSRLS bypass
+even FORCE, but special attributes are never inherited and never grant ACLs.
+Applicable expressions, even constant TRUE/FALSE/NULL, require the unavailable
+FILTER/CHECK/COMBINATION capability and fail Execute0A000
+`row-security policy expression enforcement is unsupported`, with empty optional
+diagnostic fields. Prepare is effect-free; empty INSERT SELECT has no proposal.
+Flag ALTERs support transactions/savepoints; policy DDL remains autocommit-only
+(`0A000` in explicit transactions), and modifying read-only execution fails25006.
+Dump/Restore preserves policy metadata, raw rows and all flag combinations,
+including disabled+forced. No row_security setting, full policy catalog,
+expression evaluator, wire server or physical persistence is implied.
 
 
 ### Table and column grants — change note
@@ -1119,8 +1129,9 @@ the explicitly represented nine system tables/eight system views, including
 pg_matviews, pg_user, pg_roles and pg_group; this does not
 promise a full PostgreSQL catalog inventory or change `pg_class` kinds.
 Tables retain sticky index-publication history after DROP. Native admitted user
-tables have default NULL tablespace and false rule/trigger/RLS states; no success
-stub is added for unsupported DDL. Released builtin flags/tablespaces and complete
+tables have default NULL tablespace and false rule/trigger states; rowsecurity
+reports actual enablement. No success stub is added for unsupported DDL.
+Released builtin flags/tablespaces and complete
 system-view SELECT definitions are sourced compatibility metadata, not invented
 native storage/indexes or executable definitions of missing catalogs/functions.
 User definitions remain executable stored structural reconstruction, not original

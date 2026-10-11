@@ -101,6 +101,8 @@ type relationDescriptor struct {
 	notNullConstraints   []notNullConstraint
 	checkConstraints     []checkConstraint
 	policies             []policyDefinition
+	rlsEnabled           bool
+	rlsForced            bool
 	uniqueConstraints    []uniqueConstraint
 	exclusionConstraints []exclusionConstraint
 	defaults             map[int32]columnDefault
@@ -253,6 +255,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if err := validateUsageCollation(v, c.Usage); err != nil {
 			return err
 		}
+	}
+	if (r.rlsEnabled || r.rlsForced) && r.relationKind != tableRelation && r.relationKind != partitionedRelation {
+		return fmt.Errorf("stuntgres: row-security flags require a table")
 	}
 	if err := validatePolicies(v, r); err != nil {
 		return err

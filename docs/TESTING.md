@@ -4486,13 +4486,61 @@ make check RACE=1 RUN='^TestRLSPolicy(Publication|Remap)'
 make check REFERENCE=1 RUN='^TestReferenceRLSPolicyDefaultDenyPostgres$'
 ```
 
-The last selector is intentionally PostgreSQL-only: an enabled table, nonowner
-SELECT grant and removal of its last policy establish genuine default-deny.
-Native policy support is metadata-only, without toggles/filtering/proposed-row
-checks. Do not infer enforcement from owner reads, successful DDL or a native
-round trip. Controls retain explicit native API phases; PostgreSQL independently
+The original last selector is intentionally PostgreSQL-only: its applicable
+USING(TRUE) pre-drop reader witness requires expression enforcement. Shared
+`TestReferenceRLSBaseLastPolicyDrop` separately certifies native last-policy DROP,
+retained enabled/forced flags and actual default deny with honest bypass and
+role-inapplicability before DROP. Metadata-only policy conditions do not certify
+FILTER/CHECK. Controls retain explicit native API phases; PostgreSQL independently
 checks SQL and genuine emitted-stream replay, not an invented Restore API.
 The commands specify required proof, not a claim that all selected checks passed.
+
+## Row-security BASE oracle-first contracts
+
+All BASE public scenarios are untagged, shared direct/prepared bodies under
+`reference/roles/rls_base_*_test.go`, with independent schemas, rows, counts and
+complete diagnostic expectations. Root runs these bounded groups once native
+and once with `REFERENCE=1`, external900s each:
+
+```sh
+make check RUN='^TestReferenceRLSBase(FlagTransitions|Diagnostics|Transactions|LocksAndCancellation)$'
+make check RUN='^TestReferenceRLSBase(DefaultDenyAndInputs|BypassAndACL|Applicability|Freshness)$'
+make check RUN='^TestReferenceRLSBase(Writes|Principals)$'
+make check RUN='^TestReferenceRLSBase(PolicyPreservation|PredefinedReadAllData|LastPolicyDrop|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceRLSBase(AuthorityWaits|ProposalPrecedence|ExpressionUses|ControlsReplay|Syntax)$'
+make check RUN='^TestReferenceRLSBase(FreshAuthority|PredefinedNoInherit|InheritanceFlags|ProposedReadConjunction|DefaultAndCoercion|NestedWritablePrincipals)$'
+make check RUN='^TestReferenceRLSBase(MixedAlterBoundary|EmptyExpressionBoundary|SQLPreparedExpressionBoundary|ReadBeforeProposalBoundary)$'
+make check RUN='^TestReference(PredefinedRLSBoundary|PredefinedBoundaryFeatureSmoke|RLSPolicyDefaultDenyPostgres)$'
+make check RUN='^TestRLSBase(Grammar|FlagsAndPublication|Decision|Controls|CancellationAndLocks|OwnerPublicationFreshness|DeniedTargetHistory)$'
+make check RUN='^TestRLSBase(FlagsAndPublication|CancellationAndLocks|OwnerPublicationFreshness|DeniedTargetHistory)$' RACE=1
+make check RUN='^TestReferenceRLSBase(AuthorityWaits|LocksAndCancellation|Freshness|Controls)$' RACE=1
+```
+
+No discovery skips remain in BASE definitions. Applicable-expression scenarios
+assert native Execute0A000 `row-security policy expression enforcement is unsupported`
+(ERROR severities, all optional fields empty), and independently specify pinned
+PG outcomes. TRUE/FALSE/NULL are not native evaluator shortcuts. Restrictive-only,
+omitted qualifiers and role/command-inapplicability really default-deny.
+The review-boundary definitions independently retain successful mixed flag/column
+metadata ALTER, applicable-expression rejection on physically empty input,
+successful SQL PREPARE followed by the EXECUTE boundary, and source/target-read
+enforcement preceding a default-denied INSERT proposal. Native full diagnostics
+remain distinct from PostgreSQL's real query/proposal outcomes; failed writes
+retain exact destination and source rows.
+Virtual generated-column creation retains native Execute0A000; the PG virtual
+proposal witness does not pretend native virtual columns exist. TABLE OWNER TO
+retains native Prepare0A000, while a real private catalog-stage owner publication
+unit checks fresh native owner authority.
+
+Pinned PG18 already-denied held statements remain denied through the tested
+BYPASSRLS/inherited-owner grants; actual unprepared/new handles use current grants.
+Native held execution deliberately remains always fresh. PG active cursors block
+same-session flag ALTER55006; native eager cursor captures remain immutable.
+Do not fabricate matching lifetime/cache behavior. Actual unchanged native Dump
+bytes must replay on pinned PG after production; independently authored flag SQL,
+Dump string inspection or a skipped producer cannot replace that evidence.
+These selectors and expectations describe required proof, not passing evidence.
+
 
 Review-remedy witnesses independently cover semantic aggregate ownership and
 signature/nesting precedence, REGTYPE-only provider RESTRICT/CASCADE and ALTER

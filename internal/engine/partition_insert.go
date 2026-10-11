@@ -124,6 +124,15 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	ref := ObjectRef{owner: state.catalog.owner.owner, Epoch: state.catalog.Epoch(), Address: parent.address}
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.name)).(*sqlstate.Error)
 	err.Schema, err.Table = state.catalog.state.descriptors[parent.namespace].Name(), parent.name
+	// Routing/integrity errors remain real, but an actor subject to RLS must
+	// not receive key values even when ordinary SELECT ACLs are present.
+	decision, securityErr := rowSecurityDecision(state.auth, state.target, state.auth.state.CurrentUser, policyInsert, true)
+	if securityErr != nil {
+		return securityErr
+	}
+	if decision != rlsUnrestricted {
+		return err
+	}
 	rights, checkErr := state.auth.Effective(ref, false)
 	if checkErr != nil {
 		return checkErr

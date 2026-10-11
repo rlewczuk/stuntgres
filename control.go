@@ -97,7 +97,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Table-attached policies are emitted in a final named-owner pass after their
 // persistent providers. Policy conditions remain stored SQL, without evaluation.
 // Persistent policies referencing TEMP objects are rejected before writer I/O.
-// Policy export preserves metadata only; native row-security enforcement is absent.
+// Protected raw rows are exported before independent enabled/forced flag ALTERs;
+// policy-expression enforcement remains unsupported.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -134,7 +135,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // actual named stage-session identities, never the trusted authorization actor.
 // Policy conditions and provider identities remap atomically;
 // live TEMP policies retain their table lifetime and incompatible dependencies
-// refuse replacement. Importing policies does not enable native row security.
+// refuse replacement. Policies and enabled/forced flag ALTERs import independently.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 // Final installation refuses while prepared transactions exist, including entries
 // prepared during reader I/O; refusal preserves the target catalog and resources.

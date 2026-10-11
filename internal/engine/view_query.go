@@ -30,6 +30,10 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 	}
 	catalog = e.privateCatalogLocked(scope.owner.catalog)
 	consumer := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relationPrincipal := consumer.owner
+	if definition.invoker {
+		relationPrincipal = invoker
+	}
 	leaves := make([]queryLeaf, len(definition.sources))
 	for i, leaf := range definition.sources {
 		relation := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
@@ -38,7 +42,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		leaves[i] = queryLeaf{ref: use, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark), analysisOnly: leaf.analysisOnly}
+		leaves[i] = queryLeaf{ref: use, relation: relation, principal: relationPrincipal, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark), analysisOnly: leaf.analysisOnly}
 	}
 	if scope.materializedRefresh && ref == scope.lockedRef {
 		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {

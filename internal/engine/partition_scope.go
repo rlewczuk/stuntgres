@@ -32,6 +32,9 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 			message = "partitioned indexes are unsupported"
 		}
 	case *parser.AlterTable:
+		if rowSecurityActions(s.Actions) {
+			return nil
+		}
 		for _, action := range s.Actions {
 			if action.Action != parser.DropColumn {
 				continue

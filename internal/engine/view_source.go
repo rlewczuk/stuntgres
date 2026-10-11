@@ -5,7 +5,7 @@ import (
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
-// principals affect ACL checks only; the operation remains the original invoker.
+// principals affect ACL and row-security checks; expressions keep the invoker.
 func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker PrincipalRef, mark queryRowMark, locks *queryLockContext) (*querySource, error) {
 	ctx := scope.op.Context()
 	if err := ctx.Err(); err != nil {
@@ -124,6 +124,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		}
 		return source, nil
 	case tableRelation, materializedViewRelation:
+		denied, securityErr := e.rowSecurityInputLocked(scope, d, invoker, policySelect, false)
+		if securityErr != nil {
+			e.mu.Unlock()
+			return nil, securityErr
+		}
 		if d.relationKind == materializedViewRelation && !d.populated {
 			e.mu.Unlock()
 			return nil, materializedViewReadError(d)
@@ -132,6 +137,9 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		e.mu.Unlock()
 		if err != nil {
 			return nil, err
+		}
+		if denied {
+			return captureDeniedQuerySource(view, ref)
 		}
 		return captureQuerySource(ctx, view, ref)
 	case indexRelation:

@@ -188,9 +188,9 @@ missing functions retain independently specified42883 diagnostics and their Hint
 Absent native statistics relations remain42P01. Granted role names never
 manufacture unavailable mechanisms.
 
-Native RLS execution is absent: ALTER TABLE RLS actions fail0A000 without changing
-rows. PostgreSQL-only policy-less RLS witnesses show that these data roles do not
-bypass RLS; they are not native policy-engine parity evidence. Protected locale/
+Genuine predefined data-role privileges do not bypass native row security.
+They provide ordinary ACL use rights; enabled/default-denied tables remain
+empty for readers and reject demanded proposals for writers. Protected locale/
 logging SET gates likewise stay unchanged for monitoring roles.
 
 Canonical public namespace ownership and owner/grantor/grantee ACL provenance use
@@ -708,8 +708,8 @@ or bypass ordinary CREATE INDEX authority.
 
 ## Row-security policy definitions — change note
 
-Policy definitions are table metadata, not ACL grants or native row-security
-enforcement. Names are unique per table; identical names on different tables
+Policy definitions are table metadata, not ACL grants or executable policy
+expressions. Names are unique per table; identical names on different tables
 are independent. CREATE defaults to PERMISSIVE, ALL and PUBLIC. SELECT/DELETE
 policies accept USING only; INSERT policies accept WITH CHECK only; ALL/UPDATE
 accept both. Absent conditions stay absent, including an omitted ALL/UPDATE
@@ -792,8 +792,72 @@ silently rebound to same-name replacements. Supported TEMP collation, sequence
 and row-type providers retain their identities through Reset/Restore; TEMP
 domain creation remains outside the native surface.
 
-**No native filtering, proposed-row checks, enablement/force toggles or
-default-deny enforcement is provided.** The separate pinned PostgreSQL
-default-deny witness uses an enabled table and a nonowner; native metadata
-round trips do not certify that enforcement.
+Policy expressions are not evaluated natively. The BASE flag/default-deny
+contract below uses genuine retained metadata without implementing FILTER/CHECK.
+The original PostgreSQL applicable-USING(TRUE) last-drop companion remains;
+shared BASE last-drop coverage independently exercises native default deny.
+
+## Row-security enablement and default deny — change note
+
+ENABLE/DISABLE and FORCE/NO FORCE ROW LEVEL SECURITY alter two independent
+immutable table flags. FORCE alone does not enable; DISABLE does not clear FORCE
+or remove policies. Flags apply to the named ordinary/partitioned table, not
+children. Owner-authorized AccessExclusive ALTER shares the existing transaction,
+savepoint, cancellation, incarnation and publication fences; no-op ALTER still
+requires authority and the lock. `pg_tables.rowsecurity` is the enabled bit.
+
+Ordinary ACL analysis remains separate and first. Disabled tables are unrestricted
+by RLS. Direct effective superuser/BYPASSRLS principals always bypass, even FORCE;
+membership does not inherit special attributes. Live inherited ordinary-owner
+authority bypasses only without FORCE. Each view layer uses its owner or original
+invoker for both ACL and RLS; current_user/session_user expressions still denote
+the original session actor. Automatically updatable writes retain the physical
+target's per-layer authority. Materialized refresh executes its producer as the
+materialized-view owner; already populated storage is not re-filtered. Named
+partition-parent access uses parent flags, while direct-leaf access uses leaf flags.
+
+Otherwise ALL/matching-command, PUBLIC/live INHERIT role applicability is selected
+from actual policy metadata. A permissive relevant expression is required to
+escape default deny. USING selects existing rows; proposed WITH CHECK falls back
+to USING for ALL/UPDATE only, while SELECT proposed checks use USING. Omitted
+conditions contribute nothing; restrictive-only policies cannot grant access.
+Required classes reflect actual reads/rowmarks/arbiter use as well as mutation.
+A metadata-provable denied conjunct empties that input or rejects that demanded
+proposal without evaluating another same-phase conjunct.
+
+Default-denied relation inputs preserve normal empty-input query semantics
+(count0, outer unmatched rows, scalar NULL), not a blanket empty final result.
+The pinned PostgreSQL planner raises22012 for constant `WHERE 1/0>0` even
+with denied input. Native ordinary arithmetic remains row-owned: that empty
+input returns no rows without evaluating arithmetic. This narrow existing
+phase difference does not suppress errors on demanded rows or change ordinary
+analysis, cast/coercion, preflight or ACL precedence.
+Hidden UPDATE/DELETE rows affect0 and do not evaluate row-dependent predicates,
+assignments or RETURNING. Completed INSERT proposals reject42501
+`new row violates row-level security policy for table "t"` before constraints
+and ON CONFLICT skipping. Empty INSERT SELECT succeeds0. Stored generation/value/
+default preparation precedes proposal checks; missing partition routing remains
+23514 and hides key details only for principals actually subject to RLS.
+TRUNCATE, REFERENCES, uniqueness/integrity validation and raw control storage
+are not row-policy operations.
+
+If every needed group has applicable permissive expressions, Execute fails0A000
+`row-security policy expression enforcement is unsupported` (Severity ERROR,
+unlocalized ERROR, all optional fields empty including Position). This is an
+explicit native capability boundary, not PostgreSQL parity. Even TRUE/FALSE/NULL
+requires enforcement; no constant shortcuts or FILTER/CHECK evaluation exists.
+Prepare never caches a bypass decision. Native held execution consults fresh
+roles/membership/ACLs/ownership/flags; the pinned PG18 fixture independently
+observes that its already-denied plan remains denied through the tested direct
+BYPASSRLS and inherited-owner grants, while genuinely new reads use the grants.
+This bounded cached-plan difference is not a general PostgreSQL security claim.
+Native eager retained Rows/cursors keep old captures; PostgreSQL active cursors
+instead prohibit same-session ALTER55006 until released.
+
+Dump serializes raw protected rows, retained policy definitions and canonical
+nondefault flag ALTERs after all row/policy replay under named owners. Restore
+accepts only these flag actions, not arbitrary ALTER, and atomically preserves
+all four flag combinations. Shared roles/membership are not exported; existing
+explicit-ACL export exclusions remain unchanged.
+
 

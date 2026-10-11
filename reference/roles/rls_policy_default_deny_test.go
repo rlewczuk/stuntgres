@@ -6,8 +6,9 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// This is deliberately PostgreSQL-only. POLICY defines native metadata; BASE
-// owns future native enabled/forced state and default-deny certification.
+// Keep the applicable USING(TRUE) PostgreSQL companion: BASE intentionally
+// does not evaluate policy expressions. TestReferenceRLSBaseLastPolicyDrop
+// separately certifies shared enabled/forced state and post-drop default deny.
 func TestReferenceRLSPolicyDefaultDenyPostgres(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {

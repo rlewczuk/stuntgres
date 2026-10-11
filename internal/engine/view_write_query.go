@@ -84,10 +84,31 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 }
 
 func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding) error {
+	auth, err := e.authorizationLocked(scope.op)
+	if err != nil {
+		return err
+	}
+	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	original := len(b.viewWrite.logical.querySources)
 	for i := original; i < len(b.querySources); i++ {
 		source := &b.querySources[i]
 		source.storage = e.privateStorageLocked(scope.owner.catalog, source.ref.Address)
+		for key, ordinal := range b.viewWrite.queryOccurrences {
+			if ordinal != i {
+				continue
+			}
+			for _, layer := range b.viewWrite.layers {
+				if layer.relation.view != key.definition {
+					continue
+				}
+				current := auth.catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+				source.principal = current.owner
+				if current.view.invoker {
+					source.principal = auth.state.CurrentUser
+				}
+				break
+			}
+		}
 		scope.querySources = append(scope.querySources, *source)
 	}
 	return nil

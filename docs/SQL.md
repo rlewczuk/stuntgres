@@ -889,8 +889,9 @@ PostgreSQL's unfiltered views and does **not** change the intentionally stricter
 native `pg_indexes` disclosure policy.
 
 Ordinary user tables and stored views participate; sequences and indexes do not.
-User tables have NULL default tablespace and false rule/trigger/RLS flags because
-those table states are not implemented. `hasindexes` is sticky publication history:
+User tables have NULL default tablespace and false rule/trigger flags.
+`rowsecurity` reports the actual enabled bit, independently of FORCE and policies.
+`hasindexes` is sticky publication history:
 UNIQUE backing, ordinary and concurrent initial index publication set it; dropping
 the last index does not clear it. Supported rename/schema/column edits, view-owner
 changes, real descriptor ownership replacement and REINDEX retain it; a newly
@@ -1056,7 +1057,7 @@ for subsequent writes; it does not serialize output/history or PostgreSQL
 physical tuple metadata. INSERT RETURNING remains the existing suffix boundary.
 
 CREATE RECURSIVE syntax, check options, ALTER VIEW column
-defaults, type-changing ALTER actions, RLS, UDFs and
+defaults, type-changing ALTER actions, policy-expression enforcement, UDFs and
 optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
 Public GRANT/REVOKE use the existing central relation/column ACL paths.

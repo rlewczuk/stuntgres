@@ -193,7 +193,13 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 }
 
 func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *querySource, parameters []sqltype.Value) (Result, error) {
-	source, err := captureQuerySource(s.op.Context(), view, b.ref)
+	var source *querySource
+	var err error
+	if s.rlsTargetDenied {
+		source, err = captureDeniedQuerySource(view, b.ref)
+	} else {
+		source, err = captureQuerySource(s.op.Context(), view, b.ref)
+	}
 	if err != nil {
 		if inputs != nil {
 			inputs.close()
@@ -399,6 +405,9 @@ func captureQueryPrefix(view *VisibilityView, ref ObjectRef) (*querySource, erro
 
 // Query and catalog replacement share one physical-to-live head selection.
 func selectQuerySource(ctx context.Context, source *querySource, frontier CommitSeq, ends *deletionRoot, own *privateDeletionRoot) (*querySource, error) {
+	if source.rlsDenied {
+		return source, ctx.Err()
+	}
 	replacements, single := 0, 0
 	for i, row := range source.own {
 		if row.base != 0 {

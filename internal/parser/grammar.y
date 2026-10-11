@@ -1217,7 +1217,9 @@ drop_table: DROP TABLE relation_names drop_mode { $$=&DropTable{Names:$3,Mode:$4
  | DROP TABLE IF EXISTS relation_names drop_mode { $$=&DropTable{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relation_name { $$=append($1,$3) } ;
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
-alter_drop_column: ALTER TABLE alter_target alter_actions { $$=&AlterTable{Name:$3.Name,Only:$3.Only,Actions:$4,Pos:$1.pos} }
+/* All ALTER TABLE actions share one target prefix. Reducing alter_target on
+ * some paths and rename_target on others steals action lookahead from peers. */
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_rename_single { $$=$1 }
@@ -1252,14 +1254,16 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ADD primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
  | ADD CONSTRAINT name primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
  | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
- | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
+ | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} }
+ | KW_U ROW LEVEL KW_U { if $4.text!="security" {sqllex.(*lexer).syntax($4);return 1};kind:=EnableRowSecurity;switch $1.text {case "enable":case "disable":kind=DisableRowSecurity;case "force":kind=ForceRowSecurity;default:sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos} }
+ | NO KW_U ROW LEVEL KW_U {if $2.text!="force" {sqllex.(*lexer).syntax($2);return 1};if $5.text!="security" {sqllex.(*lexer).syntax($5);return 1};$$=&AlterTableAction{Action:NoForceRowSecurity,Pos:$1.pos}} ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET KW_U TYPE { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
 column_collation: /* empty */ {$$=nil}
  | COLLATE relation_name {name:=$2;name.Parts[0].Pos=$1.pos;$$=&name} ;
 alter_using: /* empty */ {$$=nil} | USING scalar_projection {$$=$2} ;
-alter_default_single: ALTER TABLE alter_target ALTER optional_column name SET DEFAULT target_or { $$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:SetDefault,Expression:$9,Pos:$1.pos} }
- | ALTER TABLE alter_target ALTER optional_column name DROP DEFAULT { $$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:DropDefault,Pos:$1.pos} } ;
+alter_default_single: ALTER TABLE rename_target ALTER optional_column name SET DEFAULT target_or { if $3.IfExists {sqllex.(*lexer).syntax($4);return 1};$$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:SetDefault,Expression:$9,Pos:$1.pos} }
+ | ALTER TABLE rename_target ALTER optional_column name DROP DEFAULT { if $3.IfExists {sqllex.(*lexer).syntax($4);return 1};$$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:DropDefault,Pos:$1.pos} } ;
 alter_rename_single: ALTER TABLE rename_target RENAME TO name { $$=&AlterTableRenameTable{Name:$3.Name,NewName:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME optional_column name TO name { $$=&AlterTableRenameColumn{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME CONSTRAINT name TO name { $$=&AlterTableRenameConstraint{Name:$3.Name,Constraint:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos,ConstraintPos:$5.pos} } ;

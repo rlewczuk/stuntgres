@@ -11,7 +11,8 @@ type queryLeaf struct {
 	ref              ObjectRef
 	relation         *relationDescriptor
 	storage          *relationStorage
-	frozenAttributes []int32 // Execution-owned stored-view subquery layout.
+	principal        PrincipalRef // Relation authority, not expression/session identity.
+	frozenAttributes []int32      // Execution-owned stored-view subquery layout.
 	uses             []int
 	mark             queryRowMark
 	query            *parser.Select
@@ -268,38 +269,61 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 		mark := mergeQueryRowMark(inherited, leaf.mark)
 		var source *querySource
-		switch leaf.relation.relationKind {
-		case sequenceRelation:
-			e.markTemporaryAccessLocked(scope, leaf.ref)
-			source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
-		case materializedViewRelation:
-			if !leaf.relation.populated {
-				err = materializedViewReadError(leaf.relation)
-			} else {
-				source, err = captureQueryPrefix(view, leaf.ref)
+		command := policySelect
+		if mark.mode != 0 {
+			command = policyUpdate
+		}
+		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.relation, leaf.principal, command, mark.mode != 0)
+		if securityErr != nil {
+			err = securityErr
+		}
+		if err != nil {
+			if first != nil {
+				first.close()
 			}
-		case partitionedRelation:
-			if mark.mode != 0 {
-				source = nil
-				err = sqlError("0A000", "row locking partition hierarchies is unsupported")
-			} else {
-				source, err = capturePartitionQueryPrefix(scope.commentCatalog, view, leaf.ref, leaf.relation)
-			}
-		case tableRelation:
-			source, err = captureQueryPrefix(view, leaf.ref)
-			if err == nil {
-				err = e.captureHashIndexesLocked(scope, leaf, source, mark)
-				if err != nil {
-					source.close()
-					source = nil
-				} else {
-					source.partialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
+			for _, prior := range sources {
+				if prior != nil {
+					prior.close()
 				}
 			}
-		default:
-			// Recursive view opening consumes the lock, including failures.
-			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mark, locks)
-			e.mu.Lock()
+			return nil, err
+		}
+		if denied {
+			source, err = captureDeniedQuerySource(view, leaf.ref)
+		} else {
+			switch leaf.relation.relationKind {
+			case sequenceRelation:
+				e.markTemporaryAccessLocked(scope, leaf.ref)
+				source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
+			case materializedViewRelation:
+				if !leaf.relation.populated {
+					err = materializedViewReadError(leaf.relation)
+				} else {
+					source, err = captureQueryPrefix(view, leaf.ref)
+				}
+			case partitionedRelation:
+				if mark.mode != 0 {
+					source = nil
+					err = sqlError("0A000", "row locking partition hierarchies is unsupported")
+				} else {
+					source, err = capturePartitionQueryPrefix(scope.commentCatalog, view, leaf.ref, leaf.relation)
+				}
+			case tableRelation:
+				source, err = captureQueryPrefix(view, leaf.ref)
+				if err == nil {
+					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
+					if err != nil {
+						source.close()
+						source = nil
+					} else {
+						source.partialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
+					}
+				}
+			default:
+				// Recursive view opening consumes the lock, including failures.
+				source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mark, locks)
+				e.mu.Lock()
+			}
 		}
 		if err != nil {
 			if first != nil {

@@ -297,6 +297,11 @@ type StatementScope struct {
 	exclusionCandidates   map[ObjectAddress][]rowVersion
 	insertConflict        *boundInsertConflict
 	partitionInsert       *partitionInsertState
+	rlsTargetDenied       bool
+	rlsProposal           rlsDisposition
+	rlsMergeUpdate        rlsDisposition
+	rlsMergeInsert        rlsDisposition
+	rlsProposalTable      string
 	partitionRelations    map[ObjectAddress]*relationDescriptor
 	Expected              *StatementDescription
 	implicit              bool

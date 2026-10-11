@@ -652,6 +652,10 @@ const (
 	AlterColumnType
 	AddColumn
 	AddExclusion
+	EnableRowSecurity
+	DisableRowSecurity
+	ForceRowSecurity
+	NoForceRowSecurity
 )
 
 type AlterTableAction struct {
@@ -671,10 +675,11 @@ type AlterTableAction struct {
 }
 
 type AlterTable struct {
-	Name    ObjectName
-	Actions []AlterTableAction
-	Only    bool
-	Pos     Position
+	Name     ObjectName
+	Actions  []AlterTableAction
+	Only     bool
+	IfExists bool
+	Pos      Position
 }
 
 func (*AlterTable) statement() {}

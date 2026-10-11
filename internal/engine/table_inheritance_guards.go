@@ -101,6 +101,9 @@ func inheritanceColumnGuard(relation *relationDescriptor, name, operation string
 // Check prohibited inherited actions before admitting any member of a list;
 // no earlier action may evaluate defaults or stage a partial shape change.
 func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescriptor, actions []parser.AlterTableAction) error {
+	if rowSecurityActions(actions) {
+		return nil
+	}
 	if !inheritanceParticipant(catalog, relation) {
 		return nil
 	}

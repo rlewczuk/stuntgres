@@ -2,6 +2,28 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Row-security table flags — change note
+
+`ALTER TABLE [IF EXISTS] table ENABLE | DISABLE | FORCE | NO FORCE ROW LEVEL SECURITY`
+supports selected action lists and ONLY/ONLY(table)/table* target spellings.
+These are named, nonrecursive, owner-authorized AccessExclusive metadata changes,
+including no-ops; they never rewrite rows or clone retained policy expressions.
+ENABLE/DISABLE and FORCE/NO FORCE control independent bits. Flags are transactional
+and savepoint-aware; failed mixed actions/cancellation leave the old state intact.
+The enabled bit is visible as `pg_tables.rowsecurity`.
+
+Ordinary owner authority bypasses unless FORCE; direct superuser/BYPASSRLS always
+bypass but do not grant ordinary ACLs. Enabled inputs default-deny when no
+applicable permissive relevant policy expression exists. Real applicable
+expressions require unavailable enforcement and raise Execute0A000 rather than
+being treated as constants. DISABLE preserves definitions, and last-policy DROP
+preserves both flags. See [the complete authorization boundary](AUTHORIZATION.md#row-security-enablement-and-default-deny--change-note).
+
+Native controls serialize protected raw rows and policies before nondefault flag
+ALTERs, preserving disabled+forced as well as enabled states. Restore allows only
+the four flag ALTER actions, not arbitrary ALTER; existing ACL export exclusions
+and replacement atomicity remain unchanged.
+
 ## DISCARD TEMP
 
 `DISCARD TEMP` / `TEMPORARY` quietly removes the physical owner's temporary

@@ -552,6 +552,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 	}
+	if err := e.configureRowSecurityLocked(scope, b, stmt); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	switch s := stmt.(type) {
 	case *parser.Merge:
 		if err := e.captureCheckCommentSnapshotLocked(scope, b.relation); err != nil {
@@ -568,7 +572,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		target, err := captureQuerySource(ctx, view, b.ref)
+		var target *querySource
+		if scope.rlsTargetDenied {
+			target, err = captureDeniedQuerySource(view, b.ref)
+		} else {
+			target, err = captureQuerySource(ctx, view, b.ref)
+		}
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -606,7 +615,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		source, err := captureQuerySource(ctx, view, b.ref)
+		var source *querySource
+		if scope.rlsTargetDenied {
+			source, err = captureDeniedQuerySource(view, b.ref)
+		} else {
+			source, err = captureQuerySource(ctx, view, b.ref)
+		}
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -845,6 +859,9 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 		return err
 	}
 	if err := evaluateGenerations(evaluation.Context, b.relation, row, evaluation); err != nil {
+		return err
+	}
+	if err := rowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 		return err
 	}
 	for j, column := range b.relation.columns {

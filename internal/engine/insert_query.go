@@ -455,6 +455,11 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		if err := evaluateGenerations(ctx, b.relation, row, &evaluation); err != nil {
 			return nil, err
 		}
+		if scope != nil {
+			if err := rowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+				return nil, err
+			}
+		}
 		for j, c := range b.relation.columns {
 			if err := ctx.Err(); err != nil {
 				return nil, err

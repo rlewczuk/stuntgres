@@ -170,19 +170,13 @@ func TestReferencePredefinedRLSBoundary(t *testing.T) {
 			predefinedSelect(s, "SELECT rolbypassrls FROM pg_roles WHERE rolname='pdef_actor'", []string{"rolbypassrls"}, []string{"BOOL"}, [][]any{{false}})
 		}
 		s.exec("GRANT pg_read_all_data,pg_write_all_data TO pdef_actor")
+		s.exec("ALTER TABLE pdef_rls.t ENABLE ROW LEVEL SECURITY")
+		s.actor("pdef_actor")
+		predefinedRows(s, "pdef_rls.t", nil)
+		s.fail("INSERT INTO pdef_rls.t VALUES(3,'c')", "42501", `new row violates row-level security policy for table "t"`, "")
+		s.actor("")
 		if s.backend.PG {
-			s.exec("ALTER TABLE pdef_rls.t ENABLE ROW LEVEL SECURITY")
-			s.actor("pdef_actor")
-			predefinedRows(s, "pdef_rls.t", [][]any{})
-			s.fail("INSERT INTO pdef_rls.t VALUES(3,'c')", "42501", `new row violates row-level security policy for table "t"`, "")
-			s.actor("")
 			predefinedSelect(s, "SELECT rolbypassrls FROM pg_roles WHERE rolname='pdef_actor'", []string{"rolbypassrls"}, []string{"BOOL"}, [][]any{{false}})
-		} else {
-			predefinedFailure(s, "ALTER TABLE pdef_rls.t ENABLE ROW LEVEL SECURITY", fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE action is unsupported", Position: "24"}, false, "prepare")
-			// Truthful absent policy owner, NOT native RLS enforcement parity.
-			s.actor("pdef_actor")
-			predefinedRows(s, "pdef_rls.t", predefinedInitialRows())
-			s.actor("")
 		}
 		predefinedRows(s, "pdef_rls.t", predefinedInitialRows())
 	})
@@ -213,9 +207,7 @@ func TestReferencePredefinedBoundaryFeatureSmoke(t *testing.T) {
 			predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 		}
 		s.actor("")
-		if !s.backend.PG {
-			predefinedFailure(s, "ALTER TABLE t ENABLE ROW LEVEL SECURITY", fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE action is unsupported", Position: "15"}, false, "prepare")
-		}
+		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
 		predefinedSelect(s, "SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
 	})
 }

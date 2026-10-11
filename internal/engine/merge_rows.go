@@ -195,6 +195,10 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 		}
 		rowContext := evaluation
+		scope.rlsProposal = scope.rlsMergeInsert
+		if matched {
+			scope.rlsProposal = scope.rlsMergeUpdate
+		}
 		if err := e.validateInsertRow(scope, diagnostic, schema, row, &rowContext); err != nil {
 			return nil, err
 		}

@@ -35,7 +35,7 @@ Live INHERIT membership supplies real read/write/schema/sequence capabilities;
 `pg_database_owner` is implicit for the fixed native bootstrap database owner and
 owns canonical public, whose historical PUBLIC USAGE|CREATE default is retained.
 Monitoring names do not unlock protected SET, and roles never synthesize missing
-statistics, filesystem/program, checkpoint, subscription, signaling or RLS providers.
+statistics, filesystem/program, checkpoint, subscription or signaling providers.
 See [predefined role capabilities and limits](docs/AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
 and [small dual-mode proof groups](docs/TESTING.md#predefined-role-oracle-first-contracts).
 Public test smokes:
@@ -877,9 +877,14 @@ Restore resolves policy CURRENT_USER/CURRENT_ROLE/SESSION_USER targets against
 the actual named stage session, separately from trusted import authorization;
 all three targets after a named owner directive name that owner. Dump retains
 resolved target multiplicity, and Restore does not change caller identity.
-**Native support is metadata-only:** it does not enable row security, filter
-reads, enforce proposed-row checks or implement default-deny after the last
-policy is dropped. The enabled-table default-deny witness is PostgreSQL-only.
+Policy expressions remain metadata, not an implemented FILTER/CHECK evaluator.
+Native ENABLE/DISABLE/FORCE/NO FORCE ROW LEVEL SECURITY now persist independent
+table flags, enforce owner/direct-superuser/direct-BYPASSRLS bypass and real
+default deny when no applicable permissive expression can grant the required
+use. DISABLE retains definitions; dropping the last policy retains both flags.
+Applicable expressions (including TRUE/FALSE/NULL) instead raise Execute `0A000`
+`row-security policy expression enforcement is unsupported`, not an invented
+allow/deny result. See the [BASE contract](docs/AUTHORIZATION.md#row-security-enablement-and-default-deny--change-note).
 Release18 accepts `ALTER POLICY IF EXISTS ... RENAME TO ...`, but its rename
 handler still errors on a missing table or policy; selective ALTER has no
 IF EXISTS form. Native policy utilities remain autocommit-only and reject
@@ -888,6 +893,16 @@ See [policy contracts](docs/AUTHORIZATION.md#row-security-policy-definitions--ch
 and [dialect limits](docs/DIALECT.md#row-security-policy-definitions--change-note).
 Feature smoke: `make check RUN='^TestReferenceRLSPolicyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRLSPolicyFeatureSmoke$'`.
+
+Change note: table RLS flag ALTERs are transaction-supported, owner-authorized,
+named/nonrecursive AccessExclusive metadata changes. Ordinary ACLs remain
+independent; genuine `pg_read_all_data`/`pg_write_all_data` do not bypass RLS.
+`pg_tables.rowsecurity` reports the enabled bit. Native Dump captures protected
+raw data and replays flag ALTERs only after all rows/policies; Restore preserves
+all four enabled/forced states atomically. Feature smoke:
+`make check RUN='^TestReferenceRLSBaseFeatureSmoke$'`; add `REFERENCE=1`
+for the same pinned PostgreSQL definition.
+
 
 
 Session identity uses typed scalar expressions: `current_catalog`,

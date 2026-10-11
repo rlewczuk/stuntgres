@@ -16,7 +16,22 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	ref, err := e.resolveReference(auth, s.Name)
+	ref, err := e.resolveRelationReference(auth, s.Name, true)
+	if s.IfExists && renameMissing(err) {
+		op.session.mu.Lock()
+		err = publicationOperationLocked(e, op)
+		op.session.mu.Unlock()
+		if err == nil {
+			err = op.Context().Err()
+		}
+		if err != nil {
+			return fail(err)
+		}
+		scope.completed = true
+		e.mu.Unlock()
+		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
+		return Result{}, nil
+	}
 	if err == nil && ref != scope.lockedRef {
 		err = ErrCatalogReplaced
 	}
@@ -48,6 +63,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			label = "ALTER COLUMN ... TYPE"
 		case parser.AddColumn:
 			label = "ADD COLUMN"
+		case parser.EnableRowSecurity, parser.DisableRowSecurity, parser.ForceRowSecurity, parser.NoForceRowSecurity:
+			if err := rowSecurityKind(old, action.Action); err != nil {
+				return fail(err)
+			}
+			continue
 		default:
 			return fail(fmt.Errorf("stuntgres: invalid ALTER action"))
 		}
@@ -57,6 +77,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if err := inheritanceAlterActionsGuard(auth.catalog, old, s.Actions); err != nil {
 		return fail(err)
+	}
+	if rowSecurityActions(s.Actions) {
+		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, rowSecurityFlags(old, s.Actions))
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	original := e.storage[ref.Address]
@@ -197,6 +220,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
+	next = rowSecurityFlags(next, s.Actions)
 	if len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
 		return Result{}, nil
 	}

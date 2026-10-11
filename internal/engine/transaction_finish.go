@@ -162,6 +162,9 @@ func (s *StatementScope) Finish(err error) error {
 	s.uniqueBinding = nil
 	s.insertConflict = nil
 	s.partitionInsert = nil
+	s.rlsTargetDenied = false
+	s.rlsProposal, s.rlsMergeInsert, s.rlsMergeUpdate = rlsUnrestricted, rlsUnrestricted, rlsUnrestricted
+	s.rlsProposalTable = ""
 	s.partitionRelations = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil

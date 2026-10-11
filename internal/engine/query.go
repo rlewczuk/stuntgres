@@ -407,6 +407,7 @@ type querySource struct {
 	committed, own       []rowVersion
 	partialMask          *logicalIndexRoot
 	singleton            bool
+	rlsDenied            bool
 	anonymous            [][]sqltype.Value
 	visible              []int
 	hashIndexes          []capturedHashIndex
