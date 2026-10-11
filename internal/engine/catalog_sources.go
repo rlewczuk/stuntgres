@@ -62,6 +62,14 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"extname", sqltype.Name}, {"extowner", sqltype.Oid}, {"extnamespace", sqltype.Oid}, {"extrelocatable", sqltype.Bool}, {"extversion", sqltype.Text}, {"extconfig", sqltype.ID(1028)}, {"extcondition", sqltype.ID(1009)}}},
+		{12081, "pg_available_extensions", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"name", sqltype.Name}, {"default_version", sqltype.Text}, {"installed_version", sqltype.Text}, {"comment", sqltype.Text}}},
+		{12085, "pg_available_extension_versions", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"name", sqltype.Name}, {"version", sqltype.Text}, {"installed", sqltype.Bool}, {"superuser", sqltype.Bool}, {"trusted", sqltype.Bool}, {"relocatable", sqltype.Bool}, {"schema", sqltype.Name}, {"requires", sqltype.ID(1003)}, {"comment", sqltype.Text}}},
 		{12048, "pg_sequences", []struct {
 			name string
 			typ  sqltype.ID
@@ -121,7 +129,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
-		d.virtualView = spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
+		d.virtualView = spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		d.attributeHighWater = int32(len(d.attributes))
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
@@ -152,6 +160,9 @@ func (e *Engine) initializeCatalogSources() error {
 				if column.typ == sqltype.Text || column.typ == sqltype.ID(1009) {
 					d.columns[i].Usage.Collation.ID = 950
 				}
+			}
+			if spec.oid == 12081 && column.name == "installed_version" {
+				d.columns[i].Usage.Collation.ID = 950
 			}
 			if spec.oid == 12014 && column.name == "useconfig" || spec.oid == 12007 && column.name == "rolconfig" {
 				d.columns[i].Usage.Collation.ID = 950

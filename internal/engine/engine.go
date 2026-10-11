@@ -170,7 +170,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(databaseProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, provider: stockUnaccent}); err != nil {
+	comment := "text search dictionary that removes accents"
+	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUnaccent}); err != nil {
 		return nil, err
 	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}

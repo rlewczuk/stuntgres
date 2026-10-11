@@ -440,6 +440,62 @@ actual42P22 errors through direct/prepared execution before and after Restore.
 Success is quiet exit0; failure reports the actual mismatch. Remove only that temporary
 smoke directory afterward; session communication is not a parent deliverable.
 
+## Available extension views selected proof
+
+The untagged `reference/catalogs/available_extensions_*_test.go` definitions
+independently assert both released shapes, raw transports/nullability, registry
+universe, installed/default distinction, exact pg_views reconstruction, predicates,
+held prepared freshness, joins/stored views, full42703 diagnostics, low-privilege/
+off-path/foreign-TEMP metadata and transaction publication. Pinned discovery ran
+first with a temporary native filter; that filter was removed before genuine
+native missing-relation red and production authorization. No discovery filter or
+observation-file probe survives. Oracle-only attribute/type grounding does not
+add native catalog producers. Unknown installed-version mutation is real
+PostgreSQL-only UPDATE in a transaction always rolled back; native covers the
+same projection with a private authentic descriptor copy, not new installation.
+
+Controls exercise actual public native Dump/Reset/Restore, committed-only Dump,
+independent Driver restoration and retained rows/types; PostgreSQL's phase uses
+real installation/rollback, not native APIs on pq. Component units assert all
+thirteen origins, generation-owned types, reciprocal row/array ownership,
+collations, immutable metadata conversion and real cancellation.
+JoinConsistency independently asserts five fields from both availability views
+and pg_extension in both availability opening orders: initially
+`[unaccent,NULL,1.1,false,NULL]`, installed `[unaccent,1.1,1.1,true,1.1]`.
+Direct/new prepared/already-held statements on separate physical connections
+cover self-private/peer-committed state, savepoint/full rollback and commit.
+StatementFrontier is a native component witness: capture the real statement
+catalog, open one actual source, genuinely publish in its unlocked opening gap,
+then open the other sources. All three first-source choices must retain the old
+state; a fresh scope sees the installation. This deterministic schedule is not
+claimed for the public PostgreSQL matrix, and does not widen all catalog sources.
+Root runs these bounded commands in both modes where shown, each under an
+external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceAvailableExtensions(Shape|Metadata|Filtering|Installed|Diagnostics|JoinConsistency)$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensions(Shape|Metadata|Filtering|Installed|Diagnostics|JoinConsistency)$'
+make check RUN='^TestReferenceAvailableExtensions(Visibility|Transactions|UnknownInstalledVersion|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensions(Visibility|Transactions|UnknownInstalledVersion|Controls|FeatureSmoke)$'
+make check RUN='^TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataValues|Capture|StatementFrontier)$'
+make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceAvailableExtensions(Transactions|Controls|JoinConsistency))$'
+```
+
+Whole-project Docker-free proof uses quickcheck only after edits stop. The actual
+standalone public source `local://available-extensions-smoke.go` is an OMP session
+artifact, not a committed executable. Root materializes it outside the repository
+at absolute S, runs `timeout 60s go run "$S"` from the assigned worktree, records
+resolved argv/cwd/exit/stdout/stderr and removes the materialization afterward.
+Quiet exit0 requires exact A0/V0 and A1/V1 metadata/rows, absent typed results,
+held statements through real rollback/installation, callable Hotel, exact full
+direct/Prepare42703 without handles and genuine retained native Rows through
+Dump/Reset/Restore. The actual five-field three-source join must yield J0/J1
+through private installation, peer isolation, rollback, commit, Reset and Restore,
+including both availability orders and peer handles prepared before commit.
+Fresh handles are prepared after generation-replacing controls. FeatureSmoke
+supplements rather than replaces that source; the component alone forces the
+mid-opening publication boundary.
+
 ## DISCARD selected proof
 
 The untagged shared `reference/sessions/discard_*_test.go` definitions assert

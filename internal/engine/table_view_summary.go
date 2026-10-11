@@ -155,6 +155,25 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 // In particular native pg_indexes retains its separately documented ACL policy.
 func representedSummaryViewDefinition(oid OID) string {
 	switch oid {
+	case 12081:
+		return ` SELECT e.name,
+    e.default_version,
+    x.extversion AS installed_version,
+    e.comment
+   FROM (pg_available_extensions() e(name, default_version, comment)
+     LEFT JOIN pg_extension x ON ((e.name = x.extname)));`
+	case 12085:
+		return ` SELECT e.name,
+    e.version,
+    (x.extname IS NOT NULL) AS installed,
+    e.superuser,
+    e.trusted,
+    e.relocatable,
+    e.schema,
+    e.requires,
+    e.comment
+   FROM (pg_available_extension_versions() e(name, version, superuser, trusted, relocatable, schema, requires, comment)
+     LEFT JOIN pg_extension x ON (((e.name = x.extname) AND (e.version = x.extversion))));`
 	case 12048:
 		return ` SELECT n.nspname AS schemaname,
     c.relname AS sequencename,

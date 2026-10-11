@@ -2311,7 +2311,7 @@ NAME/TEXT/TEXT[] use catalog C950. Extconfig is not REGCLASS[].
 Fresh native installed-extension state is empty; actual registered `unaccent`
 installations supply descriptor-derived rows. Neither PostgreSQL's `plpgsql`1.0
 bootstrap tuple nor available files/versions are fabricated as installations.
-No procedural interpreter, availability view or module loader is added.
+No procedural interpreter or module loader is added.
 Missing-provider CREATE prepares successfully and fails at execution with0A000 /
 `extension "pgext_missing_control" is not available`, without a fake host-file Hint.
 LOAD remains42601; ALTER/DROP EXTENSION remain0A000 / `statement is unsupported`.
@@ -2320,6 +2320,27 @@ relation shape and actual installed authority. Reused rowtype10074/array10073 ar
 inventory identities, unlike fixed relation3079. Native catalog mutation and row
 locking remain0A000 virtual-source boundaries; no physical indexes/TOAST exist.
 See [full catalog contract, command diagnostics and smoke](SQL.md#pg_extension-catalog--change-note).
+
+The readonly `pg_available_extensions` and `pg_available_extension_versions`
+views instead describe genuine initialized embedded packages, currently only
+unaccent1.1. Available/default version comes from that registry; installed version
+comes verbatim from the caller-visible installed descriptor. Versions match
+installed status by exact name/version, never fabricate unknown versions or
+packages, and expose independent superuser/trusted/relocatable control flags.
+Control schema is not extnamespace; unaccent schema/requires are NULL even after
+alternate-schema installation. All thirteen attributes are known nullable natively.
+These are represented views with exact pg_views reconstruction, not pg_tables rows
+or new executable SRFs. Metadata is visible despite missing database CREATE,
+target-schema USAGE, off-path members or foreign TEMP ownership; executable
+authorization remains separate. Normal relation admission and predicates apply.
+The two availability views and `pg_extension` share one installed-state catalog
+frontier captured before opening statement inputs. Recursive/repeated occurrences
+cannot advance it after peer publication; the next execution refreshes it.
+This bounded guarantee does not change other catalog sources or promise
+transaction-wide PostgreSQL catalog MVCC.
+Transactions, prepared freshness and native controls reuse the existing catalog;
+no arbitrary loader, new package, installer version or update support is added.
+See [complete fields and boundaries](SQL.md#available-extension-views--change-note).
 
 
 CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
@@ -3076,6 +3097,11 @@ have known NOT NULL native metadata, including empty direct/prepared results.
 dictinitoption is known nullable even when installed RULES supplies non-NULL text.
 PostgreSQL catalog attributes independently ground these flags; pq itself reports
 unknown result nullability, not approximated known values.
+
+Available-extension views use that same genuine registry, not a second package
+inventory. They distinguish availability/control metadata from member execution
+authorization and from installed target namespace. Unaccent's stock control
+comment and flags stay unchanged across installation and native Reset/Restore.
 
 An extension has a genuine normal dependency on its target namespace, separate
 from the six extension-membership edges. Supported DROP SCHEMA RESTRICT reports

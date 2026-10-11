@@ -1,0 +1,71 @@
+package reference_test
+
+import (
+	"database/sql"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
+	availableExtensionsCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
+		a, err := c.PrepareContext(p.Ctx, "SELECT * FROM pg_available_extensions WHERE name=$1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer a.Close()
+		v, err := c.PrepareContext(p.Ctx, "SELECT * FROM pg_available_extension_versions WHERE name=$1 AND version=$2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer v.Close()
+		for _, installed := range []bool{false, true} {
+			var installedVersion any
+			if installed {
+				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE EXTENSION unaccent", 0))
+				installedVersion = "1.1"
+			}
+			for _, name := range []any{"unaccent", "available_absent", nil} {
+				want := [][]any{}
+				if name == "unaccent" {
+					want = availableExtensionsRow(installedVersion)
+				}
+				availableExtensionsHeld(t, p, a, false, pg, want, name)
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name=$1", false, want, pg, name))
+			}
+			for _, version := range []any{"1.1", "1.0", "available-unknown", nil} {
+				want := [][]any{}
+				if version == "1.1" {
+					want = availableVersionsRow(installed)
+				}
+				availableExtensionsHeld(t, p, v, true, pg, want, "unaccent", version)
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name=$1 AND version=$2", true, want, pg, "unaccent", version))
+			}
+			wantNull := availableExtensionsRow(nil)
+			if installed {
+				wantNull = [][]any{}
+			}
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='unaccent' AND installed_version IS NULL", false, wantNull, pg))
+			for _, state := range []bool{false, true} {
+				want := [][]any{}
+				if state == installed {
+					want = availableVersionsRow(installed)
+				}
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='unaccent' AND installed=$1", true, want, pg, state))
+			}
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='unaccent' AND installed=$1", true, [][]any{}, pg, nil))
+			if !pg {
+				// Native availability is its real embedded registry, not PostgreSQL's
+				// larger system package installation or bootstrap plpgsql descriptor.
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions", false, availableExtensionsRow(installedVersion), pg))
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions", true, availableVersionsRow(installed), pg))
+				for _, name := range []string{"hstore", "file_fdw", "plpgsql"} {
+					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name=$1", false, [][]any{}, pg, name))
+					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name=$1", true, [][]any{}, pg, name))
+				}
+			} else {
+				// Positive real-package control, explicitly not native inventory parity.
+				fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT name FROM pg_available_extensions WHERE name='plpgsql'", []string{"name"}, []string{"NAME"}, [][]any{{"plpgsql"}}))
+			}
+		}
+	})
+}

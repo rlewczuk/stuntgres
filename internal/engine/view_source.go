@@ -28,6 +28,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	switch d.relationKind {
 	case catalogRelation:
 		switch d.address.ObjectID {
+		case 12081, 12085:
+			catalog, registry := scope.commentCatalog, e.extensions
+			e.mu.Unlock()
+			return captureAvailableExtensions(ctx, registry, catalog, ref, d)
 		case 12048:
 			source, err := e.capturePGSequencesLocked(scope, ref, d)
 			e.mu.Unlock()
@@ -67,9 +71,12 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			e.mu.Unlock()
 			return source, err
 		}
-		catalog := e.privateCatalogLocked(scope.owner.catalog)
-		if d.address.ObjectID == 2609 {
+		var catalog CatalogRead
+		switch d.address.ObjectID {
+		case 2609, 3079:
 			catalog = scope.commentCatalog
+		default:
+			catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
 		if d.address.ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)

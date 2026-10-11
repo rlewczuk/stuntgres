@@ -1936,11 +1936,27 @@ the existing relation authority. Fixed relation3079 differs from the reused
 allocated native rowtype10074/array10073; no cross-server type allocator promise,
 physical system index or TOAST implementation is implied.
 Registered unaccent CREATE is supported; unavailable providers fail0A000 at
-execution, including after successful Prepare. ALTER/DROP EXTENSION, availability
-discovery and module loading retain their unsupported boundaries.
+execution, including after successful Prepare. ALTER/DROP EXTENSION and module
+loading retain their unsupported boundaries.
 See [exact shape, installed authority and errors](docs/SQL.md#pg_extension-catalog--change-note).
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
+
+**Available-extension metadata change note:** `pg_catalog.pg_available_extensions`
+and `pg_catalog.pg_available_extension_versions` are readonly PUBLIC SELECT views
+over the same immutable embedded registry used by installation. The native
+universe is exactly genuine unaccent1.1, with its released comment and
+superuser/trusted/relocatable flags; hstore, file_fdw and plpgsql are not invented.
+Default/available version and actual installed version are distinct. Control
+schema/dependencies remain NULL for unaccent even when installed elsewhere.
+Metadata is not filtered by member namespace privileges or TEMP ownership;
+ordinary relation admission and SQL predicates still apply.
+Both availability views and `pg_extension` share one caller-visible installed-state
+frontier per statement, including joins and recursive inputs; peer publication
+affects the next execution, not later occurrences in the same statement.
+See [fields, visibility and controls](docs/SQL.md#available-extension-views--change-note).
+Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
+add `REFERENCE=1` for the pinned counterpart.
 
 
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,

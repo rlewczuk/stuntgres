@@ -14,6 +14,8 @@ type registeredExtension struct {
 	version                         string
 	trusted, superuser, relocatable bool
 	provider                        extensionProvider
+	comment, schema                 *string
+	requires                        []string
 }
 
 const unaccentTemplateContext = "SQL statement \"CREATE TEXT SEARCH TEMPLATE unaccent (\n\tINIT = unaccent_init,\n\tLEXIZE = unaccent_lexize\n)\"\nextension script file \"unaccent--1.1.sql\", near line 26"
@@ -33,6 +35,16 @@ func (e *Engine) registerExtension(name string, registration registeredExtension
 	if _, exists := e.extensions[name]; exists {
 		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
 	}
+	// Detach caller-owned control metadata before publishing the registry.
+	if registration.comment != nil {
+		value := *registration.comment
+		registration.comment = &value
+	}
+	if registration.schema != nil {
+		value := *registration.schema
+		registration.schema = &value
+	}
+	registration.requires = append([]string(nil), registration.requires...)
 	e.extensions[name] = registration
 	return nil
 }

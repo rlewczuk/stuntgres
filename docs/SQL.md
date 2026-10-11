@@ -907,8 +907,9 @@ The represented builtin table inventory is `pg_cast`, `pg_extension`, `pg_sequen
 hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
 `pg_shdescription`'s `pg_global`. These flags do not invent native system backing
 indexes or physical storage. The represented builtin views are `pg_views`,
-`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_matviews`, `pg_user`, `pg_roles`
-and `pg_group`. Classification is local to these summaries, not a broader
+`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_matviews`, `pg_user`, `pg_roles`,
+`pg_group`, `pg_available_extensions` and `pg_available_extension_versions`.
+Classification is local to these summaries, not a broader
 `pg_class` schema/kind expansion or full catalog inventory.
 
 User `pg_views.definition` reconstructs the actual immutable stored SELECT using
@@ -1469,7 +1470,7 @@ source. There is no PL/pgSQL interpreter; available files and existing type
 identities do not install extensions. PostgreSQL18.0's default database instead
 contains installed `plpgsql`: generated positive row OID, owner10, schema11,
 nonrelocatable, version `1.0`, NULL extconfig/extcondition. Native deliberately
-does not fabricate this tuple. Availability/version discovery, module loading
+does not fabricate this tuple. Arbitrary package loading, module loading
 and ALTER/DROP EXTENSION remain outside support.
 See [the PostgreSQL18 catalog contract](https://www.postgresql.org/docs/18/catalog-pg-extension.html).
 
@@ -1513,6 +1514,56 @@ lifetime. Held prepared statements reanalyze and retained captures/metadata stay
 stable. Failed staged Restore publishes nothing.
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
+
+## Available extension views — change note
+
+Both readonly `pg_catalog` views use ordinary direct/prepared SELECT, predicates,
+joins and stored views. PUBLIC SELECT does not grant installation or member-call
+permission. Package metadata is not filtered by database CREATE, target-schema
+USAGE, ownership, search_path or foreign-TEMP ownership; relation lookup/ACLs
+still apply. Installed state uses the caller-visible catalog: private transaction
+changes are visible to self, peers see committed state, rollback removes private
+installation, and held prepared statements capture fresh status each execution.
+Both availability views and `pg_extension` retain the same caller-visible installed
+catalog before input opening, including repeated, stored and derived inputs.
+Peer publication between openings cannot mix NULL installed_version with an
+installed version row or a newly present pg_extension row in that statement.
+The next execution captures fresh state; this is not transaction-wide freezing
+or a shared-frontier guarantee for every other catalog source.
+
+Ordered fields of `pg_available_extensions` are `name NAME`, `default_version TEXT`,
+`installed_version TEXT`, `comment TEXT`. Ordered fields of
+`pg_available_extension_versions` are `name NAME`, `version TEXT`, `installed BOOL`,
+`superuser BOOL`, `trusted BOOL`, `relocatable BOOL`, `schema NAME`, `requires NAME[]`,
+`comment TEXT`. Every native view attribute has known nullable metadata, including
+empty results; pq nullability is unknown. NAME/schema/requires use C950;
+default_version/version/comment use default100; installed_version inherits C950.
+`pg_class` classifies both as views; `pg_views` supplies exact released
+reconstruction text and bootstrap ownership; neither appears in `pg_tables`.
+
+Availability comes only from initialized genuine embedded registrations, not
+installed descriptors or the host filesystem. Today the entire native universe
+is unaccent1.1 with comment `text search dictionary that removes accents`,
+superuser/trusted/relocatable all true, NULL control schema and NULL requires.
+Trusted does not imply superuser=false. Fixed control schema is not the installed
+target namespace; requires denotes extension names, not schemas. Missing optional
+metadata is SQL NULL, not an empty array/string. Version1.0 is not available merely
+because an update-from1.0 script exists. PostgreSQL genuinely ships other packages;
+native does not fabricate hstore, file_fdw or plpgsql availability.
+
+The first view preserves actual installed version text verbatim or NULL; the
+second marks installed only for an exact name/version match. An unknown installed
+version creates no availability row. Native install/update/catalog-mutation
+boundaries are unchanged; the unknown-version runtime witness is a rolled-back
+PostgreSQL-only oracle transaction, supplemented by a pure native projection unit.
+Reset clears persistent installation but preserves registry availability; Restore
+reconstructs actual installed state/providers. Dump serializes installations, not
+availability tuples. Already returned native Rows retain original values/types.
+Invalid columns bind even for FALSE/absent-package predicates and expose full42703
+English diagnostics before Query/Prepare returns any handle.
+Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
+add `REFERENCE=1` for pinned PostgreSQL18.0. See
+[selected proof](TESTING.md#available-extension-views-selected-proof).
 
 ## pg_depend catalog — change note
 
