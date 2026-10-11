@@ -10,6 +10,22 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
+inheritance descendants and supported RANGE partition leaves, with `ONLY`,
+`RESTRICT`/`CASCADE` and unchanged `CONTINUE IDENTITY` state. It uses exact
+TRUNCATE rights and transaction-owned ACCESS EXCLUSIVE locks, preserves table
+and index definitions, and participates in rollback/savepoints. Stable snapshots
+have PostgreSQL's documented non-MVCC TRUNCATE exception; already exported native
+Rows remain owned buffers, while a live SQL cursor producer rejects truncation.
+Other sessions' temporary inheritance branches are excluded without replacing
+their storage or acquiring descendant AX locks; own-session TEMP children remain
+included.
+RESTART IDENTITY, native triggers/FDW and partition foreign keys are not added.
+See [TRUNCATE](docs/SQL.md#truncate-table--change-note) and
+[transaction semantics](docs/TRANSACTIONS.md#truncate-generations--change-note).
+Feature smoke: `make check RUN='^TestReferenceTruncateFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceTruncateFeatureSmoke$'`.
+
 Change note: readonly `pg_catalog.pg_sequences` exposes all eleven typed sequence
 definition/value fields. `last_value` is logical reserved high-water (including
 cache tails), NULL when uncalled or lacking SELECT/USAGE. Definitions remain
@@ -1054,7 +1070,8 @@ without URL parsing, trimming or merging distinct keys. See
 Change note: table/column GRANT and REVOKE now retain independent grantor
 origins, owner implicit options, PUBLIC and inherited role authority. All eight
 table privileges and four column privileges are represented; real supported
-consumers use the same ACL checks, including MAINTAIN REINDEX and TRUNCATE LOCK.
+consumers use the same ACL checks, including MAINTAIN REINDEX, TRUNCATE TABLE
+and the existing TRUNCATE alternative for explicit LOCK.
 Column-only revoke cannot subtract a table grant. ALL TABLES IN SCHEMA expands
 existing tables/views/materialized views, never future tables or sequences.
 REVOKE GRANT OPTION FOR removes delegation without removing use; CASCADE removes

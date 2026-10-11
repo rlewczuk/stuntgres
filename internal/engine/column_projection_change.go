@@ -37,6 +37,7 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relati
 		return shape, nil, nil, err
 	}
 	shape.replacement = &relationStorage{versions: versions, ends: store.ends, generation: store.generation + 1}
+	shape.truncated = false
 	writes, err = projection.versions(ctx, writes)
 	if err != nil {
 		return shape, nil, nil, err

@@ -408,6 +408,7 @@ type querySource struct {
 	partialMask          *logicalIndexRoot
 	singleton            bool
 	rlsDenied            bool
+	needsBirthFilter     bool // Current TRUNCATE vector at a retained older frontier.
 	anonymous            [][]sqltype.Value
 	pgSequences          *pgSequencesSource
 	visible              []int

@@ -162,6 +162,7 @@ package parser
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
 %token <tok> COPY
+%token <tok> TRUNCATE CONTINUE
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> FILTER
@@ -298,6 +299,8 @@ package parser
 %type <frameBound> frame_bound
 %type <tok> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> truncate_table
+%type <tok> truncate_identity
 %type <stmt> create_policy alter_policy drop_policy
 %type <tok> policy_command policy_option
 %type <desc> policy_permissive
@@ -598,6 +601,7 @@ optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+ | truncate_table
  | copy
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
@@ -838,6 +842,10 @@ isolation_mode: READ COMMITTED { $$=IsolationReadCommitted }
  | SERIALIZABLE { $$=IsolationSerializable } ;
 mode_write: KW_U { if $1.text!="write" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_table: LOCK optional_table lock_targets optional_lock_mode optional_lock_nowait { $$=&LockTable{Targets:$3,Mode:$4,Pos:$1.pos,Nowait:$5} } ;
+truncate_table: TRUNCATE optional_table lock_targets truncate_identity drop_mode { $$=&Truncate{Targets:$3,Mode:$5,Pos:$1.pos} } ;
+truncate_identity: /* empty */ { $$=lexeme{} }
+ | CONTINUE IDENTITY { $$=$1 }
+ | RESTART IDENTITY { sqllex.(*lexer).deferUnsupported($1,"TRUNCATE RESTART IDENTITY is unsupported"); $$=$1 } ;
 optional_table: /* empty */ | TABLE ;
 lock_targets: alter_target { $$=[]LockTarget{{Name:$1.Name,Only:$1.Only}} }
  | lock_targets ',' alter_target { $$=append($1,LockTarget{Name:$3.Name,Only:$3.Only}) } ;
@@ -2072,6 +2080,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
+ | TRUNCATE | CONTINUE
  | COPY
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
@@ -2101,6 +2110,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
+ | TRUNCATE | CONTINUE
  | COPY
  | MATCH | PERIOD
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT

@@ -2,6 +2,52 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## TRUNCATE TABLE — change note
+
+```sql
+TRUNCATE [TABLE] target [, target ...]
+  [CONTINUE IDENTITY] [RESTRICT | CASCADE];
+-- target: [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
+TRUNCATE TABLE accounts, entries CONTINUE IDENTITY;
+TRUNCATE ONLY parent;
+TRUNCATE parent CASCADE;
+```
+
+CONTINUE IDENTITY and RESTRICT are the defaults. TRUNCATE and CONTINUE remain
+usable as unreserved identifiers. Targets are resolved at execution, in supplied
+order, with normal schema visibility and exact table TRUNCATE authority.
+Go `PrepareContext` is zero-formal/zero-column and performs no target lookup,
+locking or effect. SQL PREPARE's utility-body prohibition is unchanged.
+Direct/prepared Exec reports affected0 regardless of removed row count; Query
+returns no columns or rows. There is no WHERE, RETURNING or parameter surface.
+
+Without ONLY, real ordinary inheritance descendants and nested RANGE partition
+leaves are selected once. ONLY on a plain inherited parent removes only its
+physical rows; ONLY on a partitioned root fails42809 with Hint
+`Do not specify the ONLY keyword, or use TRUNCATE ONLY on the partitions directly.`
+Direct leaf truncation leaves siblings intact. RESTRICT examines FK definitions,
+not row population: an external referencer blocks even when empty. A complete
+explicit FK group, self-reference or complete cycle can truncate without CASCADE.
+CASCADE reaches distinct incoming FK tables in ordered waves and emits
+`truncate cascades to table "name"` NOTICE records before reached member
+permission/activity checks. It does not truncate outgoing parents or recursively
+inherit an ordinary table reached only through FK CASCADE.
+
+Table/attribute/index/constraint identities, ACLs, comments, row-security flags,
+defaults, generated expressions and sticky hasindexes remain unchanged. CHECK
+and row-policy expressions are not evaluated; whole-table ACL still applies.
+CONTINUE preserves SERIAL/IDENTITY generators, reservations and physical-session
+currval/lastval/cache state, requires no sequence privilege and draws no values.
+Read-only execution rejects even TEMP with25006
+`cannot execute TRUNCATE TABLE in a read-only transaction` before name/ACL lookup.
+Aborted blocks retain25P02. Valid RESTART IDENTITY is an explicit positioned0A000
+native boundary, not a successful no-op; trailing malformed syntax is42601.
+
+See [atomic generations and non-MVCC snapshots](TRANSACTIONS.md#truncate-generations--change-note),
+[hierarchy authority](TABLES.md#truncate-hierarchy-consumer--change-note),
+[exact grants](AUTHORIZATION.md#truncate-table-authority) and
+[both-mode proof](TESTING.md#truncate-selected-proof).
+
 ## DISCARD
 
 ```sql
@@ -280,6 +326,7 @@ CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]
 DROP DOMAIN [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
   [ON COMMIT PRESERVE ROWS | ON COMMIT DELETE ROWS | ON COMMIT DROP]
+TRUNCATE [TABLE] target [, ...] [CONTINUE IDENTITY] [RESTRICT | CASCADE]
 CREATE [OR REPLACE] [TEMP | TEMPORARY] VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
 CREATE INDEX [name] ON [schema.]table [USING btree]
@@ -961,8 +1008,9 @@ User tables have NULL default tablespace and false rule/trigger flags.
 UNIQUE backing, ordinary and concurrent initial index publication set it; dropping
 the last index does not clear it. Supported rename/schema/column edits, view-owner
 changes, real descriptor ownership replacement and REINDEX retain it; a newly
-recreated table starts false. Native ALTER TABLE OWNER and TRUNCATE remain0A000
-boundaries without metadata changes; PostgreSQL supports them. Failed ordinary expression
+recreated table starts false. TRUNCATE preserves this history and all definitions;
+native ALTER TABLE OWNER remains an0A000 boundary without metadata changes.
+Failed ordinary expression
 index builds before publication leave it unchanged; failed concurrent work after
 initial invalid-index publication retains true. This adds no VACUUM/ANALYZE.
 

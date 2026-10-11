@@ -51,16 +51,12 @@ func TestReferenceInheritanceBoundaryNoEffects(t *testing.T) {
 		s.exec("INSERT INTO c VALUES(2)", 1)
 		s.values("SELECT nextval('seed') FROM p WHERE false", []string{"nextval"}, []string{"INT8"}, nil)
 		s.values("SELECT last_value,is_called FROM seed", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(31), false}})
-		if s.b.PG {
-			s.values("SELECT nextval('seed') FROM p ORDER BY a", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(31)}, {int64(32)}})
-			s.values("SELECT last_value,is_called FROM seed", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(32), true}})
-			s.exec("TRUNCATE p", 0)
-			s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, nil)
-		} else {
-			s.values("SELECT * FROM p ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
-			s.fail("TRUNCATE p", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-			s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}})
-		}
+		s.values("SELECT * FROM p ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
+		s.values("SELECT nextval('seed') FROM p ORDER BY a", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(31)}, {int64(32)}})
+		s.values("SELECT last_value,is_called FROM seed", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(32), true}})
+		s.exec("TRUNCATE p", 0)
+		s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, nil)
+		s.values("SELECT * FROM p", []string{"a"}, []string{"INT4"}, nil)
 	})
 }
 

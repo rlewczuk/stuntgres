@@ -407,7 +407,7 @@ func captureQueryPrefix(view *VisibilityView, ref ObjectRef) (*querySource, erro
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
-	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}, nil
+	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address], needsBirthFilter: data.needsBirthFilterAt(ref.Address)}, nil
 }
 
 // Query and catalog replacement share one physical-to-live head selection.
@@ -422,7 +422,7 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier Commit
 			single = i
 		}
 	}
-	if ends == nil && own == nil && replacements == 0 {
+	if ends == nil && own == nil && replacements == 0 && !source.needsBirthFilter {
 		return source, nil
 	}
 	total := len(source.committed) + len(source.own)

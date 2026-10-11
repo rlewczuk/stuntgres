@@ -256,24 +256,27 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	return nil
 }
 
-// DISCARD-only relation-use check over the already expanded actual removal
-// closure. Exhausted portals still own their source until CLOSE. ALL is exempt
-// only because it closes its registries at the successful publication frontier.
+// Both destructive utilities check the actual selected closure. Exhausted
+// portals retain source pins; failed and exported HOLD roots do not.
 func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, address ObjectAddress) error {
+	return s.relationCursorPreflight(stage.base, address, "DROP TABLE")
+}
+
+func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address ObjectAddress, command string) error {
 	session := s.op.session
 	for _, cursor := range session.cursors.entries {
 		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.owner != stage.owner.owner || leaf.ref.Epoch != stage.base.Epoch() || leaf.ref.Address != address {
+			if leaf.ref.owner != catalog.owner.owner || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
-			relation, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+			relation, ok := catalog.state.descriptors[address].(*relationDescriptor)
 			if !ok || leaf.relation == nil {
 				continue
 			}
-			return sqlError("55006", fmt.Sprintf("cannot DROP TABLE \"%s\" because it is being used by active queries in this session", relation.name))
+			return sqlError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.name))
 		}
 	}
 	return nil

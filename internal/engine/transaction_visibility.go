@@ -8,28 +8,44 @@ import (
 // VisibilityView retains exact immutable relation-local roots, not copied row
 // values. Each handle has independent release authority. The immutable data is
 // naturally reclaimed after the last view/result owner; no registry is needed.
+// A committed TRUNCATE incarnation can be newer than the retained snapshot.
+// This flag is capture metadata for the existing selector, not another frontier.
+type visibilityGeneration struct {
+	storage          *relationStorage
+	needsBirthFilter bool
+}
+
 type visibilityData struct {
-	tx                 TxRef
-	command            CommandID
-	frontier           CommitSeq
-	rewrittenFrontiers map[ObjectAddress]CommitSeq
-	catalog            CatalogRead
-	committed          map[ObjectAddress][]rowVersion
-	generations        map[ObjectAddress]*relationStorage
-	singleGeneration   *relationStorage
-	own                map[ObjectAddress][]rowVersion
-	ends               map[ObjectAddress]*deletionRoot
-	deleted            map[ObjectAddress]*privateDeletionRoot
+	tx                     TxRef
+	command                CommandID
+	frontier               CommitSeq
+	rewrittenFrontiers     map[ObjectAddress]CommitSeq
+	catalog                CatalogRead
+	committed              map[ObjectAddress][]rowVersion
+	generations            map[ObjectAddress]visibilityGeneration
+	singleGeneration       *relationStorage
+	singleNeedsBirthFilter bool
+	own                    map[ObjectAddress][]rowVersion
+	ends                   map[ObjectAddress]*deletionRoot
+	deleted                map[ObjectAddress]*privateDeletionRoot
 }
 
 func (d *visibilityData) generationAt(address ObjectAddress) *relationStorage {
 	if d.generations != nil {
-		return d.generations[address]
+		return d.generations[address].storage
 	}
 	if _, ok := d.committed[address]; ok {
 		return d.singleGeneration
 	}
 	return nil
+}
+
+func (d *visibilityData) needsBirthFilterAt(address ObjectAddress) bool {
+	if d.generations != nil {
+		return d.generations[address].needsBirthFilter
+	}
+	_, captured := d.committed[address]
+	return captured && d.singleNeedsBirthFilter
 }
 
 func (d *visibilityData) frontierAt(address ObjectAddress) CommitSeq {
@@ -118,11 +134,12 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 		committed: make(map[ObjectAddress][]rowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
-		data.generations = make(map[ObjectAddress]*relationStorage, len(refs))
+		data.generations = make(map[ObjectAddress]visibilityGeneration, len(refs))
 	}
 	for _, ref := range refs {
 		storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
 		versions, ends := storage.versions, storage.ends
+		needsBirthFilter := false
 		var rewrite catalogStorageChange
 		if s.owner.catalog != nil {
 			rewrite = s.owner.catalog.storage[ref.Address]
@@ -131,13 +148,24 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
-				if !ok || root.storage != e.storage[ref.Address] || !sameRelationRowShape(root.relation, current) {
+				live := e.storage[ref.Address]
+				if !ok || !sameRelationRowShape(root.relation, current) {
 					return nil, ErrCatalogReplaced
 				}
-				versions, ends = root.versions, root.ends
+				if root.storage == live {
+					versions, ends = root.versions, root.ends
+				} else {
+					if !sameTruncateLineage(root.storage, live) {
+						return nil, ErrCatalogReplaced
+					}
+					needsBirthFilter = true
+				}
+				// Proven TRUNCATE retirement keeps the original frontier but
+				// uses the current incarnation, never the retained old rows.
 				if s.owner.catalog != nil {
 					if shape, changed := s.owner.catalog.storage[ref.Address]; changed && shape.hasSnapshot {
 						versions = shape.snapshot
+						needsBirthFilter = false // Projected frozen snapshots retain their birth bound.
 					}
 				}
 			} else {
@@ -152,9 +180,10 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 		}
 		data.committed[ref.Address] = versions
 		if data.generations != nil {
-			data.generations[ref.Address] = storage
+			data.generations[ref.Address] = visibilityGeneration{storage: storage, needsBirthFilter: needsBirthFilter}
 		} else {
 			data.singleGeneration = storage
+			data.singleNeedsBirthFilter = needsBirthFilter
 		}
 		if ends != nil {
 			if data.ends == nil {

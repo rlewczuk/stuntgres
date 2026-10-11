@@ -219,7 +219,7 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 				switch kind {
 				case "commands":
 					for range 2 {
-						timeoutReferenceIdle(t, p.Ctx, 100*time.Millisecond)
+						timeoutReferenceIdle(t, p.Ctx, 50*time.Millisecond)
 						f.show("transaction_timeout", "250ms")
 					}
 				case "positive-positive", "same-value":
@@ -266,7 +266,7 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 				}
 				delay := 350 * time.Millisecond
 				if kind == "commands" {
-					delay = 125 * time.Millisecond
+					delay = 175 * time.Millisecond
 				}
 				if kind == "positive-positive" || kind == "same-value" {
 					delay = 150 * time.Millisecond

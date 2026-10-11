@@ -6,6 +6,34 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### TRUNCATE TABLE — change note
+
+`TRUNCATE [TABLE] target [, target ...] [CONTINUE IDENTITY] [RESTRICT | CASCADE]`
+supports qualified/quoted names, `ONLY name`, `ONLY(name)` and `name *`.
+Defaults are CONTINUE IDENTITY and RESTRICT. Each explicit target requires the
+exact table TRUNCATE right; inherited descendants are included without their
+own ACL check, whereas explicit and FK-cascade members require it.
+ACCESS EXCLUSIVE acquisition follows requested explicit order and the real
+hierarchy/FK graph. RESTRICT rejects even an empty external referencing table;
+CASCADE follows distinct incoming FK relations, not outgoing referenced parents
+or a cascaded ordinary child's inheritance descendants.
+
+Execution has no result columns and affected count0, in autocommit, SQL BEGIN
+and driver transactions. Go Prepare has no lookup, lock or effect; execution
+reauthorizes current targets. Storage generations and index baselines change
+atomically, without DELETE row events or descriptor/constraint/ACL replacement.
+Readonly execution fails25006 `cannot execute TRUNCATE TABLE in a read-only transaction`,
+including TEMP and before target lookup. ONLY on a virtual partition root
+fails42809 with the documented partition Hint; views, materialized views,
+sequences, indexes and composite backing relations are not tables.
+
+Valid `RESTART IDENTITY` remains positioned0A000; malformed syntax remains42601.
+Native trigger/pending-trigger and FDW providers, partition foreign keys, wire
+storage and durability are not introduced. Existing RLS does not filter this
+whole-table operation. See [SQL forms](SQL.md#truncate-table--change-note),
+[snapshot and cursor distinctions](TRANSACTIONS.md#truncate-generations--change-note)
+and [selected proof](TESTING.md#truncate-selected-proof).
+
 ### COPY text streams — change note
 
 The native public stream API supports table FROM STDIN, physical table TO STDOUT
@@ -295,7 +323,8 @@ are legal; PUBLIC use and implicit owner grant authority survive.
 Prepare is effect/name-resolution free; Execute publishes all reached ACL changes
 atomically or none, retaining reached warnings. Existing consumers enforce exact
 columns, including empty/filtered sources. MAINTAIN authorizes actual REINDEX;
-TRUNCATE has a LOCK consumer. REFERENCES authorizes FK declarations; TRIGGER has no native command consumer.
+TRUNCATE authorizes TRUNCATE TABLE as well as an existing LOCK alternative.
+REFERENCES authorizes FK declarations; TRIGGER has no native command consumer.
 Table grants never confer sequence privileges, including SERIAL defaults.
 Sequence/other-object grants, defaults and native explicit-transaction object
 utilities remain excluded. Native explicit-ACL Dump
@@ -1330,8 +1359,9 @@ native rows/descriptors remain stable while held executions refresh. Supported
 own transaction overlays participate; native's latest committed catalog frontier
 still differs from PostgreSQL repeatable-read MVCC. TEMP tables/views, partitioning,
 tablespace DDL, rules, triggers, RLS and VACUUM remain outside this change.
-Native ALTER TABLE OWNER and TRUNCATE retain their existing0A000 boundaries
-without changing summary state; supported ALTER VIEW OWNER refreshes view ownership.
+Native ALTER TABLE OWNER retains its existing0A000 boundary without changing
+summary state. TRUNCATE preserves sticky hasindexes; supported ALTER VIEW OWNER
+refreshes view ownership.
 Table owners come from real authenticated creation, control replay or internal
 immutable descriptor replacement, not a new table-owner SQL command.
 See [exact schemas and provenance](SQL.md#table-and-view-summaries--change-note).

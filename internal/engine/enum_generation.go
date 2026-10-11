@@ -42,6 +42,9 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if !exists {
 			shape = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation}
 		}
+		if shape.replacement != rebound.replacement {
+			shape.truncated = false
+		}
 		shape.replacement, shape.relation = rebound.replacement, consumer
 		if shape.fills != nil {
 			shape.fills = maps.Clone(shape.fills)

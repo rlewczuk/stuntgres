@@ -416,8 +416,9 @@ sequence authority; SESSION_USER remains caller. Owner/current-schema context
 is operation-local and restored on success/failure before caller publication
 fences. Caller source/sequence rights cannot rescue denied owner rights.
 WITH NO DATA needs no producer/source/sequence rights or draws.
-TRUNCATE supplies an existing LOCK alternative; REFERENCES authorizes real FK
-declarations and TRIGGER is stored/delegated without introducing trigger commands.
+TRUNCATE requires the exact table TRUNCATE bit for TRUNCATE TABLE and also
+supplies an existing LOCK alternative; REFERENCES authorizes real FK declarations
+and TRIGGER is stored/delegated without introducing trigger commands.
 Table INSERT does not
 grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas
 IDENTITY's internal generation remains supported. Direct sequence grants,
@@ -581,6 +582,26 @@ native DROP ROLE IF EXISTS remains unsupported. PostgreSQL role removal follows
 fixture/schema teardown. These are original route and cleanup witnesses, not
 new authentication or authority capabilities.
 
+
+## TRUNCATE TABLE authority
+
+Named targets require schema visibility/USAGE and the exact table TRUNCATE use
+right, not DELETE, SELECT, MAINTAIN, REFERENCES, ownership alone or any column
+right. Default owner rights and PUBLIC/inherited memberships apply normally;
+an explicit owner revoke removes use rights, while superusers still bypass ACLs.
+Go Prepare discovers no names or privileges. Execute resolves current names and
+reauthorizes after lock grant and again before atomic staging/publication.
+
+An inherited or partition descendant included only by expansion needs no
+separate table privilege or invented schema lookup. A separately named occurrence
+requires its own TRUNCATE right even if already selected as a descendant.
+Every incoming FK CASCADE member also needs TRUNCATE, and its reached NOTICE
+precedes a possible ACL/activity denial; denial preserves all selected rows.
+CONTINUE IDENTITY needs no sequence privilege and changes no sequence definition,
+generator, cache reservation, currval or lastval. RLS/default/CHECK/generated
+expressions do not filter or evaluate this whole-table operation; denying
+TRUNCATE still denies it when SELECT sees no rows under existing RLS default deny.
+Readonly25006 is checked before target/schema/ACL lookup, including TEMP.
 
 ## Schemas and search path
 

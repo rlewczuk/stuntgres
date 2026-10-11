@@ -17,6 +17,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.Truncate:
+		return Result{}, scope.stageTruncate()
 	case *parser.CreateExtension:
 		return e.executeExtension(scope, stmt.(*parser.CreateExtension), count)
 	case *parser.Discard:

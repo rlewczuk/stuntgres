@@ -338,6 +338,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		}
 		if c != nil {
 			for _, shape := range c.storage {
+				if shape.truncated && shape.original != nil {
+					shape.original.truncateLineage = shape.replacement.truncateLineage
+				}
 				if shape.rewritten && shape.relation.relationKind == materializedViewRelation {
 					for i := range shape.replacement.versions {
 						shape.replacement.versions[i].born = e.commitSeq + 1

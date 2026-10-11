@@ -314,6 +314,9 @@ type StatementScope struct {
 	partitionRelations             map[ObjectAddress]*relationDescriptor
 	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
 	inheritanceCatalog             CatalogRead // Immutable topology after the last grant/wait reconciliation.
+	truncateRelations              []truncateRelation
+	truncateNames                  []truncateName
+	truncateSelected               map[ObjectAddress]int
 	Expected                       *StatementDescription
 	preparedReuse                  *preparedAnalysis
 	preparedInvalid                bool
@@ -475,7 +478,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Unlock()
 	if idle {
 		switch stmt.(type) {
-		case *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard:
+		case *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		case *parser.Comment:
@@ -666,6 +669,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
+	case *parser.Truncate:
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.RefreshMaterializedView:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
@@ -765,6 +770,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	}
 	if _, ok := stmt.(*parser.LockTable); ok && count != 0 {
 		return Result{}, errors.New("stuntgres: LOCK TABLE takes no arguments")
+	}
+	if _, ok := stmt.(*parser.Truncate); ok && count != 0 {
+		return Result{}, errors.New("stuntgres: TRUNCATE TABLE takes no arguments")
 	}
 	// Utility read-only restrictions precede object resolution, ACL checks and
 	// locks. DML keeps its separate analysis-before-read-only execution gate.

@@ -245,6 +245,9 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		if !exists {
 			shape = catalogStorageChange{original: rowShape.original, root: rowShape.root, ends: rowShape.observedEnds, generation: rowShape.generation}
 		}
+		if shape.replacement != rowShape.replacement {
+			shape.truncated = false
+		}
 		shape.replacement = rowShape.replacement
 		shape.relation = stage.descriptors[a].(*relationDescriptor)
 		changes.storage[a] = shape
@@ -258,6 +261,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		// Keep the first committed predecessor (or genuine private CREATE
 		// absence). A repeated refresh replaces only the latest private root.
 		shape.replacement, shape.relation = r.storage, r.descriptor
+		shape.truncated = false
 		shape.rewritten, shape.frontier = true, e.commitSeq
 		shape.snapshot, shape.hasSnapshot = nil, false
 		changes.storage[a] = shape

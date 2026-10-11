@@ -146,17 +146,11 @@ func TestReferencePGTableViewsIndexHistory(t *testing.T) {
 			}
 			run("CREATE INDEX pgtv_index ON pgtv_history(m)")
 			run("ALTER TABLE pgtv_history DROP COLUMN m")
-			if b.PG {
-				run("TRUNCATE pgtv_history")
-			} else {
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ImplicitError("TRUNCATE pgtv_history", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-					s.Prepared = prepared
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-				}
+			for _, prepared := range []bool{false, true} {
+				s := fixture.Exec("TRUNCATE pgtv_history", 0)
+				s.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+				pgTableCheck(t, p, b, b.DB, "pgtv_history", pgTableRow("public", "pgtv_history", pgTableViewsOwner(b), true))
 			}
 			pgTableCheck(t, p, b, b.DB, "pgtv_history", pgTableRow("public", "pgtv_history", pgTableViewsOwner(b), true))
 			run("DROP TABLE pgtv_history")

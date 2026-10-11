@@ -2,6 +2,39 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## TRUNCATE hierarchy consumer — change note
+
+TRUNCATE consumes the existing immutable inheritance and RANGE partition graph.
+Default/star targets include ordinary descendants, deduplicating multiple-parent
+children; ONLY on a physical parent changes only that parent's store. Partition
+root/nested-root selection locks the virtual authorities and replaces real leaf
+stores. Direct leaf selection preserves siblings, with canonical ancestor
+membership stabilization. ONLY on any partitioned root, including an empty one,
+rejects42809 rather than fabricating a physical table.
+
+Inheritance expansion skips temporary children owned by another session, including
+their descendant branches, before selecting stores or acquiring AX locks. The
+invoking session's temporary children and persistent children still participate.
+The immutable namespace/session token supplies this boundary; no child ACL or
+namespace-USAGE requirement is added. Grant-time and final graph reconciliation
+retain the same session-specific closure.
+
+Definitions, parent edges, columns, constraint origins, indexes, comments, ACLs,
+defaults, generation expressions, identity ownership and row-security flags are
+preserved. Empty index baselines allow reinsertion of former keys without
+discarding uniqueness/exclusion definitions. Incoming FK closure uses actual
+definition vectors even for empty tables; a table reached solely by FK CASCADE
+does not implicitly add its ordinary inheritance descendants.
+
+Inherited/partition descendants skip their own table ACL check, but an explicit
+occurrence or FK-cascade member needs exact TRUNCATE. Each explicit occurrence
+is checked even when its physical effect was already selected by expansion.
+No recursive UPDATE/DELETE, ALTER INHERIT/NO INHERIT, propagation or native
+partition FK support is added. Inherited SELECT remains its independently
+supported graph consumer. Triggers and FDW callbacks have no native provider.
+See [syntax](SQL.md#truncate-table--change-note) and
+[atomic lifetime](TRANSACTIONS.md#truncate-generations--change-note).
+
 ## Row-security table flags — change note
 
 `ALTER TABLE [IF EXISTS] table ENABLE | DISABLE | FORCE | NO FORCE ROW LEVEL SECURITY`
@@ -414,7 +447,9 @@ definitions. A retiring parent can also be the regclass provider of a retained
 other parent's DEFAULT or CHECK: CASCADE retires their shared child before pruning
 that newly standalone owner's dependent definition. Independent definitions and
 physical rows remain. Whole-table graph closure removal also remains supported.
-ALTER INHERIT/NO INHERIT, recursive modifying targets, propagation and partitions are not added.
+ALTER INHERIT/NO INHERIT, recursive UPDATE/DELETE and propagation are not
+added. Inherited SELECT and TRUNCATE are separate supported graph consumers;
+RANGE partition definitions retain their independently documented surface.
 
 Dump topologically emits ordered INHERITS and only local declarations, preserving
 explicit DEFAULT NULL, equal local CHECK/NN merges and actual data. A plain local

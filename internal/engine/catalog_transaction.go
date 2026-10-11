@@ -8,26 +8,27 @@ import (
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals       map[ObjectAddress]Descriptor
-	descriptors     map[ObjectAddress]Descriptor
-	names           map[NameKey]ObjectAddress
-	generators      map[ObjectAddress]*sequenceGenerator
-	storage         map[ObjectAddress]catalogStorageChange
-	uniqueRoots     map[ObjectAddress]*logicalIndexRoot
-	dependencies    []catalogDependencyObservation
+	originals          map[ObjectAddress]Descriptor
+	descriptors        map[ObjectAddress]Descriptor
+	names              map[NameKey]ObjectAddress
+	generators         map[ObjectAddress]*sequenceGenerator
+	storage            map[ObjectAddress]catalogStorageChange
+	uniqueRoots        map[ObjectAddress]*logicalIndexRoot
+	dependencies       []catalogDependencyObservation
 	extensionAuthority []extensionAuthorityObservation
-	cachedBase      *catalogState
-	cached          CatalogRead
-	enumCreated     map[ObjectAddress]bool // CREATE at top transaction level only.
-	enumUnsafe      map[int64]bool         // Globally nonreused member identities.
-	rolesBase       *roleCatalog
-	roles           *roleCatalog
-	retiredRoles    map[PrincipalRef]struct{}
-	indexRebuilds   map[ObjectAddress]*relationDescriptor
-	indexFences     []catalogIndexFence
-	namespaceFences []catalogNamespaceFence
-	readFences      []partitionReadFence
-	domainChanged   bool
+	cachedBase         *catalogState
+	cached             CatalogRead
+	enumCreated        map[ObjectAddress]bool // CREATE at top transaction level only.
+	enumUnsafe         map[int64]bool         // Globally nonreused member identities.
+	rolesBase          *roleCatalog
+	roles              *roleCatalog
+	retiredRoles       map[PrincipalRef]struct{}
+	indexRebuilds      map[ObjectAddress]*relationDescriptor
+	indexFences        []catalogIndexFence
+	namespaceFences    []catalogNamespaceFence
+	readFences         []partitionReadFence
+	truncateFences     []truncateGraphFence
+	domainChanged      bool
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -89,6 +90,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.indexFences = append(n.indexFences, c.indexFences...)
 	n.namespaceFences = append(n.namespaceFences, c.namespaceFences...)
 	n.readFences = append(n.readFences, c.readFences...)
+	n.truncateFences = append(n.truncateFences, c.truncateFences...)
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
 	return n
 }
@@ -246,6 +248,9 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 				}
 			}
 		}
+	}
+	if err := e.truncateGraphPreflightLocked(c); err != nil {
+		return err
 	}
 	for a, shape := range c.storage {
 		store := e.storage[a]

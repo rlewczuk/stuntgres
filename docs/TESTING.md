@@ -43,6 +43,90 @@ held-reader/view-replacement assertions. Root records actual argv/cwd/exit/outpu
 Whole-project Docker-free proof remains `make quickcheck`; post-merge finalcheck
 uses its external1800-second deadline. Never use `make refcheck`.
 
+## TRUNCATE selected proof
+
+The untagged public `reference/dml/truncate_*_test.go` definitions share real
+direct/prepared SQL bodies and fixed independent counts, rows, metadata,
+full diagnostics and NOTICE sequences in native and pinned PostgreSQL18.0 modes.
+`TestReferencePGTableViewsIndexHistory` is migrated to successful shared
+TRUNCATE while retaining its existing non-TRUNCATE summary lifecycle.
+`TestReferenceInheritanceBoundaryNoEffects` retains shared inherited SELECT,
+positive nextval and WHERE-false no-evaluation witnesses alongside successful
+shared TRUNCATE and empty parent/child outcomes.
+No discovery filter belongs in the final candidate.
+
+The oracle-first workflow requires an explicit tests-only stop, pinned oracle
+discovery, filter removal and meaningful compiling native red before authorized
+production. Every changed/new/migrated definition needs fresh selected native
+and real PostgreSQL proof before review/integration. Docker/image failures fail
+the real run; they are not skips or native fallback. Give each command an
+external900-second deadline; targets do not own deadlines:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceTruncate(SyntaxAndPrepare|Diagnostics|Atomicity|ForeignKeys)'
+make check RUN='^TestReferenceTruncate(SyntaxAndPrepare|Diagnostics|Atomicity|ForeignKeys)'
+make check REFERENCE=1 RUN='^TestReferenceTruncate(Transactions|Authorization|Hierarchy|Identity|ReadOnly)'
+make check RUN='^TestReferenceTruncate(Transactions|Authorization|Hierarchy|Identity|ReadOnly)'
+make check REFERENCE=1 RUN='^TestReferenceTruncate(Locks|Admission|Snapshots|Lifetime)'
+make check RUN='^TestReferenceTruncate(Locks|Admission|Snapshots|Lifetime)'
+make check REFERENCE=1 RUN='^TestReferenceTruncate(Boundaries|ProviderControls|FeatureSmoke)'
+make check RUN='^TestReferenceTruncate(Boundaries|ProviderControls|FeatureSmoke)'
+make check REFERENCE=1 RUN='^TestReferencePGTableViewsIndexHistory$'
+make check RUN='^TestReferencePGTableViewsIndexHistory$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceBoundaryNoEffects$'
+make check RUN='^TestReferenceInheritanceBoundaryNoEffects$'
+make check RUN='^TestTruncate(Grammar|Generation|Indexes|PrivateRoots|Savepoints|Closure|Authority|Graph|Locks|Admission|FinalVeto|Snapshots|Provenance|Activity|Buffers)'
+make check RACE=1 RUN='^TestTruncate(Locks|Admission|Authority|FinalVeto|Graph)'
+make check REFERENCE=1 RUN='^TestReferenceTruncateHierarchyTemporarySessions$'
+make check RUN='^TestReferenceTruncateHierarchyTemporarySessions$'
+make check RUN='^TestTruncateGraphTemporarySessions$'
+make check RACE=1 RUN='^TestTruncateGraphTemporarySessions$'
+```
+
+Internal units exercise real storage/descriptor/index roots, private generations
+and savepoints, immutable snapshot provenance, SQL cursor producer teardown,
+real manager pending resources/tickets/prefix journals and final vetoes.
+Graph changes use existing validated CatalogStage publication/FK binding;
+queued ACL revocation uses the real immutable ACL authority, not a mock or
+new test-only production hook. Serialized queued TRUNCATE follows only proven
+same-lineage generation changes; name, non-TRUNCATE and control replacements
+remain fenced. PG contention records actual PID/OID/pg_locks/blocking identity.
+Public native scheduling alone is not claimed as exact queue evidence.
+`TestTruncateSnapshotsBirthFilter` exercises an actual undeleted new incarnation
+containing peer9: the old frontier filters it while a mixed frozen q prefix
+keeps its allocation-free path and a later own insert remains visible.
+`TestTruncateSnapshotsInherited` and the public inherited-incarnation scenario
+exercise this same filter through the existing inherited SELECT physical-leaf
+consumer: unchanged parent rows survive, the peer's new child row is invisible
+at the retained frontier, and the reader's own child insert is visible.
+Hierarchy assertions retain the shared child's two parent edges and query the
+other parent's complete inherited bag through the existing SELECT provider;
+no native-only DROP workaround or new SELECT implementation is required.
+`TestReferenceTruncateHierarchyTemporarySessions` uses two physical connections
+and reciprocal truncation to prove foreign-session TEMP descendants keep their
+rows while the invoking session's TEMP descendants participate. The internal
+`TestTruncateGraphTemporarySessions` asserts excluded storage/selected identity,
+AX lock entries and ticket journals, includes own TEMP/persistent positives, and
+publishes a real host rename of the excluded child to exercise the matching
+final graph fence without a fake provider or extra child privilege checks.
+
+PG-only labeled witnesses exercise genuine trigger ordering/no DELETE events,
+provider failure rollback, pending trigger activity, FDW and partition foreign
+keys. They do not claim absent native providers. RLS is an existing native
+provider and its whole-table ACL/default-deny witness runs in both modes.
+SQL CREATE-in-explicit-transaction late-provider setup remains a labeled native
+boundary; real internal stage authority covers grant-time graph changes.
+Valid native RESTART fails positioned0A000, not a fake successful reset.
+
+Feature smoke has both public reference selectors above and a standalone public
+Go source handed to the root for temporary materialization. Under its own
+external900-second deadline, it must exit0 quietly after independently asserting
+direct/prepared FK RESTRICT/CASCADE, savepoints, identity/session memory, retained
+typed Rows, old-snapshot TRUNCATE versus DELETE, reciprocal TEMP-descendant
+session isolation, ACL and readonly diagnostics.
+Record actual argv/cwd/exit/output and observations; package readiness is not
+smoke evidence. Reserve quickcheck for whole-project Docker-free verification.
+
 ## Prepared rebind selected proof
 
 The shared untagged `reference/sessions/prepared_rebind_*_test.go` scenarios use
@@ -4657,6 +4741,12 @@ polls, asynchronous joins, context/watchdog bounds and all diagnostic/state/
 atomicity assertions are unchanged. This timing-only scale is not a deadline
 increase or readiness-only substitute. The separate public executable retains
 its independently specified100ms/300ms budgets and650ms idle stimuli.
+
+The transaction-assignment command witness issues SHOW after two50ms idle
+intervals, then probes expiry after175ms more. Its nominal275ms probe is after
+the original250ms deadline but before an incorrectly rearmed350ms deadline;
+the second successful SHOW has150ms nominal headroom. This test-only window
+correction preserves the nonrearming assertion without changing provider budgets.
 
 The complete pinned run also confirmed actual Go-Tx-held ErrBadConn transport,
 distinct from Conn-held ErrConnDone. Native caller context cancellation retains

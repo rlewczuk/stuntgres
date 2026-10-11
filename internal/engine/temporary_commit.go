@@ -50,6 +50,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 			shape = catalogStorageChange{original: store, root: store.versions, ends: store.ends, generation: store.generation}
 		}
 		shape.replacement = &relationStorage{}
+		shape.truncated = false
 		shape.relation = base.state.descriptors[a].(*relationDescriptor)
 		next.storage[a] = shape
 		delete(nextWrites, a)

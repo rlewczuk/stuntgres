@@ -272,6 +272,8 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 }
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.Truncate:
+		return "TRUNCATE TABLE"
 	case *parser.RefreshMaterializedView:
 		return "REFRESH MATERIALIZED VIEW"
 	case *parser.CreatePolicy:

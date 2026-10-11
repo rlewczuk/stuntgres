@@ -36,7 +36,9 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return CatalogConflict{}
 		}
 		old, existed := stage.base.state.descriptors[parent.address].(*relationDescriptor)
-		if stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.attributes, parent.attributes)) {
+		shape, replaced := c.storage[parent.address]
+		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.address)
+		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.attributes, parent.attributes)) {
 			continue
 		}
 		if !index.sqlIndex.ready {

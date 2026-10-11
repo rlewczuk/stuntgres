@@ -612,6 +612,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			changes.generators[a] = generator
 		}
 	}
+	if shape.replacement != replacement {
+		shape.truncated = false
+	}
 	shape.replacement, shape.relation = replacement, next
 	metadataOnly := len(transformations) == 0 && len(additions) == 0 && slices.Equal(old.attributes, next.attributes)
 	// A storage entry requests index reconstruction at publication. Attachment

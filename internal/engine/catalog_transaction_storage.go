@@ -17,6 +17,7 @@ type catalogStorageChange struct {
 	snapshot    []rowVersion
 	hasSnapshot bool
 	rewritten   bool
+	truncated   bool
 	frontier    CommitSeq
 	fills       map[int32]sqltype.Value
 }

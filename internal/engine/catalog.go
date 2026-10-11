@@ -37,6 +37,9 @@ type relationStorage struct {
 	ends        *deletionRoot
 	generation  uint64
 	indexSource *relationStorage // Origin only on detached index-build captures.
+	// Metadata only, accessed under Engine.mu. Rows/end vectors are never
+	// changed when this first committed TRUNCATE stamps its predecessor.
+	truncateLineage *truncateLineage
 }
 
 const (

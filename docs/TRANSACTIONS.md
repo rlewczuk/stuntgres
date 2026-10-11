@@ -2,6 +2,60 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## TRUNCATE generations — change note
+
+TRUNCATE is a transactional whole-table generation replacement, not DELETE.
+All selected physical stores receive empty private incarnations and matching
+empty index baselines; virtual partition roots participate in authority/locks
+without invented storage. One successful publication installs the whole group
+at one commit frontier. Old vectors, deletion roots, codecs and definitions
+remain retained by their existing owners. Final cancellation, stale catalog/
+storage/authorization, or a late host graph change vetoes the complete group.
+Successful truncation emits no row-delete events and reports affected0.
+
+The current transaction sees empty selected tables immediately. Earlier selected
+private insert/update/delete roots are retired; unrelated roots survive.
+Subsequent inserts are ordinary own writes, and repeated TRUNCATE retires them
+while retaining the first committed predecessor fences. Rollback and rollback-to
+savepoint restore exact prior storage/index/write/delete/provenance roots.
+Recoverable errors retain the existing25P02/ROLLBACK TO lifecycle.
+
+Each explicit target is opened and locked in requested order, before later
+targets are resolved. ACCESS EXCLUSIVE conflicts with all eight table modes,
+including ordinary SELECT's ACCESS SHARE. Inheritance and partition descendants
+use the granted current graph; incoming FK CASCADE closure is discovered in
+ordered waves. Timeout/caller cancellation uses the canonical manager's pending
+queue and prefix journal. Rights and activity are rechecked after grant.
+A second SQL TRUNCATE queued behind an earlier successful TRUNCATE may follow
+that exact incarnation's proven lineage after grant; it cannot retarget another
+name/epoch or follow an unrelated rewrite. Control changes remain fenced.
+
+PostgreSQL documents TRUNCATE as not MVCC-safe: a Repeatable Read transaction
+whose snapshot was established elsewhere but has not locked the target sees the
+new empty incarnation after peer commit, rather than retired pre-TRUNCATE rows.
+Its original snapshot frontier still hides later peer inserts. DELETE instead
+retains old snapshot rows; peer TRUNCATE rollback does too. Prior target access,
+even an empty SELECT, holds ACCESS SHARE and blocks peer truncation.
+Native snapshot ownership is unchanged: a bounded storage-lineage token proves
+only legitimate TRUNCATE continuity, without a new snapshot map or predecessor
+chain. Non-TRUNCATE rewrites, row-shape/control/epoch replacement and already
+captured in-flight-view fences retain their ordinary replacement checks.
+The existing visibility-generation capture also records whether that relation's
+current vector needs birth filtering at the retained frontier. This execution
+flag prevents the undeleted-prefix selector shortcut from exposing post-snapshot
+peer inserts, without copying rows or scanning ordinary frozen prefixes.
+Own inserts remain visible; mixed-relation captures keep the flag local to the
+retired incarnation rather than changing another relation's snapshot.
+
+Exported eager native Rows own immutable values/codecs and may finish draining
+after a peer or same-connection truncate; they are not SQL cursor producers.
+Live or exhausted SQL cursors with retained producers reject direct, descendant
+or FK-cascade targets with55006 `cannot TRUNCATE "name" because it is being used by active queries in this session`.
+CLOSE permits truncation. Failed producers and promoted WITH HOLD typed buffers
+have released their relation producer references and do not pin this activity
+check. CONTINUE IDENTITY never changes generator/cache/session memory; RESTART,
+native trigger/pending-trigger and FDW providers are outside this change.
+
 ## DISCARD transaction boundaries
 
 `DISCARD ALL` fails25001 `DISCARD ALL cannot run inside a transaction block` in
@@ -651,8 +705,9 @@ See [action and cardinality rules](QUERIES.md#insert-conflict-update--change-not
 ## Relation locks
 
 Ordinary SELECT acquires transaction-owned ACCESS SHARE; locking SELECT acquires
-ROW SHARE; INSERT, UPDATE and DELETE acquire ROW EXCLUSIVE. These automatic
-relation modes coexist, including concurrent readers and writers. COMMENT
+ROW SHARE; INSERT, UPDATE and DELETE acquire ROW EXCLUSIVE. TRUNCATE acquires
+ACCESS EXCLUSIVE. Ordinary read/write modes coexist, including concurrent readers
+and writers; AX excludes every other owner's relation mode. COMMENT
 TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
 it coexists with AS/RX, but conflicts with another owner's SUE and AX.
 `LOCK [TABLE] target [, target ...] [IN lockmode MODE] [NOWAIT]` supports all
