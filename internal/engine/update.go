@@ -430,6 +430,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := s.checkUniqueRow(b.ref, row, oldRows, rows); err != nil {
 			return Result{}, err
 		}
+		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
+			return Result{}, err
+		}
 		if output != nil {
 			eval.Row, eval.OldRow = row, old.values
 			if b.update.from != nil {
@@ -485,6 +488,10 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
+	return e.rowDiagnosticDetail(s, b, row, false)
+}
+
+func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
 	var auth AuthorizationView
@@ -537,6 +544,9 @@ func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltyp
 		if rights&SelectPrivilege != 0 {
 			visible = append(visible, index)
 		}
+	}
+	if suppressEmpty && len(visible) == 0 {
+		return "", nil
 	}
 	return failingRowDetail(row, s.output, b.relation.columns, visible, b.relation)
 }

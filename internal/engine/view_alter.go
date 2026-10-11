@@ -102,15 +102,18 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	case "set", "reset":
 		definition := *old.view
 		if s.Action == "set" {
-			barrier, invoker, err := viewSecurity(s.Options)
+			barrier, invoker, mode, err := viewOptions(s.Options)
 			if err != nil {
 				return fail(err)
 			}
 			for _, option := range s.Options {
-				if option.Name.Text == "security_barrier" {
+				switch option.Name.Text {
+				case "security_barrier":
 					definition.barrier = barrier
-				} else {
+				case "security_invoker":
 					definition.invoker = invoker
+				case "check_option":
+					definition.checkOption = mode
 				}
 			}
 		} else {
@@ -123,7 +126,14 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 					definition.barrier = false
 				case "security_invoker":
 					definition.invoker = false
+				case "check_option":
+					definition.checkOption = viewCheckNone
 				}
+			}
+		}
+		if definition.checkOption != viewCheckNone {
+			if err := validateViewCheckDeclaration(&definition); err != nil {
+				return fail(err)
 			}
 		}
 		next.view = &definition

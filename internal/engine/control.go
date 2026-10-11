@@ -374,8 +374,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if len(labels) > 0 {
 				columns = " (" + strings.Join(labels, ", ") + ")"
 			}
+			options := fmt.Sprintf("security_barrier=%t, security_invoker=%t", r.view.barrier, r.view.invoker)
+			switch r.view.checkOption {
+			case viewCheckLocal:
+				options += ", check_option=local"
+			case viewCheckCascaded:
+				options += ", check_option=cascaded"
+			}
 			sql := "CREATE VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns +
-				fmt.Sprintf(" WITH (security_barrier=%t, security_invoker=%t) AS ", r.view.barrier, r.view.invoker) + body + ";\n"
+				" WITH (" + options + ") AS " + body + ";\n"
 			if r.relationKind == materializedViewRelation {
 				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns + " AS " + body + " WITH NO DATA;\n"
 				storage := e.storage[a]

@@ -2287,7 +2287,7 @@ and security SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE and IF EXIST
 Scalar COLLATE annotations support default/C/POSIX and the fixed Unicode16
 `pg_c_utf8`/`pg_unicode_fast` identities; arbitrary locale/ICU providers remain excluded.
 Cyclic replacement is admitted, but recursive reads fail42P17 and native cyclic
-Dump explicitly fails. CREATE RECURSIVE/TEMP syntax, check options,
+Dump explicitly fails. CREATE RECURSIVE/TEMP syntax,
 view column defaults/type-changing ALTER, full catalogs/RLS/UDFs/optimizer facilities
 and explicit-transaction view DDL remain excluded.
 Native fixture controls serialize current definitions, not materialized results
@@ -2315,6 +2315,21 @@ versions, including own transaction changes; Prepare binds without executor ACLs
 INSERT RETURNING, trigger/rule rewriting and RLS remain excluded.
 Feature smoke: `make check RUN='^TestReferenceViewUpdatableSmoke$'`;
 use the same selector with `REFERENCE=1` for the pinned PostgreSQL contract.
+
+Explicit view check options enforce finalized INSERT/UPDATE NEW rows, including
+existing identity-order conflict-update producers, through the same atomic base
+write seams. `WITH CHECK OPTION` defaults to CASCADED; LOCAL, CASCADED, equivalent
+check_option reloptions and ALTER VIEW SET/RESET are supported. FALSE and NULL
+fail44000, naming the innermost failing checked view. Nested CASCADED includes
+unchecked descendant predicates; LOCAL retains lower explicitly selected checks.
+Base constraints/uniqueness precede view checks; discarded DO NOTHING proposals
+are not checked. Native Dump/Restore retains mode and identity-bound predicates.
+Rule/trigger rewriting is a PostgreSQL oracle-only provider mechanism; native
+definitions explicitly fail, with no base effects. General conflict-action
+remapping through reordered/computed view outputs is not added by this feature.
+Smoke: `make check RUN='^TestReferenceViewCheckFeatureSmoke$'`, also with
+`REFERENCE=1`.
+
 
 SELECT targets support `AS label` and eligible bare labels for view definitions
 and normal output metadata. ORDER resolves output labels and ordinals alongside

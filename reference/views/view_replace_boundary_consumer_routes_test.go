@@ -19,14 +19,10 @@ func TestReferenceViewReplaceCapabilityBoundariesConsumerRoutes(t *testing.T) {
 		}
 		for _, q := range []string{"CREATE VIEW excluded WITH(check_option=local) AS SELECT id FROM t", "CREATE OR REPLACE VIEW v WITH(check_option=local) AS SELECT id FROM t", "ALTER VIEW v SET(check_option=local)"} {
 			r, err := db.Exec(q)
-			if backend.PG {
-				if err != nil {
-					t.Fatal(q, err)
-				}
-				fixture.DeleteReferenceCount(t, r, err, 0)
-			} else {
-				fixture.UpdateReturningReferenceDiagnostic(t, err, fixture.Diagnostic{Code: "0A000", Message: "view check options are unsupported"})
+			if err != nil {
+				t.Fatal(q, err)
 			}
+			fixture.DeleteReferenceCount(t, r, err, 0)
 		}
 		for _, q := range []string{"ALTER VIEW v ALTER COLUMN id SET DEFAULT 7", "ALTER VIEW v ALTER COLUMN id DROP DEFAULT"} {
 			r, err := db.Exec(q)

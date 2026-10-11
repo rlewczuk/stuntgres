@@ -46,14 +46,10 @@ func TestReferenceViewReplaceCollateKeyword(t *testing.T) {
 
 func TestReferenceViewReplaceOptions(t *testing.T) {
 	p := fixture.NewScenario(t)
-	for _, s := range []fixture.Step{fixture.Exec("CREATE TABLE t(id INT)", 0), fixture.Exec("CREATE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id FROM t", 0), fixture.Exec("ALTER VIEW v SET(security_invoker=false)", 0), fixture.Exec("ALTER VIEW v RESET(security_barrier)", 0), fixture.Exec("ALTER VIEW v RESET(unknown_option,unknown_option,check_option)", 0), fixture.Exec("CREATE OR REPLACE VIEW v AS SELECT id FROM t", 0)} {
-		p.Step(t, s)
-	}
-	// PostgreSQL permits check_option on this automatically updatable view;
-	// TestReferenceViewReplaceCapabilityBoundaries asserts native exclusion.
-	if p.Postgres != nil {
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("ALTER VIEW v SET(check_option=local)", 0))
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("ALTER VIEW v RESET(check_option)", 0))
+	for _, backend := range p.Backends() {
+		for _, s := range []fixture.Step{fixture.Exec("CREATE TABLE t(id INT)", 0), fixture.Exec("CREATE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id FROM t", 0), fixture.Exec("ALTER VIEW v SET(security_invoker=false)", 0), fixture.Exec("ALTER VIEW v RESET(security_barrier)", 0), fixture.Exec("ALTER VIEW v RESET(unknown_option,unknown_option,check_option)", 0), fixture.Exec("CREATE OR REPLACE VIEW v AS SELECT id FROM t", 0), fixture.Exec("ALTER VIEW v SET(check_option=local)", 0), fixture.Exec("ALTER VIEW v RESET(check_option)", 0)} {
+			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
+		}
 	}
 }
 

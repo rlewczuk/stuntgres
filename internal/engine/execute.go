@@ -755,6 +755,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, admitErr
 				}
 				if admitted {
+					if err := e.checkViewRow(scope, &b, row, &evaluation); err != nil {
+						return Result{}, err
+					}
 					rows = append(rows, row)
 				}
 				continue
@@ -803,6 +806,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, admitErr
 			}
 			if admitted {
+				if err := e.checkViewRow(scope, &b, row, &evaluation); err != nil {
+					return Result{}, err
+				}
 				rows = append(rows, row)
 			}
 		}

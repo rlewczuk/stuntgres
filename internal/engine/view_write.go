@@ -16,6 +16,7 @@ type viewWrite struct {
 	ref              ObjectRef
 	outputs          []BoundExpr
 	predicates       []BoundExpr
+	checks           []viewCheckGroup
 	queryOccurrences map[viewWriteOccurrence]int
 }
 type viewWriteLayer struct {
@@ -25,6 +26,10 @@ type viewWriteLayer struct {
 	source         *relationDescriptor
 	sourceRef      ObjectRef
 	mainOccurrence int
+}
+type viewCheckGroup struct {
+	relation   *relationDescriptor
+	predicates []BoundExpr
 }
 
 func viewWriteError(d *relationDescriptor, operation, reason string) error {
@@ -161,6 +166,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	for i, c := range d.columns {
 		outputs[i] = columnExpression{expressionInfo: expressionInfo{usage: c.Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, slot: i}
 	}
+	cascaded := false
 	for d.relationKind == viewRelation {
 		if seen[ref] {
 			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.name))
@@ -242,6 +248,12 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				c.origin = use
 				c.scope = 1
 				c.frame = 1
+				// Main-source expressions now consume the physical destination row,
+				// not a SELECT occurrence/window. Refresh virtual recipes against
+				// its live attributes; independent subquery occurrences stay intact.
+				c.virtual = nil
+				c.rowStart, c.rowWidth, c.queryOccurrence = 0, 0, 0
+				c = c.withGeneration(source, slot, 0)
 				return c, true, nil
 			})
 		}
@@ -278,12 +290,29 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			}
 			w.predicates[i] = next
 		}
+		for i := range w.checks {
+			for j, expr := range w.checks[i].predicates {
+				next, _, err := rewriteViewExpression(auth.catalog, expr, replace)
+				if err != nil {
+					return err
+				}
+				w.checks[i].predicates[j] = next
+			}
+		}
+		cascaded = cascaded || d.view.checkOption == viewCheckCascaded
+		var checked []BoundExpr
 		for _, expr := range predicates {
 			next, _, err := lowerStored(expr)
 			if err != nil {
 				return err
 			}
 			w.predicates = append(w.predicates, next)
+			if operation != "delete" && (cascaded || d.view.checkOption != viewCheckNone) {
+				checked = append(checked, next)
+			}
+		}
+		if len(checked) != 0 {
+			w.checks = append(w.checks, viewCheckGroup{relation: d, predicates: checked})
 		}
 		targets = mapped
 		d = source
@@ -375,6 +404,14 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 		}
 		w.predicates = predicates
+	}
+	for i := range w.checks {
+		for j, x := range w.checks[i].predicates {
+			w.checks[i].predicates[j], _, err = rewriteViewExpression(auth.catalog, x, func(n BoundExpr) (BoundExpr, bool, error) { return n, false, nil }, graft)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	if b.update != nil {
 		u := *b.update

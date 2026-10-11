@@ -13,11 +13,7 @@ func TestReferenceViewReplaceCapabilityBoundaries(t *testing.T) {
 		run(fixture.Exec("INSERT INTO t VALUES(7)", 1))
 		run(fixture.Exec("CREATE VIEW v AS SELECT id FROM t", 0))
 		for _, query := range []string{"CREATE VIEW excluded WITH(check_option=local) AS SELECT id FROM t", "CREATE OR REPLACE VIEW v WITH(check_option=local) AS SELECT id FROM t", "ALTER VIEW v SET(check_option=local)"} {
-			if backend.PG {
-				run(fixture.Exec(query, 0))
-			} else {
-				run(fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "view check options are unsupported"}))
-			}
+			run(fixture.Exec(query, 0))
 		}
 		for _, query := range []string{"ALTER VIEW v ALTER COLUMN id SET DEFAULT 7", "ALTER VIEW v ALTER COLUMN id DROP DEFAULT"} {
 			if backend.PG {

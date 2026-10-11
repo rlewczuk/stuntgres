@@ -1666,8 +1666,8 @@ state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
 CREATE OR REPLACE preserves view/rule identity, ownership, ACLs and dependents,
 allows trailing outputs and rejects changed existing names/types/typmods/collations.
-ALTER VIEW supports relation/column rename, owner/schema changes and security
-SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE. Cyclic replacement is
+ALTER VIEW supports relation/column rename, owner/schema changes and security/
+check-option SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE. Cyclic replacement is
 allowed, while recursive reads and native cyclic Dump explicitly fail.
 Feature smoke: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'`.
 Replacement smoke: `make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`.
@@ -1688,6 +1688,19 @@ Native Dump/Restore retains definitions and committed base rows, with future
 view writes remapped after Restore. INSERT RETURNING and trigger/rule-based
 writes remain excluded. View-write smoke:
 `make check RUN='^TestReferenceViewUpdatableSmoke$'` (also with `REFERENCE=1`).
+
+Change note: automatically updatable views support `WITH [LOCAL | CASCADED]
+CHECK OPTION` (omitted mode means CASCADED), `WITH(check_option=local|cascaded)`
+and ALTER VIEW SET/RESET. Checks evaluate finalized NEW base rows after base
+constraints/uniqueness, rejecting FALSE or NULL with SQLSTATE44000 without
+publishing a statement prefix. Nested LOCAL checks its own predicate plus lower
+explicit checks; CASCADED also checks every lower predicate, including beneath a
+no-WHERE layer. The innermost failing checked view is named; diagnostic row detail
+uses the actual actor's base-column disclosure rights. Held writes observe
+current modes/sources, and native Dump/Restore preserves modes and future writes.
+INSTEAD rules/triggers remain external provider boundaries, not native no-ops.
+Check-option smoke: `make check RUN='^TestReferenceViewCheckFeatureSmoke$'`
+(also with `REFERENCE=1`).
 
 Change note: explicit temporary views and views whose bound query references a
 temporary relation use the physical owner's existing TEMP namespace. Implicit

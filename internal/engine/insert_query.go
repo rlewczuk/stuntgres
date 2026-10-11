@@ -502,6 +502,11 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				continue
 			}
 		}
+		if b.viewWrite != nil {
+			if err := scope.op.session.Engine().checkViewRow(scope, &b, row, &evaluation); err != nil {
+				return nil, err
+			}
+		}
 		rows = append(rows, row)
 	}
 	if err := ctx.Err(); err != nil {

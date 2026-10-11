@@ -174,6 +174,7 @@ package parser
 %token <tok> DECLARE CURSOR CLOSE SCROLL HOLD FORWARD BACKWARD ABSOLUTE RELATIVE MOVE
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW MATERIALIZED LEFT RIGHT FULL OUTER
+%token <tok> VIEW_CHECK_WITH
 %token <tok> DELETE
 %token <tok> MERGE MATCHED SOURCE TARGET DO NOTHING
 %token <tok> CONFLICT ON_CONFLICT_LA
@@ -384,7 +385,7 @@ package parser
 %type <tok> index_option_name reindex_kind maintenance_concurrent
 %type <indexValue> maintenance_index_option_value
 %type <identifiers> view_columns view_names
-%type <viewOptions> view_options view_option_list
+%type <viewOptions> view_options view_option_list view_check_option
 %type <viewOption> view_option
 %type <tok> view_option_value
 %type <mutationQualifier> mutation_where
@@ -980,10 +981,16 @@ query_table_options: /* empty */
  | query_table_options ON COMMIT KW_U FRAME_UNIT {if $4.text!="preserve" || $5.text!="rows" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
  | query_table_options ON COMMIT DELETE FRAME_UNIT {if $5.text!="rows" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
  | query_table_options ON COMMIT DROP {sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")} ;
-create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} }
- | CREATE OR replace_word VIEW relation_name view_columns view_options AS select { query,ok:=$9.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$5,Columns:$6,Options:$7,Query:query,Replace:true,Pos:$1.pos} }
- | CREATE TEMP VIEW relation_name view_columns view_options AS select { query,ok:=$8.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$4,Columns:$5,Options:$6,Query:query,Persistence:"temporary",Pos:$1.pos} }
- | CREATE OR replace_word TEMP VIEW relation_name view_columns view_options AS select { query,ok:=$10.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$6,Columns:$7,Options:$8,Query:query,Replace:true,Persistence:"temporary",Pos:$1.pos} } ;
+/* WITH before a check option is contextual, leaving query suffix diagnostics
+ * and ordinary unreserved LOCAL/CASCADED identifiers unchanged. */
+view_as: AS {sqllex.(*lexer).viewQuery=true} ;
+create_view: CREATE VIEW relation_name view_columns view_options view_as select view_check_option { query,ok:=$7.(*Select); if !ok {sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset);return 1};$$=&CreateView{Name:$3,Columns:$4,Options:append($5,$8...),Query:query,Pos:$1.pos} }
+ | CREATE OR replace_word VIEW relation_name view_columns view_options view_as select view_check_option { query,ok:=$9.(*Select); if !ok {sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset);return 1};$$=&CreateView{Name:$5,Columns:$6,Options:append($7,$10...),Query:query,Replace:true,Pos:$1.pos} }
+ | CREATE TEMP VIEW relation_name view_columns view_options view_as select view_check_option { query,ok:=$8.(*Select); if !ok {sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset);return 1};$$=&CreateView{Name:$4,Columns:$5,Options:append($6,$9...),Query:query,Persistence:"temporary",Pos:$1.pos} }
+ | CREATE OR replace_word TEMP VIEW relation_name view_columns view_options view_as select view_check_option { query,ok:=$10.(*Select); if !ok {sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset);return 1};$$=&CreateView{Name:$6,Columns:$7,Options:append($8,$11...),Query:query,Replace:true,Persistence:"temporary",Pos:$1.pos} } ;
+view_check_option: /* empty */ {$$=nil}
+ | VIEW_CHECK_WITH CHECK OPTION {$$=[]ViewOption{{Name:Identifier{Text:"check_option",Pos:$1.pos},Value:"cascaded",HasValue:true}}}
+ | VIEW_CHECK_WITH name CHECK OPTION {if $2.keyword==nil || ($2.text!="local" && $2.text!="cascaded") {sqllex.(*lexer).syntax($2);return 1};$$=[]ViewOption{{Name:Identifier{Text:"check_option",Pos:$1.pos},Value:$2.text,HasValue:true}}} ;
 replace_word: name { if $1.text!="replace" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 view_alter_head: ALTER VIEW relation_name {$$=&AlterView{Name:$3,Pos:$1.pos}}
  | ALTER VIEW IF EXISTS relation_name {$$=&AlterView{Name:$5,IfExists:true,Pos:$1.pos}} ;

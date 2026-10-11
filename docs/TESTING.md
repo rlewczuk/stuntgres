@@ -1087,6 +1087,58 @@ reported as automatic-updatability diagnostics by parser-error witnesses.
 The separate actual-API Go smoke source is an ephemeral OMP session artifact;
 root materializes, runs and removes it rather than committing a smoke executable.
 
+## View check-option witnesses
+
+`TestReferenceViewCheck` covers independent direct and genuinely retained prepared
+NEW-row behavior, the full 27-mode nested truth table, default/generated physical
+mapping, logical RETURNING metadata, atomic producer failures, correlated/live/own
+predicate sources, actor disclosure/ACL freshness, transaction/savepoint/cancel
+boundaries, rule/trigger oracle semantics, and native persistent mode round trips.
+The tests were authored before implementation; exact diagnostics and operation
+precedence are observed against the pinned PostgreSQL18.0 oracle, not native
+goldens. Functional definitions are shared; PostgreSQL provider and native
+control-only phases explicitly identify mechanisms unavailable in the other mode.
+
+Run these small selectors with an external900-second deadline in **both** modes:
+
+```sh
+make check RUN='^TestReferenceViewCheck(Grammar|Declaration|Options|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceViewCheck(Basic|Nested|NewRows)$' REFERENCE=1
+make check RUN='^TestReferenceViewCheck(Atomicity|Sources|Security|ConflictUpdate)$' REFERENCE=1
+make check RUN='^TestReferenceViewCheck(Transactions|Cancellation|RuleTriggerBoundary)$' REFERENCE=1
+make check RUN='^TestReferenceViewCheck(Lifecycle|Replay|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceViewCheckReview(VirtualNewRows|QuotedNames)$' REFERENCE=1
+make check RUN='^TestReferenceViewReplace(CapabilityBoundaries|CapabilityBoundariesConsumerRoutes|Options)$' REFERENCE=1
+```
+
+Repeat each exact command without REFERENCE=1 for native proof. Changed existing
+ViewUpdatable definitions/callers retain their separately selected dual-mode
+regression families above. Discovery filters must be removed before native red
+and final dual-mode proof. The additional existing identity-order conflict-update
+producer received its own PG-first regression/native-red checkpoint:
+`make check RUN='^TestReferenceViewCheckConflictUpdate$'`, also with REFERENCE=1.
+It is common-gate coverage, not general view action mapping expansion.
+The review-remedy regressions also received a PG-first/native-red checkpoint.
+They independently assert virtual generated NEW predicates with retained handles
+across live layout changes, independent generated subquery occurrences, and full
+44000 diagnostics with literal embedded-quote/backslash view names.
+
+Focused mechanism units (not public SQL substitutes):
+
+```sh
+make check RUN='^TestViewCheck(Options|Declaration|Stack|Mapping|Predicate|Admission|Cancellation|Finish|ControlRemap)$'
+make check RUN='^TestViewCheck(Cancellation|Finish)$' RACE=1
+```
+
+The feature smoke selector is `^TestReferenceViewCheckFeatureSmoke$`, in both modes.
+Native lifecycle proof performs two genuine Dump/Reset/Restore cycles and future
+held writes, plus invalid suffix/reader/pre-cancel/EOF-cancel vetoes. Replay sends
+actual native Dump bytes to PostgreSQL; SELECT-only ViewCopy is not persistence
+proof. The separate actual-API smoke is an ephemeral OMP session source: root
+materializes `.view-check-public-smoke/main.go`, runs
+`timeout 900s go run ./.view-check-public-smoke/main.go`, records observations,
+and removes that root-created scaffold rather than committing an executable.
+
 ## Required implementation order
 
 1. **Write the shared reference scenario and run real PostgreSQL first.** Use

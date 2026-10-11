@@ -31,6 +31,7 @@ type lexer struct {
 	queryRowEnd       int
 	insertScalarEntry bool
 	insertStatement   bool // Enables narrow ON CONFLICT lookahead only inside ordinary INSERT.
+	viewQuery         bool // Actual CREATE VIEW body enables check-option lookahead.
 	insertScalarEnd   int
 	typeInputEntry    bool
 	typeInputMode     bool
@@ -711,6 +712,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
+	if l.err == nil && l.viewQuery && token.code == WITH {
+		next := l.nextRaw()
+		if l.err != nil {
+			return 0
+		}
+		l.lookahead, l.hasLookahead = next, true
+		if next.lexeme.keyword != nil && (next.code == CHECK || next.lexeme.text == "local" || next.lexeme.text == "cascaded") {
+			token.code = VIEW_CHECK_WITH
+		}
+	}
 	if l.err == nil && l.insertStatement && token.code == ON {
 		next := l.nextRaw()
 		if l.err != nil {
@@ -1124,6 +1135,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if token.code == int(';') {
 		l.roleHead = 0
+		l.viewQuery = false
 	}
 	l.extractField = token.code == int('(') && l.previousToken == EXTRACT
 	l.current = token.lexeme

@@ -41,6 +41,14 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 			if other.index != nil {
 				return other.diagnostic(s, ref)
 			}
+			if s.viewWrite != nil {
+				b := bindingForConflict(ref, s.viewWrite.base, c)
+				b.viewWrite = s.viewWrite
+				b.targets = c.targets
+				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
+					return err
+				}
+			}
 			if err := s.Writes().applyValidated(ref, [][]sqltype.Value{proposal}); err != nil {
 				return err
 			}
@@ -129,6 +137,10 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
 		if err := s.checkUniqueRow(ref, row, []rowVersion{old}, nil); err != nil {
+			return err
+		}
+		b.viewWrite = s.viewWrite
+		if err := e.checkViewRow(s, &b, row, &evaluation); err != nil {
 			return err
 		}
 		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, [][]sqltype.Value{row}); err != nil {

@@ -1022,8 +1022,9 @@ UPDATE FROM, DELETE USING, scalar subqueries, partial array assignments and
 INSERT VALUES/SELECT/DEFAULT VALUES/ON CONFLICT DO NOTHING use the real base
 producer. Every omitted physical column uses the base default, identity,
 generation or typed NULL. Explicit NULL differs from DEFAULT.
-Conflict UPDATE on writable target views remains unsupported; the physical-table
-action does not widen this view-write contract.
+The existing identity-order simple-view conflict-update producer participates
+in completed-NEW check-option enforcement; this does not add general conflict
+action remapping through reordered/computed view outputs.
 
 Computed output assignment rejects 0A000 even for NULL/DEFAULT or an empty
 producer. Different-type casts and explicit COLLATE are computed; a same-type
@@ -1057,10 +1058,67 @@ serializes current definitions and committed base rows, rebuilding mappings
 for subsequent writes; it does not serialize output/history or PostgreSQL
 physical tuple metadata. INSERT RETURNING remains the existing suffix boundary.
 
-CREATE RECURSIVE syntax, check options, ALTER VIEW column
-defaults, type-changing ALTER actions, policy-expression enforcement, UDFs and
-optimizer introspection remain unsupported. Setting check_option fails0A000
-`view check options are unsupported`; RESET of an absent check_option is harmless.
+### View check options — change note
+
+```sql
+CREATE [OR REPLACE] [TEMP | TEMPORARY] VIEW name [(columns)]
+  [WITH (security_barrier=boolean, security_invoker=boolean,
+         check_option=local|cascaded)]
+  AS query [WITH [LOCAL | CASCADED] CHECK OPTION];
+ALTER VIEW name SET (check_option=local|cascaded);
+ALTER VIEW name RESET (check_option);
+```
+
+The suffix and reloption are equivalent; specifying both is a duplicate option
+error22023. Values match complete LOCAL/CASCADED strings case-insensitively;
+quoted surrounding whitespace is not trimmed. Omitted suffix mode is CASCADED.
+CREATE OR REPLACE uses its newly supplied options; omitting the mode removes it.
+ALTER modifies only named options and failed/canceled DDL preserves the old mode.
+Declaration requires a locally automatic shape with at least one direct writable
+output; a simple outer view can declare a mode over a restricted inner view, but
+later DML still rejects that inner restriction. CREATE validates this shape before
+enum options; ALTER validates options first; replacement-prefix compatibility
+precedes enum validation. Ordinary binding/type errors remain unchanged.
+
+Every admitted finalized NEW row is checked after defaults/identity/stored
+generation and base constraints/uniqueness, before RETURNING/publication. FALSE
+and NULL reject44000 `new row violates check option for view "name"`; the entire
+statement's private rows/output are discarded. Ordinary SELECT/DELETE, base writes
+and preexisting invisible rows are unchanged. A conflict-update action checks its
+final NEW row, not a discarded excluded proposal; WHERE false and DO NOTHING
+produce no row to check. Empty UPDATE retains its logical empty RETURNING schema.
+The diagnostic interpolates the stored view name literally between double quotes,
+including embedded quotes or backslashes, rather than escaping it as a string.
+
+LOCAL checks its own WHERE plus lower explicitly checked layers. CASCADED adds
+all descendant WHERE predicates, even through a no-WHERE or LOCAL layer. Checked
+layers run innermost first; the first failing view's current name is reported.
+Predicates see physical NEW base attributes, including hidden defaults/generated
+columns and correlated subqueries; stored sources see the statement snapshot and
+own prestatement overlay, not partially proposed rows. Held execution reselects
+current sources/modes and checks current owner/original-invoker ACLs.
+Virtual generated predicate columns use the current destination recipe and row
+layout, including after source-column renames or dropped/added columns. Independent
+subquery generated columns retain their own SELECT occurrence semantics.
+
+44000 Detail uses physical base column order and actual caller SELECT rights plus
+modified columns: full `Failing row contains (values).`, partial
+`Failing row contains (columns) = (values).`, or no Detail if no values can be
+disclosed. Hidden owner-readable columns are not leaked. Portable object/position
+fields remain empty for ordinary check failures; PostgreSQL C locations are not
+fabricated. Logical counts, values, column names/types and UPDATE RETURNING remain
+those of the requested view. pg_views.definition/ViewCopy expose SELECT only;
+they do not prove check-mode persistence. Native Dump emits canonical check_option
+reloptions and Restore remints the stored dependencies for future writes.
+
+INSTEAD OF triggers, INSTEAD rules and BEFORE triggers are external PostgreSQL
+rewrite-provider mechanisms. Oracle witnesses cover their distinct cutoff,
+suppression and NEW-modification semantics; native definitions explicitly fail
+without installing providers or changing base rows.
+
+CREATE RECURSIVE syntax, ALTER VIEW column defaults, type-changing ALTER actions,
+policy-expression enforcement, UDFs and optimizer introspection remain unsupported.
+RESET of an absent check_option is harmless.
 Public GRANT/REVOKE use the existing central relation/column ACL paths.
 Smokes: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'` and
 `make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`;

@@ -27,6 +27,7 @@ type viewDefinition struct {
 	queries           map[*parser.Select]*projectNode
 	namespaces        []viewNamespace
 	barrier, invoker  bool
+	checkOption       viewCheckMode
 	rule              OID
 	consumer          ObjectAddress
 	temporary         SessionToken
@@ -115,20 +116,28 @@ func checkViewOutputNames(columns []ColumnDescriptor, old *relationDescriptor) e
 	return nil
 }
 
-func viewSecurity(options []parser.ViewOption) (barrier, invoker bool, err error) {
+func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewCheckMode, err error) {
 	seen := make(map[string]bool, len(options))
 	for _, option := range options {
 		name := option.Name.Text
-		if name == "check_option" {
-			return false, false, sqlError("0A000", "view check options are unsupported")
-		}
-		if name != "security_barrier" && name != "security_invoker" {
-			return false, false, sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
+		if name != "check_option" && name != "security_barrier" && name != "security_invoker" {
+			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
 		if seen[name] {
-			return false, false, sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
+			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
 		}
 		seen[name] = true
+		if name == "check_option" {
+			switch {
+			case strings.EqualFold(option.Value, "local"):
+				mode = viewCheckLocal
+			case strings.EqualFold(option.Value, "cascaded"):
+				mode = viewCheckCascaded
+			default:
+				return false, false, viewCheckNone, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for enum option "check_option": %s`, option.Value), Detail: `Valid values are "local" and "cascaded".`}
+			}
+			continue
+		}
 		value, valid := false, false
 		text := strings.ToLower(strings.TrimSpace(option.Value))
 		if text == "1" {
@@ -152,7 +161,7 @@ func viewSecurity(options []parser.ViewOption) (barrier, invoker bool, err error
 			}
 		}
 		if !valid {
-			return false, false, sqlError("22023", fmt.Sprintf(`invalid value for boolean option "%s": %s`, name, option.Value))
+			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`invalid value for boolean option "%s": %s`, name, option.Value))
 		}
 		if name == "security_barrier" {
 			barrier = value
@@ -294,6 +303,16 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	// CREATE checks local declaration shape before options and replacement prefix.
+	for _, option := range view.Options {
+		if option.Name.Text == "check_option" {
+			if err := validateViewCheckDeclaration(&viewDefinition{syntax: view.Query, query: b.query}); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+			break
+		}
+	}
 	if old != nil {
 		if err := checkViewOutputNames(b.query.Root.Schema(), old); err != nil {
 			e.mu.Unlock()
@@ -304,7 +323,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, err
 		}
 	}
-	barrier, invoker, err := viewSecurity(view.Options)
+	barrier, invoker, mode, err := viewOptions(view.Options)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -353,6 +372,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	definition.checkOption = mode
 	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
