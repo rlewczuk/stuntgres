@@ -464,7 +464,14 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if row[j].IsNull() && !c.Nullable {
+			if c.Nullable {
+				continue
+			}
+			value, err := logicalColumnValue(b.relation, j, row, &evaluation)
+			if err != nil {
+				return nil, err
+			}
+			if value.IsNull() {
 				if scope == nil {
 					return nil, fmt.Errorf("stuntgres: NOT NULL disclosure requires statement authority")
 				}

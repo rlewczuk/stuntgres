@@ -82,7 +82,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 					}
 					generationConflicts[target] = true
 				}
-				copied := columnGeneration{expression: node, planned: planned}
+				copied := columnGeneration{kind: old.kind, expression: node, planned: planned}
 				if _, err := (scalarRenderer{owner: d, dependencies: &copied.dependencies, commentSnapshot: &copied.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}

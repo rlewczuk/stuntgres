@@ -10,27 +10,17 @@ import (
 func TestReferenceRLSBaseProposalPrecedence(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
 		s.exec("CREATE TABLE rls_stored(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) STORED)")
-		if s.backend.PG {
-			s.exec("CREATE TABLE rls_virtual(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) VIRTUAL)")
-		} else {
-			predefinedFailure(s, "CREATE TABLE rls_virtual(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) VIRTUAL)", fixture.Diagnostic{Code: "0A000", Message: "virtual generated columns are unsupported"}, false, "execute")
-			predefinedSelect(s, "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename='rls_virtual'", []string{"tablename"}, []string{"NAME"}, nil)
-		}
+		s.exec("CREATE TABLE rls_virtual(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) VIRTUAL)")
 		s.exec("CREATE TABLE rls_constrained(id INT NOT NULL CHECK(id>0))")
 		s.exec("CREATE TABLE rls_route(id INT) PARTITION BY RANGE(id)")
 		s.exec("CREATE TABLE rls_route_leaf PARTITION OF rls_route FOR VALUES FROM(0) TO(10)")
 		for _, table := range []string{"rls_stored", "rls_virtual", "rls_constrained", "rls_route"} {
-			if table == "rls_virtual" && !s.backend.PG {
-				continue
-			}
 			s.exec("GRANT INSERT,SELECT ON " + table + " TO rls_reader")
 			s.exec("ALTER TABLE " + table + " ENABLE ROW LEVEL SECURITY")
 		}
 		s.actor("rls_reader")
 		predefinedFailure(s, "INSERT INTO rls_stored(id) VALUES(1)", fixture.Diagnostic{Code: "22012", Message: "division by zero"}, false, "execute")
-		if s.backend.PG {
-			predefinedDenied(s, "INSERT INTO rls_virtual(id) VALUES(1)", `new row violates row-level security policy for table "rls_virtual"`, false)
-		}
+		predefinedDenied(s, "INSERT INTO rls_virtual(id) VALUES(1)", `new row violates row-level security policy for table "rls_virtual"`, false)
 		for _, q := range []string{"INSERT INTO rls_constrained VALUES(NULL)", "INSERT INTO rls_constrained VALUES(-1)"} {
 			predefinedDenied(s, q, `new row violates row-level security policy for table "rls_constrained"`, false)
 		}
@@ -46,9 +36,6 @@ func TestReferenceRLSBaseProposalPrecedence(t *testing.T) {
 		predefinedFailure(s, "INSERT INTO rls_route VALUES(99)", fixture.Diagnostic{Code: "23514", Message: `no partition of relation "rls_route" found for row`, Detail: "Partition key of the failing row contains (id) = (99).", Schema: "public", Table: "rls_route"}, false, "execute")
 		s.actor("rls_owner")
 		for _, table := range []string{"rls_stored", "rls_virtual", "rls_constrained", "rls_route"} {
-			if table == "rls_virtual" && !s.backend.PG {
-				continue
-			}
 			predefinedSelect(s, "SELECT id FROM "+table, []string{"id"}, []string{"INT4"}, nil)
 		}
 	})

@@ -262,6 +262,9 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
+			if err := rejectVirtualIndexUses(parent, []int{slot}); err != nil {
+				return fail(err)
+			}
 			columns[i] = parent.columns[slot]
 			if included {
 				if err := validateIndexInclude(raw); err != nil {

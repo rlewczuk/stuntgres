@@ -130,7 +130,7 @@ func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedSt
 		if err := ctx.Err(); err != nil {
 			return ordered, err
 		}
-		evaluation.Row = child.source.row(child.index(row))
+		evaluation.bindQueryRow(child.source, child.index(row))
 		for k, key := range spec.order {
 			value, err := key.expression.Eval(&evaluation)
 			if err != nil {

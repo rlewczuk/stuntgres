@@ -220,6 +220,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		rebound = n
 	case columnExpression:
 		n.expressionInfo = info
+		n.virtual = child(n.virtual)
 		rebound = n
 	case groupExpression:
 		n.expressionInfo = info

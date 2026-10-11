@@ -31,6 +31,14 @@ func queryRowMode(clause string) relationLockMode {
 // absentQueryIndex is an absent physical occurrence, never a real NULL-valued row.
 const absentQueryIndex = -1
 
+// Input adapters translate row identity exactly as they translate row cells.
+func (source *querySource) inputIndex(index int) int {
+	if index != absentQueryIndex && source.windowIndices != nil {
+		return source.windowIndices[index]
+	}
+	return index
+}
+
 func queryOccurrenceWidth(source *querySource) int {
 	if source.input != nil {
 		return queryOccurrenceWidth(source.input)
@@ -71,7 +79,7 @@ func appendQueryProvenance(dst []int, source *querySource, index int) []int {
 		return dst
 	}
 	if source.input != nil {
-		return appendQueryProvenance(dst, source.input, index)
+		return appendQueryProvenance(dst, source.input, source.inputIndex(index))
 	}
 	if source.lineage != nil {
 		lineage := source.lineage

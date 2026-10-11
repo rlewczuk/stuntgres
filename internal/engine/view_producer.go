@@ -93,7 +93,7 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 			return present, err
 		}
 		inner.evaluation.setContext(ctx)
-		inner.evaluation.Row = inner.source.row(inner.index(i))
+		inner.evaluation.bindQueryRow(inner.source, inner.index(i))
 		inner.evaluation.orderValues = inner.orderRow(i)
 		start := len(source.flat)
 		source.flat = append(source.flat, make([]sqltype.Value, len(producedSchema))...)

@@ -429,7 +429,7 @@ type querySource struct {
 	nestedInputs         *querySource
 	nestedStage          *indexedStage
 	inherited            queryRowMark // Execution-only mark crossing this view boundary.
-	// Only locking joins populate provenance; ordinary query work is unchanged.
+	// Locking and lazy virtual reads retain physical SQL occurrence identity.
 	occurrence               int
 	occurrences              []int
 	provenance               []int
@@ -488,11 +488,7 @@ func (s *querySource) row(i int) []sqltype.Value {
 		return nil
 	}
 	if s.window {
-		index := i
-		if s.windowIndices != nil {
-			index = s.windowIndices[i]
-		}
-		row := s.input.row(index)
+		row := s.input.row(s.inputIndex(i))
 		copy(s.scratch, row)
 		copy(s.scratch[len(s.scratch)-s.windowWidth:], s.windowValues[i*s.windowWidth:(i+1)*s.windowWidth])
 		return s.scratch
@@ -504,7 +500,7 @@ func (s *querySource) row(i int) []sqltype.Value {
 		return s.flat[i*s.flatWidth : (i+1)*s.flatWidth]
 	}
 	if s.input != nil {
-		row := s.input.row(i)
+		row := s.input.row(s.inputIndex(i))
 		for j, slot := range s.layout {
 			if slot >= 0 {
 				s.scratch[j] = row[slot]
@@ -631,17 +627,18 @@ func (s *querySource) close() {
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type queryState struct {
-	source     *querySource
-	hashFilter *filterNode
-	parameters []sqltype.Value
-	input      sqltype.InputEnvironment
-	output     sqltype.OutputEnvironment
-	locking    bool
-	inherited  queryRowMark
-	frame      uint32
-	outer      *EvalContext
-	derived    map[*derivedNode]*querySource
-	ctes       *cteInvocation
+	source       *querySource
+	hashFilter   *filterNode
+	parameters   []sqltype.Value
+	input        sqltype.InputEnvironment
+	output       sqltype.OutputEnvironment
+	locking      bool
+	virtualReads bool
+	inherited    queryRowMark
+	frame        uint32
+	outer        *EvalContext
+	derived      map[*derivedNode]*querySource
+	ctes         *cteInvocation
 }
 type indexedStage struct {
 	source           *querySource
@@ -723,6 +720,7 @@ func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (
 	} else {
 		s.evaluation.setContext(ctx)
 		s.evaluation.Row = row
+		s.evaluation.bindQueryIdentity(s.source, s.index(s.position))
 		if s.cacheWidth != 0 {
 			s.evaluation.orderValues = s.orderRow(s.position)
 		}
@@ -908,7 +906,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 					}
 				}
 				evaluation.setContext(ctx)
-				evaluation.Row = child.source.row(child.index(i))
+				evaluation.bindQueryRow(child.source, child.index(i))
 				value, err := n.predicate.Eval(&evaluation)
 				if err != nil {
 					return false, err
@@ -959,7 +957,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			evaluation := state.evaluation(ctx)
 			for i := range child.count() {
 				child.permutation[i] = i
-				evaluation.Row = child.source.row(child.selection[i])
+				evaluation.bindQueryRow(child.source, child.selection[i])
 				for _, key := range n.keys {
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
@@ -981,7 +979,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 				}
 			}
 			for i := range child.count() {
-				evaluation.Row = child.source.row(child.selection[i])
+				evaluation.bindQueryRow(child.source, child.selection[i])
 				for j, expr := range n.outputs {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {
@@ -1038,6 +1036,9 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		transferred = err == nil
 		return child, err
 	case *projectNode:
+		if !state.virtualReads {
+			state.virtualReads = queryHasVirtualReads(n)
+		}
 		var owner *cteInvocation
 		if n.cteOwner {
 			owner = &cteInvocation{frame: n.frame, parent: state.ctes, state: *state}
@@ -1328,7 +1329,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	}
 	for _, expr := range project.expressions {
 		column, ok := expr.(columnExpression)
-		if !ok {
+		if !ok || column.virtual != nil {
 			direct = false
 			break
 		}
@@ -1353,7 +1354,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 			if err := ctx.Err(); err != nil {
 				return nil, 0, err
 			}
-			evaluation.Row = stage.source.row(stage.index(i))
+			evaluation.bindQueryRow(stage.source, stage.index(i))
 			for j, expr := range project.expressions {
 				value, err := expr.Eval(&evaluation)
 				if err != nil {

@@ -204,8 +204,8 @@ An explicit same-name column beside LIKE still rejects42701 as a duplicate.
 Inheritable CHECKs remap stable parent attributes to the child row. Equal
 same-name definitions merge; unequal expressions reject. NO INHERIT CHECKs stay
 parent-local. NOT NULL is OR by column, not by parent constraint name, and local
-NULL cannot relax it. Constraints receive fresh child identities. Existing STORED
-generated expressions inherit with row remapping; identity ownership does not,
+NULL cannot relax it. Constraints receive fresh child identities. STORED and VIRTUAL
+generated expressions inherit with kind-preserving row remapping; identity ownership does not,
 but its NOT NULL does. SERIAL inherits the original sequence default without
 child ownership. UNIQUE, ordinary indexes, PK and FK do not inherit. Existing
 native PRIMARY KEY support supplies inherited NOT NULL, not a child key;
@@ -215,6 +215,10 @@ inherited generated expression; an explicit local generation expression may
 override it or resolve conflicting parent expressions. A local DEFAULT on an
 inherited generated column, or local generation on an inherited base column,
 rejects42611 with the PostgreSQL English primary/hint.
+VIRTUAL/STORED mismatches reject42611 with the release parent/child-kind Detail;
+same-kind child overrides retain the named child's expression.
+Inherited CHECKs read that completed child's logical generated value, including
+an explicit same-kind override, rather than retaining the parent's read recipe.
 INCLUDING GENERATED likewise cannot resolve conflicting inherited generation
 expressions. Copying a LIKE generation expression over an inherited generated
 column rejects2BP01 with PostgreSQL's default-dependency diagnostic; no child is
@@ -864,7 +868,7 @@ ALL changes every option bit, and subsequent exclusions affect only their proper
 NOT NULL is unconditional, including EXCLUDING CONSTRAINTS or EXCLUDING ALL.
 
 DEFAULTS copies ordinary cooked defaults; GENERATED separately copies admitted
-STORED expressions and remaps row references/tableoid to the destination. Explicit
+STORED/VIRTUAL expressions and their kind, remapping row references/tableoid to the destination. Explicit
 REGCLASS/REGTYPE constants and external calls are not redirected. CONSTRAINTS
 copies named CHECKs and NO INHERIT, not UNIQUE. Copied CHECK-name collisions use
 `42710` and never merge equal expressions.
@@ -897,7 +901,7 @@ never table text
 or source authority. Index-comment SQL/control and constraint-comment providers
 remain absent; a generic descriptor comment field does not promise those APIs.
 
-Compression/storage/extended-statistics descriptors, virtual generation,
+Compression/storage/extended-statistics descriptors and
 constraint-comment providers are not implemented. Standalone partial HASH
 and partial concurrent index creation retain their existing native exclusions;
 ordinary partial B-tree/UNIQUE and equality EXCLUDE definitions are real providers.
@@ -1917,8 +1921,8 @@ UPDATE g SET a=8 WHERE a=2; -- b = 9
 UPDATE g SET b=DEFAULT; -- recomputes from the completed new row
 ```
 
-Only explicit STORED is supported. PostgreSQL18's omitted kind means VIRTUAL,
-not STORED; omitted/VIRTUAL declarations remain native unsupported boundaries.
+Explicit STORED and VIRTUAL are supported. PostgreSQL18's omitted kind means VIRTUAL,
+not STORED. Both kinds use the same retained analyzed and typed planned expressions.
 Expressions use the existing scalar binder, operators, functions and destination
 assignment coercion. They may reference plain current-row columns, including
 later-declared columns and qualified/quoted names. A plain column named like its
@@ -1932,10 +1936,10 @@ integer output is eligible, while timestamp/timestamptz and other session- or
 catalog-dependent output is not. Physically pruned volatile CASE arms do not
 make the surviving expression volatile.
 Constant arithmetic errors fail CREATE, while row-dependent arithmetic errors
-occur when a write consumes the expression. Existing unconstrained domains
-remain eligible; domain CHECK/NOT NULL declarations are not added here.
+occur on writes for STORED and on demanded reads for VIRTUAL. Existing unconstrained
+domains remain eligible for STORED; virtual restrictions are described below.
 
-The generated value is evaluated after all base/default/identity inputs and
+The STORED generated value is evaluated after all base/default/identity inputs and
 simultaneous UPDATE RHS assignments, before NOT NULL, CHECK, uniqueness and
 RETURNING. NULL input follows ordinary expression semantics. Any supplied
 non-DEFAULT generated value, including NULL, fails428C9 even with no source rows
@@ -1956,12 +1960,75 @@ remains a native unsupported boundary (PostgreSQL can widen it).
 tableoid alone is the admitted system-column reference in generation expressions.
 It retains owning relation identity rather than a cached numeric constant.
 Native Dump writes canonical generated declarations and DEFAULT for generated
-row cells, including all-generated tables. Restore recomputes normal generated
-values and remaps tableoid-dependent values to the final destination owner;
-held eager cursors retain original cells and metadata. INCLUDING GENERATED
-copies the cooked STORED provider with destination row/tableoid remapping.
-Virtual columns, ADD generated and SET/DROP EXPRESSION remain outside scope.
+row cells, including all-generated tables, retaining STORED/VIRTUAL kind explicitly.
+Restore recomputes STORED values and remaps stored tableoid cells to the final owner;
+virtual cells remain typed physical NULLs and later reads use the current owner.
+Held eager cursors retain original cells and metadata. INCLUDING GENERATED
+copies either kind with destination row/tableoid remapping.
+Copied CHECKs resolve against the completed destination: excluding generation
+checks the supplied ordinary value, while including it uses the destination's
+recipe and complete row layout, including extra columns and multiple LIKE inputs.
+ADD generated and SET/DROP EXPRESSION remain outside scope.
 
 Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
 `make check RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$'`.
+
+### Virtual generated columns — change note
+
+`GENERATED ALWAYS AS (a + 1) VIRTUAL` (or omitted kind) computes on demand in
+ordinary SELECT, predicates, joins, aggregates, views, correlated frames and
+admitted UPDATE/DELETE RETURNING. UPDATE expressions read the old base row;
+RETURNING reads the appropriate OLD/NEW row, and an absent side is NULL without
+evaluating generation. INSERT RETURNING retains its existing unsupported suffix
+boundary; ordinary INSERT followed by SELECT reads virtual values normally.
+For `b AS (1/a) VIRTUAL`, INSERT of a=0 and SELECT a succeed; SELECT b fails22012.
+Only actual NOT NULL/CHECK demands compute virtual values on writes; violations
+render visible generated cells as literal `virtual`, preserving column disclosure.
+VALUES INSERT, INSERT SELECT and supported public COPY FROM enforce virtual
+NOT NULL against logical generated values, not typed physical NULL placeholders.
+Nullable virtual recipes remain undemanded unless another constraint reads them;
+generation errors and late batch violations publish no proposed rows.
+LEFT/RIGHT/FULL joins return typed NULL for generated columns on an absent
+operand without evaluating its recipe. A real row with all-NULL base values
+still evaluates constant/COALESCE/tableoid generation normally; predicates and
+FULL JOIN USING preserve that distinction.
+The same operand identity follows bounded compound SELECT/LIMIT projections,
+filtered or reordered window input and virtual window partition/order keys.
+Correlated scalar reads in admitted UPDATE FROM/DELETE USING, joined-source MERGE,
+and stored scalar-output updatable-view writes keep source absence distinct from
+real NULL-input rows. These compositions do not admit new SQL syntax or joined
+writable views; demanded errors still leave staged writes unpublished.
+Ordinary-column `ALTER COLUMN c TYPE BIGINT USING b` can read virtual b from the
+original physical owner row, including table- and schema-qualified references.
+A real all-NULL owner row still evaluates non-strict recipes such as COALESCE;
+demanded generation errors leave the original column type, rows and definitions
+unchanged. This does not alter b's generation definition or kind: generated-column
+or generation-dependency TYPE changes and generation ADD/SET/DROP EXPRESSION
+remain excluded.
+
+Virtual destinations and unsimplified expressions cannot use user-defined types,
+including domains, enum/composite values and containing arrays, even in dead arms
+or intermediate casts to builtin results. Native represented function/operator/
+cast providers are builtins; SQL CREATE FUNCTION and custom provider definitions
+remain external-only boundaries. Surviving-plan volatility remains separate:
+a pruned random() arm is legal, but dead domain usage is not.
+
+SELECT(b) does not require SELECT on generation input a; explicit a or * still
+requires its own grants, including empty queries and prepared handles after revoke.
+DEFAULT-only write guards and atomic publication remain common to both kinds.
+Simple-view UPDATE of generated b, including DEFAULT, retains the release428C9
+guard; this does not expand view rewriting.
+Virtual UNIQUE/PRIMARY KEY/index keys, expression/predicate indexes and INCLUDE
+uses are rejected0A000. Existing generated partition/lifecycle boundaries remain.
+
+Actual ColumnTypes and pg_attrdef/pg_get_expr expose declared types and definitions;
+pg_attribute/information_schema.columns are not newly implemented native catalogs.
+Dump/Restore preserves lazy reads across replacement, fresh engines and repeated
+cycles without demanding invalid unread virtual values. This is native logical
+state persistence, not physical heap/WAL durability or PostgreSQL control APIs.
+
+Selected proof (both commands required):
+`make check RUN='^TestReferenceGeneratedVirtual'`;
+`make check REFERENCE=1 RUN='^TestReferenceGeneratedVirtual'`.
+
 

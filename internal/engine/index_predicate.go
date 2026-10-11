@@ -24,6 +24,9 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err != nil {
 		return nil, err
 	}
+	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
+		return nil, err
+	}
 	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {

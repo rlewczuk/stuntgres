@@ -147,6 +147,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageLikeChecks(op, auth, d, b.createLikes); err != nil {
 		return err
 	}
+	if err := refreshGenerationChecks(d, auth.catalog); err != nil {
+		return err
+	}
 	if err := e.assignDefinitionOIDsLocked(d); err != nil {
 		return err
 	}

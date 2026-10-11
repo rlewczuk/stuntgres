@@ -50,7 +50,8 @@ func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (
 		if !present {
 			break
 		}
-		evaluation.Context, evaluation.Row = ctx, child.source.row(child.index(i))
+		evaluation.Context = ctx
+		evaluation.bindQueryRow(child.source, child.index(i))
 		if child.cacheWidth != 0 {
 			evaluation.orderValues = child.orderRow(i)
 		}

@@ -112,6 +112,9 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 					c.dependencies[j].ref = ref(c.dependencies[j].ref)
 				}
 			}
+			if err := refreshGenerationChecks(&copy, view); err != nil {
+				return err
+			}
 			d = &copy
 			next.descriptors[address] = d
 		}

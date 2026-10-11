@@ -1966,15 +1966,19 @@ after their owning table, including retained TEMP collision remaps.
 Stored expression-generated columns support `GENERATED ALWAYS AS (expression) STORED`
 through the normal typed INSERT/UPDATE path. Omission and explicit DEFAULT compute
 the stored value; other explicit generated-column writes fail428C9. See
-[stored generated columns](docs/TABLES.md#stored-generated-columns). Virtual columns
-and generated-expression ALTER lifecycle remain excluded.
+[generated columns](docs/TABLES.md#stored-generated-columns). PostgreSQL18 VIRTUAL
+and omitted-kind generation compute lazily when read, using the same typed binder.
+Virtual definitions admit built-in types/providers only, preserve independent
+column SELECT grants and are evaluated on writes only when constraints demand them.
+Generated-expression ALTER lifecycle remains excluded.
+Feature proof: `make check RUN='^TestReferenceGeneratedVirtual'`, also with `REFERENCE=1`.
 Feature smokes: `make check RUN='^TestIdentity(Smoke|ControlsSmoke|CheckControlsSmoke)$'`.
 The ALTER lifecycle is shared reference coverage:
 `make check RUN='^TestReferenceAlterIdentity'`;
 `make check REFERENCE=1 RUN='^TestReferenceAlterIdentity'`.
 
 Change note: CREATE TABLE LIKE accepts ordered INCLUDING/EXCLUDING options,
-including ALL and last-option precedence. Existing defaults, CHECKs, STORED
+including ALL and last-option precedence. Existing defaults, CHECKs, STORED/VIRTUAL
 generation, independent identity sequences, freshly named btree/hash/unique/
 expression/partial indexes and column comments copy through their real owning providers.
 Plain LIKE still copies only shape and NOT NULL. Existing view and composite-type

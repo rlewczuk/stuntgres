@@ -26,7 +26,7 @@ func literalTypeName(raw parser.Value) string {
 	return "unknown"
 }
 
-func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []ColumnDescriptor, visible []int) (string, error) {
+func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []ColumnDescriptor, visible []int, relation *relationDescriptor) (string, error) {
 	var b strings.Builder
 	b.WriteString("Failing row contains (")
 	if columns != nil {
@@ -50,6 +50,12 @@ func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, col
 		value := row[index]
 		if i != 0 {
 			b.WriteString(", ")
+		}
+		if relation != nil {
+			if definition, ok := relation.generations[relation.attributes[index]]; ok && definition.kind == generationVirtual {
+				b.WriteString("virtual")
+				continue
+			}
 		}
 		if err := writeDiagnosticValue(context.Background(), &b, value, output); err != nil {
 			return "", err

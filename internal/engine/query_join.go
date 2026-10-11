@@ -108,7 +108,8 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	frame := make([]sqltype.Value, width)
 	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
 	locking := state.locking || state.source.locks.rowMarked()
-	if locking {
+	identity := locking || state.virtualReads
+	if identity {
 		source.occurrences = appendQueryOccurrences(source.occurrences, left.source)
 		source.occurrences = appendQueryOccurrences(source.occurrences, right.source)
 	}
@@ -131,6 +132,16 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	evaluation := state.evaluation(nil)
 	evaluation.Row = frame
+	if identity {
+		evaluation.queryOccurrences = source.occurrences
+		evaluation.queryProvenance = make([]int, 0, len(source.occurrences))
+	}
+	bindIdentity := func(li, ri int) {
+		if identity {
+			evaluation.queryProvenance = appendQueryProvenance(evaluation.queryProvenance[:0], left.source, li)
+			evaluation.queryProvenance = appendQueryProvenance(evaluation.queryProvenance, right.source, ri)
+		}
+	}
 	leftOccurrence, rightOccurrence := -1, 0
 	leftMatched, tail := false, false
 	var rightMatched []bool
@@ -143,6 +154,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	emit := func(ctx context.Context, out *indexedStage, li, ri int) (bool, error) {
 		evaluation.setContext(ctx)
+		bindIdentity(li, ri)
 		for k, expr := range n.merges {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
@@ -158,14 +170,13 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			return false, fmt.Errorf("stuntgres: join result is too large")
 		}
 		source.flat = append(source.flat, frame...)
-		if locking {
-			source.provenance = appendQueryProvenance(source.provenance, left.source, li)
-			source.provenance = appendQueryProvenance(source.provenance, right.source, ri)
-			if state.source.locks != nil {
-				source.versions = appendQueryVersions(source.versions, left.source, li, state.source.locks)
-				source.versions = appendQueryVersions(source.versions, right.source, ri, state.source.locks)
-				source.joinPairs = append(source.joinPairs, queryPair{left: li, right: ri})
-			}
+		if identity {
+			source.provenance = append(source.provenance, evaluation.queryProvenance...)
+		}
+		if locking && state.source.locks != nil {
+			source.versions = appendQueryVersions(source.versions, left.source, li, state.source.locks)
+			source.versions = appendQueryVersions(source.versions, right.source, ri, state.source.locks)
+			source.joinPairs = append(source.joinPairs, queryPair{left: li, right: ri})
 		}
 		out.selection = append(out.selection, source.flatCount)
 		source.flatCount++
@@ -229,6 +240,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 				return emit(ctx, out, absentQueryIndex, right.index(j))
 			}
 			evaluation.setContext(ctx)
+			bindIdentity(left.index(leftOccurrence), right.index(j))
 			if n.predicate != nil {
 				matches, err := updateMatches(&evaluation, n.predicate)
 				if err != nil {

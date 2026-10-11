@@ -947,14 +947,6 @@ func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw 
 	return &copy
 }
 
-func notNullError(schema, table, column string, row []sqltype.Value, output sqltype.OutputEnvironment) error {
-	detail, err := failingRowDetail(row, output, nil, nil)
-	if err != nil {
-		return err
-	}
-	return notNullDetailError(schema, table, column, detail)
-}
-
 func notNullDetailError(schema, table, column, detail string) error {
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",

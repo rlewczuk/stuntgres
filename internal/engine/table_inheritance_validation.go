@@ -102,7 +102,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			}
 			target := d.attributes[mapper.targetSlots[sourceSlot]]
 			child, ok := d.generations[target]
-			if !ok {
+			if !ok || child.kind != generation.kind {
 				return invalid()
 			}
 			if !graph.columns[target].explicitGeneration {

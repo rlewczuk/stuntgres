@@ -157,7 +157,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		if err := ctx.Err(); err != nil {
 			return indexedStage{}, err
 		}
-		evaluation.Row = child.source.row(child.index(i))
+		evaluation.bindQueryRow(child.source, child.index(i))
 		for k, key := range n.keys {
 			value, err := key.Eval(&evaluation)
 			if err != nil {

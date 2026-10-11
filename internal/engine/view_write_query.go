@@ -27,42 +27,17 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 	if definition == nil {
 		return rewriteQueryExpressions(root, rewrite)
 	}
-	return rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
-		next, changed, err := rewrite(n)
-		if err != nil {
-			return nil, false, err
+	mapOccurrence := func(occurrence int) (int, error) {
+		if occurrence < 0 || occurrence >= len(definition.sources) {
+			return 0, ErrCatalogReplaced
 		}
-		if !changed {
-			next = n
-		}
-		column, ok := next.(columnExpression)
-		if !ok || column.origin == (ObjectRef{}) {
-			return next, changed, nil
-		}
-		use, err := storedViewUseReference(view, consumer, column.origin)
-		if err != nil {
-			return nil, false, err
-		}
-		if column.origin != use {
-			column.origin = use
-			return column, true, nil
-		}
-		return next, changed, nil
-	}, func(node LogicalNode) (LogicalNode, error) {
-		source, ok := node.(*sourceNode)
-		if !ok {
-			return node, nil
-		}
-		if source.occurrence < 0 || source.occurrence >= len(definition.sources) {
-			return nil, ErrCatalogReplaced
-		}
-		key := viewWriteOccurrence{definition, source.occurrence}
+		key := viewWriteOccurrence{definition, occurrence}
 		slot, found := w.queryOccurrences[key]
 		if !found {
-			leaf := definition.sources[source.occurrence]
+			leaf := definition.sources[occurrence]
 			relation, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 			if !ok {
-				return nil, ErrCatalogReplaced
+				return 0, ErrCatalogReplaced
 			}
 			slot = len(b.querySources)
 			if w.queryOccurrences == nil {
@@ -71,10 +46,66 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 			w.queryOccurrences[key] = slot
 			use, err := storedViewUseReference(view, consumer, leaf.ref)
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 			b.querySources = append(b.querySources, queryLeaf{ref: use, relation: relation, frozenAttributes: leaf.attributes, mark: leaf.mark})
 			b.subqueryDemand = true
+		}
+		return slot, nil
+	}
+	// Structural derived inputs belong to this transplant. Scalar child queries
+	// are lowered by rewrite's explicit query callback and must not map twice.
+	frames := make(map[uint32]bool)
+	var ownFrames func(LogicalNode)
+	ownFrames = func(node LogicalNode) {
+		if node == nil {
+			return
+		}
+		if project, ok := node.(*projectNode); ok {
+			frames[project.frame] = true
+		}
+		left, right := queryInputs(node)
+		ownFrames(left)
+		ownFrames(right)
+	}
+	ownFrames(root)
+	translate := func(n BoundExpr) (BoundExpr, bool, error) {
+		column, ok := n.(columnExpression)
+		if !ok || column.origin == (ObjectRef{}) || !frames[column.frame] {
+			return n, false, nil
+		}
+		changed := false
+		if column.queryOccurrence != 0 {
+			slot, err := mapOccurrence(column.queryOccurrence - 1)
+			if err != nil {
+				return nil, false, err
+			}
+			column.queryOccurrence = slot + 1
+			changed = true
+		}
+		use, err := storedViewUseReference(view, consumer, column.origin)
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || column.origin != use
+		column.origin = use
+		return column, changed, nil
+	}
+	return rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+		next, translated, err := mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, translate)
+		if err != nil {
+			return nil, false, err
+		}
+		lowered, changed, err := rewrite(next)
+		return lowered, translated || changed, err
+	}, func(node LogicalNode) (LogicalNode, error) {
+		source, ok := node.(*sourceNode)
+		if !ok {
+			return node, nil
+		}
+		slot, err := mapOccurrence(source.occurrence)
+		if err != nil {
+			return nil, err
 		}
 		copy := *source
 		copy.occurrence = slot

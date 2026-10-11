@@ -115,6 +115,9 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			added.expression = node
 		}
 	}
+	if err := refreshGenerationChecks(&next, auth.catalog); err != nil {
+		return fail(err)
+	}
 	return &next, added, nil
 }
 

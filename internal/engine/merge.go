@@ -320,6 +320,37 @@ func mergeOnTruth(value sqltype.Value) (Truth, error) {
 	return False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
 }
 
+func (merge *boundMerge) hasVirtualReads() bool {
+	if queryHasVirtualReads(merge.source) || boundHasVirtualReads(merge.on) {
+		return true
+	}
+	for _, arm := range merge.arms {
+		if boundHasVirtualReads(arm.condition) {
+			return true
+		}
+		if arm.input.update != nil {
+			for _, expr := range arm.input.update.assignments {
+				if boundHasVirtualReads(expr) {
+					return true
+				}
+			}
+			for _, target := range arm.input.update.arrayTargets {
+				if target != nil && boundHasVirtualReads(target.node) {
+					return true
+				}
+			}
+		}
+		for _, row := range arm.input.expressions {
+			for _, expr := range row {
+				if boundHasVirtualReads(expr) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b binding, target, inputs *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer target.close()
 	defer inputs.close()
@@ -330,7 +361,7 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err != nil {
 		return Result{}, err
 	}
-	state := &queryState{source: inputs, parameters: parameters, input: scope.input, output: scope.output, locking: inputs.locks != nil}
+	state := &queryState{source: inputs, parameters: parameters, input: scope.input, output: scope.output, locking: inputs.locks != nil, virtualReads: b.merge.hasVirtualReads()}
 	cursor, err := openQueryNode(ctx, state, b.merge.source)
 	if err != nil {
 		return Result{}, err

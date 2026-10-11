@@ -111,6 +111,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 	index := make(map[string]int)
 	seen := make(map[ObjectAddress]bool)
 	generated := make(map[string]bool)
+	kinds := make(map[string]generationKind)
 	for _, name := range syntax.Parents {
 		ref, err := e.resolveReference(auth, name)
 		if err != nil {
@@ -149,7 +150,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		seen[ref.Address] = true
 		b.createInheritance = append(b.createInheritance, createInheritanceInput{ref, source})
 		for sourceSlot, c := range source.columns {
-			_, isGenerated := source.generations[source.attributes[sourceSlot]]
+			definition, isGenerated := source.generations[source.attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
 				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
 				if err := inheritanceColumnConflict(auth.catalog, merged[slot], c, false); err != nil {
@@ -158,9 +159,13 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 				if generated[c.Name] != isGenerated {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`inherited column "%s" has a generation conflict`, c.Name))
 				}
+				if isGenerated && kinds[c.Name] != definition.kind {
+					return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], definition.kind)
+				}
 			} else {
 				index[c.Name] = len(merged)
 				generated[c.Name] = isGenerated
+				kinds[c.Name] = definition.kind
 				c.Nullable = true
 				c.OriginTable = 0
 				c.OriginAttribute = 0
@@ -196,6 +201,15 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			diagnostic := sqlError("42611", fmt.Sprintf(`child column "%s" specifies generation expression`, c.Name)).(*sqlstate.Error)
 			diagnostic.Hint = "A child table column cannot be generated unless its parent column is."
 			return nil, nil, nil, diagnostic
+		}
+		if ok && generated[c.Name] && declarations[i].generation != nil {
+			kind := generationVirtual
+			if declarations[i].generation.Kind == "stored" {
+				kind = generationStored
+			}
+			if kinds[c.Name] != kind {
+				return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], kind)
+			}
 		}
 		mapping[i] = slot
 		resultDeclarations[slot] = declarations[i]

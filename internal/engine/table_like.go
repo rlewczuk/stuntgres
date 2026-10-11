@@ -206,7 +206,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					if err != nil {
 						return err
 					}
-					definition := columnGeneration{expression: node, planned: planned}
+					definition := columnGeneration{kind: old.kind, expression: node, planned: planned}
 					if _, err := (scalarRenderer{owner: destination, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}

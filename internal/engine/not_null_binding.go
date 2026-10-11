@@ -159,9 +159,6 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 			if conflict != "" {
 				return declaration, insertError("42601", fmt.Sprintf(`%s specified for column "%s" of table "%s"`, conflict, column.Name, table), constraint.Pos)
 			}
-			if generation.Kind != "stored" {
-				return declaration, sqlError("0A000", "virtual generated columns are unsupported")
-			}
 			declaration.generation = generation
 			continue
 		}

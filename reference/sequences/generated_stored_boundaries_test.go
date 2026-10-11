@@ -26,20 +26,6 @@ func TestReferenceGeneratedStoredQualifiedForwardReferences(t *testing.T) {
 }
 
 func TestReferenceGeneratedStoredAdjacentBoundaries(t *testing.T) {
-	for _, kind := range []string{"", " VIRTUAL"} {
-		t.Run(kind, func(t *testing.T) {
-			generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, run func(fixture.Step)) {
-				q := `CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(a+1)` + kind + `)`
-				if backend.PG {
-					run(fixture.Exec(q, 0))
-					run(fixture.Exec(`INSERT INTO g(a) VALUES(2)`, 1))
-					run(fixture.Select(`SELECT * FROM g`, []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(3)}}))
-				} else {
-					run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "virtual generated columns are unsupported"}))
-				}
-			})
-		})
-	}
 	generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, run func(fixture.Step)) {
 		run(fixture.Exec(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(a+1) STORED)`, 0))
 		run(fixture.Exec(`INSERT INTO g(a) VALUES(2)`, 1))

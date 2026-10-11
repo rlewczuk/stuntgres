@@ -113,6 +113,12 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		replacement.checkConstraints[pending.index] = definition
 		ordered = append(ordered, definition)
 	}
+	if err := refreshGenerationChecks(&replacement, auth.catalog); err != nil {
+		return nil, nil, err
+	}
+	for i, pending := range queue {
+		ordered[i] = replacement.checkConstraints[pending.index]
+	}
 	return &replacement, ordered, nil
 }
 
@@ -135,7 +141,14 @@ type alterRowValidator struct {
 
 func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext) error {
 	for slot, column := range v.relation.columns {
-		if !column.Nullable && row[slot].IsNull() {
+		if column.Nullable {
+			continue
+		}
+		value, err := logicalColumnValue(v.relation, slot, row, evaluation)
+		if err != nil {
+			return err
+		}
+		if value.IsNull() {
 			diagnostic := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, column.Name, v.relation.name)).(*sqlstate.Error)
 			diagnostic.Schema, diagnostic.Table, diagnostic.Column = v.schema, v.relation.name, column.Name
 			return diagnostic

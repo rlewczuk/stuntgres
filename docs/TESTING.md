@@ -646,6 +646,76 @@ the observations. Its shared reference counterpart is selected with
 `make check RUN='^TestReferenceRoleRevokeFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceRoleRevokeFeatureSmoke$'`.
 
+Virtual generated-column coverage uses the shared untagged
+`TestReferenceGeneratedVirtual` family: lazy demand, joined/outer/RETURNING
+frames, definition/security diagnostics, column grants, constraints/index
+boundaries, metadata, native controls and kind-preserving copies. Selected
+proof requires both modes, plus the existing STORED family for preservation
+(external 900-second deadline for every command):
+
+```sh
+make check RUN='^TestReferenceGeneratedVirtual'
+make check REFERENCE=1 RUN='^TestReferenceGeneratedVirtual'
+make check RUN='^TestReferenceGeneratedStored'
+make check REFERENCE=1 RUN='^TestReferenceGeneratedStored'
+```
+
+Focused outer-join absence and destination-owned copied CHECK regressions:
+`make check RUN='^TestReferenceGeneratedVirtual(OuterJoins|CopiedChecks|CopyGeometry)$'`,
+also with `REFERENCE=1`. Private occurrence/frame, grafted-alias, transient merge
+and destination-window units are included by `make check RUN='^TestGenerated'`.
+Focused proof supplements, never replaces, the complete families above.
+
+Focused scheduled/window/correlated-DML/MERGE/stored-view consumer proof:
+`make check RUN='^TestReferenceGeneratedVirtual(BoundedProjection|WindowIdentity|CorrelatedUpdateFrom|CorrelatedDeleteUsing|JoinedMerge|StoredViewGraft)$'`,
+also with `REFERENCE=1`, each under an external900-second deadline. Independent
+goldens distinguish absent operands from real NULL-input rows, window input
+permutations and partition/order keys, scalar-only DML demand, joined MERGE
+ON/WHEN/actions, compound/derived grafts and atomic22012 failures. The window
+file is `generated_virtual_window_identity_test.go`, not the GOOS-filtered
+`_windows_test.go` suffix. Private `TestGeneratedVirtual` consumer units assert
+missing-identity failures, unused-definition demand exclusion, shared window
+row/provenance/version/lineage translation, scheduled-cache and retained-view
+projection evaluation, and saved MERGE identity after borrowed cursor close.
+Original `TestReferenceGeneratedVirtualDemand` also covers the retained view's
+aggregate consumer; keep it selected alongside the newer regressions. All these
+private units are also selected by the complete `^TestGenerated` command above.
+
+Focused ordinary ALTER TYPE USING owner-row proof and feature smoke:
+`make check RUN='^TestReferenceGeneratedVirtualAlterTypeUsing(Atomicity)?$'`,
+also with `REFERENCE=1`, each under an external900-second deadline. Independent
+direct/prepared expectations are (2,3,3) with c INT8, present all-NULL owner
+(NULL,9,9), table/schema-qualified reads, unchanged generated definitions and
+demanded Execute22012 preserving original c INT4, rows, defaults and catalog OIDs.
+Query reads still require real occurrence identity; no synthetic query stage or
+missing-identity fallback is used for the physical owner rewrite. The changed
+initial mixed-kind Dump assertion additionally requires
+`make check RUN='^TestReferenceGeneratedVirtualControls$'`, also with `REFERENCE=1`.
+
+Focused shared INSERT-query/COPY logical NOT NULL proof and feature smoke:
+`make check RUN='^TestReferenceGeneratedVirtual(InsertSelectConstraints|InsertSelectAtomicity|CopyConstraints|CopyAtomicity)$'`,
+also with `REFERENCE=1`, each under an external900-second deadline. Independent
+direct/prepared INSERT SELECT goldens require (2,3), real NULL-owner constant
+and COALESCE recipes yielding (NULL,9), exact23502 with literal `virtual` detail,
+and demanded division22012. Late ordered-source failures preserve both seed rows.
+The COPY definitions live in `reference/dml` and reuse `copyTextScenario` and its
+existing public native CopyFrom/pinned PostgreSQL stream consumer; the complete
+virtual-family selector above includes them. Assert actual COPY1 counts/logical
+rows, zero failure results and exact line1/line2 Context, unchanged seed rows
+after late failures, successful transaction rollback and failed-savepoint25P02
+recovery. Both consumers accept nullable1/a with a=0 without generation demand;
+a-only reads succeed and a later b read fails22012 without changing the base row.
+
+The root-owned standalone virtual smoke source stays in the OMP session and
+is temporarily materialized as `./.generated-virtual-feature-smoke/main.go`.
+Run `go run ./.generated-virtual-feature-smoke` with a 900-second external
+deadline, record actual typed rows, generated-write/lazy-read diagnostics,
+metadata, b-only grants and two native Restore/redump cycles, then remove the
+temporary source directory. Its shared SQL counterpart is selected with
+`make check RUN='^TestReferenceGeneratedVirtualFeatureSmoke$'` and the same
+command with `REFERENCE=1`. No discovery-only backend filter remains in the
+completed shared family; discovery results do not replace dual-mode proof.
+
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control

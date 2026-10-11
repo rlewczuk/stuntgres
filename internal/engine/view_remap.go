@@ -112,12 +112,24 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		next = n
 	case columnExpression:
 		n.origin = rowRef(n.origin)
+		if ref == nil && slots != nil {
+			// Owner-row copies carry attribute identity only. CREATE attaches
+			// the completed destination's recipe and full layout afterward.
+			n.virtual = nil
+			n.rowStart, n.rowWidth, n.queryOccurrence = 0, 0, 0
+		} else {
+			n.virtual = child(n.virtual)
+		}
 		if slots != nil {
 			slot, ok := slots[n.origin.Address.SubID]
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: missing remapped row attribute")
 			}
 			n.slot = slot
+			if n.virtual != nil {
+				n.rowStart = 0
+				n.rowWidth = len(slots)
+			}
 		}
 		next = n
 	case groupExpression:

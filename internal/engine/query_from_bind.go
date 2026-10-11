@@ -63,13 +63,16 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 
 func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) BoundExpr {
 	var origin ObjectRef
+	var relation *relationDescriptor
 	if c.cteScan != nil {
 		c.cteScan.demand[c.physical] = true
 	}
 	if c.leaf == queryTargetLeaf {
 		origin = b.useColumnOf(b.queryTargetRelation(), c.physical)
+		relation = b.queryTargetRelation()
 	} else if c.leaf >= 0 {
 		leaf := &b.querySources[c.leaf]
+		relation = leaf.relation
 		origin = leaf.ref
 		origin.Address.SubID = leaf.relation.attributes[c.physical]
 		b.dependency(origin, leaf.relation.revision)
@@ -84,7 +87,14 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) Bou
 			leaf.uses = append(leaf.uses, c.physical)
 		}
 	}
-	return columnExpression{expressionInfo: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
+	column := columnExpression{expressionInfo: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
+	if b.generatedOwner == nil {
+		column = column.withGeneration(relation, c.physical, c.slot-c.physical)
+		if column.virtual != nil && c.leaf >= 0 {
+			column.queryOccurrence = c.leaf + 1
+		}
+	}
+	return column
 }
 
 func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Position) (*queryQualifier, error) {

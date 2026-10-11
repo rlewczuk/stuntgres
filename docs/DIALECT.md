@@ -6385,12 +6385,48 @@ destination assignment remains separate from explicit expression coercion.
 Native Dump retains declarations and emits DEFAULT instead of computed literals;
 replacement remaps owner-dependent stored cells without changing held snapshots.
 Existing ALTER DEFAULT/TYPE and dependent DROP paths guard definition integrity.
-LIKE INCLUDING GENERATED copies admitted STORED definitions, remapping owner-row
-references without redirecting explicit external literals. Virtual/omitted-kind
-generation, ADD generated and expression ALTER lifecycle remain unsupported;
+LIKE INCLUDING GENERATED copies admitted STORED/VIRTUAL definitions and their kind,
+remapping owner-row references without redirecting explicit external literals.
+ADD generated and expression ALTER lifecycle remain unsupported;
 generated destination TYPE without USING remains an explicit native boundary.
 Shared scenarios: `make check RUN='^TestReferenceGeneratedStored'`,
 and the same command with `REFERENCE=1`.
+
+### Virtual generated columns — change note (changelog)
+
+PostgreSQL18 VIRTUAL and omitted-kind generation now use demand-driven typed
+column reads in the ordinary query/DML evaluator. Base writes do not materialize
+virtual cells; logical NOT NULL/CHECK demands alone evaluate them on write.
+The shared INSERT-query/COPY FROM row assembler validates virtual NOT NULL using
+logical values while retaining typed NULL storage and lazy nullable recipes;
+demanded generation errors and late batch failures preserve prior table contents.
+OLD/NEW RETURNING, joined/outer frames and independent generated-column SELECT
+grants retain their normal identities. Virtual security examines unsimplified
+type usages, including intermediate/dead domain casts and arrays, while volatility
+still examines surviving providers. User-defined types/functions are not admitted;
+native SQL CREATE FUNCTION remains an external-only definition boundary.
+Virtual index/UNIQUE/PK/INCLUDE uses are forbidden; kind-preserving LIKE/inheritance,
+declared metadata, pg_attrdef/deparse and actual native two-cycle Dump/Restore use
+the existing owning authorities. Error row disclosure prints `virtual` only for
+visible generated columns. View UPDATE b=DEFAULT retains release428C9 rather than
+introducing a view rewrite bypass. No adjacent catalogs, partition routing,
+generation-expression ALTER or physical durability APIs are added.
+Absent outer-join operands return typed NULL without demanding generation;
+real all-NULL rows still generate normally, including non-strict expressions.
+Saved operand identity also follows scheduled compound LIMIT projections and
+window input/key evaluation, including selected and permuted rows. Executable
+correlated DML reads, drained joined MERGE sources and scalar/derived stored-view
+write grafts retain their lexical source identity without new SQL admission.
+Copied CHECKs use the completed destination's ordinary or generated column
+semantics and its full row width, not a source recipe or source-map cardinality.
+Ordinary-column TYPE USING reads virtual values from the original physical owner
+row, preserving qualified names and non-strict generation even on all-NULL rows.
+Demanded errors publish no row, type or definition changes. Generated-column and
+generation-dependency TYPE changes, and generation ADD/SET/DROP EXPRESSION,
+remain excluded; this is an existing ordinary ALTER consumer, not a new lifecycle.
+Shared complete family: `make check RUN='^TestReferenceGeneratedVirtual'`,
+and the same command with `REFERENCE=1`.
+
 
 ## Enum declaration and ordered values — change note
 

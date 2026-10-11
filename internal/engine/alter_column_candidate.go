@@ -200,6 +200,9 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 			next.generations[attribute] = definition
 		}
 	}
+	if err := refreshGenerationChecks(&next, stage.base); err != nil {
+		return nil, err
+	}
 	if _, exists := old.identities[old.attributes[slot]]; exists {
 		next.identities = make(map[int32]columnIdentity, len(old.identities)-1)
 		for attribute, identity := range old.identities {

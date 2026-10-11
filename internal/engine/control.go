@@ -768,7 +768,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if err != nil {
 						return err
 					}
-					line.WriteString(" GENERATED ALWAYS AS (" + text + ") STORED")
+					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.kind.sql())
 				}
 				if identity, exists := t.identities[t.attributes[i]]; exists {
 					mode := "ALWAYS"

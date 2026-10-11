@@ -26,7 +26,7 @@ type boundReturning struct {
 type deleteNewExpression struct{ columnExpression }
 
 func (e deleteNewExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if _, err := e.columnExpression.Eval(c); err != nil {
+	if _, err := e.columnExpression.rowContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Null(e.usage.Type), nil

@@ -268,6 +268,20 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var updated map[RowID]bool
 	sourceCount := 1
 	if b.update.from != nil {
+		state.virtualReads = queryHasVirtualReads(b.update.from) || boundHasVirtualReads(b.update.predicate)
+		for _, expression := range b.update.assignments {
+			state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
+		}
+		for _, target := range b.update.arrayTargets {
+			if target != nil {
+				state.virtualReads = state.virtualReads || boundHasVirtualReads(target.node)
+			}
+		}
+		if b.returning != nil {
+			for _, expression := range b.returning.expressions {
+				state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
+			}
+		}
 		var err error
 		stage, err = openQueryNode(ctx, &state, b.update.from)
 		if err != nil {
@@ -315,6 +329,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				copy(frame, old.values)
 				copy(frame[len(old.values):], stage.source.row(stage.index(j)))
 				eval.Row = frame
+				eval.bindQueryIdentity(stage.source, stage.index(j))
 			}
 			matches, err := updateMatches(&eval, b.update.predicate)
 			if err != nil {
@@ -348,6 +363,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			copy(frame, old.values)
 			copy(frame[len(old.values):], stage.source.row(stage.index(candidate.sourceIndex)))
 			eval.Row = frame
+			eval.bindQueryIdentity(stage.source, stage.index(candidate.sourceIndex))
 		}
 		if old.version != candidate.version {
 			matches, err := updateMatches(&eval, b.update.predicate)
@@ -372,7 +388,14 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			return Result{}, err
 		}
 		for i, column := range b.relation.columns {
-			if !column.Nullable && row[i].IsNull() {
+			if column.Nullable {
+				continue
+			}
+			value, err := logicalColumnValue(b.relation, i, row, &generationEval)
+			if err != nil {
+				return Result{}, err
+			}
+			if value.IsNull() {
 				return Result{}, e.rowConstraintError(s, b, schema, column.Name, "", row)
 			}
 		}
@@ -477,7 +500,7 @@ func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltyp
 		return "", err
 	}
 	if whole&SelectPrivilege != 0 {
-		return failingRowDetail(row, s.output, nil, nil)
+		return failingRowDetail(row, s.output, nil, nil, b.relation)
 	}
 	// Preserve the small/wide supplied-column manifest convention. Assignment
 	// order can differ from physical order, which governs diagnostic disclosure.
@@ -515,5 +538,5 @@ func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltyp
 			visible = append(visible, index)
 		}
 	}
-	return failingRowDetail(row, s.output, b.relation.columns, visible)
+	return failingRowDetail(row, s.output, b.relation.columns, visible, b.relation)
 }

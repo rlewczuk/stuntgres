@@ -865,7 +865,14 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 		return err
 	}
 	for j, column := range b.relation.columns {
-		if row[j].IsNull() && !column.Nullable {
+		if column.Nullable {
+			continue
+		}
+		value, err := logicalColumnValue(b.relation, j, row, evaluation)
+		if err != nil {
+			return err
+		}
+		if value.IsNull() {
 			detail, err := e.rowConstraintDetail(scope, named, row)
 			if err != nil {
 				return err

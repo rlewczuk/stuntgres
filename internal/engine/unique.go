@@ -69,6 +69,17 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 }
 
 func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint) error {
+	for _, declaration := range declarations {
+		for _, attribute := range declaration.Attributes {
+			if definition, ok := d.generations[attribute]; ok && definition.kind == generationVirtual {
+				message := "unique constraints on virtual generated columns are not supported"
+				if declaration.Primary {
+					message = "primary keys on virtual generated columns are not supported"
+				}
+				return sqlError("0A000", message)
+			}
+		}
+	}
 	d.uniqueConstraints = make([]uniqueConstraint, len(declarations))
 	for i := range declarations {
 		d.uniqueConstraints[i] = declarations[i].uniqueConstraint

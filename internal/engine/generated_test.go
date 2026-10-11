@@ -33,7 +33,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: d.address}
 	ref.Address.SubID = 1
 	node := columnExpression{expressionInfo: expressionInfo{usage: d.columns[0].Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
-	d.generations = map[int32]columnGeneration{2: {expression: node, planned: node}}
+	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: node, planned: node}}
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 
 func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	d.generations = map[int32]columnGeneration{2: {}}
+	d.generations = map[int32]columnGeneration{2: {kind: generationStored}}
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: d.address}
 	columns := []queryColumn{{descriptor: d.columns[0], slot: 0, leaf: 0, physical: 0}, {descriptor: d.columns[1], slot: 1, leaf: 0, physical: 1}}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.columns}
@@ -123,7 +123,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &Operation{ctx: context.Background()}
-	declarations := []createColumnDeclaration{{}, {generation: &parser.GenerationDefinition{Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
+	declarations := []createColumnDeclaration{{}, {generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
 	if err := e.bindCreateGenerations(op, AuthorizationView{catalog: view}, d, declarations, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}
@@ -148,6 +148,8 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		t.Fatal("definition identity not reserved")
 	}
 	for _, mutate := range []func(*columnGeneration){
+		func(g *columnGeneration) { g.kind = 0 },
+		func(g *columnGeneration) { g.kind = generationKind(99) },
 		func(g *columnGeneration) { g.OID = 0 },
 		func(g *columnGeneration) { g.dependencies = nil },
 		func(g *columnGeneration) { g.planned = nil },
@@ -170,7 +172,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.columns[1].Usage = oid.Usage()
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch() + 1, Address: d.address}
 	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
-	d.generations = map[int32]columnGeneration{2: {expression: leaf, planned: leaf}}
+	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}

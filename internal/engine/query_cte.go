@@ -91,7 +91,7 @@ func (p *cteProducer) ensure(ctx context.Context, index int) (bool, error) {
 			break
 		}
 		p.inner.evaluation.setContext(ctx)
-		p.inner.evaluation.Row = p.inner.source.row(p.inner.index(i))
+		p.inner.evaluation.bindQueryRow(p.inner.source, p.inner.index(i))
 		p.inner.evaluation.orderValues = p.inner.orderRow(i)
 		start := len(p.source.flat)
 		p.source.flat = append(p.source.flat, make([]sqltype.Value, len(p.project.Schema()))...)

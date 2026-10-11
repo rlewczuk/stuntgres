@@ -71,7 +71,7 @@ func (a *setArm) next(ctx context.Context) ([]sqltype.Value, bool, error) {
 		return nil, present, err
 	}
 	a.inner.evaluation.setContext(ctx)
-	a.inner.evaluation.Row = a.inner.source.row(a.inner.index(i))
+	a.inner.evaluation.bindQueryRow(a.inner.source, a.inner.index(i))
 	a.inner.evaluation.orderValues = a.inner.orderRow(i)
 	for j, expression := range a.expressions {
 		if err := ctx.Err(); err != nil {

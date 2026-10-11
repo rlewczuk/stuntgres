@@ -148,7 +148,8 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 		values := out.orderValues[start:]
 		copy(values, child.orderRow(i))
 		evaluation.setContext(ctx)
-		evaluation.Row, evaluation.orderValues = child.source.row(child.index(i)), values
+		evaluation.bindQueryRow(child.source, child.index(i))
+		evaluation.orderValues = values
 		for j, expr := range n.expressions {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {

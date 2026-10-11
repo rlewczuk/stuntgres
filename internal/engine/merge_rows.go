@@ -62,6 +62,18 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	width := len(cursor.Schema())
 	scratch := make([]sqltype.Value, width)
 	var sources []sqltype.Value
+	var occurrences, provenance []int
+	// The borrowed stage closes before actions, but executeMerge's input owner
+	// keeps the source namespace and any action-subquery leaves live until exit.
+	var stage *indexedStage
+	if state.virtualReads {
+		var ok bool
+		stage, ok = cursor.(*indexedStage)
+		if !ok {
+			cursor.Close()
+			return nil, errors.New("stuntgres: invalid MERGE source identity")
+		}
+	}
 	sourceCount := 0
 	for {
 		present, err := cursor.Next(ctx, scratch)
@@ -77,6 +89,12 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			return nil, err
 		}
 		sources = append(sources, scratch...)
+		if state.virtualReads {
+			if sourceCount == 0 {
+				occurrences = appendQueryOccurrences(nil, stage.source)
+			}
+			provenance = appendQueryProvenance(provenance, stage.source, stage.index(stage.position-1))
+		}
 		sourceCount++
 	}
 	if err := cursor.Close(); err != nil {
@@ -88,6 +106,13 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	frame := make([]sqltype.Value, len(b.relation.columns)+width)
 	evaluation := state.evaluation(ctx)
 	evaluation.Row = frame
+	evaluation.queryOccurrences = occurrences
+	bindIdentity := func(index int) {
+		if state.virtualReads {
+			width := len(occurrences)
+			evaluation.queryProvenance = provenance[index*width : (index+1)*width]
+		}
+	}
 	var pairs []mergeCandidate
 	var targetMatched []bool
 	if b.merge.hasBySource {
@@ -105,6 +130,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	}
 	for j := range sourceCount {
 		copy(frame[len(b.relation.columns):], sources[j*width:(j+1)*width])
+		bindIdentity(j)
 		matched := false
 		for i := range target.count() {
 			old := target.versionAt(target.rawIndex(i))
@@ -144,6 +170,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		if candidate.sourceIndex >= 0 {
 			source = sources[candidate.sourceIndex*width : (candidate.sourceIndex+1)*width]
 			copy(frame[len(b.relation.columns):], source)
+			bindIdentity(candidate.sourceIndex)
 		}
 		old, class := candidate.rowVersion, candidate.class
 		setFrame := func() {

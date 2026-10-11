@@ -621,6 +621,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 			index := child.index(i)
 			setQueryLineage(child.source, index)
 			provenance = appendQueryProvenance(provenance[:0], child.source, index)
+			evaluation.queryOccurrences, evaluation.queryProvenance = occurrences, provenance
 			versions = appendQueryVersions(versions[:0], child.source, index, locks)
 			live, changed := true, false
 			for j, occurrence := range occurrences {

@@ -15,6 +15,12 @@ type deleteUsingCandidate struct {
 // occurrence indexes are retained, before any target row arbitration can wait.
 func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned RowID) (Result, error) {
 	ctx := evaluation.Context
+	evaluation.query.virtualReads = queryHasVirtualReads(b.deleteUsing) || boundHasVirtualReads(b.predicate)
+	if b.returning != nil {
+		for _, expression := range b.returning.expressions {
+			evaluation.query.virtualReads = evaluation.query.virtualReads || boundHasVirtualReads(expression)
+		}
+	}
 	stage, err := openQueryNode(ctx, evaluation.query, b.deleteUsing)
 	if err != nil {
 		return Result{}, err
@@ -53,6 +59,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 			copy(frame, version.values)
 			copy(frame[len(version.values):], stage.source.row(stage.index(j)))
 			evaluation.Row = frame
+			evaluation.bindQueryIdentity(stage.source, stage.index(j))
 			matches, err := updateMatches(evaluation, b.predicate)
 			if err != nil {
 				return Result{}, err
@@ -99,6 +106,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		copy(frame, current.values)
 		copy(frame[len(current.values):], stage.source.row(stage.index(pair.sourceIndex)))
 		evaluation.Row = frame
+		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
 		if current.version != candidate.version {
 			matches, err := updateMatches(evaluation, b.predicate)
 			if err != nil {

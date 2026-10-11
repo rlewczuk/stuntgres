@@ -38,17 +38,20 @@ type BoundExpr interface {
 	Eval(*EvalContext) (sqltype.Value, error)
 }
 type EvalContext struct {
-	Context        context.Context
-	Scope, Frame   uint32
-	Row            []sqltype.Value
-	OldRow         []sqltype.Value
-	Parameters     []sqltype.Value
-	orderValues    []sqltype.Value
-	statementScope *StatementScope
-	Input          sqltype.InputEnvironment
-	Output         sqltype.OutputEnvironment
-	Outer          *EvalContext
-	query          *queryState
+	Context          context.Context
+	Scope, Frame     uint32
+	Row              []sqltype.Value
+	OldRow           []sqltype.Value
+	Parameters       []sqltype.Value
+	orderValues      []sqltype.Value
+	statementScope   *StatementScope
+	Input            sqltype.InputEnvironment
+	Output           sqltype.OutputEnvironment
+	Outer            *EvalContext
+	query            *queryState
+	queryOccurrences []int
+	queryProvenance  []int
+	queryRowSource   *querySource
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
@@ -108,26 +111,57 @@ func (e literalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 
 type columnExpression struct {
 	expressionInfo
-	origin       ObjectRef
-	scope, frame uint32
-	slot         int
+	origin             ObjectRef
+	scope, frame       uint32
+	slot               int
+	virtual            BoundExpr
+	rowStart, rowWidth int
+	// Zero denotes an owner-row read; SQL occurrence IDs are encoded plus one.
+	queryOccurrence int
 }
 
-func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e columnExpression) rowContext(c *EvalContext) (*EvalContext, error) {
 	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
+		return nil, err
 	}
 	for c != nil && (c.Scope != e.scope || c.Frame != e.frame) {
 		c = c.Outer
 	}
 	if c == nil || e.slot < 0 || e.slot >= len(c.Row) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression row frame")
+		return nil, fmt.Errorf("stuntgres: invalid expression row frame")
 	}
 	v := c.Row[e.slot]
 	if e.usage.Type == nil || !e.usage.Type.Concrete() || v.Type() != e.usage.Type {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression column type")
+		return nil, fmt.Errorf("stuntgres: invalid expression column type")
 	}
-	return v, nil
+	return c, nil
+}
+
+func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	row, err := e.rowContext(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.virtual == nil {
+		return row.Row[e.slot], nil
+	}
+	if e.queryOccurrence != 0 {
+		absent, err := row.queryOperandAbsent(e.queryOccurrence - 1)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if absent {
+			return sqltype.Null(e.usage.Type), nil
+		}
+	}
+	if e.rowStart < 0 || e.rowWidth <= 0 || e.rowStart > len(row.Row)-e.rowWidth {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid virtual expression row window")
+	}
+	local := *row
+	local.Context = c.Context
+	local.Scope, local.Frame = 1, 1
+	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
+	return e.virtual.Eval(&local)
 }
 
 type parameterExpression struct {
@@ -1434,7 +1468,11 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) BoundExpr {
 
 func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) BoundExpr {
 	ref := b.useColumnOf(relation, i)
-	return columnExpression{expressionInfo: expressionInfo{usage: relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	column := columnExpression{expressionInfo: expressionInfo{usage: relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	if b.generatedOwner == nil {
+		column = column.withGeneration(relation, i, 0)
+	}
+	return column
 }
 func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (boundResult BoundExpr, bindError error) {
 	if policy.context == filterContext && !policy.operand && policy.booleanConstruct == "" {

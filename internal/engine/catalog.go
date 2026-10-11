@@ -401,6 +401,20 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage || definition.planned == nil || definition.planned.ResultUsage() != r.columns[slot].Usage || hasDefault || hasIdentity || !generationImmutable(definition.planned) {
 			return fmt.Errorf("stuntgres: invalid column generation destination")
 		}
+		if definition.kind != generationStored && definition.kind != generationVirtual {
+			return fmt.Errorf("stuntgres: invalid column generation kind")
+		}
+		if definition.kind == generationVirtual {
+			if err := virtualDestination(r.columns[slot]); err != nil {
+				return err
+			}
+			if err := virtualGenerationSecurity(definition.expression); err != nil {
+				return err
+			}
+			if err := virtualGenerationSecurity(definition.planned); err != nil {
+				return err
+			}
+		}
 		if err := validateGenerationPlan(v, r, definition.planned); err != nil {
 			return err
 		}

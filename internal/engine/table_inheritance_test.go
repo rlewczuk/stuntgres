@@ -278,7 +278,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := literalExpression{expressionInfo: expressionInfo{usage: usage}, value: value}
-	parent.generations = map[int32]columnGeneration{1: {expression: expression, planned: expression}}
+	parent.generations = map[int32]columnGeneration{1: {kind: generationStored, expression: expression, planned: expression}}
 	view := inheritanceUnitView(e, parent)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -289,7 +289,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		child := inheritanceUnitRelation(e, "c", 22001, "g")
 		b := binding{createInheritance: []createInheritanceInput{{source: parent}}, createLocalColumns: map[string]bool{"g": true}, createDeclarations: make([]createColumnDeclaration, 1)}
 		if explicit {
-			b.createDeclarations[0].generation = &parser.GenerationDefinition{}
+			b.createDeclarations[0].generation = &parser.GenerationDefinition{Kind: "stored"}
 		}
 		if err := e.stageInheritance(op, auth, e.BeginCatalogStage(view), child, b); err != nil {
 			t.Fatal(err)

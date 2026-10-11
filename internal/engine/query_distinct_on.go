@@ -50,7 +50,8 @@ func openDistinctOnNode(ctx context.Context, state *queryState, n *distinctOnNod
 		if !present {
 			break
 		}
-		evaluation.Context, evaluation.Row, evaluation.orderValues = ctx, child.source.row(child.index(i)), child.orderRow(i)
+		evaluation.Context, evaluation.orderValues = ctx, child.orderRow(i)
+		evaluation.bindQueryRow(child.source, child.index(i))
 		hash := uint64(14695981039346656037)
 		for k, e := range n.expressions {
 			value, failure := e.Eval(&evaluation)

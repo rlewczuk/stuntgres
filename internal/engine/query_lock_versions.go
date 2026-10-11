@@ -15,7 +15,7 @@ func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks
 		return append(dst, source.versions[index*width:(index+1)*width]...)
 	}
 	if source.input != nil {
-		return appendQueryVersions(dst, source.input, index, locks)
+		return appendQueryVersions(dst, source.input, source.inputIndex(index), locks)
 	}
 	if source.lineage != nil {
 		physical := source.lineage.selection[index]
@@ -53,7 +53,7 @@ type queryPair struct{ left, right int }
 // candidate, including unmarked grouped siblings with no physical provenance.
 func setQueryLineage(source *querySource, index int) {
 	if source.input != nil {
-		setQueryLineage(source.input, index)
+		setQueryLineage(source.input, source.inputIndex(index))
 		return
 	}
 	if lineage := source.lineage; lineage != nil {

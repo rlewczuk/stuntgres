@@ -155,7 +155,9 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		key.slot = -1
 		switch e := key.expression.(type) {
 		case columnExpression:
-			key.slot = e.slot
+			if e.virtual == nil {
+				key.slot = e.slot
+			}
 		case groupExpression:
 			key.slot = e.slot
 		}

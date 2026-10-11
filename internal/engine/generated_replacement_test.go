@@ -62,7 +62,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	d.columns[1].Usage = oid.Usage()
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch() + 1, Address: d.address}
 	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
-	d.generations = map[int32]columnGeneration{2: {expression: leaf, planned: leaf}}
+	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
 	probe := randomExpression{expressionInfo: expressionInfo{usage: floating.Usage(), properties: ExprProperties{Volatility: Volatile}}, name: "random"}

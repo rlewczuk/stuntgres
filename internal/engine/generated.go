@@ -11,11 +11,26 @@ import (
 // Generation definitions have stable attribute identities, separate from defaults.
 type columnGeneration struct {
 	OID        OID
+	kind       generationKind
 	expression BoundExpr
 	// Retain analyzed syntax for dependencies/deparse and its physical plan for writes.
 	planned         BoundExpr
 	dependencies    []ObjectRef
 	catalogSnapshot bool
+}
+
+type generationKind uint8
+
+const (
+	generationStored generationKind = iota + 1
+	generationVirtual
+)
+
+func (k generationKind) sql() string {
+	if k == generationVirtual {
+		return "VIRTUAL"
+	}
+	return "STORED"
 }
 
 type tableOIDExpression struct {
@@ -49,7 +64,11 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 			if d.generations == nil {
 				d.generations = make(map[int32]columnGeneration)
 			}
-			d.generations[d.attributes[slot]] = columnGeneration{}
+			kind := generationVirtual
+			if declaration.generation.Kind == "stored" {
+				kind = generationStored
+			}
+			d.generations[d.attributes[slot]] = columnGeneration{kind: kind}
 		}
 	}
 	if len(d.generations) == 0 {
@@ -73,11 +92,22 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 		b.queryNamespace = &ns
 		b.querySources = []queryLeaf{{ref: ref, relation: d}}
 		column := d.columns[slot]
+		kind := d.generations[d.attributes[slot]].kind
+		if kind == generationVirtual {
+			if err := virtualDestination(column); err != nil {
+				return err
+			}
+		}
 		node, err := b.bind(declaration.generation.Expression, expressionPolicy{context: projectionContext, expected: column.Usage.Type.Usage()})
 		if err != nil {
 			return err
 		}
 		analyzed := node
+		if kind == generationVirtual {
+			if err := virtualGenerationSecurity(analyzed); err != nil {
+				return err
+			}
+		}
 		node, _, err = simplifyConditional(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}, node, true)
 		if err != nil {
 			return err
@@ -95,7 +125,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 			node = coercionExpression{b.info(column.Usage, parser.Position{}, coercionProperties(node, plan)), node, plan, sqltype.Assignment}
 			analyzed = coercionExpression{b.info(column.Usage, parser.Position{}, coercionProperties(analyzed, plan)), analyzed, plan, sqltype.Assignment}
 		}
-		definition := columnGeneration{expression: analyzed, planned: node}
+		definition := columnGeneration{kind: kind, expression: analyzed, planned: node}
 		_, err = (scalarRenderer{owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
 		if err != nil {
 			return err
@@ -224,6 +254,10 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 	for slot, attribute := range d.attributes {
 		definition, ok := d.generations[attribute]
 		if !ok {
+			continue
+		}
+		if definition.kind == generationVirtual {
+			row[slot] = sqltype.Null(d.columns[slot].Usage.Type)
 			continue
 		}
 		value, err := definition.planned.Eval(c)
@@ -365,7 +399,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 		filtered := *descriptor
 		filtered.generations = nil
 		for attribute, definition := range descriptor.generations {
-			if !generationHasTableOID(definition.planned) {
+			if definition.kind != generationStored || !generationHasTableOID(definition.planned) {
 				continue
 			}
 			if filtered.generations == nil {
@@ -402,8 +436,19 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 				return err
 			}
 			for slot, column := range descriptor.columns {
-				if !column.Nullable && row[slot].IsNull() {
-					return notNullError(schema, descriptor.name, column.Name, row, eval.Output)
+				if column.Nullable {
+					continue
+				}
+				value, err := logicalColumnValue(descriptor, slot, row, &eval)
+				if err != nil {
+					return err
+				}
+				if value.IsNull() {
+					detail, err := failingRowDetail(row, eval.Output, nil, nil, descriptor)
+					if err != nil {
+						return err
+					}
+					return notNullDetailError(schema, descriptor.name, column.Name, detail)
 				}
 			}
 			constraint, err := validateCheckRow(descriptor, row, &eval)
@@ -492,6 +537,9 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		var storage [13]BoundExpr
 		return args(subscriptChildren(n, &storage))
 	case columnExpression:
+		if _, generated := d.generations[n.origin.Address.SubID]; generated || n.virtual != nil {
+			return fmt.Errorf("stuntgres: generated reference in generation plan")
+		}
 		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.address.ClassID || n.origin.Address.ObjectID != d.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.columns) || d.attributes[n.slot] != n.origin.Address.SubID || usage != d.columns[n.slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}

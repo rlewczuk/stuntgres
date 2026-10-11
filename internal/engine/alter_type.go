@@ -89,7 +89,7 @@ func (e *Engine) prepareAlterIdentityTypes(scope *StatementScope, op *Operation,
 func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, ref ObjectRef) *queryNamespace {
 	columns := make([]queryColumn, len(original.columns))
 	for i, column := range original.columns {
-		columns[i] = queryColumn{descriptor: column, slot: i, leaf: 0, physical: i}
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
 	qualifier := queryQualifier{name: original.name, original: original.name, schema: auth.catalog.state.descriptors[original.namespace].Name(), ref: ref, columns: columns}
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.columns}
@@ -98,7 +98,7 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (BoundExpr, error) {
 	if action.Using == nil {
 		source := original.index[action.Column.Text]
-		return columnExpression{expressionInfo{usage: original.columns[source].Usage, properties: ExprProperties{RowDependent: true}}, ref, 1, 1, source}, nil
+		return columnExpression{expressionInfo: expressionInfo{usage: original.columns[source].Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)
