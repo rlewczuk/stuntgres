@@ -960,17 +960,20 @@ fallback. The common namespace resolver routes relations, types and supported
 builtin functions/operators; `pg_catalog` qualification and
 `OPERATOR(pg_catalog.+)` preserve their provider boundaries.
 The selected `min_scale`, `round`, `scale`, `trim_scale`, `trunc`, `sign`, `mod`,
-`abs`, `ceil`, `ceiling`, `div`, `exp`, `factorial`, `floor`, `acos`, `acosd`,
+`abs`, `ceil`, `ceiling`, `div`, `exp`, `factorial`, `floor`, `gcd`, `lcm`, `acos`, `acosd`,
 `asin`, `asind`, `atan`, `atand`, `atan2`, `atan2d`, `cos`, `cosd`, `cot`, `cotd`,
 `sin`, `sind`, `tan` and `tand` providers use the same
 namespace checks. `abs` preserves integer/REAL widths; decimal division and
 factorial are exact, and decimal exponential preserves independently selected
-precision (up to 1000 fractional places). Trig uses FLOAT8 signatures,
+precision (up to 1000 fractional places). `gcd` and `lcm` preserve the selected
+INTEGER/BIGINT/NUMERIC result width, return nonnegative exact results, and retain
+the greater numeric input scale. Trig uses FLOAT8 signatures,
 with exact notable degree angles, direct-function poles and atan2(y,x)
 quadrant/IEEE semantics. See the
 [mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
-Selected public checks: `make check RUN='^TestReferenceMathScalar'` and
-`make check RUN='^TestReferenceMathTrigDirectFeatureSmoke$'`, each also with `REFERENCE=1`.
+Selected public checks: `make check RUN='^TestReferenceMathScalar'`,
+`make check RUN='^TestReferenceMathTrigDirectFeatureSmoke$'` and
+`make check RUN='^TestReferenceMathGcdLcm'`, each also with `REFERENCE=1`.
 
 Change note: explicit BYTEA→TEXT (`v::text`, `CAST(v AS text)`, `text(v)`)
 uses the statement's `bytea_output`: lowercase hex by default, or PostgreSQL

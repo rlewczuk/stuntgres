@@ -3312,6 +3312,7 @@ also admits these immutable, strict PostgreSQL18 mathematical overloads:
 | `ceil`, `ceiling`, `floor`, `exp` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8 |
 | `div` | NUMERIC,NUMERIC → NUMERIC |
 | `factorial` | INT8 → NUMERIC |
+| `gcd`, `lcm` | INT4,INT4 → INT4; INT8,INT8 → INT8; NUMERIC,NUMERIC → NUMERIC |
 | `acos`, `acosd`, `asin`, `asind`, `atan`, `atand` | FLOAT8 → FLOAT8 |
 | `atan2`, `atan2d` | FLOAT8,FLOAT8 → FLOAT8 (`y,x` argument order) |
 | `cos`, `cosd`, `cot`, `cotd`, `sin`, `sind`, `tan`, `tand` | FLOAT8 → FLOAT8 |
@@ -3336,6 +3337,39 @@ these functions or `abs` also select FLOAT8. `div` contextualizes both unknown
 parameters as NUMERIC; `factorial` contextualizes its parameter as INT8 and
 implicitly widens SMALLINT/INTEGER, but rejects NUMERIC/REAL/FLOAT8 (including
 `factorial(5.0)`). No parameter's Go value changes the prepared signature.
+
+`gcd` and `lcm` have exactly the three binary overloads above, with no SMALLINT,
+REAL or FLOAT8 signature. Mixed INTEGER/BIGINT chooses BIGINT; an integer with
+NUMERIC chooses NUMERIC. Two SMALLINT inputs, SMALLINT with an unknown input,
+or two unknown strings/NULLs/parameters are ambiguous (`42725`). A known
+INTEGER/BIGINT/NUMERIC peer fixes an unknown argument's type; the Go argument
+kind never chooses an overload. Either typed NULL returns the selected typed
+NULL, even `lcm(0,NULL::integer)`.
+Quote-sensitive names retain their spelling: `"gcd"` resolves, while `"GCD"`
+is admitted for ordinary missing-function `42883` diagnostics, not folded into gcd.
+Invalid typed binds retain the shared unnamed-portal parameter Context on both
+adapters, without a query Position; literal input failures retain source Position.
+
+Both functions ignore finite input signs and return nonnegative exact values.
+`gcd(0,0)=0`; `gcd(0,n)=abs(n)`; `lcm` returns zero if either finite argument
+is zero. Fixed-width gcd rejects a positive result beyond the selected maximum:
+`gcd(minimum,0)` and `gcd(minimum,minimum)` overflow, while
+`gcd(minimum,-1)=1`. Zero lcm succeeds even with a signed-minimum peer.
+Nonzero lcm checks the final result after dividing by gcd, so `lcm(maximum,maximum)`
+succeeds but `lcm(maximum,2)` fails. Width errors are unlocated `22003`,
+`integer out of range` or `bigint out of range`, at Execute rather than Prepare.
+
+NUMERIC gcd/lcm use exact decimal arithmetic, not integer rounding or FLOAT8.
+The result scale is the greater input display scale, including equal inputs
+and zero shortcuts: `gcd(-1.20,0.1800)=0.0600`,
+`lcm(-1.20,0.1800)=3.6000`, `gcd(0.00,0.000)=0.000`.
+Either numeric NaN or infinity produces canonical NaN before the zero rule,
+including `lcm(0.0,'Infinity'::numeric)`; STRICT NULL still precedes that body rule.
+Numeric precision/scale remain subject to the full format limits; an excessive
+finite lcm result fails unlocated `22003`, `value overflows numeric format`.
+Computed numeric descriptors do not inherit input typmods. These providers
+reuse ordinary child analysis, execution preflight, statement atomicity and
+stored-view/generated/index consumers; they do not expand bare function DEFAULTs.
 
 
 NUMERIC rounding uses ties away from zero; truncation uses toward zero.
@@ -3379,6 +3413,8 @@ and `round(count(*),1)` are admitted; min/max use the ordinary aggregate stage.
 
 Independent public reference:
 `make check REFERENCE=1 RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$'`.
+The gcd/lcm family uses `make check RUN='^TestReferenceMathGcdLcm'`
+and `make check REFERENCE=1 RUN='^TestReferenceMathGcdLcm'`.
 
 ### Inverse trigonometric functions — change note
 

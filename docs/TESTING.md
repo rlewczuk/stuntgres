@@ -676,6 +676,39 @@ The separate root-owned public smoke source is the living plan Appendix A;
 materialize it temporarily, run `timeout 60s go run ./.math-trig-direct-feature-smoke`,
 record quiet exit0 or full failure evidence, and remove its directory.
 
+The gcd/lcm family selects `RUN='^TestReferenceMathGcdLcm'` in both modes;
+private parser/binder/provider coverage selects `RUN='^TestMathGcdLcm'`.
+Use a900-second external deadline for each selected invocation:
+
+```sh
+timeout 900s make check RUN='^TestMathGcdLcm'
+timeout 900s make check RUN='^TestReferenceMathGcdLcm'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceMathGcdLcm'
+timeout 900s make check RUN='^TestReferenceMathGcdLcmFeatureSmoke$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceMathGcdLcmFeatureSmoke$'
+```
+
+Independent expectations cover the six INT4/INT8/NUMERIC signatures, sign/zero/
+signed-minimum rules, exact fractions and display scales, nonfinite-before-zero
+precedence, strict NULL and ambiguity, full diagnostics and character positions.
+Held contextual binds and SQL PREPARE/EXECUTE assert phase, metadata and recovery.
+Invalid held input uses the existing exact `unnamed portal parameter $1 = '...'`
+Context on both adapters. Math projections have unknown nullability; the separate
+COUNT projection retains native known nonnullable versus pq unknown metadata.
+Computed NUMERIC has native unknown DecimalSize; pq exposes unconstrained typmod
+as DecimalSize(65535,65531,true) and ScanType any, independently asserted before
+normalized string comparison. Later-row write overflow asserts unchanged data.
+Generated/CHECK/expression-index and aggregate/grouping consumers, actual native
+Dump/Reset/Restore/fresh-Driver replay, retained Rows/descriptors and native ordinary
+precancellation are part of the same shared definitions. Real mode also replays
+the actual native-emitted SQL on PostgreSQL, not an invented PostgreSQL Restore API.
+Discovery filters and observation-only errors must be absent before native proof.
+The root-owned standalone public smoke is the catalog living plan Appendix A;
+materialize it temporarily as `.gcd-lcm-smoke/main.go`, run
+`timeout 900s go run ./.gcd-lcm-smoke`, record quiet exit0 or complete failure
+evidence, then remove it. This complements, not replaces, dual-mode feature smoke,
+whole-project quickcheck and post-integration finalcheck.
+
 PG_USER coverage uses `RUN='^TestReferencePGUser'` in both
 `make check` and
 `make check REFERENCE=1`, with a 900-second deadline

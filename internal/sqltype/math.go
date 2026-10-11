@@ -37,6 +37,8 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 1 && (id == Int2 || id == Int4 || id == Int8 || id == Float4 || id == Float8 || id == Numeric)
 	case "div":
 		valid = len(args) == 2 && id == Numeric && args[1] == args[0]
+	case "gcd", "lcm":
+		valid = len(args) == 2 && (id == Int4 || id == Int8 || id == Numeric) && args[1] == args[0]
 	case "factorial":
 		valid = len(args) == 1 && id == Int8
 	case "pg_size_bytes":
@@ -128,6 +130,11 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 		return Integer(p.result.Type, n)
 	case "div":
 		return numericDivideTrunc(ctx, a, b)
+	case "gcd", "lcm":
+		if id == Numeric {
+			return numericGcdLcm(ctx, a, b, p.name == "lcm")
+		}
+		return integerGcdLcm(p.result.Type, a.integer, b.integer, p.name == "lcm")
 	case "factorial":
 		return numericFactorial(ctx, p.result.Type, a.integer)
 	case "ceil", "ceiling", "floor":
