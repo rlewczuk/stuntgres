@@ -276,7 +276,7 @@ package parser
 %type <windowFrame> window_frame
 %type <frameBound> frame_bound
 %type <tok> window_exclusion
-%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> declare_cursor fetch_cursor close_cursor
 %type <cursorFetch> cursor_direction
 %type <desc> cursor_scroll cursor_hold
@@ -392,7 +392,7 @@ package parser
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
 %type <tok> predicate_suffix where_predicate_suffix
-%type <tok> excluded_role_target excluded_role_assignment
+%type <tok> role_selection_target role_selection_assignment
 %type <tok> cast_function
 %type <expr> string_function
 %type <tok> string_word normalization_form normalized_form trim_direction
@@ -542,7 +542,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | excluded_role | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | set_constraints
@@ -2043,13 +2043,13 @@ session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization
  | SET AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$3.text} }
  | SET AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true} }
  | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true} } ;
-/* LOCAL is an explicit native boundary; all input still parses before execution. */
-excluded_role: SET ROLE excluded_role_assignment excluded_role_target { if $4.keyword!=nil && $4.keyword.token==DEFAULT && $3.text=="" {sqllex.(*lexer).syntax($4);return 1};$$=&RoleSelection{Name:$4.text,Reset:$4.keyword!=nil && $4.keyword.token==DEFAULT,Pos:$2.pos} }
- | SET SESSION ROLE excluded_role_assignment excluded_role_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Pos:$3.pos} }
- | SET LOCAL ROLE excluded_role_assignment excluded_role_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($3,"SET LOCAL ROLE is unsupported"); $$=nil }
+/* All role selection input parses before execution, including LOCAL. */
+role_selection: SET ROLE role_selection_assignment role_selection_target { if $4.keyword!=nil && $4.keyword.token==DEFAULT && $3.text=="" {sqllex.(*lexer).syntax($4);return 1};$$=&RoleSelection{Name:$4.text,Reset:$4.keyword!=nil && $4.keyword.token==DEFAULT,Pos:$2.pos} }
+ | SET SESSION ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Pos:$3.pos} }
+ | SET LOCAL ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Local:true,Pos:$3.pos} }
  | RESET ROLE { $$=&RoleSelection{Reset:true,Pos:$2.pos} } ;
-excluded_role_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
-excluded_role_target: name | STRING | DEFAULT ;
+role_selection_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
+role_selection_target: name | STRING | DEFAULT ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
 schema_table: create_table { $$=$1.(*CreateTable) }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;

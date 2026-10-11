@@ -411,8 +411,6 @@ func explicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.RoleMembership, *parser.ObjectGrant:
 		return true
-	case *parser.RoleSelection:
-		return true
 	}
 	return false
 }

@@ -98,21 +98,24 @@ func TestRoleGrammarFailureBoundaries(t *testing.T) {
 	}
 }
 
-// PostgreSQL supports these commands; these are native capability exclusions,
-// not PostgreSQL error-parity expectations.
-func TestRoleExcludedCommands(t *testing.T) {
-	for _, tc := range []struct{ sql, message, position string }{
-		{"SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE 'reader'", "SET LOCAL ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE TO DEFAULT", "SET LOCAL ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE = NONE", "SET LOCAL ROLE is unsupported", "11"},
+func TestRoleSelectionBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		sql, name string
+		reset     bool
+	}{
+		{"SET LOCAL ROLE reader", "reader", false},
+		{"SET LOCAL ROLE 'reader'", "reader", false},
+		{"SET LOCAL ROLE TO DEFAULT", "default", true},
+		{"SET LOCAL ROLE = NONE", "none", false},
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			stmts, err := Parse(tc.sql)
-			var got *sqlstate.Error
-			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: tc.position}
-			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || stmts != nil {
-				t.Fatalf("statements=%#v diagnostic=%#v want=%#v", stmts, err, want)
+			if err != nil || len(stmts) != 1 {
+				t.Fatal(stmts, err)
+			}
+			role, ok := stmts[0].(*RoleSelection)
+			if !ok || role.Name != tc.name || role.Reset != tc.reset || !role.Local || role.Pos.Character != 11 {
+				t.Fatal(stmts[0])
 			}
 		})
 	}

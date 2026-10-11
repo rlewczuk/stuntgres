@@ -4381,8 +4381,8 @@ outside engine locks against that immutable generation; replacement is checked
 again before installation and reports the ordinary catalog-replaced error.
 Successful statement authorization is retained through Commit despite later
 role-catalog revisions or internal actor changes, without reauthorizing table
-ownership. Autocommit SET/RESET ROLE is supported; transactional ROLE and SESSION
-AUTHORIZATION remain excluded. PostgreSQL transactional lifetime is an independent control.
+ownership. SET/RESET ROLE and LOCAL role lifetime are supported in transactions
+and savepoints; transactional SESSION AUTHORIZATION remains excluded.
 PK and unrelated ALTER actions/transactional DDL remain excluded,
 never successful no-ops. CHECK CREATE/enforcement and DROP CONSTRAINT are
 supported; ALTER ADD CHECK/VALIDATE remains excluded.
@@ -5397,15 +5397,23 @@ fails, and valid names silently clip at a complete-codepoint 63-byte prefix.
 The exact untruncated DSN still keys engine isolation. No database registry or
 credential/URL parsing is added.
 
-Autocommit SET [SESSION] ROLE accepts identifiers/strings, NONE, TO/= assignment,
+SET [SESSION|LOCAL] ROLE accepts identifiers/strings, NONE, TO/= assignment,
 and RESET ROLE. Only CurrentUser changes. Eligibility uses SessionUser self,
 superuser or cycle-safe all-SET membership reachability; ADMIN/INHERIT alone do
 not authorize. Quoted/string lowercase `none` is the sentinel; uppercase `NONE`
 is a real role name. Bare DEFAULT is a syntax error, TO/= DEFAULT resets, and
-quoted/string `default` is a real name. SET LOCAL ROLE and explicit-transaction
-selection/reset fail native `0A000` without mutation, unlike PostgreSQL.
-SET SESSION AUTHORIZATION still uses the original authenticator and resets both
-mutable identities. SQL membership administration is supported; authentication remains host-asserted.
+quoted/string `default` is a real name. SESSION persists on commit and restores
+on rollback; LOCAL expires on either boundary. Savepoints restore effective role
+and the retained SESSION candidate. Outside-block LOCAL warns25P01, validates
+the target and leaves no lasting effect. RESET/rollback restore cached validated
+references even after SET-option revocation; fresh named selection checks live
+membership. Public connectors start as session_user; configured role defaults
+are a validated internal SessionStart hook, not a public API or registered GUC.
+There is no routine invocation frame yet, so SECURITY DEFINER role prohibition
+remains contingent on that contract. SET SESSION AUTHORIZATION still uses the
+original authenticator and resets both mutable identities; it remains excluded
+inside explicit transactions. SQL membership administration is supported;
+authentication remains host-asserted.
 GRANT/REVOKE role memberships support ADMIN, INHERIT and SET, omitted-option
 preservation, grantor-specific origins, cycle prevention and dependent
 CASCADE/RESTRICT. CREATE ROLE/USER/GROUP initial IN ROLE/ROLE/ADMIN clauses and

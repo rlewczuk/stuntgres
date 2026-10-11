@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,12 +10,56 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+// The role default is an internal physical-session hook, not a registered GUC
+// or a public connector option. Providers run without publication locks.
+func (e *Engine) initialRole(ctx context.Context, authenticated PrincipalRef, provider SessionDefaultProvider) (PrincipalRef, error) {
+	if provider == nil {
+		return PrincipalRef{}, nil
+	}
+	name, present, err := provider.SessionDefault(ctx, SettingDefinition{Name: "role", BootDefault: "none", Type: SettingString})
+	if err != nil {
+		return PrincipalRef{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return PrincipalRef{}, err
+	}
+	if !present || name == "none" {
+		return PrincipalRef{}, nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	roles := RoleRead{e, e.roles}
+	target, ok := roles.Lookup(name)
+	if !ok {
+		return PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
+	}
+	if err := validateInitialRole(roles, authenticated, target.Ref); err != nil {
+		return PrincipalRef{}, err
+	}
+	return target.Ref, nil
+}
+
+func validateInitialRole(roles RoleRead, authenticated, target PrincipalRef) error {
+	allowed, err := roles.canSetRole(authenticated, target)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		role, _ := roles.Descriptor(target)
+		return sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", role.Name))
+	}
+	return nil
+}
+
 func roleDiagnostic(code, message, detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 }
-func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (Result, error) {
+func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	if selection, ok := stmt.(*parser.RoleSelection); ok && selection.Local && implicit {
+		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -42,23 +87,35 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 			}
 			target = d.Ref
 		}
-		allowed, err := v.roles.canSetRole(v.state.SessionUser, target)
-		if err != nil {
-			return Result{}, err
-		}
-		if !allowed {
-			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
+		if s.Reset {
+			if _, err := v.roles.Descriptor(target); err != nil {
+				return Result{}, err
+			}
+		} else {
+			allowed, err := v.roles.canSetRole(v.state.SessionUser, target)
+			if err != nil {
+				return Result{}, err
+			}
+			if !allowed {
+				return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
+			}
 		}
 		session := op.session
+		settings := session.settings
+		settings.mu.Lock()
+		defer settings.mu.Unlock()
 		session.mu.Lock()
 		defer session.mu.Unlock()
 		a := session.authorization
-		if a.revision == ^uint64(0) {
-			return Result{}, fmt.Errorf("stuntgres: session authorization revision exhausted")
+		// Preserve revision headroom for failure unwind, each retained
+		// savepoint and the outer transaction, in addition to this mutation.
+		if err := roleRevisionHeadroom(a, uint64(len(session.transactions.savepoints))+3); err != nil {
+			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
+		settings.touchRole(a.state.CurrentUser, s.Local)
 		a.state.CurrentUser = target
 		a.revision++
 		return Result{}, nil

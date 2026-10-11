@@ -15937,8 +15937,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[5].tok)
 				return 1
 			}
-			sqllex.(*lexer).deferUnsupported(sqlDollar[3].tok, "SET LOCAL ROLE is unsupported")
-			sqlVAL.stmt = nil
+			sqlVAL.stmt = &RoleSelection{Name: sqlDollar[5].tok.text, Reset: sqlDollar[5].tok.keyword != nil && sqlDollar[5].tok.keyword.token == DEFAULT, Local: true, Pos: sqlDollar[3].tok.pos}
 		}
 	case 2101:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]

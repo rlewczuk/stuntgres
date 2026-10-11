@@ -25,7 +25,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	s.mu.Lock()
 	before := s.authorization.revision
 	s.mu.Unlock()
-	if _, err := e.executeRole(op, statement(t, "SET SESSION AUTHORIZATION nn_nonowner"), 0); err != nil {
+	if _, err := e.executeRole(op, statement(t, "SET SESSION AUTHORIZATION nn_nonowner"), 0, false); err != nil {
 		op.Done()
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 		t.Fatal("metadata/storage publication changed")
 	}
 	op = transactionOperation(t, s)
-	if _, err = e.executeRole(op, statement(t, "RESET SESSION AUTHORIZATION"), 0); err != nil {
+	if _, err = e.executeRole(op, statement(t, "RESET SESSION AUTHORIZATION"), 0, false); err != nil {
 		op.Done()
 		t.Fatal(err)
 	}

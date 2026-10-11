@@ -201,6 +201,10 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		err = authErr
 	}
+	var resetRole PrincipalRef
+	if err == nil {
+		resetRole, err = e.initialRole(op.Context(), authenticated, start.Defaults)
+	}
 	if err == nil {
 		transactions := &transactionOwner{session: s}
 		_, err = op.Attach(Transaction, transactions)
@@ -240,6 +244,9 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		if err == nil && !role.Login {
 			err = roleLoginError(role.Name)
 		}
+		if err == nil && resetRole != (PrincipalRef{}) {
+			err = validateInitialRole(RoleRead{e, e.roles}, authenticated, resetRole)
+		}
 	}
 	s.mu.Lock()
 	if err == nil {
@@ -258,6 +265,9 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		} else if !role.Superuser && role.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(role.ConnectionLimit) {
 			err = roleConnectionLimitError(role.Name)
 		} else if err = ctx.Err(); err == nil {
+			if resetRole != (PrincipalRef{}) {
+				auth.state.CurrentUser, auth.state.ResetRole = resetRole, resetRole
+			}
 			s.state = live
 			e.sessions[s.token] = s
 		}

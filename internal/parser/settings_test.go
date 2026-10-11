@@ -157,15 +157,4 @@ func TestSettingsRoleGrammarComposition(t *testing.T) {
 			t.Fatalf("%s: %v %v", query, statements, err)
 		}
 	}
-	for _, tc := range []struct{ query, message, position string }{
-		{"SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE TO reader", "SET LOCAL ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE = 'reader'", "SET LOCAL ROLE is unsupported", "11"},
-	} {
-		_, err := Parse(tc.query)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != tc.message || diagnostic.Position != tc.position {
-			t.Fatalf("%s: %v", tc.query, err)
-		}
-	}
 }

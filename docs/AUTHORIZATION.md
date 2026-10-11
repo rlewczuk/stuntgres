@@ -60,8 +60,8 @@ ALTER GROUP role {ADD | DROP} USER members
 DROP {ROLE | USER | GROUP} name [, ...]
 SET [SESSION] AUTHORIZATION {name | 'exact role name' | DEFAULT}
 RESET SESSION AUTHORIZATION
-SET [SESSION] ROLE {name | 'exact role name' | NONE}
-SET [SESSION] ROLE {TO | =} DEFAULT
+SET [SESSION | LOCAL] ROLE {name | 'exact role name' | NONE}
+SET [SESSION | LOCAL] ROLE {TO | =} DEFAULT
 RESET ROLE
 SELECT current_catalog,current_database(),current_role,current_user,session_user,user,system_user
 ```
@@ -197,9 +197,22 @@ checked against session_user: self, a session superuser, or an all-SET path thro
 live membership edges. ADMIN/INHERIT alone confer no SET authority.
 NONE selects session_user; RESET (and TO/= DEFAULT) selects the configured startup
 role, or session_user when none is configured. Bare SET ROLE DEFAULT is syntax
-error; quoted/string `default` is a role name. Role selection is autocommit-only:
-explicit transactions and SET LOCAL ROLE fail native `0A000` without mutation.
-PostgreSQL supports transactional/local role lifetime; native does not claim parity.
+error; quoted/string `default` is a role name. SESSION selection persists on
+commit and restores on rollback; LOCAL selection expires on either boundary.
+SESSION followed by LOCAL retains the SESSION candidate on commit, and savepoint
+rollback restores both current role and its lifetime journal. These commands are
+legal in read-only transactions. Outside a transaction LOCAL warns with25P01
+`SET LOCAL can only be used in transaction blocks`, validates the target and has
+no lasting role effect. Missing targets fail22023 `role "<name>" does not exist`;
+unauthorized selections fail42501 `permission denied to set role "<name>"`.
+RESET and transaction/savepoint restoration use already validated role references,
+not a new membership check: revoking SET blocks fresh selection, not restoration.
+Native public connectors start with current_user=session_user; the special internal
+SessionStart.Defaults role hook validates configured startup/reset identity before
+physical-session publication, but is not a public connector option or generic GUC.
+SET ROLE does not apply the target's session-variable defaults. SECURITY DEFINER
+prohibition remains contingent on a real routine invocation contract, which the
+engine does not yet implement; definer views are not routine frames.
 
 Identity keyword expressions use the common typed scalar pipeline, including
 predicates, aliases, defaults and views. Six identities return NAME; system_user

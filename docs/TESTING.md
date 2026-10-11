@@ -85,6 +85,39 @@ This is the authoritative test-placement and implementation workflow.
   preserves bootstrap principals, and again permits empty-table recreation;
   it does not add a native `pg_namespace` compatibility surface.
 
+Session role switching uses the shared direct/prepared scenarios and complete
+identity/diagnostic expectations in `reference/roles/role_switch_test.go`.
+Capture the completed definitions against pinned PostgreSQL before implementing
+a compatibility change, then run the same definitions natively to establish red.
+Any temporary oracle-discovery backend filter must be removed before native red,
+final dual-mode proof and review. The configured-reset supplement uses a genuine
+PostgreSQL startup options connection and its own middleware recorder; native
+configured defaults are internal-unit evidence, not a public connector capability.
+Pre-canceled owner preservation is a native adapter guarantee, not a portable pq
+guarantee: fast pq utilities may finish and retire the owner asynchronously.
+
+Selected role proofs (external deadline900s each):
+
+```sh
+make check RUN='^TestReferenceRoleSwitch'
+make check REFERENCE=1 RUN='^TestReferenceRoleSwitch'
+make check RUN='^(TestReferenceRoleExcludedCommands|TestReferenceSessionIdentityFormsAndFreshness|TestReferenceSQLCursorScopePhases)$'
+make check REFERENCE=1 RUN='^(TestReferenceRoleExcludedCommands|TestReferenceSessionIdentityFormsAndFreshness|TestReferenceSQLCursorScopePhases)$'
+make check RUN='^(TestRoleSwitch|TestRoleSelectionBoundaries|TestRoleGrammar|TestRoleLocalSettingBoundary|TestSessionIdentity|TestSavepoints)'
+make check RACE=1 RUN='^(TestRoleSwitch|TestSessionIdentity|TestSavepoints)'
+make check RUN='^TestReferenceRoleSwitchFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRoleSwitchFeatureSmoke$'
+```
+
+The feature smoke additionally has a standalone public Go program, materialized
+outside the checkout from the implementation session's `local://role-switch-smoke.go`.
+Run `go run "$SESSION_TMP/role-switch-smoke.go"` from the checkout with an external
+900-second deadline. It independently checks utility affected0, NAME metadata,
+stable login identity, owner sentinel7, SESSION/LOCAL/savepoint/commit, NONE/reset,
+outside-block warning25P01 and denied42501. Generic multi-command execution remains
+a native0A000 boundary; malformed scripts still parse completely before effects.
+
+
 The affected visibility utility-boundary scenarios now assert supported MV
 creation/count/stored rows and cleanup in both backends, instead of obsolete
 native syntax rejection. Validate those changed contracts in both modes:

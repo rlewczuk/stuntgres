@@ -19,8 +19,12 @@ definitions govern subsequent metadata and writes; savepoints restore catalog,
 projected row shapes and own writes together. Commit installs these and sequence
 changes atomically with DML. Successful statement authorization is retained
 through Commit despite later role-catalog revisions or internal actor changes.
-Native SET ROLE and transactional SESSION AUTHORIZATION remain excluded;
-the real PostgreSQL SET ROLE lifetime witness does not enable native SQL.
+SET/RESET ROLE and SET LOCAL ROLE use the same transaction boundaries and
+savepoint lifetime as session settings, while leaving authenticated/session identity
+unchanged. SESSION persists on commit, LOCAL expires, and rollback restores entry
+identity; mixed SESSION/LOCAL retains the SESSION candidate. Cached restoration
+does not recheck subsequently revoked membership. Transactional SESSION
+AUTHORIZATION remains excluded.
 Other transactional DDL remains unsupported.
 ADD COLUMN jointly restores schema, high-water identities, captured nonvolatile
 old-row fills and own writes on rollback/savepoint recovery. Supported nextval

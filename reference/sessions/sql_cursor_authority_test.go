@@ -130,17 +130,19 @@ func TestReferenceSQLCursorScopePhases(t *testing.T) {
 		if err := c.QueryRowContext(p.Ctx, "SELECT current_user").Scan(&owner); err != nil {
 			t.Fatal(err)
 		}
-		actor, relation := owner, "cursor_rows"
+		actor, relation := "cursor_actor", "cursor_rows"
 		if b.PG {
-			actor, relation = "cursor_actor", "public.cursor_rows"
-			sqlCursorStep(t, p, b, c, fixture.Exec("CREATE ROLE cursor_actor", 0))
-			defer func() {
-				c.ExecContext(p.Ctx, "ROLLBACK")
-				c.ExecContext(p.Ctx, "RESET ROLE")
-				c.ExecContext(p.Ctx, "REVOKE SELECT ON public.cursor_rows FROM cursor_actor")
-				c.ExecContext(p.Ctx, "DROP ROLE cursor_actor")
-			}()
-			sqlCursorStep(t, p, b, c, fixture.Exec("GRANT SELECT ON cursor_rows TO cursor_actor", 0))
+			relation = "public.cursor_rows"
+		}
+		sqlCursorStep(t, p, b, c, fixture.Exec("CREATE ROLE cursor_actor", 0))
+		defer func() {
+			c.ExecContext(p.Ctx, "ROLLBACK")
+			c.ExecContext(p.Ctx, "RESET ROLE")
+			c.ExecContext(p.Ctx, "REVOKE SELECT ON public.cursor_rows FROM cursor_actor")
+			c.ExecContext(p.Ctx, "DROP ROLE cursor_actor")
+		}()
+		sqlCursorStep(t, p, b, c, fixture.Exec("GRANT SELECT ON cursor_rows TO cursor_actor", 0))
+		if b.PG {
 			sqlCursorStep(t, p, b, c, fixture.Exec("SET application_name='declare_phase'", 0))
 		}
 		sqlCursorStep(t, p, b, c, fixture.Exec("BEGIN", 0))
@@ -155,12 +157,11 @@ func TestReferenceSQLCursorScopePhases(t *testing.T) {
 		if b.PG {
 			appExpression = "current_setting('application_name')"
 		}
-		// Role transitions/GRANT and current_setting are PG capability evidence.
-		// Native retains its owner identity and exercises supported time/regclass
-		// providers without enabling adjacent SQL role/settings features.
+		// Both backends switch effective role; only current_setting remains a
+		// PostgreSQL-specific expression in this existing cursor witness.
 		sqlCursorStep(t, p, b, c, fixture.Exec("DECLARE phases NO SCROLL CURSOR FOR SELECT i,current_user AS actor,"+appExpression+" AS app,statement_timestamp() AS stamp,'cursor_rows'::REGCLASS AS relation FROM cursor_rows ORDER BY i", 0))
+		sqlCursorStep(t, p, b, c, fixture.Exec("SET ROLE cursor_actor", 0))
 		if b.PG {
-			sqlCursorStep(t, p, b, c, fixture.Exec("SET ROLE cursor_actor", 0))
 			sqlCursorStep(t, p, b, c, fixture.Exec("SET application_name='first_fetch'", 0))
 		}
 		stmt, err := c.PrepareContext(p.Ctx, "FETCH 1 FROM phases")
@@ -189,8 +190,8 @@ func TestReferenceSQLCursorScopePhases(t *testing.T) {
 		if first.After(after) {
 			t.Fatal("cursor timestamp follows first FETCH", first, after)
 		}
+		sqlCursorStep(t, p, b, c, fixture.Exec("RESET ROLE", 0))
 		if b.PG {
-			sqlCursorStep(t, p, b, c, fixture.Exec("RESET ROLE", 0))
 			sqlCursorStep(t, p, b, c, fixture.Exec("SET application_name='second_fetch'", 0))
 		}
 		sqlCursorStep(t, p, b, c, fixture.Exec("SET search_path=pg_catalog", 0))

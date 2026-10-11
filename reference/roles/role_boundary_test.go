@@ -19,11 +19,8 @@ func TestReferenceRoleExcludedCommands(t *testing.T) {
 	}
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
-			c, err := backend.DB.Conn(p.Ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer c.Close()
+			var notices []fixture.Diagnostic
+			_, c, record := fixture.NoticeReferencePool(t, p, backend.PG, &notices)
 			peer, err := backend.DB.Conn(p.Ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -57,48 +54,57 @@ func TestReferenceRoleExcludedCommands(t *testing.T) {
 				}
 			}
 			unchanged()
-			for _, tc := range []struct{ query, message, position string }{
-				{"SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "11"},
-				{"SET LOCAL ROLE 'reader'", "SET LOCAL ROLE is unsupported", "11"},
-				{"SET LOCAL ROLE TO DEFAULT", "SET LOCAL ROLE is unsupported", "11"},
-				{"SET LOCAL ROLE = NONE", "SET LOCAL ROLE is unsupported", "11"},
-				{"INSERT INTO sentinel VALUES(9); SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "43"},
+			// Retain this definition's historical name, but LOCAL is now a real
+			// selection boundary, not an excluded command.
+			for _, query := range []string{
+				"SET LOCAL ROLE reader",
+				"SET LOCAL ROLE 'reader'",
+				"SET LOCAL ROLE TO DEFAULT",
+				"SET LOCAL ROLE = NONE",
+				"INSERT INTO sentinel VALUES(9); SET LOCAL ROLE reader",
 			} {
 				for _, prepared := range []bool{false, true} {
-					if backend.PG {
-						// Actual PostgreSQL implements LOCAL ROLE. Under authenticated owner,
-						// switching to unrelated reader fails rather than granting membership.
-						if prepared && strings.Contains(tc.query, ";") {
-							want := fixture.ControlsReferenceDiagnostic("42601", "cannot insert multiple commands into a prepared statement")
-							s := fixture.ErrorDiagnostic(tc.query, want)
-							s.Prepared = true
-							s.ErrorStage = "prepare"
-							fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
-						} else {
-							code := "42501"
-							if strings.Contains(tc.query, "DEFAULT") || strings.Contains(tc.query, "NONE") {
-								code = ""
-							}
-							s := fixture.Exec(tc.query, 0)
-							if code != "" {
-								want := fixture.ControlsReferenceDiagnostic(code, `permission denied to set role "reader"`)
-								s = fixture.ErrorDiagnostic(tc.query, want)
-							}
-							s.Prepared = prepared
-							fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
-						}
-					} else {
-						want := fixture.ControlsReferenceDiagnostic("0A000", tc.message)
-						want.Position = tc.position
-						s := fixture.ErrorDiagnostic(tc.query, want)
-						s.Prepared = prepared
+					notices = nil
+					s := fixture.Exec(query, 0)
+					if !backend.PG && strings.Contains(query, ";") {
+						s = fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("0A000", "multiple statements are unsupported"))
 						if prepared {
 							s.ErrorStage = "prepare"
 						}
-						fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
+					} else if prepared && strings.Contains(query, ";") {
+						s = fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("42601", "cannot insert multiple commands into a prepared statement"))
+						s.ErrorStage = "prepare"
+					} else if !strings.Contains(query, "DEFAULT") && !strings.Contains(query, "NONE") {
+						s = fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("42501", `permission denied to set role "reader"`))
+						s.ErrorStage = "execute"
+					}
+					s.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, c, record, s)
+					if strings.Contains(query, ";") {
+						if len(notices) != 0 {
+							t.Fatal(notices)
+						}
+					} else {
+						want := fixture.ControlsReferenceDiagnostic("25P01", "SET LOCAL can only be used in transaction blocks")
+						want.Severity, want.SeverityUnlocalized = "WARNING", "WARNING"
+						if len(notices) != 1 || notices[0] != want {
+							t.Fatalf("notices %#v want %#v", notices, want)
+						}
 					}
 					unchanged()
 				}
+			}
+			for _, prepared := range []bool{false, true} {
+				query := "INSERT INTO sentinel VALUES(9); SET LOCAL ROLE reader trailing"
+				want := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "trailing"`)
+				want.Position = "55"
+				s := fixture.ErrorDiagnostic(query, want)
+				s.Prepared = prepared
+				if prepared {
+					s.ErrorStage = "prepare"
+				}
+				fixture.RunStep(t, p.Ctx, c, record, s)
+				unchanged()
 			}
 			roleScenarioCommand(t, c, "RESET SESSION AUTHORIZATION", 0, true)
 			bootstrap := "postgres"

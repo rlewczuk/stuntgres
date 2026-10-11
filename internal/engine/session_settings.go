@@ -22,6 +22,7 @@ type sessionSettings struct {
 	placeholders        map[string]bool
 	ended               bool
 	actions             map[string]settingAction
+	roleAction          roleSettingAction
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	currentIsolation  string
@@ -45,6 +46,50 @@ const (
 	settingLocal
 	settingSessionLocal
 )
+
+// A role has one typed journal entry, not a generic string-setting override.
+type roleSettingAction struct {
+	present             bool
+	original, candidate PrincipalRef
+	kind                uint8
+}
+
+func roleRevisionHeadroom(a *sessionAuthorization, needed uint64) error {
+	if ^uint64(0)-a.revision < needed {
+		return fmt.Errorf("stuntgres: session authorization revision exhausted")
+	}
+	return nil
+}
+
+// Called with settings and Session locked. Role refs were validated before
+// publication; restoration must not repeat membership eligibility checks.
+func (s *sessionSettings) touchRole(current PrincipalRef, local bool) {
+	a := s.roleAction
+	if !a.present {
+		a.present = true
+		a.original = current
+	}
+	if !local {
+		a.kind = settingSession
+		a.candidate = PrincipalRef{}
+	} else if !s.roleAction.present {
+		a.kind = settingLocal
+	} else if a.kind == settingSession {
+		a.kind = settingSessionLocal
+		a.candidate = current
+	}
+	s.roleAction = a
+}
+
+func (s *sessionSettings) restoreRoleLocked(target PrincipalRef) {
+	a := s.session.authorization
+	if a != nil && a.state.CurrentUser != target {
+		// Admission reserves every unavoidable unwind. No callbacks or
+		// permission checks can veto restoration after a transaction fails.
+		a.state.CurrentUser = target
+		a.revision++
+	}
+}
 
 func (s *sessionSettings) override(name string) settingOverride {
 	text, present := s.values[name]
@@ -95,10 +140,18 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 	}
 	if s.session != nil {
 		s.session.mu.Lock()
+		if a := s.roleAction; a.present {
+			if !commit || a.kind == settingLocal {
+				s.restoreRoleLocked(a.original)
+			} else if a.kind == settingSessionLocal {
+				s.restoreRoleLocked(a.candidate)
+			}
+		}
 		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
 		s.session.mu.Unlock()
 	}
 	s.actions = nil
+	s.roleAction = roleSettingAction{}
 }
 
 func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]SettingDefinition, names []string, provider SessionDefaultProvider) error {
@@ -145,6 +198,7 @@ func (s *sessionSettings) EndSession(_ SessionToken, _ EndReason) error {
 	s.defaultTyped = nil
 	s.placeholders = nil
 	s.actions = nil
+	s.roleAction = roleSettingAction{}
 	return nil
 }
 func (s *sessionSettings) value(name string) string {

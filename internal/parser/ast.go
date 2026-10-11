@@ -1548,6 +1548,7 @@ func (*SessionAuthorization) statement() {}
 type RoleSelection struct {
 	Name  string
 	Reset bool
+	Local bool
 	Pos   Position
 }
 

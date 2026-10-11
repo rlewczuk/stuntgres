@@ -27,19 +27,30 @@ type savepointMark struct {
 }
 
 type settingsMark struct {
-	values  map[string]string
-	typed   map[string]settingValue
-	actions map[string]settingAction
+	values      map[string]string
+	typed       map[string]settingValue
+	actions     map[string]settingAction
+	roleAction  roleSettingAction
+	currentRole PrincipalRef
 }
 
 func (m settingsMark) clone() settingsMark {
-	return settingsMark{maps.Clone(m.values), maps.Clone(m.typed), maps.Clone(m.actions)}
+	m.values, m.typed, m.actions = maps.Clone(m.values), maps.Clone(m.typed), maps.Clone(m.actions)
+	return m
 }
 
 func (s *sessionSettings) savepoint() settingsMark {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return (settingsMark{s.values, s.typed, s.actions}).clone()
+	m := settingsMark{values: s.values, typed: s.typed, actions: s.actions, roleAction: s.roleAction}
+	if s.session != nil {
+		s.session.mu.Lock()
+		if s.session.authorization != nil {
+			m.currentRole = s.session.authorization.state.CurrentUser
+		}
+		s.session.mu.Unlock()
+	}
+	return m.clone()
 }
 
 // candidate is already independent of the retained mark; no callbacks or
@@ -48,8 +59,10 @@ func (s *sessionSettings) restoreSavepoint(candidate settingsMark) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values, s.typed, s.actions = candidate.values, candidate.typed, candidate.actions
+	s.roleAction = candidate.roleAction
 	if s.session != nil {
 		s.session.mu.Lock()
+		s.restoreRoleLocked(candidate.currentRole)
 		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
 		s.session.mu.Unlock()
 	}
@@ -174,6 +187,13 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if control.Kind != parser.CreateSavepoint && index < 0 {
 			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
 		}
+		if t.session.settings.roleAction.present && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
+			// A failed preflight can itself restore the latest mark. Keep
+			// enough stamps for that unwind and all remaining boundaries.
+			if err := roleRevisionHeadroom(t.session.authorization, uint64(len(t.savepoints))+3); err != nil {
+				return Result{}, err
+			}
+		}
 		switch control.Kind {
 		case parser.CreateSavepoint:
 			t.savepoints = append(stack, mark)
@@ -181,6 +201,8 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.session.cursors.rollback(mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
+			t.session.settings.roleAction = settings.roleAction
+			t.session.settings.restoreRoleLocked(settings.currentRole)
 			t.session.publishTimeoutSettingsLocked(t.session.settings, false, time.Now())
 			t.isolation, t.readOnly = mark.isolation, mark.readOnly
 			t.deferrable = mark.deferrable

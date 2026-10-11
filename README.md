@@ -758,10 +758,11 @@ Session identity uses typed scalar expressions: `current_catalog`,
 `current_database()`, `current_role`, `current_user`, `session_user`, `user`
 return NAME; embedded trust-style `system_user` returns TEXT SQL NULL. Initially
 `SELECT current_catalog=current_database(), current_role=current_user, session_user=user`
-returns three true values. Autocommit SET/RESET ROLE changes effective identity
-without changing session_user; prepared executions observe fresh values and
-retained rows keep their snapshots. SET LOCAL ROLE and role commands in explicit
-transactions remain native exclusions. The exact opaque DSN is the database key;
+returns three true values. SET/RESET ROLE changes effective identity without
+changing session_user. SESSION role changes persist on commit and restore on
+rollback; LOCAL expires at transaction end, and savepoints restore both effective
+role and the masked SESSION candidate. Prepared executions observe fresh identity
+while retained rows keep their snapshots. The exact opaque DSN is the database key;
 its NAME display silently clips to a complete UTF8 prefix of at most 63 bytes,
 without URL parsing, trimming or merging distinct keys. See
 [authorization](docs/AUTHORIZATION.md) for forms and authority boundaries.

@@ -131,6 +131,17 @@ outer end. SESSION followed by LOCAL commits the masked SESSION value; a
 subsequent SESSION or RESET supersedes that candidate. Placeholder recognition
 is session-owned: a name first set after a mark remains recognized with an
 empty value after rollback when no earlier override existed.
+
+Role selection uses a separate typed principal-reference journal beside these
+setting actions, sharing commit, rollback, savepoint and physical teardown.
+It never stores role names in generic setting overrides. SESSION/LOCAL role
+selection follows the same masking rules, but changes only effective current_user:
+session_user and authenticated identity remain stable. RESET ROLE restores its
+validated startup reference without repeating membership eligibility. The internal
+SessionStart.Defaults provider receives one special string `role` request at
+physical initialization; native public connectors do not expose this configuration.
+`role` is not added to this registry, SHOW/current_setting or RESET ALL surface.
+
 Go `sql.Tx.Commit` on an aborted transaction restores originals and returns
 the existing ordinary `pq: could not complete operation in a failed transaction`
 error, not a SQLSTATE diagnostic. SQL COMMIT/END succeeds by rollback while

@@ -156,9 +156,13 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	reset, _ := e.Roles().Lookup("identity_reset")
-	op.session.mu.Lock()
-	op.session.authorization.state.ResetRole = reset.Ref
-	op.session.mu.Unlock()
+	s := sessionStart(t, e, roleSwitchDefaultProvider{value: "identity_reset"})
+	configured, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer configured.Done()
+	op = configured
 	roleExecute(t, e, op, "SET ROLE identity_selected")
 	roleExecute(t, e, op, "RESET ROLE")
 	if op.RoleState().CurrentUser != reset.Ref || op.RoleState().ResetRole != reset.Ref {
@@ -283,7 +287,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: op.session, cancel: cancel}
 	op.ctx = boundary
-	_, err := e.executeRole(op, statement(t, "SET ROLE identity_cancel_target"), 0)
+	_, err := e.executeRole(op, statement(t, "SET ROLE identity_cancel_target"), 0, false)
 	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
 		t.Fatal(boundary.observed, err)
 	}
