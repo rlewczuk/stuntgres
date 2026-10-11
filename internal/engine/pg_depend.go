@@ -72,6 +72,20 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			return nil, err
 		}
 		switch d := descriptor.(type) {
+		case *extensionDescriptor:
+			add(d.address, d.targetNamespace, 'n')
+		case *procedureDescriptor:
+			add(d.address, d.extension, 'e')
+			add(d.address, d.namespace, 'n')
+		case *tsTemplateDescriptor:
+			add(d.address, d.extension, 'e')
+			add(d.address, d.namespace, 'n')
+			add(d.address, d.init, 'n')
+			add(d.address, d.lexize, 'n')
+		case *tsDictionaryDescriptor:
+			add(d.address, d.extension, 'e')
+			add(d.address, d.namespace, 'n')
+			add(d.address, d.template, 'n')
 		case *collationDescriptor:
 			if !d.seeded() {
 				add(d.Address(), d.Namespace(), 'n')

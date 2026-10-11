@@ -1357,13 +1357,14 @@ empty arrays. Versions are arbitrary text, not parsed semantic versions.
 Extension names identify database-wide extension objects; `extnamespace` denotes
 their exported objects' schema, not placement of the extension object itself.
 
-**Native installed state is truthfully empty.** There is no installed-extension
-provider or PL/pgSQL interpreter; available files and existing catalog type
+**Fresh native installed state is truthfully empty.** Registered `unaccent`
+installation publishes real descriptors, projected by the single live catalog
+source. There is no PL/pgSQL interpreter; available files and existing type
 identities do not install extensions. PostgreSQL18.0's default database instead
 contains installed `plpgsql`: generated positive row OID, owner10, schema11,
 nonrelocatable, version `1.0`, NULL extconfig/extcondition. Native deliberately
-does not fabricate this tuple. `pg_available_extensions`, installation/version
-discovery, module loading and CREATE/ALTER/DROP EXTENSION remain outside support.
+does not fabricate this tuple. Availability/version discovery, module loading
+and ALTER/DROP EXTENSION remain outside support.
 See [the PostgreSQL18 catalog contract](https://www.postgresql.org/docs/18/catalog-pg-extension.html).
 
 Normal relation resolution, REGCLASS and explicit search_path shadowing apply;
@@ -1378,28 +1379,32 @@ Native writes fail with0A000 / `catalog source mutation is unsupported`, even
 for zero-match UPDATE/DELETE; row locks fail with0A000 /
 `row locking is not supported for virtual catalog relations`.
 These are not PostgreSQL superuser physical-catalog write/lock semantics.
-Existing external-command diagnostics are preserved, with ERROR/ERROR and
-all optional fields absent except the stated Position:
+The command diagnostics below use ERROR/ERROR, with native optional fields absent
+except the stated Position:
 
 | Native command | SQLSTATE / primary | Position |
 |---|---|---|
-| CREATE EXTENSION pgext_missing_control | 42601 / syntax error at or near "EXTENSION" | 8 |
+| CREATE EXTENSION pgext_missing_control | 0A000 / extension "pgext_missing_control" is not available | absent |
 | ALTER EXTENSION pgext_missing_control UPDATE | 0A000 / statement is unsupported | 1 |
 | DROP EXTENSION pgext_missing_control | 0A000 / statement is unsupported | 1 |
 | LOAD 'pgext_missing_library' | 42601 / syntax error at or near "LOAD" | 1 |
 
-Direct execution fails at execute, prepared execution at prepare for those
-unsupported commands. The pinned PostgreSQL missing-control CREATE instead
-fails0A000 / `extension "pgext_missing_control" is not available`, with Hint
+Missing-provider CREATE parses and prepares successfully on both backends, then
+fails at execution with0A000 / `extension "pgext_missing_control" is not available`.
+PostgreSQL additionally supplies the pinned Hint
 `The extension must first be installed on the system where PostgreSQL is running.`
-and no Detail or Position; it is not a native installation implementation.
-Shared semantic errors still bind despite the empty source: missing columns
+with no Detail or Position; native has no system-file availability or fabricated Hint.
+The other unsupported commands above fail at direct execute or prepared prepare.
+Shared semantic errors bind even when the source is empty: missing columns
 give42703; invalid/range-exceeding OID literals give22P02/22003.
 
-Dump serializes actual user state, never extension/catalog tuples or installation
-commands. Reset/Restore reconstruct the empty catalog and generation-owned
-descriptors; held prepared statements reanalyze while retained empty cursors and
-captured metadata remain stable. Failed staged Restore publishes nothing.
+Dump serializes actual registered persistent installations once before their
+consumers, never catalog tuples. Native ownership metadata preserves checked
+extension/member principals. TEMP installations are not portable Dump input.
+Reset clears persistent installed state; Restore reconstructs generation-owned
+descriptors from actual input while destination-owned TEMP follows its physical
+lifetime. Held prepared statements reanalyze and retained captures/metadata stay
+stable. Failed staged Restore publishes nothing.
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
 
@@ -1434,6 +1439,10 @@ Generated OIDs are backend-local identities, never allocator-parity promises.
 | View | Real `_RETURN` rule to view `i`, actual query references `n` |
 | Ordinary index | Distinct simple key/INCLUDE and parent expression columns `a`, external references `n` |
 | Expression-only index | Additionally parent table0 `a` when there are no simple key/INCLUDE columns |
+| Registered installed extension | Installation to actual target namespace `n`, separately from member placement |
+| Installed procedure/template/dictionary | Each genuine member to extension `e`; member to actual unpinned namespace `n` |
+| Installed template/dictionary helpers | Template to init/lexize procedures `n`; dictionary to template `n` |
+| Stored unaccent consumer | Actual procedure reference `n` through the existing attrdef, CHECK or view-rule construction |
 
 CHECK can expose both `a` and `n` to the same column; these are not collapsed.
 Expression collections deduplicate repeated addresses and omit a redundant
@@ -1465,9 +1474,10 @@ Pinned builtin type/function/operator/collation/opclass/conversion references
 and pg_catalog namespace11 are omitted, not synthetic `p` rows. public is not
 pinned; discover its actual OID because the reference fixture recreates it.
 Automatic rowtypes, enum arrays, pg_shdepend owner/ACL/membership relationships,
-extensions, partitions, triggers and unsupported physical objects are not
-invented. Actual domain arrays, view rules and FK child/parent/key dependencies
-are not exclusions.
+partitions, triggers and unsupported physical objects are not invented. Registered
+installed extensions and their actual member/helper/namespace/consumer edges,
+domain arrays, view rules and FK child/parent/key dependencies are represented.
+Unsupported extension/object families do not acquire fabricated dependencies.
 PUBLIC SELECT requires no endpoint SELECT/schema USAGE and applies no per-edge
 privilege filtering. Native mutation reports0A000
 `catalog source mutation is unsupported`; row locking reports0A000

@@ -21,6 +21,9 @@ type Engine struct {
 	owner               *catalogOwner
 	state               *catalogState
 	providers           map[OID]CatalogProvider
+	extensions          map[string]registeredExtension
+	databaseName        string
+	databaseNameError   error
 	storage             map[ObjectAddress]*relationStorage
 	sequences           map[ObjectAddress]*sequenceGenerator
 	indexRoots          map[ObjectAddress]*logicalIndexRoot
@@ -110,7 +113,7 @@ type binding struct {
 }
 
 func New() *Engine {
-	e, err := newEngine(nil, nil)
+	e, err := newEngine(nil, nil, "")
 	if err != nil {
 		panic(err)
 	}
@@ -120,19 +123,19 @@ func New() *Engine {
 // NewWithCatalogProviders registers feature-owned catalog providers before
 // installing the builtin namespace descriptors.
 func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
-	return newEngine(providers, nil)
+	return newEngine(providers, nil, "")
 }
 
 // NewWithSettings consumes definitions validated before driver publication.
-func NewWithSettings(definitions []SettingDefinition) *Engine {
-	e, err := newEngine(nil, definitions)
+func NewWithSettings(definitions []SettingDefinition, database string) *Engine {
+	e, err := newEngine(nil, definitions, database)
 	if err != nil {
 		panic(err)
 	}
 	return e
 }
 
-func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*Engine, error) {
+func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.locks = newRelationLockManager(e)
@@ -157,6 +160,17 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
+		return nil, err
+	}
+	for _, class := range []OID{ExtensionClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
+		if err := e.RegisterCatalogProvider(extensionCatalogProvider{class}); err != nil {
+			return nil, err
+		}
+	}
+	if err := e.RegisterCatalogProvider(databaseProvider{}); err != nil {
+		return nil, err
+	}
+	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, provider: stockUnaccent}); err != nil {
 		return nil, err
 	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
@@ -187,20 +201,21 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 			d.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
 		}
 		e.state.descriptors[d.Address()] = d
-		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
+		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
 		d.owner = PrincipalRef{e, 10}
 		e.state.descriptors[d.Address()] = d
-		e.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
+		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
 	for i := range builtinConversions {
 		d := &builtinConversions[i]
 		e.state.descriptors[d.Address()] = d
-		e.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
+		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
+	e.initializeDatabase(database)
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
@@ -300,6 +315,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
 	case *parser.CreateComposite, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+		return StatementDescription{}, nil
+	case *parser.CreateExtension:
 		return StatementDescription{}, nil
 	case *parser.RoleMembership, *parser.ObjectGrant:
 		return StatementDescription{}, nil

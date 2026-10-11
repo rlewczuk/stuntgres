@@ -37,73 +37,89 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 
 // Called by the runner, not a resource callback, after source transaction drain.
 // A failed candidate leaves the namespace and every durable dependency intact.
-func (e *Engine) endTemporaryCollations(source *Session) error {
+func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	if source.token.private != nil {
 		return nil
 	}
-	e.mu.Lock()
-	base := CatalogRead{e, e.state}
-	var namespaces []*namespaceDescriptor
-	for _, d := range base.state.descriptors {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {
-			namespaces = append(namespaces, ns)
+	var maintenance *Session
+	for {
+		e.mu.Lock()
+		base := CatalogRead{e, e.state}
+		var namespaces []*namespaceDescriptor
+		for _, d := range base.state.descriptors {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {
+				namespaces = append(namespaces, ns)
+			}
 		}
-	}
-	if len(namespaces) == 0 {
+		if len(namespaces) == 0 {
+			e.mu.Unlock()
+			source.sequences = nil
+			source.lastSequence = ObjectAddress{}
+			source.temporaryNamespace = ObjectAddress{}
+			return nil
+		}
+		owned := make(map[ObjectAddress]bool, len(namespaces))
+		for _, ns := range namespaces {
+			owned[ns.address] = true
+		}
+		children, captureErr := namespaceChildren(base, owned)
 		e.mu.Unlock()
-		return nil
-	}
-	owned := make(map[ObjectAddress]bool, len(namespaces))
-	for _, ns := range namespaces {
-		owned[ns.address] = true
-	}
-	var children []ObjectAddress
-	for a, d := range base.state.descriptors {
-		if owned[d.Namespace()] {
-			children = append(children, a)
+		if captureErr != nil {
+			return captureErr
 		}
-	}
-	e.mu.Unlock()
-	sort.Slice(children, func(i, j int) bool {
-		if children[i].ClassID != children[j].ClassID {
-			return children[i].ClassID < children[j].ClassID
+		if maintenance == nil {
+			maintenance, err = e.startSession(context.Background(), SessionStart{Authenticated: PrincipalRef{e, 10}}, true)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				maintenance.RequestEnd(CleanClose)
+				err = errors.Join(err, maintenance.WaitEnd(context.Background()))
+			}()
 		}
-		return children[i].ObjectID < children[j].ObjectID
-	})
-	maintenance, err := e.startSession(context.Background(), SessionStart{Authenticated: PrincipalRef{e, 10}, DatabaseName: source.databaseName}, true)
-	if err != nil {
-		return err
-	}
-	err = e.removeTemporaryNamespaceCandidate(maintenance, base, namespaces, children, source.token)
-	maintenance.RequestEnd(CleanClose)
-	err = errors.Join(err, maintenance.WaitEnd(context.Background()))
-	if err == nil {
+		stale, attemptErr := e.removeTemporaryNamespaceCandidate(maintenance, base, namespaces, children, source.token)
+		if stale {
+			continue
+		}
+		if attemptErr != nil {
+			return attemptErr
+		}
 		source.sequences = nil
 		source.lastSequence = ObjectAddress{}
 		source.temporaryNamespace = ObjectAddress{}
+		return nil
 	}
-	return err
 }
 
-func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ObjectAddress, token SessionToken) (err error) {
+func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ObjectAddress, token SessionToken) (stale bool, err error) {
+	var stage *CatalogStage
+	// Registered first, so classification runs after Finish, stage discard and
+	// Operation.Done have fully unwound the failed attempt.
+	defer func() {
+		if err != nil && stage != nil && stage.lifecycle != catalogPublished &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			stale = e.temporaryCleanupStale(stage, nil)
+		}
+	}()
 	op, err := session.Acquire(context.Background())
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { err = scope.Finish(err) }()
 	if err = scope.gate(&parser.DropCollation{Mode: parser.DropCascade}); err != nil {
-		return err
+		return false, err
 	}
-	stage := e.BeginCatalogStage(base)
+	stage = e.BeginCatalogStage(base)
+	stage.terminalCleanup = true
 	defer e.DiscardCatalogStage(stage)
 	for _, ns := range namespaces {
 		if ns.temporary != token {
-			return fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
+			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
 		stage.domainBases = append(stage.domainBases, ns)
 	}
@@ -117,13 +133,13 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err = scope.stageExpressionDependents(stage, children, parser.DropCascade, nil); err != nil {
-		return err
+		return false, err
 	}
 	if err = scope.stageOwnedSequences(stage, children, parser.DropCascade, nil); err != nil {
-		return err
+		return false, err
 	}
 	var relations []ObjectAddress
 	for a := range stage.removals {
@@ -142,7 +158,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 			continue
 		}
 		if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: a}, accessExclusive, true); err != nil {
-			return err
+			return false, err
 		}
 	}
 	e.mu.Lock()
@@ -153,15 +169,15 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	}
 	e.mu.Unlock()
 	if err != nil {
-		return err
+		return false, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
-		return err
+		return false, err
 	}
 	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
 		scope.completed = true
 	}
-	return err
+	return false, err
 }

@@ -256,9 +256,9 @@ func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *rel
 		// TYPE already created this reminted identity in the private candidate.
 		// Replace fences existing base identities; keep this creation and its
 		// original removal observation while updating its private name slot.
-		delete(stage.names, relationNameKey(index))
+		delete(stage.names, descriptorNameKey(index))
 		stage.descriptors[index.address] = &clone
-		key := relationNameKey(&clone)
+		key := descriptorNameKey(&clone)
 		stage.names[key] = clone.address
 		stage.touched[key] = stage.base.state.names[key]
 	} else if err := stage.Replace(&clone); err != nil {

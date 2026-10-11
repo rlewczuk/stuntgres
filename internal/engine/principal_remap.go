@@ -7,6 +7,7 @@ import "fmt"
 // I/O run here. ReplaceCatalog already projected its immutable source into private
 // maps, so principal remapping does not need another catalog clone.
 func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapshot RoleRead, expected map[PrincipalRef]PrincipalRef) (*catalogState, error) {
+	e.retainDatabaseLocked(state)
 	mapping := make(map[PrincipalRef]PrincipalRef)
 	remap := func(ref PrincipalRef) (PrincipalRef, error) {
 		if target, ok := mapping[ref]; ok {
@@ -49,6 +50,32 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	}
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
+		case *databaseDescriptor, *tsTemplateDescriptor:
+			// Retained attachment authority is already local; templates have no owner.
+		case *extensionDescriptor:
+			n := *d
+			var err error
+			n.owner, err = remap(d.owner)
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
+		case *procedureDescriptor:
+			n := *d
+			var err error
+			n.owner, err = remap(d.owner)
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
+		case *tsDictionaryDescriptor:
+			n := *d
+			var err error
+			n.owner, err = remap(d.owner)
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
 		case *typeDescriptor:
 			if d.owningRelation == (ObjectAddress{}) && !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsUserDefined()) {
 				continue
@@ -149,7 +176,7 @@ func (e *Engine) restoreStage() *Engine {
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
 	e.mu.Unlock()
-	stage := New()
+	stage := NewWithSettings(nil, e.databaseName)
 	roles := &roleCatalog{revision: sourceRoles.revision, roles: make(map[PrincipalRef]RoleDescriptor, len(sourceRoles.roles)), names: make(map[string]PrincipalRef, len(sourceRoles.names))}
 	stage.importTargets = make(map[PrincipalRef]PrincipalRef, len(sourceRoles.roles))
 	for target, d := range sourceRoles.roles {

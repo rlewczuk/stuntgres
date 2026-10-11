@@ -236,6 +236,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.args)
 	case nullCountExpression:
 		return args(n.args)
+	case installedFunctionExpression:
+		return false
 	case formatExpression:
 		return false
 	default:
@@ -374,6 +376,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.args)
 	case nullCountExpression:
 		return args(n.args)
+	case installedFunctionExpression:
+		return args([]BoundExpr{n.arg})
 	case formatExpression:
 		return args(n.args)
 	case uuidGenerationExpression:
@@ -630,6 +634,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.args)
 	case nullCountExpression:
 		return args(n.args)
+	case installedFunctionExpression:
+		return args([]BoundExpr{n.arg})
 	case formatExpression:
 		return args(n.args)
 	default:

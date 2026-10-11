@@ -76,6 +76,9 @@ func parseSearchPath(input string) ([]string, error) {
 
 // explicitPath runs under the engine mutex and captures one immutable setting value.
 func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, error) {
+	return e.explicitPathFor(auth, relationLookup)
+}
+func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ObjectAddress, bool, error) {
 	entries := e.settingsDefinitions["search_path"].bootValue.path
 	if auth.settings != nil && !auth.materializedPopulation {
 		auth.settings.mu.Lock()
@@ -126,7 +129,7 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
+		if ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) && kind != installedFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -157,6 +160,7 @@ const (
 	relationLookup lookupKind = iota
 	typeLookup
 	functionLookup
+	installedFunctionLookup // Registered procedures only; ordinary TEMP isolation stays unchanged.
 	operatorLookup
 	collationLookup
 	conversionLookup
@@ -166,18 +170,18 @@ func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) 
 	return e.lookupPath(auth, relationLookup)
 }
 func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ObjectAddress, error) {
-	path, _, err := e.explicitPath(auth)
+	path, _, err := e.explicitPathFor(auth, kind)
 	if err != nil {
 		return nil, err
 	}
 	return e.effectivePath(auth, path, kind), nil
 }
 func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kind lookupKind) []ObjectAddress {
-	if kind == functionLookup || kind == operatorLookup || kind == collationLookup || kind == conversionLookup {
+	if kind == installedFunctionLookup || kind == functionLookup || kind == operatorLookup || kind == collationLookup || kind == conversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
 			ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
-			if ns.temporary == (SessionToken{}) {
+			if ns.temporary == (SessionToken{}) || kind == installedFunctionLookup && (auth.session == nil || ns.temporary != auth.session.token) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -263,7 +267,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		actor, exists := auth.roles.state.roles[auth.state.CurrentUser]
 		foreignTemporary = !exists || !actor.Superuser
 	}
-	if foreignTemporary {
+	if foreignTemporary && kind != installedFunctionLookup {
 		if kind == relationLookup {
 			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.name))
 		}

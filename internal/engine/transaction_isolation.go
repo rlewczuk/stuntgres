@@ -347,6 +347,8 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP COLLATION"
 	case *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
 		return "ALTER TABLE"
+	case *parser.CreateExtension:
+		return "CREATE EXTENSION"
 	case *parser.CreateSchema:
 		return "CREATE SCHEMA"
 	case *parser.AlterSchema:
@@ -414,6 +416,9 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 }
 func explicitUtility(stmt parser.Statement) bool {
 	if c, ok := stmt.(*parser.Comment); ok && c.Kind == parser.CommentSequence {
+		return false
+	}
+	if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 		return false
 	}
 	switch stmt.(type) {

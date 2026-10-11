@@ -110,17 +110,21 @@ func TestReferencePGExtensionDiagnostics(t *testing.T) {
 
 func TestReferencePGExtensionCommandBoundaries(t *testing.T) {
 	pgExtensionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		// CREATE parses and prepares on both backends, but only the registered
+		// native provider is available. Native does not invent host control files
+		// or PostgreSQL's system-installation Hint.
+		missing := fixture.Diagnostic{Code: "0A000", Message: "extension \"pgext_missing_control\" is not available"}
 		if b.PG {
-			// Pinned root oracle: missing control reports no Detail/path.
-			for _, prepared := range []bool{false, true} {
-				s := fixture.ImplicitError("CREATE EXTENSION pgext_missing_control", fixture.Diagnostic{Code: "0A000", Message: "extension \"pgext_missing_control\" is not available", Hint: "The extension must first be installed on the system where PostgreSQL is running."})
-				s.Prepared, s.ErrorStage = prepared, "execute"
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-			}
-		} else {
-			// Exact pre-change public observations: local session evidence.
+			missing.Hint = "The extension must first be installed on the system where PostgreSQL is running."
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.ImplicitError("CREATE EXTENSION pgext_missing_control", missing)
+			s.Prepared, s.ErrorStage = prepared, "execute"
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+		}
+		if !b.PG {
+			// These unchanged command families remain outside native admission.
 			for _, tc := range []struct{ query, code, message, position string }{
-				{"CREATE EXTENSION pgext_missing_control", "42601", "syntax error at or near \"EXTENSION\"", "8"},
 				{"ALTER EXTENSION pgext_missing_control UPDATE", "0A000", "statement is unsupported", "1"},
 				{"DROP EXTENSION pgext_missing_control", "0A000", "statement is unsupported", "1"},
 				{"LOAD 'pgext_missing_library'", "42601", "syntax error at or near \"LOAD\"", "1"},

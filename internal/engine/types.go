@@ -111,7 +111,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	if !ok || ns.Kind() != NamespaceObject {
 		return fmt.Errorf("stuntgres: type namespace is missing")
 	}
-	found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: descriptor.Namespace(), Name: descriptor.Name()})
+	found := view.Lookup(descriptorNameKey(descriptor))
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}

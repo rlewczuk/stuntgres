@@ -2240,13 +2240,15 @@ with eight ordered fields: `oid OID`, `extname NAME`, `extowner OID`,
 `extnamespace OID`, `extrelocatable BOOL`, `extversion TEXT`, `extconfig OID[]`,
 `extcondition TEXT[]`. First six are known NOT NULL; the arrays are nullable.
 NAME/TEXT/TEXT[] use catalog C950. Extconfig is not REGCLASS[].
-Native installed-extension state is empty, not PostgreSQL's installed
-`plpgsql`1.0 bootstrap tuple and not a list of available files/versions.
-No procedural provider, availability view, extension DDL or module loader is
-added. Existing native CREATE EXTENSION/LOAD errors are42601; ALTER/DROP EXTENSION
-are0A000 / `statement is unsupported`, never successful no-ops.
+Fresh native installed-extension state is empty; actual registered `unaccent`
+installations supply descriptor-derived rows. Neither PostgreSQL's `plpgsql`1.0
+bootstrap tuple nor available files/versions are fabricated as installations.
+No procedural interpreter, availability view or module loader is added.
+Missing-provider CREATE prepares successfully and fails at execution with0A000 /
+`extension "pgext_missing_control" is not available`, without a fake host-file Hint.
+LOAD remains42601; ALTER/DROP EXTENSION remain0A000 / `statement is unsupported`.
 Normal REGCLASS/path/prepared resolution and native controls retain the exact
-relation shape and empty authority. Reused rowtype10074/array10073 are allocated
+relation shape and actual installed authority. Reused rowtype10074/array10073 are allocated
 inventory identities, unlike fixed relation3079. Native catalog mutation and row
 locking remain0A000 virtual-source boundaries; no physical indexes/TOAST exist.
 See [full catalog contract, command diagnostics and smoke](SQL.md#pg_extension-catalog--change-note).
@@ -2913,6 +2915,129 @@ are specifically non-engine mechanisms, never permission for successful stubs.
 Feature smoke: `make check RUN='^TestDefaultSmoke$'`.
 Mixed-parameter/reordered-target INSERT coverage:
 `make check RUN='^TestInsertDefaultSmoke$'`.
+
+### Registered extensions — change note
+
+`CREATE EXTENSION unaccent [IF NOT EXISTS] [WITH] [SCHEMA schema]
+[VERSION version]` supports the registered stock provider1.1 only. The extension
+name is unique database-wide; its target schema must exist. Options consume the
+whole statement. Duplicate installation errors42710; IF NOT EXISTS notices and
+does not change identity, ownership, version or schema. Duplicate detection
+precedes version/schema/install-authority checks. Invalid version22023, missing
+schema3F000 and missing database CREATE42501 leave no new installation or members.
+The trusted script executes as bootstrap for ordinary installers; it does not
+require their target-schema CREATE/USAGE. Qualified function calls still require
+schema USAGE, while unqualified lookup omits inaccessible path entries.
+
+The real six members are unaccent(regdictionary,text), unaccent(text),
+unaccent_init(internal), unaccent_lexize(internal,internal,internal,internal),
+the unaccent template and the unaccent dictionary with RULES='unaccent'.
+Both overload identities coexist, helpers and template links are genuine, and
+the template is ownerless. The public callable surface is `unaccent(text)`,
+STABLE/STRICT/PARALLEL SAFE, returning TEXT; contextual unknown/NULL/parameters
+use existing coercion. It uses the dictionary in its own function schema.
+Embedded REL_18_0 longest-match stock rules include ligature expansion,
+combining-rule deletion and punctuation, not a Unicode-normalization substitute.
+Stored CHECK/view/default consumers use the same typed expression and record
+actual procedure dependencies; index/generated IMMUTABLE requirements are
+unchanged. Held prepared executions rebind after rollback or native replacement;
+already returned Rows retain their original values and metadata.
+
+Installation stages all seven descriptors through existing catalog/transaction
+publication. Self sees private identities, peers see committed identities only;
+rollback/savepoint/cancel/authority and name fences are complete-or-none.
+Concurrent overlapping installation reports the extension-name unique-index
+diagnostic at final publication rather than publishing a partial member set.
+Only current attachment `GRANT/REVOKE CREATE ON DATABASE name` is admitted,
+including PUBLIC, inherited roles, grant options and grantor dependencies.
+It does not add CREATE DATABASE, DSN interpretation or general database privileges.
+
+Read-only pg_extension exposes all eight logical columns; pg_proc exposes the
+bounded installed-provider oid/name/namespace/owner/arity/result/volatility/
+strictness/parallel columns, not a fabricated built-in inventory or oidvector
+codec. pg_ts_template exposes oid/name/namespace; pg_ts_dict includes owner,
+template and rule options. pg_depend exposes six exact whole-object membership
+edges plus normal namespace/member/consumer dependencies. Generated identities
+are checked relationally, never against another server's allocation sequence.
+All represented procedure/template columns and the first five dictionary columns
+have known NOT NULL native metadata, including empty direct/prepared results.
+dictinitoption is known nullable even when installed RULES supplies non-NULL text.
+PostgreSQL catalog attributes independently ground these flags; pq itself reports
+unknown result nullability, not approximated known values.
+
+An extension has a genuine normal dependency on its target namespace, separate
+from the six extension-membership edges. Supported DROP SCHEMA RESTRICT reports
+the extension and its stored-expression dependents; CASCADE retires the coherent
+installation and view chains and prunes dependent DEFAULT/CHECK definitions,
+without deleting surviving tables or their rows. No DROP EXTENSION family is added.
+
+TEMP placement uses an existing **actual** committed namespace name (`pg_temp_N`),
+not CREATE EXTENSION alias expansion of `pg_temp`. Installing into the installer's
+own TEMP namespace fails42883 when the template resolves `unaccent_init(internal)`:
+the real staged helper exists, but own TEMP is excluded from unqualified function
+lookup. Failure leaves no installation or members. An authorized foreign installer
+can install into that namespace; the script uses its trusted/bootstrap authority.
+Lifetime belongs to the namespace's physical session, not the installer. Closing
+the installer after commit does not retire the owner's installation.
+
+Qualified owner calls succeed, own TEMP search_path calls remain absent, and
+authorized foreign qualified/explicit-path installed calls succeed. Ordinary
+foreign callers still need schema USAGE; denied entries are omitted implicitly
+and explicit calls fail42501. This is a registered-provider resolver distinction,
+not a change to general TEMP relation/type/function/operator/collation/conversion
+isolation. Metadata remains visible independently of execution permission.
+
+DISCARD TEMP is transactional: tentative full closure is private, rollback and
+rollback-to-savepoint restore the same provider/member/default/CHECK/view identities,
+and commit exposes complete retirement. DISCARD ALL includes that closure but
+cannot run inside a transaction block. Physical close aborts private work before
+retiring committed namespace dependents; mixed TEMP collations use existing
+post-drain maintenance authority. Ordinary candidates undergo genuine provider
+validation outside locks before index preparation. Changed captured catalog,
+storage and index authority discards the failed attempt and recaptures its full
+current closure; post-drain scopes/operations release before retry. Unchanged
+structural cleanup failures return errors rather than retry forever. Physical
+post-drain DEFAULT/CHECK retirement uses the same terminal-only fresh-descriptor
+saturated revision policy as ordinary close; user DDL overflow remains unchanged.
+Native physical cleanup retires its namespace, whereas PostgreSQL keeps an empty
+namespace shell; neither leaves installation/member/dependency debris.
+
+A committed TEMP-target installation is not portable: Dump returns the ordinary
+error `stuntgres: temporary extension installation is not portable` before writer
+I/O. Uncommitted installations remain excluded. Native Reset/Restore retains exact
+live destination TEMP namespace/provider/member/owner/signature/helper identities
+and owned TEMP consumers, reminting imported OID collisions rather than TEMP OIDs.
+Old procedure epochs are accepted only within retained same-physical-namespace
+stored definitions. Retained view manifests additionally require the exact
+captured procedure descriptor; same-address clones and foreign namespace tokens
+cannot substitute authority. Ordinary stale ObjectRefs remain invalid.
+An imported persistent installation conflicting with that database-global name
+fails atomically. Source TEMP installations cannot transfer session tokens.
+Plain Restore resolves only its isolated import catalog, never borrowing target
+TEMP namespace authority. After retirement, portable snapshots do not resurrect
+the installation or namespace.
+
+Dump serializes committed installation before consumers, never standalone member
+CREATE statements or private installations. Restore uses the registered provider
+and existing isolated replay/replacement seam. Strict native
+`stuntgres-extension-owners-v1` comments preserve named extension/member owners
+independently of destination role attributes; all named principals must already
+exist. Malformed/mismatching/incomplete metadata and dropped/recreated target
+principals reject replacement atomically. Native comments carry no raw OID
+authority. PostgreSQL ignores them and applies ordinary CREATE EXTENSION
+ownership, so SQL replay there does not promise native member-owner restoration.
+Plain native streams likewise use ordinary trusted installation ownership.
+Destination database identity/ACLs, live TEMP and old Rows follow existing
+control contracts.
+
+General CREATE FUNCTION/text-search/schema-GRANT setup, regdictionary/internal
+public codecs, ALTER/DROP/UPDATE EXTENSION, dependency extension loading, arbitrary
+scripts/packages/C ABI and external pg_dump/custom archives remain excluded.
+PG-only loose-object/schema-GRANT oracle setup is explicitly disclosed; genuine
+native descriptor/ACL units independently cover helper collisions and access.
+Manual provenance18.6 and pinned PostgreSQL18.0 UTF8/C are unchanged.
+Feature smoke: `make check RUN='^TestReferenceExtensionFeatureSmoke$'`, with the
+same definition selected using `REFERENCE=1`; full selectors are in TESTING.
 
 ### Identity columns — change note
 

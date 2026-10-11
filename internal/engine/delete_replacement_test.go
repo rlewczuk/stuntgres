@@ -156,7 +156,13 @@ func deleteReplacementQueued(t *testing.T, e *Engine, resource lockResource, hol
 
 func deleteReplacementScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *relationTicket, <-chan deleteOutcome) {
 	t.Helper()
-	op := transactionOperation(t, s)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	op, err := s.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(op.Done)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		op.Done()
@@ -170,7 +176,16 @@ func deleteReplacementScope(t *testing.T, e *Engine, s *Session) (*StatementScop
 	}
 	ticket := scope.ticket
 	done := make(chan deleteOutcome, 1)
+	stopped := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		<-stopped
+		if !scope.finished {
+			_ = scope.Finish(context.Canceled)
+		}
+	})
 	go func() {
+		defer close(stopped)
 		result, err := scope.Execute(stmt, 0, nil)
 		done <- deleteOutcome{result, err}
 	}()

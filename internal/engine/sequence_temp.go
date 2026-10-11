@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"stuntgres/internal/parser"
@@ -111,9 +112,9 @@ func adjustRelationCreationPersistence(auth AuthorizationView, ref ObjectRef, re
 // Logical namespace retirement is not a PostgreSQL namespace tuple deletion:
 // physical backend exit preserves pg_namespace and cleans only temp relations.
 // Keep peer analysis generation/epoch unchanged, including at scalar exhaustion.
-func (e *Engine) endTemporarySession(s *Session) {
+func (e *Engine) endTemporarySession(s *Session) error {
 	if s.token.private != nil {
-		return
+		return nil
 	}
 	for {
 		e.mu.Lock()
@@ -124,13 +125,15 @@ func (e *Engine) endTemporarySession(s *Session) {
 			}
 			if ns, ok := base.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary == s.token {
 				e.mu.Unlock()
-				return
+				return nil
 			}
 		}
-		var namespaces, targets []ObjectAddress
+		var namespaces []ObjectAddress
+		owned := make(map[ObjectAddress]bool)
 		for a, d := range base.state.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
 				namespaces = append(namespaces, a)
+				owned[a] = true
 			}
 		}
 		if len(namespaces) == 0 {
@@ -138,20 +141,15 @@ func (e *Engine) endTemporarySession(s *Session) {
 			s.lastSequence = ObjectAddress{}
 			s.temporaryNamespace = ObjectAddress{}
 			e.mu.Unlock()
-			return
+			return nil
 		}
-		for a, d := range base.state.descriptors {
-			for _, namespace := range namespaces {
-				if d.Namespace() == namespace {
-					targets = append(targets, a)
-					break
-				}
-			}
-		}
+		targets, err := namespaceChildren(base, owned)
 		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
-		var err error
 		for _, a := range targets {
 			if err = stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: a}); err != nil {
 				break
@@ -163,6 +161,9 @@ func (e *Engine) endTemporarySession(s *Session) {
 		if err == nil {
 			err = stageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil)
 		}
+		if err == nil {
+			_, err = e.ValidateCatalogStage(context.Background(), stage)
+		}
 		var indexes *temporarySessionIndexes
 		if err == nil {
 			indexes, err = e.prepareTemporarySessionIndexes(stage)
@@ -173,11 +174,47 @@ func (e *Engine) endTemporarySession(s *Session) {
 			installed, err = e.installTemporarySessionStageLocked(s, stage, namespaces, indexes)
 		}
 		e.mu.Unlock()
+		stale := err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && e.temporaryCleanupStale(stage, indexes)
 		e.DiscardCatalogStage(stage)
+		if err != nil {
+			if stale {
+				continue
+			}
+			return err
+		}
 		if installed {
-			return
+			return nil
 		}
 	}
+}
+
+// Retry only a candidate whose captured retirement authority has actually
+// changed. A structural failure against the same roots must escape teardown.
+func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySessionIndexes) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.state != stage.base.state {
+		return true
+	}
+	for address, shape := range stage.rowShapes {
+		store := e.storage[address]
+		if store != shape.original || store == nil || store.generation != shape.generation || store.ends != shape.observedEnds || !sameVersionRoot(store.versions, shape.root) {
+			return true
+		}
+	}
+	for address, candidate := range stage.indexCandidates {
+		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.sqlIndex != nil && !candidate.matches(e.storage[index.sqlIndex.parent]) {
+			return true
+		}
+	}
+	if indexes != nil {
+		for address, root := range indexes.previous {
+			if e.indexRoots[address] != root {
+				return true
+			}
+		}
+	}
+	return !e.partitionReadsValidLocked(stage)
 }
 
 // The whole-root fence includes replacement predecessors and newly introduced
@@ -206,7 +243,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			}
 		}
 	}
-	if len(stage.rowShapes) == 0 {
+	if len(stage.rowShapes) == 0 && stage.lifecycle == catalogOpen {
 		if err := e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil); err != nil {
 			return false, err
 		}
@@ -238,7 +275,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		delete(roots, a)
 	}
 	for _, a := range namespaces {
-		delete(next.names, relationNameKey(next.descriptors[a]))
+		delete(next.names, descriptorNameKey(next.descriptors[a]))
 		delete(next.descriptors, a)
 	}
 	nextRevision := e.nextRevision
@@ -251,6 +288,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		}
 	}
 	e.state, e.sequences, e.storage, e.indexRoots = next, sequences, storage, roots
+	stage.lifecycle = catalogPublished
 	e.nextRevision = nextRevision
 	s.sequences = nil
 	s.lastSequence = ObjectAddress{}
@@ -282,9 +320,11 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		e.mu.Unlock()
 		return result, nil
 	}
-	if err := e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil); err != nil {
-		e.mu.Unlock()
-		return nil, err
+	if stage.lifecycle == catalogOpen {
+		if err := e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil); err != nil {
+			e.mu.Unlock()
+			return nil, err
+		}
 	}
 	next := e.stageRead(stage).state
 	stores := make(map[ObjectAddress]*relationStorage, len(stage.rowShapes))

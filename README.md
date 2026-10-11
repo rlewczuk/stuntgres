@@ -1704,6 +1704,43 @@ Shared verification commands:
 `make check RUN='^TestReferenceQuerySubquery'` and
 `make check REFERENCE=1 RUN='^TestReferenceQuerySubquery'`.
 
+Change note: registered `CREATE EXTENSION unaccent [IF NOT EXISTS]
+[WITH SCHEMA schema] [VERSION '1.1']` installs the real stock unaccent dictionary,
+template and four procedure identities atomically. `SELECT unaccent('Hôtel')`
+returns TEXT `Hotel`; NULL remains typed TEXT NULL. The embedded PostgreSQL
+18.0 stock rules preserve expansion, deletion, punctuation and non-Latin input;
+no filesystem, shared library or generic package loader is involved.
+Qualified calls and USAGE-filtered search paths resolve installed objects, not
+an always-on builtin. Extension names are database-wide; repeat installation
+errors42710, or emits the exact skipping NOTICE with IF NOT EXISTS.
+Installation participates in transactions/savepoints and read-only admission.
+Trusted ordinary installers need actual current-database CREATE, not CREATEDB
+or caller schema CREATE; their extension is caller-owned and owned members are
+bootstrap-owned. Narrow `GRANT/REVOKE CREATE ON DATABASE current_name` uses the
+existing role/ACL authority; it does not add database creation or routing.
+Dump emits the installation before stored CHECK/view consumers, with native
+named-owner metadata preserving member owners even when destination role
+attributes differ. Reset/Restore retains destination database identity/ACLs.
+An installer cannot install into its own actual TEMP namespace: real template
+helper lookup excludes that namespace and fails42883 atomically. An authorized
+foreign installer can target a committed actual TEMP namespace; the installation
+then follows that namespace's physical-session lifetime, not the installer's.
+Qualified owner calls work; own TEMP is omitted from unqualified function lookup,
+while authorized foreign installed-provider paths work without widening general
+TEMP object visibility. Transactional DISCARD TEMP and physical close remove the
+whole installation and dependent views/defaults/CHECKs, preserving surviving
+tables/rows. Supported DROP SCHEMA uses the normal extension dependency and the
+same closure. Native close retires its namespace; PostgreSQL retains an empty shell.
+Committed TEMP installations make Dump fail before writing any bytes. Native
+Reset/Restore preserves exact live destination TEMP installations and owned TEMP
+consumers; a conflicting imported global extension name or foreign TEMP transfer
+fails atomically rather than substituting session authority.
+PostgreSQL ignores native ownership comments and uses ordinary installation
+ownership on SQL replay. General FUNCTION/text-search DDL, regdictionary/internal
+SQL codecs, ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
+excluded. See [registered extensions](docs/DIALECT.md#registered-extensions--change-note)
+and [selected proof](docs/TESTING.md#registered-extension-selected-proof).
+
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and
 `pg_conversion_is_visible(oid)` return strict nullable BOOL. Missing identities
@@ -1833,16 +1870,17 @@ and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 
 **Installed-extension catalog change note:** `pg_catalog.pg_extension` is readonly
 relation3079 with eight exact OID/NAME/BOOL/TEXT/OID[]/TEXT[] fields, known native
-nullability and C950 collations on collatable columns. Native installed state is
-truthfully empty: no PL/pgSQL provider or extension installation is invented.
-PostgreSQL18.0's default database independently has installed `plpgsql`1.0;
-available-but-uninstalled control files never become catalog rows.
+nullability and C950 collations on collatable columns. Fresh native installed
+state is empty; actual registered `unaccent` installations supply descriptor-derived
+rows. No PL/pgSQL installation is fabricated. PostgreSQL18.0's default database
+independently has installed `plpgsql`1.0; available control files are not installed rows.
 Normal REGCLASS/search_path/prepared queries and native Dump/Reset/Restore use
 the existing relation authority. Fixed relation3079 differs from the reused
 allocated native rowtype10074/array10073; no cross-server type allocator promise,
 physical system index or TOAST implementation is implied.
-Extension DDL, availability discovery and module loading remain unsupported with
-their existing SQL-visible diagnostics, not successful no-ops.
+Registered unaccent CREATE is supported; unavailable providers fail0A000 at
+execution, including after successful Prepare. ALTER/DROP EXTENSION, availability
+discovery and module loading retain their unsupported boundaries.
 See [exact shape, installed authority and errors](docs/SQL.md#pg_extension-catalog--change-note).
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.

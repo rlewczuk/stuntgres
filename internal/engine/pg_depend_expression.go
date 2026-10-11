@@ -52,6 +52,8 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		return
 	}
 	switch n := expr.(type) {
+	case installedFunctionExpression:
+		r.add(n.ref.Address)
 	case literalExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
@@ -80,9 +82,9 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 	case subqueryExpression:
 		r.query(n.queryPlan.Root)
 	}
-	// All represented function/operator/aggregate providers are fixed pinned
-	// builtins. Their result types are not direct dependencies. Child arguments,
-	// unlike execution demand, include every analyzed CASE arm.
+	// Fixed builtin providers are pinned; installed providers above record their
+	// genuine procedure identity. Arguments include every analyzed CASE arm,
+	// independently of execution demand.
 	boundExpressionChildren(expr, r.expression)
 }
 

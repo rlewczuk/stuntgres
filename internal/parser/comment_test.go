@@ -42,7 +42,7 @@ func TestCommentGrammar(t *testing.T) {
 			t.Fatalf("%s: %v %#v", q, stmts, err)
 		}
 	}
-	for _, kind := range []string{"TYPE", "DATABASE", "INDEX", "VIEW"} {
+	for _, kind := range []string{"TYPE", "DATABASE", "EXTENSION", "INDEX", "VIEW"} {
 		_, err := Parse("COMMENT ON " + kind + " target IS 'x'")
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "0A000" {

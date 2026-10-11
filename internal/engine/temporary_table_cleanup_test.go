@@ -38,7 +38,9 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	e.indexRoots = map[ObjectAddress]*logicalIndexRoot{}
 	e.indexRoots[index.address] = root
 	epoch := e.state.epoch
-	e.endTemporarySession(op.session)
+	if err := e.endTemporarySession(op.session); err != nil {
+		t.Fatal(err)
+	}
 	for _, a := range []ObjectAddress{table.address, sequence.address, index.address, table.namespace} {
 		if e.state.descriptors[a] != nil || e.storage[a] != nil || e.sequences[a] != nil || e.indexRoots[a] != nil {
 			t.Fatal("orphan owner dependency", a)
@@ -50,7 +52,9 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	if len(store.versions) != 1 || &store.versions[0] != &rows[0] {
 		t.Fatal("retained row snapshot changed")
 	}
-	e.endTemporarySession(op.session)
+	if err := e.endTemporarySession(op.session); err != nil {
+		t.Fatal(err)
+	}
 	if e.storage[peerTable.address] != peerStore {
 		t.Fatal("repeat cleanup changed peer")
 	}
@@ -113,10 +117,12 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		e.DiscardCatalogStage(stage)
 		lateAddress := current.names[NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_late"}]
 		late := current.descriptors[lateAddress].(*relationDescriptor)
-		e.endTemporarySession(op.session)
+		if err := e.endTemporarySession(op.session); err != nil {
+			t.Fatal(err)
+		}
 		for _, original := range []*relationDescriptor{survivor, late} {
 			replacement := e.state.descriptors[original.address].(*relationDescriptor)
-			if replacement == original || len(replacement.checkConstraints) != 0 || len(original.checkConstraints) != 1 || replacement.revision != original.revision+1 || e.state.names[relationNameKey(original)] != original.address {
+			if replacement == original || len(replacement.checkConstraints) != 0 || len(original.checkConstraints) != 1 || replacement.revision != original.revision+1 || e.state.names[descriptorNameKey(original)] != original.address {
 				t.Fatal("reprepare missed consumer or changed captured definition")
 			}
 		}
@@ -204,7 +210,9 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 		t.Fatal("held peer description", err)
 	}
 	epoch, generation := e.state.epoch, e.state.namespaceGeneration
-	e.endTemporarySession(op.session)
+	if err := e.endTemporarySession(op.session); err != nil {
+		t.Fatal(err)
+	}
 	replacement := e.state.descriptors[survivor.address].(*relationDescriptor)
 	if replacement == &maximum || replacement.revision != maximum.revision || len(replacement.checkConstraints) != 0 || len(maximum.checkConstraints) != 1 || e.nextRevision != maximum.revision {
 		t.Fatal("saturated replacement identity/frontier")

@@ -142,7 +142,9 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 }
 func namedObjectVisible(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
-		if found, exists := view.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: namespace, Name: d.Name()}]; exists {
+		key := descriptorNameKey(d)
+		key.Namespace = namespace
+		if found, exists := view.state.names[key]; exists {
 			return found == d.Address()
 		}
 	}

@@ -285,6 +285,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case nullCountExpression:
 		n.args = args(n.args)
 		next = n
+	case installedFunctionExpression:
+		n.arg = child(n.arg)
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
+		next = n
 	case formatExpression:
 		n.args = args(n.args)
 		next = n

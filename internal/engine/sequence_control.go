@@ -15,7 +15,18 @@ import (
 // the destination overlays its exact current live TEMP objects after capture.
 // Keep the supplied published view immutable and use this private candidate for
 // provider validation and generator/storage capture as well as installation.
-func persistentReplacementCatalog(view CatalogRead) CatalogRead {
+func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
+	for _, descriptor := range view.state.descriptors {
+		if extension, ok := descriptor.(*extensionDescriptor); ok {
+			namespace, ok := view.state.descriptors[extension.targetNamespace].(*namespaceDescriptor)
+			if !ok {
+				return CatalogRead{}, fmt.Errorf("stuntgres: extension namespace is missing")
+			}
+			if namespace.temporary != (SessionToken{}) {
+				return CatalogRead{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
+			}
+		}
+	}
 	next := cloneCatalog(view.state)
 	for a, d := range view.state.descriptors {
 		ns, isNamespace := d.(*namespaceDescriptor)
@@ -30,7 +41,7 @@ func persistentReplacementCatalog(view CatalogRead) CatalogRead {
 			delete(next.names, key)
 		}
 	}
-	return CatalogRead{owner: view.owner, state: next}
+	return CatalogRead{owner: view.owner, state: next}, nil
 }
 
 // Called under source synchronization; generator scalars are detached from the
@@ -55,6 +66,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*seq
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
 func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation) error {
+	e.retainDatabaseLocked(next)
 	if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
 		return err
 	}
@@ -64,10 +76,22 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			temporary[a] = d
 		}
 	}
-	for a, d := range e.state.descriptors {
-		if temporary[d.Namespace()] != nil {
-			temporary[a] = d
+	namespaces := make(map[ObjectAddress]bool, len(temporary))
+	for address := range temporary {
+		namespaces[address] = true
+	}
+	children, err := namespaceChildren(CatalogRead{owner: e, state: e.state}, namespaces)
+	if err != nil {
+		return err
+	}
+	for _, address := range children {
+		descriptor := e.state.descriptors[address]
+		if extension, ok := descriptor.(*extensionDescriptor); ok {
+			if imported, exists := next.names[descriptorNameKey(extension)]; exists && next.descriptors[imported] != extension {
+				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.name)
+			}
 		}
+		temporary[address] = descriptor
 	}
 	// Persistent replacement cannot substitute imported domains for a live
 	// TEMP array's exact dependency identities. Fail before allocator/state work.
@@ -422,8 +446,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				}
 				d = &n
 			}
+			d = remapExtensionDescriptor(d, mapping)
 			next.descriptors[target] = d
-			next.names[relationNameKey(d)] = target
+			next.names[descriptorNameKey(d)] = target
 		}
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
 		oldStorage := make(map[ObjectAddress]*relationStorage, len(storage))
@@ -461,7 +486,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	for a, d := range temporary {
 		next.descriptors[a] = d
-		next.names[relationNameKey(d)] = a
+		next.names[descriptorNameKey(d)] = a
 		if rows := e.storage[a]; rows != nil {
 			storage[a] = rows
 		}

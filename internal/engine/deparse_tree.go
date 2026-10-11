@@ -238,6 +238,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case nullCountExpression:
 		fmt.Fprintf(out, "NullCount %d", n.kind)
 		err = args(n.args)
+	case installedFunctionExpression:
+		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
+		err = args([]BoundExpr{n.arg})
 	case formatExpression:
 		fmt.Fprintf(out, "Format variadic %t", n.variadic)
 		err = args(n.args)

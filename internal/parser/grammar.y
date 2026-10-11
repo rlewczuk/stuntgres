@@ -143,6 +143,8 @@ package parser
  partitionBound PartitionBound
  partitionDatum PartitionDatum
  partitionData []PartitionDatum
+ extensionOptions []ExtensionOption
+ extensionOption ExtensionOption
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -201,6 +203,7 @@ package parser
 %token <tok> COLLATE
 %token <tok> COLLATION
 %token <tok> REFRESH VERSION
+%token <tok> EXTENSION DATABASE
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
 %token <tok> CONSTRAINT ADD INHERITS
 %token <tok> CHECK
@@ -329,6 +332,10 @@ package parser
 %type <collationOptions> collation_options
 %type <collationOption> collation_option
 %type <tok> collation_name_word
+%type <stmt> create_extension
+%type <extensionOptions> extension_options extension_option_list
+%type <extensionOption> extension_option
+%type <tok> extension_version
 %type <enumLabels> enum_labels enum_label_list
 %type <columns> composite_members composite_member_list
 %type <col> composite_member
@@ -586,6 +593,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
+ | create_extension
  | alter_collation | drop_collation | alter_enum
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
@@ -773,7 +781,7 @@ comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE ;
+comment_excluded_word: IDENT | KW_U | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE | DATABASE | EXTENSION ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
@@ -1065,7 +1073,7 @@ alter_collation: collation_alter_head RENAME TO name {$1.Action="rename";$1.Targ
  | collation_alter_head REFRESH VERSION {$1.Action="refresh";$$=$1} ;
 /* Dedicated clause terminals avoid SET SCHEMA competing with two arbitrary
  * names. Their released unreserved identifier legality remains unchanged. */
-collation_name_word: REFRESH | VERSION ;
+collation_name_word: REFRESH | VERSION | EXTENSION | DATABASE ;
 drop_collation: DROP COLLATION relation_names drop_mode {$$=&DropCollation{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP COLLATION IF EXISTS relation_names drop_mode {$$=&DropCollation{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 /* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
@@ -2165,6 +2173,7 @@ grant_relations: relation_name { $$=[]ObjectName{$1} }
 grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | TABLE grant_relations { $$=&ObjectGrant{Relations:$2} }
  | SEQUENCE grant_relations { $$=&ObjectGrant{Kind:"sequence",Relations:$2} }
+ | DATABASE grant_relations { $$=&ObjectGrant{Kind:"database",Relations:$2} }
  | ALL name IN SCHEMA grant_schema_list { if $2.text!="tables" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Schemas:$5} } ;
 grant_schema_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | grant_schema_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
@@ -2267,4 +2276,11 @@ alter_schema: ALTER SCHEMA name RENAME TO name { $$=&AlterSchema{Name:$3.text,Ne
 drop_behavior: /* empty */ { $$=false } | RESTRICT { $$=false } | CASCADE { $$=true } ;
 drop_schema: DROP SCHEMA names drop_behavior { $$=&DropSchema{Names:$3,Cascade:$4} }
  | DROP SCHEMA IF EXISTS names drop_behavior { $$=&DropSchema{Names:$5,IfExists:true,Cascade:$6} } ;
+create_extension: CREATE EXTENSION name extension_options { $$=&CreateExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$4,Pos:$1.pos} }
+ | CREATE EXTENSION IF NOT EXISTS name extension_options { $$=&CreateExtension{Name:Identifier{Text:$6.text,Pos:$6.pos},IfNotExists:true,Options:$7,Pos:$1.pos} } ;
+extension_options: extension_option_list { $$=$1 } | WITH extension_option_list { $$=$2 } ;
+extension_option_list: /* empty */ { $$=nil } | extension_option_list extension_option { $$=append($1,$2) } ;
+extension_option: SCHEMA name { $$=ExtensionOption{Name:"schema",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | VERSION extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
+extension_version: name | STRING ;
 %%

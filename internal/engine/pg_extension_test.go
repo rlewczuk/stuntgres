@@ -104,7 +104,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	for i, c := range d.columns {
 		root.expressions = append(root.expressions, columnExpression{expressionInfo: expressionInfo{usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
 	}
-	executable, err := capturePGExtension(context.Background(), e.CatalogRead(), ref, d)
+	executable, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	for _, width := range []int{0, 7, 9} {
 		invalid := *d
 		invalid.columns = make([]ColumnDescriptor, width)
-		if rows, err := capturePGExtension(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
+		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 			t.Fatal("malformed width", width, rows, err)
 		}
 	}
@@ -134,7 +134,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		invalid := *d
 		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 		invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(c.Usage.Type.ID())
-		if rows, err := capturePGExtension(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
+		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 			t.Fatal("foreign column", i, rows, err)
 		}
 	}
@@ -150,12 +150,12 @@ func TestPGExtensionCapture(t *testing.T) {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	delete(state.descriptors, ObjectAddress{ClassID: TypeClassID, ObjectID: 1028})
-	if rows, err := capturePGExtension(context.Background(), view, ref, d); err == nil || rows != nil {
+	if rows, err := captureExtensionCatalog(context.Background(), view, ref, d); err == nil || rows != nil {
 		t.Fatal("missing array descriptor", rows, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rows, err := capturePGExtension(ctx, e.CatalogRead(), ref, d); rows != nil || !errors.Is(err, context.Canceled) {
+	if rows, err := captureExtensionCatalog(ctx, e.CatalogRead(), ref, d); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
 	}
 	retained := &indexedStage{source: old, schema: d.columns}
@@ -173,7 +173,7 @@ func TestPGExtensionCapture(t *testing.T) {
 				t.Fatal("generation not reminted", i)
 			}
 		}
-		if rows, err := capturePGExtension(context.Background(), e.CatalogRead(), ref, d); err == nil || rows != nil {
+		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, d); err == nil || rows != nil {
 			t.Fatal("old source accepted in replacement", rows, err)
 		}
 		if !reflect.DeepEqual(retained.Schema(), original) || old.ref != ref || old.count() != 0 {
@@ -189,5 +189,41 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	if !reflect.DeepEqual(retained.Schema(), original) {
 		t.Fatal("schema lost after EOF/Close")
+	}
+}
+
+func TestPGExtensionCaptureInstalled(t *testing.T) {
+	e := New()
+	d, ref := pgExtensionUnitSource(t, e)
+	empty, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles}, ref, d)
+	if err != nil || empty == nil || empty.count() != 0 {
+		t.Fatal("fresh installed catalog", empty, err)
+	}
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	stage := extensionUnitStage(t, e, op)
+	extensionUnitPublish(t, e, op, stage)
+	address := e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
+	ext := e.state.descriptors[address].(*extensionDescriptor)
+	d = pgExtensionUnitShape(t, e)
+	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles}, ref, d)
+	if err != nil || captured == nil || captured.count() != 1 {
+		t.Fatal("installed descriptor not projected", captured, err)
+	}
+	row := captured.anonymous[0]
+	for i, expected := range []OID{ext.address.ObjectID, OID(ext.owner.id), ext.targetNamespace.ObjectID} {
+		actual, err := row[[]int{0, 2, 3}[i]].OID()
+		if err != nil || actual != uint32(expected) {
+			t.Fatal("descriptor-derived identity", i, actual, expected, err)
+		}
+	}
+	name, nameErr := row[1].Text()
+	version, versionErr := row[5].Text()
+	relocatable, relocatableErr := row[4].Boolean()
+	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.name || version != ext.version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
+		t.Fatal("installed descriptor attributes", row, nameErr, versionErr, relocatableErr)
+	}
+	if empty.count() != 0 || captured.ref != ref {
+		t.Fatal("capture resampled or lost bound identity", empty, captured)
 	}
 }

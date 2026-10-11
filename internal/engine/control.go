@@ -205,6 +205,39 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
 			switch t := d.(type) {
+			case *databaseDescriptor:
+				continue // Destination attachment authority is never serialized.
+			case *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
+				if extensionMembership(t) == (ObjectAddress{}) {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
+				}
+				continue
+			case *extensionDescriptor:
+				if err := (extensionCatalogProvider{ExtensionClassID}).Validate(catalog, t); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				ns := catalog.state.descriptors[t.targetNamespace].(*namespaceDescriptor)
+				if ns.temporary != (SessionToken{}) {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: temporary extension installation is not portable")
+				}
+				principal, err := domainRoles.Descriptor(t.owner)
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				metadata, err := extensionOwnerMetadata(catalog, domainRoles, t)
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				text := "CREATE EXTENSION " + quoteIdentifier(t.name) + " WITH SCHEMA " + quoteIdentifier(ns.name) + " VERSION '" + strings.ReplaceAll(t.version, "'", "''") + "';\n" + metadata
+				viewDependencies[t.address.ObjectID] = nil
+				viewIndices[t.address.ObjectID] = len(views)
+				views = append(views, dumpView{principal.Name, text})
+				continue
 			case *typeDescriptor:
 				if t.typ.IsUserDefined() && !t.typ.IsComposite() {
 					domains = append(domains, t)
@@ -1016,7 +1049,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	var snapshots []materializedSnapshot
+	var extensionOwners []extensionOwnerRecord
 	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string) error {
+		ownerRecord, ownerRecognized, ownerErr := decodeExtensionOwners(comment)
+		if ownerErr != nil {
+			return ownerErr
+		}
+		if ownerRecognized {
+			extensionOwners = append(extensionOwners, ownerRecord)
+			return nil
+		}
 		record, recognized, err := decodeMaterializedSnapshot(comment)
 		if err == nil && recognized {
 			snapshots = append(snapshots, record)
@@ -1088,6 +1130,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation:
+		case *parser.CreateExtension:
 		case *parser.CreateView:
 			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -1189,6 +1232,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if _, ok := stmt.(*parser.CreateCollation); ok {
 			op.restoreTableDestination = true
 		}
+		if _, ok := stmt.(*parser.CreateExtension); ok {
+			op.restoreTableDestination = true
+		}
 		op.restoreInsertAuthority = false
 		if _, ok := stmt.(*parser.Insert); ok {
 			op.restoreInsertAuthority = true
@@ -1227,6 +1273,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		}
 	}
 	if err := stage.bindRestoredForeignKeys(ctx, op, pendingForeignKeys); err != nil {
+		return err
+	}
+	if err := stage.importExtensionOwners(ctx, op, extensionOwners); err != nil {
 		return err
 	}
 	if err := stage.importMaterializedSnapshots(ctx, op, snapshots); err != nil {

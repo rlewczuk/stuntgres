@@ -49,6 +49,12 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		}
 		ns, ok := view.state.descriptors[target.Namespace()].(*namespaceDescriptor)
 		return ok && ns.temporary == namespace.temporary && (collationProvider{}).Validate(view, target) == nil
+	case *procedureDescriptor:
+		if ref.Address.ClassID != ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.owner != view.owner || view.state.descriptors[consumer.Address()] != consumer {
+			return false
+		}
+		ns, ok := view.state.descriptors[target.namespace].(*namespaceDescriptor)
+		return ok && ns.temporary == namespace.temporary && (extensionCatalogProvider{ProcedureClassID}).Validate(view, target) == nil
 	}
 	return false
 }
@@ -100,6 +106,8 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		before, beforeErr := old.usage()
 		after, afterErr := actual.usage()
 		return beforeErr == nil && afterErr == nil && before == after
+	case *procedureDescriptor:
+		return target == captured
 	}
 	return false
 }

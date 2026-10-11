@@ -86,6 +86,39 @@ func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *
 func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAddress) string {
 	base := target
 	base.SubID = 0
+	if d, ok := catalog.state.descriptors[base].(*extensionDescriptor); ok {
+		return "extension " + dependencyIdentifier(d.name)
+	}
+	if d, ok := catalog.state.descriptors[base].(*procedureDescriptor); ok {
+		name := dependencyIdentifier(d.name)
+		visible := path == nil
+		for _, namespace := range path {
+			if n, ok := catalog.state.descriptors[namespace].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
+				continue
+			}
+			if address, ok := catalog.state.names[NameKey{ClassID: ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}]; ok {
+				visible = address == d.address
+				break
+			}
+		}
+		if !visible {
+			name = dependencyIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + name
+		}
+		var arguments string
+		switch d.signature {
+		case unaccentTextSignature:
+			arguments = "text"
+		case unaccentDictionarySignature:
+			arguments = "regdictionary, text"
+		case unaccentInitSignature:
+			arguments = "internal"
+		case unaccentLexizeSignature:
+			arguments = "internal, internal, internal, internal"
+		default:
+			panic("stuntgres: invalid installed procedure signature")
+		}
+		return "function " + name + "(" + arguments + ")"
+	}
 	if t, ok := catalog.state.descriptors[base].(*typeDescriptor); ok {
 		return "type " + typeDiagnosticNameAt(catalog, t, path)
 	}

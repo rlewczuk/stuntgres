@@ -15,6 +15,13 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
+	if proc, ok := object.(*procedureDescriptor); ok {
+		ext, ok := view.state.descriptors[proc.extension].(*extensionDescriptor)
+		if !ok {
+			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")
+		}
+		return ext.address.ObjectID, nil
+	}
 	if typ, ok := object.(*typeDescriptor); ok {
 		if typ.typ.IsArray() {
 			return dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.typ.Element().ID())}, consumer)

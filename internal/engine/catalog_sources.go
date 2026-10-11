@@ -16,6 +16,18 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{1255, "pg_proc", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"proname", sqltype.Name}, {"pronamespace", sqltype.Oid}, {"proowner", sqltype.Oid}, {"pronargs", sqltype.Int2}, {"prorettype", sqltype.Oid}, {"provolatile", sqltype.Char}, {"proisstrict", sqltype.Bool}, {"proparallel", sqltype.Char}}},
+		{3764, "pg_ts_template", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"tmplname", sqltype.Name}, {"tmplnamespace", sqltype.Oid}}},
+		{3600, "pg_ts_dict", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"dictname", sqltype.Name}, {"dictnamespace", sqltype.Oid}, {"dictowner", sqltype.Oid}, {"dicttemplate", sqltype.Oid}, {"dictinitoption", sqltype.Text}}},
 		{12007, "pg_roles", []struct {
 			name string
 			typ  sqltype.ID
@@ -119,6 +131,12 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 {
 				d.columns[i].Nullable = false
 			}
+			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
+				d.columns[i].Nullable = false
+			}
+			if spec.oid == TSDictionaryClassID {
+				d.columns[i].Nullable = i == 5
+			}
 			if spec.oid == 2609 || spec.oid == 2396 {
 				d.columns[i].Nullable = false
 				if column.typ == sqltype.Text {
@@ -153,14 +171,14 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 3079 || source.address.ObjectID == 1255 || source.address.ObjectID == 3764 || source.address.ObjectID == 3600 {
+		return captureExtensionCatalog(ctx, catalog, ref, source)
+	}
 	if source.address.ObjectID == 3456 {
 		return capturePGCollation(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
-	}
-	if source.address.ObjectID == 3079 {
-		return capturePGExtension(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2224 {
 		return capturePGSequence(ctx, catalog.state, nil, ref, source)

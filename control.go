@@ -80,6 +80,13 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Temporary views retain exact source identities. Invalidated persistent table
 // or view providers prevent replacement; unchanged pinned catalog providers survive.
 // Same-owner temporary FK graphs retain exact definition/parent/key identities.
+// Persistent registered extensions and their member identities are removed together.
+// Live destination TEMP-target installations retain their exact namespace token,
+// extension/member/provider identities, owner authority and owned TEMP consumers.
+// Retained TEMP view manifests keep exact captured procedures; this contextual
+// epoch authority does not make ordinary stale ObjectRefs valid.
+// Destination current-database ownership/CREATE ACLs are attachment authority
+// and survive Reset/Restore; they are not imported from a portable snapshot.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -102,6 +109,15 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // policy-expression enforcement remains unsupported.
 // FK declarations are ordinary CREATE syntax; native Restore handles their
 // forward references/cycles independently of table definition output order.
+// Registered extension installations precede their CHECK/view consumers. Native
+// ownership metadata comments preserve independently named extension/member
+// owners, even when destination role attributes differ; templates are ownerless.
+// PostgreSQL ignores these comments and applies ordinary CREATE EXTENSION
+// ownership on SQL replay. No arbitrary extension script/shared library is dumped.
+// A committed TEMP-target installation returns the ordinary portability error
+// "stuntgres: temporary extension installation is not portable" before writer I/O;
+// it is not silently omitted alongside persistent consumers. Private installations
+// remain excluded from the committed snapshot.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -111,7 +127,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
 // SCHEMA, CREATE COLLATION (and ALTER COLLATION), CREATE TYPE AS ENUM, CREATE DOMAIN,
-// CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, parameter-free scalar INSERT (including integer
+// CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, registered CREATE EXTENSION unaccent1.1,
+// parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated
 // SELECT setval(name,value,is_called), and named owner directives succeed.
 // Parameters are recursively rejected; other statements remain excluded.
@@ -142,6 +159,17 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Policy conditions and provider identities remap atomically;
 // live TEMP policies retain their table lifetime and incompatible dependencies
 // refuse replacement. Policies and enabled/forced flag ALTERs import independently.
+// Strict native extension-owner comments require complete symbolic member
+// identities and preexisting named principals, never imported OID authority.
+// Missing/mismatching metadata or target principal drop/recreation rejects final
+// replacement without disturbing the target's executable installed provider.
+// Plain streams use ordinary trusted installation ownership; this is not a
+// general ALTER FUNCTION/EXTENSION ownership or arbitrary package-loading API.
+// Live destination TEMP installations retain exact namespace/provider/member and
+// principal authority. Imported OID collisions are reminted, not retained TEMP
+// identities; a conflicting global extension name rejects the whole replacement.
+// Source TEMP installations cannot transfer physical-session authority, and plain
+// replay cannot resolve names by borrowing the destination's TEMP namespaces.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 // Final installation refuses while prepared transactions exist, including entries
 // prepared during reader I/O; refusal preserves the target catalog and resources.

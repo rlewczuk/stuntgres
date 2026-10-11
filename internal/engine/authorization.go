@@ -495,6 +495,14 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {
+	case *databaseDescriptor:
+		return d.owner, d.acl, nil
+	case *extensionDescriptor:
+		return d.owner, ACLValue{}, nil
+	case *procedureDescriptor:
+		return d.owner, ACLValue{}, nil
+	case *tsDictionaryDescriptor:
+		return d.owner, ACLValue{}, nil
 	case *namespaceDescriptor:
 		return d.owner, d.acl, nil
 	case *relationDescriptor:
@@ -507,6 +515,12 @@ func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	return PrincipalRef{}, ACLValue{}, nil
 }
 func classPrivileges(d Descriptor) Privileges {
+	if d.Kind() == DatabaseObject {
+		return CreatePrivilege
+	}
+	if d.Kind() == ExtensionObject || d.Kind() == ProcedureObject || d.Kind() == TSDictionaryObject || d.Kind() == TSTemplateObject {
+		return 0
+	}
 	if d.Kind() == TypeObject {
 		return UsagePrivilege
 	}
@@ -711,6 +725,8 @@ func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
 func validateACL(r RoleRead, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
+	case *tsTemplateDescriptor:
+		return nil
 	case *typeDescriptor:
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return nil
@@ -775,6 +791,8 @@ func validateACL(r RoleRead, d Descriptor) error {
 }
 func descriptorReferences(d Descriptor) []PrincipalRef {
 	switch t := d.(type) {
+	case *tsTemplateDescriptor:
+		return nil
 	case *typeDescriptor:
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return nil

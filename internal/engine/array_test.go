@@ -258,7 +258,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 			descriptor = &copy
 		}
 		descriptors[target] = descriptor
-		names[NameKey{ClassID: target.ClassID, Namespace: descriptor.Namespace(), Name: descriptor.Name()}] = target
+		names[descriptorNameKey(descriptor)] = target
 	}
 	next.descriptors, next.names = descriptors, names
 	view := CatalogRead{owner: e, state: next}

@@ -274,7 +274,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	if defs[0].BootDefault != "fast" || defs[1].BootDefault != "1.23457" {
 		t.Fatal(defs)
 	}
-	e := NewWithSettings(defs)
+	e := NewWithSettings(defs, "")
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.mode": "FAST"}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
 	for _, name := range e.settingsOrder {
@@ -320,7 +320,7 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	if def.bootValue.number != 0x1p-1023 {
 		t.Fatal("registered default lost exactness", def.bootValue)
 	}
-	e := NewWithSettings([]SettingDefinition{def})
+	e := NewWithSettings([]SettingDefinition{def}, "")
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
 	if p.calls["demo.ratio"] != 1 || a.settings.defaultTyped["demo.ratio"].number != -0x1p-1023 {

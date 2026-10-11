@@ -76,7 +76,8 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace Ob
 	if stage.base.state.descriptors[address] == nil {
 		delete(stage.names, key)
 		stage.descriptors[address] = &next
-		nextKey := NameKey{ClassID: TypeClassID, Namespace: namespace, Name: next.Name()}
+		nextKey := descriptorNameKey(&next)
+		nextKey.Namespace = namespace
 		stage.names[nextKey] = address
 		stage.touched[nextKey] = stage.base.state.names[nextKey]
 		return true, e.reownStagedTypeGenerationsLocked(stage)

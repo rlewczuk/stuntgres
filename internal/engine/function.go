@@ -51,6 +51,9 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if strings.EqualFold(name, "unaccent") {
+		return b.bindInstalledFunction(raw)
+	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return b.bindSimilarEscape(raw)
 	}

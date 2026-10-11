@@ -48,7 +48,7 @@ func (r *domainReplayNames) arrayName(key NameKey) NameKey {
 }
 
 func (r *domainReplayNames) reserve(d *typeDescriptor) error {
-	key := NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}
+	key := descriptorNameKey(d)
 	if incumbent := r.occupied[key]; incumbent != 0 {
 		element := r.elements[incumbent]
 		if element == 0 || r.arrays[element] != incumbent {

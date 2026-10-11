@@ -700,6 +700,14 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
+	case installedFunctionExpression:
+		next, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+		if failure != nil {
+			return nil, false, failure
+		}
+		e.arg = next
+		changed = changed || did
+		expression = e
 	case formatExpression:
 		var args []BoundExpr
 		for i, old := range e.args {
@@ -878,6 +886,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case installedFunctionExpression:
+		return false // Installed unaccent is intrinsically STABLE.
 	case formatExpression:
 		return false // Intrinsically STABLE, even with literal children.
 	}

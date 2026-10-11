@@ -428,7 +428,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if rewrite || d.name != old.name || d.namespace != old.namespace || d.owner != old.owner || persistenceChanged {
 			d.sequencePlanStamp = rev
 		}
-		key := relationNameKey(&d)
+		key := descriptorNameKey(&d)
 		if a, exists := auth.catalog.state.names[key]; exists && a != d.address {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.name))
 		}

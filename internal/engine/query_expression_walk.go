@@ -96,6 +96,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case stringExpression:
 		args(e.args)
+	case installedFunctionExpression:
+		walk(e.arg)
 	case formatExpression:
 		args(e.args)
 	case indexPropertyExpression:

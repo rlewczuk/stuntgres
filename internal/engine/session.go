@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,7 +58,6 @@ type SessionStart struct {
 	ID            SessionID
 	Defaults      SessionDefaultProvider
 	Authenticated PrincipalRef
-	DatabaseName  string
 }
 type sessionState uint8
 
@@ -156,6 +154,9 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if e.databaseNameError != nil {
+		return nil, e.databaseNameError
+	}
 	if start.ID == 0 && !private {
 		return nil, errors.New("stuntgres: zero session identity")
 	}
@@ -165,14 +166,9 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		authenticated = e.roles.names["postgres"]
 	}
 	role, authErr := (RoleRead{e, e.roles}).Descriptor(authenticated)
-	nameType, _ := (CatalogRead{e, e.state}).LookupType(sqltype.Name)
-	database, nameErr := nameType.Input(ctx, start.DatabaseName, -1)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
-	}
-	if nameErr != nil {
-		return nil, nameErr
 	}
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
@@ -181,7 +177,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if private {
 		s.token.private = s
 	}
-	s.databaseName, _ = database.Text()
+	s.databaseName = e.databaseName
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(ctx, true)
 	auth := &sessionAuthorization{session: s, state: RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}

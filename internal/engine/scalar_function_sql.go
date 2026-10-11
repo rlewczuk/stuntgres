@@ -11,6 +11,17 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node BoundExpr, u sqltype.Usage) (string, error) {
 	switch n := node.(type) {
+	case installedFunctionExpression:
+		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
+		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || proc != n.procedure || proc.signature != unaccentTextSignature || n.usage.Type.ID() != sqltype.Text || n.arg == nil || n.arg.ResultUsage().Type.ID() != sqltype.Text || view.state.descriptors[proc.dictionary] != n.dictionary || n.dictionary == nil || view.state.descriptors[n.dictionary.template] != n.template || n.template == nil {
+			return "", fmt.Errorf("stuntgres: invalid stored installed function")
+		}
+		namespace, ok := view.state.descriptors[proc.namespace].(*namespaceDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored function namespace")
+		}
+		r.record(n.ref)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []BoundExpr{n.arg})
 	case uuidGenerationExpression:
 		if u.Type.ID() != sqltype.UUID || (n.name != "uuidv7" && n.name != "uuidv4" && n.name != "gen_random_uuid") || len(n.args) > 1 || len(n.args) != 0 && n.name != "uuidv7" {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")

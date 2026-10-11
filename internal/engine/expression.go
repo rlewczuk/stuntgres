@@ -253,6 +253,12 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return nil, false, err
 	}
 	switch e := expression.(type) {
+	case installedFunctionExpression:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		if changed {
+			e.arg = arg
+		}
+		return e, changed, err
 	case viewQualificationExpression:
 		return mapViewQualification(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)

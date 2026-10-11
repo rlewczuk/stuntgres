@@ -180,11 +180,10 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 			owned[address] = true
 		}
 	}
-	var children []ObjectAddress
-	for address, d := range base.state.descriptors {
-		if owned[d.Namespace()] {
-			children = append(children, address)
-		}
+	children, err := namespaceChildren(base, owned)
+	if err != nil {
+		e.mu.Unlock()
+		return err
 	}
 	if len(children) == 0 {
 		e.mu.Unlock()

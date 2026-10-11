@@ -10,7 +10,7 @@ func TestSavepointsSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := NewWithSettings([]SettingDefinition{d})
+	e := NewWithSettings([]SettingDefinition{d}, "")
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "0"}, calls: map[string]int{}}
 	a := sessionStart(t, e, provider)
 	sessionSQL(t, a, "SET demo.ratio='0.123456789'")

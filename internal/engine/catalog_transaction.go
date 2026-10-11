@@ -15,6 +15,7 @@ type catalogChanges struct {
 	storage         map[ObjectAddress]catalogStorageChange
 	uniqueRoots     map[ObjectAddress]*logicalIndexRoot
 	dependencies    []catalogDependencyObservation
+	extensionAuthority []extensionAuthorityObservation
 	cachedBase      *catalogState
 	cached          CatalogRead
 	enumCreated     map[ObjectAddress]bool // CREATE at top transaction level only.
@@ -88,10 +89,8 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.indexFences = append(n.indexFences, c.indexFences...)
 	n.namespaceFences = append(n.namespaceFences, c.namespaceFences...)
 	n.readFences = append(n.readFences, c.readFences...)
+	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
 	return n
-}
-func relationNameKey(d Descriptor) NameKey {
-	return NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
 }
 
 // Caller holds Engine.mu and the session's statement admission.
@@ -110,7 +109,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	n := cloneCatalog(e.state)
 	for a, d := range c.descriptors {
 		if old := n.descriptors[a]; old != nil {
-			delete(n.names, relationNameKey(old))
+			delete(n.names, descriptorNameKey(old))
 		}
 		if d == nil {
 			delete(n.descriptors, a)
@@ -120,7 +119,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			n.names[relationNameKey(d)] = d.Address()
+			n.names[descriptorNameKey(d)] = d.Address()
 		}
 	}
 	c.cachedBase, c.cached = e.state, CatalogRead{e, n}
@@ -131,13 +130,13 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ObjectAddress, d Descr
 		c.originals[a] = e.state.descriptors[a]
 	}
 	if original := c.originals[a]; original != nil {
-		k := relationNameKey(original)
+		k := descriptorNameKey(original)
 		if _, ok := c.names[k]; !ok {
 			c.names[k] = e.state.names[k]
 		}
 	}
 	if d != nil {
-		k := relationNameKey(d)
+		k := descriptorNameKey(d)
 		if _, ok := c.names[k]; !ok {
 			c.names[k] = e.state.names[k]
 		}
@@ -202,6 +201,24 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {
 		return err
+	}
+	// Extension scripts insert the database-wide row before their members.
+	// Preserve that public uniqueness diagnostic when a competing installation
+	// wins after this script's private snapshot; unrelated catalog fences retain
+	// the central publication-conflict contract.
+	if len(c.extensionAuthority) != 0 {
+		for key, original := range c.names {
+			if key.ClassID == ExtensionClassID && original == (ObjectAddress{}) && e.state.names[key] != original {
+				return extensionNameConflict(key.Name)
+			}
+		}
+	}
+	for _, observation := range c.extensionAuthority {
+		if e.roles.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
+			e.state.descriptors[observation.namespace.Address()] != observation.namespace ||
+			e.state.descriptors[observation.database.Address()] != observation.database {
+			return CatalogConflict{}
+		}
 	}
 	for _, observation := range c.dependencies {
 		for a, descriptor := range e.state.descriptors {

@@ -24,7 +24,7 @@ func inheritanceLifecycleInstall(e *Engine, tables ...*relationDescriptor) {
 	e.state = cloneCatalog(e.state)
 	for _, table := range tables {
 		e.state.descriptors[table.address] = table
-		e.state.names[relationNameKey(table)] = table.address
+		e.state.names[descriptorNameKey(table)] = table.address
 		e.storage[table.address] = &relationStorage{}
 	}
 }

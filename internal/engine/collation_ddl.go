@@ -316,7 +316,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.owner = target
 	}
-	key := NameKey{ClassID: CollationClassID, Namespace: next.Namespace(), Name: next.name}
+	key := descriptorNameKey(&next)
 	if a := stage.lookupName(key); a != (ObjectAddress{}) && a != d.Address() {
 		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
 	}

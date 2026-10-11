@@ -14,7 +14,7 @@ func inheritanceControlsTemporary(e *Engine, id OID, name string, parents ...Obj
 		e.state = cloneCatalog(e.state)
 		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.names["postgres"], temporary: SessionToken{owner: e, id: 99}}
 		e.state.descriptors[ns] = d
-		e.state.names[relationNameKey(d)] = ns
+		e.state.names[descriptorNameKey(d)] = ns
 	}
 	table := inheritanceLifecycleTable(e, id, name, parents...)
 	table.namespace = ns

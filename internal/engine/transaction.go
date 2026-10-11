@@ -146,8 +146,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 	t.session.Engine().locks.end(ticket)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
-	t.session.Engine().endTemporarySession(t.session)
-	return nil
+	return t.session.Engine().endTemporarySession(t.session)
 }
 
 func (s *Session) TransactionState() TxState {

@@ -17,6 +17,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateExtension:
+		return e.executeExtension(scope, stmt.(*parser.CreateExtension), count)
 	case *parser.Discard:
 		return scope.executeDiscard(stmt.(*parser.Discard), count)
 	case *parser.PrepareSQL:
@@ -73,6 +75,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant:
+		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
+			return e.executeDatabaseGrant(scope, grant, count)
+		}
 		result, err := e.executeRole(op, stmt, count, !scope.owner.inBlock())
 		if err == nil {
 			scope.completed = true

@@ -603,6 +603,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case nullCountExpression:
 		children = e.args
+	case installedFunctionExpression:
+		children = []BoundExpr{e.arg}
 	case formatExpression:
 		children = e.args
 	case currentSchemasExpression:

@@ -500,9 +500,14 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 		var dependent []*relationDescriptor
 		var domains []Descriptor
-		for _, d := range auth.catalog.state.descriptors {
-			if !seen[d.Namespace()] {
-				continue
+		children, err := namespaceChildren(auth.catalog, seen)
+		if err != nil {
+			return nil, err
+		}
+		for _, address := range children {
+			d := auth.catalog.state.descriptors[address]
+			if extensionMembership(d) != (ObjectAddress{}) {
+				continue // the extension owns these members as one namespace dependent
 			}
 			if r, ok := d.(*relationDescriptor); ok {
 				if r.relationKind == compositeRelation {
@@ -516,6 +521,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				domains = append(domains, t)
 			} else if c, ok := d.(*collationDescriptor); ok {
 				domains = append(domains, c)
+			} else if extension, ok := d.(*extensionDescriptor); ok {
+				domains = append(domains, extension)
 			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type
 			} else {

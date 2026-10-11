@@ -138,7 +138,7 @@ func validateInquiryIdentity(view CatalogRead, d Descriptor) error {
 	if !ok || namespace.Kind() != NamespaceObject {
 		return fmt.Errorf("stuntgres: inquiry namespace is missing")
 	}
-	if view.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}] != d.Address() {
+	if view.state.names[descriptorNameKey(d)] != d.Address() {
 		return fmt.Errorf("stuntgres: invalid inquiry identity")
 	}
 	return nil

@@ -58,6 +58,11 @@ const (
 	TypeObject
 	CollationObject
 	ConversionObject
+	ExtensionObject
+	ProcedureObject
+	TSTemplateObject
+	TSDictionaryObject
+	DatabaseObject
 )
 
 type Descriptor interface {
@@ -147,6 +152,7 @@ type NameKey struct {
 	ClassID   OID
 	Namespace ObjectAddress
 	Name      string
+	Signature string
 }
 type catalogState struct {
 	epoch               CatalogEpoch
@@ -195,7 +201,7 @@ type namespaceProvider struct{}
 func (namespaceProvider) ClassID() OID { return NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	a := d.Address()
-	key := NameKey{ClassID: NamespaceClassID, Name: d.Name()}
+	key := descriptorNameKey(d)
 	found := v.Lookup(key)
 	if d.Kind() != NamespaceObject || a.ClassID != NamespaceClassID || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || d.Namespace() != (ObjectAddress{}) || len(found) != 1 || found[0] != a {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor")
@@ -495,6 +501,8 @@ type CatalogStage struct {
 	authSession          *Session
 	authRevision         uint64
 	roleRevision         uint64
+	extensionNamespace   ObjectAddress
+	extensionDatabase    Descriptor
 	schemaCascadeNames   []string
 	viewCascadeNames     []string
 	dependencyPath       []ObjectAddress
@@ -551,7 +559,7 @@ func (s *CatalogStage) lookupName(k NameKey) ObjectAddress {
 		return ObjectAddress{}
 	}
 	if replacement := s.descriptors[address]; replacement != nil &&
-		(replacement.Namespace() != k.Namespace || replacement.Name() != k.Name) {
+		descriptorNameKey(replacement) != k {
 		return ObjectAddress{}
 	}
 	return address
@@ -574,7 +582,7 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	if _, ok := s.descriptors[a]; ok {
 		return CatalogConflict{}
 	}
-	k := NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()}
+	k := descriptorNameKey(d)
 	// One live-name check includes staged replacements and excludes removed
 	// generations, whose private name slots can be reused by a new identity.
 	if s.lookupName(k) != (ObjectAddress{}) {
@@ -604,13 +612,13 @@ func (s *CatalogStage) replaceDescriptor(d Descriptor, synchronize bool) error {
 			return fmt.Errorf("stuntgres: relation replacement clears index publication history")
 		}
 	}
-	oldKey := NameKey{ClassID: old.Address().ClassID, Namespace: old.Namespace(), Name: old.Name()}
-	newKey := NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
+	oldKey := descriptorNameKey(old)
+	newKey := descriptorNameKey(d)
 	if a := s.lookupName(newKey); a != (ObjectAddress{}) && a != d.Address() {
 		return CatalogConflict{}
 	}
 	if previous := s.descriptors[d.Address()]; previous != nil {
-		delete(s.names, NameKey{ClassID: d.Address().ClassID, Namespace: previous.Namespace(), Name: previous.Name()})
+		delete(s.names, descriptorNameKey(previous))
 	}
 	if s.oldNames == nil {
 		s.oldNames = make(map[NameKey]bool)
@@ -725,13 +733,21 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		if d.(*collationDescriptor).seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
 		}
+	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
+		provider := s.owner.providers[ref.Address.ClassID]
+		if provider == nil {
+			return fmt.Errorf("stuntgres: missing installed object provider")
+		}
+		if err := provider.Validate(s.base, d); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
 	}
 	if _, exists := s.removals[ref.Address]; exists {
 		return nil
 	}
-	key := NameKey{ClassID: ref.Address.ClassID, Namespace: d.Namespace(), Name: d.Name()}
+	key := descriptorNameKey(d)
 	if s.base.state.names[key] != ref.Address {
 		return CatalogConflict{}
 	}
@@ -743,7 +759,7 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 	// generation. Preserve the original removal/name observations, but do not
 	// resurrect or validate that candidate beside a same-named replacement.
 	if candidate := s.descriptors[ref.Address]; candidate != nil {
-		stagedKey := relationNameKey(candidate)
+		stagedKey := descriptorNameKey(candidate)
 		if s.names[stagedKey] == ref.Address {
 			delete(s.names, stagedKey)
 		}
@@ -790,7 +806,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	for a, removal := range s.removals {
 		d := removal.descriptor
 		delete(ds, a)
-		delete(ns, NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()})
+		delete(ns, descriptorNameKey(d))
 	}
 	for k := range s.oldNames {
 		delete(ns, k)
@@ -1050,7 +1066,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		for a, removal := range s.removals {
 			d := removal.descriptor
 			delete(next.descriptors, a)
-			delete(next.names, NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()})
+			delete(next.names, descriptorNameKey(d))
 			delete(storage, a)
 		}
 		for k := range s.oldNames {
@@ -1377,7 +1393,11 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err
 	}
-	replacement = persistentReplacementCatalog(replacement)
+	var err error
+	replacement, err = persistentReplacementCatalog(replacement)
+	if err != nil {
+		return ChangeSet{}, err
+	}
 	if err := normalizeReplacementIndexHistory(ctx, replacement); err != nil {
 		return ChangeSet{}, err
 	}
@@ -1519,7 +1539,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		replacement.owner.mu.Unlock()
 		return ChangeSet{}, ErrCatalogReplaced
 	}
-	err := copyRows(replacement.owner.storage, replacement.owner.commitSeq)
+	err = copyRows(replacement.owner.storage, replacement.owner.commitSeq)
 	if err == nil {
 		sequences, err = copySequenceState(replacement.owner, replacement)
 	}

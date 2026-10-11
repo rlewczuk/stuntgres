@@ -200,6 +200,110 @@ cancellation still independently requires ordinary identity, zero result and no 
 COPY table-target lock timeout has no Position; query-source SELECT positioning
 keeps its existing authority instead of sharing a fabricated COPY target position.
 
+## Registered extension selected proof
+
+The untagged shared `reference/catalogs/extension_*_test.go` scenarios independently
+assert direct/prepared TEXT/NULL/rules, namespace and trusted ownership, exact
+full diagnostics/notices, atomic failures, transaction/savepoint/publication
+behavior and native control round trips. Controls additionally import named
+extension/member owners into an independent Driver with different role attributes,
+check strict metadata and target-principal fences, retained Rows/metadata,
+committed-only Dump and deterministic redump. Native ownership comments are not
+claimed as PostgreSQL SQL owner-restoration commands.
+
+The disclosed PostgreSQL-only OracleSetup uses real loose FUNCTION/template/
+dictionary and schema-GRANT setup unavailable natively; genuine package units
+stage corresponding member descriptors and actual ACL consumers. Concurrent
+oracle synchronization uses pg_stat_activity solely to observe the genuine
+unique-index wait; native private transactions exercise the same complete-or-none
+publication outcome at commit. No sleep or worker-order assumption identifies
+the loser. Added helper Context expectations are source-grounded independently
+and require confirmation in the selected pinned run.
+
+Permanent TEMP definitions cover the independently observed own-template helper
+failure, authorized foreign installation, exact namespace edge, transactional
+DISCARD/savepoint recovery, bounded physical owner close and native portability/
+retention. Peer assertions during tentative DISCARD deliberately read committed
+catalog identities only: executable consumers can wait on the owner's real locks.
+After rollback, both owner and authorized peer execute the restored provider/views.
+Physical close means lease **and** pool close, not lease return; all close workers
+join within5s. PostgreSQL's advisory exit barrier observes cleanup completion before
+catalog assertions, without polling or assuming asynchronous socket close is exit.
+Mixed collations, private maintenance, late-root/row/index publication, exhausted
+metadata revisions, retained old Rows, source-token rejection, imported OID/name
+collisions and named retained owner DROP dependencies have genuine engine units.
+TemporaryReplacement also captures a genuine TEMP view procedure manifest and
+TEMP DEFAULT/CHECK consumer before replacement, executes them afterward, and
+rejects same-address procedure substitution, foreign physical tokens and ordinary
+stale ObjectRefs. Schema retirement uses successful same-name CREATE SCHEMA rather
+than adding an unrelated native pg_namespace projection.
+SchemaDependencies independently specifies normal extension-to-schema RESTRICT
+diagnostics and CASCADE notices/consumer closure. Confirm these independently
+specified records against the pinned oracle before accepting native behavior.
+
+The integrated `pg_extension_*` definitions use the same single live
+descriptor-derived catalog source as extension installation, not a second empty
+provider. Fresh native catalogs are genuinely empty; installed descriptors supply
+actual identity/owner/schema/version rows. Engine witnesses preserve strict
+column shape/type-generation ownership, cancellation and retained capture
+semantics, and additionally compare an installed row with its published descriptor.
+Missing-provider CREATE prepares successfully and fails at execution with
+`0A000` on both backends. PostgreSQL's system-installation Hint is pinned only on
+PostgreSQL; native exposes its truthful registered-only availability boundary.
+Unchanged ALTER/DROP/LOAD command boundaries remain separately asserted.
+
+Review2 tests-first checkpoint pins eighteen member-catalog attribute nullability
+records as named bags, not physical attnum order. PostgreSQL's pq Nullable
+capability remains unknown; native empty and populated direct/prepared queries
+require known NOT NULL for all exposed procedure/template fields and dictionary
+first five fields, with nullable dictinitoption. The actual standalone smoke
+asserts those same native metadata contracts.
+
+TemporaryCleanup's actual-session-end preparation_stale and
+postdrain_late_consumer subcases delegate genuine outside-lock relation-provider
+validation, publish an independent late procedure-dependent view and durable
+row, and require internal fresh retirement. Ordinary cleanup validates before
+index preparation; validated candidates are not mutated by later index metadata
+evolution. Failed attempts unwind their scope/operation/stage before recapture,
+and unchanged structural errors escape without retry. Mixed TEMP collation plus
+saturated DEFAULT/CHECK metadata uses terminal-only fresh-descriptor semantics;
+actual ordinary/postdrain malformed-survivor units require prompt visible error
+and intact committed state. No user DDL overflow policy is relaxed.
+
+Run each command with an external900s deadline from the part worktree:
+
+```sh
+make check RUN='^TestReferenceExtension(InstallAndProvider|IdentityAndRepeat|VersionSchemaAndPrivilege|Transactions|Controls|OracleSetup|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceExtension(InstallAndProvider|IdentityAndRepeat|VersionSchemaAndPrivilege|Transactions|Controls|OracleSetup|FeatureSmoke)$'
+make check RUN='^TestReferenceExtension(NamespaceDependency|TemporaryOwnInstall|TemporaryLookup|TemporaryDiscard|TemporaryRollback|TemporaryClose|TemporaryControls|SchemaDependencies)$'
+make check REFERENCE=1 RUN='^TestReferenceExtension(NamespaceDependency|TemporaryOwnInstall|TemporaryLookup|TemporaryDiscard|TemporaryRollback|TemporaryClose|TemporaryControls|SchemaDependencies)$'
+make check RUN='^TestExtension(ProviderIdentity|Rules|ExpressionIdentity|ProviderConflicts|SchemaACL|ProviderPublication|DatabaseCreateAuthority|OwnerMetadata|TemporaryClosure|TemporaryCleanup|TemporaryLookup|TemporaryReplacement|SchemaClosure)$'
+make check RUN='^TestTemporaryTable(CleanupClosure|CleanupPublication|TerminalRevisionPreparation|TerminalMaximumPublication|CascadeRevisionBounds)$'
+make check RUN='^TestReferencePGExtension(CommandBoundaries|Diagnostics|Shape|Installed|ResolutionAndPrepared|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePGExtension(CommandBoundaries|Diagnostics|Shape|Installed|ResolutionAndPrepared|Controls|FeatureSmoke)$'
+make check RUN='^TestPGExtension(ShapeAndOwnership|Capture|CaptureInstalled)$'
+make check RUN='^TestReferenceExtensionMemberNullability$'
+make check REFERENCE=1 RUN='^TestReferenceExtensionMemberNullability$'
+make check RUN='^TestCollation(PrivateSessionIdentity|TemporaryCleanupAX|TemporaryCleanupCompletenessFence|TemporaryCleanupExhaustion)$'
+make check RACE=1 RUN='^TestReferenceExtension(Transactions|Controls|TemporaryDiscard|TemporaryRollback|TemporaryClose|TemporaryControls|SchemaDependencies)$'
+make check RACE=1 RUN='^TestExtension(ProviderPublication|DatabaseCreateAuthority|OwnerMetadata|TemporaryClosure|TemporaryCleanup|TemporaryLookup|TemporaryReplacement|SchemaClosure)$'
+```
+
+Select top-level definitions, not a backend slash filter. The same completed
+reference definitions require both native and real pinned modes before review.
+Root runs whole-project Docker-free quickcheck after synchronized edits, not
+mid-flight. Standalone feature smoke is the complete session artifact
+`local://ext-registry-smoke.go`, materialized outside the checkout and run with
+`timeout 900s go run \"$SESSION_TMP/ext-registry-smoke.go\"` from the worktree;
+quiet exit0 requires actual installation, TEXT/NULL, exact repeat/notice,
+member relationships, rollback isolation, trusted privileges and control/import
+ownership witnesses. It additionally performs actual own-TEMP42883 atomicity,
+foreign installation and owner-vs-peer lookup, zero-output Dump failure, tentative
+catalog-only DISCARD visibility, executable rollback recovery, committed full
+consumer closure/surviving rows, fresh reinstall, bounded physical retirement
+with exit barrier, and persistent schema RESTRICT/CASCADE closure. A test named
+FeatureSmoke does not replace that program. Post-merge finalcheck uses an external
+1800s deadline; targets themselves introduce no hidden deadlines.
 
 ## DISCARD selected proof
 

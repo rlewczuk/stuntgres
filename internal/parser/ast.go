@@ -118,6 +118,20 @@ type Discard struct {
 
 func (*Discard) statement() {}
 
+type ExtensionOption struct {
+	Name  string
+	Value Identifier
+	Pos   Position
+}
+type CreateExtension struct {
+	Name        Identifier
+	IfNotExists bool
+	Options     []ExtensionOption
+	Pos         Position
+}
+
+func (*CreateExtension) statement() {}
+
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name        string
@@ -1179,6 +1193,7 @@ func singletonArgument(expr Expr) bool {
 			case "pg_collation_actual_version":
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
+			case "unaccent":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
 				if !enumFunctionName(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {

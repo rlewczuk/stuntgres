@@ -241,7 +241,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	}
 	retired := cloneCatalog(next)
 	delete(retired.descriptors, sequence.address)
-	delete(retired.names, relationNameKey(sequence))
+	delete(retired.names, descriptorNameKey(sequence))
 	if _, err := renderer.sql(context.Background(), CatalogRead{owner: e, state: retired}, literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}

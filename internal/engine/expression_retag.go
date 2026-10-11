@@ -58,6 +58,24 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case installedFunctionExpression:
+		n.arg = child(n.arg)
+		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
+		}
+		dict, ok := view.state.descriptors[proc.dictionary].(*tsDictionaryDescriptor)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
+		}
+		tmpl, ok := view.state.descriptors[dict.template].(*tsTemplateDescriptor)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
+		}
+		changed = changed || n.procedure != proc || n.dictionary != dict || n.template != tmpl
+		n.procedure, n.dictionary, n.template = proc, dict, tmpl
+		n.expressionInfo = info
+		rebound = n
 	case viewQualificationExpression:
 		return mapViewQualification(n, func(child BoundExpr) (BoundExpr, bool, error) {
 			return mapBoundExpression(view, child, retainedType, queryMapper, leaf, collations...)

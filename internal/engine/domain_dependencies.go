@@ -583,6 +583,14 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	for _, d := range domains {
 		contained = append(contained, d)
 		stage.domainTargets = append(stage.domainTargets, d.Address())
+		if extension, ok := d.(*extensionDescriptor); ok {
+			for _, member := range extension.members {
+				stage.domainTargets = append(stage.domainTargets, member)
+				if err := stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: member}, false); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	sort.Slice(contained, func(i, j int) bool { return contained[i].Address().ObjectID < contained[j].Address().ObjectID })
 	sort.Slice(stage.domainTargets, func(i, j int) bool { return stage.domainTargets[i].ObjectID < stage.domainTargets[j].ObjectID })
@@ -599,11 +607,19 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	var details []string
 	for _, d := range contained {
 		label := dependencyObject(stage.base, d.Address(), stage.dependencyPath)
-		namespace := stage.base.state.descriptors[d.Namespace()].Name()
+		namespaceAddress := d.Namespace()
+		if extension, ok := d.(*extensionDescriptor); ok {
+			namespaceAddress = extension.targetNamespace
+		}
+		namespace := stage.base.state.descriptors[namespaceAddress].Name()
 		details = append(details, label+" depends on schema "+dependencyIdentifier(namespace))
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {
-			if edge.root == d.Address() && !edge.automatic {
+			root := edge.root == d.Address()
+			if extension, ok := d.(*extensionDescriptor); ok {
+				root = root || slices.Contains(extension.members[:], edge.root)
+			}
+			if root && !edge.automatic {
 				details = append(details, edge.label+" depends on "+dependencyObject(stage.base, edge.target, stage.dependencyPath))
 			}
 		}

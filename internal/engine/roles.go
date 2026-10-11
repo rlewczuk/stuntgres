@@ -304,6 +304,16 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	d := view.state.descriptors[address]
 	name := dependencyIdentifier(d.Name())
 	kind := "schema "
+	switch d.(type) {
+	case *databaseDescriptor:
+		kind = "database "
+	case *extensionDescriptor:
+		kind = "extension "
+	case *procedureDescriptor:
+		kind = "function "
+	case *tsDictionaryDescriptor:
+		kind = "text search dictionary "
+	}
 	if relation, ok := d.(*relationDescriptor); ok {
 		kind = relationDiagnosticKind(relation) + " "
 		name = relationDiagnosticName(auth, relation)
