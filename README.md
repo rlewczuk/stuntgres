@@ -903,10 +903,12 @@ fallback. The common namespace resolver routes relations, types and supported
 builtin functions/operators; `pg_catalog` qualification and
 `OPERATOR(pg_catalog.+)` preserve their provider boundaries.
 The selected `min_scale`, `round`, `scale`, `trim_scale`, `trunc`, `sign`, `mod`,
-`abs`, `ceil`, `ceiling`, `div`, `exp`, `factorial` and `floor` providers use the same
+`abs`, `ceil`, `ceiling`, `div`, `exp`, `factorial`, `floor`, `acos`, `acosd`,
+`asin`, `asind`, `atan`, `atand`, `atan2` and `atan2d` providers use the same
 namespace checks. `abs` preserves integer/REAL widths; decimal division and
 factorial are exact, and decimal exponential preserves independently selected
-precision (up to 1000 fractional places). See the
+precision (up to 1000 fractional places). Inverse trig uses FLOAT8 signatures,
+with exact notable degree angles and atan2(y,x) quadrant/IEEE semantics. See the
 [mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
 Feature smoke: `make check RUN='^TestMathScalarSmoke$'`.
 
@@ -1729,6 +1731,25 @@ FLOAT8 and integer overloads. NUMERIC ties round away from zero; negative
 scales and exact remainder never pass through floating point. See
 [the signature and behavior note](docs/DIALECT.md#scale-and-rounding-functions--change-note).
 Public feature smoke: `make check RUN='^TestMathSmoke$'`.
+
+Inverse trigonometric functions `acos`, `acosd`, `asin`, `asind`, `atan`, `atand`,
+`atan2` and `atan2d` each return FLOAT8, with implicit numeric widening and fixed
+prepared inference. Radian functions have principal ranges `[0,π]` (acos),
+`[-π/2,π/2]` (asin/atan) and `[-π,π]` (atan2); degree counterparts use
+`[0,180]`, `[-90,90]` and `[-180,180]`. Binary argument order is **y,x**.
+Degree special angles are exact, including all axis/quadrant angles.
+NULL is strict and typed; NaN propagates. acos/acosd/asin/asind reject inputs
+outside[-1,1], including infinities, with `22003`, `input is out of range`, and
+no execution Position. atan/atand accept infinities. Signed zero and subnormal
+operation order are preserved without an underflow error. Go math and PostgreSQL's
+host C libm can differ in ordinary last bits; these are not arbitrary-precision
+trig overloads. See [the capability/change note](docs/DIALECT.md#inverse-trigonometric-functions--change-note).
+Public feature smoke: `make check RUN='^TestReferenceMathTrigFeatureSmoke$'`
+and the same command with `REFERENCE=1`; full independent coverage selects
+`RUN='^TestReferenceMathTrig'` in both modes, with900-second external deadlines.
+The additional root-owned temporary public Go program runs with
+`timeout 60s go run ./.math-trig-feature-smoke` and is removed after recording
+its observed angles/quadrants/NULL/diagnostics/reuse result.
 
 INTERVAL retains independent months/days/microseconds, permitted field ranges
 and fractional precision, verbose/SQL/ISO input, SQL comparison/grouping and

@@ -3233,6 +3233,8 @@ also admits these immutable, strict PostgreSQL18 mathematical overloads:
 | `ceil`, `ceiling`, `floor`, `exp` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8 |
 | `div` | NUMERIC,NUMERIC → NUMERIC |
 | `factorial` | INT8 → NUMERIC |
+| `acos`, `acosd`, `asin`, `asind`, `atan`, `atand` | FLOAT8 → FLOAT8 |
+| `atan2`, `atan2d` | FLOAT8,FLOAT8 → FLOAT8 (`y,x` argument order) |
 
 Exact NUMERIC selects its numeric overload. Unary integer/REAL
 `round`/`trunc`/`sign` select the preferred FLOAT8 overload. Unknown unary
@@ -3298,6 +3300,63 @@ and `round(count(*),1)` are admitted; min/max use the ordinary aggregate stage.
 Feature smoke: `make check RUN='^TestMathSmoke$'`.
 Independent reference:
 `make check REFERENCE=1 RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$'`.
+
+### Inverse trigonometric functions — change note
+
+The six unary and two binary inverse trigonometric functions above each have
+exactly one unconstrained FLOAT8 signature. SMALLINT, INTEGER, BIGINT, REAL and
+NUMERIC implicitly widen to FLOAT8; binary operands widen independently.
+Unknown string literals and inferred parameters use FLOAT8 input, including
+typed NULL results. Known TEXT does not implicitly convert. Qualification,
+search-path visibility, quote-sensitive names, missing-signature diagnostics and
+held-statement inference reuse the mathematical namespace/type contracts.
+
+`acos`, `asin`, `atan` and `atan2` return radians; the `d` variants return degrees.
+Principal ranges are `[0,π]`/`[0,180]` for acos/acosd,
+`[-π/2,π/2]`/`[-90,90]` for asin/asind and atan/atand, and
+`[-π,π]`/`[-180,180]` for atan2/atan2d. The binary order is **atan2(y,x)**:
+axes, all four quadrants, signed-zero endpoints and infinite pairs are retained,
+without division by x. asin/asind/atan/atand preserve negative zero.
+
+Degree evaluation uses PostgreSQL's scaled inverse formulas rather than plain
+radians×180/π. The notable results are exact: asind(-1,-.5,0,.5,1) gives
+(-90,-30,0,30,90), acosd gives (180,120,90,60,0), atand(±1)=±45,
+atand(±Infinity)=±90, and atan2d axis/quadrant angles are exact multiples of45.
+These input/output lists describe separate calls, not additional SQL signatures.
+NaN propagates through all eight functions, including either binary operand;
+SQL NULL remains strict, distinct from NaN, and retains FLOAT8 metadata.
+
+acos/acosd/asin/asind reject finite values outside[-1,1] and either infinity
+with `22003`, exact English primary `input is out of range`. Execution diagnostics
+have absent Position, Detail, Hint and other optional logical fields; no C source
+locations are fabricated. atan/atand accept infinities, and binary zero x/both-zero
+arguments are valid. No zero-underflow exception is introduced. Subnormal degree
+results follow the release's operation order, not ideal real-number scaling:
+minimum positive FLOAT8 gives60 minimum-subnormal units for asind and45 for atand,
+with corresponding negative signs.
+
+Prepare/Describe establishes types without provider execution. Existing immutable
+child simplification precedes strict literal-NULL elimination; for example
+`atan2(NULL,asin(2))` fails during Execute, while a row-dependent bad sibling can
+be eliminated beside literal NULL. Runtime NULL still evaluates demanded siblings.
+Existing projection/nesting, aggregate, INSERT SELECT, UPDATE and stored-view
+consumers retain statement atomicity and native Dump/Restore/retained-reader rules.
+No forward trig, hyperbolic, pi/radians/degrees providers, general function registry
+or new DEFAULT/WHERE/INSERT VALUES admission is implied.
+
+PostgreSQL uses host C libm, whereas native evaluation uses Go math. Ordinary
+last-bit accuracy and boundary behavior can vary by platform; independent tests
+allow at most2ULP for their normal-range nonzero interior targets, but degree
+specials, IEEE categories/zero signs and release-order subnormal witnesses are exact.
+The pinned PostgreSQL18.0 oracle is unchanged.
+
+Shared public smoke: `make check RUN='^TestReferenceMathTrigFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceMathTrigFeatureSmoke$'`.
+Complete selected proof: `make check RUN='^TestReferenceMathTrig'` and the same
+command with `REFERENCE=1` (900-second external deadlines).
+The separate root-owned temporary public Go smoke is invoked as
+`timeout 60s go run ./.math-trig-feature-smoke` after materializing its source;
+it is removed after evidence capture, not installed as a permanent executable.
 
 ### Numeric scalar functions — change note
 
