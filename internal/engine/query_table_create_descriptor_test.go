@@ -193,6 +193,54 @@ func TestQueryTableCreateStructuralOutputWrappers(t *testing.T) {
 	}
 }
 
+func TestQueryTableCreateEnumArrayOutputBoundary(t *testing.T) {
+	e := New()
+	mood, err := sqltype.Enum(61101, "mood", "public.mood", []string{"z", "a", "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	array, err := sqltype.Array(61102, "_mood", mood)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domain := func(id sqltype.ID, name string, base *sqltype.Descriptor) *sqltype.Descriptor {
+		t.Helper()
+		typ, err := sqltype.Domain(id, name, name, base.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return typ
+	}
+	arrayOf := func(id sqltype.ID, name string, element *sqltype.Descriptor) *sqltype.Descriptor {
+		t.Helper()
+		typ, err := sqltype.Array(id, name, element)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return typ
+	}
+	arrayDomain := domain(61103, "mood_array_domain", array)
+	nested := arrayOf(61104, "_mood_array_domain", arrayDomain)
+	outer := domain(61105, "nested_domain", nested)
+	for _, typ := range []*sqltype.Descriptor{array, arrayDomain, nested, outer} {
+		err := validateQueryTableOutputType(typ)
+		var got *sqlstate.Error
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported array element type"}
+		if !errors.As(err, &got) || *got != *want {
+			t.Fatal("enum array crossed query-derived storage boundary", typ.Name(), err)
+		}
+	}
+	moodDomain := domain(61106, "mood_domain", mood)
+	projection := arrayOf(61107, "_mood_domain", moodDomain)
+	projectionDomain := domain(61108, "projection_domain", projection)
+	integerArray := arrayOf(61109, "_integer", testUsage(e, sqltype.Int4).Type)
+	for _, typ := range []*sqltype.Descriptor{mood, moodDomain, projection, projectionDomain, integerArray} {
+		if err := validateQueryTableOutputType(typ); err != nil {
+			t.Fatal("supported query-derived output rejected", typ.Name(), err)
+		}
+	}
+}
+
 func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 	for _, noData := range []bool{false, true} {
 		e := New()

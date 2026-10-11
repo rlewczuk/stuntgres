@@ -239,6 +239,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case stringExpression:
 		n.args = args(n.args)
 		next = n
+	case enumFunctionExpression:
+		n.args = args(n.args)
+		next = n
 	case mathExpression:
 		n.args = args(n.args)
 		next = n

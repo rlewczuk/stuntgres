@@ -5886,8 +5886,28 @@ values are string versus pq raw bytes. Logical type identity remains exact.
 Qualified declarations/owners/ordered labels and stored dependent consumers
 roundtrip through native Dump/Restore and import remapping. Held eager rows
 survive replacement; old prepared logical contracts cannot retarget by name.
-ALTER/DROP TYPE, pg_enum catalogs and enum arrays remain excluded.
+ALTER/DROP TYPE, pg_enum catalogs and general direct enum[] syntax/storage remain excluded.
 AS (...) composites are documented separately. See [types](TYPES.md#enums--change-note).
+
+`enum_first(anyenum)`, `enum_last(anyenum)`, `enum_range(anyenum)` and
+`enum_range(anyenum, anyenum)` use exact actual enum identities, not domains.
+Unary calls ignore values including typed NULL; ranges use inclusive declaration
+order and NULL endpoints as boundaries. Empty/reversed ranges are non-NULL empty
+arrays; empty extrema fail55000. Functions are non-strict STABLE, still evaluating
+demanded arguments. Computed ranges use the existing associated array identity
+and canonical transport; no direct enum[] annotation/storage capability is added.
+Surviving calls fail42P17 in generated columns, index expressions and index
+predicates; calls removed by conditional simplification do not block admission.
+Computed range SELECTs and ordinary views remain valid. Native query-derived
+enum-array destinations (CTAS and materialized views, WITH DATA or WITH NO DATA)
+fail0A000 `unsupported array element type` before publication. PostgreSQL
+supports those destinations. Scalar enum storage, supported domain-over-enum
+element arrays and non-enum arrays retain their existing rules.
+DISTINCT on a resolved enum support call fails42809 at the function name, rather
+than a parser syntax error: these scalar functions are not aggregates. Result
+metadata retains the native associated array name (for example `_MOOD`); pinned
+PostgreSQL/pq leaves these dynamic type names empty.
+See [enum function details](TYPES.md#enums--change-note).
 
 
 ## Index maintenance — change note

@@ -171,6 +171,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		if err == nil {
 			err = child(n.otherwise)
 		}
+	case enumFunctionExpression:
+		out.WriteString("Enum " + n.plan.Name())
+		err = args(n.args)
 	case mathExpression:
 		out.WriteString("Math " + n.plan.Name())
 		err = args(n.args)

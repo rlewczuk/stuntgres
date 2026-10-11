@@ -114,9 +114,6 @@ func TestGroupingEnumOrdinalDomainsAndRecursiveArrays(t *testing.T) {
 	if _, err := BindComparison(domain, domain); err == nil {
 		t.Fatal("ordinary polymorphic enum domain operands widened")
 	}
-	if _, err := Array(62006, "_group_enum", enum); err == nil {
-		t.Fatal("direct enum-array admission widened")
-	}
 	if _, err := BindComparison(array, array); err == nil {
 		t.Fatal("ordinary enum-array comparison widened")
 	}

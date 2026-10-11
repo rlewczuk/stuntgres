@@ -196,6 +196,8 @@ func generationImmutable(node BoundExpr) bool {
 		return false
 	case stringExpression:
 		return !n.plan.SessionDependent() && args(n.args)
+	case enumFunctionExpression:
+		return false
 	case mathExpression:
 		return args(n.args)
 	case nullCountExpression:
@@ -323,6 +325,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case numericFormattingExpression:
 		return args(n.args[:])
 	case stringExpression:
+		return args(n.args)
+	case enumFunctionExpression:
 		return args(n.args)
 	case mathExpression:
 		return args(n.args)
@@ -559,6 +563,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case numericFormattingExpression:
 		return args(n.args[:])
 	case stringExpression:
+		return args(n.args)
+	case enumFunctionExpression:
 		return args(n.args)
 	case mathExpression:
 		return args(n.args)

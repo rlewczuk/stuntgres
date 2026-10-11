@@ -85,6 +85,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	var kind nullCountKind
 	switch name {
+	case "enum_first", "enum_last", "enum_range":
+		return b.bindEnumFunction(raw, visible)
 	case "gen_random_uuid", "uuidv4", "uuidv7":
 		return b.bindUUIDGeneration(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
@@ -342,6 +344,9 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 			return nil, err
 		}
 		names[i] = functionArgumentTypeName(rawArg, arg)
+		if typ := arg.ResultUsage().Type; typ != nil && names[i] != "unknown" {
+			names[i] = b.diagnosticTypeName(typ)
+		}
 		names[i] = functionNamedType(raw, i, names[i])
 	}
 	return names, nil

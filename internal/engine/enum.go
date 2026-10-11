@@ -63,7 +63,10 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	array := sqltype.LookupArray(sqltype.ID(arrayOID), associatedArrayName(stage, ns.Address, name), typ)
+	array, err := sqltype.Array(sqltype.ID(arrayOID), associatedArrayName(stage, ns.Address, name), typ)
+	if err != nil {
+		return err
+	}
 	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, array: array.ID()}); err != nil {
 		return err
 	}

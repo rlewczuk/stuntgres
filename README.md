@@ -1137,10 +1137,24 @@ enum metadata identity. Native export/ScanType is string, DatabaseTypeName is
 empty; pinned pq exports raw bytes with interface{} ScanType for enum OIDs.
 Dump emits enums before dependent domains/tables/stored consumers, preserving
 label order and owners. Fresh prepares after Reset/Restore use new identities;
-retained eager rows remain owned. ALTER/DROP TYPE, pg_enum and enum arrays are
-excluded. See [enum types](docs/TYPES.md#enums--change-note).
+retained eager rows remain owned. ALTER/DROP TYPE, pg_enum and general direct enum[]
+syntax/storage are excluded. See [enum types](docs/TYPES.md#enums--change-note).
 Feature smoke: `make check RUN='^TestReferenceEnumSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumSmoke$'`.
+
+Change note: `enum_first`, `enum_last` and both `enum_range` overloads use the
+actual enum descriptor and declaration order. Unary calls ignore the datum,
+including typed NULL; bounded ranges are inclusive and NULL endpoints select
+boundaries. Ranges are actual computed enum arrays with canonical output, not
+general enum[] syntax/storage admission. Calls are non-strict and STABLE, with
+direct/prepared metadata and native stored-definition remapping.
+Surviving calls reject generated columns and index expressions/predicates with
+42P17; eliminated branches retain ordinary immutable admission. Computed ranges
+and ordinary views remain supported, but enum-array CTAS/materialized storage
+is excluded with or without data. PostgreSQL supports that storage; this is a
+native capability boundary, not a PostgreSQL diagnostic.
+Feature smoke: `make check RUN='^TestReferenceEnumFunctionsFeatureSmoke$'`;
+pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumFunctionsFeatureSmoke$'`.
 
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;

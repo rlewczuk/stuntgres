@@ -620,6 +620,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
+	case enumFunctionExpression:
+		return function(n.plan.Name(), n.args, true)
 	case mathExpression:
 		if n.plan.Name() == "pg_size_pretty" {
 			text, err := child(n.args[0])

@@ -671,6 +671,29 @@ elements and domains over those arrays. Native enum-array column storage remains
 excluded; projected literal/annotation codecs are not storage admission, and
 ordinary array comparison/ordering and polymorphic enum operators are unchanged.
 
+`enum_first(anyenum)` and `enum_last(anyenum)` return the same actual enum type,
+ignoring the datum (including typed NULL). `enum_range(anyenum)` returns every
+label; `enum_range(anyenum, anyenum)` returns the inclusive declaration-ordered
+interval. NULL endpoints select the first/last boundary; reversed intervals and
+empty enums produce a non-NULL empty array. Empty-enum extrema fail55000.
+These non-strict functions are STABLE and still evaluate demanded arguments.
+Surviving calls are not immutable generation/index expressions or index
+predicates (42P17); an eliminated conditional branch does not survive admission.
+Unknown peers infer from an actual enum; domains and different enums fail42883.
+The range result is an actual computed array with the enum's associated catalog
+identity and canonical array output, not TEXT. Native array metadata reports its
+uppercase associated name and string ScanType. This does not admit direct enum[]
+annotations, casts, columns or domain bases; existing domain-over-enum projections
+remain supported. Ordinary computed-array consumers retain their own rules.
+Computed ranges and ordinary views remain supported, but physical destinations
+derived by CREATE TABLE AS or CREATE MATERIALIZED VIEW reject direct enum-array
+elements with0A000 `unsupported array element type`, for both WITH DATA and WITH
+NO DATA. Outer domain/array wrappers do not bypass that boundary. Scalar enum
+query-derived storage, domain-over-enum element projections and supported
+non-enum arrays are unchanged. PostgreSQL supports enum-array annotations,
+domain bases and physical storage; these are intentional native exclusions,
+not asserted PostgreSQL errors.
+
 Standalone SELECT uses the ordinary local input for enum casts, their admitted
 comparisons, Boolean predicates and explicit TEXT output casts. Other scalar
 targets do not require an enum witness; type/provider rules remain independent
@@ -690,7 +713,7 @@ Dump/Restore emits qualified enum declarations before dependent domains/tables,
 preserving label order, canonical escaping, owner remapping and stored defaults,
 CHECKs and views. Changed type ACLs are refused rather than silently discarded.
 Restore remains atomic on parse/input/owner/read/cancellation failures.
-ALTER TYPE, DROP TYPE, pg_enum queries and enum arrays remain excluded.
+ALTER TYPE, DROP TYPE, pg_enum queries and general direct enum[] syntax/storage remain excluded.
 Named AS (...) composites are documented separately above. Public verification:
 `make check RUN='^TestReferenceEnum.*$'`
 and `make check REFERENCE=1 RUN='^TestReferenceEnum.*$'`.

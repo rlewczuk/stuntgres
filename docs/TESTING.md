@@ -117,6 +117,28 @@ stable login identity, owner sentinel7, SESSION/LOCAL/savepoint/commit, NONE/res
 outside-block warning25P01 and denied42501. Generic multi-command execution remains
 a native0A000 boundary; malformed scripts still parse completely before effects.
 
+Enum support-function public witnesses use the shared direct/prepared definition:
+`make check RUN='^TestReferenceEnumFunctions'` and
+`make check REFERENCE=1 RUN='^TestReferenceEnumFunctions'`.
+Standalone feature smoke uses `RUN='^TestReferenceEnumFunctionsFeatureSmoke$'`
+in both modes. It checks typed NULL extrema, inclusive/NULL-bounded computed
+arrays, metadata/raw transport, exact mismatch diagnostics and genuine native
+stored-definition/eager-value controls. Private provider/retag units supplement
+these witnesses with
+`RUN='^(TestEnumSupportFunctions|TestEnumFunctionRetagAndStoredProviders|TestQueryTableCreateEnumArrayOutputBoundary|TestQueryTableCreateStructuralOutputWrappers)$'`.
+The selected admission regressions use
+`RUN='^TestReferenceEnumFunctions(StableAdmission|StorageBoundaries)$'` in
+both modes. They independently assert STABLE generated-column/index-expression/
+index-predicate rejection and the bounded native enum-array storage exclusion.
+PostgreSQL storage succeeds, including query-derived and explicit enum arrays;
+its successful stored values and NO DATA behavior are asserted separately from
+native capability diagnostics. Computed ranges, ordinary views, projected
+domain-over-enum arrays and non-enum array storage remain positive controls.
+Derived native storage and explicit annotation/domain exclusions exercise direct
+and prepared routes with full diagnostics and no partial publication. The
+unpopulated PostgreSQL materialized view uses the shared full55000 diagnostic
+and REFRESH hint, then refreshes successfully. Positive view metadata retains
+declared native nullability rather than computed-expression nullability.
 
 The affected visibility utility-boundary scenarios now assert supported MV
 creation/count/stored rows and cleanup in both backends, instead of obsolete

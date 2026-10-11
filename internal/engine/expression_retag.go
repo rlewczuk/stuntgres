@@ -476,6 +476,35 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.plan, err = sqltype.BindString(n.plan.Name(), info.usage, text, usages[:len(n.args)], n.textual, n.plan.CollationIndeterminate())
 		n.expressionInfo = info
 		rebound = n
+	case enumFunctionExpression:
+		var args []BoundExpr
+		var usages [2]sqltype.Usage
+		for i, old := range n.args {
+			next, replaced, failure := retagBoundTypesWithQuery(view, old, retainedType, queryMapper, collations...)
+			if failure != nil {
+				return node, false, failure
+			}
+			changed = changed || replaced
+			if replaced {
+				if args == nil {
+					args = append([]BoundExpr(nil), n.args...)
+				}
+				args[i] = next
+			}
+			usages[i] = next.ResultUsage()
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		if args != nil {
+			n.args = args
+		}
+		n.plan, err = sqltype.BindEnumSupport(n.plan.Name(), info.usage, usages[:len(n.args)]...)
+		n.expressionInfo = info
+		rebound = n
 	case mathExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
 		var usages [2]sqltype.Usage

@@ -813,6 +813,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
+	if token.code == IDENT && enumFunctionName(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	if token.code == IDENT && (trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
@@ -944,6 +947,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
+	if token.code == SELECTED_FUNC && enumFunctionName(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = CHECK_FUNC
+		}
+	}
 	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_get_serial_sequence") || token.lexeme.text == "current_schemas" || token.lexeme.text == "gen_random_uuid" || token.lexeme.text == "uuidv4" || token.lexeme.text == "uuidv7") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
@@ -954,7 +964,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	if token.code == CHECK_FUNC && TransactionTimeFunctionName(token.lexeme.text) {
+	// Enum support calls reuse the ordinary failure-only decoration grammar;
+	// their binder rejects aggregate modifiers after resolving the operands.
+	if token.code == CHECK_FUNC && (TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text)) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1476,4 +1488,8 @@ func TransactionTimeFunctionName(name string) bool {
 	return strings.EqualFold(name, "now") || strings.EqualFold(name, "transaction_timestamp") ||
 		strings.EqualFold(name, "statement_timestamp") || strings.EqualFold(name, "clock_timestamp") ||
 		strings.EqualFold(name, "timeofday")
+}
+
+func enumFunctionName(name string) bool {
+	return strings.EqualFold(name, "enum_first") || strings.EqualFold(name, "enum_last") || strings.EqualFold(name, "enum_range")
 }

@@ -313,13 +313,13 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
-	if domainBase && (!d.Concrete() || d.ID() == sqltype.Void) {
+	if domainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void) {
 		return sqltype.Usage{}, typeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
 	}
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if !d.Concrete() || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void || d.ID() == sqltype.Xid {
+	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void || d.ID() == sqltype.Xid {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
@@ -377,7 +377,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	if len(raw.ArrayBounds) > 0 {
 		array, ok := view.LookupArray(d)
-		if !ok {
+		if !ok || d.IsEnum() {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported array element type")
 		}
 		u.Type = array

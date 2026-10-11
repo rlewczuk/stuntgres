@@ -229,6 +229,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case datetimeMakeExpression:
 		return true
+	case enumFunctionExpression:
+		return true
 	case mathExpression, binaryExpression, randomExpression, advisoryExpression, uuidGenerationExpression, nullCountExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		return true
 	default:

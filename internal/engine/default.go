@@ -213,7 +213,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		datetimeJustifyExpression, datetimeExtractExpression, datetimeOverlapsExpression,
 		datetimeBinExpression, datetimeTruncExpression, datetimeAgeFiniteExpression, datetimeMakeExpression,
 		datetimeFormattingExpression, numericFormattingExpression, stringExpression,
-		mathExpression, nullCountExpression, formatExpression:
+		enumFunctionExpression, mathExpression, nullCountExpression, formatExpression:
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case visibilityInquiryExpression:
 		if r.owner == nil {
@@ -806,4 +806,3 @@ func (r scalarRenderer) record(ref ObjectRef) {
 	}
 	*r.dependencies = append(*r.dependencies, ref)
 }
-

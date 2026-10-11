@@ -151,6 +151,22 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return n.specialSQL(parts)
 		}
 		return "pg_catalog." + n.plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+	case enumFunctionExpression:
+		if len(n.args) < 1 || len(n.args) > 2 {
+			return "", fmt.Errorf("stuntgres: invalid stored enum arity")
+		}
+		var usages [2]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return "", fmt.Errorf("stuntgres: missing enum operand")
+			}
+			usages[i] = arg.ResultUsage()
+		}
+		plan, err := sqltype.BindEnumSupport(n.plan.Name(), u, usages[:len(n.args)]...)
+		if err != nil || plan != n.plan {
+			return "", fmt.Errorf("stuntgres: invalid stored enum provider")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
 	case mathExpression:
 		if len(n.args) == 0 || len(n.args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored math arity")
