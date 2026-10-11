@@ -20,20 +20,22 @@ type queryLeaf struct {
 	// not SELECT FOR UPDATE authority or source tuple locks.
 	deleteReference  bool
 	partialCandidate *relationDescriptor
+	analysisOnly     bool // Unreferenced CTE body: analyzed dependency, no executable ACL.
 }
 
 func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {
 	admissions := make(map[*parser.Select]*queryLockAdmission)
 	var ordered []*queryLockAdmission
 	tableQueries := make(map[*parser.TableReference]*parser.Select)
+	future := make(map[*parser.TableReference]string)
+	virtual := make(map[*parser.TableReference]bool)
 	admit := func(query *parser.Select) *queryLockAdmission {
 		if prior := admissions[query]; prior != nil {
 			return prior
 		}
-		marks, err := queryLockTargets(query.From, query.Locking)
 		indices := make(map[*parser.TableReference]int)
-		_ = parser.VisitQuerySources(query, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
-		admission := &queryLockAdmission{selectQuery: query, marks: marks, err: err, indices: indices}
+		_ = parser.VisitQuerySources(&parser.Select{From: query.From}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
+		admission := &queryLockAdmission{selectQuery: query, indices: indices}
 		admissions[query] = admission
 		ordered = append(ordered, admission)
 		return admission
@@ -46,10 +48,16 @@ func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*p
 		tables = append(tables, table)
 		queries = append(queries, query)
 		return nil
+	}, func(table *parser.TableReference, isVirtual bool, pending string) {
+		virtual[table] = isVirtual
+		future[table] = pending
 	}); err != nil {
 		return queryLockAdmission{}, nil, nil, err
 	}
-	return queryLockAdmission{queries: admissions, ordered: ordered, tableQueries: tableQueries}, tables, queries, nil
+	for _, a := range ordered {
+		a.marks, a.err = queryLockTargets(a.selectQuery.From, a.selectQuery.Locking, virtual)
+	}
+	return queryLockAdmission{queries: admissions, ordered: ordered, tableQueries: tableQueries, futureCTE: future, virtualCTE: virtual}, tables, queries, nil
 }
 
 func (a *queryLockAdmission) tableMark(table *parser.TableReference) queryRowMark {
@@ -77,7 +85,7 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.mode), Wait: mark.wait}}
 		}
 		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
-			return err
+			return futureCTEError(err, admission.futureCTE[table])
 		}
 		leaf := &s.querySources[len(s.querySources)-1]
 		leaf.mark, leaf.query, leaf.table = mark, queries[i], table
@@ -247,6 +255,17 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		sources = make([]*querySource, len(leaves))
 	}
 	for i, leaf := range leaves {
+		if leaf.analysisOnly {
+			source := &querySource{ref: leaf.ref, materialized: true, flatWidth: len(leaf.relation.columns)}
+			source.borrowAuthority(scope)
+			if first == nil {
+				first = source
+			}
+			if sources != nil {
+				sources[i] = source
+			}
+			continue
+		}
 		mark := mergeQueryRowMark(inherited, leaf.mark)
 		var source *querySource
 		switch leaf.relation.relationKind {

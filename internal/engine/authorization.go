@@ -836,6 +836,9 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 
 func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	for _, source := range sources {
+		if source.analysisOnly {
+			continue
+		}
 		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, SelectPrivilege, source.uses); err != nil {
 			return err
 		}

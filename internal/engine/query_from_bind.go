@@ -14,6 +14,7 @@ type queryColumn struct {
 	descriptor     ColumnDescriptor
 	slot           int
 	leaf, physical int // -1 identifies a computed merged value.
+	cteScan        *derivedNode
 }
 type queryQualifier struct {
 	name, schema, original, alias string
@@ -62,6 +63,9 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 
 func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) BoundExpr {
 	var origin ObjectRef
+	if c.cteScan != nil {
+		c.cteScan.demand[c.physical] = true
+	}
 	if c.leaf == queryTargetLeaf {
 		origin = b.useColumnOf(b.queryTargetRelation(), c.physical)
 	} else if c.leaf >= 0 {
@@ -290,9 +294,17 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		b.queryHidden = append(b.queryHidden, queryQualifier{name: "unnamed_subquery", columns: columns})
 		return query.Root, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.TableReference:
+		if len(n.Name.Parts) == 1 {
+			for i := len(b.cteBindings) - 1; i >= 0; i-- {
+				binding := b.cteBindings[i]
+				if binding.name == n.Name.Parts[0].Text {
+					return b.bindCTEScan(n, binding.definition)
+				}
+			}
+		}
 		ref, err := b.engine.resolveReference(*b.queryAuth, n.Name)
 		if err != nil {
-			return nil, queryNamespace{}, err
+			return nil, queryNamespace{}, futureCTEError(err, b.queryLockAdmission.futureCTE[n])
 		}
 		relation := b.queryAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if relation.relationKind == compositeRelation {
@@ -313,7 +325,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n], deleteReference: b.deleteUsingSources && len(b.queryScopes) == 0})
 		columns := make([]queryColumn, len(relation.columns))
 		for i, c := range relation.columns {
-			columns[i] = queryColumn{c, i, leaf, i}
+			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
 		}
 		q := queryQualifier{name: relation.name, original: relation.name, schema: b.queryAuth.catalog.state.descriptors[relation.namespace].Name(), ref: ref, columns: columns}
 		b.queryHidden = append(b.queryHidden, q)

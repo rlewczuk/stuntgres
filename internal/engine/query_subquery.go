@@ -10,13 +10,14 @@ import (
 // opens a fresh stage with an explicit lexical outer frame, never cached rows.
 type subqueryExpression struct {
 	expressionInfo
-	kind         parser.SubqueryKind
-	queryPlan    *BoundQuery
-	comparisons  []comparisonExpression
-	ordering     []sqltype.Comparison
-	operator     string
-	negate       bool
-	presenceOnly bool
+	kind          parser.SubqueryKind
+	queryPlan     *BoundQuery
+	comparisons   []comparisonExpression
+	ordering      []sqltype.Comparison
+	operator      string
+	negate        bool
+	presenceOnly  bool
+	cteDefinition bool // Analysis-only graph edge, never expression demand.
 }
 
 func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
@@ -161,7 +162,7 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 			return sqltype.Value{}, err
 		}
 	}
-	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c}
+	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes}
 	stage, err := openQueryProjectStage(c.Context, &state, e.queryPlan.Root.(*projectNode))
 	if err != nil {
 		return sqltype.Value{}, err

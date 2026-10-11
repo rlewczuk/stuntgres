@@ -32,7 +32,7 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog Catalo
 	return renderer.selectQueryColumnsSQL(ctx, catalog, s, project, columns, false)
 }
 
-func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
+func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
 	if project == nil {
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
@@ -51,6 +51,9 @@ func (renderer *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog
 	presentation.columns = columns
 	_, renderer.simple = s.From.(*parser.TableReference)
 	renderer.simple = renderer.simple && presentation.deparse
+	if table, ok := s.From.(*parser.TableReference); ok && viewCTETable(viewFromRoot(project), table) != nil {
+		renderer.simple = false
+	}
 	v := renderer
 	if s.Set != nil {
 		set, ok := viewFromRoot(project).(*setNode)

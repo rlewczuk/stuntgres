@@ -799,6 +799,7 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
+	With          []CommonTableExpression
 	From          FromItem
 	Values        *ValuesQuery
 	Targets       []Expr
@@ -818,6 +819,28 @@ type Select struct {
 }
 
 func (*Select) statement() {}
+
+type CTEMaterialization uint8
+
+const (
+	CTEDefault CTEMaterialization = iota
+	CTEMaterialized
+	CTENotMaterialized
+)
+
+type CommonTableExpression struct {
+	Name            Identifier
+	Columns         []Identifier
+	Query           *Select
+	Materialization CTEMaterialization
+}
+
+// Parentheses can decorate the same Select; retain the outer WITH token for
+// multiple-WITH diagnostics rather than overwriting the existing clause.
+type cteClause struct {
+	Definitions []CommonTableExpression
+	Pos         Position
+}
 
 type GroupKind uint8
 

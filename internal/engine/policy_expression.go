@@ -11,7 +11,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
 	columns := make([]queryColumn, len(d.columns))
 	for i, c := range d.columns {
-		columns[i] = queryColumn{c, i, 0, i}
+		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	ns := queryNamespace{
 		columns:    columns,

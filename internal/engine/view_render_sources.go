@@ -297,6 +297,16 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		aliased.relation = "(" + text + ")"
 		return aliased, nil
 	case *parser.TableReference:
+		if root := viewCTETable(viewFromRoot(v.query.Root), n); root != nil {
+			name := quoteIdentifier(n.Name.Parts[0].Text)
+			from := viewRenderFrom{text: name, relation: name, root: root}
+			for i, column := range root.Schema() {
+				from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
+			}
+			aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
+			aliased.relation = name
+			return aliased, nil
+		}
 		occurrence := ns.ordinal
 		if occurrence < 0 || occurrence >= len(v.sources) {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: invalid view source occurrence")

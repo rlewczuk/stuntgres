@@ -1885,7 +1885,7 @@ operands receive typed NULLs before WHERE. LEFT/RIGHT merged keys select their
 coerced preserved operand; FULL uses COALESCE with no physical output origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution rebinds all sources; eager results survive native Reset/Restore.
-LATERAL joins, CTE and function FROM remain excluded; derived SELECT and
+LATERAL joins and function FROM remain excluded; SELECT CTEs, derived SELECT and
 parenthesized VALUES are supported non-lateral FROM operands.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make check RUN='^TestReferenceQuery(OuterJoins|Joins)'`;
@@ -2501,8 +2501,8 @@ replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
 a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
-PostgreSQL-only witness. Native FKs, triggers, CTE and recursive inheritance
-targets remain excluded; leaf child DELETE works. Positioned
+PostgreSQL-only witness. Native FKs, triggers, top-level WITH DELETE and recursive
+inheritance targets remain excluded; leaf child DELETE works. Positioned
 `DELETE WHERE CURRENT OF cursor_name` uses the current physical cursor occurrence
 with normal USING/RETURNING and transaction semantics, not value matching.
 Smoke: `make check RUN='^TestReferenceDeleteUsingSmoke'`;
@@ -6389,3 +6389,40 @@ Frame exclusions, other providers, count(expr) window execution and
 window aggregate FILTER remain native0A000 capability boundaries. Ordinary aggregate
 modifiers are unchanged. See [query semantics](QUERIES.md#selected-windows--change-note-changelog).
 
+
+## SELECT CTEs — change note
+
+`WITH name [(column, ...)] AS [MATERIALIZED | NOT MATERIALIZED] (SELECT ...)`
+provides statement-scoped virtual FROM relations through the existing SELECT
+pipeline. Bodies see earlier siblings and enclosing definitions; the primary
+query sees every local definition. Pending self/later names are not bindings:
+an enclosing definition or real table can still resolve the spelling. Qualified
+names always resolve physical relations. Prefix aliases may be shorter than
+the output width; excess aliases fail42P10. Duplicate output names retain their
+positions and become ambiguous only when named. Duplicate definitions fail42712
+before body analysis.
+
+Default eligible single-use SELECT definitions fold; eligible repeated
+definitions share unless NOT MATERIALIZED is requested. MATERIALIZED forces a
+boundary; VOLATILE expressions anywhere in the analyzed definition, including
+unused nested WITH bodies, prevent folding. Those nested producers still remain
+unexecuted when unused. Safe occurrence-local restrictions cross folded projections without
+changing LIMIT, grouping, DISTINCT/set, window or NULL-extension semantics.
+
+Shared producers are lazy, replayable and owned by the defining query invocation.
+Outer definitions can be shared by scalar readers; a correlated local definition
+gets a fresh producer for each invocation. Prepared execution never retains
+producer rows. All bodies undergo name/type/dependency analysis; executable
+permission checks omit unreachable unused definitions, but referenced LIMIT0
+and WHERE FALSE retain their source requirements.
+
+SELECT subqueries, derived queries, set operands, stored views/materialized views,
+CTAS, SELECT INTO, cursors and INSERT SELECT retain these contracts. Virtual names
+never enter pg_class, persistent storage or native Dump. Stored definitions retain
+WITH syntax and real-object dependencies through rename and native Dump/Restore.
+Recursive/SEARCH/CYCLE, modifying bodies, top-level WITH DML, standalone
+VALUES/TABLE bodies and LATERAL remain excluded.
+
+Dual-mode family: `RUN='^TestReferenceQueryCTE'`; feature smoke:
+`RUN='^TestReferenceQueryCTEFeatureSmoke$'`. See
+[query details](QUERIES.md#select-ctes--change-note-changelog).

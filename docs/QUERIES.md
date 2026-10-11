@@ -766,7 +766,7 @@ copied outward without mutating source declaration proofs or child frames.
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 ORDER expressions resolve the complete joined namespace.
-LATERAL joins, CTEs and FROM functions remain excluded; derived SELECT queries and
+LATERAL joins and FROM functions remain excluded; SELECT CTEs, derived SELECT queries and
 parenthesized VALUES are supported non-lateral sources. DELETE USING and UPDATE FROM
 consume the same bounded join tree and are described below.
 
@@ -1538,8 +1538,9 @@ ORDER analysis follows target validation and VALUES width/common typing. Raw
 parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
 No-FROM SELECT sources use the same local input as standalone SELECT.
-Standalone and FROM VALUES use the same query-source binder and runtime described
-below. WITH/CTE and RETURNING remain outside this INSERT producer surface.
+Standalone and FROM VALUES use the same query-source binder and runtime described below.
+SELECT WITH queries use this same INSERT source producer. Top-level WITH INSERT,
+modifying CTE bodies and RETURNING remain outside this surface.
 Conflict omission is described in [INSERT conflict omission](#insert-conflict-omission--change-note).
 Supported SELECT row-lock clauses are described in [SELECT row locking](#select-row-locking--change-note).
 
@@ -1655,7 +1656,7 @@ table/whole-join/column/merged-key aliases, derived SELECT, VALUES, supported
 views/catalog relations reuse query binding and execution. Immediate sequence
 USING sources fail with 42809 (`cannot lock rows in sequence`); this reference-kind
 check does not acquire source tuple locks or require source UPDATE privileges. Existing
-FULL-path legality restrictions remain; no CTE/LATERAL/function source is added.
+FULL-path legality restrictions remain; top-level WITH DELETE, LATERAL and function sources remain excluded.
 Internal source ON and derived queries cannot reference the mutation target;
 WHERE and RETURNING resolve the combined namespace. Source aliases hide original
 names, whole-join aliases hide operands, and merged-key aliases expose only keys.
@@ -2028,7 +2029,7 @@ Triggers and whole-row records/parenthesized expansion,
 rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
 transformation/suppression and whole-row controls, not native successful no-ops.
-INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE and recursive inheritance
+INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/top-level WITH UPDATE and recursive inheritance
 remain excluded; leaf inherited-table DML is supported. No new evaluator,
 durability or retry path is introduced.
 
@@ -2121,7 +2122,7 @@ Both backends preserve statement mutation atomicity; sequence draws are nonrollb
 Retained native output survives rollback and Reset/Restore. Persistence includes
 committed live heads/catalog/sequence state, never source captures or output history.
 
-LATERAL/CTE/function FROM, row assignments and DEFAULT,
+LATERAL/function FROM, top-level WITH UPDATE, row assignments and DEFAULT,
 CURRENT OF, whole-row records and INSERT RETURNING remain excluded.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.
@@ -3078,7 +3079,7 @@ consumption; plain scalar views still defer to enclosing qualification.
 Native eager failure exposes no prefix/cursor. pq can expose an independently
 expected acquired prefix before terminal Rows.Err: consume that error and close
 rows/statements before rollback or other SQL on the same connection.
-CTEs, general derived SELECTs, cursors and adjacent excluded providers remain
+Outer row marks do not propagate through virtual CTE references. General derived SELECTs, cursors and adjacent excluded providers remain
 excluded. There is one occurrence manifest and arbiter for direct/stored marks.
 Smoke: `make check RUN='^TestReferenceQueryLockFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceQueryLockFeatureSmoke$'`.
@@ -3138,7 +3139,7 @@ Restore still rejects query INSERT sources before publication, and failed
 Restore leaves the prior engine intact. Eager results own metadata and exported
 cells across subsequent Reset/Restore; public Next does not execute SQL.
 
-LATERAL, CTEs and FROM functions remain excluded. SELECT and VALUES compose with
+LATERAL and FROM functions remain excluded. SELECT CTEs, SELECT and VALUES compose with
 UNION/INTERSECT/EXCEPT; derived SELECT and admitted outer joins use the shared FROM
 dispatcher. Destination assignment follows set-source common typing and dedup,
 while ordinary INSERT VALUES/SELECT retain their existing assignment contexts.
@@ -3218,7 +3219,7 @@ inherited row-lock or UPDATE requirements. Locally stored descendant marks still
 apply, and every arm retains its used-column SELECT and dependency admission,
 including empty or LIMIT0 reads. Ordinary non-set views remain transparent to
 inherited marks; inline-derived set output still rejects enclosing marks.
-TABLE, CTE and LATERAL remain outside this change.
+TABLE and LATERAL remain outside this change; SELECT CTEs are documented below.
 
 Independent public API coverage and smoke (both modes required):
 
@@ -3281,8 +3282,7 @@ coherent statement snapshot are preserved. UPDATE/DELETE predicates, UPDATE
 assignments/RETURNING (including OLD/NEW aliases), INSERT sources and plain
 VALUES expressions use the same child analyzer and demand path. Subqueries
 remain prohibited in DEFAULT, CHECK, generated expressions and expression
-indexes. Stored-expression exclusions precede child analysis. CTE, LATERAL
-and function FROM are not added by this change.
+indexes. LATERAL and function FROM are not added by this change.
 
 Stored views retain child query frames, literals, column identities, source
 occurrences and dependencies even for ignored EXISTS targets. Rename, deparse,
@@ -3715,3 +3715,90 @@ when a proposal is demanded; zero-row INSERT succeeds. See
 The complete public contract and smoke use the same
 `TestReferenceInsertConflict` definitions in native and pinned PostgreSQL modes.
 
+
+## SELECT CTEs — change note (changelog)
+
+Nonrecursive SELECT WITH queries define virtual relations for one statement:
+
+```sql
+WITH a(k, v) AS (SELECT id, value FROM t),
+     b AS MATERIALIZED (SELECT k, v FROM a WHERE k = 2)
+SELECT * FROM b;
+```
+
+Each definition sees earlier siblings and enclosing WITH definitions, not its
+own pending or later local names. The primary query sees completed local
+definitions. An outer definition or real table can satisfy a pending spelling;
+schema qualification bypasses virtual names. Nested WITH shadows locally and
+restores its enclosing environment afterward. Definition names are not ordinary
+FROM entries until referenced. Existing table/column alias hiding, stars,
+duplicate output slots, unknown-to-TEXT resolution and type metadata apply.
+Prefix aliases may rename fewer than all columns; excess definition aliases
+fail42P10. Duplicate local definitions fail42712 before body resolution. Missing,
+ambiguous and alias-hidden references retain ordinary English diagnostics and
+original one-based character positions; unresolved future WITH names add
+PostgreSQL's forward-reference Detail and Hint.
+
+### Folding and evaluation boundaries
+
+An eligible side-effect-free single-reference SELECT folds by default.
+Multiple references share unless NOT MATERIALIZED requests independent folding.
+MATERIALIZED forces shared evaluation. VOLATILE expressions anywhere in the
+analyzed definition, including otherwise-unused targets, nested projected queries
+and unused nested WITH definitions, prevent folding even under NOT MATERIALIZED.
+STABLE expressions do not. Static eligibility does not demand an unused producer:
+an enclosing division can fail22012 while its unused nested sequence makes no draw.
+
+Folding places safe occurrence-local restrictions before output projection;
+it is not just reopening an already projected result. For t(id)=(0),(1),
+`WITH c AS NOT MATERIALIZED (SELECT id,10/id AS v FROM t)
+SELECT v FROM c WHERE id<>0` returns10, while MATERIALIZED raises division by zero.
+Eligible repeated aliases keep their own restrictions. Folding does not bypass
+LIMIT/OFFSET survivors, aggregate-dependent predicates, required DISTINCT/set
+evaluation, window input coordinates or outer-join NULL extension. Raw grouping,
+DISTINCT and set keys can move safely; windows may filter completed window rows
+without deleting input members.
+
+### Shared demand, authority and lifetime
+
+A shared producer opens only on first row demand and stores each typed row once.
+Readers have independent replay positions and extend one append-only frontier.
+Closing an early scalar reader does not discard rows or close a producer needed
+by a later reader. Unused definitions and LIMIT0 do not evaluate their bodies;
+LIMIT1 can stop after one draw, while blocking sort/count consumers may drain.
+Zero-column rows and NULL/multiplicity retain their exact cardinality.
+
+A proven FALSE or BOOL NULL consumer, including an imported BOOL parameter,
+returns typed empty rows without demanding an opaque CTE body for any hint.
+This optimization preserves native's existing eager physical settlement frontier:
+an independently reachable stored marked aggregate or other consuming owner still
+runs its original input/lock path, even when its output is rejected. PostgreSQL
+constant gating may omit those physical grants; this is an intentional existing
+native contract, not new CTE lock propagation. Physical demand inside an opaque
+CTE does not by itself require opening that definition.
+
+The producer belongs to the defining query invocation. Enclosing definitions
+remain shared across child scalar readers; correlated local WITH invocations
+receive independent producers. Every Execute is fresh. Failure/cancellation
+sticks at the producer, closes its child once and prevents successful-prefix
+publication. Public Rows still contain eagerly finalized values and immutable
+schema, not a live producer or borrowed statement scope.
+
+All definitions undergo static name/type/source/dependency analysis, even when
+unused. Execution authority follows statically referenced subtrees: unused
+definitions omit execution permissions, whereas a referenced LIMIT0 or WHERE
+FALSE still checks source access. CTE scans have no ObjectRef, OID, storage or
+independent snapshot/ACL authority. Outer row-lock clauses do not lock through
+virtual CTE references; explicit locks inside the definition retain their own
+query semantics.
+
+SELECT subqueries, derived queries, set operands, views/materialized views,
+CTAS, SELECT INTO, cursors and INSERT SELECT use this same graph. Stored WITH
+definitions preserve real-object dependencies and executable replay through
+rename and native Dump/Restore, never persistent CTE objects or cached results.
+Recursive/SEARCH/CYCLE, modifying bodies, top-level WITH DML, standalone
+VALUES/TABLE bodies and LATERAL remain excluded.
+
+Coverage: `make check RUN='^TestReferenceQueryCTE'` and the same selector with
+`REFERENCE=1`. Feature smoke: `RUN='^TestReferenceQueryCTEFeatureSmoke$'`.
+See [the implementation design](design/PG18-QUERY-CTE.md).

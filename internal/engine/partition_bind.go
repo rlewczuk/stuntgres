@@ -56,7 +56,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
 			columns := make([]queryColumn, len(d.columns))
 			for j, c := range d.columns {
-				columns[j] = queryColumn{c, j, 0, j}
+				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}
 			}
 			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}}, frame: d.columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)

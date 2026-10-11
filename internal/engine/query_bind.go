@@ -32,7 +32,13 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundEx
 func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
 	return b.bindSelectScoped(s, contextual, false)
 }
-func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (*BoundQuery, error) {
+func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (query *BoundQuery, failure error) {
+	entry, scanStart := b.cteAnalysisDepth == 0, b.cteScanOrdinal
+	defer func() {
+		if entry && failure == nil && query != nil && b.cteScanOrdinal != scanStart {
+			b.cteExecutables = append(b.cteExecutables, query)
+		}
+	}()
 	if s.Into != nil {
 		return nil, insertError("42601", "SELECT ... INTO is not allowed here", s.Into.Parts[0].Pos)
 	}
@@ -45,6 +51,22 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	restore := b.enterQuery(disallowParent)
 	defer restore()
+	oldCTEs := len(b.cteBindings)
+	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
+	definitions, err := b.bindCTEDefinitions(s)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if failure != nil || query == nil || len(definitions) == 0 {
+			return
+		}
+		project := query.Root.(*projectNode)
+		project.cteOwner = true
+		for _, definition := range definitions {
+			project.analysisExpressions = append(project.analysisExpressions, subqueryExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), definition.position, ExprProperties{}), queryPlan: definition.query, cteDefinition: true})
+		}
+	}()
 	plainDistinct := s.Distinct != nil && len(s.Distinct.On) == 0
 	if s.Set != nil {
 		if mode := firstSetRowClause(s); mode != "" {
@@ -59,9 +81,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		b.queryRowDiagnosticMode = queryRowMode(s.Locking[0].Mode)
 	}
 	if disallowParent {
-		selected, _ := queryLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}})
+		selected, _ := queryLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.queryLockAdmission.virtualCTE)
 		index := 0
-		_ = parser.VisitQuerySources(s, nil, func(table *parser.TableReference, _ *parser.Select) error {
+		_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 			if index < len(selected) && selected[index].mode != 0 {
 				b.queryRowDiagnosticMode = strongerQueryRowMode(b.queryRowDiagnosticMode, queryRowDiagnostic(b.queryLockAdmission.tableMark(table)))
 			}
@@ -444,13 +466,17 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if admission != nil {
 			local, err = admission.marks, admission.err
 		} else {
-			local, err = queryLockTargets(s.From, s.Locking)
+			local, err = queryLockTargets(s.From, s.Locking, b.queryLockAdmission.virtualCTE)
 		}
 		if err != nil {
 			return nil, err
 		}
 		indices := make(map[*parser.TableReference]int)
-		_ = parser.VisitQuerySources(s, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
+		if admission != nil {
+			indices = admission.indices
+		} else {
+			_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
+		}
 		marks := make([]queryRowMark, len(b.querySources))
 		for i, source := range b.querySources {
 			if index, ok := indices[source.table]; ok && index < len(local) {

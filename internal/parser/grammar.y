@@ -45,6 +45,10 @@ package parser
  call FunctionExpr
  predicate PredicateKind
  selectStmt *Select
+ ctes []CommonTableExpression
+ cte CommonTableExpression
+ cteHint CTEMaterialization
+ cteClause cteClause
  parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
  mergeArms []MergeArm
@@ -290,6 +294,10 @@ package parser
 %type <tok> cursor_from cursor_word
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
+%type <ctes> cte_list
+%type <cteClause> with_clause
+%type <cte> cte_definition
+%type <cteHint> cte_materialization
 %type <queryTable> query_table_target
 %type <stmt> create_query_table
 %type <stmt> refresh_materialized_view
@@ -1594,7 +1602,15 @@ query_set: query_intersection { $$=$1 }
  | query_set EXCEPT set_modifier query_intersection { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
-query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if !sqllex.(*lexer).validateTies($1.Bounds,$1.Order,$1.Locking) {return 1};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 } ;
+with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} } ;
+cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
+ | cte_list ',' cte_definition { $$=append($1,$3) } ;
+cte_definition: name alias_columns AS cte_materialization '(' query_select ')' { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4} } ;
+cte_materialization: /* empty */ { $$=CTEDefault }
+ | MATERIALIZED { $$=CTEMaterialized }
+ | NOT MATERIALIZED { $$=CTENotMaterialized } ;
+query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if !sqllex.(*lexer).validateTies($1.Bounds,$1.Order,$1.Locking) {return 1};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 }
+ | with_clause query_set order query_tail { if len($2.With)!=0 {sqllex.(*lexer).failAt("42601","multiple WITH clauses not allowed",$1.Pos.Offset);return 1};$2.With=$1.Definitions;if $3!=nil {$2.Order=$3};if $4.Bounds!=nil {$2.Bounds=$4.Bounds};if $4.Locking!=nil {$2.Locking=$4.Locking};if !sqllex.(*lexer).validateTies($2.Bounds,$2.Order,$2.Locking) {return 1};$$=$2 } ;
 select_query: query_select { $$=$1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }

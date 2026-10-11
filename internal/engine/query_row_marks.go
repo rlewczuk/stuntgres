@@ -25,6 +25,8 @@ type queryLockAdmission struct {
 	queries      map[*parser.Select]*queryLockAdmission
 	ordered      []*queryLockAdmission
 	tableQueries map[*parser.TableReference]*parser.Select
+	futureCTE    map[*parser.TableReference]string
+	virtualCTE   map[*parser.TableReference]bool
 }
 
 func mergeQueryRowMark(a, b queryRowMark) queryRowMark {
@@ -74,7 +76,7 @@ func queryOccurrenceMark(marks []queryRowMark, occurrence int, inherited queryRo
 
 // OF sees child relation occurrences through a whole-join alias, unlike the
 // expression namespace. A relation's own alias still hides its original name.
-func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]queryRowMark, error) {
+func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtual ...map[*parser.TableReference]bool) ([]queryRowMark, error) {
 	if len(clauses) == 0 {
 		return nil, nil
 	}
@@ -82,6 +84,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 		name        string
 		occurrences []int
 		join        bool
+		cte         bool
 	}
 	indices := make(map[*parser.TableReference]int)
 	_ = parser.VisitQuerySources(&parser.Select{From: from}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
@@ -96,15 +99,19 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 				name = n.Name.Parts[len(n.Name.Parts)-1].Text
 			}
 			targets = append(targets, target{name: name, occurrences: []int{indices[n]}})
+			if len(virtual) != 0 && virtual[0][n] {
+				targets[len(targets)-1].occurrences = nil
+				targets[len(targets)-1].cte = true
+			}
 		case *parser.ValuesQuery:
 			if alias != "" {
 				targets = append(targets, target{name: alias})
 			}
 		case *parser.DerivedQuery:
 			var selected []int
-			childTargets, _ := queryLockTargets(n.Query.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}})
+			childTargets, _ := queryLockTargets(n.Query.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, virtual...)
 			childIndex := 0
-			_ = parser.VisitQuerySources(n.Query, nil, func(table *parser.TableReference, _ *parser.Select) error {
+			_ = parser.VisitQuerySources(&parser.Select{From: n.Query.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 				if childIndex < len(childTargets) && childTargets[childIndex].mode != 0 {
 					selected = append(selected, indices[table])
 				}
@@ -155,6 +162,9 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 					continue
 				}
 				found = true
+				if target.cte {
+					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a WITH query", name.Parts[0].Pos)
+				}
 				if target.join {
 					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a join", name.Parts[0].Pos)
 				}

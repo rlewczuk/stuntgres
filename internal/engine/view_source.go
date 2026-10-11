@@ -165,6 +165,9 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 		if !ok || !storedViewReferenceValid(auth.catalog, d, leaf.ref) {
 			return ErrCatalogReplaced
 		}
+		if leaf.analysisOnly {
+			continue
+		}
 		indices := make([]int, 0, len(leaf.reads))
 		for _, attribute := range leaf.reads {
 			found := false

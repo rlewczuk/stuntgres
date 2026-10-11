@@ -67,7 +67,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	replacement.checkConstraints = slices.Clone(next.checkConstraints)
 	columns := make([]queryColumn, len(next.columns))
 	for i, column := range next.columns {
-		columns[i] = queryColumn{column, i, 0, i}
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: 0, physical: i}
 	}
 	qualifier := queryQualifier{name: next.name, original: next.name, schema: auth.catalog.state.descriptors[next.namespace].Name(), ref: ref, columns: columns}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.columns}

@@ -37,10 +37,11 @@ type viewDefinition struct {
 // Stored leaves contain identities and frozen layout, never live storage or
 // descriptors. Ordinals are SQL occurrences, including repeated self-joins.
 type viewLeaf struct {
-	ref        ObjectRef
-	attributes []int32
-	reads      []int32
-	mark       queryRowMark
+	ref          ObjectRef
+	attributes   []int32
+	reads        []int32
+	analysisOnly bool
+	mark         queryRowMark
 }
 
 type viewColumn struct {
@@ -489,9 +490,13 @@ func (v *viewDefinition) validateNamespaces() error {
 		case viewValuesNamespace:
 			root = viewValuesAt(from, ns.ordinal)
 		case viewDerivedNamespace:
-			child := v.frames[uint32(ns.ordinal)]
-			if child != nil {
-				root = viewDerivedAt(from, child.syntax)
+			if ns.ordinal < 0 {
+				root = viewCTEOrdinal(from, ns.ordinal)
+			} else {
+				child := v.frames[uint32(ns.ordinal)]
+				if child != nil {
+					root = viewDerivedAt(from, child.syntax)
+				}
 			}
 		default:
 			return fmt.Errorf("stuntgres: invalid view namespace kind")
@@ -557,6 +562,9 @@ func frozenNamespaceNode(root LogicalNode) (uint8, int) {
 	case *valuesNode:
 		return viewValuesNamespace, node.viewOrdinal
 	case *derivedNode:
+		if node.cte != nil {
+			return viewDerivedNamespace, node.ordinal
+		}
 		return viewDerivedNamespace, int(node.query.Root.(*projectNode).frame)
 	}
 	return 0, 0

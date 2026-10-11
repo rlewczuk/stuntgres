@@ -65,7 +65,7 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	d.generations = map[int32]columnGeneration{2: {}}
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: d.address}
-	columns := []queryColumn{{d.columns[0], 0, 0, 0}, {d.columns[1], 1, 0, 1}}
+	columns := []queryColumn{{descriptor: d.columns[0], slot: 0, leaf: 0, physical: 0}, {descriptor: d.columns[1], slot: 1, leaf: 0, physical: 1}}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.columns}
 	auth := AuthorizationView{catalog: view}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)

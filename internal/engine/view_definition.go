@@ -61,6 +61,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	for occurrence, source := range b.querySources {
 		leaf := &definition.sources[occurrence]
 		leaf.ref, leaf.mark = source.ref, source.mark
+		leaf.analysisOnly = source.analysisOnly
 		leaf.attributes = append([]int32(nil), source.relation.attributes...)
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.attributes[slot])

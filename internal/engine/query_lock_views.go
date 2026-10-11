@@ -232,6 +232,9 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 	from = func(node LogicalNode) error {
 		switch n := node.(type) {
 		case *derivedNode:
+			if n.cte != nil {
+				return queryRowLockLegality(n.query.Root, queryRootRowMode(n.query.Root))
+			}
 			return queryRowLockLegality(n.query.Root, strongerQueryRowMode(mode, queryRootRowMode(n.query.Root)))
 		case *joinNode:
 			if err := from(n.left); err != nil {
@@ -377,6 +380,9 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	case *evaluationNode:
 		return queryLockRecheckWidth(n.child, inputs)
 	case *derivedNode:
+		if n.cte != nil {
+			return 0
+		}
 		return queryLockRecheckWidth(n.query.Root, inputs)
 	case *sourceNode:
 		return queryLockSourceWidth(querySourceAt(inputs, n.occurrence))
@@ -455,6 +461,9 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	}
 	switch n := node.(type) {
 	case *derivedNode:
+		if n.cte != nil {
+			return frozen, true, nil
+		}
 		if evaluation.query == nil || evaluation.query.derived[n] == nil {
 			return nil, false, fmt.Errorf("stuntgres: missing derived rowmark lineage")
 		}

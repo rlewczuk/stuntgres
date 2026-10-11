@@ -38,7 +38,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		leaves[i] = queryLeaf{ref: use, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark)}
+		leaves[i] = queryLeaf{ref: use, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark), analysisOnly: leaf.analysisOnly}
 	}
 	if scope.materializedRefresh && ref == scope.lockedRef {
 		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {

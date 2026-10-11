@@ -39,7 +39,6 @@ func TestInsertSelectSources(t *testing.T) {
 func TestInsertSelectBoundaries(t *testing.T) {
 	for _, q := range []string{
 		"INSERT INTO t SELECT 1 RETURNING i", "INSERT INTO t VALUES(1) ORDER BY 1 LIMIT 1 LIMIT 2",
-		"INSERT INTO t WITH x AS (SELECT 1) SELECT 1",
 		"INSERT INTO t VALUES()",
 		"INSERT INTO t VALUES(1); INSERT INTO t (SELECT 1) VALUES(2)",
 	} {

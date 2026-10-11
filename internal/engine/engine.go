@@ -719,6 +719,19 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if err != nil {
 		return b, err
 	}
+	if binder.cteScanOrdinal != 0 {
+		queries := binder.cteExecutables
+		if b.query != nil {
+			queries = []*BoundQuery{b.query}
+		}
+		for _, query := range queries {
+			activateCTESources(query.Root, b.querySources)
+			query.Root, err = foldCTERestrictions(auth.catalog, query.Root)
+			if err != nil {
+				return b, err
+			}
+		}
+	}
 	if materialized {
 		if b.parameters.Count != 0 {
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")

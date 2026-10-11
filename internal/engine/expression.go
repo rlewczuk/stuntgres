@@ -1177,6 +1177,10 @@ type expressionBinder struct {
 	queryNonLateral            bool
 	queryFrame, nextQueryFrame uint32
 	queryScopes                []queryBindingScope
+	cteBindings                []cteBinding
+	cteScanOrdinal             int
+	cteAnalysisDepth           int
+	cteExecutables             []*BoundQuery
 	resolvedQueryFrame         uint32
 	queryRowDiagnosticMode     relationLockMode // Clause diagnostics only; tuple authority is queryRowMark.
 	subqueryDemand             bool

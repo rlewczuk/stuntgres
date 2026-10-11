@@ -315,10 +315,11 @@ func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ObjectRef) Obje
 type viewQueryRemapper struct {
 	ref            func(ObjectRef) ObjectRef
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
-	frames         map[uint32]LogicalNode
+	queries        map[*projectNode]LogicalNode
 	collation      collationRemapper
 	catalog        CatalogRead
 	referencesOnly bool
+	ctes           map[*cteDefinition]*cteDefinition
 }
 
 func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
@@ -326,17 +327,17 @@ func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing remapped query frame")
 	}
-	if root := m.frames[project.frame]; root != nil {
+	if root := m.queries[project]; root != nil {
 		return root, nil
 	}
 	root, err := m.query(node)
 	if err != nil {
 		return nil, err
 	}
-	if m.frames == nil {
-		m.frames = make(map[uint32]LogicalNode)
+	if m.queries == nil {
+		m.queries = make(map[*projectNode]LogicalNode)
 	}
-	m.frames[project.frame] = root
+	m.queries[project] = root
 	return root, nil
 }
 
@@ -423,9 +424,29 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	case *derivedNode:
 		query := *n.query
 		query.Root, err = m.nested(query.Root)
-		next = &derivedNode{querySchema: schema, query: &query}
+		copy := *n
+		copy.querySchema, copy.query = schema, &query
+		if n.cte != nil && err == nil {
+			if m.ctes == nil {
+				m.ctes = make(map[*cteDefinition]*cteDefinition)
+			}
+			definition := m.ctes[n.cte]
+			if definition == nil {
+				d := *n.cte
+				canonical := *d.query
+				canonical.Root, err = m.nested(canonical.Root)
+				if err != nil {
+					return nil, err
+				}
+				d.query = &canonical
+				definition = &d
+				m.ctes[n.cte] = definition
+			}
+			copy.cte = definition
+		}
+		next = &copy
 	case *projectNode:
-		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax}
+		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax, cteOwner: n.cteOwner}
 	case *setNode:
 		copy := *n
 		copy.querySchema = schema

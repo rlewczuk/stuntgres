@@ -34,6 +34,9 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 			}
 			visited[ref] = true
 			for _, child := range relation.view.sources {
+				if child.analysisOnly {
+					continue
+				}
 				use, err := storedViewUseReference(catalog, relation, child.ref)
 				if err != nil {
 					return err
@@ -61,6 +64,9 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 		return nil
 	}
 	for _, leaf := range leaves {
+		if leaf.analysisOnly {
+			continue
+		}
 		if err := collect(leaf.ref); err != nil {
 			return nil, err
 		}

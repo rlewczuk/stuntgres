@@ -88,7 +88,7 @@ func (e *Engine) prepareAlterIdentityTypes(scope *StatementScope, op *Operation,
 func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, ref ObjectRef) *queryNamespace {
 	columns := make([]queryColumn, len(original.columns))
 	for i, column := range original.columns {
-		columns[i] = queryColumn{column, i, 0, i}
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: 0, physical: i}
 	}
 	qualifier := queryQualifier{name: original.name, original: original.name, schema: auth.catalog.state.descriptors[original.namespace].Name(), ref: ref, columns: columns}
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.columns}

@@ -28,6 +28,9 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 	case *sourceNode:
 		return queryOccurrenceMark(marks, n.occurrence, inherited)
 	case *derivedNode:
+		if n.cte != nil {
+			return queryRowMark{}
+		}
 		return nullableQueryRowMark(n.query.Root, marks, inherited)
 	case *joinNode:
 		return firstNullableQueryMark(nullableQueryRowMark(n.left, marks, inherited), nullableQueryRowMark(n.right, marks, inherited))
@@ -189,6 +192,10 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		}
 		return nil
 	case *derivedNode:
+		if n.cte != nil {
+			marks = nil
+			inherited = queryRowMark{}
+		}
 		project, ok := n.query.Root.(*projectNode)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing derived query frame")

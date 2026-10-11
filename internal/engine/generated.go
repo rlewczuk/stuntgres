@@ -58,7 +58,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
 	columns := make([]queryColumn, len(d.columns))
 	for i, c := range d.columns {
-		columns[i] = queryColumn{c, i, 0, i}
+		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}

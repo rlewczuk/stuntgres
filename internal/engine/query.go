@@ -80,10 +80,11 @@ type projectNode struct {
 	frozenValues        bool        // Synthetic FROM VALUES slots are already produced.
 	frame               uint32
 	syntax              *parser.Select
+	cteOwner            bool // An invocation boundary, not statement-global producer state.
 }
 
 // A physical literal or this execution's imported BOOL parameter can prove a
-// dead WHERE input for join planning. Never evaluate rows, stages or subqueries.
+// dead input before child demand. Never evaluate rows, stages or subqueries.
 func queryPredicateRejectsAll(c *EvalContext, expr BoundExpr) (bool, error) {
 	var value sqltype.Value
 	switch expression := expr.(type) {
@@ -636,6 +637,7 @@ type queryState struct {
 	frame      uint32
 	outer      *EvalContext
 	derived    map[*derivedNode]*querySource
+	ctes       *cteInvocation
 }
 type indexedStage struct {
 	source           *querySource
@@ -855,6 +857,15 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *filterNode:
+		evaluation := state.evaluation(ctx)
+		rejects, err := queryPredicateRejectsAll(&evaluation, n.predicate)
+		if err != nil {
+			return indexedStage{}, err
+		}
+		if rejects && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
+			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
+			return indexedStage{source: source, schema: n.Schema()}, nil
+		}
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
 			return indexedStage{}, err
@@ -866,7 +877,6 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		out := producingStage(&child, n.Schema())
 		out.hashCandidates = candidates
-		evaluation := state.evaluation(nil)
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			for {
 				var i int
@@ -1021,16 +1031,37 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		transferred = err == nil
 		return child, err
 	case *projectNode:
+		var owner *cteInvocation
+		if n.cteOwner {
+			owner = &cteInvocation{frame: n.frame, parent: state.ctes, state: *state}
+			state.ctes = owner
+		}
 		if n.frame != 0 {
 			state.frame = n.frame
 		}
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
+			if owner != nil {
+				_ = owner.close()
+			}
 			return indexedStage{}, err
 		}
 		child.schema = n.Schema()
 		child.expressions = n.expressions
 		child.evaluation = state.evaluation(nil)
+		if owner != nil {
+			finish := child.finish
+			child.finish = func() error {
+				var first error
+				if finish != nil {
+					first = finish()
+				}
+				if failure := owner.close(); first == nil {
+					first = failure
+				}
+				return first
+			}
+		}
 		return child, nil
 	default:
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid logical query node")

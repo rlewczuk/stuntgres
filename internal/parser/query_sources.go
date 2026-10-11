@@ -1,11 +1,19 @@
 package parser
 
+import (
+	"fmt"
+	"strconv"
+	"stuntgres/internal/sqlstate"
+)
+
 // VisitQuerySources visits each actual SELECT before its children, including
 // queries without table leaves, and physical leaf occurrences in binding order.
 // The enclosing statement remains authorization authority; query is the actual
 // lexical query containing the leaf. Repeated references are not deduplicated.
 // Either callback may be nil; a callback error stops traversal.
-func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error) error {
+func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error, classify ...func(*TableReference, bool, string)) error {
+	var visible []string
+	var pending []string
 	var query func(*Select) error
 	var expression func(Expr) error
 	var from func(FromItem, *Select) error
@@ -146,6 +154,29 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	from = func(item FromItem, s *Select) error {
 		switch n := item.(type) {
 		case *TableReference:
+			if len(n.Name.Parts) == 1 {
+				name := n.Name.Parts[0].Text
+				for i := len(visible) - 1; i >= 0; i-- {
+					if visible[i] == name {
+						if len(classify) != 0 {
+							classify[0](n, true, "")
+						}
+						return nil
+					}
+				}
+				pendingName := ""
+				for i := len(pending) - 1; i >= 0; i-- {
+					if pending[i] == name {
+						pendingName = name
+						break
+					}
+				}
+				if len(classify) != 0 {
+					classify[0](n, false, pendingName)
+				}
+			} else if len(classify) != 0 {
+				classify[0](n, false, "")
+			}
 			if visitTable != nil {
 				return visitTable(n, s)
 			}
@@ -167,6 +198,27 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		return nil
 	}
 	query = func(s *Select) error {
+		oldVisible, oldPending := len(visible), len(pending)
+		defer func() { visible = visible[:oldVisible]; pending = pending[:oldPending] }()
+		for i, definition := range s.With {
+			for _, prior := range s.With[:i] {
+				if definition.Name.Text == prior.Name.Text {
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42712", Message: fmt.Sprintf(`WITH query name "%s" specified more than once`, definition.Name.Text), Position: strconv.Itoa(definition.Name.Pos.Character)}
+				}
+			}
+			pending = append(pending, definition.Name.Text)
+		}
+		for i, definition := range s.With {
+			pending = pending[:oldPending]
+			for _, later := range s.With[i:] {
+				pending = append(pending, later.Name.Text)
+			}
+			if err := query(definition.Query); err != nil {
+				return err
+			}
+			visible = append(visible, definition.Name.Text)
+		}
+		pending = pending[:oldPending]
 		if visitQuery != nil {
 			if err := visitQuery(s); err != nil {
 				return err
@@ -235,7 +287,7 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		return expression(s.Check)
 	case *PrepareSQL:
-		return VisitQuerySources(s.Body, visitQuery, visitTable)
+		return VisitQuerySources(s.Body, visitQuery, visitTable, classify...)
 	case *Select:
 		return query(s)
 	case *DeclareCursor:

@@ -504,7 +504,8 @@ preserve local ORDER/bounds; INTERSECT binds tighter than UNION/EXCEPT.
 Corresponding columns resolve common types pairwise, with leftmost output labels;
 unordered results have no implicit sequence guarantee. Derived/scalar/EXISTS,
 INSERT sources and stored views share these semantics, including native
-Dump/Restore. TABLE, CTE and LATERAL are not added.
+Dump/Restore. TABLE and LATERAL are not added by the set-operation change;
+SELECT CTEs are described in [WITH queries](docs/QUERIES.md#select-ctes--change-note-changelog).
 See [set operations](docs/QUERIES.md#set-operations--change-note-changelog).
 Feature smoke: `make check RUN='^TestReferenceQuerySetOpsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQuerySetOpsFeatureSmoke$'`.
@@ -1551,7 +1552,8 @@ local one-row input. Full child binding/admission remains independent of
 runtime demand; eligible EXISTS may discard target-only output (see the linked
 eligibility contract). Scalar cardinality,
 NULL/empty reductions, coherent mutation consumers and stored-view dependencies
-retain their PostgreSQL contracts. LATERAL, CTE and function FROM remain excluded.
+retain their PostgreSQL contracts. LATERAL and function FROM remain excluded.
+Nonrecursive SELECT CTEs use the same query pipeline.
 Direct/prepared reference cases independently specify scalar NULL-left IN/NOT IN
 on nonempty input and SOME empty/NULL reductions.
 See [subqueries](docs/QUERIES.md#subqueries-and-derived-select--change-note-changelog).
@@ -2442,3 +2444,25 @@ Report bugs and feature requests through this repository's issue tracker.
 Include a minimal reproducer, Go and stuntgres versions, the SQL and parameters,
 and the expected and actual results. For compatibility reports, include the
 behavior observed on PostgreSQL 18 and any SQLSTATE diagnostic.
+
+### SELECT CTEs — change note
+
+Nonrecursive `WITH name [(columns)] AS [MATERIALIZED | NOT MATERIALIZED]
+(SELECT ...)` supports dependent and reused virtual relations, lexical shadowing,
+positional column aliases and existing SELECT consumers. Definitions never
+create catalog objects. Eligible single-use definitions fold by default;
+`MATERIALIZED` preserves the evaluation boundary, while `NOT MATERIALIZED`
+folds eligible repeated references. Whole-definition VOLATILE expressions
+prevent folding. Shared results are produced lazily once per owning query
+invocation, not cached on prepared statements.
+Proven FALSE/BOOL NULL consumers skip opaque CTE bodies, including their internal
+locks. Existing native stored marked aggregate/blocking frontiers still run when
+independently reachable; dead qualification does not bypass their physical lock
+settlement.
+
+Recursive/SEARCH/CYCLE, modifying CTE bodies, top-level WITH DML, standalone
+VALUES/TABLE bodies and LATERAL remain excluded. See
+[WITH query contracts](docs/QUERIES.md#select-ctes--change-note-changelog) and
+[implementation design](docs/design/PG18-QUERY-CTE.md).
+Feature smoke: `make check RUN='^TestReferenceQueryCTEFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryCTEFeatureSmoke$'`.

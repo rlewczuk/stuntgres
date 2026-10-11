@@ -16,7 +16,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
 	columns := make([]queryColumn, len(parent.columns))
 	for i, c := range parent.columns {
-		columns[i] = queryColumn{c, i, 0, i}
+		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.name, original: parent.name, schema: auth.catalog.state.descriptors[parent.namespace].Name(), ref: ref, columns: columns}}, frame: parent.columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)

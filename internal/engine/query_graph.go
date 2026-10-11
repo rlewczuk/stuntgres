@@ -173,6 +173,9 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 		}
 		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
 			queryExpressions(node, func(expr BoundExpr) {
+				if edge, ok := expr.(subqueryExpression); ok && edge.cteDefinition {
+					return
+				}
 				if expr == nil {
 					return
 				}

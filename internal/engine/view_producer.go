@@ -15,6 +15,9 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 	case *joinNode:
 		return queryTreeOccurrences(n.right, inputs, queryTreeOccurrences(n.left, inputs, dst))
 	case *derivedNode:
+		if n.cte != nil {
+			return dst
+		}
 		return queryTreeOccurrences(n.query.Root, inputs, dst)
 	case *projectNode:
 		return queryTreeOccurrences(n.child, inputs, dst)

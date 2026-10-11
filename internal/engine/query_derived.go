@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -10,15 +11,23 @@ import (
 // Its output is execution-private; it never owns captured relation pins.
 type derivedNode struct {
 	querySchema
-	query *BoundQuery
+	query     *BoundQuery
+	cte       *cteDefinition
+	table     *parser.TableReference
+	ordinal   int
+	scanFrame uint32
+	demand    []bool
 }
 
 func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
+	if n.cte != nil && !n.cte.folded() {
+		return openCTEScan(ctx, state, n)
+	}
 	project, ok := n.query.Root.(*projectNode)
 	if !ok {
 		return indexedStage{}, fmt.Errorf("stuntgres: derived query lacks final projection")
 	}
-	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer}
+	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return indexedStage{}, err
@@ -49,6 +58,10 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		source.flat = append(source.flat, make([]sqltype.Value, len(n.Schema()))...)
 		row := source.flat[start:]
 		for j, expr := range inner.expressions {
+			if n.cte != nil && !n.demand[j] {
+				row[j] = sqltype.Null(n.Schema()[j].Usage.Type)
+				continue
+			}
 			value, err := expr.Eval(&inner.evaluation)
 			if err != nil {
 				return false, err
