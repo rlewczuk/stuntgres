@@ -95,6 +95,34 @@ benchmarks may exceed these deadlines; the default startup benchmark is bounded 
 
 Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
 
+Complete-suite baseline (2026-10-11): on Linux 7.0.0-30-generic x86_64,
+AMD RYZEN AI MAX+ 395 (32 logical processors), Go 1.27.1 linux/amd64 and
+Docker 29.1.3, the current complete corpus passed ordinary quickcheck in
+172.04 seconds, native race quickcheck in 399.58 seconds and the complete
+pinned PostgreSQL18.0 UTF8/C reference race gate in 821.54 seconds
+(reference package: 785.839 seconds). These are generation/compilation-inclusive
+wall times, all within the unchanged 900-second standalone gate limits;
+fullcheck retains its separate 3600-second aggregate/reference-stage allowance.
+The existing prerequisites/current corpus suffice without another optimization.
+These observations establish neither a speedup nor its cause, and are not a
+post-integration fullcheck result.
+
+Five fresh-engine Ping/Close startup samples measured 318313–473804 ns/op,
+458535–458701 B/op and 2448–2449 allocs/op, each below the 1 ms target.
+Tests used `-count=1`; compiler/module/image caches were not forced cold.
+The startup benchmark briefly overlapped the ordinary gate; subsequent suite
+gates were serialized. These single gate measurements and contended startup
+samples are not isolated performance attribution. Repeat from the repository
+root without selection or deadline overrides:
+
+```sh
+/usr/bin/time -p make quickcheck VERBOSE=0
+/usr/bin/time -p make quickcheck RACE=1 VERBOSE=0
+/usr/bin/time -p make quickcheck REFERENCE=1 RACE=1 PACKAGES=./reference VERBOSE=0
+/usr/bin/time -p make bench VERBOSE=0
+make deps
+```
+
 `TestBinaryHashAllocations` keeps equal small/large allocation counts (at most ten,
 zero for CRC) and measures bytes with `testing.Benchmark` in 1000-evaluation
 batches. Inputs and plans are constructed outside measurement. Batching amortizes
