@@ -1069,20 +1069,102 @@ and actual key characteristics, never source rows or roots. Multiple explicit/
 copied primary keys fail42P16 without a source position. Index descriptor comments
 copy under INCLUDING COMMENTS; SQL COMMENT ON INDEX remains PostgreSQL-only,
 with a native package-function copy counterpart rather than invented SQL support.
-Dump emits named NOT NULL and the primary declaration once in the owning CREATE;
+For keys without INCLUDE, Dump emits named NOT NULL and the primary declaration
+once in the owning CREATE; INCLUDE groups use the index graph described below.
 Restore rebuilds and enforces populated persistent groups in isolated staging.
 Failed duplicate/NULL replay leaves the destination and held rows unchanged;
 existing TEMP exclusion and retained TEMP groups remain intact.
 
-ALTER ADD PRIMARY KEY, ADD USING INDEX and ADD COLUMN PRIMARY KEY,
-deferrability (including NOT DEFERRABLE/INITIALLY), WITHOUT OVERLAPS and primary
-index parameter tails are explicitly unsupported. Malformed full input still
-fails42601 before deferred capability diagnostics or prefix effects.
+ALTER ADD PRIMARY KEY key lists and ADD COLUMN PRIMARY KEY, CREATE deferrability
+(including NOT DEFERRABLE/INITIALLY), WITHOUT OVERLAPS and primary index parameter
+tails remain unsupported. Existing-index ALTER attachments are described below.
+Malformed full input fails42601 before deferred capability diagnostics or effects.
 Physical PostgreSQL index/WAL/server mechanisms remain external.
 
 Feature smoke:
 `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.0.
+
+## Existing-index UNIQUE/PRIMARY KEY constraints — change note
+
+`ALTER TABLE t ADD [CONSTRAINT name] { UNIQUE | PRIMARY KEY } USING INDEX index`
+turns an existing standalone unique B-tree into a real constraint/backing group.
+The source name is unqualified and resolved in the table's namespace, not by
+search_path. Both scalar and composite keys, semantic parenthesized simple columns,
+explicit default classes/collations/ASC NULLS LAST, and represented INCLUDE work.
+The table and index identities, owner, schema, key/include definitions and index
+roots remain unchanged; only the constraint and missing key NOT NULL identities
+are new. Combined TYPE reconstruction may independently remint an affected index.
+
+Eligibility checks association, parent, validity, uniqueness, expression keys,
+actual partial predicates, method and default key behavior in PostgreSQL order.
+WHERE TRUE can fold away; a real partial predicate is rejected. A rejected index
+remains usable. Native standalone indexes are inherently immediate; associated
+EXCLUDE indexes fail association first. No native deferred-index mechanism or
+unique HASH provider is implied by the PostgreSQL-only later diagnostic branches.
+
+Without a constraint name, the index name is inherited. The same explicit name
+is quiet; a different name emits `ALTER TABLE / ADD CONSTRAINT USING INDEX will
+rename index \"old\" to \"new\"`. Relation-name collisions fail42P07; relation-local
+constraint-name collisions across every admitted kind, including foreign keys,
+report the dynamic pg_constraint23505 diagnostic.
+Notices precede these runtime failures and survive rollback. Eligibility is checked
+after effective DROP/TYPE actions but before SET NOT NULL; attachment runtime
+actions follow in order and the final effective-row NULL scan follows them.
+Two eligible primary attachments therefore report42P16 before a NULL scan, with
+both rename notices. The completed statement publishes no partial group on failure.
+
+PRIMARY KEY preserves existing key NOT NULL identities and creates only missing
+ones. Key NULLs fail23502 in physical table-column order; duplicate keys fail23505.
+INCLUDE is payload only: it is absent from conkey, equality, inference and implicit
+NOT NULL. Current constraint deparsing includes current parent-column labels.
+Backing physical labels can remain old after a column rename until TYPE rebuild.
+An included-column TYPE rebuilds constraint/index identities and payload metadata,
+retaining key NOT NULL identities. Dropping an included column, even RESTRICT,
+retires the group but retains key NOT NULL. LIKE uses fresh reciprocal identities,
+remapped actual keys/include/providers and no source rows or roots.
+In one ALTER containing TYPE and USING INDEX, TYPE remints the affected index
+before attachment in either textual order. Attachment updates that same private
+creation without treating it as a base-existing replacement; original removal
+and destination-name observations still fence atomic publication.
+The selected control witnesses include successful attached same-name Restore
+without Reset and a populated enum-key INCLUDE graph with sequence/provider
+defaults, an index-referencing REGCLASS default and a persistent view. Native
+roundtrip and actual emitted-SQL PostgreSQL replay retain their real dependencies,
+values and held consumers; reset-destination and bad-replay controls are distinct.
+
+Attachments use the existing Execute-time ACCESS EXCLUSIVE table lock, ownership
+authorization, private transaction/savepoint catalog and single Finish authority.
+Peers see the old group until commit; cancellation before publication, later errors,
+rollback and failed replay leave original names, identities, NN, rows and roots.
+Retained prepared consumers rebind after attachment/rename/drop/Restore.
+Utility ALTER Prepare remains syntax-only; INSERT resolves its named ON CONSTRAINT
+target at Prepare in both native and PostgreSQL, rejecting an absent target42704.
+Already materialized native Rows remain immutable.
+
+Immediate ALTER spellings NOT DEFERRABLE and INITIALLY IMMEDIATE, in either order
+or repeated, normalize to ordinary immediate constraints. Actual DEFERRABLE or
+INITIALLY DEFERRED remains native0A000, with the first enabling token's position;
+contradictory properties and malformed full input fail42601 first. CREATE property
+exclusions and general ADD key-list/ADD COLUMN producers are not expanded.
+
+Native Dump preserves the existing definition graph: a represented INCLUDE group
+emits CREATE UNIQUE INDEX and its ADD CONSTRAINT USING INDEX at the index node
+after the owner table definition. Deferred defaults retain their position and
+populated data remains the final phase. Restore admits only these ALTER attachment
+forms and reconstructs the reciprocal constraint/index group privately in a new
+catalog generation. A same-name parent may retain its numeric OID; isolated
+Restore allocation and candidate-collision remapping can also reuse an old
+definition number. Fresh owner/epoch/address identity, reconstructed enforcement
+roots and retained-consumer rebinding—not numeric inequality—define replacement.
+Bad replay leaves the destination unchanged. SQL COMMENT ON INDEX remains unsupported; descriptor
+comments survive attachment/TYPE and INCLUDING COMMENTS copies, but native Dump
+does not serialize index comments or claim their public SQL roundtrip.
+
+Feature smoke: `make check RUN='TestReferenceUsingIndexFeatureSmoke'`; run the
+same selector with `REFERENCE=1` for pinned PostgreSQL18.0. Full proof selectors
+and the public standalone smoke contract are in [TESTING](TESTING.md).
+
 
 ## Exclusion constraints — change note
 
@@ -1351,10 +1433,11 @@ on every key column. The same rule applies to TYPE-build failures even for the
 table owner: unreadable build keys yield `Duplicate keys exist.`, whereas unreadable
 runtime duplicates omit Detail. Ownership does not replace revoked SELECT rights.
 
-ALTER ADD UNIQUE and UNIQUE deferrability (including explicit NOT DEFERRABLE)
-remain unsupported. Foreign-key declarations and constraint renaming follow
-their contracts above. Standalone CREATE UNIQUE INDEX reuses
-the same enforcing B-tree authority without creating a constraint attachment.
+ALTER ADD UNIQUE key lists and CREATE deferrability (including explicit NOT
+DEFERRABLE) remain unsupported. Foreign-key declarations and constraint renaming
+follow their contracts above. Existing-index attachments and reciprocal RENAME
+CONSTRAINT use the existing ownership group. Standalone CREATE UNIQUE INDEX
+reuses the same enforcing B-tree authority without creating a constraint attachment.
 It supports simple/composite keys and trailing NULLS DISTINCT/NOT DISTINCT:
 all key components must compare equal, and DISTINCT bypasses conflicts whenever
 any component is NULL. Directions/NULL ordering do not change equality; INCLUDE

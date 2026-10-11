@@ -33,8 +33,8 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if !relation || source.relationKind == catalogRelation {
 		return 0, nil
 	}
-	// Only constraint attachments are created inline with their parent.
-	// Standalone indexes retain their own exact predecessor graph node.
+	// Inline attachments collapse to their parent. INCLUDE UNIQUE/PK indexes
+	// instead have a real CREATE + attachment graph node of their own.
 	if source.relationKind == indexRelation && source.sqlIndex != nil && source.sqlIndex.constraint != nil {
 		unique := source.sqlIndex.constraint
 		parent, ok := view.state.descriptors[source.sqlIndex.parent].(*relationDescriptor)
@@ -44,7 +44,9 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 		if !backingConstraintPresent(parent, source) {
 			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
 		}
-		source = parent
+		if !usingIndexDump(source) {
+			source = parent
+		}
 	}
 	if source.relationKind == sequenceRelation {
 		if !source.sequence.identity {

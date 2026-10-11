@@ -64,7 +64,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	definition.predicate = &predicate
 	next.sqlIndex = &definition
 	changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{next.address: &next}, originals: map[ObjectAddress]Descriptor{next.address: f.index}}
-	if err := prepareAlterUniqueRoots(context.Background(), changes, f.parent, &baseline, nil); err != nil {
+	if err := prepareAlterUniqueRoots(context.Background(), changes, f.auth.catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.uniqueRoots[next.address]
@@ -85,7 +85,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	}
 	validated := map[string]*logicalIndexRoot{next.name: root}
 	other := &catalogChanges{descriptors: changes.descriptors, originals: changes.originals}
-	if err := prepareAlterUniqueRoots(context.Background(), other, f.parent, &baseline, validated); err != nil {
+	if err := prepareAlterUniqueRoots(context.Background(), other, f.auth.catalog, f.parent, &baseline, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	if other.uniqueRoots[next.address] != root {

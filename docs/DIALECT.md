@@ -1326,15 +1326,49 @@ use the same group. Dropping the primary key leaves NOT NULL; dropping a live
 key's NOT NULL fails42P16 (identity-column ALTER COLUMN retains earlier42601).
 Named NOT NULL DROP reaches the primary-key guard first even on an identity key.
 Actual key TYPE remints affected p/index/n identities.
-ALTER ADD PK (including ADD COLUMN/USING INDEX), deferrability,
-WITHOUT OVERLAPS and primary index parameters remain explicit capabilities
-outside the native surface. Full-input syntax errors precede those exclusions.
+ALTER ADD PK key lists (including ADD COLUMN), CREATE deferrability, WITHOUT
+OVERLAPS and primary index parameters remain outside the native surface.
+Full-input syntax errors precede those exclusions. Existing-index ALTER is below.
 Foreign keys have their own bounded CREATE contract, with selected supporting
 class/family input authority, atomic TYPE validation and actual-creation-only
 pending import attachments. See [foreign keys](TABLES.md#foreign-key-constraints--change-note)
 and [primary keys](TABLES.md#primary-key-constraints--change-note).
 Smoke: `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 use identical RUN with `REFERENCE=1` for the pinned PostgreSQL18.0 oracle.
+
+### Existing-index constraint attachments — change note
+
+`ALTER TABLE ... ADD [CONSTRAINT name] UNIQUE | PRIMARY KEY USING INDEX index`
+admits eligible standalone unique B-trees in the table's namespace. Semantic
+simple-column keys with default actual class/collation/sort behavior and INCLUDE
+are retained; associated, wrong-parent, invalid, nonunique, expression and real
+partial indexes fail ordered diagnostics without losing the source index.
+An unnamed attachment inherits the index name; a different explicit name emits
+the PostgreSQL rename notice, including before a later collision/PK/NULL failure.
+Index/table identities and exact data roots survive metadata-only attachment.
+PK adds only missing key NOT NULL; INCLUDE is not conkey, equality or implicit NN.
+INCLUDE TYPE remints affected constraint/index metadata, not key NN; INCLUDE DROP
+RESTRICT removes the group while preserving key NN. LIKE remains independent.
+
+The existing ALTER passes capture eligibility after DROP/TYPE and before SET NN;
+runtime name/ownership checks precede the final table-order effective-row NULL
+scan. Statement failure, prepublication cancellation and rollback are atomic;
+notices are nontransactional. Existing AX locks, owner checks, private catalogs,
+prepared invalidation and Finish remain the authorities.
+NOT DEFERRABLE/INITIALLY IMMEDIATE normalize immediate, including repeats/order
+variants. Actual deferred properties are native0A000; full-input contradictions/
+malformed suffixes are42601 first. ALTER utility Prepare remains syntax-only;
+INSERT resolves an absent named ON CONSTRAINT target at Prepare42704 in both
+native and PostgreSQL modes.
+
+Represented INCLUDE Dump uses the actual unique-index/attachment definition node,
+before the unchanged final data phase. Restore accepts only selected attachment
+ALTER forms and publishes no bad replay. COMMENT ON INDEX SQL/serialization and
+unrepresented deferred timing remain explicit boundaries; descriptor comment
+preservation is private proof, not native public SQL support. See
+[the complete contract](TABLES.md#existing-index-uniqueprimary-key-constraints--change-note).
+Smoke: `make check RUN='TestReferenceUsingIndexFeatureSmoke'`, and identical RUN
+with `REFERENCE=1` for pinned PostgreSQL18.0.
 
 ### INSERT conflict omission — change note
 
@@ -5937,8 +5971,9 @@ and unowned providers are bounded
 capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
 42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
 Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
-Ordinary DROP/rename/rebuild utilities are described below; unique attachment
-and broad index SQL inquiry catalogs remain excluded.
+Ordinary DROP/rename/rebuild utilities are described below. Existing unique B-tree
+constraint attachment is supported as above; broad index inquiry catalogs remain
+excluded.
 
 Ordinary USING hash is independently owned: one simple or immutable scalar
 expression key, real duplicate-preserving non-NULL buckets and a narrowly proved

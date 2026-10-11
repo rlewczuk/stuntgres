@@ -161,7 +161,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = e.assignDefinitionOIDsLocked(d); err != nil {
 		return nil, err
 	}
-	if err = e.stageCreateUniques(stage, d, uniques); err != nil {
+	if err = e.stageCreateUniques(op, stage, d, uniques); err != nil {
 		return nil, err
 	}
 	if err = e.stageCreateExclusions(op, scope.input, auth, stage, d, syntax); err != nil {

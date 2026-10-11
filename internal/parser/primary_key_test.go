@@ -78,8 +78,6 @@ func TestPrimaryKeyCapabilityRecords(t *testing.T) {
 		{"CREATE TABLE t(a INT,PRIMARY KEY(a) USING INDEX TABLESPACE pg_default)", "USING", "PRIMARY KEY index parameters are unsupported"},
 		{"ALTER TABLE t ADD PRIMARY KEY(a)", "ADD", "ALTER TABLE action is unsupported"},
 		{"ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY(a) DEFERRABLE", "ADD", "ALTER TABLE action is unsupported"},
-		{"ALTER TABLE t ADD PRIMARY KEY USING INDEX idx", "ADD", "ALTER TABLE action is unsupported"},
-		{"ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY USING INDEX idx", "ADD", "ALTER TABLE action is unsupported"},
 		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY", "ADD", "ALTER TABLE action is unsupported"},
 		{"ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT PRIMARY KEY DEFERRABLE", "ADD", "ALTER TABLE action is unsupported"},
 	} {

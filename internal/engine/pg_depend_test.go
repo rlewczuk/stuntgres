@@ -82,12 +82,12 @@ func TestPGDependConstructionBags(t *testing.T) {
 	variable := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, origin: ref}
 	repeated := binaryExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, args: []BoundExpr{variable, variable}}
 	constant := literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}
-	uq := uniqueConstraint{OID: 42003, Attributes: []int32{5}}
+	uq := uniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
 	table := &relationDescriptor{address: tableAddress, namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: tableRelation, attributes: []int32{2, 3, 4, 5}, attributeHighWater: 5, columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, notNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, checkConstraints: []checkConstraint{{OID: 42002, expression: repeated}, {OID: 42004, expression: constant}}, uniqueConstraints: []uniqueConstraint{uq}, defaults: map[int32]columnDefault{3: {OID: 43001, expression: constant}}, generations: map[int32]columnGeneration{4: {OID: 43002, expression: repeated}}}
 	catalog.state.descriptors[tableAddress] = table
 	simple := &relationDescriptor{address: pgDependUnitAddress(1259, 44001, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, keys: []indexKey{{attribute: 2}, {attribute: 2}}, include: []int32{3}}}
 	expression := &relationDescriptor{address: pgDependUnitAddress(1259, 44002, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, keys: []indexKey{{derived: &derivedIndexKey{definition: repeated}}}}}
-	backing := &relationDescriptor{address: pgDependUnitAddress(1259, 44003, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, unique: true, constraint: uniqueBacking(&uq)}}
+	backing := &relationDescriptor{address: pgDependUnitAddress(1259, 44003, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, unique: true, keys: []indexKey{{attribute: 5}}, include: []int32{3}, constraint: uniqueBacking(&uq)}}
 	standalone := &relationDescriptor{address: pgDependUnitAddress(1259, 44004, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, unique: true, keys: []indexKey{{attribute: 2}}, include: []int32{3}}}
 	sequence := &relationDescriptor{address: pgDependUnitAddress(1259, 45001, 0), namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: sequenceRelation, sequence: &sequenceOptions{owned: column}}
 	identity := &relationDescriptor{address: pgDependUnitAddress(1259, 45002, 0), namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: sequenceRelation, sequence: &sequenceOptions{owned: column, identity: true}}
@@ -104,6 +104,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 		pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(2606, 42002, 0, 1259, 41001, 2, 'n'),
 		pgDependUnitEdge(2606, 42004, 0, 1259, 41001, 0, 'a'),
 		pgDependUnitEdge(2606, 42003, 0, 1259, 41001, 5, 'a'),
+		pgDependUnitEdge(2606, 42003, 0, 1259, 41001, 3, 'a'),
 		pgDependUnitEdge(2604, 43001, 0, 1259, 41001, 3, 'a'),
 		pgDependUnitEdge(2604, 43002, 0, 1259, 41001, 4, 'i'), pgDependUnitEdge(2604, 43002, 0, 1259, 41001, 2, 'n'),
 		pgDependUnitEdge(1259, 44001, 0, 1259, 41001, 2, 'a'), pgDependUnitEdge(1259, 44001, 0, 1259, 41001, 3, 'a'),

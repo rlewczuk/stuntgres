@@ -50,7 +50,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		switch action.Action {
 		case parser.DropNotNull:
 			label = "ALTER COLUMN ... DROP NOT NULL"
-		case parser.AddNotNull, parser.AddExclusion:
+		case parser.AddNotNull, parser.AddExclusion, parser.AddUsingIndex:
 			label = "ADD CONSTRAINT"
 		case parser.DropConstraint:
 			label = "DROP CONSTRAINT"
@@ -114,12 +114,18 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var pendingIndexes []alterTypeIndex
 	var typeChecks []checkConstraint
 	var additions []addedColumn
+	var attachments []usingIndexAttachment
+	hasAttachments := false
+	for _, action := range s.Actions {
+		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
+	}
 	// PostgreSQL orders DROP, TYPE, ADD columns, original SET, constraints,
 	// then identity ADD/SET. Added CHECKs bind against the completed ADD shape.
 	for pass := range 7 {
 		typeIndex := 0
+		attachmentIndex := 0
 		for _, action := range s.Actions {
-			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetNotNull || pass == 4 && (action.Action == parser.AddNotNull || action.Action == parser.AddExclusion) || pass == 5 && action.Action == parser.AddIdentity || pass == 6 && action.Action == parser.SetIdentity
+			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetNotNull || pass == 4 && (action.Action == parser.AddNotNull || action.Action == parser.AddExclusion || action.Action == parser.AddUsingIndex) || pass == 5 && action.Action == parser.AddIdentity || pass == 6 && action.Action == parser.SetIdentity
 			if !selected {
 				continue
 			}
@@ -153,6 +159,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				if err == nil {
 					transformations = append(transformations, transformation)
 				}
+			} else if action.Action == parser.AddUsingIndex {
+				next, err = e.stageUsingIndex(op, stage, next, attachments[attachmentIndex])
+				attachmentIndex++
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
@@ -182,6 +191,20 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					stage = e.BeginCatalogStage(auth.catalog)
 				}
 				err = e.rebindAlterTypeIndexes(scope, auth, next, stage, pendingIndexes)
+			}
+		}
+		if err == nil && pass == 1 && hasAttachments {
+			if stage == nil {
+				stage = e.BeginCatalogStage(auth.catalog)
+			}
+			err = stage.Replace(next)
+			if err == nil {
+				e.mu.Lock()
+				err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
+				e.mu.Unlock()
+			}
+			if err == nil {
+				attachments, err = e.captureUsingIndexes(stage, next, s.Actions, transformations)
 			}
 		}
 		if err == nil && pass == 3 {
@@ -545,6 +568,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
+	if hasAttachments {
+		for name := range stage.touched {
+			if e.state.names[name] != grantCatalog.names[name] {
+				e.mu.Unlock()
+				return Result{}, CatalogConflict{}
+			}
+		}
+	}
 	for a, d := range stage.descriptors {
 		original := grantCatalog.descriptors[a]
 		if captured, identity := stage.identityOriginals[a]; identity {
@@ -574,9 +605,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	shape.replacement, shape.relation = replacement, next
-	changes.storage[ref.Address] = shape
+	metadataOnly := len(transformations) == 0 && len(additions) == 0 && slices.Equal(old.attributes, next.attributes)
+	// A storage entry requests index reconstruction at publication. Attachment
+	// metadata needs none; retain any earlier private shape without restamping it.
+	if !hasAttachments || !metadataOnly {
+		changes.storage[ref.Address] = shape
+	}
 	e.mu.Unlock()
-	if err := prepareAlterUniqueRoots(op.Context(), changes, next, replacement, uniqueBaselines); err != nil {
+	if err := prepareAlterUniqueRoots(op.Context(), changes, stage.base, next, replacement, uniqueBaselines, metadataOnly); err != nil {
 		return Result{}, err
 	}
 	if err := scope.prepareExclusionShape(old, next, e.stageRead(stage), projectedWrites, projectedDeletes); err != nil {

@@ -137,7 +137,7 @@ func stagePrivateColumnShape(ctx context.Context, stage *CatalogStage, changes *
 		return nil, nil, false, err
 	}
 	changes.storage[old.address] = shape
-	if err = prepareAlterUniqueRoots(ctx, changes, next, shape.replacement, nil); err != nil {
+	if err = prepareAlterUniqueRoots(ctx, changes, stage.base, next, shape.replacement, nil, false); err != nil {
 		return nil, nil, false, err
 	}
 	return writes, deletes, shape.replacement != store, nil

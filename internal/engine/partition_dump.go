@@ -187,7 +187,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		appendOption(option)
 	}
 	for _, constraint := range d.uniqueConstraints {
-		definition, err := uniqueConstraintSQL(d, &constraint)
+		definition, err := uniqueConstraintSQL(catalog, d, &constraint)
 		if err != nil {
 			return "", err
 		}

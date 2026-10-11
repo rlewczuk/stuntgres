@@ -156,7 +156,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			}
 			insertConflictWantHints(t, prepared[index.address], &shaped, want)
 			changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{index.address: &index}, originals: map[ObjectAddress]Descriptor{index.address: f.index}}
-			if err := prepareAlterUniqueRoots(context.Background(), changes, &parent, &shaped, nil); err != nil {
+			if err := prepareAlterUniqueRoots(context.Background(), changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
 			insertConflictWantHints(t, changes.uniqueRoots[index.address], &shaped, want)
@@ -220,7 +220,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	index := *f.index
 	index.revision++
 	changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{index.address: &index}, originals: map[ObjectAddress]Descriptor{index.address: f.index}}
-	if err := prepareAlterUniqueRoots(context.Background(), changes, f.parent, f.store, validated); err != nil {
+	if err := prepareAlterUniqueRoots(context.Background(), changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.uniqueRoots[index.address]

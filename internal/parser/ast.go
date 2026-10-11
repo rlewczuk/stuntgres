@@ -669,6 +669,7 @@ const (
 	DisableRowSecurity
 	ForceRowSecurity
 	NoForceRowSecurity
+	AddUsingIndex
 )
 
 type AlterTableAction struct {
@@ -685,6 +686,7 @@ type AlterTableAction struct {
 	Collation   *ObjectName
 	Using       Expr
 	Exclusion   *ExclusionConstraint
+	UsingIndex  *UsingIndexConstraint
 }
 
 type AlterTable struct {
@@ -696,6 +698,15 @@ type AlterTable struct {
 }
 
 func (*AlterTable) statement() {}
+
+// UsingIndexConstraint refers to an existing index, never a key-list creation.
+// Property flags are parser-only provenance; supported attachments are immediate.
+type UsingIndexConstraint struct {
+	Name, Index                                                   Identifier
+	Primary                                                       bool
+	Pos, KindPos                                                  Position
+	deferrable, initiallyDeferred, deferrabilitySet, initiallySet bool
+}
 
 type DefaultAction uint8
 

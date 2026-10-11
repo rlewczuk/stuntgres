@@ -42,7 +42,8 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 		}
 		used := make(map[int32]bool, len(c.Attributes))
 		for i, a := range c.Attributes {
-			if used[a] || !parent.hasAttribute(a) || index.sqlIndex.keys[i].attribute != a || index.sqlIndex.keys[i].desc || index.sqlIndex.keys[i].nullsFirst {
+			attribute, expression, err := indexCatalogKey(parent, index.sqlIndex.keys[i])
+			if err != nil || expression != nil || used[a] || !parent.hasAttribute(a) || attribute != a || index.sqlIndex.keys[i].desc || index.sqlIndex.keys[i].nullsFirst {
 				return fmt.Errorf("stuntgres: invalid unique key")
 			}
 			used[a] = true
@@ -67,7 +68,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 	return nil
 }
 
-func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint) error {
+func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint) error {
 	d.uniqueConstraints = make([]uniqueConstraint, len(declarations))
 	for i := range declarations {
 		d.uniqueConstraints[i] = declarations[i].uniqueConstraint
@@ -166,7 +167,24 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 			definition.ready, definition.valid, definition.live = true, true, true
 			definition.keys = slices.Clone(source.sqlIndex.keys)
 			for j := range definition.keys {
-				definition.keys[j].attribute = c.Attributes[j]
+				key := &definition.keys[j]
+				if key.derived == nil {
+					key.attribute = c.Attributes[j]
+				} else {
+					node, err := declarations[i].like.remap(key.derived.definition, d, stage.base)
+					if err != nil {
+						return err
+					}
+					execution, err := declarations[i].like.remap(key.derived.execution, d, stage.base)
+					if err != nil {
+						return err
+					}
+					derived := &derivedIndexKey{definition: node, execution: execution, attributes: d.attributes}
+					if _, err := (scalarRenderer{owner: d, dependencies: &derived.dependencies}).sql(op.Context(), stage.base, node); err != nil {
+						return err
+					}
+					key.derived = derived
+				}
 			}
 			definition.include = make([]int32, len(source.sqlIndex.include))
 			for j, attribute := range source.sqlIndex.include {
@@ -368,8 +386,12 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 	return nil
 }
 
-func uniqueConstraintSQL(parent *relationDescriptor, c *uniqueConstraint) (string, error) {
-	labels := make([]string, len(c.Attributes))
+func uniqueConstraintSQL(catalog CatalogRead, parent *relationDescriptor, c *uniqueConstraint) (string, error) {
+	index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+	if !ok || index.sqlIndex == nil {
+		return "", fmt.Errorf("stuntgres: missing unique deparse index")
+	}
+	labels := make([]string, len(c.Attributes)+len(index.sqlIndex.include))
 	for i, attribute := range c.Attributes {
 		label, err := deparseAttribute(parent, attribute)
 		if err != nil {
@@ -383,5 +405,16 @@ func uniqueConstraintSQL(parent *relationDescriptor, c *uniqueConstraint) (strin
 	} else if c.NullsNotDistinct {
 		prefix += " NULLS NOT DISTINCT"
 	}
-	return prefix + " (" + strings.Join(labels, ", ") + ")", nil
+	text := prefix + " (" + strings.Join(labels[:len(c.Attributes)], ", ") + ")"
+	if len(index.sqlIndex.include) != 0 {
+		for i, attribute := range index.sqlIndex.include {
+			label, err := deparseAttribute(parent, attribute)
+			if err != nil {
+				return "", err
+			}
+			labels[len(c.Attributes)+i] = label
+		}
+		text += " INCLUDE (" + strings.Join(labels[len(c.Attributes):], ", ") + ")"
+	}
+	return text, nil
 }

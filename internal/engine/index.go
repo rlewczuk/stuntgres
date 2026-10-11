@@ -75,7 +75,13 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	for i, key := range definition.keys {
 		if key.derived != nil {
 			if definition.constraint != nil && definition.constraint.kind == uniqueBackingKind {
-				return o, fmt.Errorf("stuntgres: derived key in unique backing index")
+				attribute, expression, err := indexCatalogKey(parent, key)
+				if err != nil {
+					return o, err
+				}
+				if attribute == 0 || expression != nil {
+					return o, fmt.Errorf("stuntgres: expression key in unique backing index")
+				}
 			}
 			if key.derived.definition == nil || key.derived.execution == nil {
 				return o, fmt.Errorf("stuntgres: missing derived index expression")

@@ -1492,11 +1492,25 @@ kind `p` and canonical PRIMARY KEY deparsing. Existing renames, schema moves,
 REINDEX, LIKE INCLUDING INDEXES/ALL and native Dump/Restore preserve the attachment.
 Dropping the primary key leaves its NOT NULL identities; live key columns cannot
 drop NOT NULL. Key TYPE changes rebuild affected constraint/index/NOT NULL identities.
-ALTER ADD PRIMARY KEY (including ADD COLUMN), deferrability, WITHOUT OVERLAPS,
-index parameters remain excluded. Foreign keys follow their bounded CREATE contract above.
+ALTER ADD PRIMARY KEY key lists (including ADD COLUMN), CREATE deferrability,
+WITHOUT OVERLAPS and index parameters remain excluded. Foreign keys follow their
+bounded CREATE contract above.
 See [primary-key constraints](docs/TABLES.md#primary-key-constraints--change-note).
 Feature smoke: `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePrimaryKeyFeatureSmoke$'`.
+
+Change note: `ALTER TABLE ... ADD [CONSTRAINT name] UNIQUE | PRIMARY KEY
+USING INDEX index` attaches an eligible existing unique B-tree without rebuilding
+its data or changing its index identity. Named attachments rename the backing
+index with a notice; failed multi-action ALTER leaves the whole original group
+and rows intact, while notices survive failure. Primary keys add only missing
+key NOT NULL identities; INCLUDE remains nullable payload. INCLUDE TYPE/DROP,
+LIKE, ownership, prepared consumers and native Dump/Restore use the actual backing
+definition. Immediate ALTER properties are admitted; actual deferred constraints,
+partial/expression indexes and nondefault key behavior are not eligible.
+See [existing-index attachments](docs/TABLES.md#existing-index-uniqueprimary-key-constraints--change-note).
+Feature smoke: `make check RUN='TestReferenceUsingIndexFeatureSmoke'`;
+pinned counterpart: `make check RUN='TestReferenceUsingIndexFeatureSmoke' REFERENCE=1`.
 
 Change note: CREATE TABLE and existing ALTER TABLE ADD CONSTRAINT support
 `EXCLUDE [USING btree|hash] (... WITH =)` over owned scalar operator-family

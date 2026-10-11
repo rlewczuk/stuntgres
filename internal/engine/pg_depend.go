@@ -236,6 +236,16 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					}
 					add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.address, sub), 'a')
 				}
+				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				if !ok || index.sqlIndex == nil {
+					return nil, fmt.Errorf("stuntgres: missing unique dependency index")
+				}
+				for _, sub := range index.sqlIndex.include {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.address, sub), 'a')
+				}
 			}
 			for _, f := range d.foreignKeys {
 				owner := ObjectAddress{ClassID: 2606, ObjectID: f.OID}

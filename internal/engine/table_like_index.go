@@ -133,7 +133,11 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 					return err
 				}
 				for i, key := range old.keys {
-					c.Attributes[i], err = in.attribute(destination, key.attribute)
+					attribute, expression, keyErr := indexCatalogKey(in.source, key)
+					if keyErr != nil || expression != nil {
+						return fmt.Errorf("stuntgres: invalid LIKE unique key")
+					}
+					c.Attributes[i], err = in.attribute(destination, attribute)
 					if err != nil {
 						return err
 					}

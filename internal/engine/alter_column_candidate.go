@@ -107,6 +107,15 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 				break
 			}
 		}
+		descriptor := stage.descriptors[constraint.Index]
+		if descriptor == nil {
+			descriptor = stage.base.state.descriptors[constraint.Index]
+		}
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil {
+			return nil, fmt.Errorf("stuntgres: missing dropped-column unique index")
+		}
+		dependent = dependent || slices.Contains(index.sqlIndex.include, old.attributes[slot])
 		if !dependent {
 			next.uniqueConstraints = append(next.uniqueConstraints, constraint)
 		}

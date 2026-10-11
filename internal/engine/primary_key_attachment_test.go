@@ -81,7 +81,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if names.SchemaName != "public" || names.TableName != "t" || names.IndexName != "pk" || names.IndexDef != "CREATE UNIQUE INDEX pk ON public.t USING btree (a, b)" {
 		t.Fatal(names)
 	}
-	if rendered, err := uniqueConstraintSQL(parent, &parent.uniqueConstraints[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
+	if rendered, err := uniqueConstraintSQL(view, parent, &parent.uniqueConstraints[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
 	edges, err := collectPGDepend(context.Background(), view)

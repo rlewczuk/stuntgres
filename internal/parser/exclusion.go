@@ -28,25 +28,43 @@ type SetConstraints struct {
 func (*SetConstraints) statement() {}
 
 func exclusionProperty(l *lexer, c *ExclusionConstraint, token lexeme, deferrability, value bool) bool {
+	return constraintProperty(l, token, deferrability, value, &c.Deferrable, &c.InitiallyDeferred, &c.DeferrabilitySet, &c.InitiallySet)
+}
+
+func constraintProperty(l *lexer, token lexeme, deferrability, value bool, deferrable, initiallyDeferred, deferrabilitySet, initiallySet *bool) bool {
 	if deferrability {
-		if c.DeferrabilitySet && c.Deferrable != value {
+		if *deferrabilitySet && *deferrable != value {
 			l.failAt("42601", "conflicting constraint properties", token.pos.Offset)
 			return false
 		}
-		c.DeferrabilitySet, c.Deferrable = true, value
+		*deferrabilitySet, *deferrable = true, value
 	} else {
-		if c.InitiallySet && c.InitiallyDeferred != value {
+		if *initiallySet && *initiallyDeferred != value {
 			l.failAt("42601", "conflicting constraint properties", token.pos.Offset)
 			return false
 		}
-		c.InitiallySet, c.InitiallyDeferred = true, value
+		*initiallySet, *initiallyDeferred = true, value
 	}
-	if c.InitiallyDeferred {
-		if c.DeferrabilitySet && !c.Deferrable {
+	if *initiallyDeferred {
+		if *deferrabilitySet && !*deferrable {
 			l.failAt("42601", "constraint declared INITIALLY DEFERRED must be DEFERRABLE", token.pos.Offset)
 			return false
 		}
-		c.Deferrable = true
+		*deferrable = true
+	}
+	return true
+}
+
+func usingIndexProperty(l *lexer, c *UsingIndexConstraint, token lexeme, deferrability, value bool) bool {
+	if !constraintProperty(l, token, deferrability, value, &c.deferrable, &c.initiallyDeferred, &c.deferrabilitySet, &c.initiallySet) {
+		return false
+	}
+	if value {
+		message := "UNIQUE deferrability is unsupported"
+		if c.Primary {
+			message = "PRIMARY KEY deferrability is unsupported"
+		}
+		l.deferUnsupported(token, message)
 	}
 	return true
 }

@@ -25,6 +25,7 @@ package parser
  check *CheckConstraint
  unique *UniqueConstraint
  foreignKey *ForeignKeyConstraint
+ usingIndex *UsingIndexConstraint
  exclusion *ExclusionConstraint
  exclusionElements []ExclusionElement
  exclusionElement ExclusionElement
@@ -403,6 +404,7 @@ package parser
 %type <identifiers> foreign_columns foreign_columns_optional
 %type <tok> foreign_match foreign_match_optional foreign_action foreign_actions foreign_update foreign_delete
 %type <tok> primary_head primary_modifier
+%type <usingIndex> using_index_constraint
 %type <identifiers> primary_columns
 %type <exclusion> exclusion_head exclusion_definition exclusion_storage exclusion_tablespace exclusion_predicate exclusion_constraint
 %type <exclusionElements> exclusion_elements
@@ -1222,6 +1224,13 @@ foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).s
  | SET DEFAULT {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1} ;
 foreign_key: FOREIGN name '(' foreign_columns ')' foreign_definition {if $2.keyword==nil||$2.text!="key"{sqllex.(*lexer).syntax($2);return 1};$$=$6;$$.Columns=$4;$$.Pos=$1.pos}
  | CONSTRAINT name FOREIGN name '(' foreign_columns ')' foreign_definition {if $4.keyword==nil||$4.text!="key"{sqllex.(*lexer).syntax($4);return 1};$$=$8;$$.Name=Identifier{Text:$2.text,Pos:$2.pos};$$.Columns=$6;$$.Pos=$3.pos} ;
+using_index_constraint: UNIQUE USING INDEX name {$$=&UsingIndexConstraint{Index:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos,KindPos:$1.pos}}
+ | CONSTRAINT name UNIQUE USING INDEX name {$$=&UsingIndexConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Index:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos,KindPos:$3.pos}}
+ | primary_head USING INDEX name {$$=&UsingIndexConstraint{Index:Identifier{Text:$4.text,Pos:$4.pos},Primary:true,Pos:$1.pos,KindPos:$1.pos}}
+ | CONSTRAINT name primary_head USING INDEX name {$$=&UsingIndexConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Index:Identifier{Text:$6.text,Pos:$6.pos},Primary:true,Pos:$1.pos,KindPos:$3.pos}}
+ | using_index_constraint DEFERRABLE {if !usingIndexProperty(sqllex.(*lexer),$1,$2,true,true){return 1};$$=$1}
+ | using_index_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !usingIndexProperty(sqllex.(*lexer),$1,$2,true,false){return 1};$$=$1}
+ | using_index_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};if !usingIndexProperty(sqllex.(*lexer),$1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 exclusion_head: EXCLUDE {$$=&ExclusionConstraint{Pos:$1.pos,Index:CreateIndex{Pos:$1.pos}}}
  | CONSTRAINT name EXCLUDE {$$=&ExclusionConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,Index:CreateIndex{Pos:$3.pos}}} ;
 exclusion_definition: exclusion_head index_method '(' exclusion_elements ')' index_include {
@@ -1284,8 +1293,7 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ADD unique_constraint { sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=&AlterTableAction{} }
  | ADD primary_constraint {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
- | ADD primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
- | ADD CONSTRAINT name primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
+ | ADD using_index_constraint {$$=&AlterTableAction{Action:AddUsingIndex,UsingIndex:$2,Constraint:$2.Name,Pos:$1.pos}}
  | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
  | ADD foreign_key {sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=&AlterTableAction{}}
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} }

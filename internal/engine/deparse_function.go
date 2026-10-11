@@ -294,7 +294,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					continue
 				}
 				found = true
-				text, err = uniqueConstraintSQL(relation, &def)
+				text, err = uniqueConstraintSQL(view, relation, &def)
 				if err != nil {
 					return sqltype.Value{}, err
 				}

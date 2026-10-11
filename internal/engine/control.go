@@ -286,7 +286,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if r.sqlIndex != nil {
-			if r.sqlIndex.constraint != nil {
+			if r.sqlIndex.constraint != nil && !usingIndexDump(r) {
 				continue
 			}
 			sql, err := indexDefinitionSQL(ctx, catalog, r, indexPresentation{dump: true})
@@ -295,6 +295,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 			oid := r.address.ObjectID
+			if usingIndexDump(r) {
+				parent := catalog.state.descriptors[r.sqlIndex.parent].(*relationDescriptor)
+				kind := "UNIQUE"
+				if r.sqlIndex.constraint.Primary {
+					kind = "PRIMARY KEY"
+				}
+				sql += "ALTER TABLE " + quoteIdentifier(ns.name) + "." + quoteIdentifier(parent.name) + " ADD CONSTRAINT " + quoteIdentifier(r.name) + " " + kind + " USING INDEX " + quoteIdentifier(r.name) + ";\n"
+			}
 			viewDependencies[oid] = []OID{r.sqlIndex.parent.ObjectID}
 			for _, key := range r.sqlIndex.keys {
 				if key.derived == nil {
@@ -814,7 +822,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, c := range t.descriptor.uniqueConstraints {
-				text, err := uniqueConstraintSQL(t.descriptor, &c)
+				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				if !ok {
+					return fmt.Errorf("stuntgres: missing unique dump index")
+				}
+				if usingIndexDump(index) {
+					continue
+				}
+				text, err := uniqueConstraintSQL(catalog, t.descriptor, &c)
 				if err != nil {
 					return err
 				}
@@ -1084,8 +1099,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.CreateIndex:
 		case *parser.CreatePolicy:
 		case *parser.AlterTable:
-			if !rowSecurityActions(s.Actions) {
-				return sqlError("0A000", "restore accepts only row-security flag ALTER TABLE actions")
+			if rowSecurityActions(s.Actions) {
+				break
+			}
+			if len(s.Actions) == 0 {
+				return sqlError("0A000", "restore accepts only existing-index constraint attachments")
+			}
+			for _, action := range s.Actions {
+				if action.Action != parser.AddUsingIndex {
+					return sqlError("0A000", "restore accepts only existing-index constraint attachments")
+				}
 			}
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {

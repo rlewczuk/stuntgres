@@ -7,15 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func uniqueTypeAffected(c uniqueConstraint, transformations []columnTransformation) bool {
-	for _, change := range transformations {
-		if slices.Contains(c.Attributes, change.attribute) {
-			return true
-		}
-	}
-	return false
-}
-
 // A TYPE action rebuilds each affected constraint/backing relation as one
 // removal-and-create candidate, retaining the parent and stable attribute keys.
 func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
@@ -24,7 +15,22 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 	}
 	var next *relationDescriptor
 	for i, old := range parent.uniqueConstraints {
-		if !uniqueTypeAffected(old, transformations) {
+		index, ok := stage.base.state.descriptors[old.Index].(*relationDescriptor)
+		if !ok {
+			// A TYPE-reminted standalone index was already rebuilt before its
+			// USING INDEX attachment. Do not allocate another backing identity.
+			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
+				continue
+			}
+			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
+		}
+		if index.sqlIndex == nil {
+			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
+		}
+		if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
+			index = current
+		}
+		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			continue
 		}
 		if next == nil {
@@ -33,10 +39,6 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			next = &clone
 		}
 		c := &next.uniqueConstraints[i]
-		index, ok := stage.base.state.descriptors[old.Index].(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
-			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
-		}
 		ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.Index}
 		if err := stage.removeObjectLocked(ref, false); err != nil {
 			return nil, err
@@ -63,7 +65,12 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		clone.sqlIndex = &definition
 		clone.columns = slices.Clone(index.columns)
 		for j, key := range definition.keys {
-			slot := slices.Index(parent.attributes, key.attribute)
+			attribute, expression, err := indexCatalogKey(parent, key)
+			if err != nil || expression != nil {
+				return nil, fmt.Errorf("stuntgres: invalid TYPE unique key")
+			}
+			slot := slices.Index(parent.attributes, attribute)
+			clone.columns[j].Name = parent.columns[slot].Name
 			clone.columns[j].Usage = parent.columns[slot].Usage
 			class, ok := sqltype.DefaultIndexClass(clone.columns[j].Usage.Type)
 			if !ok {
@@ -71,6 +78,20 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			}
 			definition.keys[j].class = class
 			clone.columns[j].OriginTable = uint32(id)
+		}
+		for j, attribute := range definition.include {
+			slot := slices.Index(parent.attributes, attribute)
+			column := &clone.columns[len(definition.keys)+j]
+			column.Name, column.Usage, column.OriginTable = parent.columns[slot].Name, parent.columns[slot].Usage, uint32(id)
+		}
+		for j, column := range clone.columns {
+			if column.Name != index.columns[j].Name {
+				clone.index = make(map[string]int, len(clone.columns))
+				for slot, renamed := range clone.columns {
+					clone.index[renamed.Name] = slot
+				}
+				break
+			}
 		}
 		if err := stage.Create(&clone); err != nil {
 			return nil, err
@@ -205,7 +226,7 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate
 // Both reminted attachments and evolved standalone indexes use the existing
 // private catalog owner. Roots exclude own successors, which DML checks in its
 // overlay; validated roots are reusable only when there was no own overlay.
-func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, parent *relationDescriptor, baseline *relationStorage, validated map[string]*logicalIndexRoot) error {
+func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, source CatalogRead, parent *relationDescriptor, baseline *relationStorage, validated map[string]*logicalIndexRoot, metadataOnly bool) error {
 	for address, descriptor := range changes.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || (!index.sqlIndex.unique && !index.sqlIndex.isExclusion()) || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live {
@@ -217,6 +238,11 @@ func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, paren
 		}
 		if original := changes.originals[address]; original == descriptor {
 			continue
+		}
+		if metadataOnly {
+			if previous, ok := source.state.descriptors[address].(*relationDescriptor); ok && sameIndexKeySemantics(previous, index) {
+				continue // Ownership/name/NN metadata alone retains the exact root.
+			}
 		}
 		root := validated[index.name]
 		if root == nil {

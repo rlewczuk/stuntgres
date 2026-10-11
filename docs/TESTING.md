@@ -5074,3 +5074,145 @@ make check RUN='^TestEnum(GenerationPublicationAtomicity|OperationSafetyCapture)
 Incoming enum staged-table fixture callers pass the empty FK reference-grant
 inventory explicitly; their original provenance/publication/safety assertions
 are unchanged.
+
+## Existing-index constraint attachment witnesses
+
+The thirteen shared `TestReferenceUsingIndex` definitions use the existing fixture
+and public interfaces in both modes, with direct/prepared routes and independent
+values, counts, types, nullable metadata, complete logical diagnostics, notices
+and relative real catalog identities. Original scalar `using_index` regression
+coverage lives in `TestReferenceUsingIndexEligibility/original_using_index`;
+other PRIMARY KEY boundary cases are unchanged. There are no discovery filters
+or oracle loggers in the completed definitions.
+
+`TestReferenceUsingIndexNames/foreign_key` composes an already-admitted populated
+FK with both UNIQUE and PRIMARY KEY attachments, in direct/prepared routes.
+It expects the full dynamic catalog23505 at Execute and one rename notice,
+preserves the original FK/index identities, dependencies, data and nullable
+metadata, then retries under a noncolliding name on the same connection.
+The retry retains the FK and physical INCLUDE index, adds NN only to successful
+PK keys, and accepts another independently expected valid child row.
+
+Select bounded groups with the current make check contract, not dollar end anchors:
+
+```sh
+make check RUN='TestReferenceUsingIndex(Eligibility|Diagnostics|Names)'
+make check RUN='TestReferenceUsingIndex(PrimaryNullability|AlterPasses|ImmediateAttributes)'
+make check RUN='TestReferenceUsingIndex(Include|Ownership)'
+make check RUN='TestReferenceUsingIndex(Transactions|Locks)'
+make check RUN='TestReferenceUsingIndex(RetainedStatements|NativeControls|FeatureSmoke)'
+```
+
+Run each identical selector with `REFERENCE=1` for real pinned PostgreSQL18.0.
+NativeControls explicitly exercises native Reset/Dump/Restore and replays the
+actual portable emitted SQL in PostgreSQL; it is not a simulated server control.
+The `NativeControls/provider_graph` direct/prepared subcases attach a populated
+enum-key INCLUDE index with sequence and enum-provider defaults, a REGCLASS
+default referencing that index, and a persistent view. They assert real default,
+type, constraint/view definitions, dependency edges, values and held consumers
+before/after native Restore and on actual emitted-SQL PostgreSQL replay; the next
+default sequence value is independently9. View inquiry is consumed as real replay
+SQL and checked against independent columns/values, not cosmetic whitespace or
+dump-generated source aliases. Successful same-name attached Restore without
+Reset retains the parent number and reconstructs a reciprocal constraint/index
+graph in a fresh catalog generation. Both public controls diverge live data after
+Dump, then prove Restore removes that divergence, rebinds held consumers and
+preserves canonical redump; Reset and bad-replay controls remain separate.
+`TestUsingIndexRestoreGeneration` additionally asserts exact epoch advancement
+and distinct owner/epoch/address ObjectRefs, new descriptor/storage/root objects,
+key-only NN/INCLUDE, immutable predecessor snapshots and retained-session writes
+into the reconstructed root. Numeric definition OIDs may coincide: Restore uses
+an isolated New-engine allocator, and import remaps candidate collisions rather
+than reserving removed destination definitions.
+Public native pre-cancellation is only a request-admission boundary.
+`TestUsingIndexBlockedCancellation` starts live direct/prepared attachment work
+behind a real conflicting grant, observes its native wait queue via the existing
+lock seam, then cancels and joins it. It asserts no waiter/grant/NOTICE leak,
+original catalog/storage/root and healthy same-session retry. These definitions
+are required proof inputs, not claims of observed passing outcomes.
+The NULL precedence subcases `AlterPasses/null_precedence/two_primary` and
+`.../check_collision` assert runtime metadata failures before final NN scan,
+both notices/one notice respectively, original complete state and healthy retry.
+WHERE a>0 proves actual partial rejection; folded WHERE TRUE is a positive.
+The genuine concurrent expression+partial PostgreSQL fixture has a native
+expression-only setup counterpart because combined native setup is unavailable;
+the separate actual partial negative and valid represented private composite
+preserve both rejection obligations. Native index timing is inherently immediate;
+no manufactured deferred or unique HASH provider fixture is permitted.
+Index-comment SQL is PostgreSQL-only; private descriptor preservation is separate.
+Namespace witnesses reuse `fixture.UniqueReferencePublicNamespace` once per case
+and parameterized pg_class relnamespace restrictions, with constraint-to-parent
+pg_class joins. They do not require native pg_namespace or regnamespace support.
+Typed CreateIndex fixtures specify the real method explicitly: SQL's parser
+supplies the B-tree default, not the package-entry executor or a new fallback.
+Common catalog witnesses use the admitted pg_constraint oid/conname/contype/
+conrelid/conbin surface, canonical definitions, pg_class backing identities,
+actual internal pg_depend ownership and public ColumnTypes/data snapshots. Failure
+snapshots also retain relation and constraint dependency edges. Native has no
+pg_attribute relation: shared table metadata and NN/DML witnesses plus private
+physical index descriptors retain that coverage. Exact pg_attribute, conindid,
+conkey and timing inquiry are PostgreSQL-only extras; native key-only, timing and
+reciprocal ownership facts also have typed descriptor proofs. SQL
+selectors use supported OR comparisons rather than introducing IN inquiry work.
+The semantic-Var fixture binds a real expression and publishes a validated catalog
+stage: ordinary CREATE INDEX normalizes a bare Var to an attribute. TYPE rebuilds
+must update the physical name-to-slot lookup when renamed key/INCLUDE labels
+change; catalog identity validation remains enabled.
+`TestUsingIndexCombinedTypeAttachment` covers key and INCLUDE TYPE with attachment
+in both textual orders, UNIQUE/PRIMARY KEY, successful remint and renamed-target
+collision. A TYPE-created index stays a private creation when attachment updates
+its descriptor/name slot; existing base identities still use Replace. Original
+removal, destination-name observations and publication fences remain intact.
+The fixture asserts reciprocal identity/type/data, key-only NN, immutable original
+descriptors/root and collision recovery through the original usable index.
+Real OID-to-regclass catalog comparisons use the existing bigint casts. Absent
+named ON CONSTRAINT targets fail INSERT Prepare42704 in both modes; ordinary
+preattachment INSERT/SELECT and valid postattachment conflict handles are retained.
+Restore requires a newly reconstructed reciprocal group/catalog generation,
+not numeric OID inequality across isolated allocators or remint of a retained
+same-name parent. Source authority is `restoreStage`, `remapDefinitionOIDsLocked`
+and `installForeignCatalogLocked`; the last advances the catalog epoch and
+remints actual storage/roots.
+The PGDepend construction fixture includes a real reciprocal backing index and
+INCLUDE auto dependency; semantic-Var ordering accepts only catalog-simple keys,
+not arbitrary expressions, when rebuilding a unique backing group.
+
+Affected and supplementary proof inputs:
+
+```sh
+make check RUN='TestReferencePrimaryKey(Boundaries|MalformedBoundarySuffix)'
+make check RUN='TestReferenceUniqueIndex(Lifecycle|Type|NativeControls)'
+make check RUN='TestReferencePrimaryKey(Lifecycle|DropRetainsNotNull|SchemaMove|IdentityGuardPrecedence)'
+make check RUN='TestUsingIndex'
+make check RUN='TestPrimaryKey(Attachments|CapabilityRecords|WholeInputValidation|ReservedSuffixConsumers)'
+make check RUN='TestExclusion(Syntax|PropertySyntaxDiagnostics)'
+make check RUN='Test(InsertConflictIndexPositionHints|PartialIndexUniqueType)'
+make check RUN='TestReferenceExclusion(PropertyDiagnostics|Definitions)'
+make check RUN='TestUsingIndex(BlockedCancellation|CombinedTypeAttachment|ImmutableGroup|PrivateOverlay|PublicationFences)' RACE=1
+make check RUN='TestReferenceUsingIndex(Transactions|Locks)' RACE=1
+```
+
+The reference regression/lock selectors also require identical real mode,
+adding `REFERENCE=1`. Package-entry tests use independently constructed ASTs and
+real catalog/providers/storage/roots, not additional private copies of public SQL.
+They prove immutable metadata-only vectors/root identity, existing NN/comment
+retention, actual include dependencies and semantic-Var LIKE/TYPE remapping,
+savepoint/private-root sharing, and validation/Finish cancellation, Reset/Restore,
+name/descriptor/authorization fences with no leaked candidate. Successful Finish
+cannot be retroactively vetoed by cancellation.
+
+Root owns generation/formatting and all verification after edits. Give each
+check/quickcheck/race/bench invocation one external 900-second deadline; whole
+Docker-free verification is `make quickcheck`, not selected quickcheck runs.
+Post-merge `make finalcheck` has an external 1800-second deadline.
+These commands are proof inputs, not recorded passes.
+
+The standalone public smoke uses NewDriver/Connector notices and database/sql:
+create populated composite UNIQUE INCLUDE payload, attach as renamed PK with
+stable index identity and one exact notice, verify key NN/payload metadata and
+held duplicate/NULL errors, healthy writes and ordered rows, a quiet later-failing
+ALTER with original catalog preserved, unnamed UNIQUE ownership, actual native
+Dump/Reset/Restore with held-handle reuse, and DROP ownership/canonical redump.
+Exit zero with no output is the expected observation; reference FeatureSmoke
+and full native-control/fence families remain required independent proof.
+
