@@ -31,10 +31,14 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 			walk(s.lower)
 			walk(s.upper)
 		}
-	case updateOldExpression:
-		walk(e.columnExpression)
-	case deleteNewExpression:
-		walk(e.columnExpression)
+	case returningColumnExpression:
+		if e.value != nil {
+			walk(e.value)
+		} else {
+			walk(e.columnExpression)
+		}
+	case returningWholeRowExpression:
+		args(e.members)
 	case coercionExpression:
 		walk(e.child)
 	case collationExpression:
@@ -244,6 +248,8 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(BoundExpr))) (uint3
 		var frame uint32
 		switch n := node.(type) {
 		case columnExpression:
+			frame = n.frame
+		case returningWholeRowExpression:
 			frame = n.frame
 		case aggregateExpression:
 			frame = n.frame

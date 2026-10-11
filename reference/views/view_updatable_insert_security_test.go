@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"fmt"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -26,16 +25,6 @@ func TestReferenceViewUpdatableInsertSecurity(t *testing.T) {
 					}
 					run := func(step fixture.Step) {
 						fixture.RunStep(t, p.Ctx, conn, backend.Recorder, step)
-					}
-					// INSERT RETURNING retains its existing native parser boundary.
-					// Match the full diagnostic and phase used by the shared suffix fixtures.
-					excludedReturning := func(query string, args ...any) {
-						step := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: fixture.Position(strings.Index(query, "RETURNING") + 1)}, args...)
-						step.SelectRows, step.Prepared, step.ErrorStage = true, held, "execute"
-						if held {
-							step.ErrorStage = "prepare"
-						}
-						run(step)
 					}
 					for _, query := range []string{
 						"CREATE USER " + actor,
@@ -72,7 +61,7 @@ func TestReferenceViewUpdatableInsertSecurity(t *testing.T) {
 					admin("GRANT SELECT(id,calc) ON insert_view TO " + actor)
 					returning := "INSERT INTO insert_view(id,a) VALUES($1,$2) RETURNING id,calc"
 					var returningExecutor fixture.Executor = conn
-					if backend.PG && held {
+					if held {
 						stmt, err := conn.PrepareContext(p.Ctx, returning)
 						if err != nil {
 							t.Fatal(err)
@@ -80,24 +69,14 @@ func TestReferenceViewUpdatableInsertSecurity(t *testing.T) {
 						defer stmt.Close()
 						returningExecutor = fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: returning}
 					}
-					if backend.PG {
-						denied := fixture.ImplicitError(returning, fixture.Diagnostic{Code: "42501", Message: "permission denied for table insert_base"}, 2, 20)
-						denied.SelectRows, denied.ErrorStage = true, "execute"
-						fixture.RunStep(t, p.Ctx, returningExecutor, backend.Recorder, denied)
-					} else {
-						excludedReturning(returning, 2, 20)
-					}
+					denied := fixture.ImplicitError(returning, fixture.Diagnostic{Code: "42501", Message: "permission denied for table insert_base"}, 2, 20)
+					denied.SelectRows, denied.ErrorStage = true, "execute"
+					fixture.RunStep(t, p.Ctx, returningExecutor, backend.Recorder, denied)
 					run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 					run(fixture.Select("SELECT id,a,hidden FROM insert_base", []string{"id", "a", "hidden"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(10), int64(1)}}))
 					admin("GRANT SELECT ON insert_base TO " + owner)
 					run(fixture.Exec("SET SESSION AUTHORIZATION "+actor, 0))
-					if backend.PG {
-						fixture.RunStep(t, p.Ctx, returningExecutor, backend.Recorder, fixture.Select(returning, []string{"id", "calc"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(21)}}, 2, 20))
-					} else {
-						// The supported command route preserves the same independent
-						// committed base state without adding INSERT RETURNING.
-						fixture.RunStep(t, p.Ctx, insertExecutor, backend.Recorder, fixture.Exec(insert, 1, 2, 20))
-					}
+					fixture.RunStep(t, p.Ctx, returningExecutor, backend.Recorder, fixture.Select(returning, []string{"id", "calc"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(21)}}, 2, 20))
 					run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 					run(fixture.Select("SELECT id,a,hidden FROM insert_base ORDER BY id", []string{"id", "a", "hidden"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(10), int64(1)}, {int64(2), int64(20), int64(1)}}))
 					run(fixture.Exec("SET SESSION AUTHORIZATION "+actor, 0))
@@ -113,13 +92,9 @@ func TestReferenceViewUpdatableInsertSecurity(t *testing.T) {
 					run(invokerSuccess)
 					admin("GRANT SELECT(id,calc) ON insert_invoker TO " + actor)
 					invokerReturning := "INSERT INTO insert_invoker(id,a) VALUES(4,40) RETURNING id,calc"
-					if backend.PG {
-						denied := fixture.ImplicitError(invokerReturning, fixture.Diagnostic{Code: "42501", Message: "permission denied for table insert_base"})
-						denied.SelectRows, denied.Prepared, denied.ErrorStage = true, held, "execute"
-						run(denied)
-					} else {
-						excludedReturning(invokerReturning)
-					}
+					denied = fixture.ImplicitError(invokerReturning, fixture.Diagnostic{Code: "42501", Message: "permission denied for table insert_base"})
+					denied.SelectRows, denied.Prepared, denied.ErrorStage = true, held, "execute"
+					run(denied)
 					run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 					run(fixture.Select("SELECT id,a,hidden FROM insert_base ORDER BY id", []string{"id", "a", "hidden"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(10), int64(1)}, {int64(2), int64(20), int64(1)}, {int64(3), int64(30), int64(1)}}))
 				})

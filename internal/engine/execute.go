@@ -761,6 +761,15 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+		scope.beginInsertReturning(b)
+		keepReturning := false
+		if scope.insertReturning != nil {
+			defer func() {
+				if !keepReturning {
+					scope.insertReturning.rows.Close()
+				}
+			}()
+		}
 		if s.Source != nil {
 			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Source.Select != nil && len(b.querySources) == 0)
 			if sourceErr != nil {
@@ -782,6 +791,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
+			}
+			if scope.insertReturning != nil {
+				result, err := scope.finishInsertReturning()
+				keepReturning = err == nil
+				return result, err
 			}
 			count, err := scope.applyInsertValidated(b.ref, rows)
 			if err != nil {
@@ -810,7 +824,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			defer evaluation.query.source.close()
 		}
-		rows := make([][]sqltype.Value, 0, len(s.Rows))
+		var rows [][]sqltype.Value
+		if scope.insertReturning == nil {
+			rows = make([][]sqltype.Value, 0, len(s.Rows))
+		}
 		for i, source := range s.Rows {
 			if err = ctx.Err(); err != nil {
 				return Result{}, err
@@ -827,7 +844,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
-				admitted, admitErr := scope.admitInsertRow(b.ref, row, rows, &evaluation)
+				admitted, admitErr := scope.admitInsertProducer(b, row, rows, &evaluation)
 				if admitErr != nil {
 					return Result{}, admitErr
 				}
@@ -878,7 +895,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			admitted, admitErr := scope.admitInsertRow(b.ref, row, rows, &evaluation)
+			admitted, admitErr := scope.admitInsertProducer(b, row, rows, &evaluation)
 			if admitErr != nil {
 				return Result{}, admitErr
 			}
@@ -891,6 +908,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
+		}
+		if scope.insertReturning != nil {
+			result, err := scope.finishInsertReturning()
+			keepReturning = err == nil
+			return result, err
 		}
 		count, err := scope.applyInsertValidated(b.ref, rows)
 		if err != nil {

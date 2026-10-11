@@ -1231,6 +1231,7 @@ type expressionBinder struct {
 	updateParameters      bool
 	updateInputParameters map[int]sqltype.Usage
 	uses                  []int
+	returningReadRequired bool
 	dependencies          []expressionDependency
 	input                 sqltype.InputEnvironment
 	op                    *Operation

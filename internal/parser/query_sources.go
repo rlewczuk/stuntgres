@@ -342,8 +342,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 					}
 				}
 			}
-			return expression(s.Conflict.Where)
+			if err := expression(s.Conflict.Where); err != nil {
+				return err
+			}
 		}
+		return returning(s.Returning)
 	case *Merge:
 		if err := from(s.Source, &Select{From: s.Source}); err != nil {
 			return err

@@ -856,6 +856,11 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 				}
 			}
 		}
+		if b.returning != nil && (b.returning.readRequired || len(b.returning.reads) != 0) {
+			if err := v.checkColumns(b, SelectPrivilege, b.returning.reads); err != nil {
+				return err
+			}
+		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Merge:
 		if b.merge.hasDelete {

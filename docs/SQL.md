@@ -1170,7 +1170,7 @@ Execute. INSERT conversion preflight uses coherent logical destination columns;
 physical completed-row constraints remain base-owned. Native Dump/Restore
 serializes current definitions and committed base rows, rebuilding mappings
 for subsequent writes; it does not serialize output/history or PostgreSQL
-physical tuple metadata. INSERT RETURNING remains the existing suffix boundary.
+physical tuple metadata. INSERT RETURNING exposes logical view outputs with the same authority.
 
 ### View check options — change note
 
@@ -2089,7 +2089,7 @@ casts outside the bounded baseline/character-family/selected regclass/datetime s
 constraints beyond nullability/defaults/CHECK/identity/UNIQUE, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,
 UPDATE row assignments (named-cursor UPDATE/DELETE CURRENT OF is supported),
-INSERT RETURNING and whole-row RETURNING records,
+whole-row UPDATE/DELETE records and generic ROW/field operators,
 general COLLATE, two-phase commit, transactional table DDL outside selected
 TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,
 non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots,

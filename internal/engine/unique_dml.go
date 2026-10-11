@@ -46,8 +46,8 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.state {
 		return b, nil
 	}
-	if s.insertConflict != nil && s.insertConflict.update != nil {
-		s.insertConflict.overlays = nil
+	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.ref == ref {
+		overlay.overlays = nil
 	}
 	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.state}
 	var indexes []*relationDescriptor
@@ -365,10 +365,10 @@ retry:
 				continue
 			}
 			replaced := false
-			if c := s.insertConflict; c != nil && c.update != nil {
+			if c := s.writeOverlay(); c != nil {
 				_, replaced = c.affectedRows[entry.row]
 				if !replaced {
-					_, replaced = s.conflictUpdateOwnRow(ref, entry.row)
+					_, replaced = s.insertOwnRow(ref, entry.row)
 				}
 			} else {
 				for _, own := range s.ownWrites[ref.Address] {
@@ -399,8 +399,8 @@ retry:
 				return outcome, nil
 			}
 		}
-		if c := s.insertConflict; c != nil && c.update != nil {
-			own, found, err := s.probeConflictUpdateOverlay(ref, bound, &evaluation, key, excluded)
+		if c := s.writeOverlay(); c != nil {
+			own, found, err := s.probeInsertWriteOverlay(ref, bound, &evaluation, key, excluded)
 			if err != nil {
 				return uniqueConflict{}, err
 			}

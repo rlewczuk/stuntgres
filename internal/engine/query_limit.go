@@ -89,6 +89,8 @@ func firstQueryBoundFrameVariable(expr BoundExpr, frame uint32) parser.Position 
 			switch e := expr.(type) {
 			case columnExpression:
 				matched = e.frame == frame
+			case returningWholeRowExpression:
+				matched = e.frame == frame
 			case groupExpression:
 				matched = e.frame == frame
 			case aggregateExpression:

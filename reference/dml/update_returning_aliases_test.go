@@ -70,13 +70,14 @@ func TestReferenceUpdateReturningExternalMechanisms(t *testing.T) {
 			if !backend.PG {
 				run(fixture.Exec("CREATE TABLE triggered(a INT)", 0))
 				run(fixture.Exec("INSERT INTO triggered VALUES(10)", 1))
-				for _, q := range []string{"CREATE TRIGGER change BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()", "UPDATE triggered SET a=2 RETURNING old", "UPDATE triggered SET a=2 RETURNING (old).*", "INSERT INTO triggered VALUES(2) RETURNING a"} {
+				for _, q := range []string{"CREATE TRIGGER change BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()", "UPDATE triggered SET a=2 RETURNING old", "UPDATE triggered SET a=2 RETURNING (old).*"} {
 					result, err := db.ExecContext(p.Ctx, q)
 					if result != nil || err == nil {
 						t.Fatal("unsupported mechanism", q, result, err)
 					}
 				}
 				run(fixture.Select("SELECT a FROM triggered", []string{"a"}, []string{"INT4"}, [][]any{{int64(10)}}))
+				run(fixture.Select("INSERT INTO triggered VALUES(2) RETURNING a", []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}}))
 				return
 			}
 			for _, q := range []string{"CREATE TABLE triggered(a INT)", "INSERT INTO triggered VALUES(10)", "CREATE FUNCTION adjust_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.a=0 THEN RETURN NULL; END IF; NEW.a:=NEW.a+100; RETURN NEW; END $$", "CREATE TRIGGER adjust BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {

@@ -644,6 +644,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if err := e.bindInsertConflictUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
+		if err := e.bindInsertReturning(&b, binder, auth, s); err != nil {
+			return b, err
+		}
 	case *parser.Merge:
 		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
@@ -704,7 +707,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 		}
 		if s.Returning != nil {
-			b.returning, err = binder.bindReturning(s.Returning, false)
+			b.returning, err = binder.bindReturning(s.Returning, returningDelete)
 			if err != nil {
 				return b, err
 			}

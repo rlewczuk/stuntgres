@@ -8,55 +8,77 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+type returningMode uint8
+
+const (
+	returningInsert returningMode = iota
+	returningUpdate
+	returningDelete
+)
+
 // RETURNING adds projection namespaces, not additional physical sources.
 type returningAliases struct {
 	old, new string
-	update   bool
+	target   string
+	mode     returningMode
 }
 
 type boundReturning struct {
 	expressions        []BoundExpr
 	schema             []ColumnDescriptor
 	regclassOutput     bool
+	reads              []int
+	readRequired       bool // Whole-row references retain SELECT demand with zero members.
 	visibilitySnapshot bool
 }
 
-// NEW retains its column identity and row dependence without allocating an
-// all-NULL row frame or allowing constant simplification to erase its ACL use.
-type deleteNewExpression struct{ columnExpression }
-
-func (e deleteNewExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if _, err := e.columnExpression.rowContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.Null(e.usage.Type), nil
+// Side-aware columns preserve dependencies even when their tuple is absent.
+type returningColumnExpression struct {
+	columnExpression
+	old, absent bool
+	// A lowered logical view column can be an arbitrary physical expression.
+	value BoundExpr
 }
 
-// UPDATE's OLD is the actual predecessor; the ordinary projection frame is NEW.
-type updateOldExpression struct{ columnExpression }
-
-func (e updateOldExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, error) {
 	if err := evaluationContext(c); err != nil {
+		return nil, err
+	}
+	for parent := c; parent != nil; parent = parent.Outer {
+		if parent.Scope == scope && parent.Frame == frame {
+			return parent, nil
+		}
+	}
+	return nil, fmt.Errorf("stuntgres: RETURNING row frame is missing")
+}
+
+func (e returningColumnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	parent, err := returningRowContext(c, e.scope, e.frame)
+	if err != nil {
 		return sqltype.Value{}, err
 	}
-	parent := c
-	for parent != nil && (parent.Scope != e.scope || parent.Frame != e.frame) {
-		parent = parent.Outer
+	if e.absent || e.old && parent.OldRow == nil {
+		return sqltype.Null(e.usage.Type), nil
 	}
-	if parent == nil {
-		return e.columnExpression.Eval(c)
+	value := BoundExpr(e.columnExpression)
+	if e.value != nil {
+		value = e.value
+	}
+	if !e.old {
+		return value.Eval(c)
 	}
 	old := *parent
 	old.Context, old.Row = c.Context, parent.OldRow
-	return e.columnExpression.Eval(&old)
+	return value.Eval(&old)
 }
 
-func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*boundReturning, error) {
-	aliases := returningAliases{old: "old", new: "new", update: update}
+func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMode) (*boundReturning, error) {
+	aliases := returningAliases{old: "old", new: "new", mode: mode}
 	visible := b.targetName
 	if b.targetAlias != "" {
 		visible = b.targetAlias
 	}
+	aliases.target = visible
 	var seenOld, seenNew bool
 	for _, option := range raw.Aliases {
 		seen, label := &seenOld, "OLD"
@@ -118,11 +140,11 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 			} else {
 				descriptor = b.relation.columns[column.slot]
 			}
-		case updateOldExpression:
+		case returningColumnExpression:
 			descriptor = b.relation.columns[column.slot]
-		case deleteNewExpression:
-			descriptor = b.relation.columns[column.slot]
-			descriptor.Nullable, descriptor.NullabilityKnown = true, true
+			if column.absent || column.old && mode == returningInsert {
+				descriptor.Nullable, descriptor.NullabilityKnown = true, true
+			}
 		case currentSchemasExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case identityExpression:
@@ -198,7 +220,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 
 func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser.Position) (bool, error) {
 	if len(name.Parts) == 0 {
-		return b.returningAliases.update, nil
+		return b.returningAliases.mode != returningDelete, nil
 	}
 	visible := b.targetName
 	if b.targetAlias != "" {
@@ -207,7 +229,7 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 	label := name.Parts[len(name.Parts)-1].Text
 	if len(name.Parts) == 1 {
 		if label == visible {
-			return b.returningAliases.update, nil
+			return b.returningAliases.mode != returningDelete, nil
 		}
 		if label == b.returningAliases.old {
 			return false, nil
@@ -218,7 +240,7 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 	} else if len(name.Parts) == 2 && b.targetAlias == "" && label == b.targetName {
 		namespace := b.engine.state.descriptors[b.relation.namespace]
 		if namespace != nil && name.Parts[0].Text == namespace.Name() {
-			return b.returningAliases.update, nil
+			return b.returningAliases.mode != returningDelete, nil
 		}
 	}
 	if label == b.targetName && b.targetAlias != "" {
@@ -231,12 +253,11 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) BoundExpr {
 	column := b.columnAt(slot, pos).(columnExpression)
-	if b.returningAliases.update {
-		if !newValues {
-			return updateOldExpression{column}
-		}
-	} else if newValues {
-		return deleteNewExpression{column}
+	if !newValues && b.returningAliases.mode != returningDelete {
+		return returningColumnExpression{columnExpression: column, old: true}
+	}
+	if newValues && b.returningAliases.mode == returningDelete {
+		return returningColumnExpression{columnExpression: column, absent: true}
 	}
 	return column
 }
@@ -259,6 +280,13 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, er
 	parts := raw.Name.Parts
 	if len(parts) == 0 || len(parts) > 3 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
+	}
+	if len(parts) == 1 {
+		if _, column := b.relation.index[parts[0].Text]; !column {
+			if expr, found, err := b.returningWholeRow(parts[0].Text, b.relation, b.frameID(), b.returningAliases, raw.Pos); found {
+				return expr, err
+			}
+		}
 	}
 	if b.queryNamespace != nil {
 		if _, pseudo := b.returningPseudo(parser.ObjectName{Parts: parts[:len(parts)-1]}); !pseudo {
@@ -345,11 +373,11 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) BoundExpr {
 	column := b.columnAtOf(scope.relation, slot, pos).(columnExpression)
 	column.frame = scope.frame
-	if scope.returning.update && !newValues {
-		return updateOldExpression{column}
+	if !newValues && scope.returning.mode != returningDelete {
+		return returningColumnExpression{columnExpression: column, old: true}
 	}
-	if !scope.returning.update && newValues {
-		return deleteNewExpression{column}
+	if newValues && scope.returning.mode == returningDelete {
+		return returningColumnExpression{columnExpression: column, absent: true}
 	}
 	return column
 }

@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -76,19 +75,9 @@ func TestReferenceForeignKeyProducers(t *testing.T) {
 			run(fixture.Select("SELECT id,pid FROM c ORDER BY id", []string{"id", "pid"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}}))
 			run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 1, 2))
 			for _, q := range []string{"INSERT INTO c VALUES(1,9) ON CONFLICT(id) DO UPDATE SET pid=excluded.pid RETURNING pid", "INSERT INTO c SELECT 3,9 FROM p WHERE id=1 RETURNING pid"} {
-				if b.PG {
-					s := foreignKeyFail(q, foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), prepared)
-					s.SelectRows = true
-					run(s)
-				} else {
-					d := foreignKeyError("0A000", "INSERT suffix is unsupported", "", "", "")
-					d.Position = fixture.Position(strings.Index(q, "RETURNING") + 1)
-					s := foreignKeyFail(q, d, prepared)
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					run(s)
-				}
+				s := foreignKeyFail(q, foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), prepared)
+				s.SelectRows = true
+				run(s)
 			}
 			update := foreignKeyFail("UPDATE c SET pid=9 FROM p WHERE c.id=p.id RETURNING c.pid", foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), prepared)
 			update.SelectRows = true

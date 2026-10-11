@@ -132,7 +132,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		}
 	}
 	if s.Returning != nil {
-		b.returning, err = binder.bindReturning(s.Returning, true)
+		b.returning, err = binder.bindReturning(s.Returning, returningUpdate)
 		if err != nil {
 			return err
 		}

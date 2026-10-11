@@ -187,6 +187,8 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 					switch n := expr.(type) {
 					case columnExpression:
 						frame = n.frame
+					case returningWholeRowExpression:
+						frame = n.frame
 					case groupExpression:
 						frame = n.frame
 					case aggregateExpression:

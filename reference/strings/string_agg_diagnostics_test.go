@@ -85,10 +85,6 @@ func TestReferenceStringAggDiagnostics(t *testing.T) {
 							if tc.name == "parameter-conflict" {
 								s.Args = []any{int64(1)}
 							}
-							if tc.name == "returning" && !backend.PG {
-								s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: fixture.StringAggPosition(tc.q, "RETURNING", false)})
-								s.Prepared = prepared
-							}
 							if tc.name == "bad-order-type" && !backend.PG {
 								s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: fixture.StringAggPosition(tc.q, "xml", false)})
 								s.SelectRows = true

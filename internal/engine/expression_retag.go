@@ -279,6 +279,36 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		n.virtual = child(n.virtual)
 		rebound = n
+	case returningColumnExpression:
+		if n.value != nil {
+			n.value = child(n.value)
+			n.expressionInfo = info
+			rebound = n
+			break
+		}
+		next := child(n.columnExpression)
+		column, ok := next.(columnExpression)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: invalid RETURNING column remap")
+		}
+		n.columnExpression = column
+		rebound = n
+	case returningWholeRowExpression:
+		var members []BoundExpr
+		for i, member := range n.members {
+			next := child(member)
+			if changed && members == nil {
+				members = append([]BoundExpr(nil), n.members...)
+			}
+			if members != nil {
+				members[i] = next
+			}
+		}
+		if members != nil {
+			n.members = members
+		}
+		n.expressionInfo = info
+		rebound = n
 	case groupExpression:
 		n.expressionInfo = info
 		rebound = n

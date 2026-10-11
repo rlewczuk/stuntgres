@@ -815,6 +815,16 @@ by name after lifetime replacement.
 
 Standalone composites additionally support [typed-table attachment and attribute
 lifecycle](TABLES.md#typed-tables--change-note), including grouped DROP TYPE.
+
+INSERT RETURNING additionally constructs actual named logical target composites
+for bare visible target/OLD/NEW aliases, after same-named column lookup. Absent OLD
+is SQL NULL; present all-NULL/zero-member NEW retains its actual named descriptor
+and canonical `(,)`/`()` representation. View/partition outputs use the logical
+target rowtype, not a physical base/leaf substitute. Member dependencies and
+SELECT rights are retained even for an absent OLD, and eager metadata/values
+remain captured across native replacement. This bounded output provider does
+not add whole-row UPDATE/DELETE expressions or the generic operators below.
+
 ROW constructors, field extraction/expansion/assignment, comparisons/hashing/key
 operations, enum/base-type DROP and other unsupported type lifecycle remain excluded.
 Recognized `DROP TYPE` targeting an enum or base type retains native0A000

@@ -105,9 +105,8 @@ func TestReferenceSQLPreparedCanceledWrite(t *testing.T) {
 			sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE slow AS INSERT INTO prep_cancel SELECT v FROM (VALUES(8),(9)) s(v) WHERE pg_sleep(600) IS NULL RETURNING v", 0))
 			sqlCursorCancelDemand(t, p, c, "EXECUTE slow")
 		} else {
-			// Native INSERT RETURNING remains an existing capability exclusion.
-			// The same multirow write still proves precancellation and atomicity.
-			sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE slow(int) AS INSERT INTO prep_cancel VALUES($1),($1+1)", 0))
+			// pg_sleep has no native provider; retain the genuine precanceled route.
+			sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE slow(int) AS INSERT INTO prep_cancel VALUES($1),($1+1) RETURNING v", 0))
 			ctx, cancel := context.WithCancel(p.Ctx)
 			cancel()
 			rows, err := c.QueryContext(ctx, "EXECUTE slow(8)")

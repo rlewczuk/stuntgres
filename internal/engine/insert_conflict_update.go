@@ -49,12 +49,22 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 					return err
 				}
 			}
-			if err := s.Writes().applyValidated(ref, [][]sqltype.Value{proposal}); err != nil {
+			if s.insertReturning != nil {
+				_, retry, err := s.Writes().appendAcceptedInsert(ref, proposal)
+				if err != nil {
+					return err
+				}
+				if retry {
+					manager.restoreUniqueDelta(s.ticket)
+					s.discardExclusionCandidate(ref, proposal)
+					continue
+				}
+			} else if err := s.Writes().applyValidated(ref, [][]sqltype.Value{proposal}); err != nil {
 				return err
 			}
 			staged := s.stage.rows[ref.Address]
 			c.markAffected(staged[len(staged)-1].row, len(staged)-1)
-			return nil
+			return s.projectInsertReturning(proposal, nil, &evaluation)
 		}
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
@@ -147,7 +157,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 			return err
 		}
 		c.markAffected(old.row, len(s.stage.rows[ref.Address])-1)
-		return nil
+		return s.projectInsertReturning(row, old.values, &evaluation)
 	}
 }
 
@@ -202,7 +212,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ObjectRef, candi
 			row, found = s.stage.rows[ref.Address][slot], true
 		}
 		if !found {
-			row, found = s.conflictUpdateOwnRow(ref, candidate.row.row)
+			row, found = s.insertOwnRow(ref, candidate.row.row)
 		}
 	}
 	if !found {

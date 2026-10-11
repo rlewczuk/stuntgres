@@ -14,7 +14,7 @@ func TestReferenceUpdateReturningExcludedMechanisms(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
 				want := [][]any{{int64(1)}}
-				if backend.PG {
+				if backend.PG || query == "INSERT INTO t VALUES(2) RETURNING id" {
 					switch query {
 					case "UPDATE t SET id=2 FROM t RETURNING id":
 						run(fixture.Error(query, "42712"))

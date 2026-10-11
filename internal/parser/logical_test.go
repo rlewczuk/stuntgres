@@ -79,7 +79,7 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 	for _, q := range []string{
 		"SELECT id=1=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
-		"INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a", "SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
+		"SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
 		"SELECT f(a) AND b FROM t",
 		"CREATE TABLE or(a BOOL)", "SELECT or FROM t", "INSERT INTO t VALUES(1); SELECT TRUE AND FROM t",
 	} {
@@ -88,12 +88,24 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 			t.Fatal("scope expansion or executable prefix", q, stmts, err)
 		}
 	}
-	for _, q := range []string{"SELECT TRUE AND FALSE", "SELECT a AND b AS result FROM t", "SELECT t.a AND b FROM t"} {
+	for _, q := range []string{"SELECT TRUE AND FALSE", "SELECT a AND b AS result FROM t", "SELECT t.a AND b FROM t", "INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a"} {
 		statements, err := Parse(q)
 		if err != nil || len(statements) != 1 {
 			t.Fatal("supported target label or qualification", q, statements, err)
 		}
-		logical, ok := statements[0].(*Select).Targets[0].(LogicalExpr)
+		var target Expr
+		switch stmt := statements[0].(type) {
+		case *Select:
+			target = stmt.Targets[0]
+		case *Insert:
+			if stmt.Returning == nil || len(stmt.Returning.Targets) != 1 || stmt.Source == nil || stmt.Source.Select == nil {
+				t.Fatal("lost INSERT source or RETURNING", q, stmt)
+			}
+			target = stmt.Source.Select.Targets[0]
+		default:
+			t.Fatal("unexpected logical consumer", q, statements)
+		}
+		logical, ok := target.(LogicalExpr)
 		if !ok || logical.Op != LogicalAnd {
 			t.Fatal("lost logical target", q, statements)
 		}

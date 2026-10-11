@@ -1501,8 +1501,7 @@ update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Ident
  | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 } ;
-insert: insert_base insert_conflict { $1.Conflict=$2;$$=$1 }
- | insert_base insert_conflict RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$3.pos.Offset);return 1 }
+insert: insert_base insert_conflict returning { $1.Conflict=$2;$1.Returning=$3;$$=$1 }
  | insert_base suffix { sqllex.(*lexer).capability($2,unsupportedSuffixes,"INSERT suffix is unsupported");return 1 } ;
 insert_head: INSERT INTO {sqllex.(*lexer).insertStatement=true;$$=$1} ;
 insert_alias: /* empty */ { $$=lexeme{} } | AS name { $$=$2 } ;

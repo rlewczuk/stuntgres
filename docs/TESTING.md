@@ -1,5 +1,64 @@
 # Adding and maintaining tests
 
+## INSERT RETURNING oracle-first contracts
+
+The untagged `reference/dml/insert_returning_*_test.go` definitions specify
+INSERT RETURNING values, completed producer rows, OLD/NEW aliases and bounded
+named whole-row composites, metadata, prepared execution, diagnostics, ACLs,
+atomicity, sequence timing, current predecessors and native persistence.
+Runtime-sensitive diagnostic positions, whole-row labels/transport metadata and
+sequence timing were specified and independently observed against pinned
+PostgreSQL18.0 before native implementation; native failures are never goldens.
+Selected commands, not this capability description, establish verification.
+The `generate_series` diagnostic keeps separate source-backed boundaries:
+native generic function admission (`lexer.call` in `internal/parser/parser.go`)
+reports0A000 `functions are unsupported` with no Hint, while PostgreSQL reports
+its0A000 `set-returning functions are not allowed in RETURNING`. Both point at
+the call. This does not add a native SRF provider or bypass parser admission.
+No discovery backend filter is installed. In enabled reference mode, independent
+PostgreSQL subtests still run after a failing memory subtest. The Controls
+definition necessarily exercises actual native APIs and actual emitted dump SQL;
+its replay phase requires native support and is not a server Restore substitute.
+
+Root runs each small selector in native and real reference modes. Initial
+oracle/native-red evidence precedes the implementation; repeat both after changes:
+
+```sh
+make check RUN='^TestReferenceInsertReturning(Core|Counts|Producers|Expressions|Parameters)$' REFERENCE=1
+make check RUN='^TestReferenceInsertReturning(Aliases|WholeRow|Subqueries)$' REFERENCE=1
+make check RUN='^TestReferenceInsertReturning(Conflict|Volatility|Atomicity)$' REFERENCE=1
+make check RUN='^TestReferenceInsertReturning(Metadata|Prepared|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceInsertReturning(Privileges|Concurrency|Controls|FeatureSmoke|External)$' REFERENCE=1
+make check RUN='^TestReferenceInsertReturning(ZeroColumnPrivileges|PrivilegesAfterWait)$' REFERENCE=1
+make check RUN='^TestReferenceInsert(ConflictExcludedActions|ConflictUpdateBoundaries|ImplicitShortBoundariesAndCancellation)$' REFERENCE=1
+make check RUN='^TestReferenceUpdateReturning(MigratedSmoke|ExternalMechanisms|ExcludedMechanisms|ExcludedMechanismsConsumerRoutes)$' REFERENCE=1
+make check RUN='^TestReference(AnyValueDiagnostics|ExtremaLateFailure|ExtremaDiagnostics|NumericAvgDiagnostics|StringAggDiagnostics|DatetimeFormattingConsumers)$' REFERENCE=1
+make check RUN='^TestReference(PredefinedAllData|SQLPreparedCanceledWrite|ForeignKeyProducers|ViewUpdatableInsertSecurity|RegclassWriteDiagnosticPresentation)$' REFERENCE=1
+```
+
+Each command has an external900-second deadline. Selected race proof uses
+`make check RACE=1 RUN='^TestReferenceInsertReturning(Concurrency|Controls|Privileges)$'`
+and the identical command with `REFERENCE=1`. Native exact pending-resource
+mechanism proof supplements the public current-predecessor witness: launching a
+goroutine is not proof that it reached a lock queue. Whole-project Docker-free
+verification remains `make quickcheck`; never invoke `make refcheck`.
+Package mechanisms additionally prove side/frame short circuiting, actual named
+rowtype/zero-member retention, final-stage admission before output, required
+producer-close veto, and exact manager-pending logical-row recheck:
+`make check RUN='^TestInsertReturning(Modes|WholeRow|FinalAdmission|ProducerClose|RowRecheck)$'`;
+use `RACE=1` for the same mechanisms. These are private production seam proofs,
+not replacement public SQL definitions.
+
+`ZeroColumnPrivileges` independently specifies table SELECT demand for zero-member
+OLD/NEW/target whole rows, including zero input, while constants remain read-free.
+`PrivilegesAfterWait` revokes a column used only by RETURNING: PostgreSQL retains
+executor-start rights after an observed server row wait; native denies with42501.
+There is no native public queue observer. Its causal companion
+`make check RUN='^TestInsertReturningAuthorizationAfterWait$'` proves actual
+unique-key and logical-row pending resources before revocation, direct and held
+SQL preparation, no failed output/count/write and lock cleanup. Run this companion
+with `RACE=1`, and run the public privilege-wait selector with `RACE=1` in both modes.
+
 ## Range aggregate selected proof
 
 Permanent untagged `reference/aggregates/range_aggregate_*_test.go` definitions
@@ -1228,9 +1287,9 @@ rollback persistence, utility Go-handle effect phases, and native controls.
 Ordinary adapter argument failures are distinct from SQL diagnostics. Native
 controls and eager retained-row guarantees have no invented wire counterpart.
 Write-atomicity and canceled-write scenarios preserve PostgreSQL's INSERT RETURNING
-witnesses; native uses the same supported multirow INSERT without RETURNING and
-retains full failure/no-cursor/sentinel-data assertions. INSERT RETURNING itself
-is an existing native exclusion, not a new prepared-body capability.
+witnesses; native uses the same RETURNING multirow INSERT for precancellation
+and retains full failure/no-cursor/sentinel-data assertions. PostgreSQL's
+pg_sleep cancellation witness remains a real server-only provider.
 Retained eager native sql.Rows are consumed after DEALLOCATE and a real public
 driver.Conn.Close invoked inside sql.Conn.Raw with a nil callback result. This
 avoids conflating physical session end with database/sql's ErrBadConn wrapper-close
@@ -3939,8 +3998,8 @@ use ` RUN='^TestDatetimeMake'`,
 These selectors do not replace ordinary quickcheck or post-merge finalcheck.
 Successful interval witnesses assert `INTERVAL` metadata and exact public output
 codec strings directly; they do not require an `interval::text` conversion edge.
-Constructor write coverage uses INSERT affected counts and existing UPDATE/DELETE
-RETURNING projections, not unsupported INSERT RETURNING syntax.
+Constructor write coverage uses INSERT affected counts and INSERT/UPDATE/DELETE
+RETURNING projections through the same output binder.
 
 The bitstring family covers independently pinned BIT/VARBIT values, raw scanner
 and modifier diagnostics, direct/held parameters, assignment atomicity, complete
@@ -5406,7 +5465,7 @@ Internal selectors for root verification:
 `make check RUN='^Test(GroupingSets|QueryAggregate|AggregateModifiers)'`.
 Native control branches remain in shared public scenarios. The typed lifecycle
 uses admitted unconstrained domains; illegal RETURNING grouping uses the admitted
-UPDATE route, not an expansion of the INSERT RETURNING boundary.
+UPDATE route; INSERT RETURNING independently enforces the same clause restriction.
 
 ### Blocking-review regression contracts
 
@@ -5888,10 +5947,9 @@ PostgreSQL creator current/session55006 remains a backend-specific witness;
 privileged bootstrap current-user55006 and builtin pins/missing-name preflight
 remain directly and prepared SQL-exercised on both backends.
 
-All-data INSERT RETURNING independently preserves PostgreSQL's table42501 and
-the native parser boundary0A000 `INSERT suffix is unsupported`, position39.
-Supported read-dependent UPDATE/DELETE denial and constant writer effects
-remain separate assertions; this is not a RETURNING implementation claim.
+All-data INSERT RETURNING independently preserves table42501 on both backends.
+Read-dependent UPDATE/DELETE denial and constant writer effects remain separate
+assertions; global write rights never imply RETURNING SELECT rights.
 The independent-driver lifecycle witness restores through a host-control pool,
 then observes rows, types and affected counts through the existing recorded
 notice-pool wrapper for that same connector. PostgreSQL dump replay resets

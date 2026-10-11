@@ -231,6 +231,24 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 				return b.queryColumnInFrame(*match, raw.Pos, scope.frame), nil
 			}
 		}
+		// Column names across visible scopes win before the bounded named-row
+		// fallback. A nearer real FROM alias must not become an outer pseudo row.
+		shadowed := false
+		for _, qualifier := range b.queryNamespace.qualifiers {
+			shadowed = shadowed || qualifier.name == name
+		}
+		for i := len(b.queryScopes) - 1; i >= 0 && !shadowed; i-- {
+			scope := &b.queryScopes[i]
+			if !scope.allowed || scope.namespace == nil {
+				continue
+			}
+			if expr, found, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, raw.Pos); found {
+				return expr, err
+			}
+			for _, qualifier := range scope.namespace.qualifiers {
+				shadowed = shadowed || qualifier.name == name
+			}
+		}
 	}
 	if b.queryNamespace.values && len(parts) == 1 {
 		return nil, valuesOrderColumnError(b.queryNamespace.frame, name, raw.Pos)

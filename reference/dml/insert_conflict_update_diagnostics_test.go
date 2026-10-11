@@ -223,12 +223,7 @@ func TestReferenceInsertConflictUpdateBoundaries(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 				}
 				if suffix == "RETURNING k" {
-					if b.PG {
-						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
-					} else {
-						d := conflictUpdateDiagnostic(q, "0A000", "INSERT suffix is unsupported", "RETURNING", "")
-						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.ErrorDiagnostic(q, d))
-					}
+					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
 				}
 			})
 		})

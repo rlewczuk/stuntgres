@@ -28,31 +28,14 @@ func TestReferenceDatetimeFormattingConsumers(t *testing.T) {
 				}
 				run(s)
 			}
-			// Keep the original unsupported INSERT RETURNING route as a
-			// capability witness, then exercise selected INSERT expressions
-			// through the established INSERT + SELECT consumer.
 			q := "INSERT INTO dt_consumer VALUES (4,to_date('2008-02-29','YYYY-MM-DD')::timestamp,'2008-02-29','YYYY-MM-DD') RETURNING id,to_char(ts,'YYYY-MM-DD') AS d"
 			s := fixture.Select(q, []string{"id", "d"}, []string{"INT4", "TEXT"}, [][]any{{int64(4), "2008-02-29"}})
-			if !b.PG {
-				d := datetimeFormattingDiagnostic("0A000", "INSERT suffix is unsupported", "", "")
-				d.Position = "108"
-				s = fixture.ErrorDiagnostic(q, *d)
-				s.SelectRows = true
-				s.ErrorStage = "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-			}
 			if prepared {
 				s = fixture.Prepared(s)
 			}
 			run(s)
-			var originalRows [][]any
-			affected := int64(0)
-			if b.PG {
-				originalRows = [][]any{{int64(4), "2008-02-29"}}
-				affected = 1
-			}
+			originalRows := [][]any{{int64(4), "2008-02-29"}}
+			affected := int64(1)
 			run(fixture.Select("SELECT id,to_char(ts,'YYYY-MM-DD') AS d FROM dt_consumer WHERE id=4", []string{"id", "d"}, []string{"INT4", "TEXT"}, originalRows))
 			run(fixture.Exec("DELETE FROM dt_consumer WHERE id=4", affected))
 			s = fixture.Exec("INSERT INTO dt_consumer VALUES (4,to_date('2008-02-29','YYYY-MM-DD')::timestamp,'2008-02-29','YYYY-MM-DD')", 1)

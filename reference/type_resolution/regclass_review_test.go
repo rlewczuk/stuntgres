@@ -172,18 +172,18 @@ func TestReferenceRegclassWriteDiagnosticPresentation(t *testing.T) {
 							detail = `2, 0, rr_diag_scope."Moved.Target", rr_diag_scope."Moved.Target", {"rr_diag_scope.\"Moved.Target\"",NULL}, {"rr_diag_scope.\"Moved.Target\"",NULL}`
 						}
 						regclassReviewWriteError(t, p, c, b.Recorder, prepared, returning, q, detail)
-						if returning {
-							continue // INSERT RETURNING remains outside the selected native dialect.
-						}
 						q = "INSERT INTO rr_diag VALUES(3,0,0::regclass,0::regclass,'{0,NULL}','{0,NULL}')"
 						if id == 2 {
 							q = `INSERT INTO rr_diag VALUES(3,0,'rr_diag_scope."Moved.Target"','rr_diag_scope."Moved.Target"','{"rr_diag_scope.\"Moved.Target\"",NULL}','{"rr_diag_scope.\"Moved.Target\"",NULL}')`
+						}
+						if returning {
+							q += " RETURNING r,d,a,da"
 						}
 						detail = "3, 0, -, -, {-,NULL}, {-,NULL}"
 						if id == 2 {
 							detail = `3, 0, rr_diag_scope."Moved.Target", rr_diag_scope."Moved.Target", {"rr_diag_scope.\"Moved.Target\"",NULL}, {"rr_diag_scope.\"Moved.Target\"",NULL}`
 						}
-						regclassReviewWriteError(t, p, c, b.Recorder, prepared, false, q, detail)
+						regclassReviewWriteError(t, p, c, b.Recorder, prepared, returning, q, detail)
 					}
 				}
 			}
@@ -207,11 +207,11 @@ func TestReferenceRegclassWriteDiagnosticPresentation(t *testing.T) {
 							q += " RETURNING r,a"
 						}
 						regclassReviewWriteError(t, p, c, b.Recorder, prepared, returning, q, `id, n, r, a) = (2, 0, rr_diag_scope."Moved.Target", {"rr_diag_scope.\"Moved.Target\"",NULL}`)
-						if returning {
-							continue
-						}
 						q = "INSERT INTO rr_diag(n) VALUES(0)"
-						regclassReviewWriteError(t, p, c, b.Recorder, prepared, false, q, `id, n, r, a) = (null, 0, rr_diag_scope."Moved.Target", {"rr_diag_scope.\"Moved.Target\"",NULL}`)
+						if returning {
+							q += " RETURNING r,a"
+						}
+						regclassReviewWriteError(t, p, c, b.Recorder, prepared, returning, q, `id, n, r, a) = (null, 0, rr_diag_scope."Moved.Target", {"rr_diag_scope.\"Moved.Target\"",NULL}`)
 					}
 				}
 				run(fixture.Exec("RESET ROLE", 0))

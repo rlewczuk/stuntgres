@@ -325,6 +325,8 @@ func expressionUsesFrame(expr BoundExpr, frame uint32) bool {
 		switch e := expr.(type) {
 		case columnExpression:
 			found = found || e.frame == frame
+		case returningWholeRowExpression:
+			found = found || e.frame == frame
 		case aggregateExpression:
 			found = found || e.frame == frame
 		case groupingExpression:

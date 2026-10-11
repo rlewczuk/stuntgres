@@ -282,11 +282,26 @@ completed proposal; SET expressions share the unchanged target/proposal frame.
 Mixed inserts and updates publish atomically, and affected counts include inserts
 and TRUE updates, not FALSE/NULL filtered conflicts. Actual row identity governs
 same-command cardinality, including command-inserted rows. Native hierarchy,
-writable-view, exclusion-arbiter, deferrable UNIQUE DDL and INSERT RETURNING
+writable-view, exclusion-arbiter and deferrable UNIQUE DDL
 boundaries remain explicit. Native rechecks current rights after conflict waits;
 pinned PostgreSQL retains its statement-start ACL decision.
 See [conflict update](docs/QUERIES.md#insert-conflict-update--change-note) and
 [selected proof](docs/TESTING.md#insert-conflict-update-acceptance).
+
+Change note: `INSERT ... RETURNING [WITH (OLD AS o, NEW AS n)] ...` exposes
+ordinary direct/prepared query rows and fixed metadata for every successful
+insert or conflict update. Unqualified and NEW values are the completed target
+row; OLD is SQL NULL for insertion and the actual predecessor for conflict
+updates. Skipped actions emit no rows. Supported stars, scalar expressions,
+correlated subqueries and bounded bare named whole-row values use the shared
+typed output path, including existing view and partition producers. Output
+errors and missing SELECT rights abort the whole statement; Exec also evaluates
+ignored output and keeps exact affected counts, never LastInsertId.
+Native Dump/Restore retains persistent objects/data, rejects RETURNING in import
+scripts and preserves already eager output across replacement. Generic ROW/field
+operators, triggers/rules/FDWs, wire tuple metadata and physical durability are
+not added. See [INSERT RETURNING](docs/QUERIES.md#insert-returning--change-note)
+and [selected proof](docs/TESTING.md#insert-returning-oracle-first-contracts).
 
 Change note: PostgreSQL18 `MERGE` supports ordered conditional
 `WHEN MATCHED THEN UPDATE SET` or `DELETE`,
@@ -1719,7 +1734,7 @@ select supported nondeferrable exclusion providers. Selected collisions skip
 individual proposals while unselected violations and earlier row validation
 still reject the whole statement. Typed equality, current privileges, held
 rebinding, cancellation, key claims and stable-snapshot visibility use their
-existing owners. DO UPDATE and INSERT RETURNING remain excluded.
+existing owners. DO UPDATE and RETURNING use their shared action/output contracts.
 Partial inference preserves nested TRUE/FALSE/NULL values and released conservative
 proof behavior. Stable selected collisions recover visibility through checked
 immutable index/storage positions, without an added per-duplicate storage scan.
@@ -1806,8 +1821,8 @@ Main-target SELECT follows logical read demand, not a view-only predicate;
 independent stored subqueries retain SELECT rights under their defining layer.
 Their frozen attribute layouts consume live selected rows, including own changes.
 Native Dump/Restore retains definitions and committed base rows, with future
-view writes remapped after Restore. INSERT RETURNING and trigger/rule-based
-writes remain excluded. View-write smoke:
+view writes remapped after Restore. INSERT RETURNING uses the logical view
+projection and owner/invoker authority; trigger/rule-based writes remain excluded. View-write smoke:
 `make check RUN='^TestReferenceViewUpdatableSmoke$'` (also with `REFERENCE=1`).
 
 Change note: automatically updatable views support `WITH [LOCAL | CASCADED]

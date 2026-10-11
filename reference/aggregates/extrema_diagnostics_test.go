@@ -61,8 +61,7 @@ func TestReferenceExtremaDiagnostics(t *testing.T) {
 				extremaDiagnostic(t, p, conn, recorder, tc.query, want, prepareStage)
 			})
 		}
-		// Native parsing rejects the suffix before RETURNING expression analysis.
-		// PostgreSQL independently diagnoses the aggregate clause/signature.
+		// Analyze children/signatures before the RETURNING aggregate restriction.
 		for _, tc := range []struct{ query, code, message string }{
 			{"INSERT INTO extrema_errors VALUES(1) RETURNING min(v)", "42803", "aggregate functions are not allowed in RETURNING"},
 			{"INSERT INTO extrema_errors VALUES(1) RETURNING min(TRUE)", "42883", "function min(boolean) does not exist"},
@@ -72,10 +71,6 @@ func TestReferenceExtremaDiagnostics(t *testing.T) {
 				want.Position = "48"
 				if tc.code == "42883" {
 					want.Hint = extremaSignatureHint
-				}
-				if !pg {
-					want = fixture.ControlsReferenceDiagnostic("0A000", "INSERT suffix is unsupported")
-					want.Position = fixture.StringAggPosition(tc.query, "RETURNING", false)
 				}
 				for _, queryMode := range []bool{false, true} {
 					for _, prepared := range []bool{false, true} {
@@ -90,21 +85,19 @@ func TestReferenceExtremaDiagnostics(t *testing.T) {
 						fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Select("SELECT count(*) FROM extrema_errors", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 					}
 				}
-				if !pg {
-					// Parsing the complete input must not publish a valid prefix.
-					query := "INSERT INTO extrema_errors VALUES(9); " + tc.query
-					prefixWant := fixture.ControlsReferenceDiagnostic("0A000", "INSERT suffix is unsupported")
-					prefixWant.Position = fixture.StringAggPosition(query, "RETURNING", false)
-					for _, prepared := range []bool{false, true} {
-						s := fixture.ErrorDiagnostic(query, prefixWant)
-						s.ErrorStage = "execute"
-						if prepared {
-							s = fixture.Prepared(s)
-							s.ErrorStage = "prepare"
-						}
-						fixture.RunStep(t, p.Ctx, conn, recorder, s)
-						fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Select("SELECT count(*) FROM extrema_errors", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+				// A complete multistatement message must not publish its valid prefix.
+				query := "INSERT INTO extrema_errors VALUES(9); " + tc.query
+				for _, prepared := range []bool{false, true} {
+					prefixWant := want
+					prefixWant.Position = fixture.StringAggPosition(query, "min(", false)
+					s := fixture.ErrorDiagnostic(query, prefixWant)
+					s.ErrorStage = "execute"
+					if prepared {
+						s = fixture.Prepared(fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("42601", "cannot insert multiple commands into a prepared statement")))
+						s.ErrorStage = "prepare"
 					}
+					fixture.RunStep(t, p.Ctx, conn, recorder, s)
+					fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Select("SELECT count(*) FROM extrema_errors", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 				}
 			})
 		}

@@ -27,8 +27,8 @@ func TestInsertConflictUpdateParser(t *testing.T) {
 		}
 	}
 	// Admission must enumerate the very same source occurrences as binding:
-	// producer, all SET RHS, all destination bounds, then action WHERE.
-	queries, err := Parse("INSERT INTO t SELECT k,a FROM input_rows ON CONFLICT(k) DO UPDATE SET a[(SELECT k FROM limits)]=(SELECT v FROM rhs),k=(SELECT k FROM rhs2) WHERE (SELECT enabled FROM conditions)")
+	// producer, all SET RHS, all destination bounds, action WHERE, then output.
+	queries, err := Parse("INSERT INTO t SELECT k,a FROM input_rows ON CONFLICT(k) DO UPDATE SET a[(SELECT k FROM limits)]=(SELECT v FROM rhs),k=(SELECT k FROM rhs2) WHERE (SELECT enabled FROM conditions) RETURNING (SELECT v FROM output_rows)")
 	if err != nil || len(queries) != 1 {
 		t.Fatal(queries, err)
 	}
@@ -36,7 +36,7 @@ func TestInsertConflictUpdateParser(t *testing.T) {
 	if err := VisitQuerySources(queries[0], nil, func(table *TableReference, _ *Select) error {
 		sources = append(sources, table.Name.Parts[len(table.Name.Parts)-1].Text)
 		return nil
-	}); err != nil || strings.Join(sources, ",") != "input_rows,rhs,rhs2,limits,conditions" {
+	}); err != nil || strings.Join(sources, ",") != "input_rows,rhs,rhs2,limits,conditions,output_rows" {
 		t.Fatal("complete source/action admission in binding order", sources, err)
 	}
 	for _, tail := range []string{"", " ON CONFLICT DO NOTHING"} {
@@ -53,8 +53,7 @@ func TestInsertConflictUpdateParser(t *testing.T) {
 		}
 	}
 	statements, err := Parse("INSERT INTO t VALUES(1) ON CONFLICT(k) DO UPDATE SET k=2 RETURNING k")
-	var d *sqlstate.Error
-	if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" || d.Message != "INSERT suffix is unsupported" {
-		t.Fatal("RETURNING boundary", statements, err)
+	if err != nil || len(statements) != 1 || statements[0].(*Insert).Returning == nil || len(statements[0].(*Insert).Returning.Targets) != 1 {
+		t.Fatal("RETURNING AST", statements, err)
 	}
 }

@@ -18,9 +18,9 @@ func TestDeleteReturningGrammar(t *testing.T) {
 			}
 		}
 	}
-	for _, q := range []string{"DELETE FROM t RETURNING", "DELETE FROM t RETURNING WITH () id", "DELETE FROM t RETURNING WITH (OLD o) id", "DELETE FROM t RETURNING WITH (WHATEVER AS o) id", "DELETE FROM t RETURNING * trailing", "DELETE FROM t RETURNING id FROM t", "INSERT INTO t VALUES(1) RETURNING id"} {
+	for _, q := range []string{"DELETE FROM t RETURNING", "DELETE FROM t RETURNING WITH () id", "DELETE FROM t RETURNING WITH (OLD o) id", "DELETE FROM t RETURNING WITH (WHATEVER AS o) id", "DELETE FROM t RETURNING * trailing", "DELETE FROM t RETURNING id FROM t"} {
 		if statements, err := Parse(q); err == nil || statements != nil {
-			t.Fatal("invalid/excluded suffix admitted", q, statements, err)
+			t.Fatal("malformed RETURNING syntax admitted", q, statements, err)
 		}
 	}
 }

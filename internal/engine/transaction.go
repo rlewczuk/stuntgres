@@ -305,6 +305,7 @@ type StatementScope struct {
 	exclusionStarted               bool
 	exclusionCandidates            map[ObjectAddress][]rowVersion
 	insertConflict                 *boundInsertConflict
+	insertReturning                *insertReturningOutput
 	partitionInsert                *partitionInsertState
 	rlsTargetDenied                bool
 	rlsProposal                    rlsDisposition

@@ -374,19 +374,14 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			case visibilityInquiryExpression:
 				b.visibilitySnapshot = true
 			}
-			old := false
+			old, absent := false, false
 			var c columnExpression
 			switch x := n.(type) {
 			case columnExpression:
 				c = x
-			case updateOldExpression:
+			case returningColumnExpression:
 				c = x.columnExpression
-				old = true
-			case deleteNewExpression:
-				if sameViewRelation(x.origin, w.logical.ref) {
-					return literalExpression{expressionInfo: x.expressionInfo, value: sqltype.Null(x.usage.Type)}, true, nil
-				}
-				return n, false, nil
+				old, absent = x.old, x.absent
 			default:
 				return n, false, nil
 			}
@@ -402,11 +397,11 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					}
 					column.scope = c.scope
 					column.frame = c.frame
-					if old {
-						return updateOldExpression{column}, true, nil
-					}
 					return column, true, nil
 				}, graft)
+				if old || absent {
+					return returningColumnExpression{columnExpression: c, old: old, absent: absent, value: output}, true, err
+				}
 				return output, true, err
 			}
 			if c.scope == 1 && c.frame == 1 && c.slot >= logicalWidth {

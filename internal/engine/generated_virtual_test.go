@@ -29,18 +29,18 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	if n, e := v.Integer(); err != nil || e != nil || n != 2 {
 		t.Fatal(v, err, e)
 	}
-	v, err = (updateOldExpression{generated}).Eval(&inner)
+	v, err = (returningColumnExpression{columnExpression: generated, old: true}).Eval(&inner)
 	if n, e := v.Integer(); err != nil || e != nil || n != 7 {
 		t.Fatal(v, err, e)
 	}
 	if outer.Frame != 4 || len(outer.Row) != 3 || inner.Frame != 8 {
 		t.Fatal("caller frame changed", outer, inner)
 	}
-	// An absent side must validate the named slot, not evaluate a virtual value.
+	// An absent side finds its owning frame but never demands a virtual value.
 	invalid := base
 	invalid.slot = 99
 	generated.virtual = invalid
-	if v, err = (deleteNewExpression{generated}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
+	if v, err = (returningColumnExpression{columnExpression: generated, absent: true}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
 		t.Fatal(v, err)
 	}
 	if _, err = generated.Eval(&inner); err == nil {

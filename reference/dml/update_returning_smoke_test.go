@@ -94,16 +94,9 @@ func TestReferenceUpdateReturningMigratedSmoke(t *testing.T) {
 				fixture.AssertDiagnostic(t, e, &tc.d)
 			}
 			insert := "INSERT INTO t VALUES(9,1,2,NULL) RETURNING id"
-			if backend.PG {
-				fixture.RunStep(t, p.Ctx, db, backend.Recorder, fixture.Select(insert, []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}}))
-			} else if result, err := db.ExecContext(p.Ctx, insert); err == nil || result != nil {
-				t.Fatal("excluded INSERT RETURNING", result, err)
-			}
+			fixture.RunStep(t, p.Ctx, db, backend.Recorder, fixture.Select(insert, []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}}))
 			for _, q := range []string{"UPDATE t x SET a=1 RETURNING x.a", "UPDATE t AS x SET a=1 RETURNING x.a"} {
-				count := 3
-				if backend.PG {
-					count = 4
-				}
+				count := 4
 				want := make([][]any, count)
 				for i := range want {
 					want[i] = []any{int64(1)}

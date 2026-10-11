@@ -18,10 +18,10 @@ func TestUpdateReturningGrammar(t *testing.T) {
 			}
 		}
 	}
-	for _, q := range []string{"UPDATE t SET id=1 RETURNING", "UPDATE t SET id=1 RETURNING WITH () id", "UPDATE t SET id=1 RETURNING WITH (OLD o) id", "UPDATE t SET id=1 RETURNING WITH (OTHER AS o) id", "UPDATE t SET id=1 RETURNING id FROM t", "INSERT INTO t VALUES(1) RETURNING id"} {
+	for _, q := range []string{"UPDATE t SET id=1 RETURNING", "UPDATE t SET id=1 RETURNING WITH () id", "UPDATE t SET id=1 RETURNING WITH (OLD o) id", "UPDATE t SET id=1 RETURNING WITH (OTHER AS o) id", "UPDATE t SET id=1 RETURNING id FROM t"} {
 		s, err := Parse(q)
 		if err == nil || len(s) != 0 {
-			t.Fatal("excluded or malformed input admitted", q, s, err)
+			t.Fatal("malformed RETURNING syntax admitted", q, s, err)
 		}
 	}
 }

@@ -104,7 +104,7 @@ semantic analysis still precedes read-only rejection: target, predicate, assignm
 source-query and UPDATE/DELETE RETURNING errors are not suppressed. No write
 expression is evaluated. Nil text/typed INTERVAL/BOOL comparison operands obey
 SQL three-valued logic and produce empty results with unchanged metadata.
-Existing scalar VALUES column-reference and INSERT RETURNING exclusions remain.
+Existing scalar VALUES column-reference exclusions remain; INSERT RETURNING is supported.
 Row locking remains unsupported for virtual catalog sources. No timezone SRFs
 or stored rewrite/deparse surface is added.
 
@@ -1229,8 +1229,8 @@ INSERT batch. Finalized values retain their immutable payload through source,
 statement and fixture lifecycle changes; no aggregate work occurs during Next.
 Source ACLs apply even to empty or filtered-out input. This adds no OVER provider,
 ordinary arrays, casts or codecs; aggregate modifiers use the shared contract below.
-Existing native multi-statement and INSERT RETURNING parser boundaries remain
-`0A000`, before aggregate execution or consumer/signature analysis. Carrier
+INSERT RETURNING performs aggregate child/signature analysis before rejecting
+an aggregate at42803; prepared multi-command input retains42601. Carrier
 eligibility itself does not add explicit casts to TEXT: raw aggregate output,
 typed-column assignment and admitted casts retain their existing authority.
 The separately supported [INTERVAL→TEXT output edge](DIALECT.md#date-and-time-arithmetic--change-note)
@@ -1272,8 +1272,8 @@ late argument/comparator errors and cancellation publish no cursor or INSERT
 batch. INSERT SELECT affects the number of output groups (empty global1/keyed0).
 Late TEXT-to-INTEGER failures are exercised by SELECT Query and INSERT SELECT
 Exec, direct and prepared, with full22P02 diagnostics and no inserted rows.
-INSERT SELECT RETURNING remains the independent native0A000 suffix exclusion;
-it does not reach the extrema reducer. Plain consumer methods keep actual cursor
+INSERT SELECT RETURNING reaches the same extrema reducer and late cast error.
+Plain consumer methods keep actual cursor
 assertions but cannot carry the Context-only middleware recorder: separate
 QueryContext executions of the same held statement prove recorded row ownership
 and closure, rather than attributing companion records to plain Query.
@@ -1396,8 +1396,8 @@ executions use current catalog/data; existing eager native cursors retain values
 Column permissions apply to both arguments and hidden keys, including empty input.
 Bad signatures/arity, nesting, forbidden clauses, missing keys and malformed
 ORDER preserve complete SQLSTATE/English diagnostics and character positions.
-In INSERT VALUES, string_agg gives42803 at the call. INSERT RETURNING is still
-an independent native0A000 suffix exclusion; it does not reach aggregate binding.
+In INSERT VALUES and RETURNING, string_agg gives42803 at the call, after
+child/signature analysis.
 
 OVER remains excluded. FILTER/DISTINCT/ALL and sibling ordering use
 the shared modifier contract. No-FROM aggregates use the ordinary local input. Unsupported XML ordering controls do not add XML or
@@ -1518,8 +1518,7 @@ published. Prepared reexecution creates fresh group states; native Dump/Restore
 stores inputs/views, never mutable accumulators, and restores both AVG input and
 result type ownership for all six numeric overloads. Infinity/NaN do not skip
 later argument evaluation: a later row's supported TEXT-to-INTEGER cast error
-still vetoes the entire aggregate result. INSERT RETURNING remains an independent
-native syntax exclusion.
+still vetoes the entire aggregate result, including INSERT SELECT RETURNING.
 
 Numeric AVG contract and feature smoke (both independently asserted modes):
 `make check RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$'`
@@ -1674,6 +1673,56 @@ families remain tagged. See [dual-mode verification](DEVELOPMENT.md#dual-mode-qu
 for runtime mode and legacy-selection boundaries. This migration changes no
 production SQL behavior or public API.
 
+## INSERT RETURNING — change note
+
+`INSERT ... [ON CONFLICT ...] RETURNING [WITH (OLD AS o, NEW AS n)] projection`
+uses the ordinary query interface and expression binder. Star expands the logical
+target's live columns in declaration order. Target-name/visible-target-alias and
+unqualified values mean NEW. Output sees completed defaults, identity and demanded
+generation values for VALUES, DEFAULT VALUES and all existing query/view/partition
+producers. Source aliases and `excluded` are not output namespaces. Explicit pseudo
+aliases hide their default names; target aliases hide the original target name.
+Scalar subqueries use lexical correlation and the captured statement frontier.
+
+OLD fields are typed NULL for insertion; successful conflict UPDATE returns its
+actual predecessor and replacement. DO NOTHING and FALSE/NULL update predicates
+emit no row and do not evaluate output. RETURNING expressions are evaluated once
+after final private-stage admission and before the next proposal is demanded.
+Output sequence effects survive a later transactional error under existing
+sequence policy. Exec evaluates ignored output too; RowsAffected counts successful
+inserts plus updates and LastInsertId remains unsupported. Without RETURNING there
+is still no result relation. Empty output retains the complete bound metadata.
+
+Bare visible target/OLD/NEW names in INSERT RETURNING can denote the actual named
+logical target rowtype, after ordinary same-named column lookup. Absent OLD is
+SQL NULL, not an all-NULL composite. Present all-NULL NEW is `(,)` for two fields;
+zero-member NEW is `()`. Whole-row reads demand SELECT on every live member, even
+when OLD is absent. With zero live members, a whole-row reference still requires
+table SELECT; a constant-only projection does not. Zero-row input does not erase
+this requirement. Direct `old.*`/`new.*` are field expansion, not one composite.
+Generic ROW constructors, `(old).field`, `(old).*` and global query whole-row
+resolution are not added. Native compound output is canonical string with blank
+DatabaseTypeName/string ScanType; pq exposes raw []byte/interface{} ScanType.
+
+Initial and fresh native admission check output SELECT rights for scalar, star,
+whole-row and dead CASE children, including empty/skipped input. Native refreshes
+current rights after waits; PostgreSQL retains its existing executor-start ACL
+decision. Bind errors and late projection/constraint/cancellation failures
+publish no partial native rows/count/writes. PostgreSQL can stream an output
+prefix before a later Rows.Err; consumers must drain/close before another command.
+
+Go held statements and SQL PREPARE/EXECUTE retain fixed formals/output signatures,
+without Prepare evaluating defaults/output/sequences. Dump serializes committed
+definitions/data, never output/history. Restore rejects RETURNING with native
+0A000 `restore INSERT RETURNING is unsupported`, atomically preserving the target.
+Fresh restored statements resolve reminted rowtype identities; held eager values
+and metadata keep their captured generations. Server trigger transformation and
+suppression are genuine PostgreSQL-only controls, not native successful no-ops.
+
+Selected proof: [INSERT RETURNING contracts](TESTING.md#insert-returning-oracle-first-contracts).
+Feature smoke: `make check RUN='^TestReferenceInsertReturningFeatureSmoke$'`,
+and the identical command with `REFERENCE=1`, each under an external900-second deadline.
+
 ## INSERT from query — change note
 
 INSERT now accepts SELECT sources through the common query pipeline, including
@@ -1698,7 +1747,7 @@ INSERT INTO destination(i,label)
 
 This inserts three occurrences (including both duplicates), converts INT4 to
 INT8 and fills `flag` with NULL. Zero, one and many selected rows have exact
-RowsAffected counts. No RETURNING is implied: direct/prepared Query of INSERT
+RowsAffected counts. Without RETURNING, direct/prepared Query of INSERT
 has no columns or data rows; Exec exposes only the successful command count.
 Prepare is effect-free, and reused statements freshly bind and read the current
 source rather than caching source data.
@@ -2253,7 +2302,7 @@ Triggers and whole-row records/parenthesized expansion,
 rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
 transformation/suppression and whole-row controls, not native successful no-ops.
-INSERT RETURNING, DEFAULT/row assignments/top-level WITH UPDATE and recursive inheritance
+DEFAULT/row assignments/top-level WITH UPDATE and recursive inheritance
 remain excluded; leaf inherited-table DML is supported. No new evaluator,
 durability or retry path is introduced.
 
@@ -2348,7 +2397,7 @@ Retained native output survives rollback and Reset/Restore. Persistence includes
 committed live heads/catalog/sequence state, never source captures or output history.
 
 LATERAL/function FROM, top-level WITH UPDATE, row assignments and DEFAULT,
-whole-row records and INSERT RETURNING remain excluded.
+whole-row UPDATE/DELETE records remain excluded; INSERT RETURNING is supported.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.
 Quick: `make check RUN='^TestReferenceUpdateFrom'`.
@@ -3879,7 +3928,7 @@ private marker column leaks. Native eager late failures/cancellation publish no
 cursor or partial INSERT; pq may expose a cursor before a late streaming error.
 Views preserve actual grouping syntax, ordinals and dependencies through
 rename/deparse replay and native Dump/Reset/Restore with destination-owned types.
-Domain constraints, INSERT RETURNING, additional aggregates/window providers,
+Domain constraints, additional aggregates/window providers,
 ROW/composite execution and optimizer/spill/parallel machinery remain unchanged.
 
 Focused independent feature smoke (900 seconds each):
@@ -3932,7 +3981,7 @@ Ready-invalid providers participate in targetless arbitration; explicit
 inference requires a valid provider. Native Dump/Reset/Restore retain supported
 definitions and accepted data, but Restore input rejects conflict-bearing INSERTs.
 
-INSERT RETURNING remains a positioned0A000 boundary. Native
+INSERT RETURNING uses the shared output contract. Native
 deferrable UNIQUE DDL retains its0A000 boundary. Omitted/named targets can select
 supported nondeferrable equality exclusions, while unique inference cannot.
 Selected deferrable exclusions report55000 with schema/table/constraint only
@@ -4105,7 +4154,7 @@ the existing lifecycle and conflict-bearing Restore rejection.
 Native writable target views and virtual/physical partition hierarchy targets
 remain unsupported. Hierarchy conflict UPDATE rejects0A000 after analysis and
 rights, before provider/default/routing admission. Native deferrable UNIQUE/PRIMARY
-KEY DDL and INSERT RETURNING remain bounded rather than simulated. The shared
+KEY DDL remains bounded rather than simulated; INSERT RETURNING is supported. The shared
 `TestReferenceInsertConflictUpdate` family has independently specified native and
 pinned PostgreSQL expectations; [testing](TESTING.md#insert-conflict-update-acceptance)
 separates public capture markers from actual native manager-pending proof.

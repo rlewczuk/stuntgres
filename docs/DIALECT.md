@@ -515,7 +515,7 @@ diagnostics without evaluating expressions, requiring physical storage or writin
 Existing scalar VALUES column references remain unsupported natively (0A000
 `column references are unsupported in scalar inputs`), unlike PostgreSQL's
 missing-column42703; this part does not add general scalar column references.
-INSERT RETURNING remains outside the existing grammar. Other catalog mutation,
+INSERT RETURNING uses the shared grammar/output path. Other catalog mutation,
 DDL and row-lock restrictions remain unchanged.
 Native Dump skips builtins and serializes user-view references symbolically;
 Reset/Restore recreate builtins without storing timezone facts or session settings.
@@ -1648,7 +1648,7 @@ conservative proof rules, not every mathematical Boolean implication. For exampl
 Stable-isolation selected collisions use checked immutable storage positions;
 ordinary enforcement and read-committed omissions do not scan for row identity.
 See [INSERT conflict omission](QUERIES.md#insert-conflict-omission--change-note).
-INSERT RETURNING retains its positioned0A000 suffix boundary.
+INSERT RETURNING exposes completed inserted and conflict-updated rows.
 Native deferrable UNIQUE DDL remains0A000. Supported equality exclusion constraints
 participate through omitted/named targets, but not unique inference. Selected
 deferrable exclusion arbiters fail55000 only for demanded proposals; zero-row
@@ -1679,7 +1679,7 @@ Named equality exclusions, including installed B-tree/HASH and deferrable ones,
 are not UPDATE arbiters and report42809 even for an empty source. Native deferrable
 UNIQUE/PRIMARY KEY DDL remains0A000; pinned PostgreSQL's real deferrable unique
 arbiter reports55000 only when a proposal is demanded. Writable target views,
-partition hierarchy targets, INSERT RETURNING and conflict-bearing Restore input
+partition hierarchy targets and conflict-bearing Restore input
 retain their native boundaries. Native full authorization is refreshed after
 conflict waits; PostgreSQL's statement-start ACL timing remains an explicit
 reference distinction. See [action, snapshot and cardinality semantics](QUERIES.md#insert-conflict-update--change-note).
@@ -2164,8 +2164,8 @@ Ordinary and `pg_catalog`-qualified calls share scalar binding and compose in
 the existing query, DML, DEFAULT, CHECK, view and introspection consumers.
 Datetime formatting uses ordinary no-FROM SELECT, including existing scalar
 siblings and WHERE. INSERT expressions use the
-existing INSERT surface; INSERT RETURNING remains an unsupported suffix, while
-UPDATE/DELETE RETURNING consume formatting expressions.
+existing INSERT surface; INSERT/UPDATE/DELETE RETURNING consume the same
+formatting expressions.
 Their STABLE classification excludes stored generated columns and expression
 indexes, even for fixed English names or timezone-free sources.
 Stored-view cast presentation uses captured type usage and canonical postfix
@@ -2491,7 +2491,7 @@ Main-source SELECT is conditional on logical command reads, not a hidden view
 predicate. Independent stored-subquery sources retain SELECT under their layer's
 current owner/original invoker. Frozen source layouts consume live selected
 versions, including own transaction changes; Prepare binds without executor ACLs.
-INSERT RETURNING, trigger/rule rewriting and RLS remain excluded.
+INSERT RETURNING uses logical view projection; trigger/rule rewriting and RLS remain excluded.
 Feature smoke: `make check RUN='^TestReferenceViewUpdatableSmoke$'`;
 use the same selector with `REFERENCE=1` for the pinned PostgreSQL contract.
 
@@ -2763,8 +2763,8 @@ Existing VARCHAR/NAME/BPCHAR/domain-base implicit coercions apply; mixed TEXT/BY
 and integer/Boolean signatures fail42883 with full signature/hint/character position.
 Both arguments and all ordering keys evaluate even when the value is NULL.
 Native late failure/cancellation publishes no cursor or partial INSERT batch.
-Calls in INSERT VALUES give42803 at the call. INSERT RETURNING remains an
-independent native0A000 suffix boundary rather than aggregate-clause parity.
+Calls in INSERT VALUES or RETURNING give42803 at the call, with RETURNING
+child/signature analysis preceding clause legality.
 Public smoke: `make check RUN='^TestReferenceStringAggSmoke$'`;
 independent oracle: `make check REFERENCE=1 RUN='^TestReferenceStringAgg'`.
 
@@ -2815,8 +2815,8 @@ Typed supplied parameters match by identity, not equal runtime values; held NULL
 keys retain included0 versus omitted1 bits and do not capture a previous value.
 CUBE permits12 units; raw expansion permits4096 sets before DISTINCT. Outer Var
 GROUPING in scalar subqueries follows PostgreSQL18 ownership; correlated computed
-arguments retain42803. INSERT RETURNING, domain constraints and other adjacent
-boundaries remain unchanged. Smoke/oracle:
+arguments retain42803. Domain constraints and other adjacent boundaries remain
+unchanged; INSERT RETURNING is supported. Smoke/oracle:
 `make check RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'`
 and `make check REFERENCE=1 RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'`.
 Boolean smoke: `make check RUN='^TestReference(BooleanAggregate[A-Za-z0-9_]*|AnyValueSourceACL)$'`;
@@ -3763,9 +3763,9 @@ strict source NULL does not suppress import errors.
 The existing query/write/WHERE/order/group/COUNT/SUM/UPDATE RETURNING/CHECK/view,
 generated-column/expression-index and symbolic Dump/Reset/Restore consumers
 share BinaryPlan. Restore rejects parameters recursively in every argument.
-BYTEA DEFAULT functions, INSERT RETURNING and established mixed TEXT/BYTEA
-parameter-cast limitations remain excluded. No adjacent BIT execution or casts
-are introduced.
+BYTEA DEFAULT functions and established mixed TEXT/BYTEA
+parameter-cast limitations remain excluded; BYTEA INSERT RETURNING is supported.
+No adjacent BIT execution or casts are introduced.
 
 Witnesses: `make check RUN='^TestReferenceBinaryAccess.*$'`
 and the same command with `REFERENCE=1`; feature smoke uses
@@ -3816,7 +3816,7 @@ parenthesized DEFAULT/CHECK, view/generated/index and native control consumers.
 Late row-dependent output errors publish no partial statement writes.
 Restore traverses every selected operand and rejects parameters recursively;
 held cursors retain values/descriptors across replacement. The existing general
-BYTEA DEFAULT-function and INSERT RETURNING boundaries remain unchanged.
+BYTEA DEFAULT-function boundary remains unchanged; INSERT RETURNING is supported.
 No TEXT-to-BYTEA cast edge is added: an earlier bare `reverse($1)` resolves
 that parameter as TEXT, and subsequently casting the same parameter to BYTEA
 retains the existing native0A000 cast boundary (PostgreSQL accepts that cast).
@@ -3878,8 +3878,8 @@ translate propagate TEXT result collation without runtime collation demand.
 
 These operations reuse scalar query/write, UPDATE/DELETE RETURNING, grouping/
 ordering, parenthesized DEFAULT, CHECK and view consumers. INSERT VALUES and
-INSERT SELECT consume the same providers; INSERT RETURNING retains its existing
-native0A000 suffix boundary. Immutable plans and generation-owned descriptors
+INSERT SELECT and RETURNING consume the same providers. Immutable plans and
+generation-owned descriptors
 retain TEXT/BOOL metadata on empty/NULL rowsets.
 Late overlay failures publish no rows/result or partial writes. Stored SQL keeps
 special OVERLAY and prefix-operator spelling; ordinary overlay is quoted in
@@ -4859,7 +4859,7 @@ implied. Scalar operators are covered by [numeric arithmetic](#numeric-arithmeti
 COUNT and SUM with size-expression arguments and grouped size calls use the
 existing aggregate path; SUM of BIGINT bytes produces exact NUMERIC results.
 INSERT size expressions expose exact affected counts and subsequent
-state reads; UPDATE RETURNING is supported, but INSERT RETURNING is not added.
+state reads; INSERT/UPDATE RETURNING consume the same size expressions.
 Internal `"char"` input has no native implicit TEXT cast, so its bytes call
 reports 42883 where PostgreSQL converts and parses it. These do not change the
 three selected signatures or authorize adjacent aggregate/cast/write features.
@@ -6223,7 +6223,7 @@ without discarding unrelated definitions or retained data. Immediate-provider
 traversal orders diagnostics/notices even through replaced views; genuine
 consumer identities order mixed siblings and same-owner CHECKs keep declaration
 order within their occupied sibling slots. Failing
-INSERT/UPDATE rows, including UPDATE RETURNING, use captured symbolic regclass
+INSERT/UPDATE rows, including RETURNING failures, use captured symbolic regclass
 output recursively through domains/arrays and retain existing ACL disclosure.
 
 Native logical replay remaps actual data/scalar Const identities and defers

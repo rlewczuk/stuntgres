@@ -399,10 +399,12 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			}
 		}
 	}()
-	if count >= 0 {
-		rows = make([][]sqltype.Value, 0, count)
-	} else {
-		rows = make([][]sqltype.Value, 0)
+	if scope == nil || scope.insertReturning == nil {
+		if count >= 0 {
+			rows = make([][]sqltype.Value, 0, count)
+		} else {
+			rows = make([][]sqltype.Value, 0)
+		}
 	}
 	scratch := make([]sqltype.Value, len(b.targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
@@ -446,6 +448,12 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		if scope != nil && scope.partitionInsert != nil {
 			if err := scope.op.session.Engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return nil, err
+			}
+			if scope.insertReturning != nil {
+				if _, err := scope.admitInsertProducer(b, row, nil, &evaluation); err != nil {
+					return nil, err
+				}
+				continue
 			}
 			if err := scope.checkInsertUniqueRow(b.ref, row, rows); err != nil {
 				return nil, err
@@ -491,11 +499,11 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, scope.op.session.token.owner.rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
-		if unique {
+		if unique || scope != nil && scope.insertReturning != nil {
 			if scope == nil {
 				return nil, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}
-			admitted, err := scope.admitInsertRow(b.ref, row, rows, &evaluation)
+			admitted, err := scope.admitInsertProducer(b, row, rows, &evaluation)
 			if err != nil {
 				return nil, err
 			}

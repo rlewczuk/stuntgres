@@ -66,26 +66,18 @@ func TestReferenceInsertImplicitShortBoundariesAndCancellation(t *testing.T) {
 			for _, b := range p.Backends() {
 				t.Run(b.Name, func(t *testing.T) {
 					query := "INSERT INTO t VALUES(1) RETURNING id"
-					if b.PG {
-						// PostgreSQL accepts this shape. Roll back its real returned row
-						// so subsequent no-mutation cancellation checks remain identical.
-						tx, err := b.DB.BeginTx(p.Ctx, nil)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer tx.Rollback()
-						if nonContext {
-							fixture.RunStep(t, p.Ctx, tx, b.Recorder, route(fixture.Exec(query, 1)))
-						} else {
-							fixture.RunStep(t, p.Ctx, tx, b.Recorder, route(fixture.Select(query, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}})))
-						}
-						if err := tx.Rollback(); err != nil {
-							t.Fatal(err)
-						}
+					tx, err := b.DB.BeginTx(p.Ctx, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer tx.Rollback()
+					if nonContext {
+						fixture.RunStep(t, p.Ctx, tx, b.Recorder, route(fixture.Exec(query, 1)))
 					} else {
-						step := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: fixture.Position(strings.Index(query, "RETURNING") + 1)})
-						step.ErrorStage = "execute"
-						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, route(step))
+						fixture.RunStep(t, p.Ctx, tx, b.Recorder, route(fixture.Select(query, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}})))
+					}
+					if err := tx.Rollback(); err != nil {
+						t.Fatal(err)
 					}
 					for _, prepared := range []bool{false, true} {
 						for _, step := range []fixture.Step{

@@ -31,11 +31,6 @@ func TestReferenceNumericAvgDiagnostics(t *testing.T) {
 		} {
 			t.Run(c.query, func(t *testing.T) {
 				diagnostic := fixture.Diagnostic{Code: c.code, Message: c.message, Hint: c.hint, Position: c.position}
-				// INSERT RETURNING remains an independent native syntax exclusion;
-				// PostgreSQL still resolves AVG and rejects its RETURNING placement.
-				if !pg && strings.HasPrefix(c.query, "INSERT ") {
-					diagnostic = fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: fixture.Position(strings.Index(c.query, "RETURNING") + 1)}
-				}
 				fixture.IntervalAvgDiagnostic(t, p, conn, recorder, c.query, diagnostic, c.args...)
 			})
 		}

@@ -40,11 +40,7 @@ func TestReferencePredefinedAllData(t *testing.T) {
 		for _, q := range []string{"UPDATE pdef_ad.t SET v='bad' WHERE id=1", "DELETE FROM pdef_ad.t WHERE id=1"} {
 			predefinedDenied(s, q, "permission denied for table t", false)
 		}
-		if s.backend.PG {
-			predefinedDenied(s, "INSERT INTO pdef_ad.t VALUES(9,'bad') RETURNING id", "permission denied for table t", false)
-		} else {
-			predefinedFailure(s, "INSERT INTO pdef_ad.t VALUES(9,'bad') RETURNING id", fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: "39"}, false, "prepare")
-		}
+		predefinedDenied(s, "INSERT INTO pdef_ad.t VALUES(9,'bad') RETURNING id", "permission denied for table t", false)
 		s.actor("")
 		predefinedRows(s, "pdef_ad.t", predefinedInitialRows())
 		s.actor("pdef_writer")

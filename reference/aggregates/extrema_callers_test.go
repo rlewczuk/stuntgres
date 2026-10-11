@@ -63,19 +63,11 @@ func TestReferenceExtremaLateFailure(t *testing.T) {
 				extremaBoth(t, p, conn, recorder, s)
 			})
 		}
-		// RETURNING remains an independent native parser boundary, not a
-		// supported late-failure consumer. PostgreSQL reaches the same cast.
+		// The source cast still precedes any destination/output publication.
 		const returning = "INSERT INTO extrema_late_out SELECT min(v::integer),max(v::integer) FROM extrema_late RETURNING lo,hi"
 		for _, prepared := range []bool{false, true} {
 			want := fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type integer: "bad"`)
 			stage := "execute"
-			if !pg {
-				want = fixture.ControlsReferenceDiagnostic("0A000", "INSERT suffix is unsupported")
-				want.Position = fixture.StringAggPosition(returning, "RETURNING", false)
-				if prepared {
-					stage = "prepare"
-				}
-			}
 			s := fixture.ErrorDiagnostic(returning, want)
 			s.SelectRows, s.Prepared, s.ErrorStage = true, prepared, stage
 			run(s)

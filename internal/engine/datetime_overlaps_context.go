@@ -63,7 +63,7 @@ func overlapsInlineSafe(e datetimeOverlapsExpression) bool {
 // boolean/CASE nodes cost zero; only function-backed work adds to the threshold.
 func overlapsNodeCost(node BoundExpr) int {
 	switch n := node.(type) {
-	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, groupingExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, updateOldExpression, deleteNewExpression:
+	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, groupingExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, returningColumnExpression, returningWholeRowExpression:
 		return 0
 	case caseExpression:
 		if n.test != nil {

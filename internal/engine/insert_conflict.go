@@ -32,11 +32,10 @@ type boundInsertConflict struct {
 	updateTargets []int
 	actionReads   []int
 	sources       []queryLeaf
+	returning     *boundReturning
 	frame         []sqltype.Value
 	width         int
-	affectedRows  map[RowID]int
-	ownRowSlots   map[RowID]int
-	overlays      map[*uniqueBoundKey]*conflictUpdateOverlay
+	insertWriteOverlay
 }
 
 // Analysis resolves names/types/read manifests; selecting installed providers

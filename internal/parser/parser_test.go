@@ -90,6 +90,28 @@ func TestEmptyScripts(t *testing.T) {
 	}
 }
 
+func TestInsertReturningParser(t *testing.T) {
+	for _, query := range []string{
+		"INSERT INTO t VALUES (1) RETURNING x",
+		"INSERT INTO t VALUES(1) RETURNING id",
+		"INSERT INTO t DEFAULT VALUES RETURNING WITH(OLD AS o,NEW AS n) o.*,n.*",
+		"INSERT INTO t AS d VALUES(1) ON CONFLICT DO NOTHING RETURNING old,new,d",
+		"INSERT INTO t SELECT 1 RETURNING (SELECT x FROM output_rows)",
+	} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+		insert, ok := statements[0].(*Insert)
+		if !ok || insert.Returning == nil || len(insert.Returning.Targets) == 0 {
+			t.Fatal("missing output AST", query, statements)
+		}
+		if len(insert.Returning.Aliases) != 0 && (len(insert.Returning.Aliases) != 2 || insert.Returning.Aliases[0].New || !insert.Returning.Aliases[1].New) {
+			t.Fatal("lost OLD/NEW alias sides", insert.Returning.Aliases)
+		}
+	}
+}
+
 func TestParserErrorBoundaries(t *testing.T) {
 	cases := []struct{ query, code string }{
 		{"CREATE TABLE t (x INT", "42601"},
@@ -101,7 +123,6 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (?)", "42601"}, {"INSERT INTO t VALUES (:name)", "42601"},
 		{"INSERT INTO t VALUES (1z)", "42601"},
 		{"INSERT INTO t VALUES (N'a')", "0A000"},
-		{"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT f(x) FROM t", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"DELETE FROM t USING", "42601"},

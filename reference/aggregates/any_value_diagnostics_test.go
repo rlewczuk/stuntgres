@@ -47,11 +47,6 @@ func TestReferenceAnyValueDiagnostics(t *testing.T) {
 						d := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
 						d.Position, d.Hint = tc.position, tc.hint
 						s := fixture.ErrorDiagnostic(tc.q, d)
-						if !backend.PG && strings.HasPrefix(tc.q, "INSERT") {
-							// INSERT RETURNING is excluded by the parser before
-							// aggregate consumer/signature analysis.
-							s = fixture.Error(tc.q, "0A000")
-						}
 						s.Prepared, s.SelectRows, s.ErrorStage = prepared, !strings.HasPrefix(tc.q, "CREATE"), "execute"
 						if prepared && s.SelectRows {
 							s.ErrorStage = "prepare"

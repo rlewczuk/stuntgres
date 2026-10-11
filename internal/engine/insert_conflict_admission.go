@@ -3,7 +3,7 @@ package engine
 import "stuntgres/internal/sqltype"
 
 func bindingForConflict(ref ObjectRef, parent *relationDescriptor, action *boundInsertConflict) binding {
-	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action, querySources: action.sources}
+	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action, querySources: action.sources, returning: action.returning}
 }
 func (s *StatementScope) admitInsertRow(ref ObjectRef, row []sqltype.Value, prefix [][]sqltype.Value, evaluation *EvalContext) (bool, error) {
 	action := s.insertConflict

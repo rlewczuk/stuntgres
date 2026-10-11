@@ -803,6 +803,7 @@ type Insert struct {
 	DefaultValues bool
 	Override      InsertOverride
 	Conflict      *InsertConflict
+	Returning     *Returning
 }
 
 // InsertConflict is absent for ordinary insertion. An empty DO NOTHING target

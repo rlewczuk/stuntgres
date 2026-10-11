@@ -152,10 +152,9 @@ and one ON DELETE in either order, then constraint attributes. Compatible repeat
 immediate/nondeferrable attributes remain legal. Repeated/out-of-order MATCH or
 actions are positioned 42601 syntax errors, not accepted or delayed exclusions.
 MERGE MATCHED UPDATE and NOT MATCHED INSERT perform immediate FK checks through
-their admitted write owners. MATCHED DELETE/DO NOTHING and INSERT RETURNING
-retain their independent native capability boundaries. INSERT SELECT without
-RETURNING and ON CONFLICT DO NOTHING/target DO UPDATE also perform the real
-immediate FK checks through their existing final-image write owners.
+their admitted write owners. INSERT RETURNING performs the same real immediate
+FK checks through its final-image write owners; failures expose no native output.
+Existing MATCHED DELETE/DO NOTHING boundaries are independent.
 No trigger/catalog expansion, physical PostgreSQL RI executor, pg_dump process,
 wire protocol or disk durability is implied.
 
@@ -2177,8 +2176,8 @@ Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
 ordinary SELECT, predicates, joins, aggregates, views, correlated frames and
 admitted UPDATE/DELETE RETURNING. UPDATE expressions read the old base row;
 RETURNING reads the appropriate OLD/NEW row, and an absent side is NULL without
-evaluating generation. INSERT RETURNING retains its existing unsupported suffix
-boundary; ordinary INSERT followed by SELECT reads virtual values normally.
+evaluating generation. INSERT RETURNING follows the same demand rule; unqualified
+and NEW output reads the completed row, while absent OLD remains typed NULL.
 For `b AS (1/a) VIRTUAL`, INSERT of a=0 and SELECT a succeed; SELECT b fails22012.
 Only actual NOT NULL/CHECK demands compute virtual values on writes; violations
 render visible generated cells as literal `virtual`, preserving column disclosure.

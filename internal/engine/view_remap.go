@@ -110,6 +110,21 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case tableOIDExpression:
 		n.owner = rowRef(n.owner)
 		next = n
+	case returningColumnExpression:
+		mapped := child(n.columnExpression)
+		if err != nil {
+			return nil, err
+		}
+		column, ok := mapped.(columnExpression)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: invalid remapped RETURNING column")
+		}
+		n.columnExpression = column
+		n.value = child(n.value)
+		next = n
+	case returningWholeRowExpression:
+		n.members = args(n.members)
+		next = n
 	case columnExpression:
 		n.origin = rowRef(n.origin)
 		if ref == nil && slots != nil {
