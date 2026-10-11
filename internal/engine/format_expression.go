@@ -14,6 +14,8 @@ type formatExpression struct {
 	args     []BoundExpr
 	variadic bool
 	int4     *sqltype.Descriptor
+	// Genuine unknown ANY string literals retain their cast-free deparse form.
+	rawUnknown [2]uint64
 }
 
 func (e formatExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -65,6 +67,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		args = make([]BoundExpr, len(raw.Args))
 	}
 	var first comparisonOperand
+	var rawUnknown [2]uint64
 	for i, r := range raw.Args {
 		var node BoundExpr
 		var err error
@@ -76,6 +79,9 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		} else {
 			node, err = b.bind(r, expressionPolicy{context: projectionContext})
 			if err == nil {
+				if literal, ok := r.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue && i < 100 {
+					rawUnknown[i/64] |= uint64(1) << uint(i%64)
+				}
 				if unknownNullSyntax(r) {
 					if literal, ok := node.(literalExpression); ok {
 						literal.unknownNull = true
@@ -169,5 +175,5 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	}
 	int4 := b.typ(sqltype.Int4)
 	b.info(int4.Usage(), raw.Pos, ExprProperties{})
-	return formatExpression{expressionInfo: info, args: args, variadic: raw.Variadic, int4: int4}, nil
+	return formatExpression{expressionInfo: info, args: args, variadic: raw.Variadic, int4: int4, rawUnknown: rawUnknown}, nil
 }

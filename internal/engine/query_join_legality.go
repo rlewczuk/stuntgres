@@ -196,11 +196,13 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 			if err != nil {
 				return err
 			}
-			root, storedReads, err := prepareStoredExecutionRoot(c, d.view, outputUses)
+			child := *c
+			child.quoteOrigin = quoteOrigin{owner: n.ref, definition: d.view.rule, revision: d.view.quoteRevision}
+			root, storedReads, err := prepareStoredExecutionRoot(&child, d.view, outputUses)
 			if err != nil {
 				return err
 			}
-			return validateMarkedQueryJoin(c, root, catalog, nil, mark, emptyInput, nil, storedReads)
+			return validateMarkedQueryJoin(&child, root, catalog, nil, mark, emptyInput, nil, storedReads)
 		}
 		return nil
 	case *derivedNode:
@@ -627,6 +629,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case installedFunctionExpression:
 		children = []BoundExpr{e.arg}
+	case stringVariadicExpression:
+		children = e.args
 	case formatExpression:
 		children = e.args
 	case currentSchemasExpression:

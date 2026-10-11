@@ -62,7 +62,7 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-The exact supported builtin registry contains these twenty-nine settings:
+The exact supported builtin registry contains these thirty settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |
@@ -78,6 +78,7 @@ The exact supported builtin registry contains these twenty-nine settings:
 | IntervalStyle | postgres / session | Actual interval input/output; immutable statement presentation capture |
 | search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
+| quote_all_identifiers | off / session | Forces quote_ident, format %I and supported SQL deparse identifier quoting |
 | bytea_output | hex / session | Selects hex or escape BYTEA output |
 | TimeZone | UTC / session | Typed embedded timezone rules for input, output and conversions |
 | timezone_abbreviations | Default / session | Embedded Default/Australia/India input meanings; captured immutable table |
@@ -472,9 +473,40 @@ fail native0A000 with `Only UTF8 client encoding is supported.` Detail.
 `MULE_INTERNAL` instead retains PostgreSQL's genuine missing-conversion
 diagnostic and Detail `Conversion between MULE_INTERNAL and UTF8 is not supported.`
 These settings do not add wire-protocol transcoding or change server_encoding.
+`pg_client_encoding()` returns canonical NAME `UTF8` even when SHOW retains
+the uppercase `UNICODE` alias; it reads the captured physical-session policy.
 Selected bound TEXT UTF8/NUL failures retain the existing portal continuation
 `unnamed portal parameter $1` in both adapters; setting support does not suppress
 the import wrapper's diagnostic Context.
+
+quote_all_identifiers is a Boolean, initially off, with the normal session
+SET/SET LOCAL/RESET/current_setting/set_config/savepoint lifecycle. Its registry
+description is `When generating SQL fragments, quote all identifiers.`
+It forces quoting in quote_ident, format `%I`, and supported generated SQL
+deparse inquiries (view/default/index/constraint names, attributes, functions
+and applicable casts). Native stored SQL and Dump remain reparsable and
+setting-independent, with forced-quoted object identifiers and canonical
+unquoted `USING btree`/`USING hash` access methods. Session pg_get_indexdef instead
+uses the execution's quote policy, including the method name. Stored comment
+literal conventions do not change. This does not claim additional,
+unimplemented server deparse surfaces.
+
+Parameterless held statements capture successful immutable physical quote output
+at first Execute planning, not Prepare: BYTEA quotes capture bytea_output and
+identifier quotes capture quote_all_identifiers. Presentation SET/LOCAL/RESET
+does not replace that scalar group. It belongs to the existing statement
+description: Close/DEALLOCATE/session end releases it; DISCARD PLANS/ALL lazily
+recollects it; unsuccessful rebind/signature/demanded folds publish no partial
+replacement. Every native parameterized execution instead uses a fresh
+operation-local quote group, including DEFAULT and lowered-view constants,
+without borrowing or publishing retained entries or a quote-generation stamp.
+PostgreSQL custom plans similarly reevaluate constants, but generic plans can
+retain them across setting changes and rollback. The independently observed
+custom1–5/generic6+ simple SELECT/MERGE matrix is not native planner parity.
+Native intentionally implements no cost selection, counters or plan_cache_mode.
+Typed parameters, stable concat/concat_ws, pg_client_encoding and format remain
+live per execution. No session/global SQL-text or settings-value cache is added.
+
 
 The four locale categories accept exact `C` and `POSIX`; numeric, monetary and
 time also accept empty text and deliberately use the same deterministic C policy.

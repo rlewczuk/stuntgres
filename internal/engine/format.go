@@ -249,7 +249,7 @@ func formatField(ctx context.Context, out *strings.Builder, value sqltype.Value,
 			if err != nil {
 				return err
 			}
-			if quoted {
+			if quoted || output.QuoteAllIdentifiers {
 				quote = '"'
 			}
 		} else if verb == 'L' {

@@ -31,6 +31,8 @@ type StatementDescription struct {
 	sequences        *sequenceAnalysis
 	regtypes         *regtypeAnalysis
 	analysis         *preparedAnalysis
+	quotes           []quoteConstant
+	quoteGeneration  uint64 // Published separately after successful quote preflight.
 	planOwner        SessionToken
 	planGeneration   uint64
 	refreshTemporals bool // Candidate-only request; never published in a description.

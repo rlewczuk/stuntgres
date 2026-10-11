@@ -268,7 +268,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					continue
 				}
 				found = true
-				name, err := deparseAttribute(relation, def.Attribute)
+				name, err := renderer.attribute(relation, def.Attribute)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -294,7 +294,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					continue
 				}
 				found = true
-				text, err = uniqueConstraintSQL(view, relation, &def)
+				text, err = renderer.uniqueConstraintSQL(relation, &def)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -304,7 +304,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					continue
 				}
 				found = true
-				text, err = foreignKeyConstraintSQL(view, relation, def, c.liveScope().deparsePath)
+				text, err = renderer.foreignKeyConstraintSQL(relation, def)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -434,7 +434,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath, temporary: temporaryNamespace(scope.deparseAuth)})
+		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath, temporary: temporaryNamespace(scope.deparseAuth), output: scope.output})
 	} else {
 		if relation.view == nil {
 			return sqltype.Null(e.usage.Type), nil

@@ -114,6 +114,40 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
+	t.Run("BoundUnknownAnyReplay", func(t *testing.T) {
+		for _, tc := range []struct{ sql, want string }{
+			{`SELECT format('%I','foo')`, `format('%I'::text, 'foo')`},
+			{`SELECT format('%I','foo'::text)`, `format('%I'::text, 'foo'::text)`},
+		} {
+			script, err := parser.Parse(tc.sql)
+			if err != nil {
+				t.Fatal(err)
+			}
+			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+			node, err := binder.bind(script[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored, err := (scalarRenderer{}).sql(ctx, e.CatalogRead(), node)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replay, err := parser.Parse("SELECT " + stored)
+			if err != nil {
+				t.Fatal(stored, err)
+			}
+			rebound, err := binder.bind(replay[0].(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+			if err != nil {
+				t.Fatal(stored, err)
+			}
+			for _, current := range []BoundExpr{node, rebound} {
+				rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, current, pgRenderParent{})
+				if err != nil || rendered != tc.want {
+					t.Fatal("ANY provenance/replay deparse", rendered, tc.want, err)
+				}
+			}
+		}
+	})
 }
 
 func TestFormatNullAndUnusedDoNotHideRealChildErrors(t *testing.T) {
@@ -161,7 +195,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	fresh := retained.(formatExpression)
-	if fresh.int4 != types[sqltype.Int4] || fresh.ResultUsage().Type != types[sqltype.Text] || fresh.args[0].ResultUsage().Type != types[sqltype.Text] || node.int4 == fresh.int4 || node.args[0].ResultUsage().Type == fresh.args[0].ResultUsage().Type {
+	if fresh.rawUnknown != node.rawUnknown || fresh.int4 != types[sqltype.Int4] || fresh.ResultUsage().Type != types[sqltype.Text] || fresh.args[0].ResultUsage().Type != types[sqltype.Text] || node.int4 == fresh.int4 || node.args[0].ResultUsage().Type == fresh.args[0].ResultUsage().Type {
 		t.Fatal("retag must own a new immutable descriptor generation")
 	}
 	value, err := fresh.Eval(&EvalContext{Context: ctx})

@@ -33,6 +33,7 @@ type viewDefinition struct {
 	temporary         SessionToken
 	references        map[ObjectRef]Descriptor
 	collations        map[viewLiteralPath]uint32
+	quoteRevision     DefinitionRevision // frozen defining revision, not later relation renames
 }
 
 // Stored leaves contain identities and frozen layout, never live storage or
@@ -374,6 +375,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	definition.checkOption = mode
+	definition.quoteRevision = revision
 	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old

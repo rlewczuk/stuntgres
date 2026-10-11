@@ -1342,6 +1342,39 @@ See [String formatting](docs/DIALECT.md#string-formatting--change-note).
 Feature smoke: `make check RUN='^TestReferenceFormatSmoke$'`;
 the independent pinned PostgreSQL counterpart adds `REFERENCE=1`.
 
+Change note: `concat(value[, ...])`, `concat_ws(separator,value[, ...])`,
+`quote_ident(text)`, `quote_literal(text|anyelement)`,
+`quote_nullable(text|anyelement)` and `pg_client_encoding()` are supported
+unqualified or through `pg_catalog`, including direct/prepared queries,
+DEFAULT/CHECK/views, writes/RETURNING and native Dump/Restore.
+Concatenation uses each original datatype's OUTPUT (BOOL `t`/`f`, padded BPCHAR),
+ignores individual NULLs and returns empty TEXT for all-NULL inputs.
+`concat_ws` inserts its TEXT separator only between non-NULL values; a NULL
+separator returns SQL NULL after evaluating every child. Explicit final
+`VARIADIC` borrows one existing array in row-major order: empty/all-NULL arrays
+produce empty TEXT, while a NULL array produces SQL NULL. Ordinary arrays
+remain one canonical array-output operand.
+Quoting converts ANYELEMENT to TEXT first (BOOL `true`/`false`, scalar BPCHAR
+padding removed), then doubles identifier double-quotes or literal apostrophes
+and backslashes; literal quoting uses uppercase `E` iff a backslash occurs.
+`quote_ident` and `quote_literal` are strict; `quote_nullable(NULL)` is text
+`NULL`. Identifier quoting uses all PostgreSQL keyword categories and obeys
+`quote_all_identifiers` (default off), also used by `format('%I',...)` and the
+supported deparse inquiries. Parameterless held statements capture successful
+immutable physical quote output at first execution, not Prepare. Under the
+approved bounded native policy, every parameterized execution instead uses a
+fresh operation-local group, including DEFAULT and view expressions. PostgreSQL
+may retain constants in generic plans; native deliberately has no cost-based
+custom/generic planner or counters. Parameters and stable concat/format remain
+live. `pg_client_encoding()` returns canonical NAME `UTF8`, including when SHOW
+retains the alias `UNICODE`; it adds no transport encoding.
+Feature smoke: `make check RUN='^TestReferenceStringVariadicFeatureSmoke$'`;
+the independently asserted pinned PostgreSQL counterpart adds `REFERENCE=1`.
+Review-policy smoke: `make check RUN='^TestReferenceStringVariadic(DeparseRelations|BoundFormat|ViewWrites|MergeDefaults|Parameterized)$'`,
+also with `REFERENCE=1`; it independently asserts each backend's planner boundary.
+See [variadic concatenation and quoting](docs/DIALECT.md#variadic-concatenation-and-quoting--change-note).
+
+
 String replacement supports `overlay(text,text,int4[,int4])` and SQL OVERLAY,
 literal `replace` and codepoint-wise `translate`. Overlay counts characters,
 including combining marks separately: zero count inserts, negative count can

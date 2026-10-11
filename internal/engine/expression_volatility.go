@@ -107,6 +107,8 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return children(n.args...)
 	case installedFunctionExpression:
 		return merge(Stable, children(n.arg))
+	case stringVariadicExpression:
+		return merge(n.intrinsic, children(n.args...))
 	case formatExpression:
 		return merge(Stable, children(n.args...))
 	case caseExpression:

@@ -3829,6 +3829,90 @@ Independent witness registry:
 `make check RUN='^(TestReferenceStringReplace(Overlay|Replace|Translate|Prefix|Signatures|Diagnostics|Collation|Metadata|Consumers|Atomicity|Stored|Controls|Cancellation)|TestReferenceBinarySliceCapabilityBoundaries)$'`;
 the same command with `REFERENCE=1` validates pinned PostgreSQL.
 
+### Variadic concatenation and quoting — change note
+
+Six selected scalar functions are admitted unqualified and under `pg_catalog`:
+`concat(VARIADIC \"any\")`, `concat_ws(text,VARIADIC \"any\")`,
+`quote_ident(text)`, `quote_literal(text|anyelement)`,
+`quote_nullable(text|anyelement)` and `pg_client_encoding()`.
+The first five return computed TEXT (OID25, typmod-1, derived collation,
+no physical origin); encoding returns NAME (OID19, typmod-1, C collation).
+
+Ordinary concat requires at least one value; concat_ws requires a separator
+and at least one value. Original datatype OUTPUT is preserved independently
+for every heterogeneous operand: BOOL emits `t`/`f`, BPCHAR retains padding,
+numeric retains scale and arrays emit canonical array text. Individual SQL
+NULLs are skipped; all-NULL operands produce empty TEXT. Empty strings still
+count as values for separator insertion. A NULL separator returns SQL NULL
+only after all children have been evaluated once. Conversion of skipped NULLs
+is unnecessary; child errors and sequence effects cannot be suppressed.
+
+Explicit final VARIADIC replaces the entire variadic value list with one
+already-supported array (or domain over an array), borrowed without flattening
+or copying. Multidimensional elements follow storage order and bounds do not
+become output text. Empty/all-NULL arrays produce empty TEXT; a whole NULL array
+returns SQL NULL. An ordinary array argument remains one output operand.
+Explicit scalar/untyped-NULL/unresolved-parameter VARIADIC fails42804
+`VARIADIC argument must be an array`. Fixed quote signatures discard VARIADIC
+decoration without flattening an array. The100 syntactic-argument ceiling counts
+the separator, not expanded elements; transformed-child errors precede the
+ceiling, which precedes namespace/signature lookup.
+
+quote_ident accepts implicit TEXT inputs, not arbitrary numeric/BOOL/array
+overloads. Unknown quote inputs/parameters prefer TEXT. quote_literal and
+quote_nullable ANYELEMENT convert to TEXT before quoting: scalar/domain BPCHAR
+padding is stripped and BOOL emits `true`/`false`, unlike concat or format `%L`.
+Whole BPCHAR arrays preserve their element padding. CIDR retains its mask.
+Internal CHAR quote overloads are ambiguous42725 unless explicitly cast to TEXT;
+concat retains original CHAR printable-octal output.
+
+Safe ASCII lowercase identifiers remain unquoted except non-UNRESERVED
+PostgreSQL keywords. Other names, including empty, Unicode, dollar/dotted and
+long names, are quoted without NAME truncation; embedded double-quotes double.
+quote_all_identifiers forces quoting and also applies to format `%I` and the
+supported view/default/index/constraint deparse consumers. Literal quoting
+always surrounds text with apostrophes, doubles apostrophes and backslashes,
+and prefixes uppercase `E` iff a backslash occurs, independently of
+standard_conforming_strings. quote_ident/quote_literal are strict;
+quote_nullable(NULL) emits unquoted text `NULL`.
+
+concat/concat_ws/encoding are STABLE. TEXT quote/ident signatures are IMMUTABLE.
+The formal ANYELEMENT quote wrapper is STABLE, but effective stored-expression
+volatility follows its inlined TEXT cast and surviving children: integer/BYTEA
+variables are accepted in generation/index expressions; DATE/TIMESTAMPTZ
+variables are rejected42P17. Temporal/array/enum/catalog-output-dependent
+conversions remain STABLE; the selected quote float viaIO conversion is
+IMMUTABLE without changing unrelated cast/function classifiers.
+Parameterless held statements capture successful immutable physical quote
+literals at first Execute planning, never Prepare. Their owning statement
+description retains the bounded scalar group across setting changes. DISCARD
+PLANS/ALL lazily recollects it; failed rebind/signature/demanded folds do not
+publish a partial replacement, even after temporal/analysis generation advances.
+Every native parameterized execution instead folds current constants into a
+fresh operation-local group for the whole consumer, including DEFAULT and
+lowered-view origins. It never borrows or publishes a retained quote group.
+Parameters and stable concat/format remain live. This user-approved bounded
+native policy intentionally differs from PostgreSQL's cost-based custom/generic
+choice: the pinned simple SELECT/MERGE witnesses use custom plans for executions
+1–5 and generic plans from execution 6, retaining generic constants across SET
+and transaction/savepoint rollback; DISCARD recollects without resetting history.
+Those observed thresholds are not a universal PostgreSQL rule or a native
+claim. Native adds no cost planner, counters or plan_cache_mode. Every execution
+still rebinds authority and dependencies; no global SQL/settings cache or
+cross-session retention exists.
+
+pg_client_encoding returns the current canonical encoding NAME, including
+UTF8 when SHOW preserves uppercase UNICODE. Existing UTF8-only transport remains.
+The expression family composes through grouping/aggregate rewrites, joins,
+writes/RETURNING, DEFAULT/CHECK/views, generated columns/indexes and native replay.
+No array_to_string, prerequisite capability expansion or adjacent function is added.
+Smoke: `make check RUN='^TestReferenceStringVariadicFeatureSmoke$'`; real pinned
+PostgreSQL uses the same selector with `REFERENCE=1`.
+Policy/review smoke:
+`make check RUN='^TestReferenceStringVariadic(DeparseRelations|BoundFormat|ViewWrites|MergeDefaults|Parameterized)$'`,
+also with `REFERENCE=1`. Exact PostgreSQL rows/counters and native fresh values
+are independently asserted; no diagnostic or row is suppressed for parity.
+
 ### String formatting — change note
 
 `format(format_text[,arguments...])` and `pg_catalog.format` return computed TEXT
@@ -3848,6 +3932,8 @@ quoting, and `%L` doubles apostrophes and backslashes with uppercase `E` when
 needed. NULL becomes empty `%s` or unquoted `NULL` for `%L`; NULL `%I` fails22004.
 Unreserved identifiers such as `abort` need no quotes, while reserved words,
 uppercase, non-ASCII, empty and otherwise nonidentifier spellings are quoted.
+quote_all_identifiers forces identifier quoting; format remains STABLE and
+reevaluates the current statement policy even for literal arguments.
 
 Positions start at1. Sequential consumption follows the last consumed argument,
 not the greatest positional argument. Width may be decimal, `*`, or `*n$`;
@@ -3872,8 +3958,8 @@ both `value::regclass[]` and `CAST(value AS regclass[])`, including native repla
 of typed leaves in stored format expressions. Ordinary array output and borrowed
 VARIADIC elements use statement-visible relation names. Direct REGCLASS-array
 columns and bounded scalar casts are now admitted by the regclass change below.
-Resolution-only absent-call admission is confined to actual selected format
-arguments: missing nested children retain42883 without installing providers.
+Resolution-only absent-call admission is confined to actual selected format or
+variadic-string-family arguments: missing nested children retain42883 without installing providers.
 Selected format spelling/signature diagnostics remain unchanged. Outside those
 arguments, old generic-call/keyword capability guards remain native0A000,
 including standalone `sprintf` (independently42883 on PostgreSQL); no special
@@ -3968,8 +4054,8 @@ visibility without changing its internal OID or retaining a live formatter.
 Volatile VOID children execute normally even though their text output is empty.
 Internal CHAR preserves PostgreSQL category-aware ambiguity with string/unknown
 peers (42725); CHAR/integer is a successful mixed overload with printable octal
-General array operators (including NAME[] comparison), `concat()` and new
-cast/type families are not added. Existing BYTEA/BYTEA concatenation is preserved;
+General array operators (including NAME[] comparison) and new cast/type
+families are not added by the string operator provider. Existing BYTEA/BYTEA concatenation is preserved;
 known BYTEA/unknown selects it, while unknown/unknown prefers TEXT.
 
 `normalize(text[,form])` and `is_normalized(text[,form])` default to NFC.

@@ -1691,8 +1691,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
 check_function_head: CHECK_FUNC '(' {$$=$1;sqllex.(*lexer).formatCallHead($1)} ;
 /* Selected ordinary time and enum calls carry failure-only modifiers to resolution.
  * ORDER requires an argument; argument-free ORDER remains a syntax error. */
-transaction_time_head: TX_TIME_FUNC '(' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
- | name '.' TX_TIME_FUNC '(' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} } ;
+transaction_time_head: TX_TIME_FUNC '(' { sqllex.(*lexer).formatCallHead($1);$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | name '.' TX_TIME_FUNC '(' { sqllex.(*lexer).formatCallHead($3);$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} } ;
 transaction_time_args: function_args { $$=$1 }
  | '*' { $$=FunctionExpr{Star:true} }
  | DISTINCT function_argument_list aggregate_order { $$=$2;$$.Distinct=true;$$.Order=$3 }

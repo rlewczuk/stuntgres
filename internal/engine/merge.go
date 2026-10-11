@@ -272,7 +272,10 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 			if expression == nil {
 				continue
 			}
-			arm.input.defaults[j], _, err = preflightCoercionsWithPolicy(&owner, expression, true)
+			defaultOwner := owner
+			attribute := arm.input.relation.attributes[j]
+			defaultOwner.quoteOrigin = quoteOrigin{owner: arm.input.ref, attribute: attribute, definition: arm.input.relation.defaults[attribute].OID}
+			arm.input.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err
 			}

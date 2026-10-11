@@ -15036,11 +15036,13 @@ sqldefault:
 	case 1189:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
+			sqllex.(*lexer).formatCallHead(sqlDollar[1].tok)
 			sqlVAL.call = FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1190:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
+			sqllex.(*lexer).formatCallHead(sqlDollar[3].tok)
 			sqlVAL.call = FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1191:

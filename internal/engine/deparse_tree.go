@@ -248,6 +248,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]BoundExpr{n.arg})
+	case stringVariadicExpression:
+		fmt.Fprintf(out, "StringVariadic %s variadic %t anyelement %t", n.name, n.variadic, n.anyelement)
+		err = args(n.args)
 	case formatExpression:
 		fmt.Fprintf(out, "Format variadic %t", n.variadic)
 		err = args(n.args)

@@ -539,7 +539,7 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 	if oldIndex.columns[2].Name != "secret" {
 		t.Fatal("rename changed physical backing label")
 	}
-	if text, err := uniqueConstraintSQL(e.CatalogRead(), renamed, &renamed.uniqueConstraints[0]); err != nil || text != "PRIMARY KEY (a, b) INCLUDE (current_secret)" {
+	if text, err := (pgRenderer{view: e.CatalogRead()}).uniqueConstraintSQL(renamed, &renamed.uniqueConstraints[0]); err != nil || text != "PRIMARY KEY (a, b) INCLUDE (current_secret)" {
 		t.Fatal(text, err)
 	}
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "current_secret"}, TypeName: parser.TypeName{Name: "varchar"}}}})

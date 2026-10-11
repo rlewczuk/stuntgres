@@ -887,7 +887,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if usingIndexDump(index) {
 					continue
 				}
-				text, err := uniqueConstraintSQL(catalog, t.descriptor, &c)
+				text, err := (pgRenderer{view: catalog}).uniqueConstraintSQL(t.descriptor, &c)
 				if err != nil {
 					return err
 				}
@@ -913,7 +913,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 			}
 			for _, f := range t.descriptor.foreignKeys {
-				text, err := foreignKeyConstraintSQL(catalog, t.descriptor, f, nil)
+				text, err := (pgRenderer{view: catalog}).foreignKeyConstraintSQL(t.descriptor, f)
 				if err != nil {
 					return err
 				}
@@ -1349,7 +1349,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			case "justify_days", "justify_hours", "justify_interval":
 			case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
-			case "format":
+			case "format", "concat", "concat_ws", "quote_ident", "quote_literal", "quote_nullable", "pg_client_encoding":
 			case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 			case "like_escape":
 				if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {

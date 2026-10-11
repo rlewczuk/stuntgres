@@ -234,8 +234,31 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			}
 		}
 		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.occurrence})
-		lowerStored := func(expr BoundExpr) (BoundExpr, bool, error) {
+		var lowerStored func(BoundExpr) (BoundExpr, bool, error)
+		lowerStored = func(expr BoundExpr) (BoundExpr, bool, error) {
 			return rewriteViewExpression(auth.catalog, expr, func(n BoundExpr) (BoundExpr, bool, error) {
+				if q, ok := n.(stringVariadicExpression); ok && q.origin.owner == (ObjectRef{}) {
+					q.origin = quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision}
+					var args []BoundExpr
+					// A changed leaf exits the shared mapper before its children.
+					// Lower nested calls and columns through that same mapper first.
+					for i, arg := range q.args {
+						next, did, err := lowerStored(arg)
+						if err != nil {
+							return nil, false, err
+						}
+						if did {
+							if args == nil {
+								args = append([]BoundExpr(nil), q.args...)
+							}
+							args[i] = next
+						}
+					}
+					if args != nil {
+						q.args = args
+					}
+					return q, true, nil
+				}
 				c, ok := n.(columnExpression)
 				if !ok || !sameViewRelation(c.origin, leaf.ref) || c.frame != project.frame {
 					return n, false, nil

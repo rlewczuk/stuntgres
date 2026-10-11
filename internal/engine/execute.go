@@ -158,6 +158,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	expected := scope.Expected
 	var candidate StatementDescription
+	quoteCapturesChanged := false
 	valid := true
 	replan := scope.preparedInvalid || expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
 	if expected != nil && expected.analysis != nil {
@@ -181,6 +182,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		candidate = *expected
+		if expected.Parameters.Count != 0 {
+			// Parameterized executions never borrow a retained quote group.
+			candidate.quotes = nil
+		} else if expected.quoteGeneration != op.session.discardPlansGeneration {
+			candidate.quotes = nil
+			quoteCapturesChanged = true
+		}
 		if !valid {
 			candidate.sequences = nil
 		}
@@ -195,6 +203,23 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if replan {
 			candidate.refreshTemporals = true
 			candidate.sequences, candidate.regtypes = nil, nil
+			// Analysis changes retire statement-root captures, not unchanged
+			// stored definitions. DISCARD already cleared the complete group.
+			for i, saved := range candidate.quotes {
+				if saved.origin.owner != (ObjectRef{}) {
+					continue
+				}
+				quotes := make([]quoteConstant, 0, len(candidate.quotes)-1)
+				quotes = append(quotes, candidate.quotes[:i]...)
+				for _, remaining := range candidate.quotes[i+1:] {
+					if remaining.origin.owner != (ObjectRef{}) {
+						quotes = append(quotes, remaining)
+					}
+				}
+				candidate.quotes = quotes
+				quoteCapturesChanged = true
+				break
+			}
 			valid = false
 		}
 		expected = &candidate
@@ -370,6 +395,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expressions := b.expressions
 	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, Input: scope.input, Output: scope.output}
+	// Native has no cost-based custom/generic planner. Parameterized consumers
+	// fold into a fresh operation-local group, including stored origins.
+	quoteCaptures := quoteCaptureCandidate{}
+	if b.parameters.Count == 0 {
+		quoteCaptures = quoteCaptureCandidate{entries: candidate.quotes, private: quoteCapturesChanged}
+		quoteCaptures.prune(auth.catalog)
+	}
+	evaluation.quoteCaptures = &quoteCaptures
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
@@ -463,6 +496,33 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if err != nil {
 			return Result{}, err
 		}
+		if b.viewWrite != nil {
+			var checks []viewCheckGroup
+			for i, group := range b.viewWrite.checks {
+				var predicates []BoundExpr
+				for j, expression := range group.predicates {
+					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
+					if foldErr != nil {
+						return Result{}, foldErr
+					}
+					if changed {
+						if predicates == nil {
+							predicates = append([]BoundExpr(nil), group.predicates...)
+						}
+						predicates[j] = folded
+					}
+				}
+				if predicates != nil {
+					if checks == nil {
+						checks = append([]viewCheckGroup(nil), b.viewWrite.checks...)
+					}
+					checks[i].predicates = predicates
+				}
+			}
+			if checks != nil {
+				b.viewWrite.checks = checks
+			}
+		}
 		// Both INSERT paths plan only defaults this binding actually consumes.
 		// Demand immutable conversions even for an empty query source, while
 		// keeping the stored definition and any runtime-only producer unfolded.
@@ -471,7 +531,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if expression == nil {
 				continue
 			}
-			folded, changed, foldErr := preflightCoercionsWithPolicy(&evaluation, expression, true)
+			defaultEvaluation := evaluation
+			physical := b.physicalBinding()
+			attribute := physical.relation.attributes[i]
+			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.defaults[attribute].OID}
+			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
 			}
@@ -521,6 +585,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if scope.Expected != nil && b.parameters.Count == 0 && quoteCaptures.private {
+		scope.Expected.quotes = quoteCaptures.entries
+		scope.Expected.quoteGeneration = op.session.discardPlansGeneration
+	}
+	quoteCaptures.sealed = true
+	scope.quoteCaptures = &quoteCaptures
 	b = b.physicalBinding()
 	if err = partitionWriteExtensionBoundary(stmt, b.relation); err != nil {
 		e.mu.Unlock()

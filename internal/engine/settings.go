@@ -107,6 +107,7 @@ var builtinSettings = []SettingDefinition{
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
 	{Name: "server_encoding", Type: SettingString, Access: SettingReadOnly, BootDefault: "UTF8", Description: "Shows the server (database) character set encoding."},
 	{Name: "standard_conforming_strings", Type: SettingBoolean, BootDefault: "on", Description: "Causes '...' strings to treat backslashes literally."},
+	{Name: "quote_all_identifiers", Type: SettingBoolean, BootDefault: "off", Description: "When generating SQL fragments, quote all identifiers."},
 	{Name: "statement_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any statement."},
 	{Name: "lock_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any wait for a lock."},
 	{Name: "transaction_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},

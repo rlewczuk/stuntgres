@@ -65,6 +65,7 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 			{"lc_time", "C", "Sets the locale for formatting date and time values.", "POSIX"},
 			{"icu_validation_level", "warning", "Log level for reporting invalid ICU locale strings.", "notice"},
 			{"extra_float_digits", "1", "Sets the number of digits displayed for floating-point values.", "-1"},
+			{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers.", "on"},
 		}
 		for _, tc := range settings {
 			t.Run(tc.name, func(t *testing.T) {
@@ -117,11 +118,11 @@ func TestReferenceFormatEncodingSettings(t *testing.T) {
 			if err := rows.Err(); err != nil {
 				t.Fatal(err)
 			}
-			if count != 29 {
-				t.Fatalf("native registry has %d rows, want 29", count)
+			if count != 30 {
+				t.Fatalf("native registry has %d rows, want 30", count)
 			}
-			if selected != 7 {
-				t.Fatalf("native registry has %d selected definitions, want 7", selected)
+			if selected != 8 {
+				t.Fatalf("native registry has %d selected definitions, want 8", selected)
 			}
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("RESET ALL", 0))

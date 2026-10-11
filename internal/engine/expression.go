@@ -57,6 +57,8 @@ type EvalContext struct {
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
 	pgRegex        sqltype.PGRegexExecution
+	quoteCaptures  *quoteCaptureCandidate
+	quoteOrigin    quoteOrigin
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -1098,6 +1100,25 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case stringVariadicExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || args != nil, err
 	case formatExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {

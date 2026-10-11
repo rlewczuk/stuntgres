@@ -35,12 +35,14 @@ type RegclassFormatter interface {
 }
 
 type OutputEnvironment struct {
-	ByteaOutput   ByteaOutput
-	Zone          *Zone
-	DateStyle     DateStyle
-	IntervalStyle IntervalStyle
-	Regclass      RegclassFormatter
-	Regtype       RegtypeFormatter
+	ByteaOutput         ByteaOutput
+	Zone                *Zone
+	DateStyle           DateStyle
+	IntervalStyle       IntervalStyle
+	Regclass            RegclassFormatter
+	Regtype             RegtypeFormatter
+	QuoteAllIdentifiers bool
+	ClientEncoding      string
 	// An unspecified precision retains canonical shortest serialization.
 	ExtraFloatDigits                          int32
 	FloatPrecisionSet                         bool

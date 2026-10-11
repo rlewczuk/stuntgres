@@ -328,6 +328,12 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		}
 		if v.simple {
 			name := relationDiagnosticNameAt(catalog, d, v.presentation.path)
+			if v.presentation.output.QuoteAllIdentifiers {
+				name = v.presentation.identifier(d.name)
+				if !relationVisibleAt(catalog, d, v.presentation.path) {
+					name = v.presentation.identifier(catalog.state.descriptors[d.namespace].Name()) + "." + name
+				}
+			}
 			if leaf.only {
 				name = "ONLY " + name
 			}
@@ -335,11 +341,11 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
 				from.rowTarget, from.rowSource = key, true
-				from.rowTargetSQL = pgIdentifier(d.name)
+				from.rowTargetSQL = v.presentation.identifier(d.name)
 			}
 			for i, attribute := range d.attributes {
 				if c, ok := frozen[attribute]; ok {
-					from.slots[c.slot] = pgIdentifier(d.columns[i].Name)
+					from.slots[c.slot] = v.presentation.identifier(d.columns[i].Name)
 					from.columns = append(from.columns, viewRenderColumn{name: d.columns[i].Name, slot: c.slot})
 				}
 			}
@@ -348,7 +354,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		}
 		from := viewRenderFrom{relation: quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name), root: root}
 		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
-		if v.presentation.deparse && v.presentation.pretty {
+		if v.presentation.deparse && v.presentation.pretty && !v.presentation.output.QuoteAllIdentifiers {
 			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
 		}
 		if leaf.only {

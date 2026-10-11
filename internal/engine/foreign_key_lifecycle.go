@@ -8,7 +8,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func foreignKeyConstraintSQL(view CatalogRead, child *relationDescriptor, f foreignKeyConstraint, path []ObjectAddress) (string, error) {
+func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreignKeyConstraint) (string, error) {
+	view, path := r.view, r.path
 	parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing foreign-key deparse target")
@@ -16,16 +17,16 @@ func foreignKeyConstraintSQL(view CatalogRead, child *relationDescriptor, f fore
 	local, referenced := make([]string, len(f.Attributes)), make([]string, len(f.Referenced))
 	for i, a := range f.Attributes {
 		var err error
-		local[i], err = deparseAttribute(child, a)
+		local[i], err = r.attribute(child, a)
 		if err != nil {
 			return "", err
 		}
-		referenced[i], err = deparseAttribute(parent, f.Referenced[i])
+		referenced[i], err = r.attribute(parent, f.Referenced[i])
 		if err != nil {
 			return "", err
 		}
 	}
-	name := pgIdentifier(parent.name)
+	name := r.identifier(parent.name)
 	visible := false
 	for _, namespace := range path {
 		if a, ok := view.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: parent.name}]; ok {
@@ -34,7 +35,7 @@ func foreignKeyConstraintSQL(view CatalogRead, child *relationDescriptor, f fore
 		}
 	}
 	if !visible {
-		name = pgIdentifier(view.state.descriptors[parent.namespace].Name()) + "." + name
+		name = r.identifier(view.state.descriptors[parent.namespace].Name()) + "." + name
 	}
 	text := "FOREIGN KEY (" + strings.Join(local, ", ") + ") REFERENCES " + name + "(" + strings.Join(referenced, ", ") + ")"
 	if f.Full {

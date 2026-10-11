@@ -102,6 +102,21 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SHOW standard_conforming_strings", []string{"standard_conforming_strings"}, []string{"TEXT"}, [][]any{{"on"}}))
+		conn, err := backend.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		for _, prepared := range []bool{false, true} {
+			for _, setting := range []string{"on", "off"} {
+				step := fixture.Exec("SET quote_all_identifiers="+setting, 0)
+				step.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, step)
+				step = fixture.Select("SHOW quote_all_identifiers", []string{"quote_all_identifiers"}, []string{"TEXT"}, [][]any{{setting}})
+				step.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, step)
+			}
+		}
 	}
 	// Native host registration/control phase; PostgreSQL has no RegisterSetting API.
 	db := sessionPool(t, settingsTestDriver(t), "show-all-current")
@@ -118,7 +133,8 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 			"lock_timeout": "0", "log_statement_stats": "off",
 			"search_path": `"$user", public`, "server_encoding": "UTF8",
 			"standard_conforming_strings": "on", "statement_timeout": "0",
-			"client_encoding": "UTF8", "lc_messages": "C", "lc_monetary": "C",
+			"quote_all_identifiers": "off",
+			"client_encoding":       "UTF8", "lc_messages": "C", "lc_monetary": "C",
 			"lc_numeric": "C", "lc_time": "C", "icu_validation_level": "warning", "extra_float_digits": "1",
 		} {
 			expected[name] = value

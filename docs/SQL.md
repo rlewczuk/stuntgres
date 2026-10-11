@@ -44,6 +44,60 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+## Variadic concatenation and quoting — change note
+
+```sql
+SELECT concat(true,false);                    -- tf
+SELECT concat_ws('|',VARIADIC '{1,NULL,2}'::integer[]); -- 1|2
+SELECT quote_ident('a"b');                    -- "a""b"
+SELECT quote_literal(true);                  -- 'true'
+SELECT quote_nullable(NULL);                 -- text NULL
+SELECT pg_client_encoding();                 -- NAME UTF8
+```
+
+`concat(value[, ...])` and `concat_ws(text,value[, ...])` use original type
+OUTPUT and ignore individual NULLs, not a common-type TEXT cast. A NULL
+separator or whole VARIADIC array returns SQL NULL; empty/all-NULL arrays return
+empty TEXT. Ordinary arrays remain one operand; explicit final VARIADIC borrows
+the existing row-major elements, including domains and nondefault bounds.
+`quote_ident(text)` is strict, and `quote_literal(text|anyelement)` is strict;
+`quote_nullable(text|anyelement)` returns the four-character text `NULL` for
+NULL. ANYELEMENT quote overloads use explicit TEXT conversion, so BOOL is
+`true`/`false` and scalar BPCHAR loses trailing padding. Literal quoting doubles
+apostrophes/backslashes and uses uppercase `E` when needed, independently of
+standard_conforming_strings. Identifier quoting uses PostgreSQL keyword classes
+and quote_all_identifiers. Encoding lookup canonicalizes the physical session's
+client_encoding, not server_encoding or the retained SHOW alias.
+Selected function inputs reuse the existing internal `"char"` literal codec:
+concat preserves its original OUTPUT, while uncast quote_literal/quote_nullable
+inputs report PostgreSQL's ambiguous-overload diagnostic. This does not admit
+general internal-CHAR casts. In particular nested `'x'::"char"::text` still
+reports native `0A000` at the inner type; PostgreSQL accepts that explicit cast.
+
+All six support direct/prepared public routes and the existing stored-expression
+consumers and native controls. Parameterless held statements retain their first
+successful Execute-planning immutable quote results. Every native parameterized
+execution uses fresh operation-local quote constants, including DEFAULT and
+view expressions; none are retained in the statement description. PostgreSQL
+custom plans reevaluate constants, while generic plans can retain them. This is
+an explicit native planner boundary, not claimed generic-plan parity; native
+implements no cost selection, planner counters or plan_cache_mode. Parameters
+and stable concat/format/encoding reevaluate. Effective quote immutability follows the
+selected TEXT cast: integer/BYTEA generated columns and expression indexes are
+accepted, temporal-output-dependent expressions are not. Missing signatures,
+unresolved ANY parameters and nonarray explicit VARIADIC inputs retain the
+PostgreSQL diagnostics rather than inferring SQL types from Go argument values.
+Duplicate named arguments and positional arguments following named arguments
+report `42601` at their retained source positions; these functions do not gain
+named formal parameters.
+No array_to_string, new array/type capability or non-UTF8 transport is added.
+See [detailed contracts](DIALECT.md#variadic-concatenation-and-quoting--change-note).
+Smoke: `make check RUN='^TestReferenceStringVariadicFeatureSmoke$'`; pinned
+PostgreSQL mode uses the identical selector with `REFERENCE=1`.
+Policy/review smoke selects
+`make check RUN='^TestReferenceStringVariadic(DeparseRelations|BoundFormat|ViewWrites|MergeDefaults|Parameterized)$'`,
+also with `REFERENCE=1`, asserting exact independent backend outcomes.
+
 ## JSONPath typed IO — change note
 
 ```sql

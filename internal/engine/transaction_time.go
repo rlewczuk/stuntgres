@@ -196,7 +196,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, likeEscapeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, binaryExpression, datetimeJustifyExpression, datetimeAgeFiniteExpression, datetimeMakeExpression, datetimeFormattingExpression, numericFormattingExpression, stringExpression, timeZoneExpression, mathExpression, nullCountExpression, formatExpression, caseExpression:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, likeEscapeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, binaryExpression, datetimeJustifyExpression, datetimeAgeFiniteExpression, datetimeMakeExpression, datetimeFormattingExpression, numericFormattingExpression, stringExpression, timeZoneExpression, mathExpression, nullCountExpression, formatExpression, stringVariadicExpression, caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

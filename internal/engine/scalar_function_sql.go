@@ -216,6 +216,32 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", fmt.Errorf("stuntgres: invalid stored null count")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case stringVariadicExpression:
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
+				*r.commentSnapshot = true
+			}
+			text, err := r.sql(ctx, view, arg)
+			if err != nil {
+				return "", err
+			}
+			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
+				id := literal.usage.Type.ID()
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && id != sqltype.Bit {
+					declaration, err := catalogTypeDeclaration(view, literal.usage)
+					if err != nil {
+						return "", err
+					}
+					text = "CAST(" + text + " AS " + declaration + ")"
+				}
+			}
+			if n.variadic && i == len(n.args)-1 {
+				text = "VARIADIC " + text
+			}
+			parts[i] = text
+		}
+		return "pg_catalog." + n.name + "(" + strings.Join(parts, ", ") + ")", nil
 	case formatExpression:
 		if len(n.args) < 1 || len(n.args) > 100 || u.Type.ID() != sqltype.Text || n.args[0].ResultUsage().Type.ID() != sqltype.Text || n.int4 == nil || n.int4.ID() != sqltype.Int4 || n.variadic && (len(n.args) != 2 || !n.args[1].ResultUsage().Type.BaseType().IsArray()) {
 			return "", fmt.Errorf("stuntgres: invalid stored format signature")
@@ -233,7 +259,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			// literal syntax already preserves it (including canonical B literals).
 			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
 				id := literal.usage.Type.ID()
-				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && id != sqltype.Bit {
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && id != sqltype.Bit || id == sqltype.Text && i > 0 && n.rawUnknown[i/64]&(uint64(1)<<uint(i%64)) == 0 {
 					declaration, err := catalogTypeDeclaration(view, literal.usage)
 					if err != nil {
 						return "", err

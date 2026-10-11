@@ -18,6 +18,13 @@ type viewPresentation struct {
 	nonstandardStrings bool
 }
 
+func (p viewPresentation) identifier(name string) string {
+	if !p.deparse {
+		return quoteIdentifier(name)
+	}
+	return (pgRenderer{output: p.output}).identifier(name)
+}
+
 func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, presentation viewPresentation) (string, error) {
 	renderer := newViewRenderer(v)
 	renderer.presentation = presentation
@@ -127,9 +134,9 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		if presentation.deparse && setOperand {
 			targets := make([]string, len(labels))
 			for i, column := range columns {
-				targets[i] = "\"*VALUES*\"." + pgIdentifier(fmt.Sprintf("column%d", i+1))
+				targets[i] = "\"*VALUES*\"." + presentation.identifier(fmt.Sprintf("column%d", i+1))
 				if column.Name != fmt.Sprintf("column%d", i+1) {
-					targets[i] += " AS " + pgIdentifier(column.Name)
+					targets[i] += " AS " + presentation.identifier(column.Name)
 				}
 			}
 			return viewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") \"*VALUES*\"", nil
@@ -142,7 +149,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 					if len(presentation.columns) > i {
 						name = presentation.columns[i].Name
 					}
-					targets[i] = fmt.Sprintf("column%d AS %s", i+1, pgIdentifier(name))
+					targets[i] = fmt.Sprintf("column%d AS %s", i+1, presentation.identifier(name))
 				}
 				return viewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") AS __view_values", nil
 			}
@@ -172,7 +179,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			// qualification so unchanged labels still omit redundant AS.
 			setSourceColumns = source.columns
 			for _, column := range source.columns {
-				source.slots[column.slot] = pgIdentifier(relation.name) + "." + pgIdentifier(column.name)
+				source.slots[column.slot] = presentation.identifier(relation.name) + "." + presentation.identifier(column.name)
 			}
 		}
 	}
@@ -210,7 +217,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			if setOperand {
 				for _, column := range setSourceColumns {
 					if targets[i] == renderer.slots[viewFromRoot(v.query.Root)][column.slot] {
-						natural = pgIdentifier(column.name)
+						natural = presentation.identifier(column.name)
 						break
 					}
 				}
@@ -223,12 +230,8 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 				}
 			}
 		}
-		if !presentation.deparse || natural != pgIdentifier(label) {
-			identifier := quoteIdentifier
-			if presentation.deparse {
-				identifier = pgIdentifier
-			}
-			targets[i] += " AS " + identifier(label)
+		if !presentation.deparse || natural != presentation.identifier(label) {
+			targets[i] += " AS " + presentation.identifier(label)
 		}
 	}
 	text := viewTargetsSQL(targets, presentation, s.Distinct != nil)
@@ -632,10 +635,10 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			if err != nil {
 				return "", err
 			}
-			if strings.HasPrefix(text, pgIdentifier(relation.name)+".") {
+			if strings.HasPrefix(text, v.presentation.identifier(relation.name)+".") {
 				return text, nil
 			}
-			return pgIdentifier(relation.name) + "." + text, nil
+			return v.presentation.identifier(relation.name) + "." + text, nil
 		}
 		return v.slotSQL(ctx, catalog, root, column.slot)
 	case parser.TypedLiteralExpr:
@@ -687,7 +690,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
 		if v.presentation.deparse {
-			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty}
+			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty, output: v.presentation.output}
 			_, simpleColumn := e.Child.(parser.ColumnExpr)
 			literal, capturedLiteral := v.literals[literalPath]
 			simpleLiteral := capturedLiteral && pgLiteralSimple(literal, text)
@@ -1040,7 +1043,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text, err := args(e.Args)
 			return "pg_catalog.position(" + text + ")", err
 		}
-		if name == "format" && e.Variadic {
+		if (name == "format" || stringVariadicFunctionName(name)) && e.Variadic {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
 				text, err := child(arg)
@@ -1052,12 +1055,16 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				}
 				parts[i] = text
 			}
-			return objectNameText(e.Name) + "(" + strings.Join(parts, ", ") + ")", nil
+			functionName := objectNameText(e.Name)
+			if v.presentation.deparse {
+				functionName = v.presentation.identifier(name)
+			}
+			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
 		if name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" {
 			functionName, identifier := "pg_catalog."+name, quoteIdentifier
 			if v.presentation.deparse {
-				functionName, identifier = name, pgIdentifier
+				functionName, identifier = v.presentation.identifier(name), v.presentation.identifier
 			}
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
@@ -1081,6 +1088,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "pg_catalog." + name + "(" + text + ")", err
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
+		}
+		if stringVariadicFunctionName(name) || name == "format" {
+			functionName := "pg_catalog." + name
+			if v.presentation.deparse {
+				functionName = v.presentation.identifier(name)
+			}
+			return functionName + "(" + text + ")", err
 		}
 		return objectNameText(e.Name) + "(" + text + ")", err
 	case parser.CallExpr:

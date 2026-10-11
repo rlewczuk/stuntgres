@@ -19,6 +19,8 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	e.mu.Unlock()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
+	evaluation.quoteCaptures = scope.quoteCaptures
+	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
 	root, reads, err := prepareStoredExecutionRoot(&evaluation, definition, outputUses)
 	if err == nil {
 		err = validateMarkedQueryJoin(&evaluation, root, catalog, nil, queryRowMark{}, false, nil, reads)

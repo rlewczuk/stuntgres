@@ -34,6 +34,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"lc_time", "C", "Sets the locale for formatting date and time values."},
 		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
+		{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers."},
 		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
 		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
 		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},

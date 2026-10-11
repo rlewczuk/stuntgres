@@ -87,7 +87,7 @@ type rawToken struct {
 }
 
 func (l *lexer) formatCallHead(callee lexeme) {
-	if l.formatDepth == 0 && strings.EqualFold(callee.text, "format") {
+	if l.formatDepth == 0 && (strings.EqualFold(callee.text, "format") || stringVariadicFunction(callee.text)) {
 		l.formatDepth = 1
 	}
 }
@@ -834,7 +834,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && enumFunctionName(token.lexeme.text) {
 		token.code = SELECTED_FUNC
 	}
-	if token.code == IDENT && (gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
@@ -987,7 +987,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	// Enum support calls reuse the ordinary failure-only decoration grammar;
 	// their binder rejects aggregate modifiers after resolving the operands.
-	if token.code == CHECK_FUNC && (TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text)) {
+	if token.code == CHECK_FUNC && (TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text)) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1415,7 +1415,15 @@ func binaryScalarFunction(name string) bool {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
 		return true
 	}
-	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format")
+	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name)
+}
+
+func stringVariadicFunction(name string) bool {
+	switch strings.ToLower(name) {
+	case "concat", "concat_ws", "quote_ident", "quote_literal", "quote_nullable", "pg_client_encoding":
+		return true
+	}
+	return false
 }
 
 // Admit quote-sensitive spellings without changing their resolution names.

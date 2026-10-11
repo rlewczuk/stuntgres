@@ -518,6 +518,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(nullCountExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(stringVariadicExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(formatExpression); ok {
 			return children(r.Args, n.args)
 		}

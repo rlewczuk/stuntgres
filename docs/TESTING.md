@@ -1639,6 +1639,74 @@ materializes `.view-check-public-smoke/main.go`, runs
 `timeout 900s go run ./.view-check-public-smoke/main.go`, records observations,
 and removes that root-created scaffold rather than committing an executable.
 
+## Variadic string and quote proofs
+
+Six-function contracts use the existing public fixture and independent pinned
+PostgreSQL expectations; no Discovery/Observe definitions are verification.
+Run each selector once natively and once with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceStringVariadic(Values|Arrays|Output|Quoting)$'
+make check RUN='^TestReferenceStringVariadic(Encoding|Metadata|Settings|FirstExecution)$'
+make check RUN='^TestReferenceStringVariadic(Diagnostics|Parameters|Namespaces|Evaluation)$'
+make check RUN='^TestReferenceStringVariadic(Consumers|Stored|Authorization|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceStringVariadic(DeparseRelations|BoundFormat|ViewWrites|MergeDefaults|Parameterized)$'
+make check RUN='^TestReferenceSettingsBuiltinRegistry$'
+make check RUN='^TestReferenceSettings(ShowAllPlaceholdersAndLifecycle|ShowAllCurrentOverrides)$'
+make check RUN='^TestReferenceTimezoneBuiltinRegistryDescriptions$'
+make check RUN='^TestReferenceFormatEncodingSettings$'
+```
+
+Supplemental private ownership units are selected by
+`make check RUN='^TestStringVariadic(ArrayBorrowing|RetainedGeneration|BoundedCancellationAndSizes)$'`.
+They prove borrowed array storage, owner-qualified parameterless retained scalar
+generations, analysis-only root refresh versus unchanged stored captures,
+equal-offset lowered view layers and local NEW checks, the exact stale-group →
+temporal/analysis advance → demanded DEFAULT fold failure → unchanged quote
+publication → changed-setting retry fence, actual parameterless MERGE origins,
+fresh operation-local parameterized MERGE groups with unchanged retained stamps,
+and bounded cancellation/size arithmetic. Selected race proof is
+`make check RUN='^TestStringVariadicRetainedGeneration$' RACE=1`.
+These units supplement rather than replace independent public PostgreSQL proof.
+Registry snapshot ownership uses
+`make check RUN='^TestSettingUtilitySnapshotOwnership$'`.
+The exact timezone and encoding SHOW ALL rosters include an independently
+expected quote_all_identifiers off/description row, including the PostgreSQL
+pg_settings filter. String output tests retain real PostgreSQL successes for
+nested internal CHAR-to-TEXT casts alongside native's independently asserted
+`0A000` boundary; direct selected CHAR input and quote overload ambiguity remain
+shared assertions. Settings inquiry tests cast REGCLASS explicitly to OID for
+the pg_attrdef OID predicate, check live index quoting, and retain canonical Dump
+access-method spelling independently of session policy.
+
+The five review-policy definitions are feature smoke in both modes. They assert
+absent/visible/shadowed schema identity and bound format off/on/off inquiries
+without changing canonical Dump, layered view writes with full 44000 diagnostics
+and atomic rejection, and actual MERGE default/root rows. Parameterized asserts
+the pinned simple SELECT/MERGE custom1–5/generic6+ outputs and real PostgreSQL
+plan counters, DISCARD and transaction/savepoint rollback retention, separately
+from the approved native fresh-constants-on-every-parameterized-execution policy.
+No fake native generic parity, counters/catalog or plan_cache_mode is added.
+Both modes must pass their independently declared rows; PostgreSQL diagnostic
+and row expectations are not weakened to accommodate the native boundary.
+Changed bound-format provenance/replay also requires selected
+`make check RUN='^TestReferenceFormat(Stored|Controls|Metadata|Collations)$'`
+and the identical command with `REFERENCE=1`. Use `make quickcheck` only for
+whole-project Docker-free proof after all edits; the root owns every check.
+Bound ANY string-literal provenance and typed TEXT replay are supplemented by
+`make check RUN='^TestFormat(ViewVariadicSerializationReplay|NodeIdentityAndRetainedGeneration)$'`.
+
+The catalog-part standalone smoke source is supplied in the session handoff as
+`local://string-variadic-smoke.go`. The root materializes it temporarily at
+`.string-variadic-smoke/main.go`, runs `go run ./.string-variadic-smoke`, and
+removes the temporary source/directory. Expected success is exactly
+`string-variadic smoke: ok`, covering all six functions, direct/prepared routes,
+parameterless first-Execute immutable quotes versus live parameters/format/concat, complete
+diagnostics, metadata and real native Dump/Reset/Restore. Permanent public smoke:
+`make check RUN='^TestReferenceStringVariadicFeatureSmoke$'`, followed by the
+identical command with `REFERENCE=1`. These are proof commands and expected
+observations, not claims of an exercised passing run.
+
 ## Required implementation order
 
 1. **Write the shared reference scenario and run real PostgreSQL first.** Use

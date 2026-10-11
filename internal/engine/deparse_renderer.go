@@ -17,6 +17,7 @@ type pgRenderer struct {
 	output             sqltype.OutputEnvironment
 	nonstandardStrings bool
 	showImplicit       bool
+	unknownTextLiteral bool
 }
 
 func pgIdentifier(name string) string {
@@ -24,6 +25,21 @@ func pgIdentifier(name string) string {
 		return quoteIdentifier(name)
 	}
 	return name
+}
+
+func (r pgRenderer) identifier(name string) string {
+	if r.output.QuoteAllIdentifiers {
+		return quoteIdentifier(name)
+	}
+	return pgIdentifier(name)
+}
+
+func (r pgRenderer) attribute(relation *relationDescriptor, attr int32) (string, error) {
+	text, err := deparseAttribute(relation, attr)
+	if err == nil && r.output.QuoteAllIdentifiers && !strings.HasPrefix(text, "\"") {
+		text = quoteIdentifier(text)
+	}
+	return text, err
 }
 
 func validateDeparseIdentity(n identityExpression) error {
@@ -88,11 +104,30 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		return typ + "[]", nil
 	}
 	if !u.Type.IsUserDefined() && !u.Type.IsDomain() {
-		return pgType(u)
+		text, err := pgType(u)
+		if err == nil && r.output.QuoteAllIdentifiers {
+			switch u.Type.ID() {
+			case sqltype.Text, sqltype.Name, sqltype.Bytea, sqltype.Oid, sqltype.Regclass, sqltype.Regtype, sqltype.UUID, sqltype.JSON, sqltype.JSONB:
+				text = r.identifier(text)
+			}
+		}
+		return text, err
 	}
 	d, ok := r.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}].(*typeDescriptor)
 	if !ok || d.typ != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
+	}
+	if r.output.QuoteAllIdentifiers {
+		name := r.identifier(d.Name())
+		for _, ns := range r.path {
+			if a, ok := r.view.state.names[NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+				if a == d.Address() {
+					return name, nil
+				}
+				break
+			}
+		}
+		return r.identifier(r.view.state.descriptors[d.Namespace()].Name()) + "." + name, nil
 	}
 	return typeDiagnosticNameAt(r.view, d, r.path), nil
 }
@@ -212,7 +247,12 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return quote(text) + "::regtype", nil
 	case sqltype.Timetz:
 		return datetimeZoneTimetzDeparse(ctx, v, typ, text, quote)
-	case sqltype.Inet, sqltype.Cidr, sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+	case sqltype.Text:
+		if r.unknownTextLiteral {
+			return quote(text), nil
+		}
+		return quote(text) + "::" + typ, nil
+	case sqltype.Inet, sqltype.Cidr, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse constant type %d", u.Type.ID())
@@ -269,6 +309,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	r.showImplicit = false
 	child := func(n BoundExpr) (string, error) { return r.sql(ctx, n, pgRenderParent{}) }
 	function := func(name string, args []BoundExpr, implicit bool) (string, error) {
+		if r.output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
+			name = r.identifier(name)
+		}
 		parts := make([]string, len(args))
 		for i, arg := range args {
 			argRenderer := r
@@ -352,7 +395,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if namespace == "" || namespace == "pg_catalog" {
 			return spelling
 		}
-		return "OPERATOR(" + pgIdentifier(namespace) + "." + spelling + ")"
+		return "OPERATOR(" + r.identifier(namespace) + "." + spelling + ")"
 	}
 	switch n := node.(type) {
 	case literalExpression:
@@ -367,7 +410,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		if n.ordinaryCall {
-			return pgIdentifier(n.kind.spelling()) + "()", nil
+			return r.identifier(n.kind.spelling()) + "()", nil
 		}
 		switch n.kind {
 		case identityCatalog:
@@ -388,7 +431,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: invalid deparse identity keyword")
 		}
 	case columnExpression:
-		return deparseAttribute(r.relation, n.origin.Address.SubID)
+		return r.attribute(r.relation, n.origin.Address.SubID)
 	case tableOIDExpression:
 		return "tableoid", nil
 	case arrayExpression:
@@ -695,7 +738,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			if name == "normalize" || name == "overlay" {
 				name = quoteIdentifier(name)
 			} else if name == "position" {
-				name = pgIdentifier(name)
+				name = r.identifier(name)
 			}
 			parts := make([]string, len(n.args))
 			for i, arg := range n.args {
@@ -755,7 +798,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.syntax == parser.SQLFunctionSyntax {
 			return renderBinaryCall(n.plan.Name(), n.syntax, n.args, n.plan.Name(), child)
 		}
-		return function(pgIdentifier(n.plan.Name()), n.args, true)
+		return function(r.identifier(n.plan.Name()), n.args, true)
 	case randomExpression:
 		return function(n.name, n.args, true)
 	case advisoryExpression:
@@ -773,8 +816,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(pgIdentifier(namespace.name)+"."+pgIdentifier(n.procedure.name), []BoundExpr{n.arg}, true)
-	case formatExpression:
+		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.arg}, true)
+	case stringVariadicExpression:
 		parts := make([]string, len(n.args))
 		for i, arg := range n.args {
 			argRenderer := r
@@ -788,7 +831,23 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			}
 			parts[i] = text
 		}
-		return "format(" + strings.Join(parts, ", ") + ")", nil
+		return r.identifier(n.name) + "(" + strings.Join(parts, ", ") + ")", nil
+	case formatExpression:
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			argRenderer.unknownTextLiteral = n.rawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
+			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
+			if err != nil {
+				return "", err
+			}
+			if n.variadic && i == len(n.args)-1 {
+				text = "VARIADIC " + text
+			}
+			parts[i] = text
+		}
+		return r.identifier("format") + "(" + strings.Join(parts, ", ") + ")", nil
 	case visibilityInquiryExpression:
 		u := n.ResultUsage()
 		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {

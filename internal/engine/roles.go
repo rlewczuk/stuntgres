@@ -277,15 +277,19 @@ func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor
 	return relationDiagnosticNameAt(auth.catalog, relation, path)
 }
 
-func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ObjectAddress) string {
-	name := dependencyIdentifier(relation.name)
+func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ObjectAddress) bool {
 	for _, ns := range path {
 		if a, ok := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
-			if a == relation.address {
-				return name
-			}
-			break
+			return a == relation.address
 		}
+	}
+	return false
+}
+
+func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ObjectAddress) string {
+	name := dependencyIdentifier(relation.name)
+	if relationVisibleAt(catalog, relation, path) {
+		return name
 	}
 	return dependencyIdentifier(catalog.state.descriptors[relation.namespace].Name()) + "." + name
 }

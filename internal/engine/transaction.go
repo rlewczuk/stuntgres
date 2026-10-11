@@ -335,6 +335,7 @@ type StatementScope struct {
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
 	pgRegex                sqltype.PGRegexExecution
+	quoteCaptures          *quoteCaptureCandidate // sealed before executor/source publication
 	catalog                *catalogChanges
 	catalogAuthority       *catalogAuthority
 	projectedRoots         bool
@@ -403,6 +404,8 @@ func sessionPresentation(session *Session) (input sqltype.InputEnvironment, outp
 	if settings.value("bytea_output") == "escape" {
 		output.ByteaOutput = sqltype.ByteaEscape
 	}
+	output.QuoteAllIdentifiers = settings.value("quote_all_identifiers") == "on"
+	_, output.ClientEncoding = sqltype.ClientEncodingName(settings.value("client_encoding"))
 	zone, ok := settings.typed["timezone"]
 	if !ok {
 		zone = settings.defaultTyped["timezone"]

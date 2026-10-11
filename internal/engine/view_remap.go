@@ -297,6 +297,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.ref = ref(n.ref)
 		}
 		next = n
+	case stringVariadicExpression:
+		n.args = args(n.args)
+		if ref != nil && n.origin.owner != (ObjectRef{}) {
+			n.origin.owner = ref(n.origin.owner)
+		}
+		next = n
 	case formatExpression:
 		n.args = args(n.args)
 		next = n

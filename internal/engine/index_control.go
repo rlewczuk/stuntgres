@@ -30,7 +30,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			return "", nil
 		}
 		if presentation.column > int64(len(index.sqlIndex.keys)) {
-			return deparseAttribute(parent, index.sqlIndex.include[presentation.column-int64(len(index.sqlIndex.keys))-1])
+			return (pgRenderer{output: presentation.output}).attribute(parent, index.sqlIndex.include[presentation.column-int64(len(index.sqlIndex.keys))-1])
 		}
 		key := index.sqlIndex.keys[presentation.column-1]
 		if !presentation.dump {
@@ -48,7 +48,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		}
 		return deparseAttribute(parent, key.attribute)
 	}
-	identifier := pgIdentifier
+	identifier := (pgRenderer{output: presentation.output}).identifier
 	if presentation.dump {
 		identifier = quoteIdentifier
 	}
@@ -57,18 +57,24 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		schema = "pg_temp"
 	}
 	parentName := identifier(schema) + "." + identifier(parent.name)
-	if presentation.pretty {
+	if presentation.pretty && !presentation.output.QuoteAllIdentifiers {
 		parentName = relationDiagnosticNameAt(catalog, parent, presentation.path)
+	}
+	// Canonical replay spells the supported access methods as SQL tokens.
+	// Session inquiry alone follows quote_all_identifiers.
+	method := index.sqlIndex.method.String()
+	if !presentation.dump {
+		method = identifier(method)
 	}
 	var sql strings.Builder
 	if presentation.exclusion {
-		sql.WriteString("EXCLUDE USING " + index.sqlIndex.method.String() + " (")
+		sql.WriteString("EXCLUDE USING " + method + " (")
 	} else {
 		sql.WriteString("CREATE ")
 		if index.sqlIndex.unique {
 			sql.WriteString("UNIQUE ")
 		}
-		sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING " + index.sqlIndex.method.String() + " (")
+		sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING " + method + " (")
 	}
 	for i, key := range index.sqlIndex.keys {
 		if i > 0 {
@@ -211,6 +217,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 	switch n := node.(type) {
 	case stringExpression:
 		return n.plan.Name() != "||"
+	case stringVariadicExpression:
+		return true
 	case indexPropertyExpression:
 		return true
 	case datetimeJustifyExpression:
@@ -257,10 +265,10 @@ func compactIndexKeySQL(ctx context.Context, catalog CatalogRead, parent *relati
 		if err != nil {
 			return "", false, sqltype.Usage{}, err
 		}
-		text, err := deparseAttribute(parent, attribute)
+		text, err := (pgRenderer{output: presentation.output}).attribute(parent, attribute)
 		return text, false, usage, err
 	}
-	text, err := (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path}).sql(ctx, node, pgRenderParent{})
+	text, err := (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})
 	if err != nil {
 		return "", false, sqltype.Usage{}, err
 	}

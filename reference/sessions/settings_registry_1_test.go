@@ -332,6 +332,7 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		"bytea_output":                        {"hex", "Sets the output format for bytea."},
 		"IntervalStyle":                       {"postgres", "Sets the display format for interval values."},
 		"log_statement_stats":                 {"off", "Writes cumulative performance statistics to the server log."},
+		"quote_all_identifiers":               {"off", "When generating SQL fragments, quote all identifiers."},
 		"server_encoding":                     {"UTF8", "Shows the server (database) character set encoding."},
 		"standard_conforming_strings":         {"on", "Causes '...' strings to treat backslashes literally."},
 		"statement_timeout":                   {"0", "Sets the maximum allowed duration of any statement."},

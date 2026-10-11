@@ -60,6 +60,9 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	if parser.TransactionTimeFunctionName(name) {
 		return b.bindTransactionTime(raw)
 	}
+	if stringVariadicFunctionName(name) {
+		return b.bindStringVariadic(raw)
+	}
 	// Shared syntax must never silently discard labels in adjacent providers.
 	if len(raw.ArgNames) != 0 && !parser.AdvisorySessionFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)

@@ -587,6 +587,16 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
+	case stringVariadicExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		if n.castPlanned && err == nil {
+			n.cast, err = sqltype.PlanCoercion(n.args[0].ResultUsage(), info.usage, sqltype.Explicit)
+		}
+		n.expressionInfo = info
+		rebound = n
 	case formatExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
 		for i := range n.args {
