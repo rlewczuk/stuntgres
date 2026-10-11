@@ -4517,6 +4517,59 @@ without evaluating these immutable operations; domain errors belong to Execute.
 Selected scalar coverage: `make check RUN='^TestReferenceMathScalar'`.
 Independent pinned coverage: `make check REFERENCE=1 RUN='^TestReferenceMathScalar'`.
 
+### Math constants and special functions
+
+`cbrt`, `degrees`, `radians`, `erf`, `erfc`, and `gamma` each take and
+return DOUBLE PRECISION; `pi()` returns DOUBLE PRECISION without an operand.
+Numeric-category inputs implicitly coerce to FLOAT8; unknown strings, NULL
+and inferred parameters receive the same context. Unary functions are strict;
+pi is immutable, nonnull and row-independent, including grouping, generated
+columns, expression indexes and stored views. Existing default-expression
+admission boundaries are unchanged. FLOAT8 exp shares these scalar consumers;
+its exact NUMERIC overload and established subnormal policy are unchanged.
+Selected calls remain standalone projection roots rather than direct WHERE
+predicate leaves. Filtering their computed outputs uses existing derived/stored
+projection columns, for example `SELECT c FROM (SELECT cbrt(d) AS c FROM t) s
+WHERE c IS NOT NULL`; this feature does not widen the predicate grammar.
+
+Cube roots accept negative inputs and preserve signed zeros/infinities.
+Degrees divides by the rounded decimal radians-per-degree constant; radians
+multiplies by it. Finite overflow or nonzero-to-zero conversion fails22003
+with `value out of range: overflow` / `value out of range: underflow`.
+Nonzero subnormal conversions are accepted. Erf preserves negative zero and
+maps infinities to ±1; erfc maps +Infinity to +0 and -Infinity to2, uses a
+separate tail computation (not1-erf), and permits subnormal/zero tail results.
+NaN propagates throughout.
+
+Gamma preserves NaN/+Infinity; -Infinity, signed zero and finite negative
+integer poles fail22003 `value out of range: overflow`. Negative nonintegers
+are valid. Finite nonzero results, including signed subnormals, are accepted;
+zero results fail22003 `value out of range: underflow`. Compensated, scaled
+negative reflection avoids denominator overflow and accumulated product error.
+The recurrence decomposes the original represented input as `z=-x`, integer
+`n=floor(z)` and exact fraction `f=z-n`, using base `1+f` and `n` factors.
+TwoSum retains each factor's fractional addition residual across binades;
+FMA retains multiplication residuals. Forming rounded `1-x` first would lose
+near-pole input information. This does not claim to read C errno.
+The reduced sine uses a compensated Taylor series through degree23 on `[0,pi/2]`
+(remainder below1e-20), retaining pi, angle, term and sum residuals rather than
+assuming a rounded library sine has none. Exact half-integer sine endpoints
+remain exact. The small `[1,2)` Gamma seed uses Go/Cephes's published rational
+approximation, with independently derived coefficient residuals, compensated
+Horner evaluation and corrected divisions retained as a high/low expansion.
+This avoids discarding the seed's rounding residual before recurrence.
+Pinned PostgreSQL18.0-bookworm observations ground these categories,
+not a blanket rejection of subnormals or fixes for particular input literals.
+Provider failures have empty logical Position/Detail/Hint/Context and other
+optional fields; Prepare fixes types, while Execute evaluates the operation.
+
+PostgreSQL explicitly permits platform-dependent C-library accuracy and
+boundary behavior. Native uses Go's standard library plus scaled gamma
+reflection, not C linkage, and does not promise bit-for-bit finite libm parity.
+Reference tests independently assert signs, NULL, metadata and full diagnostics;
+ordinary finite targets allow a small documented ULP bound.
+See [selected proof](TESTING.md#math-constants-selected-proof).
+
 
 Table SELECT projection/WHERE admit `IS [NOT] NULL`, `ISNULL`/`NOTNULL`,
 `IS [NOT] DISTINCT FROM`, and Boolean `IS [NOT] TRUE/FALSE/UNKNOWN`.

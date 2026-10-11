@@ -26,6 +26,17 @@ See [TRUNCATE](docs/SQL.md#truncate-table--change-note) and
 Feature smoke: `make check RUN='^TestReferenceTruncateFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceTruncateFeatureSmoke$'`.
 
+Change note: FLOAT8 `cbrt`, `degrees`, `radians`, `erf`, `erfc`, `gamma`
+and zero-argument `pi()` reuse direct/prepared and stored-expression consumers.
+Unary NULL is strict; pi is immutable and row-independent. Gamma poles are
+overflow errors, nonzero tails remain accepted, and erfc tail zero is valid.
+Existing FLOAT8 and exact NUMERIC exp behavior remains unchanged. Finite libm
+accuracy and boundary behavior can vary by platform; see
+[math constants](docs/SQL.md#math-constants-and-special-functions--change-note)
+and [selected proof](docs/TESTING.md#math-constants-selected-proof).
+Feature smoke: `make check RUN='^TestReferenceMathConstantsFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceMathConstantsFeatureSmoke$'`.
+
 Change note: readonly `pg_catalog.pg_sequences` exposes all eleven typed sequence
 definition/value fields. `last_value` is logical reserved high-water (including
 cache tails), NULL when uncalled or lacking SELECT/USAGE. Definitions remain

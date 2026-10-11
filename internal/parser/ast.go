@@ -1251,14 +1251,14 @@ func singletonArgument(expr Expr) bool {
 		if !e.ResolutionOnly {
 			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "format":
-			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
+			case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
 			case "pg_collation_actual_version":
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
 			case "unaccent":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if !enumFunctionName(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}

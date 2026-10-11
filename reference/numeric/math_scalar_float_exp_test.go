@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,7 +7,7 @@ import (
 )
 
 func TestReferenceMathScalarExpSubnormals(t *testing.T) {
-	p := fixture.NewPair(t)
+	p := fixture.NewScenario(t)
 	// Unknown string arguments select FLOAT8 through the existing binder API,
 	// so no PG-only cast syntax is needed for native compatibility witnesses.
 	for _, tc := range []struct {
@@ -29,7 +27,7 @@ func TestReferenceMathScalarExpSubnormals(t *testing.T) {
 		})
 	}
 	s := fixture.ImplicitError("SELECT exp('-745.1332191019412')", fixture.Diagnostic{Code: "22003", Message: "value out of range: underflow"})
-	s.ErrorStage = "execute"
+	s.SelectRows, s.ErrorStage = true, "execute"
 	p.Step(t, s)
 	p.Step(t, fixture.Prepared(s))
 }

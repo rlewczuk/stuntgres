@@ -17,8 +17,14 @@ type MathPlan struct {
 
 func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 	p := MathPlan{name: name, arity: len(args), result: result}
-	if len(args) < 1 || len(args) > 2 {
+	if len(args) > 2 || len(args) == 0 && name != "pi" {
 		return p, fmt.Errorf("invalid math signature")
+	}
+	if name == "pi" {
+		if len(args) != 0 || !result.Valid() || result != result.Type.Usage() || result.Type.id != Float8 {
+			return p, fmt.Errorf("invalid math signature")
+		}
+		return p, nil
 	}
 	for i, u := range args {
 		if !u.Valid() || u != u.Type.Usage() {
@@ -47,7 +53,7 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 1 && (id == Int8 || id == Numeric)
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		valid = len(args) == 1 && (id == Numeric || id == Float8)
-	case "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
+	case "cbrt", "degrees", "radians", "erf", "erfc", "gamma", "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
 		valid = len(args) == 1 && id == Float8
 	case "atan2", "atan2d":
 		valid = len(args) == 2 && id == Float8 && args[1] == args[0]
@@ -81,11 +87,17 @@ func (p MathPlan) Name() string { return p.name }
 func (p MathPlan) ResultUsage() Usage { return p.result }
 
 func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
-	if p.result.Type == nil || a.typ != p.args[0].Type || (p.arity == 2 && b.typ != p.args[1].Type) {
+	if !p.result.Valid() || p.result != p.result.Type.Usage() || (p.arity != 0 && a.typ != p.args[0].Type) || (p.arity == 2 && b.typ != p.args[1].Type) {
 		return Value{}, fmt.Errorf("invalid math values")
 	}
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
+	}
+	if p.arity == 0 {
+		if p.name != "pi" || p.result.Type.id != Float8 {
+			return Value{}, fmt.Errorf("invalid math values")
+		}
+		return Float(p.result.Type, math.Pi)
 	}
 	if a.null || (p.arity == 2 && b.null) {
 		return Null(p.result.Type), nil
@@ -162,6 +174,12 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 	if id == Float8 {
 		n := a.floating
 		switch p.name {
+		case "cbrt", "degrees", "radians", "erf", "erfc", "gamma":
+			result, err := mathConstant(p.name, n)
+			if err != nil {
+				return Value{}, err
+			}
+			return Float(p.result.Type, result)
 		case "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d":
 			result, err := inverseTrig(p.name, n, b.floating)
 			if err != nil {

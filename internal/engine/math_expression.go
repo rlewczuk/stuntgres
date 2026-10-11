@@ -40,6 +40,8 @@ type mathSignature struct {
 func mathSignatures(name string) []mathSignature {
 	unary := func(id sqltype.ID) mathSignature { return mathSignature{[2]sqltype.ID{id}, 1, id} }
 	switch name {
+	case "pi":
+		return []mathSignature{{arity: 0, result: sqltype.Float8}}
 	case "scale", "min_scale":
 		return []mathSignature{{[2]sqltype.ID{sqltype.Numeric}, 1, sqltype.Int4}}
 	case "trim_scale":
@@ -58,7 +60,7 @@ func mathSignatures(name string) []mathSignature {
 		return []mathSignature{{[2]sqltype.ID{sqltype.Int8}, 1, sqltype.Numeric}}
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		return []mathSignature{unary(sqltype.Numeric), unary(sqltype.Float8)}
-	case "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
+	case "cbrt", "degrees", "radians", "erf", "erfc", "gamma", "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
 		return []mathSignature{unary(sqltype.Float8)}
 	case "atan2", "atan2d":
 		return []mathSignature{{[2]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, sqltype.Float8}}

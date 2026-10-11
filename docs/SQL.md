@@ -48,6 +48,20 @@ See [atomic generations and non-MVCC snapshots](TRANSACTIONS.md#truncate-generat
 [exact grants](AUTHORIZATION.md#truncate-table-authority) and
 [both-mode proof](TESTING.md#truncate-selected-proof).
 
+## Math constants and special functions — change note
+
+`cbrt(x)`, `degrees(x)`, `radians(x)`, `erf(x)`, `erfc(x)`, `gamma(x)`
+and `exp(x)` support DOUBLE PRECISION scalar inputs/results; `pi()` is a
+zero-argument DOUBLE PRECISION constant. Unary NULL inputs return typed NULL.
+Projection/order/group, held Go statements and SQL PREPARE use the existing
+math provider. Filter function outputs through derived/stored projection columns;
+selected calls remain excluded as direct WHERE predicate leaves. Immutable
+stored views/generated expressions/indexes
+retain `pg_catalog.pi()` through native Dump/Restore and descriptor remapping;
+generic function defaults remain excluded. NUMERIC exp is unchanged.
+See [IEEE/range/platform contract](DIALECT.md#math-constants-and-special-functions)
+and [selected reference proof](TESTING.md#math-constants-selected-proof).
+
 ## DISCARD
 
 ```sql

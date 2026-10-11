@@ -59,6 +59,47 @@ unique-key and logical-row pending resources before revocation, direct and held
 SQL preparation, no failed output/count/write and lock cleanup. Run this companion
 with `RACE=1`, and run the public privilege-wait selector with `RACE=1` in both modes.
 
+## Math constants selected proof
+
+Permanent untagged `reference/numeric/math_constants_*_test.go` scenarios cover
+cbrt/degrees/radians/pi/erf/erfc/gamma/FLOAT8 exp through the shared public fixture.
+Root's initial pinned PostgreSQL18.0 discovery established accepted signed gamma
+subnormals, exact radians zero boundaries and complete execution diagnostics.
+Discovery filters and unknown assertions are removed before native-red.
+Finite libm targets use independent constants and <=2ULP; endpoint signs,
+NULL, metadata, exp subnormal witnesses and logical errors remain exact.
+The review matrix's `gamma(-128.75)` witness retains the independent mathematical
+target `0x92fa951a80fb7288` for native/private tests; pinned PostgreSQL18 tests-8
+observed `0x92fa951a80fb728b`. Only that PG witness uses the independently recorded
+target, still <=2ULP. This does not widen tolerance or alter sign/error categories.
+Native Controls genuinely Dump/Reset/Restore and restore into a fresh Driver;
+real mode replays the actual native-emitted SQL, not an invented server API.
+
+Root runs each group in native and pinned mode, external900s per command:
+
+```sh
+make check RUN='^TestReferenceMathConstants(Values|IEEE|Binding|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceMathConstants(Values|IEEE|Binding|Metadata)$'
+make check RUN='^TestReferenceMathConstants(GammaFrontier|GammaReviewBoundaries|BoundaryDiagnostics|HeldParameters|SQLPrepared)$'
+make check REFERENCE=1 RUN='^TestReferenceMathConstants(GammaFrontier|GammaReviewBoundaries|BoundaryDiagnostics|HeldParameters|SQLPrepared)$'
+make check RUN='^TestReferenceMathConstants(Consumers|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceMathConstants(Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceMathScalar(ExpSubnormals|FloatingOverloads)$'
+make check REFERENCE=1 RUN='^TestReferenceMathScalar(ExpSubnormals|FloatingOverloads)$'
+make check RUN='^TestMathConstants(Provider|Signatures|Cancellation|PiConsumers)$'
+make check RACE=1 RUN='^TestReferenceMathConstants(HeldParameters|Controls)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceMathConstants(HeldParameters|Controls)$'
+```
+
+Whole-project Docker-free verification is `make quickcheck`, not a broad check
+selector. Finalcheck is post-integration under external1800s. Never `make refcheck`.
+The separate public program `local://math-constants-feature-smoke.go` stays in the
+OMP session. Root materializes `.math-constants-feature-smoke/main.go`, runs
+`timeout 60s go run ./.math-constants-feature-smoke` and removes that owned
+materialization before review. Quiet exit0 requires all eight values/types,
+held-handle errors/recovery, IEEE/range boundaries, stored pi same/fresh-driver
+roundtrips and failed later-row DML atomicity. Passing tests are not that smoke.
+
 ## Range aggregate selected proof
 
 Permanent untagged `reference/aggregates/range_aggregate_*_test.go` definitions
