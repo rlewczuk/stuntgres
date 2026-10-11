@@ -171,12 +171,18 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case likeEscapeExpression:
 		o, ok := other.(likeEscapeExpression)
 		return ok && e.provider == o.provider && same(e.pattern, o.pattern) && same(e.escape, o.escape)
+	case posixExpression:
+		o, ok := other.(posixExpression)
+		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
 	case similarExpression:
 		o, ok := other.(similarExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
 	case similarEscapeExpression:
 		o, ok := other.(similarEscapeExpression)
 		return ok && e.provider == o.provider && e.omitted == o.omitted && same(e.pattern, o.pattern) && same(e.escape, o.escape)
+	case posixSubstringExpression:
+		o, ok := other.(posixSubstringExpression)
+		return ok && e.provider == o.provider && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1])
 	case similarSubstringExpression:
 		o, ok := other.(similarSubstringExpression)
 		return ok && e.provider == o.provider && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1]) && same(e.args[2], o.args[2])
@@ -590,12 +596,22 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.pattern, e.escape = rewrite(e.pattern), rewrite(e.escape)
 		stage(&e.expressionInfo)
 		expr = e
+	case posixExpression:
+		e.left, e.right = rewrite(e.left), rewrite(e.right)
+		stage(&e.expressionInfo)
+		expr = e
 	case similarExpression:
 		e.left, e.right = rewrite(e.left), rewrite(e.right)
 		stage(&e.expressionInfo)
 		expr = e
 	case similarEscapeExpression:
 		e.pattern, e.escape = rewrite(e.pattern), rewrite(e.escape)
+		stage(&e.expressionInfo)
+		expr = e
+	case posixSubstringExpression:
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
 		stage(&e.expressionInfo)
 		expr = e
 	case similarSubstringExpression:
@@ -849,12 +865,19 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case likeEscapeExpression:
 		walk(e.pattern)
 		walk(e.escape)
+	case posixExpression:
+		walk(e.left)
+		walk(e.right)
 	case similarExpression:
 		walk(e.left)
 		walk(e.right)
 	case similarEscapeExpression:
 		walk(e.pattern)
 		walk(e.escape)
+	case posixSubstringExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
 	case similarSubstringExpression:
 		for _, arg := range e.args {
 			walk(arg)

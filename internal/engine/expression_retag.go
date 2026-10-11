@@ -721,6 +721,20 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
+	case posixExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			var collation expressionInfo
+			collation, err = collatedInfo(view, expressionInfo{usage: n.left.ResultUsage(), pos: info.pos}, n.left, n.right)
+			if err == nil {
+				n.provider, err = sqltype.BindPosix(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.usage, collation.usage.Collation, collation.collationConflict)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
 	case similarExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		if !changed {
@@ -744,6 +758,22 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 			info, err = collatedInfo(view, info, n.pattern, n.escape)
 			if err == nil {
 				n.provider, err = sqltype.BindSimilarEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), info.usage)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
+	case posixSubstringExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			info, err = collatedInfo(view, info, n.args[:]...)
+			if err == nil {
+				usages := [2]sqltype.Usage{n.args[0].ResultUsage(), n.args[1].ResultUsage()}
+				n.provider, err = sqltype.BindPosixSubstring(usages, info.usage, info.usage.Collation, info.collationConflict)
 			}
 		}
 		n.expressionInfo = info

@@ -3063,7 +3063,7 @@ through the existing staged, failure-atomic control path.
 Codepoint, padding and match-prefix scans check cancellation at bounded work
 intervals; search reuses the constant-space raw matcher without rune arrays,
 normalization or payload-sized scratch allocation. BYTEA DEFAULT, encoding-aware
-length, bit types, positional TEXT and two-argument POSIX substring remain excluded.
+length, bit types and positional TEXT substring remain excluded.
 Independent scenarios: `make check RUN='^TestReference(StringLength|BinaryBasic|BinarySlice)'`;
 pinned counterpart adds `REFERENCE=1` to that same command.
 
@@ -3923,7 +3923,7 @@ empty results remain nonnull empty. Known BYTEA operands contextualize unknown
 byte arguments, with INT4 index/count slots and raw Go binds. Results retain
 BYTEA/INT4 metadata even on empty rowsets. Scalar query/write/view/CHECK consumers
 and native replay share the providers; BYTEA DEFAULT functions remain excluded.
-Positional TEXT/two-argument POSIX substring and encoding-aware length remain truthful0A000 boundaries;
+Positional TEXT substring and encoding-aware length remain truthful0A000 boundaries;
 selected TEXT/BPCHAR length and search siblings are supported as documented above.
 The excluded `length(bytea,name)` candidate also recognizes unknown source/encoding
 arguments and existing implicit TEXT/VARCHAR/BPCHAR-to-NAME encoding conversions.
@@ -6008,8 +6008,8 @@ matching after independent normalization preflight. Held executions never retain
 normalized parameter values.
 
 Matching participates in shared CHECK/view expression consumers, deparse/rebind
-and atomic public Dump/Reset/Restore. Public POSIX regex APIs and additional
-locales are not included. SQL SIMILAR support is documented below.
+and atomic public Dump/Reset/Restore. Additional
+locales are not included. SQL SIMILAR and POSIX support are documented below.
 Feature smoke: `make check RUN='^TestReferenceLikeLegacyMigration$'`.
 
 ## SIMILAR TO and SQL regex substring — change note
@@ -6054,15 +6054,15 @@ ESCAPE can fail even on empty input, whereas a malformed row-dependent matcher
 is compiled only when demanded. NULL/dead CASE/COALESCE branches follow the
 release-oracle demand matrix, without treating malformed regex as no match.
 
-The provider is independent of any public POSIX matcher. No POSIX operator or
-function, arbitrary locale, two-argument regex substring, or positional TEXT
+The provider is shared with the POSIX matcher below. No adjacent regex
+function, arbitrary locale or positional TEXT
 substring capability is introduced. Prepared plans retain descriptors/provenance
 only; execution-local active-pattern state cannot leak parameter values,
 captured offsets, NULL or compilation failures into held re-execution.
 SQL regex nodes participate in current query/group/order, staged DML, CHECK,
 DEFAULT, generated-column/index, view dependency/rebind and control consumers.
-Only selected three-TEXT SQL-regex extraction is admitted as a function DEFAULT;
-positional TEXT, two-argument POSIX, BYTEA and unrelated function DEFAULT
+Selected three-TEXT SQL-regex and two-TEXT POSIX extraction are admitted in DEFAULT;
+positional TEXT, BYTEA and unrelated function DEFAULT
 boundaries remain unchanged. Defaults stay symbolic until an omitted value
 demands evaluation, so an explicit INSERT value does not evaluate a malformed
 extraction default. Grouping identity ignores the four extraction spellings,
@@ -6092,6 +6092,60 @@ the pinned counterpart adds `REFERENCE=1`. Both use a 900-second invocation
 deadline and independently assert rows, metadata, complete diagnostics and
 atomicity. Actual-feature cancellation/recovery is covered by
 `^TestReferenceSimilarActualCancellation$` and the complete family.
+
+
+## POSIX regex matching — change note
+
+`~`, `~*`, `!~`, `!~*` search anywhere; the starred operators start in
+case-insensitive mode and negation complements only a successful non-NULL
+match. Qualified `OPERATOR(pg_catalog.symbol)` uses the same signatures.
+Predicate TEXT/NAME/BPCHAR inputs retain physical BPCHAR padding; VARCHAR uses
+TEXT coercion. Pattern arguments are TEXT. No BYTEA regex signature is added.
+
+Default syntax is ARE, including numbered/noncapturing groups, alternation,
+greedy/lazy bounds0..255, brackets/classes/collating elements/equivalence,
+word/absolute constraints, numeric/character escapes, backreferences and
+positive/negative variable-width lookahead/lookbehind. Embedded leading options
+select BRE, ERE, quote, case and expanded syntax; `***:` and `***=` directors
+are supported. Options are not scoped Perl flags. Search chooses the earliest
+start, then the whole match preference and hierarchical capture preferences,
+not first-success backtracking. Capture numbering includes groups under `{0}`;
+lookaround groups are noncapturing and cannot contain backreferences.
+
+Two-TEXT `substring(source,pattern)`, `pg_catalog.substring`, and
+`substring(source FROM pattern)` return the first numbered capture if present,
+otherwise the whole first match. No match/nonparticipating capture/NULL yields
+TEXT NULL; a participating empty capture yields empty TEXT. Both arguments
+coerce to TEXT, so BPCHAR padding is trimmed. `substr` is not a regex alias.
+This overload uses effective argument collation, unlike the three-TEXT SQL
+wrapper's default-C inner matcher. DEFAULT and existing query/DML/CHECK,
+generated/index/view/deparse/retype and native replay consumers share its plan.
+
+Default dot and complemented brackets include LF and anchors delimit the
+whole string, without a trailing-LF exemption. `n`/`m` stop at LF and enable
+line anchors; `p` only stops, `w` only enables anchors, `s` does neither.
+`\A`/`\Z` stay absolute; `\D`/`\W` can match LF even in `n` mode.
+CR and U+2028 are ordinary characters. C/default/POSIX case matching is ASCII;
+registered Unicode builtin providers/copies use pinned Unicode16 simple scalar
+case mappings, never whole-string full casefold expansions or host tables.
+
+Explicit conflicting collations fail42P21 during binding; demanded implicit
+conflicts fail42P22 with the COLLATE hint. Malformed patterns fail2201B
+`invalid regular expression: <English reason>`, without SQL-function wrapper
+Context or runtime Position. Prepare binds types, not regex programs. Execute
+preflights invariant demanded constants, including empty relations; row-dependent
+patterns on empty/filtered input and dead conditional branches are not compiled.
+Strict NULL avoids matching. Held plans retain no previous values/capture state.
+
+The shared provider's 64 MiB checked memory boundary and resource diagnostics
+above apply to both frontends. Hostile patterns can require substantial work:
+use `statement_timeout` or a caller deadline. Cancellation occurs during actual
+compilation/matching and preserves atomic writes and healthy connection reuse.
+No arbitrary locale/nondeterministic provider, adjacent regexp function suite,
+positional TEXT substring or SQL XQuery regex function is introduced. Existing
+JSONPath `like_regex` remains a distinct XQuery flag validation adapter.
+Feature smoke: `make check RUN='^TestReferencePosixFeatureSmoke$'`; pinned mode
+adds `REFERENCE=1`.
 
 
 ## Stored generated columns — change note (changelog)

@@ -950,6 +950,27 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return functionName + "(" + source + ", " + pattern + ", " + escape + ")", nil
 		}
+		if v.posixSubstrings[path] {
+			if name != "substring" || len(e.Args) != 2 {
+				return "", fmt.Errorf("stuntgres: invalid stored POSIX substring occurrence")
+			}
+			source, err := child(e.Args[0])
+			if err != nil {
+				return "", err
+			}
+			pattern, err := child(e.Args[1])
+			if err != nil {
+				return "", err
+			}
+			if e.Syntax == parser.SQLFunctionSyntax {
+				return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
+			}
+			functionName := `pg_catalog."substring"`
+			if v.presentation.deparse {
+				functionName = `"substring"`
+			}
+			return functionName + "(" + source + ", " + pattern + ")", nil
+		}
 		if name == "overlaps" {
 			ordinary := "pg_catalog.overlaps"
 			if v.presentation.deparse {

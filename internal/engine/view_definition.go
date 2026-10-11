@@ -27,6 +27,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
 	definition.similarSubstrings = b.viewSimilarSubstrings
+	definition.posixSubstrings = b.viewPosixSubstrings
 	definition.collations = b.viewCollations
 	definition.columns, definition.stars = b.viewColumns, b.viewStars
 	definition.frames, definition.queries = collectQueryFrames(b.query.Root)

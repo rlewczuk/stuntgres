@@ -69,7 +69,7 @@ func binaryTextType(d *sqltype.Descriptor) bool {
 
 func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.defaultConsumer && (name != "substring" || len(raw.Args) != 3) {
+	if b.defaultConsumer && (name != "substring" || (len(raw.Args) != 2 && len(raw.Args) != 3)) {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	conversion := name == "convert" || name == "convert_from" || name == "convert_to" || name == "encode" || name == "decode"
@@ -104,6 +104,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		if selected {
 			if !visible {
 				return missing()
+			}
+			if len(operands) == 2 {
+				return b.bindPosixSubstring(raw, operands)
 			}
 			return b.bindSimilarSubstring(raw, operands)
 		}
@@ -173,6 +176,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		regex := name == "substring"
 		for _, o := range operands[1:] {
 			regex = regex && binaryTextType(o.descriptor())
+		}
+		if regex && len(operands) == 2 {
+			return b.bindPosixSubstring(raw, operands)
 		}
 		if regex && len(operands) == 3 {
 			return b.bindSimilarSubstring(raw, operands)

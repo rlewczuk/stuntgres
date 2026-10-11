@@ -275,7 +275,7 @@ func closedUUIDDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case similarExpression, similarEscapeExpression, similarSubstringExpression:
+	case posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid

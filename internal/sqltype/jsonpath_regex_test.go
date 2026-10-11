@@ -125,7 +125,7 @@ func TestJSONPathRegexBoundAdmission(t *testing.T) {
 		{`(?e)a{0,2}`, "bound"},
 	} {
 		t.Run(tc.pattern, func(t *testing.T) {
-			s := jsonpathRegexScanner{ctx: context.Background(), text: tc.pattern, previous: "empty"}
+			s := pgRegexScanner{ctx: context.Background(), text: tc.pattern, previous: "empty"}
 			if err := s.prefix(); err != nil {
 				t.Fatal(err)
 			}
@@ -202,7 +202,7 @@ func TestJSONPathRegexBoundStopping(t *testing.T) {
 		{"2 5 5 # lookahead\n 0", true, len("2 5 5 # lookahead\n ")},
 		{"1,2 5 5 # lookahead\n 0", true, len("1,2 5 5 # lookahead\n ")},
 	} {
-		s := jsonpathRegexScanner{ctx: context.Background(), text: tc.text, expanded: tc.expanded, mode: jsonpathRegexBRE}
+		s := pgRegexScanner{ctx: context.Background(), text: tc.text, expanded: tc.expanded, mode: pgRegexBRE}
 		err := s.bound()
 		e, ok := err.(*sqlstate.Error)
 		if !ok || e.Code != "2201B" || e.Message != "invalid regular expression: invalid repetition count(s)" || s.pos != tc.pending {

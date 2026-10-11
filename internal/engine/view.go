@@ -20,6 +20,7 @@ type viewDefinition struct {
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
 	similarSubstrings map[viewLiteralPath]bool
+	posixSubstrings   map[viewLiteralPath]bool
 	columns           map[viewLiteralPath]viewColumn
 	stars             map[viewLiteralPath][]viewColumn
 	frames            map[uint32]*projectNode

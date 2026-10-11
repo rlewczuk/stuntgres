@@ -3851,8 +3851,8 @@ diagnostic, all sixteen cross-spelling grouping pairs and eight exact
 nullable-iterator/backreference capture outcomes. Native-only DEFAULT boundaries
 and host controls are explicit; the controls replay actual emitted SQL on the
 pinned backend. `TestSimilarSubstringPresentationIdentity`,
-`TestSimilarExecutionReplacementOwnership` and
-`TestSimilarExecutionReplacementBudget` are genuine structural/injected-limit
+`TestPGRegexExecutionReplacementOwnership` and
+`TestPGRegexExecutionReplacementBudget` are genuine structural/injected-limit
 units; the latter cover configuration-preserving invalidation, preallocation
 replacement ownership, translation/compile/runtime failure, NULL, cancellation
 and recovery. They do not claim a PostgreSQL-identical resource cutoff.
@@ -3870,19 +3870,102 @@ make check RUN='^TestReferenceSimilarFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceSimilarFeatureSmoke$'
 make check RUN='^TestReferenceSimilarReview'
 make check REFERENCE=1 RUN='^TestReferenceSimilarReview'
-make check RUN='^TestSimilar(SubstringPresentationIdentity|ExecutionReplacementOwnership|ExecutionReplacementBudget)$'
+make check RUN='^(TestSimilarSubstringPresentationIdentity|TestPGRegexExecutionReplacement(Ownership|Budget))$'
 make check RUN='^TestReference(BinarySlice|LikeLegacy)'
 make check REFERENCE=1 RUN='^TestReference(BinarySlice|LikeLegacy)'
 ```
 
-The BinarySlice capability selector preserves positional TEXT/two-argument
-POSIX exclusions but requires all three SQL-regex substring spellings. LIKE
+The BinarySlice capability selector preserves positional TEXT
+exclusions but admits two-TEXT POSIX and all three SQL-regex substring spellings. LIKE
 legacy migration retains its independent matching/metadata/replay assertion
 union. Genuine parser/provider/bound-node units supplement public reference
 coverage; they must not recreate SQL-through-internal-engine tests. Native
 resource-accounting units use injected limits rather than claiming a portable
 PostgreSQL complexity cutoff. Finalcheck belongs to the root after merge
 under one 1800-second deadline.
+
+## POSIX regex oracle and feature checks
+
+`TestReferencePosix` is backend-first and shares independent direct/prepared
+expectations for search/case/negation/NULL, ARE/ERE/BRE, captures and hierarchical
+preferences, brackets/escapes/constraints/lookaround/options/newlines, effective
+collation/physical character types, full English diagnostic fields/stages/positions,
+held inferred parameters, stored consumers and atomic native controls/PG replay.
+Initial pinned18.0 discovery passed before native red authorized production;
+no discovery backend filter is retained. Provider all-capture/span/budget and
+parser/bound-node units supplement, not replace, these public expectations.
+
+Root verifies after all provider/consumer edits land, with external900-second
+deadlines (targets themselves own no deadline):
+
+```sh
+make check RUN='^TestReferencePosix'
+make check REFERENCE=1 RUN='^TestReferencePosix'
+make check RUN='^(TestPGRegex|TestPosix|TestSimilar|TestReferenceSimilar|TestReferenceCollation|TestReferenceJSONPath|TestReferenceBinary|TestReferenceLike)'
+make check REFERENCE=1 RUN='^(TestReferenceSimilar|TestReferenceCollation|TestReferenceJSONPath|TestReferenceBinary|TestReferenceLike)'
+make check RACE=1 RUN='^(TestPGRegex|TestPosix|TestReferencePosix(ActualCancellation|StatementTimeout|HeldParameters|Controls)|TestReferenceSimilarActualCancellation)'
+make check RUN='^TestReferencePosixFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePosixFeatureSmoke$'
+```
+
+Review witnesses isolate constructor-specific titlecase closure and nested
+assertion continuation without adding another public regex function:
+
+```sh
+make check RUN='^TestReferencePosix(TitlecaseConstructors|NestedAssertions)$'
+make check REFERENCE=1 RUN='^TestReferencePosix(TitlecaseConstructors|NestedAssertions)$'
+```
+
+`TitlecaseConstructors` covers literal/plain bracket/equivalence versus explicit
+singleton range/collating element for Ǆ/ǅ/ǆ under C, POSIX, both admitted Unicode
+providers and their copies, including sensitive/insensitive negation and
+two-TEXT substring. Independent REL_18_0 `regcomp.c`/`regc_locale.c` expectations
+retain ǅ only in insensitive range/collating construction under Unicode; literal,
+plain bracket and equivalence contain only its simple lower/upper counterparts.
+`NestedAssertions` checks successful continuation and failing children, both
+polarities, noncapturing assertion groups, variable-width lookbehind containing
+lookahead beyond its endpoint, and UTF8 endpoints. The release `rege_dfa.c`
+`lacon` evaluates child lookahead against the original source end, not the
+parent lookbehind endpoint. These source-grounded expectations require both
+selected native and pinned runs; native output is never the expected-value oracle.
+
+Binary POSIX admission is arity-specific: unary `~`, including qualified forms,
+remains the existing bitwise operator. Retain `TestBitwise` structural and
+`TestReferenceBitwise`/`TestReferenceSearchPath.*Bitwise` public regression
+coverage in both applicable modes. The migrated
+`TestReferenceSimilarReviewDefaultBoundaries` independently expects the two-TEXT
+substring DEFAULT to return `"a"`, while positional TEXT/BYTEA and unrelated
+function DEFAULT exclusions remain native-only. Aggregate `min(substring(...))`
+and pg_get_* inquiries retain native known-nullable metadata and PostgreSQL
+adapter unknown nullability; regex expression metadata remains unknown.
+Failed late Restore uses an admitted stored regex DEFAULT followed by INSERT,
+not a scalar SELECT rejected by Restore's sequence-state whitelist.
+Unary `~` also retains Restore's binder-owned malformed-type diagnostics.
+POSIX substring occurrences carry independent stored-view provenance, so
+ordinary pg_get_viewdef output quotes `"substring"` without relabeling it
+SQL SIMILAR; pg_get_indexdef classifies the POSIX node as a function key without
+an extra expression wrapper. Existing pinned definition goldens remain unchanged.
+
+```sh
+make check RUN='^(TestBitwise|TestDeparseConstraintsPersistedFamilies|TestReferenceBitwise|TestReferenceSmokeBitwiseSmoke|TestReferenceSearchPath.*Bitwise|TestReferenceSimilarReviewDefaultBoundaries)'
+make check REFERENCE=1 RUN='^(TestReferenceBitwise|TestReferenceSmokeBitwiseSmoke|TestReferenceSearchPath.*Bitwise|TestReferenceSimilarReviewDefaultBoundaries)'
+```
+
+Changed BinarySlice and SIMILAR cancellation definitions require both native and
+real pinned modes. ActualCancellation observes common `PGRegexProgram` matcher
+entry before canceling a real UPDATE; StatementTimeout asserts57014, unchanged
+sentinel and healthy same-connection reuse. Precancel/readiness is not entry proof.
+Reserve `make quickcheck` for the whole-project Docker-free gate. Root runs
+post-merge `make finalcheck` under an external1800-second deadline.
+
+Standalone smoke source is session-owned `local://posix-smoke.go`, materialized
+outside the checkout. From the worktree run `go run "$SESSION_TMP/posix-smoke.go"`.
+It uses public driver/control/error APIs only, asserts all four operators,
+first capture/greediness/absent/empty/BRE/lookbehind/newline behavior, held
+replacement diagnostics, stored definitions, atomic UPDATE and stable
+Dump/Reset/Restore with retained Rows, then prints `POSIX smoke: ok`.
+No permanent smoke scaffolding or internal observation import is introduced.
+
 
 ## Role attribute coverage and feature smoke
 

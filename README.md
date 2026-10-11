@@ -1126,9 +1126,9 @@ Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
 Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
 octets. Selected functions share query/write/CHECK/view consumers and native
 replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
-Positional TEXT and two-argument POSIX-regex substring, encoding-aware length,
+Positional TEXT substring and encoding-aware length,
 BYTEA DEFAULT functions and direct byteacat remain excluded; the three-TEXT
-SQL-SIMILAR substring overload is supported. No new cast edges or byteapos alias are added.
+SQL-SIMILAR and two-TEXT POSIX substring overloads are supported. No new cast edges or byteapos alias are added.
 Core strings provide TEXT trim/concatenation siblings through the shared dispatch.
 `length`, `char_length`/`character_length`, `octet_length` and `bit_length`
 also measure strings; `strpos(source,needle)` and SQL POSITION search them.
@@ -1696,7 +1696,7 @@ supports `pg_c_utf8`/`pg_unicode_fast` and user collations registered with the
 same truthful provider capabilities, with case-sensitive LIKE but a positioned
 0A000 ILIKE boundary for Unicode providers. Explicit C on either operand
 overrides implicit Unicode collation and permits ASCII ILIKE. Unavailable
-libc/ICU locales and public POSIX regex APIs remain excluded.
+libc/ICU locales remain excluded; POSIX matching is documented below.
 Collatable wrappers retain identity and demanded conflicts; indeterminate TEXT
 view outputs are rejected before publication, while BOOL matching views replay.
 See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
@@ -1711,14 +1711,28 @@ UTF8 code points and include newlines. BPCHAR predicate sources retain padding.
 three-TEXT ordinary/qualified `substring(s,p,e)` return the separator capture,
 the entire matching source without separators, or TEXT NULL for no match/NULL.
 Extraction's inner matcher uses database-default C collation; predicate classes
-honor the selected builtin identity. No public POSIX operators/functions or
-positional TEXT substring are added.
+honor the selected builtin identity. Adjacent regex functions and
+positional TEXT substring remain excluded.
 Hostile patterns can consume substantial time and memory. Set a context deadline;
 native execution polls cancellation and checks a 64 MiB IR/scratch/state ceiling,
 not a PostgreSQL-identical complexity threshold or universal linear-time promise.
 See [SQL regex details](docs/DIALECT.md#similar-to-and-sql-regex-substring--change-note).
 Feature smoke: `make check RUN='^TestReferenceSimilarFeatureSmoke$'`;
 add `REFERENCE=1` to exercise the same assertions against pinned PostgreSQL18.0.
+POSIX matching: `~`, `~*`, `!~`, `!~*` search anywhere, with default ARE
+syntax and case-sensitive/insensitive matching before negation. Embedded
+options/directors select ARE/ERE/BRE/quoted syntax, newline and case behavior.
+Two-TEXT `substring(source,pattern)` (also `substring(source FROM pattern)` and
+`pg_catalog.substring`) returns the first numbered capture, otherwise the whole
+first match; absent captures/no match return NULL and participating empty captures
+return empty TEXT. It uses effective argument collation, unlike the three-TEXT
+SQL wrapper. Both frontends share the checked execution-local PostgreSQL regex
+provider, including multiple captures, backreferences and variable-width
+lookaround. Use `statement_timeout` or a caller deadline for hostile patterns.
+SQL XQuery regex functions and other public regex functions are not added.
+Feature smoke: `make check RUN='^TestReferencePosixFeatureSmoke$'`;
+the pinned counterpart adds `REFERENCE=1`.
+
 
 Standalone `VALUES (1,'a'),(1,'a'),(2,NULL)` and parenthesized VALUES in FROM are
 supported queries. Optional relation/column aliases expose computed `columnN`

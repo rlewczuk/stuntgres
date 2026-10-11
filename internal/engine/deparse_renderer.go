@@ -500,6 +500,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, err
 		}
 		return binary(n.left, n.right, op, 5, parent)
+	case posixExpression:
+		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
 	case likeExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
 	case likeEscapeExpression:
@@ -527,6 +529,19 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return "similar_to_escape(" + pattern + ", " + escape + ")", nil
+	case posixSubstringExpression:
+		source, err := child(n.args[0])
+		if err != nil {
+			return "", err
+		}
+		pattern, err := child(n.args[1])
+		if err != nil {
+			return "", err
+		}
+		if n.syntax == parser.SQLFunctionSyntax {
+			return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
+		}
+		return `"substring"(` + source + ", " + pattern + ")", nil
 	case similarSubstringExpression:
 		source, err := child(n.args[0])
 		if err != nil {

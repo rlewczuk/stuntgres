@@ -577,6 +577,20 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
+	case posixExpression:
+		left, err := r.sql(ctx, view, n.left)
+		if err != nil {
+			return "", err
+		}
+		right, err := r.sql(ctx, view, n.right)
+		if err != nil {
+			return "", err
+		}
+		operator := n.operator
+		if n.namespace != "" {
+			operator = "OPERATOR(" + pgIdentifier(n.namespace) + "." + operator + ")"
+		}
+		return "(" + left + " " + operator + " " + right + ")", nil
 	case likeExpression:
 		left, err := r.sql(ctx, view, n.left)
 		if err != nil {
@@ -629,6 +643,19 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return text + ")", nil
 	case similarEscapeExpression:
 		return "", fmt.Errorf("stuntgres: standalone stored SIMILAR normalizer")
+	case posixSubstringExpression:
+		source, err := r.sql(ctx, view, n.args[0])
+		if err != nil {
+			return "", err
+		}
+		pattern, err := r.sql(ctx, view, n.args[1])
+		if err != nil {
+			return "", err
+		}
+		if n.syntax == parser.SQLFunctionSyntax {
+			return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
+		}
+		return `pg_catalog."substring"(` + source + ", " + pattern + ")", nil
 	case similarSubstringExpression:
 		source, err := r.sql(ctx, view, n.args[0])
 		if err != nil {

@@ -25,11 +25,11 @@ type similarSubstringExpression struct {
 	syntax   parser.FunctionSyntax
 }
 
-func similarExecution(c *EvalContext) *sqltype.SimilarExecution {
+func pgRegexExecution(c *EvalContext) *sqltype.PGRegexExecution {
 	if scope := c.liveScope(); scope != nil {
-		return &scope.similar
+		return &scope.pgRegex
 	}
-	return &c.similar
+	return &c.pgRegex
 }
 func (e similarExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
@@ -42,14 +42,14 @@ func (e similarExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if a.IsNull() {
-		similarExecution(c).Reset()
+		pgRegexExecution(c).Reset()
 		return sqltype.Null(e.usage.Type), nil
 	}
 	b, err := e.right.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Evaluate(c.Context, a, b, similarExecution(c))
+	return e.provider.Evaluate(c.Context, a, b, pgRegexExecution(c))
 }
 func (e similarEscapeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
@@ -60,14 +60,14 @@ func (e similarEscapeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if a.IsNull() {
-		similarExecution(c).Reset()
+		pgRegexExecution(c).Reset()
 		return sqltype.Null(e.usage.Type), nil
 	}
 	b, err := e.escape.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Evaluate(c.Context, a, b, similarExecution(c))
+	return e.provider.Evaluate(c.Context, a, b, pgRegexExecution(c))
 }
 func (e similarSubstringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
@@ -81,7 +81,7 @@ func (e similarSubstringExpression) Eval(c *EvalContext) (sqltype.Value, error) 
 		}
 		values[i] = value
 	}
-	return e.provider.Evaluate(c.Context, values, similarExecution(c))
+	return e.provider.Evaluate(c.Context, values, pgRegexExecution(c))
 }
 
 func similarTextType(d *sqltype.Descriptor) bool {

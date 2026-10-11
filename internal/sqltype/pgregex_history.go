@@ -3,24 +3,24 @@ package sqltype
 // Histories keep operand partitions in first-to-last iteration order, while
 // capture tags separately retain only the final iteration. Interning makes
 // structurally equal histories equal visited-state keys without unsafe merges.
-type similarHistory struct{ previous, length, depth int }
+type pgRegexHistory struct{ previous, length, depth int }
 
-func similarHistoryHash(previous, length int) uint64 {
+func pgRegexHistoryHash(previous, length int) uint64 {
 	h := uint64(previous) * 0x9e3779b97f4a7c15
 	h ^= uint64(length) + 0x517cc1b727220a95 + (h << 6) + (h >> 2)
 	return h ^ (h >> 32)
 }
-func (p *SimilarProgram) growSimilarHistoryTable(w *similarWork) error {
+func (p *PGRegexProgram) growPGRegexHistoryTable(w *pgRegexWork) error {
 	count := len(p.histories)
 	old := p.historyTable
 	if len(old) > 0 && count*2 < len(old) {
 		return nil
 	}
 	size := max(16, len(old)*2)
-	if size > p.budget.limit/similarIntBytes {
-		return similarRuntimeError()
+	if size > p.budget.limit/pgRegexIntBytes {
+		return pgRegexRuntimeError()
 	}
-	bytes := size * similarIntBytes
+	bytes := size * pgRegexIntBytes
 	if err := p.budget.reserve(bytes); err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (p *SimilarProgram) growSimilarHistoryTable(w *similarWork) error {
 			return err
 		}
 		h := p.histories[id]
-		slot := int(similarHistoryHash(h.previous, h.length) & uint64(size-1))
+		slot := int(pgRegexHistoryHash(h.previous, h.length) & uint64(size-1))
 		for table[slot] != 0 {
 			if err := w.step(); err != nil {
 				p.budget.used -= bytes
@@ -41,15 +41,15 @@ func (p *SimilarProgram) growSimilarHistoryTable(w *similarWork) error {
 		}
 		table[slot] = id + 1
 	}
-	p.budget.used -= cap(old) * similarIntBytes
+	p.budget.used -= cap(old) * pgRegexIntBytes
 	p.historyTable = table
 	return nil
 }
-func (p *SimilarProgram) appendSimilarHistory(w *similarWork, previous, length int) (int, error) {
-	if err := p.growSimilarHistoryTable(w); err != nil {
+func (p *PGRegexProgram) appendPGRegexHistory(w *pgRegexWork, previous, length int) (int, error) {
+	if err := p.growPGRegexHistoryTable(w); err != nil {
 		return 0, err
 	}
-	slot := int(similarHistoryHash(previous, length) & uint64(len(p.historyTable)-1))
+	slot := int(pgRegexHistoryHash(previous, length) & uint64(len(p.historyTable)-1))
 	for p.historyTable[slot] != 0 {
 		if err := w.step(); err != nil {
 			return 0, err
@@ -66,13 +66,13 @@ func (p *SimilarProgram) appendSimilarHistory(w *similarWork, previous, length i
 		depth += p.histories[previous-1].depth
 	}
 	id := len(p.histories) + 1
-	if err := similarPush(&p.budget, &p.histories, similarHistory{previous: previous, length: length, depth: depth}); err != nil {
+	if err := pgRegexPush(&p.budget, &p.histories, pgRegexHistory{previous: previous, length: length, depth: depth}); err != nil {
 		return 0, err
 	}
 	p.historyTable[slot] = id
 	return id, nil
 }
-func (p *SimilarProgram) compareSimilarHistory(w *similarWork, a, b int, pref int8) (int, error) {
+func (p *PGRegexProgram) comparePGRegexHistory(w *pgRegexWork, a, b int, pref int8) (int, error) {
 	if a == b {
 		return 0, nil
 	}
@@ -84,12 +84,12 @@ func (p *SimilarProgram) compareSimilarHistory(w *similarWork, a, b int, pref in
 		nb = p.histories[b-1].depth
 	}
 	var err error
-	p.historyLeft, err = similarGrow(&p.budget, p.historyLeft, na)
+	p.historyLeft, err = pgRegexGrow(&p.budget, p.historyLeft, na)
 	if err != nil {
 		return 0, err
 	}
 	p.historyLeft = p.historyLeft[:na]
-	p.historyRight, err = similarGrow(&p.budget, p.historyRight, nb)
+	p.historyRight, err = pgRegexGrow(&p.budget, p.historyRight, nb)
 	if err != nil {
 		return 0, err
 	}

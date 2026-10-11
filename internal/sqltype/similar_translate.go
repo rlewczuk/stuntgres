@@ -7,32 +7,10 @@ import (
 	"unicode/utf8"
 )
 
-const similarMemoryLimit = 64 << 20
-
-func similarCompileError(reason string) error {
-	return failure("2201B", "invalid regular expression: "+reason)
-}
-func similarRuntimeError() error {
-	return failure("2201B", "regular expression failed: regular expression is too complex")
-}
-
-type similarWork struct {
-	ctx   context.Context
-	ticks uint32
-}
-
-func (w *similarWork) step() error {
-	w.ticks++
-	if w.ticks&1023 == 0 {
-		return w.ctx.Err()
-	}
-	return nil
-}
-
 // TranslateSimilar implements the SQL frontend, not a public POSIX interface.
 // The caller supplies backslash for an omitted ESCAPE; empty disables escaping.
 func TranslateSimilar(ctx context.Context, pattern, escape string) (string, error) {
-	return translateSimilarBudget(ctx, pattern, escape, similarMemoryLimit)
+	return translateSimilarBudget(ctx, pattern, escape, pgRegexMemoryLimit)
 }
 
 func translateSimilarBudget(ctx context.Context, pattern, escape string, limit int) (string, error) {
@@ -62,10 +40,10 @@ func translateSimilarBudget(ctx context.Context, pattern, escape string, limit i
 func similarTranslatePass(ctx context.Context, pattern, escape string, out *strings.Builder, limit int) (int, error) {
 	size, depth, classpos, quotes := 0, 0, 0, 0
 	after := false
-	work := similarWork{ctx: ctx}
+	work := pgRegexWork{ctx: ctx}
 	emit := func(s string) error {
 		if len(s) > limit-size {
-			return similarCompileError("regular expression is too complex")
+			return pgRegexCompileError("regular expression is too complex")
 		}
 		size += len(s)
 		if out != nil {

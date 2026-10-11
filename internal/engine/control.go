@@ -1201,7 +1201,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}
 			case "substring":
-				if len(r.Args) != 3 || r.Variadic {
+				if (len(r.Args) != 2 && len(r.Args) != 3) || r.Variadic {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}
 			default:
@@ -1294,15 +1294,15 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
 			spelling := r.Name.Parts[len(r.Name.Parts)-1].Text
-			if spelling == "!~" || spelling == "~" && len(r.Args) == 2 {
-				if !r.SQLSimilar || len(r.Args) != 2 {
+			if r.SQLSimilar {
+				if (spelling != "~" && spelling != "!~") || len(r.Args) != 2 {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}
 				normalizer, ok := r.Args[1].(parser.FunctionExpr)
 				if !ok || normalizer.Syntax != parser.SimilarEscapeFunctionSyntax {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}
-			} else if r.SQLSimilar {
+			} else if posixName(spelling) && len(r.Args) != 2 && (spelling != "~" || len(r.Args) != 1) {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
 		}

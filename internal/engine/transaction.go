@@ -297,7 +297,7 @@ type StatementScope struct {
 	initialParameters     []sqltype.Usage
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
-	similar                sqltype.SimilarExecution
+	pgRegex                sqltype.PGRegexExecution
 	catalog                *catalogChanges
 	catalogAuthority       *catalogAuthority
 	projectedRoots         bool

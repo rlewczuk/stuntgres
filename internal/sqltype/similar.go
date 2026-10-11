@@ -5,54 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"unicode/utf8"
-	"unsafe"
 
 	"stuntgres/internal/sqlstate"
 )
 
-// SimilarExecution is owned by one statement execution, never a prepared plan.
-// Only the active translation and compiled pattern are retained. Programs own
-// their checked IR and reusable matcher scratch; no cache grows with row count.
-type SimilarExecution struct {
-	pattern, escape, translated string
-	translationValid            bool
-	canonical                   string
-	collation                   CollationRef
-	program                     *SimilarProgram
-	// Zero selects the normal ceiling. Genuine units inject a smaller allowance;
-	// this is not a public tuning option and survives active-cache invalidation.
-	limit int
-}
-
-func (s *SimilarExecution) Reset() { *s = SimilarExecution{limit: s.limit} }
-func (s *SimilarExecution) memoryLimit() int {
-	if s.limit == 0 {
-		return similarMemoryLimit
-	}
-	return s.limit
-}
-
-func similarCacheEqual(ctx context.Context, a, b string) (bool, error) {
-	if len(a) != len(b) {
-		return false, nil
-	}
-	if unsafe.StringData(a) == unsafe.StringData(b) {
-		return true, nil
-	}
-	for at := 0; at < len(a); at += 4096 {
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		end := min(at+4096, len(a))
-		if a[at:end] != b[at:end] {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-func (s *SimilarExecution) normalize(ctx context.Context, pattern, escape string) (string, error) {
+func (s *PGRegexExecution) normalize(ctx context.Context, pattern, escape string) (string, error) {
 	if s.translationValid && escape == s.escape {
-		same, err := similarCacheEqual(ctx, pattern, s.pattern)
+		same, err := pgRegexCacheEqual(ctx, pattern, s.pattern)
 		if err != nil {
 			s.Reset()
 			return "", err
@@ -71,35 +30,27 @@ func (s *SimilarExecution) normalize(ctx context.Context, pattern, escape string
 	s.pattern, s.escape, s.translated, s.translationValid = pattern, escape, translated, true
 	return translated, nil
 }
-func (s *SimilarExecution) match(ctx context.Context, canonical, source string, collation CollationRef) (bool, int, int, error) {
-	same := false
-	if s.program != nil && s.collation == collation {
-		var err error
-		same, err = similarCacheEqual(ctx, canonical, s.canonical)
-		if err != nil {
-			s.Reset()
-			return false, -1, -1, err
-		}
+
+// SQL SIMILAR's anchored translation selects its separator capture, or the
+// whole input when no separator exists. Its wrapper contract stays separate.
+func (s *PGRegexExecution) match(ctx context.Context, canonical, source string, collation CollationRef) (bool, int, int, error) {
+	program, err := s.resolveProgram(ctx, canonical, PGRegexOptions{}, collation)
+	if err != nil {
+		return false, -1, -1, err
 	}
-	if !same {
-		s.program, s.canonical, s.collation = nil, "", CollationRef{}
-		// Equal text in distinct backing allocations is not one owned string.
-		// Retain normalization only when the compiler counts that exact backing.
-		if len(s.translated) != len(canonical) || unsafe.StringData(s.translated) != unsafe.StringData(canonical) {
-			s.pattern, s.escape, s.translated, s.translationValid = "", "", "", false
-		}
-		program, err := compileSimilarBudget(ctx, canonical, collation, s.memoryLimit())
-		if err != nil {
-			s.Reset()
-			return false, -1, -1, err
-		}
-		s.program, s.canonical, s.collation = program, canonical, collation
-	}
-	matched, start, end, err := s.program.Match(ctx, source)
+	// Capture-free anchored extraction returns the source directly. It needs
+	// only acceptance, not the POSIX frontend's selected whole-match span.
+	result, err := program.Match(ctx, source, program.HasCapture())
 	if err != nil {
 		s.Reset()
 	}
-	return matched, start, end, err
+	if err != nil || !result.Matched {
+		return result.Matched, -1, -1, err
+	}
+	if len(result.Captures) > 0 {
+		return true, result.Captures[0].Start, result.Captures[0].End, nil
+	}
+	return true, -1, -1, nil
 }
 
 type SimilarPlan struct {
@@ -120,7 +71,7 @@ func BindSimilar(operator string, left, right, result Usage, collation Collation
 func (p SimilarPlan) Operator() string        { return p.operator }
 func (p SimilarPlan) Collation() CollationRef { return p.collation }
 func (p SimilarPlan) Conflict() bool          { return p.conflict }
-func (p SimilarPlan) Evaluate(ctx context.Context, a, b Value, state *SimilarExecution) (Value, error) {
+func (p SimilarPlan) Evaluate(ctx context.Context, a, b Value, state *PGRegexExecution) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		state.Reset()
 		return Value{}, err
@@ -136,11 +87,11 @@ func (p SimilarPlan) Evaluate(ctx context.Context, a, b Value, state *SimilarExe
 		state.Reset()
 		return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for regular expression", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
-	matched, _, _, err := state.match(ctx, b.text, a.text, p.collation)
+	result, err := state.regexMatch(ctx, b.text, a.text, PGRegexOptions{}, p.collation, false)
 	if err != nil {
 		return Value{}, err
 	}
-	return Boolean(p.result.Type, matched != (p.operator == "!~")), nil
+	return Boolean(p.result.Type, result.Matched != (p.operator == "!~")), nil
 }
 
 type SimilarEscapePlan struct {
@@ -155,7 +106,7 @@ func BindSimilarEscape(pattern, escape, result Usage) (SimilarEscapePlan, error)
 	}
 	return p, nil
 }
-func (p SimilarEscapePlan) Evaluate(ctx context.Context, pattern, escape Value, state *SimilarExecution) (Value, error) {
+func (p SimilarEscapePlan) Evaluate(ctx context.Context, pattern, escape Value, state *PGRegexExecution) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		state.Reset()
 		return Value{}, err
@@ -200,7 +151,7 @@ func BindSimilarSubstring(args [3]Usage, result Usage, wrapperContext bool) (Sim
 	return p, nil
 }
 func (p SimilarSubstringPlan) WrapperContext() bool { return p.wrapperContext }
-func (p SimilarSubstringPlan) Evaluate(ctx context.Context, args [3]Value, state *SimilarExecution) (Value, error) {
+func (p SimilarSubstringPlan) Evaluate(ctx context.Context, args [3]Value, state *PGRegexExecution) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		state.Reset()
 		return Value{}, err

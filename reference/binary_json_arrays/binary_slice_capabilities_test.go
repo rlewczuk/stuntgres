@@ -26,7 +26,7 @@ func TestReferenceBinarySliceCapabilityBoundaries(t *testing.T) {
 					{"SELECT position('cd' IN 'abcdef') AS v", "position", "INT4", int64(3)},
 					{"SELECT trim(' abc ') AS v", "btrim", "TEXT", "abc"},
 				} {
-					if backend.PG || tc.name == "btrim" || tc.name == "position" || tc.name == "overlay" {
+					if backend.PG || tc.q == "SELECT substring('abcdef','bcd') AS v" || tc.name == "btrim" || tc.name == "position" || tc.name == "overlay" {
 						step := fixture.Select(tc.q, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}})
 						run(t, p.Ctx, backend.DB, backend.Recorder, step)
 						run(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(step))
@@ -39,8 +39,8 @@ func TestReferenceBinarySliceCapabilityBoundaries(t *testing.T) {
 						run(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(step))
 					}
 				}
-				// Only the three-TEXT SQL-regex overload crosses this boundary;
-				// positional TEXT and the two-argument POSIX overload stay above.
+				// Both regex substring overloads are supported;
+				// positional TEXT remains a native capability boundary.
 				for _, q := range []string{`SELECT substring('abc','%','#') AS v`, `SELECT substring('abc' FROM '%' FOR '#') AS v`, `SELECT substring('abc' SIMILAR '%' ESCAPE '#') AS v`} {
 					s := fixture.Select(q, []string{"v"}, []string{"TEXT"}, [][]any{{"abc"}})
 					run(t, p.Ctx, backend.DB, backend.Recorder, s)

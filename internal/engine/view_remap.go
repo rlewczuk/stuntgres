@@ -156,11 +156,19 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case likeEscapeExpression:
 		n.pattern, n.escape = child(n.pattern), child(n.escape)
 		next = n
+	case posixExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		next = n
 	case similarExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
 	case similarEscapeExpression:
 		n.pattern, n.escape = child(n.pattern), child(n.escape)
+		next = n
+	case posixSubstringExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
 		next = n
 	case similarSubstringExpression:
 		for i := range n.args {

@@ -277,6 +277,11 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				return err
 			}
 			return child(r.Args[1], n.right)
+		case posixExpression:
+			if err := child(r.Args[0], n.left); err != nil {
+				return err
+			}
+			return child(r.Args[1], n.right)
 		case similarExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err
@@ -356,6 +361,13 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				return child(r.Args[1], n.escape)
 			}
 			return nil
+		}
+		if n, ok := bound.(posixSubstringExpression); ok {
+			if b.viewPosixSubstrings == nil {
+				b.viewPosixSubstrings = make(map[viewLiteralPath]bool)
+			}
+			b.viewPosixSubstrings[path] = true
+			return children(r.Args, n.args[:])
 		}
 		if n, ok := bound.(similarSubstringExpression); ok {
 			if b.viewSimilarSubstrings == nil {

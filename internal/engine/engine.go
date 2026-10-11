@@ -69,6 +69,7 @@ type binding struct {
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewSimilarSubstrings map[viewLiteralPath]bool
+	viewPosixSubstrings   map[viewLiteralPath]bool
 	viewCollations        map[viewLiteralPath]uint32
 	viewColumns           map[viewLiteralPath]viewColumn
 	viewStars             map[viewLiteralPath][]viewColumn
@@ -766,6 +767,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
+	b.viewPosixSubstrings = binder.viewPosixSubstrings
 	b.viewCollations = binder.viewCollations
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
 	b.viewNamespaces = binder.viewNamespaces

@@ -117,25 +117,40 @@ func TestReferenceSimilarReviewDefaultControls(t *testing.T) {
 
 func TestReferenceSimilarReviewDefaultBoundaries(t *testing.T) {
 	p := fixture.NewScenario(t)
-	// These are retained native capability boundaries, not PostgreSQL exclusions.
 	for _, b := range p.Backends() {
-		if b.PG {
-			continue
-		}
-		for _, expression := range []string{
-			`substring('abc',1,2)`,
-			`substring('abc','a')`,
-			`substring('abc'::bytea,1,2)`,
-			`length('abc'::bytea)`,
-		} {
+		t.Run(b.Name, func(t *testing.T) {
+			// The authorized two-TEXT POSIX witness now crosses this boundary.
 			for _, prepared := range []bool{false, true} {
-				q := `CREATE TABLE default_boundary(v TEXT DEFAULT ` + expression + `)`
-				function := expression[:strings.Index(expression, "(")]
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: strconv.Itoa(strings.Index(q, function) + 1)})
-				s.Prepared = prepared
-				s.ErrorStage = "execute"
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+				create := fixture.Exec(`CREATE TABLE default_posix_boundary(v TEXT DEFAULT substring('abc','a'))`, 0)
+				create.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, create)
+				insert := fixture.Exec(`INSERT INTO default_posix_boundary DEFAULT VALUES`, 1)
+				insert.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, insert)
+				want := fixture.Select(`SELECT v FROM default_posix_boundary`, []string{"v"}, []string{"TEXT"}, [][]any{{"a"}})
+				want.Prepared = prepared
+				want.CheckMetadata = similarReferenceDeclaredMetadata(b.PG)
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, want)
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`DROP TABLE default_posix_boundary`, 0))
 			}
-		}
+			// The remaining exclusions are native boundaries, not PG exclusions.
+			if b.PG {
+				return
+			}
+			for _, expression := range []string{
+				`substring('abc',1,2)`,
+				`substring('abc'::bytea,1,2)`,
+				`length('abc'::bytea)`,
+			} {
+				for _, prepared := range []bool{false, true} {
+					q := `CREATE TABLE default_boundary(v TEXT DEFAULT ` + expression + `)`
+					function := expression[:strings.Index(expression, "(")]
+					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: strconv.Itoa(strings.Index(q, function) + 1)})
+					s.Prepared = prepared
+					s.ErrorStage = "execute"
+					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+				}
+			}
+		})
 	}
 }

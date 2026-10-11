@@ -3,21 +3,21 @@ package sqltype
 // Lowering uses heap-accounted explicit continuations; even hostile nesting
 // never consumes the Go call stack. Counted repetitions are expanded only
 // after each instruction/continuation allocation has passed accounting.
-type similarLowerFrame struct {
+type pgRegexLowerFrame struct {
 	node, next, stage, result, count, split int
 	wrapped, plain                          bool
 }
 
-func (s *similarParser) instruction(i similarInst) (int, error) {
+func (s *pgRegexParser) instruction(i pgRegexInst) (int, error) {
 	at := len(s.program.code)
-	err := similarPush(s.budget, &s.program.code, i)
+	err := pgRegexPush(s.budget, &s.program.code, i)
 	return at, err
 }
-func (s *similarParser) lower(root int) error {
+func (s *pgRegexParser) lower(root int) error {
 	p := s.program
 	if p.capture {
 		var walk []int
-		if err := similarPush(s.budget, &walk, root); err != nil {
+		if err := pgRegexPush(s.budget, &walk, root); err != nil {
 			return err
 		}
 		for len(walk) > 0 {
@@ -27,7 +27,7 @@ func (s *similarParser) lower(root int) error {
 			at := walk[len(walk)-1]
 			walk = walk[:len(walk)-1]
 			n := &s.nodes[at]
-			if (n.pref != 0 && (n.op == similarGroup || n.op == similarRepeat)) || n.capture {
+			if (n.pref != 0 && (n.op == pgRegexGroup || n.op == pgRegexRepeat)) || n.capture {
 				// A participating empty subexpression outranks nonparticipation even
 				// when its fixed atom has no intrinsic greediness.
 				pref := n.pref
@@ -35,24 +35,24 @@ func (s *similarParser) lower(root int) error {
 					pref = 1
 				}
 				n.rank = len(p.preferences)
-				if err := similarPush(s.budget, &p.preferences, pref); err != nil {
+				if err := pgRegexPush(s.budget, &p.preferences, pref); err != nil {
 					return err
 				}
 			}
-			if n.op == similarRepeat && !n.plain && (n.hi < 0 || n.hi > n.lo) {
+			if n.op == pgRegexRepeat && !n.plain && (n.hi < 0 || n.hi > n.lo) {
 				n.progress = p.progress
 				p.progress++
 			}
 			if n.plain {
 				continue
 			}
-			if n.op == similarConcat || n.op == similarAlt {
-				if err := similarPush(s.budget, &walk, n.right); err != nil {
+			if n.op == pgRegexConcat || n.op == pgRegexAlt {
+				if err := pgRegexPush(s.budget, &walk, n.right); err != nil {
 					return err
 				}
 			}
-			if n.op == similarConcat || n.op == similarAlt || n.op == similarRepeat || n.op == similarGroup {
-				if err := similarPush(s.budget, &walk, n.left); err != nil {
+			if n.op == pgRegexConcat || n.op == pgRegexAlt || n.op == pgRegexRepeat || n.op == pgRegexGroup {
+				if err := pgRegexPush(s.budget, &walk, n.left); err != nil {
 					return err
 				}
 			}
@@ -69,10 +69,10 @@ func (s *similarParser) lower(root int) error {
 				n.rankHi = n.rank + 1
 			}
 			children := [2]int{-1, -1}
-			if !n.plain && (n.op == similarConcat || n.op == similarAlt || n.op == similarRepeat || n.op == similarGroup) {
+			if !n.plain && (n.op == pgRegexConcat || n.op == pgRegexAlt || n.op == pgRegexRepeat || n.op == pgRegexGroup) {
 				children[0] = n.left
 			}
-			if n.op == similarConcat || n.op == similarAlt {
+			if n.op == pgRegexConcat || n.op == pgRegexAlt {
 				children[1] = n.right
 			}
 			for _, child := range children {
@@ -89,17 +89,17 @@ func (s *similarParser) lower(root int) error {
 			}
 		}
 	}
-	accept, err := s.instruction(similarInst{op: similarAccept})
+	accept, err := s.instruction(pgRegexInst{op: pgRegexAccept})
 	if err != nil {
 		return err
 	}
-	var frames []similarLowerFrame
-	if err := similarPush(s.budget, &frames, similarLowerFrame{node: root, next: accept}); err != nil {
+	var frames []pgRegexLowerFrame
+	if err := pgRegexPush(s.budget, &frames, pgRegexLowerFrame{node: root, next: accept}); err != nil {
 		return err
 	}
 	result := accept
 	push := func(node, next int, plain bool) error {
-		return similarPush(s.budget, &frames, similarLowerFrame{node: node, next: next, plain: plain})
+		return pgRegexPush(s.budget, &frames, pgRegexLowerFrame{node: node, next: next, plain: plain})
 	}
 	for len(frames) > 0 {
 		if err := s.work.step(); err != nil {
@@ -112,13 +112,13 @@ func (s *similarParser) lower(root int) error {
 		if !f.wrapped && !f.plain && p.capture && (n.rank >= 0 || n.capture) {
 			next := f.next
 			if n.rank >= 0 {
-				next, err = s.instruction(similarInst{op: similarTag, x: next, value: rune(3 + 2*n.rank)})
+				next, err = s.instruction(pgRegexInst{op: pgRegexTag, x: next, value: rune(2*p.captures + 1 + 2*n.rank)})
 				if err != nil {
 					return err
 				}
 			}
 			if n.capture {
-				next, err = s.instruction(similarInst{op: similarTag, x: next, value: 1})
+				next, err = s.instruction(pgRegexInst{op: pgRegexTag, x: next, value: rune(2*(n.group-1) + 1)})
 				if err != nil {
 					return err
 				}
@@ -129,7 +129,7 @@ func (s *similarParser) lower(root int) error {
 		}
 		done := false
 		switch n.op {
-		case similarConcat:
+		case pgRegexConcat:
 			switch f.stage {
 			case 0:
 				frames[at].stage = 1
@@ -140,7 +140,7 @@ func (s *similarParser) lower(root int) error {
 			default:
 				done = true
 			}
-		case similarAlt:
+		case pgRegexAlt:
 			switch f.stage {
 			case 0:
 				frames[at].stage = 1
@@ -150,29 +150,41 @@ func (s *similarParser) lower(root int) error {
 				frames[at].stage = 2
 				err = push(n.left, f.next, plainChild)
 			default:
-				result, err = s.instruction(similarInst{op: similarSplit, x: result, y: f.result})
+				result, err = s.instruction(pgRegexInst{op: pgRegexSplit, x: result, y: f.result})
 				done = true
 			}
-		case similarGroup:
+		case pgRegexLook:
+			if f.stage == 0 {
+				frames[at].stage = 1
+				end, e := s.instruction(pgRegexInst{op: pgRegexAccept})
+				err = e
+				if err == nil {
+					err = push(n.left, end, true)
+				}
+			} else {
+				result, err = s.instruction(pgRegexInst{op: pgRegexLook, x: f.next, y: result, value: n.value})
+				done = true
+			}
+		case pgRegexGroup:
 			if f.stage == 0 {
 				frames[at].stage = 1
 				err = push(n.left, f.next, plainChild)
 			} else {
 				done = true
 			}
-		case similarRepeat:
+		case pgRegexRepeat:
 			switch f.stage {
 			case 0:
 				frames[at].result = f.next
 				frames[at].count = 0
 				if n.hi < 0 {
-					split, e := s.instruction(similarInst{op: similarSplit, y: f.next})
+					split, e := s.instruction(pgRegexInst{op: pgRegexSplit, y: f.next})
 					err = e
 					frames[at].split = split
 					frames[at].stage = 1
 					continuation := split
 					if err == nil && !f.plain && n.progress >= 0 {
-						continuation, err = s.instruction(similarInst{op: similarProgressEnd, x: split, y: f.next, value: rune(n.progress), lo: n.rank, hi: n.lo})
+						continuation, err = s.instruction(pgRegexInst{op: pgRegexProgressEnd, x: split, y: f.next, value: rune(n.progress), lo: n.rank, hi: n.lo})
 					}
 					if err == nil {
 						err = push(n.left, continuation, plainChild)
@@ -182,7 +194,7 @@ func (s *similarParser) lower(root int) error {
 				}
 			case 1:
 				if !f.plain && n.progress >= 0 {
-					result, err = s.instruction(similarInst{op: similarProgressBegin, x: result, value: rune(n.progress)})
+					result, err = s.instruction(pgRegexInst{op: pgRegexProgressBegin, x: result, value: rune(n.progress)})
 				}
 				p.code[f.split].x = result
 				frames[at].result = f.split
@@ -196,7 +208,7 @@ func (s *similarParser) lower(root int) error {
 					frames[at].stage = 3
 					continuation := f.result
 					if !f.plain && n.progress >= 0 {
-						continuation, err = s.instruction(similarInst{op: similarProgressEnd, x: continuation, y: f.next, value: rune(n.progress), lo: n.rank, hi: n.lo})
+						continuation, err = s.instruction(pgRegexInst{op: pgRegexProgressEnd, x: continuation, y: f.next, value: rune(n.progress), lo: n.rank, hi: n.lo})
 					}
 					if err == nil {
 						err = push(n.left, continuation, plainChild)
@@ -207,12 +219,12 @@ func (s *similarParser) lower(root int) error {
 				}
 			case 3:
 				if !f.plain && n.progress >= 0 {
-					result, err = s.instruction(similarInst{op: similarProgressBegin, x: result, value: rune(n.progress)})
+					result, err = s.instruction(pgRegexInst{op: pgRegexProgressBegin, x: result, value: rune(n.progress)})
 					if err != nil {
 						return err
 					}
 				}
-				split, e := s.instruction(similarInst{op: similarSplit, x: result, y: f.result})
+				split, e := s.instruction(pgRegexInst{op: pgRegexSplit, x: result, y: f.result})
 				err = e
 				frames[at].result = split
 				frames[at].count++
@@ -230,11 +242,11 @@ func (s *similarParser) lower(root int) error {
 				frames[at].count++
 				frames[at].stage = 4
 			}
-		case similarEmpty:
+		case pgRegexEmpty:
 			result = f.next
 			done = true
 		default:
-			result, err = s.instruction(similarInst{op: n.op, x: f.next, value: n.value, lo: n.lo, hi: n.hi})
+			result, err = s.instruction(pgRegexInst{op: n.op, x: f.next, value: n.value, lo: n.lo, hi: n.hi})
 			done = true
 		}
 		if err != nil {
@@ -243,23 +255,19 @@ func (s *similarParser) lower(root int) error {
 		if done {
 			if !f.plain && p.capture {
 				if n.capture {
-					result, err = s.instruction(similarInst{op: similarTag, x: result, value: 0})
+					result, err = s.instruction(pgRegexInst{op: pgRegexTag, x: result, value: rune(2 * (n.group - 1))})
 					if err != nil {
 						return err
 					}
 				}
 				if n.rank >= 0 {
-					result, err = s.instruction(similarInst{op: similarTag, x: result, value: rune(2 + 2*n.rank)})
+					result, err = s.instruction(pgRegexInst{op: pgRegexTag, x: result, value: rune(2*p.captures + 2*n.rank)})
 					if err != nil {
 						return err
 					}
 				}
-				if n.op == similarGroup && (n.rankLo >= 0 || n.captureBelow) {
-					capture := rune(0)
-					if n.captureBelow {
-						capture = 1
-					}
-					result, err = s.instruction(similarInst{op: similarReset, x: result, value: capture, lo: n.rankLo, hi: n.rankHi})
+				if n.op == pgRegexGroup && (n.rankLo >= 0 || n.captureBelow) {
+					result, err = s.instruction(pgRegexInst{op: pgRegexReset, x: result, captureLo: n.captureLo, captureHi: n.captureHi, lo: n.rankLo, hi: n.rankHi})
 					if err != nil {
 						return err
 					}

@@ -152,10 +152,14 @@ func generationImmutable(node BoundExpr) bool {
 		return both(n.left, n.right)
 	case likeEscapeExpression:
 		return both(n.pattern, n.escape)
+	case posixExpression:
+		return both(n.left, n.right)
 	case similarExpression:
 		return both(n.left, n.right)
 	case similarEscapeExpression:
 		return both(n.pattern, n.escape)
+	case posixSubstringExpression:
+		return args(n.args[:])
 	case similarSubstringExpression:
 		return args(n.args[:])
 	case conditionalExpression:
@@ -284,10 +288,14 @@ func generationHasTableOID(node BoundExpr) bool {
 		return both(n.left, n.right)
 	case likeEscapeExpression:
 		return both(n.pattern, n.escape)
+	case posixExpression:
+		return both(n.left, n.right)
 	case similarExpression:
 		return both(n.left, n.right)
 	case similarEscapeExpression:
 		return both(n.pattern, n.escape)
+	case posixSubstringExpression:
+		return args(n.args[:])
 	case similarSubstringExpression:
 		return args(n.args[:])
 	case conditionalExpression:
@@ -522,10 +530,14 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return pair(n.left, n.right)
 	case likeEscapeExpression:
 		return pair(n.pattern, n.escape)
+	case posixExpression:
+		return pair(n.left, n.right)
 	case similarExpression:
 		return pair(n.left, n.right)
 	case similarEscapeExpression:
 		return pair(n.pattern, n.escape)
+	case posixSubstringExpression:
+		return args(n.args[:])
 	case similarSubstringExpression:
 		return args(n.args[:])
 	case conditionalExpression:

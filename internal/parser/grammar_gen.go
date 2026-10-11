@@ -12965,7 +12965,7 @@ sqldefault:
 	case 988:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[2].tok.text != "||" {
+			if sqlDollar[2].tok.text != "||" && sqlDollar[2].tok.text != "~" && sqlDollar[2].tok.text != "~*" && sqlDollar[2].tok.text != "!~" && sqlDollar[2].tok.text != "!~*" {
 				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}
@@ -12974,7 +12974,7 @@ sqldefault:
 	case 989:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[2].tok.text != "||" {
+			if sqlDollar[2].tok.text != "||" && sqlDollar[2].tok.text != "~" && sqlDollar[2].tok.text != "~*" && sqlDollar[2].tok.text != "!~" && sqlDollar[2].tok.text != "!~*" {
 				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}

@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-func similarTestProgram(t *testing.T, pattern, escape string, collation uint32) *SimilarProgram {
+func similarTestProgram(t *testing.T, pattern, escape string, collation uint32) *PGRegexProgram {
 	t.Helper()
 	canonical, err := TranslateSimilar(context.Background(), pattern, escape)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := CompileSimilar(context.Background(), canonical, CollationRef{ID: collation})
+	p, err := CompilePGRegex(context.Background(), canonical, PGRegexOptions{}, CollationRef{ID: collation})
 	if err != nil {
 		t.Fatalf("compile %q (%q): %v", pattern, canonical, err)
 	}
@@ -42,7 +42,7 @@ func TestSimilarMatchRegularGrammar(t *testing.T) {
 		{"b", `[a-c]`, true}, {"a", `[[.a.]]`, true}, {"a", `[[=a=]]`, true}, {"\t", `[[.tab.]]`, true}, {"%_", `[%][_]`, true},
 	} {
 		p := similarTestProgram(t, tc.pattern, "\\", 950)
-		got, start, end, err := p.Match(context.Background(), tc.source)
+		got, start, end, err := similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || got != tc.want || start != -1 || end != -1 {
 			t.Fatalf("%q / %q: %v %d %d %v want %v", tc.source, tc.pattern, got, start, end, err, tc.want)
 		}
@@ -84,7 +84,7 @@ func TestSimilarMatchCapturePreferences(t *testing.T) {
 		{"éé", `#"é#"#1`, "é", true},
 	} {
 		p := similarTestProgram(t, tc.pattern, "#", 950)
-		yes, start, end, err := p.Match(context.Background(), tc.source)
+		yes, start, end, err := similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || yes != tc.want {
 			t.Fatalf("%q / %q: %v %d %d %v", tc.source, tc.pattern, yes, start, end, err)
 		}
@@ -92,10 +92,10 @@ func TestSimilarMatchCapturePreferences(t *testing.T) {
 			t.Fatalf("%q / %q capture %d:%d want %q", tc.source, tc.pattern, start, end, tc.piece)
 		}
 		// Reuse must not retain winning captures or input from an earlier call.
-		if _, _, _, err = p.Match(context.Background(), "impossible"); err != nil {
+		if _, _, _, err = similarTestMatch(p, context.Background(), "impossible"); err != nil {
 			t.Fatal(err)
 		}
-		yes, start, end, err = p.Match(context.Background(), tc.source)
+		yes, start, end, err = similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || yes != tc.want || yes && tc.source[start:end] != tc.piece {
 			t.Fatal(tc, yes, start, end, err)
 		}
@@ -115,7 +115,7 @@ func TestSimilarCompilerDiagnostics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = CompileSimilar(context.Background(), canonical, CollationRef{ID: 950})
+		_, err = CompilePGRegex(context.Background(), canonical, PGRegexOptions{}, CollationRef{ID: 950})
 		var state *sqlstate.Error
 		if !errors.As(err, &state) || state.Code != "2201B" || state.Message != "invalid regular expression: "+tc.reason {
 			t.Fatal(tc, err)
@@ -125,7 +125,7 @@ func TestSimilarCompilerDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = CompileSimilar(context.Background(), canonical, CollationRef{ID: 950}); err == nil {
+	if _, err = CompilePGRegex(context.Background(), canonical, PGRegexOptions{}, CollationRef{ID: 950}); err == nil {
 		t.Fatal("open capture backreference accepted")
 	}
 }
@@ -134,43 +134,43 @@ func TestSimilarBudgetsAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = compileSimilarBudget(context.Background(), canonical, CollationRef{ID: 950}, 1)
+	_, err = compilePGRegexBudget(context.Background(), canonical, PGRegexOptions{}, CollationRef{ID: 950}, 1, false)
 	var state *sqlstate.Error
 	if !errors.As(err, &state) || state.Message != "invalid regular expression: regular expression is too complex" {
 		t.Fatal(err)
 	}
 	p := similarTestProgram(t, "%", "\\", 950)
 	p.budget.limit = p.budget.used + 1
-	_, _, _, err = p.Match(context.Background(), "a")
+	_, _, _, err = similarTestMatch(p, context.Background(), "a")
 	if !errors.As(err, &state) || state.Message != "regular expression failed: regular expression is too complex" {
 		t.Fatal(err)
 	}
 	p = similarTestProgram(t, `#"%#"`, "#", 950)
 	p.budget.limit = p.budget.used + 1
-	if _, _, _, err = p.Match(context.Background(), "a"); !errors.As(err, &state) || state.Message != "regular expression failed: regular expression is too complex" {
+	if _, _, _, err = similarTestMatch(p, context.Background(), "a"); !errors.As(err, &state) || state.Message != "regular expression failed: regular expression is too complex" {
 		t.Fatal(err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = CompileSimilar(canceled, canonical, CollationRef{ID: 950}); !errors.Is(err, context.Canceled) {
+	if _, err = CompilePGRegex(canceled, canonical, PGRegexOptions{}, CollationRef{ID: 950}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	ctx := &likeCountingContext{Context: context.Background()}
 	canonical = "^(?:" + strings.Repeat("a", 20000) + ")$"
-	if _, err = CompileSimilar(ctx, canonical, CollationRef{ID: 950}); !errors.Is(err, context.Canceled) {
+	if _, err = CompilePGRegex(ctx, canonical, PGRegexOptions{}, CollationRef{ID: 950}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err, ctx.calls)
 	}
 	for _, pattern := range []string{"%", `#"%#"`, `#"a+#"#1`} {
 		p = similarTestProgram(t, pattern, "#", 950)
 		ctx = &likeCountingContext{Context: context.Background()}
-		if _, _, _, err = p.Match(ctx, strings.Repeat("a", 20000)); !errors.Is(err, context.Canceled) {
+		if _, _, _, err = similarTestMatch(p, ctx, strings.Repeat("a", 20000)); !errors.Is(err, context.Canceled) {
 			t.Fatal(pattern, err, ctx.calls)
 		}
 	}
 	// Deep syntax is an iterative compile, not recursive parser/lowering work.
 	pattern := strings.Repeat("(", 5000) + "a" + strings.Repeat(")", 5000)
 	p = similarTestProgram(t, pattern, "\\", 950)
-	yes, _, _, err := p.Match(context.Background(), "a")
+	yes, _, _, err := similarTestMatch(p, context.Background(), "a")
 	if err != nil || !yes {
 		t.Fatal(yes, err)
 	}
@@ -179,12 +179,12 @@ func TestSimilarBudgetsAndCancellation(t *testing.T) {
 func TestSimilarRegularScratchReuse(t *testing.T) {
 	p := similarTestProgram(t, "(a|aa)*b", "\\", 950)
 	source := strings.Repeat("a", 1000) + "b"
-	yes, _, _, err := p.Match(context.Background(), source)
+	yes, _, _, err := similarTestMatch(p, context.Background(), source)
 	if err != nil || !yes {
 		t.Fatal(yes, err)
 	}
 	allocated := testing.AllocsPerRun(10, func() {
-		yes, _, _, err := p.Match(context.Background(), source)
+		yes, _, _, err := similarTestMatch(p, context.Background(), source)
 		if err != nil || !yes {
 			t.Fatal(yes, err)
 		}
@@ -206,7 +206,7 @@ func TestSimilarNonparticipatingCapture(t *testing.T) {
 		if !p.HasCapture() {
 			t.Fatal("lost introduced capture", tc.pattern)
 		}
-		yes, start, end, err := p.Match(context.Background(), tc.source)
+		yes, start, end, err := similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || !yes || start != -1 || end != -1 {
 			t.Fatal(tc, yes, start, end, err)
 		}
@@ -215,7 +215,7 @@ func TestSimilarNonparticipatingCapture(t *testing.T) {
 	if p.HasCapture() {
 		t.Fatal("invented capture")
 	}
-	yes, start, end, err := p.Match(context.Background(), "d")
+	yes, start, end, err := similarTestMatch(p, context.Background(), "d")
 	if err != nil || !yes || start != -1 || end != -1 {
 		t.Fatal(yes, start, end, err)
 	}
@@ -237,7 +237,7 @@ func TestSimilarRepeatedCaptureReleasePreferences(t *testing.T) {
 		{`((#"a%#")){2}?`, "aaa", "aa", false},
 	} {
 		p := similarTestProgram(t, tc.pattern, "#", 950)
-		yes, start, end, err := p.Match(context.Background(), tc.source)
+		yes, start, end, err := similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || !yes {
 			t.Fatal(tc, yes, start, end, err)
 		}
@@ -258,7 +258,7 @@ func TestSimilarEscapedClassSetNegation(t *testing.T) {
 	} {
 		p := similarTestProgram(t, tc.pattern, "\\", 950)
 		for _, i := range p.code {
-			if i.op == similarClass && i.value != 0 {
+			if i.op == pgRegexClass && i.value != 0 {
 				t.Fatal("escaped class incorrectly negates whole set", tc, i)
 			}
 		}
@@ -266,7 +266,7 @@ func TestSimilarEscapedClassSetNegation(t *testing.T) {
 			source string
 			want   bool
 		}{{tc.positive, true}, {tc.negative, false}} {
-			yes, _, _, err := p.Match(context.Background(), sample.source)
+			yes, _, _, err := similarTestMatch(p, context.Background(), sample.source)
 			if err != nil || yes != sample.want {
 				t.Fatal(tc, sample, yes, err)
 			}
@@ -287,7 +287,7 @@ func TestSimilarNullableIterationPreferences(t *testing.T) {
 		{`((#"a+#"#1))+`, "aaaa", "a", false},
 	} {
 		p := similarTestProgram(t, tc.pattern, "#", 950)
-		yes, start, end, err := p.Match(context.Background(), tc.source)
+		yes, start, end, err := similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || !yes {
 			t.Fatal(tc, yes, start, end, err)
 		}

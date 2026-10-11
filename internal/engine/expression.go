@@ -52,7 +52,7 @@ type EvalContext struct {
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
-	similar        sqltype.SimilarExecution
+	pgRegex        sqltype.PGRegexExecution
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -379,7 +379,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.pattern, e.escape = pattern, escape
 		p := e.Properties()
 		if randomLiteralNull(pattern) || randomLiteralNull(escape) {
-			similarExecution(c).Reset()
+			pgRegexExecution(c).Reset()
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
@@ -387,6 +387,26 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		return e, pc || ec, nil
+	case posixExpression:
+		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		right, rc, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.left, e.right = left, right
+		if randomLiteralNull(left) || randomLiteralNull(right) {
+			pgRegexExecution(c).Reset()
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, lc || rc, nil
 	case similarExpression:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -406,6 +426,28 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		return e, lc || rc, nil
+	case posixSubstringExpression:
+		changed := false
+		for i, arg := range e.args {
+			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			e.args[i] = next
+			changed = changed || did
+		}
+		for _, arg := range e.args {
+			if randomLiteralNull(arg) {
+				pgRegexExecution(c).Reset()
+				return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			}
+		}
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, changed, nil
 	case similarSubstringExpression:
 		changed := false
 		for i, arg := range e.args {
@@ -1150,6 +1192,7 @@ type expressionBinder struct {
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewSimilarSubstrings map[viewLiteralPath]bool
+	viewPosixSubstrings   map[viewLiteralPath]bool
 	viewColumns           map[viewLiteralPath]viewColumn
 	viewStars             map[viewLiteralPath][]viewColumn
 	viewJoinCount         int
@@ -1826,6 +1869,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			node, err = b.bindStringPrefix(r)
 		} else if len(r.Name.Parts) > 0 && likeName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 			node, err = b.bindLike(r)
+		} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && posixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+			node, err = b.bindPosix(r)
 		} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 			node, err = b.bindBitwise(r)
 		} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {

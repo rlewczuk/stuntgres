@@ -23,7 +23,7 @@ func TestSimilarClassCollationPolicy(t *testing.T) {
 			want bool
 		}{{950, tc.c}, {951, tc.c}, {100, tc.c}, {811, tc.compat}, {6411, tc.full}} {
 			p := similarTestProgram(t, "[[:"+tc.class+":]]", "\\", mode.id)
-			yes, _, _, err := p.Match(context.Background(), tc.source)
+			yes, _, _, err := similarTestMatch(p, context.Background(), tc.source)
 			if err != nil || yes != mode.want {
 				t.Fatal(tc, mode, yes, err)
 			}
@@ -31,9 +31,9 @@ func TestSimilarClassCollationPolicy(t *testing.T) {
 	}
 }
 func TestSimilarClassNamedElements(t *testing.T) {
-	for _, e := range similarElementNames {
+	for _, e := range pgRegexElementNames {
 		p := similarTestProgram(t, "[[."+e.name+".]]", "\\", 950)
-		yes, _, _, err := p.Match(context.Background(), string(e.value))
+		yes, _, _, err := similarTestMatch(p, context.Background(), string(e.value))
 		if err != nil || !yes {
 			t.Fatal(e, yes, err)
 		}
@@ -46,7 +46,7 @@ func TestSimilarClassNamedElements(t *testing.T) {
 		{`[\u0061-\u0063]`, "b", true}, {`[[.zero.]-[.nine.]]`, "5", true},
 	} {
 		p := similarTestProgram(t, tc.pattern, "\\", 950)
-		yes, _, _, err := p.Match(context.Background(), tc.source)
+		yes, _, _, err := similarTestMatch(p, context.Background(), tc.source)
 		if err != nil || yes != tc.want {
 			t.Fatal(tc, yes, err)
 		}

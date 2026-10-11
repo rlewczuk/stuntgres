@@ -64,7 +64,7 @@ func TestReferenceSimilarActualCancellation(t *testing.T) {
 						}
 						// Observe the actual compiled SQL-regex matcher, not unrelated coercion
 						// or another sqltype provider before admitting cancellation.
-						likeReferenceCancelEntered(t, "sqltype.(*SimilarProgram)", operation)
+						likeReferenceCancelEntered(t, "sqltype.(*PGRegexProgram)", operation)
 					}
 					var sentinel int
 					if err := conn.QueryRowContext(p.Ctx, `SELECT sentinel FROM t`).Scan(&sentinel); err != nil || sentinel != 7 {

@@ -188,7 +188,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 	switch n := node.(type) {
 	case transactionTimeExpression:
 		return validateTransactionTime(n) == nil
-	case similarExpression, similarEscapeExpression, similarSubstringExpression:
+	case posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

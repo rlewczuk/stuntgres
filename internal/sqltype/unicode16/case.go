@@ -65,6 +65,62 @@ func caseRecord(r rune) *caseEntry {
 	return nil
 }
 
+// SimpleCase returns one scalar using the pinned PostgreSQL Unicode tables.
+// Regex case handling never expands a character or applies contextual casing.
+func SimpleCase(r rune, operation CaseOperation, mode CaseMode) rune {
+	if mode == ASCII {
+		if operation == Lower && r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		if operation == Upper && r >= 'a' && r <= 'z' {
+			return r - ('a' - 'A')
+		}
+		return r
+	}
+	if entry := caseRecord(r); entry != nil && operation >= Lower && operation <= Fold {
+		return entry.simple[operation-1]
+	}
+	return r
+}
+
+// WalkSimpleCaseRange visits the simple lower/upper mappings of original range
+// members with case records. It does not visit mappings of newly added members,
+// so callers can construct a nontransitive closure while retaining the original
+// interval. The visitor owns checked storage and primitive cancellation polls.
+func WalkSimpleCaseRange(lo, hi rune, mode CaseMode, visit func(lower, upper rune) error) error {
+	if mode == ASCII {
+		for c := rune('A'); c <= 'Z'; c++ {
+			if c >= lo && c <= hi {
+				if err := visit(c+32, c); err != nil {
+					return err
+				}
+			}
+			if c+32 >= lo && c+32 <= hi {
+				if err := visit(c+32, c); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	left, right := 0, len(caseEntries)
+	for left < right {
+		mid := left + (right-left)/2
+		if caseEntries[mid].code < lo {
+			left = mid + 1
+		} else {
+			right = mid
+		}
+	}
+	for at := left; at < len(caseEntries) && caseEntries[at].code <= hi; at++ {
+		e := &caseEntries[at]
+		if err := visit(e.simple[0], e.simple[1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type caseScan struct {
 	ctx  context.Context
 	work uint32
