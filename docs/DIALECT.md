@@ -285,6 +285,26 @@ and its body before duplicate-name42P05 lookup; a failed duplicate preserves the
 old callable definition. Diagnostics retain absolute full-source character
 positions, not positions rebased to a reparsed body.
 
+Prepared bodies retain analyzed object identities until referenced definition,
+effective-path, namespace or DISCARD invalidation. An earlier same-name table
+created in an existing path schema alone does not redirect a held body; an
+equivalent resolved path despite different raw text also need not invalidate.
+Original source is reanalyzed with fixed formal types and result count/labels/
+type identity/typmod/collation. Compatible nullable/default/origin metadata stays
+fresh. Full invalidation refreshes genuine temporal scalar/array and specialized
+sequence/regtype captures only after successful analysis/signature/provenance
+checks; rejected attempts remain repairable. Native logical enum/domain/composite
+compounds and their arrays retain existing immutable identity/lifetime semantics,
+including embedded temporal fields, rather than re-inputting original labels.
+Statement-boundary retention does not bypass native admission conflicts: a new
+shadow that changes original-name resolution during a lock wait produces existing
+ErrCatalogReplaced on direct/new-prepare/held routes, without retarget/replay.
+SQL schema GRANT/REVOKE is not added; pinned schema-USAGE references and native
+explicit schema-owner path visibility remain backend capability distinctions;
+owning a schema does not confer ownership of its bootstrap-owned tables.
+See [prepared invalidation](DRIVER.md#prepared-catalog-and-path-invalidation).
+
+
 See [session and adapter lifetimes](DRIVER.md#sql-prepared-statements--change-note).
 Independent direct/Go-prepared references use `^TestReferenceSQLPrepared` in both
 quick and pinned modes, with 900-second deadlines per invocation.
@@ -2080,7 +2100,8 @@ duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Unmatched
 operands receive typed NULLs before WHERE. LEFT/RIGHT merged keys select their
 coerced preserved operand; FULL uses COALESCE with no physical output origin.
 Every source is authorized and captures one coherent selected statement view.
-Prepared execution rebinds all sources; eager results survive native Reset/Restore.
+Prepared execution retains valid occurrence identities and reanalyzes invalidated
+sources; current data/ACLs stay fresh and eager results survive native Reset/Restore.
 LATERAL joins and function FROM remain excluded; SELECT CTEs, derived SELECT and
 parenthesized VALUES are supported non-lateral FROM operands.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
@@ -5112,8 +5133,8 @@ an ordinary user column. Utility diagnostics have no parse-analysis Position.
 
 Renames preserve full relation/attribute identity, unchanged storage backing,
 NOT NULL names and stable-attribute links, ACLs and comments. Published
-descriptors and retained Rows are immutable. Prepared ASTs rebind original SQL
-names rather than rewriting strings: old columns42703, old relations42P01,
+descriptors and retained Rows are immutable. Definition invalidation makes prepared
+ASTs reanalyze original SQL names rather than rewriting strings: old columns42703, old relations42P01,
 changed star output labels0A000 cached-result-type error. Retained old-table SELECT
 has Position15 on both native and pinned PostgreSQL: reanalysis preserves the
 original relation-name occurrence. Cached-plan logical Context is empty on both
@@ -5155,14 +5176,12 @@ schema in the primary). Namespace/revision changes preserve storage, stable colu
 and NOT NULL identities, owners/ACLs, defaults/comments, sequence options/generators
 and every physical-session cache/currval/lastval. Referencing views stay in place,
 retain dependencies and render current source namespaces. Held qualified table and
-sequence SQL reanalyzes original names. Native unqualified table statements bind
-their original names against the current search_path at every Execute. PostgreSQL
-can instead reuse a revalidated held plan while its effective search_path is unchanged:
+sequence SQL reanalyzes original names after invalidation. Both backends retain a
+revalidated unqualified prepared source while the effective path stays unchanged:
 after s1.t moves to s2 and a held statement rebinds there, recreating a same-shaped
-s1.t does not alone redirect that PostgreSQL held SELECT. Native held SELECT sees
-the new s1 shadow; PostgreSQL held SELECT continues reading s2. Fresh direct and
-newly prepared SELECTs see the s1 shadow on both backends. This bounded cache
-difference is independently tested, not full PostgreSQL cached-plan parity.
+s1.t alone does not redirect that held SELECT. It continues reading s2 until actual
+dependency/path/namespace invalidation. Fresh direct and newly prepared SELECTs
+see the s1 shadow. This analysis-identity behavior is not an executable plan cache.
 Canonical Dump/Restore uses current qualified persistent definitions/data and does
 not replay ALTER history.
 

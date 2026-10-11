@@ -73,16 +73,11 @@ func TestReferenceAlterSchemaSearchPathAndViews(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("SET search_path TO s1,s2,public", 0))
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TABLE s1.t(id INT CONSTRAINT nn_id NOT NULL,note TEXT)", 0))
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO s1.t VALUES(99,'shadow')", 1))
-			// An unchanged effective path does not invalidate PostgreSQL's
-			// revalidated s2 plan merely because a new s1 shadow now exists.
-			// Native table statements instead bind their original names each time.
+			// An unchanged effective path retains the revalidated moved source;
+			// creating an earlier shadow in an existing schema is not invalidation.
 			shadow := [][]any{{int64(99), "shadow"}}
 			moved := [][]any{{int64(7), "keep"}, {int64(9), nil}, {int64(11), "new"}}
-			if postgres {
-				read(moved)
-			} else {
-				read(shadow)
-			}
+			read(moved)
 			fresh := fixture.Select("SELECT id,note FROM t ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, shadow)
 			fixture.RunStep(t, p.Ctx, c, r, fresh)
 			fresh.Prepared = true

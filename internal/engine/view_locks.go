@@ -140,6 +140,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 		}
 		request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 		if request != nil {
+			s.admissionWaited = true
 			if s.replacementRead {
 				e.replacementMu.RUnlock()
 				s.replacementRead = false
@@ -160,8 +161,11 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 			s.replacementRead = true
 		}
 		e.mu.Lock()
-		_, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address]
+		current, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address]
 		valid := ref.owner == e.owner && ref.Epoch == e.state.epoch && exists
+		if valid && d != nil && preparedDefinitionStamp(current) != preparedDefinitionStamp(d) {
+			s.preparedChangedDuringAdmission = true
+		}
 		e.mu.Unlock()
 		if !valid {
 			return ErrCatalogReplaced

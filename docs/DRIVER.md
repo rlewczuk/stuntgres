@@ -331,11 +331,77 @@ skip private-stage merging; normal EXECUTE writes still publish normally.
 Native Dump omits names. Reset/Restore preserves live physical-session owners
 and definitions, with existing catalog-generation/signature/reanalysis fences
 on their next use. Restore scripts reject SQL lifecycle utilities atomically.
-No generalized prepared-plan cache/invalidation architecture is introduced.
+No executable optimizer-plan or query-data cache is introduced.
 
 Feature family: `make check RUN='^TestReferenceSQLPrepared'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLPrepared'`.
 See [parameter and diagnostic rules](DIALECT.md#sql-prepared-statements--change-note).
+
+### Prepared catalog and path invalidation
+
+Ordinary Go statements and SQL prepared SELECT/VALUES/INSERT/UPDATE/DELETE/MERGE
+bodies share one private analysis cell. It retains target/source occurrence
+identities (including nested queries, views and analyzed unused CTE dependencies),
+definition stamps and the resolved namespace environment, not descriptors, data
+roots, parameter frames or authorization grants. Each use acquires those identities
+before lock waits and analyzes against current descriptors, ACLs and data.
+
+Referenced definition changes, effective search_path changes, namespace callbacks
+and DISCARD PLANS cause original-source reanalysis. Raw path changes that resolve
+to the same namespaces need not invalidate; namespace creation/rename/drop can
+invalidate even when the effective path remains equal. Creating an earlier shadow
+table in an already existing schema alone does not invalidate a held query or DML
+target. Direct queries and fresh preparation still use current name resolution.
+Ordinary data changes and unrelated relation creation do not invalidate analysis.
+
+That shadow-retention rule is a statement-boundary rule. Native admission retains
+its existing limitation if original-name resolution changes during a lock wait:
+direct execution, fresh preparation and retained handles all return
+`ErrCatalogReplaced`, without rows/metadata, importing arguments, write effects or
+capture publication. A preexisting shadow may differ from the chosen retained
+object, but the independently observed name environment must stay unchanged
+through the wait. There is no warmup exception, lock retarget or replay.
+
+
+Parameters retain their original count/types, including declared unused slots.
+Result count, ordered labels, type identity, typmod and collation remain fixed;
+incompatible shape reports0A000 `cached plan must not change result type`.
+Missing relations/columns instead report normal42P01/42703 diagnostics with original
+Go or full PREPARE source positions. Compatible nullability/default/origin changes
+supply fresh result metadata, even for empty results; already returned rows retain
+their prior metadata. No-output DML has no result-shape fence, but RETURNING does,
+and a rejected shape publishes no write effects.
+
+Full invalidation refreshes analyzed temporal scalar/temporal-array literals such
+as TIMESTAMP 'now', plus the supported sequence/regtype group, atomically with the
+analysis identities. Native enum/domain/composite logical captures and arrays
+with catalog-owned leaves preserve their existing immutable identity and lifetime
+semantics, including temporal fields inside those logical compounds; this change
+does not rewrite their embedded leaves or re-input renamed enum spellings.
+Analysis, fixed-signature and native-provenance checks must all succeed before
+publishing any replacement cell or capture group. A failed attempt leaves the
+same handle available for schema repair.
+Publication is successful analysis, not successful row execution: a later importer
+or execution failure need not undo it. Unchanged use retains the existing cells.
+
+Catalog Reset/Restore can reanalyze builtin signatures against same-shaped tables
+at the next statement boundary. Catalog-owned type identities and persistent
+sequence provenance retain their existing lifetime fences. Replacement during an
+admitted wait remains fenced: no retry, retarget or name-based rescue. Path/namespace
+changes while queued never certify older resolution as valid in a newer environment.
+FETCH/EXECUTE utility handles keep their separate live-schema behavior.
+`pg_prepared_statements`, planner statistics and unavailable routine/operator
+invalidation categories are not implemented by this change.
+
+SQL schema GRANT/REVOKE remains outside native capabilities. Pinned reference
+tests exercise real PostgreSQL schema-USAGE grant/revoke/regrant; native public
+tests explicitly transfer schema ownership to the reader for path visibility,
+without transferring bootstrap-owned tables. Both share the supported table-ACL
+deny/regrant phases. Ordinary private schemas do not grant reader USAGE by default.
+Private native units exercise actual namespace ACL invalidation through the
+existing SetObjectACL authority seam.
+
+
 
 ## Command and transaction clocks
 

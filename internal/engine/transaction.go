@@ -314,6 +314,16 @@ type StatementScope struct {
 	rlsProposalTable      string
 	partitionRelations    map[ObjectAddress]*relationDescriptor
 	Expected              *StatementDescription
+	preparedReuse                  *preparedAnalysis
+	preparedInvalid                bool
+	preparedPath                   sequenceEnvironment
+	preparedNamespace              uint64
+	preparedPrivate                *catalogChanges
+	preparedEpoch                  CatalogEpoch
+	preparedChangedDuringAdmission bool
+	admissionWaited                bool
+	admittedTargetName             parser.ObjectName
+	admittedTargetLexical          ObjectRef
 	implicit              bool
 	input                 sqltype.InputEnvironment
 	statementStart        time.Time
@@ -676,6 +686,9 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if !queryCreation && s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
+	if err := s.selectPreparedAnalysis(stmt); err != nil {
+		return StatementDescription{}, err
+	}
 	if err := s.acquireRelation(stmt, false); err != nil {
 		return StatementDescription{}, err
 	}
@@ -763,6 +776,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
+	}
+	if err := s.selectPreparedAnalysis(stmt); err != nil {
+		return Result{}, err
 	}
 	if err := s.acquireRelation(stmt, true); err != nil {
 		return Result{}, err

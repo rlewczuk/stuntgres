@@ -1,5 +1,60 @@
 # Adding and maintaining tests
 
+## Prepared rebind selected proof
+
+The shared untagged `reference/sessions/prepared_rebind_*_test.go` scenarios use
+only public SQL/driver APIs and the existing fixture. They independently assert
+the earlier-shadow nontrigger for SELECT and all supported write targets/sources,
+effective versus raw paths, namespace/USAGE/$user/TEMP transitions, live ACL/data,
+recursive view/unused-CTE dependencies, fixed formals/results, full original-source
+diagnostics, compatible empty-result metadata, complete scalar/array captures and
+bounded admission/cancellation. The moved-shadow case in `reference/alter/` shares
+the same retained-source expectation, not a native-divergent branch.
+
+Private Publication subcases use fixed input clocks to distinguish refreshing
+genuine scalar/temporal-array captures from retaining enum/composite logical
+compounds, including their embedded temporal fields. Existing composite shape
+and enum rename/native-control reference expectations remain authoritative;
+these must not be repinned to accommodate changed capture lifetime semantics.
+
+Admission success creates the shadow before acquisition; separate deterministic
+target/nested-source cases create it during the wait and require the established
+native ErrCatalogReplaced fence, unchanged captures and no effects. Existing
+SchemaLockedBindingShadowCreation and QueryJoinsSecondLeafGrantRebind assertions
+are preserved, not repinned. Namespace's schema SQL GRANT/REVOKE phase is pinned
+PostgreSQL-only because that native syntax is absent; native public outcomes
+explicitly transfer schema ownership to the reader before authorization, asserting
+owner-visible path/shadow9 while bootstrap-owned tables retain shared explicit
+SELECT ACL deny/regrant behavior. Ordinary private schemas do not supply default
+reader USAGE; the native setup does not invent schema SQL GRANT support.
+Validity's RealNamespaceACLInvalidation subcase uses the existing real
+SetObjectACL seam to prove namespace callbacks, qualified42501 and handle repair.
+
+Root-run selected commands, each with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferencePreparedRebind(Shadow|Dependencies|Captures)$'
+make check REFERENCE=1 RUN='^TestReferencePreparedRebind(Shadow|Dependencies|Captures)$'
+make check RUN='^TestReferencePreparedRebind(DDL|Metadata|Path|Namespace|Admission)$'
+make check REFERENCE=1 RUN='^TestReferencePreparedRebind(DDL|Metadata|Path|Namespace|Admission)$'
+make check RUN='^TestReferenceAlterSchemaSearchPathAndViews$'
+make check REFERENCE=1 RUN='^TestReferenceAlterSchemaSearchPathAndViews$'
+make check RUN='^TestPreparedRebind(Validity|DependencyManifest|Publication|Admission)$'
+make check RACE=1 RUN='^(TestPreparedRebindAdmission|TestReferencePreparedRebindAdmission|TestSchemaLockedBindingShadowCreation|TestQueryJoinsSecondLeafGrantRebind)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferencePreparedRebindAdmission$'
+```
+
+Test-first discovery runs the pinned oracle before native red; any temporary
+new-scenario-only backend filter must be removed before native proof and never
+survive review. Every changed/new definition requires final selected runs in both
+modes. Internal identity/publication/admission units supplement public witnesses.
+Root runs whole-project Docker-free quickcheck only after edits are stable.
+The separate session-supplied public Go smoke uses one physical Conn, Go and SQL
+held statements, direct shadow9/held7, late-only INSERT, dependency rebind9, shape
+0A000/repair and changed path. Resolve its source to an absolute path S and run
+`timeout 60s go run "$S"` from the worktree, recording actual output and exit;
+remove only a root-created throwaway materialization afterward.
+
 ## COPY text selected proof
 
 Shared untagged `reference/dml/copy_text_*_test.go` definitions run on the native

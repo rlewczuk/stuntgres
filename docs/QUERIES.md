@@ -831,8 +831,9 @@ including earlier join leaves. ROLLBACK TO recovers that same authority, and the
 outer transaction's end releases it. Finish clears statement admission metadata;
 retained eager results independently own the captured data they still require.
 INSERT acquires/checks its destination before sources and publishes only a complete
-converted/constraint-checked batch. Held prepared execution rebinds names, rights,
-NATURAL keys and data; changed result shape retains the cached-plan diagnostic.
+converted/constraint-checked batch. Held prepared execution retains valid source
+identities, reanalyzes invalidated names/NATURAL keys and checks fresh rights/data;
+changed result shape retains the cached-plan diagnostic.
 Renaming an existing distinct column to a common name can change both NATURAL
 matching and star width without adding new DDL capability. Aggregate consumers
 replace the joined input layout with finalized group rows: an empty join still
@@ -986,7 +987,7 @@ and ordinals; WHERE/HAVING do not expose output labels, and GROUP BY retains its
 input-name priority and existing ordinal rules.
 
 Persistent joined views freeze their source occurrences, expanded star projections
-and USING/NATURAL keys when created, unlike an ordinary prepared SELECT rebind.
+and USING/NATURAL keys when created; ordinary prepared SELECT reanalyzes them on invalidation.
 The shared definition/Dump renderer emits canonical per-occurrence aliases and
 explicit ON predicates from those identities; original alias column lists and
 merged namespaces are preserved logically, not as stale source text. Source
@@ -2192,8 +2193,9 @@ source boundary; public callbacks assert no capture ordering without a real barr
 PostgreSQL queue controls use its actual blocking relation/row state.
 
 Target UPDATE and actual target/source SELECT dependencies are separate; every
-source is checked even with no matches. Prepared execution rebinds relation
-identities, privileges, parameters and result signatures before mutation. Destination
+source is checked even with no matches. Prepared execution retains valid relation
+identities, reanalyzes invalidated sources and checks fresh privileges/parameters
+against fixed result signatures before mutation. Destination
 casts, source ON, WHERE, SET and RETURNING share existing eager immutable preflight.
 PostgreSQL may prune immutable demand or stream early Query rows before a terminal
 error; native eager preflight and no-partial-output are deliberate boundaries.
@@ -3637,7 +3639,7 @@ the actual second keyword's spelling and character position, independently of
 the specification's name/parenthesis caret. Malformed whole-input scripts do not
 publish a parsed statement prefix.
 
-Prepared execution rebinds fresh parameters, catalog and authority. Window keys,
+Prepared execution uses fresh parameters/catalog authority and retains valid source identities. Window keys,
 partitions, peer scans and provider work finish before cursor publication. Late
 failure/cancellation publishes no partial cursor or INSERT batch; native cancellation
 preserves ordinary context errors. Finalized cursors and metadata survive later

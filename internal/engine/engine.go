@@ -372,7 +372,14 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, sequences: cell, regtypes: regtypes, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	var prepared *preparedAnalysis
+	if preparableBody(stmt) {
+		prepared, err = e.preparedAnalysisLocked(scope, auth, b)
+		if err != nil {
+			return StatementDescription{}, err
+		}
+	}
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -570,7 +577,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.createDeclarations = declarations
 	case *parser.Insert:
 		var err error
-		b.ref, err = e.resolveReference(auth, s.Name)
+		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
@@ -609,7 +616,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	case *parser.Delete:
 		var err error
-		b.ref, err = e.resolveReference(auth, s.Name)
+		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
@@ -670,7 +677,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	case *parser.Update:
 		var err error
-		b.ref, err = e.resolveReference(auth, s.Name)
+		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}

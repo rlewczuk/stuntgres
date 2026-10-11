@@ -1133,6 +1133,7 @@ type finalRows struct {
 	self              *finalRows
 	schema            []ColumnDescriptor
 	source            *querySource
+	owner             *querySource // Capture tree when projection retains a non-root occurrence.
 	selection, slots  []int
 	values            []sqltype.Value
 	regclassOutput    map[string]string
@@ -1170,10 +1171,13 @@ func (r *finalRows) FormatRegclass(id uint32) (string, error) {
 	return text, nil
 }
 func (r *finalRows) release() {
-	if r.source != nil {
+	if r.owner != nil {
+		r.owner.close()
+		r.owner = nil
+	} else if r.source != nil {
 		r.source.close()
-		r.source = nil
 	}
+	r.source = nil
 	r.selection, r.slots, r.values = nil, nil, nil
 	r.anonymous = nil
 	r.regclassOutput = nil
@@ -1397,7 +1401,12 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
 		if stageSource != source && !querySourceRetains(stageSource, source) {
-			source.close()
+			if querySourceRetains(source, stageSource) {
+				r.owner = source
+				detachQuerySource(source)
+			} else {
+				source.close()
+			}
 		}
 	}
 	if !direct || r.count == 0 {

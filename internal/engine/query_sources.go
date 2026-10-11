@@ -27,7 +27,7 @@ type queryLeaf struct {
 func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {
 	admissions := make(map[*parser.Select]*queryLockAdmission)
 	var ordered []*queryLockAdmission
-	tableQueries := make(map[*parser.TableReference]*parser.Select)
+	tableQueries := make(map[*parser.TableReference]preparedSource)
 	future := make(map[*parser.TableReference]string)
 	virtual := make(map[*parser.TableReference]bool)
 	admit := func(query *parser.Select) *queryLockAdmission {
@@ -44,8 +44,10 @@ func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*p
 	var tables []*parser.TableReference
 	var queries []*parser.Select
 	if err := parser.VisitQuerySources(statement, func(query *parser.Select) error { admit(query); return nil }, func(table *parser.TableReference, query *parser.Select) error {
-		admit(query)
-		tableQueries[table] = query
+		if admissions[query] == nil {
+			admit(query).syntheticOwner = true
+		}
+		tableQueries[table] = preparedSource{query: query}
 		tables = append(tables, table)
 		queries = append(queries, query)
 		return nil
@@ -59,6 +61,16 @@ func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*p
 		a.marks, a.err = queryLockTargets(a.selectQuery.From, a.selectQuery.Locking, virtual)
 	}
 	return queryLockAdmission{queries: admissions, ordered: ordered, tableQueries: tableQueries, futureCTE: future, virtualCTE: virtual}, tables, queries, nil
+}
+
+// The original table pointer is stable for every occurrence. Only real SELECT
+// syntax has a stable owning query; the parser regenerates DML source roots.
+func (a *queryLockAdmission) retainedQuery(table *parser.TableReference) *parser.Select {
+	query := a.tableQueries[table].query
+	if owner := a.queries[query]; owner != nil && owner.syntheticOwner {
+		return nil
+	}
+	return query
 }
 
 func (a *queryLockAdmission) tableMark(table *parser.TableReference) queryRowMark {
@@ -85,11 +97,21 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 		if mark.mode != 0 {
 			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.mode), Wait: mark.wait}}
 		}
+		if s.preparedReuse != nil {
+			prior, ok := s.preparedReuse.sources[table]
+			if !ok || prior.query != admission.retainedQuery(table) {
+				return ErrCatalogReplaced
+			}
+			s.queryLockAdmission.tableQueries[table] = preparedSource{query: queries[i], ref: prior.ref}
+		}
 		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
 			return futureCTEError(err, admission.futureCTE[table])
 		}
 		leaf := &s.querySources[len(s.querySources)-1]
 		leaf.mark, leaf.query, leaf.table = mark, queries[i], table
+		entry := s.queryLockAdmission.tableQueries[table]
+		entry.query, entry.ref = queries[i], leaf.ref
+		s.queryLockAdmission.tableQueries[table] = entry
 	}
 	return nil
 }

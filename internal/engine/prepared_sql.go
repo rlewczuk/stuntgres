@@ -12,14 +12,15 @@ import (
 // Statement admission serializes this physical-session owner. Definitions never
 // retain adapter handles, snapshots or execution-private parameter frames.
 type sqlPreparedRegistry struct {
-	token SessionToken
+	token   SessionToken
 	entries map[string]*sqlPreparedStatement
 }
 type sqlPreparedStatement struct {
-	body parser.Statement
-	source string
+	body        parser.Statement
+	source      string
 	description StatementDescription
 }
+
 func (r *sqlPreparedRegistry) EndSession(token SessionToken, _ EndReason) error {
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign SQL prepared attachment")
@@ -52,6 +53,9 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	}
 	e.mu.Unlock()
 	s.initialParameters = types
+	if err := s.selectPreparedAnalysis(raw.Body); err != nil {
+		return Result{}, err
+	}
 	if err := s.acquireRelation(raw.Body, false); err != nil {
 		return Result{}, err
 	}
@@ -105,7 +109,9 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 		}
 		e := s.op.session.Engine()
 		auth, err := e.authorizationLocked(s.op)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		binder := newExpressionBinder(ctx, e, input, s.op, nil)
 		binder.queryAuth, binder.noParameters, binder.executeParameters = &auth, true, true
 		nodes := make([]BoundExpr, formal.Count)
@@ -140,7 +146,9 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 		evaluation := EvalContext{Context: ctx, statementScope: s, Input: input, Output: s.output}
 		for i, node := range nodes {
 			value, err := node.Eval(&evaluation)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			frame[i] = value
 		}
 		return nil

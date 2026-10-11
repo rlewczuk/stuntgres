@@ -1243,6 +1243,13 @@ func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvi
 	b := &expressionBinder{engine: e, ctx: ctx, parameters: make(map[int]sqltype.Usage), input: input, op: op, expected: expected}
 	if expected != nil {
 		b.seedParameters(expected.Parameters.Types)
+		if expected.refreshTemporals {
+			for _, capture := range expected.temporals {
+				if !refreshableTemporalCapture(capture) {
+					b.temporals = append(b.temporals, capture)
+				}
+			}
+		}
 	}
 	return b
 }
@@ -2241,10 +2248,10 @@ func literalInputError(err error, raw parser.LiteralExpr) error {
 	return inputErrorAt(err, raw.Value.Pos)
 }
 
-// A stale owner-qualified DISCARD stamp requests full temporal recollection
-// even though the expected description still carries fixed signature fences.
+// Full analysis invalidation recollects temporal scalar/array captures while the
+// candidate still supplies fixed signatures and immutable native logical values.
 func (b *expressionBinder) collectTemporalConstants() bool {
-	return b.expected == nil || b.op != nil && b.expected.planOwner == b.op.session.token && b.expected.planGeneration != b.op.session.discardPlansGeneration
+	return b.expected == nil || b.expected.refreshTemporals || b.op != nil && b.expected.planOwner == b.op.session.token && b.expected.planGeneration != b.op.session.discardPlansGeneration
 }
 
 // Explicit typed literals use this only to discover their frozen modifier
@@ -2255,6 +2262,9 @@ func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error)
 		captures := b.expected.temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
 		if i < len(captures) && captures[i].offset == offset {
+			if b.expected.refreshTemporals && refreshableTemporalCapture(captures[i]) {
+				return temporalConstant{}, false, nil
+			}
 			saved := captures[i]
 			for i++; i < len(captures) && captures[i].offset == offset; i++ {
 				if captures[i].typeID != saved.typeID || captures[i].typmod != saved.typmod ||
@@ -2273,6 +2283,9 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 		captures := b.expected.temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
 		if i < len(captures) && captures[i].offset == offset {
+			if b.expected.refreshTemporals && refreshableTemporalCapture(captures[i]) {
+				return temporalConstant{}, false, nil
+			}
 			for ; i < len(captures) && captures[i].offset == offset; i++ {
 				capture := captures[i]
 				if capture.typeID == usage.Type.ID() && capture.typmod == usage.Typmod {

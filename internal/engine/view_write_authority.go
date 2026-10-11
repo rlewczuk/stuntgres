@@ -102,6 +102,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: w.ref}, rowExclusive, policy)
 	if request != nil {
+		s.admissionWaited = true
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false

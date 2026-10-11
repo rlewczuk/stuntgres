@@ -71,6 +71,18 @@ Feature smoke (900 seconds per invocation):
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceDriverBatchFeatureSmoke$'`.
 
+Change note: Go handles and SQL prepared bodies retain analyzed relation identities
+until referenced definitions, effective search_path, namespace callbacks or explicit
+DISCARD PLANS invalidate them. Creating an earlier same-name table in an existing
+path schema alone does not redirect a held SELECT or write target; fresh queries
+see that shadow. Reanalysis retains original parameter/result signatures, refreshes
+temporal/sequence/regtype captures atomically and keeps current data/ACLs/allowed
+metadata. Native logical typed compounds retain their existing identity fences.
+Statement-boundary retention does not bypass native ErrCatalogReplaced when a
+new shadow changes original-name resolution during an admission wait.
+See [prepared invalidation](docs/DRIVER.md#prepared-catalog-and-path-invalidation)
+and [selected proof](docs/TESTING.md#prepared-rebind-selected-proof).
+
 Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
 and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
 for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.
@@ -392,7 +404,7 @@ input. Direct scalar/array columns, domains, supported numeric/text casts and
 `ARRAY[typed_expression, ...]` constructors now compose with writes, stored
 defaults, CHECKs, views and logical native Dump/Restore. Stored scalar input
 constants retain identity and DROP dependencies; ordinary prepared SQL
-reanalyzes its source spelling. Numeric coercion expressions retain their
+reanalyzes its source spelling after invalidation. Numeric coercion expressions retain their
 numbers, not cross-catalog identity promises. Constructor parameters infer
 from regclass context or peers. Recursive view cascades remove their dependent
 defaults/CHECKs, including same-owner DROP COLUMN and replaced-view chains;
@@ -763,8 +775,8 @@ Change note: standalone `ALTER TABLE [IF EXISTS] [ONLY] target [*] RENAME
 CONSTRAINT old TO new` supports represented NOT NULL, CHECK, UNIQUE, PRIMARY KEY
 and EXCLUDE definitions. Owner-only metadata rename needs no namespace CREATE,
 preserves table/constraint/backing-index identity and storage, and reports the
-current constraint name on violations. Prepared handles rebind current names
-without changing unchanged result labels/types. Writable transactions,
+current constraint name on violations. Definition invalidation reanalyzes prepared
+handles without changing unchanged result labels/types. Writable transactions,
 savepoints, rollback and failing-later-statement atomicity use the existing
 catalog overlay. Canonical native Dump/Restore retains current definitions,
 rows and representable table/column comments, not rename history.
@@ -1398,10 +1410,11 @@ Change note: standalone `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
 moves ordinary tables, their B-tree/hash indexes and every column-owned sequence atomically, preserving
 rows, named NOT NULL constraints, defaults, comments, ACLs and stored-view
 dependencies. It requires table ownership, source USAGE and destination CREATE
-(not source CREATE or destination USAGE). Native prepared SQL rebinds its original
-names at Execute; unlike PostgreSQL's held unchanged-search_path plan, an unqualified
-native SELECT sees a newly created source-schema shadow after a move (see
-[the dialect boundary](docs/DIALECT.md)). Native Dump/Restore records current
+(not source CREATE or destination USAGE). Held unqualified prepared SQL on both
+backends retains its revalidated moved source while the effective search_path is
+unchanged: creating a source-schema shadow alone does not redirect it. Referenced
+definition/path/namespace invalidation reanalyzes original names; fresh direct and
+newly prepared queries see the shadow. Native Dump/Restore records current
 qualified definitions, not move history.
 For a view, `ALTER TABLE view SET SCHEMA` aliases `ALTER VIEW SET SCHEMA` and
 moves only the view's namespace, leaving its sources and dependents in place.

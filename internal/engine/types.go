@@ -25,13 +25,15 @@ type StatementDescription struct {
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
 	catalogOwner *Engine
 	catalogEpoch CatalogEpoch
-	// Public signatures stay immutable. Explicit DISCARD invalidates complete
-	// private typed literal groups, published together under Engine.mu on next bind.
-	temporals      []temporalConstant
-	sequences      *sequenceAnalysis
-	regtypes       *regtypeAnalysis
-	planOwner      SessionToken
-	planGeneration uint64
+	// Public signatures stay immutable. Invalidation refreshes temporal-now and
+	// specialized groups atomically, preserving native logical literal identity.
+	temporals        []temporalConstant
+	sequences        *sequenceAnalysis
+	regtypes         *regtypeAnalysis
+	analysis         *preparedAnalysis
+	planOwner        SessionToken
+	planGeneration   uint64
+	refreshTemporals bool // Candidate-only request; never published in a description.
 }
 
 type temporalConstant struct {
@@ -44,6 +46,25 @@ type temporalConstant struct {
 	typed        bool
 	typedTypmod  int32
 	value        sqltype.Value // immutable analyzed array, composite or enum literal
+}
+
+func refreshableTemporalCapture(c temporalConstant) bool {
+	t := c.value.Type()
+	if statementCatalogType(t) {
+		return false // Logical compounds retain even their embedded temporal fields.
+	}
+	id := c.typeID
+	if t != nil {
+		for t.IsArray() {
+			t = t.Element()
+		}
+		id = t.ID()
+	}
+	switch id {
+	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+		return true
+	}
+	return false
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership

@@ -50,7 +50,7 @@ func mergeRelationKind(relation *relationDescriptor) error {
 }
 
 func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ObjectRef, s *parser.Merge) error {
-	ref, err := e.resolveReference(auth, s.Name)
+	ref, err := e.admittedReference(auth, s.Name, requiredRef)
 	if err != nil {
 		return err
 	}

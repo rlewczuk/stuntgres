@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 )
 
-// Retains raw syntax, fixed signatures and private scalar captures, not a bound
-// execution plan. Explicit DISCARD invalidates captures; ordinary queries rebind on use. FETCH resolves the live named
-// cursor and publishes its actual schema, independently of the prepared hint.
+// Retains raw syntax, fixed signatures and private analysis identities/captures,
+// not an execution plan. Catalog/path/DISCARD invalidation reanalyzes original SQL.
+// FETCH and EXECUTE wrappers expose their live named resource's actual schema.
 type stmt struct {
 	conn        *conn
 	ast         parser.Statement

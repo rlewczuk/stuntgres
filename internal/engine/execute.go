@@ -150,7 +150,21 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expected := scope.Expected
 	var candidate StatementDescription
 	valid := true
-	replan := expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
+	replan := scope.preparedInvalid || expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
+	if expected != nil && expected.analysis != nil {
+		path, er := e.sequenceEnvironmentLocked(auth)
+		if er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
+		// Evolution during a wait can invalidate captures, but admission has
+		// already fixed this attempt's identities. Never resolve them again.
+		current := e.preparedAnalysisValidLocked(auth, expected.analysis, path)
+		if !current && !scope.preparedInvalid {
+			scope.preparedChangedDuringAdmission = true
+		}
+		replan = replan || !current
+	}
 	if expected != nil {
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
 		if err != nil {
@@ -170,7 +184,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			candidate.regtypes = nil
 		}
 		if replan {
-			candidate.temporals, candidate.sequences, candidate.regtypes = nil, nil, nil
+			candidate.refreshTemporals = true
+			candidate.sequences, candidate.regtypes = nil, nil
 			valid = false
 		}
 		expected = &candidate
@@ -188,6 +203,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(op, stmt)
 		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err := scope.validateAdmissionNamesLocked(e, auth); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -254,6 +273,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.mu.Unlock()
 				return Result{}, er
 			}
+			var prepared *preparedAnalysis
+			if replan && preparableBody(stmt) {
+				prepared, er = e.preparedAnalysisLocked(scope, auth, b)
+				if er != nil {
+					e.mu.Unlock()
+					return Result{}, er
+				}
+			}
+			if er := ctx.Err(); er != nil {
+				e.mu.Unlock()
+				return Result{}, er
+			}
 			if scope.Expected.sequences != nil {
 				*scope.Expected.sequences = analysis
 			} else if len(analysis.constants) != 0 {
@@ -266,6 +297,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			if replan {
 				scope.Expected.temporals = b.temporals
+				if preparableBody(stmt) {
+					scope.Expected.analysis = prepared
+				}
 				scope.Expected.planGeneration = op.session.discardPlansGeneration
 			}
 		}

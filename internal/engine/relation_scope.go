@@ -32,6 +32,16 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err == nil {
 			err = s.acquireViewSources()
 		}
+		if err == nil && s.admissionWaited {
+			e := s.op.session.Engine()
+			e.mu.Lock()
+			auth, authErr := e.statementAuthorizationLocked(s.op, stmt)
+			err = authErr
+			if err == nil {
+				err = s.validateAdmissionNamesLocked(e, auth)
+			}
+			e.mu.Unlock()
+		}
 	}()
 	if creation, ok := stmt.(*parser.CreateTable); ok && execute {
 		if err := s.acquireForeignKeyCreation(creation); err != nil {
@@ -239,8 +249,22 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 	}
 	var ref ObjectRef
+	retained := false
 	if err == nil {
-		if viewReplacement {
+		if selection, ok := stmt.(*parser.Select); source && ok {
+			if table, ok := selection.From.(*parser.TableReference); ok {
+				ref = s.queryLockAdmission.tableQueries[table].ref
+			}
+		} else if s.preparedReuse != nil {
+			switch stmt.(type) {
+			case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+				ref = s.preparedReuse.target
+			}
+		}
+		if ref.owner != nil {
+			retained = true
+			ref, err = e.admittedReference(auth, name, ref)
+		} else if viewReplacement {
 			// CREATE targets only its creation namespace, not a same-named
 			// relation later in the lookup path. Qualified creation needs
 			// CREATE, not USAGE; body lookup retains its independent authority.
@@ -303,6 +327,24 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
 		}
 	}
+	var definitionStamp DefinitionRevision
+	if err == nil && ref.owner != nil {
+		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address])
+		if source || preparableBody(stmt) {
+			lexical := ref
+			if retained {
+				lexical, err = e.admissionNameReference(auth, name)
+			}
+			if source {
+				table := stmt.(*parser.Select).From.(*parser.TableReference)
+				entry := s.queryLockAdmission.tableQueries[table]
+				entry.lexical = lexical
+				s.queryLockAdmission.tableQueries[table] = entry
+			} else {
+				s.admittedTargetName, s.admittedTargetLexical = name, lexical
+			}
+		}
+	}
 	e.mu.Unlock()
 	// Catalog provider validation may call Reset; ALTER must not retain a
 	// replacement read admission across validation or publication.
@@ -328,6 +370,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return sqlError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", relationName))
 	}
 	if request != nil {
+		s.admissionWaited = true
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
@@ -388,6 +431,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	descriptor, live := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
 		return ErrCatalogReplaced
+	}
+	if preparedDefinitionStamp(descriptor) != definitionStamp {
+		s.preparedChangedDuringAdmission = true
 	}
 	if source {
 		if err := inheritanceScanGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
