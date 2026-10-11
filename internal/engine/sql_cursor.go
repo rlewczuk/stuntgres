@@ -26,6 +26,10 @@ const (
 type sqlCursor struct {
 	tx                                          TxRef
 	ordinal                                     uint64
+	epoch                                       CatalogEpoch
+	hold, promoted                              bool
+	values                                      []sqltype.Value
+	count, next                                 int
 	root                                        *projectNode
 	schema                                      []ColumnDescriptor
 	source                                      *querySource
@@ -45,7 +49,9 @@ type sqlCursor struct {
 	visibilityRelationPath, visibilityOtherPath []ObjectAddress
 }
 
-func (c *sqlCursor) dispose() {
+// Producer teardown is distinct from disposing an exported result. Typed values
+// and schema own their codecs; no declaration catalog or execution survives.
+func (c *sqlCursor) releaseProducer() {
 	c.currentSource, c.currentIndex = nil, 0
 	if c.stage != nil {
 		_ = c.stage.Close()
@@ -58,13 +64,33 @@ func (c *sqlCursor) dispose() {
 	c.state = queryState{}
 	c.root = nil
 	c.leaves, c.locks = nil, nil
-	c.catalog, c.roles = CatalogRead{}, RoleRead{}
+	c.catalog = CatalogRead{}
+	c.roles = RoleRead{}
 	c.deparseAuth = AuthorizationView{}
 	c.deparsePath, c.visibilityRelationPath, c.visibilityOtherPath = nil, nil, nil
 	c.visibilityCatalog = CatalogRead{}
 	if c.authority != nil {
 		c.authority.scope = nil
 		c.authority.expression = nil
+	}
+}
+func (c *sqlCursor) dispose() {
+	c.releaseProducer()
+	c.values = nil
+	c.count, c.next = 0, 0
+}
+
+// Transaction end removes only its still-live producers. An exported portal's
+// promotion is irreversible even if a later portal or write publication fails.
+func (r *cursorRegistry) endTransaction(ref TxRef) {
+	if r == nil {
+		return
+	}
+	for name, c := range r.entries {
+		if !c.promoted && c.tx == ref {
+			c.dispose()
+			delete(r.entries, name)
+		}
 	}
 }
 func (r *cursorRegistry) clear() {
@@ -119,7 +145,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if r.ordinal == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: cursor declaration counter exhausted")
 	}
-	c := &sqlCursor{tx: s.txRef, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
+	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.epoch, hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, visibilityCatalog: s.visibilityCatalog,
 		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
@@ -137,7 +163,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	}
 	r.entries[declaration.Name.Text] = c
 	r.ordinal = c.ordinal
-	s.completed, s.sessionCompleted, keep = true, true, true
+	s.completed, s.sessionCompleted, keep = !(declaration.Hold && s.implicit), true, true
 	return Result{}, nil
 }
 
@@ -187,8 +213,11 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	c := s.op.session.cursors.entries[fetch.Name.Text]
-	if c == nil || c.tx != s.txRef {
+	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return Result{}, missingSQLCursor(fetch.Name.Text)
+	}
+	if c.epoch != s.txRef.epoch {
+		return Result{}, ErrCatalogReplaced
 	}
 	if c.position == cursorFailed {
 		return Result{}, sqlError("55000", fmt.Sprintf("portal %q cannot be run", fetch.Name.Text))
@@ -198,6 +227,9 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 		c.dispose()
 		return Result{}, forwardSQLCursorError()
 	}
+	if c.promoted {
+		return s.fetchHeldCursor(c, fetch)
+	}
 	c.admit(s)
 	defer func() {
 		c.authority.scope = nil
@@ -206,21 +238,8 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 			c.dispose()
 		}
 	}()
-	e := s.op.session.Engine()
-	e.mu.Lock()
-	auth, authErr := e.authorizationLocked(s.op)
-	if authErr == nil {
-		authErr = s.validateLockedRelation(e)
-	}
-	if authErr == nil {
-		authErr = auth.checkQuerySources(c.leaves)
-	}
-	if authErr == nil {
-		authErr = s.captureIdentityLocked(auth)
-	}
-	e.mu.Unlock()
-	if authErr != nil {
-		return Result{}, authErr
+	if err := s.authorizeSQLCursor(c); err != nil {
+		return Result{}, err
 	}
 	rows := newFinalRows(c.schema, 0)
 	rows.output = c.state.output
@@ -231,13 +250,8 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 		s.completed, s.sessionCompleted = true, true
 		return Result{Rows: rows}, nil
 	}
-	if c.stage == nil {
-		c.authority.expression = &cursorExpressionData{identity: s.identity, statementStart: s.statementStart}
-		stage, openErr := openQueryProjectStage(c.authority, &c.state, c.root)
-		if openErr != nil {
-			return Result{}, openErr
-		}
-		c.stage = &stage
+	if err := c.openProducer(s); err != nil {
+		return Result{}, err
 	}
 	width := len(c.schema)
 	// Project directly into geometrically growing detached flat storage. Distinct
@@ -265,22 +279,8 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 		c.currentSource = c.stage.source
 		c.currentIndex = c.stage.index(c.stage.position - 1)
 	}
-	// Finalized OID rendering is detached as well. Catalog data remains DECLARE's;
-	// the current search path controls the normal public rendering boundary.
-	e.mu.Lock()
-	auth, authErr = e.authorizationLocked(s.op)
-	var path []ObjectAddress
-	if authErr == nil {
-		path, authErr = e.referencePath(auth)
-	}
-	e.mu.Unlock()
-	if authErr != nil {
-		return Result{}, authErr
-	}
-	for _, value := range rows.values {
-		if err := captureRegclassOutputValue(rows, c.catalog, path, value); err != nil {
-			return Result{}, err
-		}
+	if err := s.captureSQLCursorOutput(rows, c.catalog); err != nil {
+		return Result{}, err
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err

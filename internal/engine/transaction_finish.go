@@ -41,6 +41,13 @@ func (s *StatementScope) Finish(err error) error {
 	if err == nil && s.worked && !s.completed {
 		err = e.validateOperation(s.op)
 	}
+	// Implicit HOLD declaration installation is not its external completion:
+	// unfetched targets must settle before publication and ON COMMIT actions.
+	if err == nil && s.worked && t.state == TxImplicit {
+		t.mu.Unlock()
+		err = s.materializeHeldCursors()
+		t.mu.Lock()
+	}
 	if err == nil && s.worked {
 		t.mu.Unlock()
 		err = s.checkExclusionEvents(t.state == TxImplicit, nil)
@@ -147,7 +154,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.catalog = nil
 			endedTicket = t.ticket
 			t.ticket = nil
-			t.session.cursors.clear()
+			t.session.cursors.endTransaction(t.ref)
 		}
 	}
 	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))

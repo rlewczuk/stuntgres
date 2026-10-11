@@ -197,6 +197,13 @@ Observers receive immutable identity and predicate coverage; consumer-owned immu
 
 Participants integrate transactional settings/LOCAL, temp ON COMMIT, catalog overlays and named portals; actual state remains feature-owned. Ordinary named cursors end with their creating transaction's commit/rollback. WITH HOLD prepares materialized output needed for permitted future fetches before commit (remaining output suffices for NO SCROLL); failure prevents commit. Successful creating commit transfers portal lifetime/pins to SESSION Cursors. Creating abort removes it; later unrelated rollback does not remove a committed held cursor. CLOSE/session end releases it. Rollback-to closes newly created portals but does not rewind earlier FETCH/MOVE, undo CLOSE or revive failed portals; other transactional query side effects still roll back. General cursors need not be frozen materialized output during execution: SCROLL refetch of volatile expressions can re-evaluate them. These portal semantics do not weaken immutable anonymous Snapshot/Rows retention.
 
+Scoped PostgreSQL18 no-scroll HOLD clarification: the historical “successful
+creating commit transfers portal lifetime/pins” wording above does not make
+exports transaction-atomic or transfer source pins. Each successful drain exports
+session-owned typed output before final commit and releases its producer/source
+pins; that store survives later portal drain or final publication failure while
+private transaction writes roll back. See the implemented [cursor ownership contract](../DRIVER.md#forward-only-sql-cursors--change-note).
+
 SESSION termination stops admission/cancels/drains then calls Transaction.EndSession exactly once, outside locks. It discards only owned private effects and releases TX resources; committed data and peers are unchanged. Borrower sql.Conn.Close, pool idling, stmt.Close and statement cancellation are not physical end. GC abandonment is best effort, no deterministic deadline. Active-query SQL signaling maps to ERROR 57014; terminal SQL signaling maps to FATAL 57P01. Ordinary Go context errors remain ordinary Go errors.
 
 ## 8. Native Reset/Dump/Restore and effect admission

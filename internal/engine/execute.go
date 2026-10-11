@@ -28,7 +28,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.CloseCursor:
 		return scope.executeCloseCursor(stmt.(*parser.CloseCursor), count)
 	case *parser.DeclareCursor:
-		if scope.implicit {
+		if scope.implicit && !stmt.(*parser.DeclareCursor).Hold {
 			return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 		}
 		name := stmt.(*parser.DeclareCursor).Name.Text

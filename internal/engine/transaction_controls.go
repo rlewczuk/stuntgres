@@ -170,7 +170,10 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	committed := false
 	if commit && t.state != TxAborted {
 		t.mu.Unlock()
-		err = e.checkTransactionExclusions(op, t)
+		err = e.holdPrecommit(op, t, nextStart)
+		if err == nil {
+			err = e.checkTransactionExclusions(op, t)
+		}
 		if err == nil {
 			err = e.publishWrites(op, ref, t.writes, t.deletes)
 		}

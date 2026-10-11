@@ -1119,6 +1119,61 @@ DELETE definitions in their documented small batches in both modes after cutover
 Feature smoke selects `^TestReferenceUpdateCurrentOfFeatureSmoke$` in both modes;
 the root's standalone public-API smoke source lives outside the checkout.
 
+### Holdable cursor verification
+
+The untagged `TestReferenceSQLCursorHold` definitions share the existing session
+fixtures and independent row/type/count/full-diagnostic assertions. Select bounded
+groups (external900-second deadline per invocation):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(CommitRemaining|AutocommitAndPrepared|RollbackAndSavepoints|Materialization|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(FailureAndPromotion|ScopeAndPresentation|Restrictions|NestedRowLocks|PrepareBoundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(Cancellation|SessionAndControls)$'
+make check REFERENCE=1 RUN='^TestReferencePreparedTransactionUnsupportedSessionBoundaries$'
+make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(Recursive)?CatalogChanges$'
+```
+
+Repeat the same selectors without `REFERENCE=1` for selected native proof. Both
+modes are required for changed reference definitions. No discovery filter remains.
+Nested/stored-view rowmarks are admitted; top-level rowmarks retain the exact
+read-only restriction. Successful portal exports survive later portal
+materialization failure and final SSI publication failure while private writes
+roll back. Partial-promotion assertions use independent sequence drain witnesses
+and exact surviving rows, never PostgreSQL hash traversal order. Fixed-name
+rotations must witness at least one actually drained candidate before failure.
+The division target uses the prerequisite DeclarationTiming late outer projection
+over an `ORDER BY i OFFSET 0` source, so a bounded first FETCH succeeds and the
+remaining fault is genuinely demanded by COMMIT, not by a blocking target sort.
+Scope assertions bracket first-demand timestamps, retain prior effective FETCH
+values, preserve FETCH0 as nondemanding, and check current stored-FETCH rendering.
+Catalog-change definitions independently capture each backend's own relation and
+table-rowtype OIDs, then require renamed symbolic and dropped numeric output.
+Scalar and recursive array/domain/composite values remain typed through commit;
+unread earlier FETCH batches retain their original/renamed spelling despite peer
+DDL. Removing the original query source cannot replay or rebind the stored output.
+Mixed scope batches use the existing REGTYPE raw transport assertion (native
+string versus PostgreSQL nonnil `[]byte`); other columns keep generic validation.
+PREPARE assertions distinguish live/removed/failed/old HOLD entries; live HOLD
+wins TEMP and empty-GID restrictions. The shared commit-warning case separately
+asserts quiet Prepare/DECLARE, current COMMIT warning policy and no later
+stored-FETCH evaluation warnings.
+
+Private mechanism and selected race proof (external900 seconds each):
+
+```sh
+make check RUN='^TestSQLCursorHold(Grammar|Owner|Demand|Authority|Publication|Cancellation)$'
+make check RACE=1 RUN='^TestSQLCursorHold(Owner|Authority|Publication|Cancellation)$'
+```
+
+The private probes use real installed producers, projection stages, SQL and Go
+commit paths and canonical SSI publication. They assert original transaction
+tickets/current unfinished commit scope with owner/engine/session mutexes unlocked;
+zero retained producer/authority/source pins after export; unreplayed remainder
+and zero-width cardinality; cancellation after actual projection admission and an
+actual sequence lock wait, bounded joins, no private write publication and
+retired timeout/ticket authority. Implicit HOLD installation is not completion,
+while cancellation after successful commit cannot retract exported values/writes.
+
 
 ### Forward-only SQL cursor verification
 
@@ -1204,9 +1259,9 @@ make check REFERENCE=1 RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTra
 ```
 
 Each command has its own900-second deadline. The prepared-transaction boundary
-scenario retains PostgreSQL's actual WITH HOLD/PREPARE restriction and independently
-asserts native0A000 `WITH HOLD cursors are unsupported` at position32, not the
-obsolete DECLARE syntax error. Hash and join logical-stage fixtures keep real
+scenario asserts the actual WITH HOLD/PREPARE restriction on both backends:
+0A000 `cannot PREPARE a transaction that has created a cursor WITH HOLD`.
+Its TEMP/listen/export capability boundaries remain unchanged. Hash and join logical-stage fixtures keep real
 admissions alive until stage disposal, then finish the scope before
 operation/session cleanup. The selected-private-roots join helper completes eager
 finalization before releasing its statement and operation; detached output remains

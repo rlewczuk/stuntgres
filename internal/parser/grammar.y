@@ -675,13 +675,13 @@ discard: DISCARD ALL { $$=&Discard{Category:DiscardAll,Pos:$1.pos} }
    switch $2.text {case "plans":case "sequences":category=DiscardSequences;default:sqllex.(*lexer).syntax($2);return 1}
    $$=&Discard{Category:category,Pos:$1.pos}
  } ;
-declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Query:$7,Pos:$1.pos} } ;
+declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Query:$7,Hold:$5,Pos:$1.pos} } ;
 cursor_scroll: /* empty */ { $$=false }
  | NO SCROLL { $$=false }
  | SCROLL { sqllex.(*lexer).failAt("0A000","SCROLL cursors are unsupported",$1.pos.Offset);return 1 } ;
 cursor_hold: /* empty */ { $$=false }
  | WITHOUT HOLD { $$=false }
- | WITH HOLD { sqllex.(*lexer).failAt("0A000","WITH HOLD cursors are unsupported",$1.pos.Offset);return 1 } ;
+ | WITH HOLD { $$=true } ;
 cursor_from: FROM | IN ;
 fetch_cursor: FETCH cursor_direction cursor_from name { $2.Name=Identifier{Text:$4.text,Pos:$4.pos};$2.Pos=$1.pos;$$=$2 }
  | FETCH cursor_direction name { $2.Name=Identifier{Text:$3.text,Pos:$3.pos};$2.Pos=$1.pos;$$=$2 } ;

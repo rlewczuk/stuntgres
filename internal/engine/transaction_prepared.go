@@ -106,7 +106,10 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	}
 	t.mu.Lock()
 	var err error
-	if len(control.GID) >= 200 {
+	if t.session.cursors.hasCurrentHold(ref) {
+		err = sqlError("0A000", "cannot PREPARE a transaction that has created a cursor WITH HOLD")
+	}
+	if err == nil && len(control.GID) >= 200 {
 		err = sqlError("22023", `transaction identifier "`+control.GID+`" is too long`)
 	}
 	if err == nil && t.accessedTemporary {

@@ -150,9 +150,9 @@ func TestReferencePreparedTransactionSyntax(t *testing.T) {
 func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) {
 	fixture.PreparedReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
-		// TEMP now executes on both backends and proves the real PREPARE restriction.
-		// WITH HOLD has an explicit native capability error; other excluded
-		// features retain their independent statement/function boundaries.
+		// TEMP and WITH HOLD execute on both backends and prove real PREPARE
+		// restrictions. Other excluded features retain their independent
+		// statement/function boundaries.
 		for _, c := range []struct {
 			q, message string
 			listening  bool
@@ -172,7 +172,7 @@ func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) 
 			}
 			fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 			rows, err := a.QueryContext(p.Ctx, c.q)
-			if !b.PG && !strings.HasPrefix(c.q, "CREATE TEMP TABLE") {
+			if !b.PG && !strings.HasPrefix(c.q, "CREATE TEMP TABLE") && !strings.HasPrefix(c.q, "DECLARE") {
 				if rows != nil {
 					rows.Close()
 					t.Fatal("unsupported boundary returned rows")
@@ -180,9 +180,6 @@ func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) 
 				want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported")
 				want.Position = "1"
 				switch {
-				case strings.HasPrefix(c.q, "DECLARE"):
-					want = fixture.ControlsReferenceDiagnostic("0A000", "WITH HOLD cursors are unsupported")
-					want.Position = "32"
 				case strings.HasPrefix(c.q, "SELECT"):
 					want = fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
 					want.Position = "8"

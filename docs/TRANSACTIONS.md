@@ -249,10 +249,15 @@ and fails0A000 `cannot PREPARE a transaction that has operated on temporary obje
 An unused temporary sequence from an earlier transaction is allowed. Persistent
 nextval/currval/setval/lastval memory is allowed; consumed draws remain
 nontransactional. Nonholdable SQL cursors close on PREPARE TRANSACTION detach.
-WITH HOLD cursors are rejected with0A000 `WITH HOLD cursors are unsupported`;
-LISTEN/UNLISTEN/NOTIFY and pg_export_snapshot retain their unsupported
-statement/function boundaries, not executable native PREPARE restriction parity.
-Ordinary Go Rows/Stmt handles are not SQL WITH HOLD cursors.
+A healthy WITH HOLD cursor created in the current transaction and not yet
+exported fails0A000 `cannot PREPARE a transaction that has created a cursor WITH HOLD`.
+This check precedes TEMP-use and empty-GID restrictions. CLOSE/CLOSE ALL,
+ROLLBACK TO of its declaration, and failed-portal recovery remove the restriction;
+released savepoints do not. Previously exported HOLD stores survive successful
+or failed PREPARE and retain their positions. They contain typed output, not
+transaction execution authority. LISTEN/UNLISTEN/NOTIFY and pg_export_snapshot
+retain unsupported statement/function boundaries, not executable native PREPARE
+restriction parity. Ordinary Go Rows/Stmt handles do not prohibit preparation.
 
 `pg_catalog.pg_prepared_xacts` (also unqualified through pg_catalog lookup) is a
 read-only PUBLIC SELECT source with exactly five columns in order:
@@ -482,8 +487,13 @@ row grant and escalates for actual unique-key changes. A mutation failure does n
 itself fail a healthy cursor.
 Later declarations close on rollback-to, CLOSE is not resurrected, and
 full SQL/driver transaction end, PREPARE detach or physical session end closes
-nonholdable names. Committed Dump contains survivors, never cursor state or
-private writes. Failed Restore preserves current identity; successful catalog
+nonholdable names. Creating commit exports each healthy HOLD remainder before
+ON COMMIT effects, SSI/write publication and transaction cleanup. Export is per
+portal: previously promoted stores survive later drain/publication failure,
+while private transaction writes roll back. Exported HOLD survives later ends
+but no longer supplies CURRENT OF's live occurrence. Committed Dump contains
+survivors, never cursor state or private writes. Failed Restore preserves current
+identity; successful catalog
 replacement fences it through the existing epoch/storage authority.
 
 

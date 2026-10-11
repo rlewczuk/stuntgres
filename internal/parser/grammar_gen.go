@@ -8786,7 +8786,7 @@ sqldefault:
 	case 151:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqlVAL.stmt = &DeclareCursor{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Query: sqlDollar[7].selectStmt, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.stmt = &DeclareCursor{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Query: sqlDollar[7].selectStmt, Hold: sqlDollar[5].desc, Pos: sqlDollar[1].tok.pos}
 		}
 	case 152:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -8817,8 +8817,7 @@ sqldefault:
 	case 157:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).failAt("0A000", "WITH HOLD cursors are unsupported", sqlDollar[1].tok.pos.Offset)
-			return 1
+			sqlVAL.desc = true
 		}
 	case 160:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]

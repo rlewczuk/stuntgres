@@ -112,11 +112,12 @@ Every spelling is a zero-parameter, zero-column utility with affected count0;
 Prepare is effect-free. ALL fails25001 in healthy transaction blocks; aborted
 admission takes precedence with25P02. Subsets work in healthy read-only blocks.
 PLANS/SEQUENCES survive rollback; TEMP deletion is restored by rollback/savepoint.
-No automatic pool cleanup, notifications, holdable cursor emulation, generic
+No automatic pool cleanup, notifications, generic
 optimizer cache, persistent Engine/data/roles reset or prepared-transaction reset
 is claimed. Anonymous retained rows remain independent. TEMP preflights its
 complete removal closure against live owner cursor source identities and fails
-55006 before deletion, including exhausted-but-not-closed sources. Native Go AST handles remain usable after ALL when lifetime/signature
+55006 before deletion, including exhausted-but-not-closed live sources. Exported
+HOLD has released its source pins and does not prohibit DISCARD TEMP. Native Go AST handles remain usable after ALL when lifetime/signature
 fences permit, unlike pq's deallocated server statement names.
 See [PostgreSQL18 DISCARD](https://www.postgresql.org/docs/18/sql-discard.html).
 
@@ -702,27 +703,37 @@ Complete dual-mode family: `RUN='^TestReferenceStringEncoding'`; feature smoke:
 
 ### Forward-only SQL cursors — change note
 
-Nonholdable `DECLARE [NO SCROLL] CURSOR [WITHOUT HOLD] FOR query`, forward
+`DECLARE [NO SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query`, forward
 constant-count/ALL FETCH and CLOSE/name/ALL reuse the typed query pipeline and one
-physical-session registry. Each FETCH is eager and detached while the private
-query retains position and DECLARE visibility. First-demand identity/time data
-is distinct from each FETCH's current execution authority. Blocking query demand
-is preserved; ordinary SELECT eagerness is unchanged. Empty and zero-width batches
-retain complete schema/cardinality. SQL/driver transaction end, full abort,
-PREPARE detach and session end close named execution; savepoint rollback removes
-later declarations without rewinding older movement or undoing CLOSE/failure.
-Native held FETCH returns the live schema, not pq's stale prepared description.
-Successful final cursor preflight is authoritative: Finish cannot retract a
-completed DECLARE/FETCH/CLOSE on late cancellation, while mid-demand failure
-returns no partial batch and fails the portal. Only these stage-free cursor
-utilities bypass the explicit private-stage merge; noncursor publication is unchanged.
-Runtime REGTYPE parser notices and modifier warnings use the current FETCH's
-operation/`client_min_messages`, not DECLARE's. Quiet DECLARE/before-first FETCH0
-and EOF do not emit runtime warnings; bounded FETCH projects no extra output warning.
-SCROLL, WITH HOLD, backward repositioning and ABSOLUTE/RELATIVE movement remain
-excluded. See [driver ownership and transport distinctions](DRIVER.md#forward-only-sql-cursors--change-note).
+physical-session registry. Default/WITHOUT HOLD requires an explicit transaction;
+WITH HOLD also works in autocommit. FETCH is eager/detached; live producers retain
+DECLARATION visibility and position. First-demand identity/time is separate from
+each live FETCH/commit's current operation, context, cancellation, notices, locks
+and original transaction authority. Blocking demand and ordinary SELECT eagerness
+are unchanged; empty/zero-width results retain full schema/cardinality.
+Creating commit drains the unreturned HOLD remainder once before ON COMMIT,
+SSI/write publication and transaction cleanup. Each portal exports immediately;
+its store survives later drain/publication failure while private writes roll back.
+Export keeps typed output/schema/epoch but releases producer/source pins and
+execution authority. Later stored FETCH reevaluates no targets, acquires no query
+locks, and captures current catalog/auth/search_path/timezone presentation.
+REGCLASS/REGTYPE rename/drop names and numeric fallback apply recursively to
+arrays, domains and composites. No DECLARE catalog is retained after export;
+typed values/schema keep their codecs and earlier batches keep captured spellings.
+Later transaction ends and PREPARE preserve exported HOLD; creating rollback
+removes unexported entries. CLOSE, DISCARD ALL and physical end release stores.
+Savepoints do not rewind surviving motion or undo CLOSE/failure. Direct top-level
+rowmarks are prohibited after analysis; nested/stored-view rowmarks are admitted.
+Native prepared FETCH uses the actual live/store schema, not pq's stale decoder.
+Live utility completion preflights preserve delivered batches against late
+cancellation. Implicit HOLD installation is not completion until drain and
+canonical transaction publication succeed. Runtime REGTYPE warnings use current
+demand policy (FETCH/COMMIT/autocommit DECLARE); quiet analysis/non-demanding
+DECLARE/FETCH0 and stored FETCH emit no target warnings. SCROLL/backward and
+ABSOLUTE/RELATIVE movement remain excluded. See [driver ownership and transport distinctions](DRIVER.md#forward-only-sql-cursors--change-note).
 Dual-mode family: `RUN='^TestReferenceSQLCursor'`; feature smoke:
 `RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+HOLD smoke: `RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'` in both modes.
 
 ### Positioned DELETE — change note
 
@@ -738,7 +749,7 @@ Rollback-to restores deletions without restoring older cursor motion; repeat
 deletion after rollback can delete the same physical occurrence again. Dump
 serializes only committed survivors, never cursor state, and replacement fences
 old execution rather than retargeting equal restored values.
-Raw parameter cursor syntax and excluded cursor movement/hold capabilities remain
+Raw parameter cursor syntax and excluded cursor movement capabilities remain
 excluded. UPDATE CURRENT OF uses the same positioned authority described below. Feature smoke:
 `RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'` in both check modes.
 
@@ -759,8 +770,10 @@ casts/functions/ordering or arrays.
 Native state is always-enabled and process-local per Engine, not crash durable
 or cluster-wide. Reset/Restore/ReplaceCatalog refuse while any entry remains;
 Dump records committed state only. Executed owner-TEMP table/sequence access
-prohibits preparation. SQL WITH HOLD cursors, notifications and exported snapshots
-retain their preexisting exclusions.
+prohibits preparation. Healthy current unexported HOLD fails0A000
+`cannot PREPARE a transaction that has created a cursor WITH HOLD` before TEMP
+and empty-GID restrictions; closed/rolled-back-to/failed-recovered/prior exported
+entries do not. Notifications and exported snapshots retain preexisting exclusions.
 Ordinary driver Rows and prepared statements do not prohibit preparation.
 See [transaction lifecycle and diagnostics](TRANSACTIONS.md#prepared-transactions).
 

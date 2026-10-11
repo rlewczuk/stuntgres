@@ -6,8 +6,11 @@ import "fmt"
 // occurrence and then remap its stable RowID into their fresh command view.
 func (s *StatementScope) positionedMutationRow(b binding) (RowID, error) {
 	c := s.op.session.cursors.entries[b.currentOf]
-	if c == nil || c.tx != s.txRef {
+	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return 0, missingSQLCursor(b.currentOf)
+	}
+	if c.epoch != s.txRef.epoch {
+		return 0, ErrCatalogReplaced
 	}
 	if c.position == cursorFailed || c.root == nil {
 		return 0, sqlError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.currentOf))

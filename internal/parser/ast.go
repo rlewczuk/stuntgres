@@ -963,10 +963,11 @@ type GroupingExpr struct {
 func (GroupingExpr) expression()                {}
 func (e GroupingExpr) SourcePosition() Position { return e.Pos }
 
-// SQL cursors retain a query privately; each FETCH publishes a detached batch.
+// SQL cursors retain a private query or exported HOLD remainder; FETCH publishes detached batches.
 type DeclareCursor struct {
 	Name  Identifier
 	Query *Select
+	Hold  bool
 	Pos   Position
 }
 

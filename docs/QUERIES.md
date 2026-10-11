@@ -1604,11 +1604,15 @@ scope and owned schema. Mutation or output failure/cancellation uses ordinary
 DELETE staging and publishes no partial data/result. It does not fail a healthy
 cursor; recovery restores data but never rewinds older FETCH movement.
 Full transaction/PREPARE/session end closes nonholdable names.
+Exported WITH HOLD names survive later transaction/PREPARE ends, but their
+producer and physical occurrence have been released. CURRENT OF therefore gives
+24000 `cursor "name" is held from a previous transaction`; stored projected values
+are never rebound as an updatable occurrence.
 
 Native Dump excludes private deletion and all execution state; committed dumps
 restore only survivors and persistent metadata. Failed Restore preserves current
 identity, successful replacement fences it, and detached FETCH/RETURNING rows
-remain immutable. Backward/scroll/hold cursor capabilities and refcursor parser
+remain immutable. Backward/scroll cursor capabilities and refcursor parser
 hooks are not added. UPDATE CURRENT OF is described below.
 Smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.

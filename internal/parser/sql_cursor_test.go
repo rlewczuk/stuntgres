@@ -18,7 +18,7 @@ func TestSQLCursorGrammar(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 		cursor, ok := statements[0].(*DeclareCursor)
-		if !ok || cursor.Name.Text != "Mixed" || cursor.Name.Pos.Offset != 8 || cursor.Pos.Offset != 0 || cursor.Query == nil {
+		if !ok || cursor.Name.Text != "Mixed" || cursor.Name.Pos.Offset != 8 || cursor.Pos.Offset != 0 || cursor.Query == nil || cursor.Hold {
 			t.Fatal(q, statements[0])
 		}
 	}
@@ -65,7 +65,7 @@ func TestSQLCursorFullInputAndExcludedCapabilities(t *testing.T) {
 			t.Fatal("partial cursor syntax accepted", q, statements, err)
 		}
 	}
-	for _, q := range []string{"DECLARE c SCROLL CURSOR FOR SELECT 1", "DECLARE c CURSOR WITH HOLD FOR SELECT 1", "FETCH ABSOLUTE 1 FROM c", "FETCH RELATIVE 1 FROM c"} {
+	for _, q := range []string{"DECLARE c SCROLL CURSOR FOR SELECT 1", "FETCH ABSOLUTE 1 FROM c", "FETCH RELATIVE 1 FROM c"} {
 		statements, err := Parse(q)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || len(statements) != 0 {
@@ -96,5 +96,24 @@ func TestSQLCursorQueryTraversal(t *testing.T) {
 	statements, err = Parse("SELECT declare,cursor,close,scroll,hold,forward,backward,absolute,relative FROM t")
 	if err != nil || len(statements) != 1 {
 		t.Fatal("unreserved cursor words lost name legality", statements, err)
+	}
+}
+
+func TestSQLCursorHoldGrammar(t *testing.T) {
+	for _, clause := range []string{"", " WITHOUT HOLD", " WITH HOLD"} {
+		query := `DECLARE "Mixed" NO SCROLL CURSOR` + clause + " FOR SELECT 1"
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+		cursor := statements[0].(*DeclareCursor)
+		if cursor.Hold != (clause == " WITH HOLD") || cursor.Name.Text != "Mixed" || cursor.Name.Pos.Offset != 8 || cursor.Pos.Offset != 0 || cursor.Query == nil {
+			t.Fatal(query, cursor)
+		}
+	}
+	for _, query := range []string{"DECLARE c CURSOR WITH HOLD FOR SELECT 1 junk junk", "DECLARE c CURSOR WITH HOLD", "DECLARE c CURSOR WITH HOLD WITH HOLD FOR SELECT 1"} {
+		if statements, err := Parse(query); err == nil || len(statements) != 0 {
+			t.Fatal("partial hold declaration accepted", query, statements, err)
+		}
 	}
 }

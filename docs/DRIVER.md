@@ -113,43 +113,71 @@ refresh. Its repeatable reference selector is
 
 ## Forward-only SQL cursors — change note
 
-`DECLARE name [NO SCROLL] CURSOR [WITHOUT HOLD] FOR query` requires an explicit
-transaction on a pinned `sql.Conn` or `sql.Tx`. DECLARE analyzes the complete
-query and captures its data snapshot and owned parameters without producing
-target values. `FETCH [FORWARD] count FROM|IN name` and `FETCH [FORWARD] ALL`
-continue the retained query in result order. Each successful FETCH publishes a
-fully eager, detached batch with the live cursor's complete schema, including
+`DECLARE name [NO SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query` belongs to
+one physical session, so use a pinned `sql.Conn` or `sql.Tx`. The default and
+WITHOUT HOLD require an explicit transaction. WITH HOLD also works in autocommit.
+DECLARE analyzes the complete query and captures its data snapshot and owned
+parameters without producing target values. `FETCH [FORWARD] count FROM|IN name`
+and `FETCH [FORWARD] ALL` continue retained query/result order. Each successful
+FETCH publishes a fully eager, detached batch with the complete schema, including
 empty/exhausted and zero-column results. Ordinary SELECT remains fully eager.
 Blocking sorts, aggregates, joins and views may demand input before a batch;
 there is no universal one-expression-draw-per-returned-row promise.
 
-The first effective FETCH captures selected stable identity and statement-time
-expression data; before-first FETCH0 does not start demand. Every FETCH uses a
-fresh operation/context, current cancellation and lock policy, transaction
-authority and sequence acquisition. DECLARE's source snapshot is never rebound
+The first effective demand (FETCH or creating commit's HOLD drain) captures
+selected stable identity and statement-time expression data; before-first FETCH0
+does not start demand. Live FETCH and commit demand use fresh operation/context,
+current cancellation/notice/lock policy, original transaction authority and
+sequence acquisition. DECLARE's source snapshot is never rebound
 or reopened. Already returned batches remain immutable after SQL CLOSE,
 transaction/session end or native catalog replacement.
 
-The final successful cursor publication preflight is the completion boundary:
-later cancellation cannot retract a delivered FETCH batch, installed DECLARE or
-completed CLOSE/CLOSE ALL in statement Finish. Cancellation or an error during
-demand or before that preflight returns no partial batch and leaves the executing
-cursor failed, not rewound. Finish still advances the command and releases statement
-admission/resources; successful cursor and SQL-name utilities skip the private-stage merge.
-Ordinary statements retain their required row/catalog publication.
+The final successful live-cursor utility/FETCH publication preflight is its
+completion boundary: later cancellation cannot retract a delivered FETCH batch,
+explicit-transaction DECLARE or completed CLOSE/CLOSE ALL in statement Finish.
+Autocommit HOLD installation alone is not completion: draining and canonical
+transaction publication must finish before DECLARE returns success. Demand or
+prepublication errors expose no partial batch and leave a live producer failed,
+not rewound. Finish advances the command and releases statement admission/resources.
+Ordinary statements and implicit HOLD retain required row/catalog publication.
 
 Runtime REGTYPE casts route parser notices and modifier warnings through the
-current FETCH operation and its captured `client_min_messages` policy, never the
-DECLARE operation. A demanded TEXT `timestamp(7)` cast emits WARNING/22023
+current demand operation (FETCH, SQL/Go COMMIT, or autocommit DECLARE) and its
+captured `client_min_messages` policy, never a finished DECLARE operation.
+Previously demanded batches are not replayed or re-warned. A TEXT `timestamp(7)` cast emits WARNING/22023
 `TIMESTAMP(7) precision reduced to maximum allowed, 6` when that policy permits it.
-Quiet description/DECLARE and before-first FETCH0 emit no runtime warning;
+Quiet description, non-demanding explicit DECLARE and before-first FETCH0 emit no runtime warning;
 bounded FETCH does not project an extra row's warning, and EOF emits none.
 
 `CLOSE name` and `CLOSE ALL` dispose named execution. COMMIT, ROLLBACK, CHAIN,
 full abort, PREPARE TRANSACTION detach and physical session end dispose nonholdable
-cursors. ROLLBACK TO removes declarations after its mark but does not rewind
-older cursor motion, undo CLOSE or heal an executing cursor failure. Recovered
-failed cursors report55000 `portal "name" cannot be run`; missing names give34000.
+cursors. Unexported HOLD cursors are also removed by creating rollback/abort.
+ROLLBACK TO removes declarations after its mark but does not rewind older cursor
+motion, undo CLOSE or heal an executing failure. Recovered failed cursors report
+55000 `portal "name" cannot be run`; missing names give34000.
+
+Creating SQL/Go COMMIT (including CHAIN) drains each healthy HOLD producer's
+unfetched remainder before ON COMMIT actions, write publication and transaction
+cleanup. Export preserves typed values, cardinality, schema and original epoch,
+not a query producer, source pin, lock, operation, context or transaction authority.
+Promotion is per portal: an already exported portal survives a later portal's
+drain failure or final serialization/publication failure even though private
+transaction writes roll back. Subsequent transactions/rollback/PREPARE preserve
+exported names and positions. Stored FETCH performs no target evaluation,
+sequence draw or query lock acquisition. Current FETCH catalog, authorization and
+search_path render typed REGCLASS/REGTYPE values recursively, including arrays,
+domains and composites; rename uses the new name and DROP uses the datum's numeric
+OID. Timezone likewise belongs to current FETCH presentation. Typed values/schema
+own their codecs, not a retained DECLARE catalog; already delivered batches keep
+their captured spellings after later catalog changes. CLOSE, DISCARD ALL and
+physical session end release stores; returning a connection to its pool does not.
+
+Direct top-level FOR UPDATE/NO KEY UPDATE/SHARE/KEY SHARE is rejected after query
+analysis with0A000 and Detail `Holdable cursors must be READ ONLY.` Nested and
+stored-view row marks remain supported and release their locks at creating end.
+A healthy unexported HOLD cursor created in the current transaction prohibits
+PREPARE with0A000 `cannot PREPARE a transaction that has created a cursor WITH HOLD`;
+closed, rolled-back-to, failed-after-recovery and previously exported entries do not.
 
 `UPDATE/DELETE WHERE CURRENT OF name` borrows the most recently delivered physical
 occurrence of the live eligible cursor, not its projected values or a Prepare-time
@@ -162,14 +190,15 @@ deletion; repeat UPDATE counts one and uses the latest old values, including
 same-value assignments. Cursor lookup is live at Execute, not captured by Prepare.
 RETURNING metadata comes from target/source analysis independently of FETCH schema.
 After a failed FETCH and savepoint recovery, CURRENT OF uses the executor-lifetime
-24000 diagnostic (`cursor "name" is held from a previous transaction`), distinct
+24000 diagnostic (`cursor "name" is held from a previous transaction`), also used
+for exported HOLD cursors that no longer have a live physical source, distinct
 from FETCH's55000 portal diagnostic. Missing names continue to give34000.
 The native current occurrence retains no operation, context or projected-value
 copy. Reset/Restore fences old identities rather than refreshing them from equal
 restored tuples; detached FETCH/RETURNING results retain their own values/schema.
 
 Backward/negative and on-row zero FETCH give55000 `cursor can only scan forward`
-with the SCROLL hint. SCROLL, WITH HOLD and ABSOLUTE/RELATIVE movement remain
+with the SCROLL hint. SCROLL and ABSOLUTE/RELATIVE movement remain
 independent unsupported capabilities.
 
 Preparing DECLARE analyzes parameters/dependencies but installs nothing;
@@ -186,6 +215,8 @@ Reset/Restore fences the next admitted use rather than recapturing sources.
 
 Feature smoke: `make check RUN='^TestReferenceSQLCursorFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+HOLD smoke: `make check RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`.
 
 ## SQL prepared statements — change note
 

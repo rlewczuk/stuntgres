@@ -704,6 +704,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if err != nil {
 			return b, err
 		}
+		// PostgreSQL checks the analyzed query's own rowmarks before rewrite;
+		// rowmarks inside derived queries or stored views remain admissible.
+		if s.Hold && len(s.Query.Locking) != 0 {
+			err := sqlError("0A000", "DECLARE CURSOR WITH HOLD ... "+s.Query.Locking[0].Mode+" is not supported")
+			err.(*sqlstate.Error).Detail = "Holdable cursors must be READ ONLY."
+			return b, err
+		}
 		b.commandQuery = true
 	case *parser.Select:
 		var err error

@@ -456,17 +456,21 @@ or bit casts/operators/arrays are introduced. See
 Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make check RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`.
 
-Change note: forward-only SQL cursors support `DECLARE [NO SCROLL] CURSOR`,
-constant-count/ALL forward FETCH and CLOSE/name/ALL inside explicit transactions.
-DECLARE retains visibility without drawing targets; each FETCH publishes a
-detached eager batch and continues position under fresh execution authority.
-Transaction/session end closes nonholdable cursors; savepoint rollback removes
-later declarations without rewinding older movement or undoing CLOSE/failure.
-Native prepared FETCH exposes the live entry's schema rather than emulating
-lib/pq's stale description/decoder. SCROLL/WITH HOLD/backward movement remain
-excluded. See [SQL cursor ownership](docs/DRIVER.md#forward-only-sql-cursors--change-note).
+Change note: forward-only SQL cursors support `DECLARE [NO SCROLL] CURSOR
+[WITHOUT HOLD|WITH HOLD]`, constant-count/ALL forward FETCH and CLOSE/name/ALL.
+Default/WITHOUT HOLD requires an explicit transaction; WITH HOLD also works in
+autocommit. DECLARE retains visibility without drawing targets. Creating commit
+drains the unfetched HOLD remainder once into session-owned typed output, releases
+its producer/source pins, and preserves exported names across later transactions.
+Promotion is per portal, not atomic with later drain/publication failure.
+Transaction end closes unexported ordinary/newly aborted cursors; physical end and
+CLOSE release stores. Savepoints do not rewind surviving movement or undo CLOSE.
+Native prepared FETCH uses the current schema, not lib/pq's stale description.
+SCROLL/backward movement remains excluded. See [SQL cursor ownership](docs/DRIVER.md#forward-only-sql-cursors--change-note).
 Feature smoke: `make check RUN='^TestReferenceSQLCursorFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+HOLD smoke: `make check RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`.
 
 Change note: `DELETE FROM target WHERE CURRENT OF cursor_name` deletes only the
 physical occurrence most recently delivered by a live updatable SQL cursor.
@@ -475,7 +479,8 @@ projected keys do not change identity. DELETE does not move the cursor; repeatin
 it after successful deletion reports zero. Prepare is quiet and each execution
 resolves the current named incarnation. USING/RETURNING retain their normal
 scopes, metadata and atomic publication. Savepoint rollback restores data without
-rewinding older FETCH movement; full transaction end closes the name.
+rewinding older FETCH movement; full transaction end closes ordinary names.
+Exported HOLD has no live physical source and CURRENT OF reports24000.
 See [positioned DELETE](docs/QUERIES.md#positioned-delete--change-note).
 Feature smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
@@ -504,8 +509,10 @@ current superuser can finish them. `pg_catalog.pg_prepared_xacts` exposes
 Native preparation is always enabled per Engine, without crash persistence,
 cluster-wide databases or a capacity setting. Reset/Restore refuse while entries
 exist; Dump remains committed-only. Executed TEMP table/sequence access prohibits
-preparation; WITH HOLD cursors, notifications and snapshot export remain excluded.
-Nonholdable cursors close on detach. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
+preparation. A healthy current-transaction unexported HOLD cursor also prohibits
+PREPARE; closed/failed-after-recovery/prior exported entries do not. Notifications
+and snapshot export remain excluded. Nonholdable cursors close on detach while
+exported HOLD stores survive. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
 Feature smoke: `make check RUN='^TestReferencePreparedTransactionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePreparedTransactionFeatureSmoke$'`.
 

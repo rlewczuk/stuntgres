@@ -103,7 +103,7 @@ type transactionOwner struct {
 
 func (t *transactionOwner) clear() {
 	if t.session.cursors != nil {
-		t.session.cursors.clear()
+		t.session.cursors.endTransaction(t.ref)
 	}
 	t.state = TxIdle
 	t.ref = TxRef{}
@@ -338,12 +338,7 @@ type WriteStage struct {
 }
 
 func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
-	var start time.Time
-	if op != nil && !op.commandStart.IsZero() {
-		start = op.commandStart
-	} else {
-		start = time.Now().UTC().Truncate(time.Microsecond)
-	}
+	start := statementOperationStart(op)
 	if err := e.transactionAdmission(op); err != nil {
 		return nil, err
 	}
@@ -355,15 +350,27 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 		t.admission.Unlock()
 		return nil, err
 	}
-	s := &StatementScope{owner: t, op: op, statementStart: start}
+	s := newStatementScope(op, t, start)
+	op.session.startProvisionalTimeout(s)
+	return s, nil
+}
+
+// Both statement admission and held-cursor precommit borrow the same current
+// operation/presentation initializer; neither retains a finished FETCH scope.
+func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) *StatementScope {
+	s := &StatementScope{owner: owner, op: op, statementStart: start}
 	s.self = s
 	s.stage.scope = s
 	s.stage.self = &s.stage
-	// Capture presentation before engine locking; admission serializes settings
-	// changes on this session for the lifetime of the statement.
 	s.input, s.output = sessionPresentation(op.session)
-	op.session.startProvisionalTimeout(s)
-	return s, nil
+	return s
+}
+
+func statementOperationStart(op *Operation) time.Time {
+	if op != nil && !op.commandStart.IsZero() {
+		return op.commandStart
+	}
+	return time.Now().UTC().Truncate(time.Microsecond)
 }
 
 // Admission serializes session settings; publication uses the same typed
@@ -467,13 +474,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		}
 		t.ticket = ticket
 	}
-	s.ticket = t.ticket
-	s.txRef = t.ref
-	s.implicit = t.state == TxImplicit
-	s.input.TransactionStart = t.start
-	s.command = t.command
-	s.ownWrites = t.writes
-	s.ownDeletes = t.deletes
+	s.attachTransactionLocked()
 	e.mu.Lock()
 	stale := t.ref.epoch != e.state.epoch
 	e.mu.Unlock()
@@ -487,6 +488,18 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return errors.New("stuntgres: command identity exhausted")
 	}
 	return nil
+}
+
+// The transaction owner mutex is held; admission protects the projected roots.
+func (s *StatementScope) attachTransactionLocked() {
+	t := s.owner
+	s.ticket = t.ticket
+	s.txRef = t.ref
+	s.implicit = t.state == TxImplicit
+	s.input.TransactionStart = t.start
+	s.command = t.command
+	s.ownWrites = t.writes
+	s.ownDeletes = t.deletes
 }
 
 func (s *StatementScope) ResolutionCatalog() CatalogRead {
