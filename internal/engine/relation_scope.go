@@ -410,7 +410,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		switch statement := stmt.(type) {
 		case *parser.Copy:
 			storageTarget = descriptor.relationKind == tableRelation || descriptor.relationKind == materializedViewRelation
-		case *parser.Delete, *parser.Update:
+		case *parser.Delete, *parser.Update, *parser.Merge:
 			storageTarget = descriptor.relationKind == tableRelation
 		case *parser.Insert:
 			storageTarget = descriptor.relationKind == tableRelation && statement.Conflict != nil && statement.Conflict.Update

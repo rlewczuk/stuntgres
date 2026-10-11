@@ -94,7 +94,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref TxRef, materialize
 				predecessors = p.writes
 			}
 			predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
-			if !found || predecessor.version != candidate.version || len(predecessor.values) != len(p.relation.columns) {
+			if !found || predecessor.version != candidate.version || candidate.own && predecessor.base != candidate.base || len(predecessor.values) != len(p.relation.columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}
 			if !candidate.own && !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {

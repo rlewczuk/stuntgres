@@ -1,0 +1,64 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestMergeDeleteSourceCompletion(t *testing.T) {
+	for _, phase := range []string{"next", "close", "primaryWins", "cancelAtClose"} {
+		t.Run(phase, func(t *testing.T) {
+			e := New()
+			s := sessionStart(t, e, nil)
+			peer := sessionStart(t, e, nil)
+			sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+			sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE WHEN NOT MATCHED BY SOURCE THEN DELETE")
+			defer op.Done()
+			defer target.close()
+			defer inputs.close()
+			one, _ := sqltype.Integer(b.relation.columns[0].Usage.Type, 1)
+			primary, cleanup := errors.New("late DELETE source Next"), errors.New("required DELETE source Close")
+			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}}}
+			if phase == "next" || phase == "primaryWins" {
+				cursor.nextError = primary
+			}
+			if phase == "close" || phase == "primaryWins" {
+				cursor.closeError = cleanup
+			}
+			premature := false
+			cursor.beforeClose = func() {
+				e.locks.mu.Lock()
+				for resource, entry := range e.locks.entries {
+					if resource.ObjectRef == b.ref && resource.row != 0 && (len(entry.holders) != 0 || len(entry.pending) != 0) {
+						premature = true
+					}
+				}
+				e.locks.mu.Unlock()
+				if phase == "cancelAtClose" {
+					cancel()
+				}
+			}
+			state := &queryState{source: inputs, input: scope.input, output: scope.output}
+			rows, err := e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
+			want := primary
+			if phase == "close" {
+				want = cleanup
+			}
+			if phase == "cancelAtClose" {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) || rows != nil || cursor.closed != 1 || len(scope.stage.rows) != 0 || len(scope.stage.deletes) != 0 || premature {
+				scope.Finish(err)
+				t.Fatal("source failure escaped into deletion", err, cursor.closed, premature)
+			}
+			scope.Finish(err)
+			transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+			lockEmpty(t, e)
+		})
+	}
+}

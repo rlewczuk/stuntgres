@@ -52,9 +52,9 @@ func TestMergeInsertSyntax(t *testing.T) {
 
 func TestMergeInsertRejectsFullInput(t *testing.T) {
 	for _, suffix := range []string{
-		"WHEN MATCHED THEN DELETE",
 		"WHEN NOT MATCHED THEN DO NOTHING",
-		"WHEN NOT MATCHED BY SOURCE THEN DELETE",
+		"WHEN NOT MATCHED BY SOURCE THEN UPDATE SET id=1",
+		"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING",
 		"WHEN NOT MATCHED THEN INSERT INTO t VALUES(1)",
 		"WHEN NOT MATCHED THEN INSERT SELECT 1",
 		"WHEN NOT MATCHED THEN INSERT VALUES(1),(2)",
@@ -103,5 +103,49 @@ func TestMergeInsertQueryVisitor(t *testing.T) {
 	err = VisitQuerySources(statements[0], nil, func(table *TableReference, _ *Select) error { seen = append(seen, table); return nil })
 	if err != nil || len(seen) != 4 {
 		t.Fatal("source/ON/condition/value lexical order", seen, err)
+	}
+}
+
+func TestMergeDeleteSyntax(t *testing.T) {
+	q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND s.id=1 THEN DELETE WHEN NOT MATCHED BY SOURCE AND t.id=2 THEN DELETE WHEN NOT MATCHED BY TARGET THEN INSERT VALUES(s.id)"
+	statements, err := Parse(q)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	m := statements[0].(*Merge)
+	if len(m.Arms) != 3 || m.Arms[0].Match != MergeMatched || m.Arms[1].Match != MergeNotMatchedBySource || m.Arms[2].Match != MergeNotMatched || m.Arms[0].Action != MergeDeleteAction || m.Arms[1].Action != MergeDeleteAction || m.Arms[2].Action != MergeInsertAction {
+		t.Fatal("incorrect action/classes", m.Arms)
+	}
+	for _, arm := range m.Arms {
+		if arm.Pos.Character == 0 || arm.ActionPos.Character == 0 {
+			t.Fatal("missing action positions", arm)
+		}
+	}
+	for _, suffix := range []string{"WHERE id=1", "FROM t", "USING s", "; garbage"} {
+		if statements, err := Parse("MERGE INTO t USING s ON TRUE WHEN MATCHED THEN DELETE " + suffix); err == nil || len(statements) != 0 {
+			t.Fatal("accepted malformed complete deletion input", suffix, statements, err)
+		}
+	}
+}
+
+func TestMergeDeleteQueryVisitor(t *testing.T) {
+	q := "MERGE INTO t USING s ON EXISTS(SELECT 1 FROM on_source) WHEN MATCHED AND EXISTS(SELECT 1 FROM matched_source) THEN DELETE WHEN NOT MATCHED BY SOURCE AND EXISTS(SELECT 1 FROM missing_source) THEN DELETE"
+	statements, err := Parse(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	err = VisitQuerySources(statements[0], nil, func(table *TableReference, _ *Select) error {
+		names = append(names, table.Name.Parts[0].Text)
+		return nil
+	})
+	want := []string{"s", "on_source", "matched_source", "missing_source"}
+	if err != nil || len(names) != len(want) {
+		t.Fatal("missing DELETE condition dependency", names, err)
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatal("nonlexical DELETE dependency order", names)
+		}
 	}
 }

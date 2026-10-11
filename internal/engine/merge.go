@@ -13,6 +13,11 @@ type boundMerge struct {
 	on            BoundExpr
 	arms          []boundMergeArm
 	hasInsert     bool
+	hasDelete     bool
+	hasBySource   bool
+	hasByTarget   bool
+	targetWidth   int
+	sourceWidth   int
 	insertTargets []int
 	updateTargets []int
 }
@@ -99,15 +104,21 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	default:
 		return expressionError("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
 	}
-	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms))}
-	var unconditional [2]bool
+	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms)), targetWidth: len(target.frame), sourceWidth: len(source.frame)}
+	var unconditional [3]bool
 	for i, raw := range s.Arms {
 		if unconditional[raw.Match] {
 			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
 		}
 		binder.queryNamespace = &source
-		if raw.Match == parser.MergeMatched {
+		switch raw.Match {
+		case parser.MergeMatched:
 			binder.queryNamespace = &combined
+		case parser.MergeNotMatchedBySource:
+			binder.queryNamespace = &target
+			merge.hasBySource = true
+		case parser.MergeNotMatched:
+			merge.hasByTarget = true
 		}
 		arm := &merge.arms[i]
 		arm.match, arm.action = raw.Match, raw.Action
@@ -123,14 +134,17 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			unconditional[raw.Match] = true
 		}
 		arm.input = binding{ref: ref, relation: out.relation, storage: out.storage}
-		if raw.Action == parser.MergeUpdateAction {
+		switch raw.Action {
+		case parser.MergeDeleteAction:
+			merge.hasDelete = true
+		case parser.MergeUpdateAction:
 			binder.aggregateClause = "UPDATE"
 			u := &boundUpdate{assignments: make([]BoundExpr, len(raw.Assignments))}
 			if err := e.bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
 				return err
 			}
 			merge.updateTargets = mergeTargetUnion(merge.updateTargets, arm.input.targets)
-		} else {
+		case parser.MergeInsertAction:
 			merge.hasInsert = true
 			arm.syntax = raw.Values
 			insert := parser.Insert{Name: s.Name, Targets: raw.Targets, Rows: [][]parser.Expr{raw.Values}, DefaultValues: raw.DefaultValues, Override: raw.Override, Pos: raw.ActionPos}
@@ -223,6 +237,9 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 			}
 			continue
 		}
+		if arm.action == parser.MergeDeleteAction {
+			continue
+		}
 		for j, expression := range arm.input.expressions[0] {
 			if len(arm.input.identityDiscard) != 0 && arm.input.identityDiscard[arm.input.targets[j]] {
 				continue
@@ -244,6 +261,31 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 		}
 		if err := validateMutationJoinExecution(&owner, &arm.input, arm.input.expressions, catalog); err != nil {
 			return err
+		}
+	}
+	if merge.hasBySource && merge.hasByTarget {
+		var facts fullJoinFacts
+		var err error
+		properties := merge.on.Properties()
+		_, literal := merge.on.(literalExpression)
+		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent) {
+			// MERGE admits integer/TEXT carriers independently of Boolean JOIN
+			// predicates. Preserve that truth contract in constant capability facts
+			// without replacing the expression or its analyzed dependencies.
+			var value sqltype.Value
+			value, err = merge.on.Eval(&owner)
+			if err == nil {
+				facts.truth, err = mergeOnTruth(value)
+				facts.constant = true
+			}
+		} else {
+			facts, err = fullJoinCondition(&owner, &joinNode{leftWidth: merge.targetWidth, rightWidth: merge.sourceWidth}, merge.on, false)
+		}
+		if err != nil {
+			return err
+		}
+		if !facts.constant && len(facts.keys) == 0 {
+			return sqlError("0A000", "FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")
 		}
 	}
 	return nil
@@ -303,5 +345,5 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err := rows.stage(scope.Writes(), b.ref); err != nil {
 		return Result{}, err
 	}
-	return Result{Count: int64(len(rows.values))}, nil
+	return Result{Count: int64(len(rows.actions))}, nil
 }

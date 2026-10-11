@@ -1468,6 +1468,88 @@ physical tuple identifiers/planner/storage, pg_dump or native ABI replication.
 
 INSERT SELECT is included above because INSERT input binding is shared.
 
+### MERGE matched and BY SOURCE DELETE
+
+Shared `reference/dml/merge_delete_*_test.go` definitions specify independent
+rows/types, native counts versus pq MERGE count0, complete diagnostics and actual
+direct/prepared execution. The root pins new goldens before the corresponding
+production change and records native feature-red. Run each selected group in
+both modes, with a separate external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceMergeDelete(Matching|Empty|Conditions)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeDelete(Matching|Empty|Conditions)$'
+make check RUN='^TestReferenceMergeDelete(Cardinality|OraclePrecedence|Atomicity|UniquePrefixes|Constraints|ExclusionPrefixes)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeDelete(Cardinality|OraclePrecedence|Atomicity|UniquePrefixes|Constraints|ExclusionPrefixes)$'
+make check RUN='^TestReferenceMergeDelete(Namespaces|Diagnostics|FullJoinCapabilities|FullJoinCarriers)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeDelete(Namespaces|Diagnostics|FullJoinCapabilities|FullJoinCarriers)$'
+make check RUN='^TestReferenceMergeDelete(Privileges|HeldACL|ReadOnly)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeDelete(Privileges|HeldACL|ReadOnly)$'
+make check RUN='^TestReferenceMergeDelete(Prepared|CommandMetadata|Transactions|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeDelete(Prepared|CommandMetadata|Transactions|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceMergeDelete(ServerCancellation|ConcurrentClasses|RepeatableReadFollowup)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeDelete(ServerCancellation|ConcurrentClasses|RepeatableReadFollowup)$'
+make check RUN='^TestMergeDelete(Syntax|QueryVisitor|SourceCompletion|Lineage|Publication|ConcurrentClasses|MixedPendingCancellation|RowLocks|RestartRowLocks|RepeatableReadLineage)$'
+make check RACE=1 RUN='^TestMergeDelete(ConcurrentClasses|MixedPendingCancellation|Publication|RowLocks|RestartRowLocks|RepeatableReadLineage)$'
+make check RUN='^TestMergeDeleteDeletionBaseAuthority$'
+make check RUN='^TestDeleteCore(Visibility|CombinedCommit|CombinedPreflight|StageShapeAuthority)$'
+make check RUN='^TestReferenceDeleteCoreVisibility$'
+make check REFERENCE=1 RUN='^TestReferenceDeleteCoreVisibility$'
+make check RUN='^TestReferenceMergeInsertBoundaries$'
+make check REFERENCE=1 RUN='^TestReferenceMergeInsertBoundaries$'
+```
+
+Namespaces retain inaccessible-source Detail/Hint and character positions under
+UTF8 prefixes. Source ORDER BY is not itself an equality-join output-order
+guarantee: ordered unique/exclusion retirement witnesses use a non-equality
+conjunction to retain source-driven candidates. Real reverse immediate failures
+must not be replaced by final-bag validation. The FULL-join witnesses admit
+constant TRUE/FALSE/NULL and equality, but reject `<` even on empty table data.
+FullJoinCarriers independently asserts constant/parameter integer/TEXT/NULL and
+domain truth with both missing-side families on direct/prepared routes. Nonzero
+integers and every non-NULL TEXT (including empty, `'0'`, `'false'`) match; zero/
+NULL select BY SOURCE deletion plus BY TARGET insertion. Ordinary Boolean
+JOIN/WHEN typing and analyzed ON dependencies remain unchanged.
+Second demanded projection/constraint errors precede cardinality where pinned;
+duplicate DELETE and mixed second modifications retain exact21000 and its Hint.
+
+ServerCancellation independently captures PostgreSQL ctid before contention and
+asserts the deleting-tuple Context; native has no fabricated physical Context.
+Public native timeout then fresh execution proves recovery only. PostgreSQL's
+real RowWait and native exact manager-pending executor units separately prove
+initial MATCHED losing ON, retained source and initial BY SOURCE staying its
+class. Actual-executor units also cover required source completion before row
+grants, own lineage, strong DELETE versus KEY SHARE, cancellation before Finish
+and exact resource retirement. Controls uses genuine Dump/Reset/Restore, canonical
+survivor redump, peers, a restored fresh-driver clone, retained old rows and actual
+emitted SQL replay; PostgreSQL has no invented native control API.
+RestartRowLocks observes the exact original NKU request, then a real rowUpdate
+wait against surviving KEY SHARE before an initial UPDATE restarts as MATCHED or
+BY SOURCE DELETE. Initial DELETE already owns that strong grant before following
+a predecessor; neither the follow-chain nor action append reacquires it.
+The pinned RR followup extends the prerequisite old10/own100 bag to deletion:
+unconditional DELETE raises21000, original10-only recheck affects0, and
+own100-only deletion affects1 while retaining original10 plus ancestor-private
+row2/21. Canonical private deletion carries the actual version/replacement base,
+not a RowID-wide snapshot mask.
+
+The untagged `TestReferenceDeleteCoreVisibility` is the sole migrated visibility
+definition. It preserves the original held prepared repeat/count/duplicate-bag/
+commit/rollback assertions and adds both actual direct/prepared prior-own INSERT
+and same-base UPDATE deletion witnesses: immediate private survivors, repeat0,
+unchanged peer, savepoint restoration and full rollback. Other legacy
+reference-tagged DeleteCore definitions are not Docker-free proof merely because
+a native RUN selector mentions their declarations.
+
+Feature smoke selects `^TestReferenceMergeDeleteFeatureSmoke$` in both modes.
+The standalone public program is supplied as `local://merge-delete-smoke.go`,
+materialized outside the checkout by the root. From the checkout run
+`timeout 900s go run "$SESSION_TMP/merge-delete-smoke.go"`: quiet exit0 requires
+mixed count4/survivors(2,21),(4,40), held false/NULL/true deletion, atomic duplicate
+delete21000, private/peer rollback, empty command metadata, retained old rows,
+and genuine canonical control restoration. This does not claim WAL/crash
+durability, physical identifiers/providers, wire protocol or pg_dump equivalence.
+
 ### Encoding, locale and float-presentation settings
 
 The eleven shared definitions live in `reference/patterns_encoding/format_encoding_*_test.go`.

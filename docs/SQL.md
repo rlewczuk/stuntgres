@@ -18,7 +18,7 @@ has no cleanup effect; execution returns affected0 and no columns. See the
 
 Detailed contracts are grouped by topic:
 
-- [Queries and data manipulation](QUERIES.md): INSERT, MERGE insertion/matched UPDATE, DELETE, UPDATE, SELECT, expressions and casts.
+- [Queries and data manipulation](QUERIES.md): INSERT, MERGE insertion/matched UPDATE/matched and BY SOURCE DELETE, DELETE, UPDATE, SELECT, expressions and casts.
 - [Table definitions and comments](TABLES.md): defaults, constraints, renames and column removal.
   CHECK supports complete-row TRUE/NULL acceptance, false-only INSERT/UPDATE
   rejection, TYPE dependency reparse/final-row validation, named identity, local

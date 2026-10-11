@@ -325,32 +325,47 @@ Admitted native results retain prior values, schema and presentation after repla
 ### MERGE insertion — change note
 
 `MERGE INTO table USING joined_table ON expression` supports ordered conditional
-`WHEN MATCHED [AND condition] THEN UPDATE SET` and
+`WHEN MATCHED [AND condition] THEN UPDATE SET` or `DELETE`,
+`WHEN NOT MATCHED BY SOURCE [AND condition] THEN DELETE`, and
 `WHEN NOT MATCHED [BY TARGET] [AND condition] THEN INSERT` arms. INSERT takes one
 VALUES tuple or DEFAULT VALUES. Current table/view/derived/VALUES/join sources
 are reused. Frozen all-pairs membership retains distinct target occurrences;
 the first TRUE arm within each class executes. SET expressions and array
 element/slice bounds see the original target/source frame, while partial writes
 compose in assignment order. Existing UPDATE assignment restrictions remain.
-Mixed INSERT/UPDATE constraints and actual-modification cardinality are atomic.
-Command-only Query has no metadata/rows; native affected count sums updates and
-inserts, while pinned lib/pq exports0 and shared tests independently inspect rows.
+Mixed INSERT/UPDATE/DELETE constraints and actual-modification cardinality are
+atomic, including duplicate DELETE21000. Command-only Query has no metadata/rows;
+native affected count sums all three actions, while pinned lib/pq exports0 and
+shared tests independently inspect rows. BY SOURCE conditions see only target
+columns; a matching source prevents BY SOURCE even if no MATCHED arm is selected.
+Empty-source BY SOURCE visits every captured target occurrence. DELETE uses a
+strong row lock and retires its keys before later ordered writes, without
+evaluating replacement/default/generated expressions.
 The observed integer/unknown-string nonboolean ON behavior is MERGE-local;
 ordinary JOIN/WHERE/WHEN boolean rules remain unchanged.
 
-MATCHED DELETE, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multiple
-tuples and writable target views remain unsupported, never successful no-ops.
+BY SOURCE UPDATE, DO NOTHING, RETURNING, action INSERT SELECT/multiple tuples and
+writable target views remain unsupported, never successful no-ops. Both missing-side
+families require FULL-join capability: equality and constant TRUE/FALSE/NULL are
+supported, as are the admitted row-independent integer/TEXT carriers, typed
+parameters and domains. Nonzero integers and every non-NULL TEXT value (including
+empty text, `'0'` and `'false'`) match; zero/NULL do not. This capability summary
+does not alter ordinary JOIN/WHEN typing or replace the analyzed ON expression.
+Non-merge/hash-joinable predicates such as `<` raise0A000 even with empty tables.
 Physical source non-tableoid system columns are prohibited in WHEN (42P10).
 Permitted positive source system references still use the existing unavailable
 native query-column provider boundary (42703); PostgreSQL supplies real identities.
 Initial row lock strength follows actual key changes; a concurrent-update
-follow-chain additionally uses the union of syntactic updated key columns.
-Read Committed rechecks ON and restarts arms after a peer commit. Repeatable Read
-MERGE follows an updated predecessor, retaining the old snapshot version plus
+follow-chain additionally uses the union of syntactic updated key columns and
+DELETE strength. Read Committed rechecks ON and restarts arms after a peer commit.
+An initially MATCHED candidate losing ON can select BY SOURCE and then BY TARGET
+on its retained source. An initially BY SOURCE candidate does not become MATCHED.
+Repeatable Read MERGE follows an updated predecessor, retaining the old snapshot
+version plus
 its own descendant when their bases differ; a concurrent deletion still raises
 40001. The canonical visibility owner exposes that bag without new logical rows.
-Real GRANT/REVOKE checks every action's destination union and actual reads,
-including false/empty arms and held executions. Partial array assignment's
+Real GRANT/REVOKE checks every action's destination union, DELETE presence and actual
+reads, including false/empty arms and held executions. Partial array assignment's
 implicit old-container preservation requires UPDATE, not SELECT; explicit
 old-value RHS and subscript expressions retain their SELECT requirements.
 No physical MVCC/OID provider or external durability/network/pg_dump/native-ABI

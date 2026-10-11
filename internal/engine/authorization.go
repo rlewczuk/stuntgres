@@ -811,6 +811,11 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Merge:
+		if b.merge.hasDelete {
+			if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
+				return err
+			}
+		}
 		if b.merge.hasInsert {
 			if err := v.checkColumns(b, InsertPrivilege, b.merge.insertTargets); err != nil {
 				return err

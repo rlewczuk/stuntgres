@@ -26,41 +26,51 @@ or stored rewrite/deparse surface is added.
 ```sql
 MERGE INTO destination AS t
 USING source AS s ON t.id=s.id
-WHEN MATCHED AND s.id>0
-  THEN UPDATE SET value=t.value+s.value
+WHEN MATCHED AND s.value<0 THEN DELETE
+WHEN MATCHED AND s.id>0 THEN UPDATE SET value=t.value+s.value
+WHEN NOT MATCHED BY SOURCE AND t.id>0 THEN DELETE
 WHEN NOT MATCHED BY TARGET AND s.id>0
   THEN INSERT(id,value) VALUES(s.id,s.value)
 WHEN NOT MATCHED THEN INSERT DEFAULT VALUES;
 ```
 
 Each source occurrence is classified against every captured target occurrence
-before the first row wait. Every true ON pair produces a matched candidate;
-zero pairs produce one unmatched candidate. Equal-valued but distinct target
-rows are not deduplicated. Within each class, only the first TRUE arm executes;
-FALSE/NULL fall through and a matched candidate with no selected arm never inserts.
-An unconditional arm prevents subsequent arms of its own class, not the other.
-An empty target demands no ON; an empty source demands no action/default draw.
-Current-command replacements/inserts never change frozen membership or later
-candidates' original WHEN/SET frames.
+before the first row wait. Every true ON pair produces a MATCHED candidate;
+zero pairs for a source produce one NOT MATCHED [BY TARGET] candidate. If BY SOURCE
+is present, each captured target occurrence with no ON match produces one
+NOT MATCHED BY SOURCE candidate, not one per nonmatching source. Equal-valued but
+distinct target rows are not deduplicated. Within each class, only the first TRUE
+arm executes; FALSE/NULL fall through and a matched candidate with no selected
+arm never inserts or becomes BY SOURCE. An unconditional arm prevents subsequent
+arms of its own class, not the other classes. An empty target demands no ON;
+an empty source demands no MATCHED/BY TARGET action or default draw, but BY SOURCE
+still visits all targets. Current-command writes never widen frozen membership
+or later candidates' original WHEN/SET frames.
 
 ON and MATCHED conditions/SET expressions see both target and source namespaces.
 NOT MATCHED conditions/insert values see only source; target references there
-are hidden-entry42P01 errors. SET RHS and array element/slice bounds use one
+are hidden-entry42P01 errors. BY SOURCE conditions see only target, with analogous
+inaccessible-source diagnostics. SET RHS and array element/slice bounds use one
 unchanged old frame; partial writes compose in their private replacement.
 Generated values recompute from the completed payload. Existing UPDATE DEFAULT,
 generated/identity restrictions and field/row assignment boundaries remain.
 All arms are analyzed and authorized even when false or empty. Separate INSERT
-and UPDATE destination unions govern privileges, together with actual target
-reads and recursive source SELECT. Sequence draws remain demand-owned.
+and UPDATE destination unions, presence of any DELETE action, actual target reads
+and recursive source SELECT govern privileges. Constant DELETE predicates do not
+invent a target-column SELECT demand. Sequence draws remain demand-owned; DELETE
+evaluates no replacement defaults/generated values.
 
 Cardinality measures actual modifications: false conditions consume no RowID,
-same-value updates do, and a second attempted update raises21000
+same-value updates do, and a second attempted UPDATE or DELETE raises21000
 `MERGE command cannot affect row a second time`, with the source-multiplicity
 Hint. Projection/row-constraint errors can precede that check; unique conflicts
 use23505, including duplicate unmatched inserts. Scalar-subquery21000 retains
 its distinct primary and no MERGE Hint. Mixed actions check unique constraints
-in action order against the accepted logical prefix and remaining original rows;
-key swaps are not deferred. Any late error rolls back the whole command.
+in actual candidate action order against the accepted logical prefix and remaining
+original rows. DELETE retires its unique/exclusion keys before subsequent writes;
+a later DELETE cannot forgive an earlier violation. Key swaps are not deferred.
+Any late error rolls back the whole command. Source ORDER BY alone is not a promise
+of candidate order when a PostgreSQL equality join chooses a different output order.
 
 Pinned PostgreSQL18.0 has a nonboolean ON quirk: integer zero and NULL do not
 match, while nonzero integer and a non-NULL unknown string do. MERGE implements
@@ -71,12 +81,15 @@ through the native query binder (ordinary42703), not fabricated identities or
 NULL placeholders; pinned PostgreSQL independently supplies actual identities.
 
 Source and target share one captured frontier including prior successful own
-writes. Required source Close succeeds before action row locking. Initial
-FOR NO KEY UPDATE upgrades only for an actual changed eligible key. Following
-a peer-updated predecessor additionally uses the whole syntactic UPDATE-key
-union, even for an unselected/same-value key arm. Read Committed rechecks ON
-against the latest target and retained source and restarts from the first arm;
-ON-false/deleted pairs may select unmatched insertion, without widening the join.
+writes. Required source Close succeeds before action row locking.
+DELETE takes FOR UPDATE strength; UPDATE initially uses FOR NO KEY UPDATE and
+upgrades for an actual changed eligible key. A peer-update follow-chain additionally
+uses the syntactic UPDATE-key union and DELETE strength. Read Committed rechecks ON
+against the latest target and retained source and restarts from the first arm.
+An initial MATCHED candidate losing ON may execute BY SOURCE for its target and
+then BY TARGET for its retained source. An initial BY SOURCE candidate remains
+that class even if a peer makes ON true. Genuine peer deletion may select BY TARGET;
+current-command deletion instead participates in cardinality, never insertion.
 Unique-key claimant waits never restart ON.
 
 MERGE's Repeatable Read update path follows the latest committed predecessor
@@ -86,14 +99,18 @@ old snapshot version and its own descendant, with the same logical RowID; the
 intermediate peer version remains invisible. It neither advances the frontier
 nor creates a new INSERT. A concurrent deletion still raises40001
 `could not serialize access due to concurrent delete`.
+Deleting an own descendant retires that version and its replacement base, not
+an unrelated old snapshot occurrence sharing the same logical RowID. For the
+pinned old10/own100 bag, own100-only DELETE leaves original10 visible; a later
+command still rechecks against its actual current predecessor.
 
 After all demanded actions/constraints/cancellation checks succeed, ordered
-private runs reuse canonical replace/insert staging and the sole Finish owner.
+private runs reuse canonical replace/insert/Delete staging and the sole Finish owner.
 Errors, required-Close failure and cancellation publish none; explicit failed
 transactions require rollback/savepoint recovery. Read-only MERGE fails25006
 even for matched/FALSE/empty commands after analysis/input preflight. Held
 statements reanalyze current names, assignments and ACLs. Command Query exposes
-no columns or rows. Native RowsAffected sums updates and inserts; pinned lib/pq
+no columns or rows. Native RowsAffected sums updates, inserts and deletes; pinned lib/pq
 exports0, so witnesses independently inspect exact effects. LastInsertId is unsupported.
 
 Dump persists ordinary object definitions, rows and sequence state, not MERGE
@@ -101,8 +118,13 @@ statements or cursor caches. Native Reset/Restore replacement and replay of the
 actual emitted SQL on PostgreSQL are covered separately from SQL execution.
 This remains process-local logical behavior, not disk/WAL crash durability,
 wire-protocol compatibility, external pg_dump equivalence or native ABI support.
-MATCHED DELETE, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multirow
-tuples and writable target views remain outside this selected feature.
+Both missing-side families require a FULL-joinable condition. Constant TRUE/FALSE/NULL
+and equality witnesses are admitted, as are MERGE-local row-independent integer/
+TEXT carriers (including typed parameters/domains): nonzero integers and non-NULL
+TEXT match, while zero/NULL do not. The analyzed ON expression remains intact and
+ordinary JOIN/WHEN Boolean rules stay unchanged. `<` raises the ordinary FULL-join
+0A000 even when a table happens to be empty. BY SOURCE UPDATE, DO NOTHING, RETURNING, action
+INSERT SELECT/multirow tuples and writable target views remain outside this feature.
 
 ## Column-default catalog — change note
 

@@ -18,14 +18,17 @@ type deleteCandidate struct {
 	storage *relationStorage
 	row     RowID
 	version VersionID
+	base    VersionID
 	ordinal int
 	own     bool
 }
 type privateDeletionRoot struct{ rows map[RowID]deleteCandidate }
 
+// A private replacement and an older retained snapshot may share RowID without
+// sharing lineage. End only the deleted version and its actual replacement base.
 func liveVersion(v rowVersion, frontier CommitSeq, ends *deletionRoot, own *privateDeletionRoot) bool {
 	if own != nil {
-		if _, deleted := own.rows[v.row]; deleted {
+		if deleted, ok := own.rows[v.row]; ok && (v.version == deleted.version || deleted.base != 0 && v.version == deleted.base) {
 			return false
 		}
 	}
@@ -170,6 +173,9 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 		return false, nil
 	}
 	candidate.version, candidate.ordinal = original.version, slot
+	if candidate.own {
+		candidate.base = original.base
+	}
 	root := w.deletes[candidate.ref.Address]
 	if root != nil {
 		if _, duplicate := root.rows[candidate.row]; duplicate {

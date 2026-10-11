@@ -88,8 +88,9 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 		returning              bool
 	}{
 		{"WHEN NOT MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}, false},
-		{"WHEN MATCHED THEN DELETE", "MATCHED", "MERGE MATCHED actions are unsupported", [][]any{}, false},
-		{"WHEN NOT MATCHED BY SOURCE THEN DELETE", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{}, false},
+		{"WHEN MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}, false},
+		{"WHEN NOT MATCHED BY SOURCE THEN UPDATE SET id=3", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{{int64(3)}}, false},
+		{"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{{int64(1)}}, false},
 		{"WHEN NOT MATCHED THEN INSERT VALUES(s.id) RETURNING t.id", "RETURNING", "MERGE RETURNING is unsupported", [][]any{{int64(1)}, {int64(2)}}, true},
 	} {
 		t.Run(tc.suffix, func(t *testing.T) {

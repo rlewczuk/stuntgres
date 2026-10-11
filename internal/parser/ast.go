@@ -776,6 +776,7 @@ type MergeMatch uint8
 const (
 	MergeNotMatched MergeMatch = iota
 	MergeMatched
+	MergeNotMatchedBySource
 )
 
 type MergeAction uint8
@@ -783,6 +784,7 @@ type MergeAction uint8
 const (
 	MergeInsertAction MergeAction = iota
 	MergeUpdateAction
+	MergeDeleteAction
 )
 
 type MergeArm struct {

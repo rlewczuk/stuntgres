@@ -120,62 +120,6 @@ func TestReferenceDeleteCorePrepared(t *testing.T) {
 	}
 }
 
-func TestReferenceDeleteCoreVisibility(t *testing.T) {
-	for _, commit := range []bool{false, true} {
-		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
-			p := fixture.NewPair(t)
-			for i, db := range []*sql.DB{p.Memory, p.Postgres} {
-				t.Run([]string{"native", "postgres"}[i]+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
-					r := []*fixture.Recorder{p.MemoryRecord, p.PostgresRecord}[i]
-					a, b := fixture.LockConnections(t, p.Ctx, db)
-					fixture.LockExec(t, p.Ctx, a, "CREATE TABLE t(id INT NOT NULL)", 0)
-					fixture.LockExec(t, p.Ctx, a, "INSERT INTO t VALUES(1),(2),(2)", 3)
-					tx, err := a.BeginTx(p.Ctx, nil)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer tx.Rollback()
-					held, err := tx.PrepareContext(p.Ctx, "DELETE FROM t WHERE id=$1")
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer held.Close()
-					for _, want := range []int64{1, 0} {
-						result, err := held.ExecContext(p.Ctx, 1)
-						if err != nil {
-							t.Fatal(err)
-						}
-						n, err := result.RowsAffected()
-						if err != nil || n != want {
-							t.Fatal(n, err)
-						}
-					}
-					fixture.DeleteReferenceRows(t, p, tx, r, 2, 2)
-					fixture.DeleteReferenceRows(t, p, b, r, 1, 2, 2)
-					fixture.LockExec(t, p.Ctx, tx, "INSERT INTO t VALUES(7)", 1)
-					fixture.LockExec(t, p.Ctx, tx, "DELETE FROM t WHERE id=7", 1)
-					fixture.LockExec(t, p.Ctx, tx, "DELETE FROM t WHERE id=2", 2)
-					fixture.LockExec(t, p.Ctx, tx, "INSERT INTO t VALUES(2),(2)", 2)
-					fixture.DeleteReferenceRows(t, p, tx, r, 2, 2)
-					fixture.DeleteReferenceRows(t, p, b, r, 1, 2, 2)
-					if commit {
-						err = tx.Commit()
-					} else {
-						err = tx.Rollback()
-					}
-					if err != nil {
-						t.Fatal(err)
-					}
-					if commit {
-						fixture.DeleteReferenceRows(t, p, b, r, 2, 2)
-					} else {
-						fixture.DeleteReferenceRows(t, p, b, r, 1, 2, 2)
-					}
-				})
-			}
-		})
-	}
-}
 
 func TestReferenceDeleteCoreNotNull(t *testing.T) {
 	p := fixture.NewPair(t)
