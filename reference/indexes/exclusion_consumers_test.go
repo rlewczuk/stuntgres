@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"fmt"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -58,17 +57,13 @@ func TestReferenceExclusionOnConflict(t *testing.T) {
 }
 
 func TestReferenceExclusionWriteConsumers(t *testing.T) {
-	for _, consumer := range []struct {
-		query   string
-		matched bool
-	}{
-		{"INSERT INTO t SELECT 1", false},
-		{"UPDATE t SET v=1 WHERE v=2", false},
-		{"UPDATE t SET v=s.v FROM (SELECT 1 AS v) s WHERE t.v=2", false},
-		{"MERGE INTO t USING (SELECT 2 AS old,1 AS v) s ON t.v=s.old WHEN MATCHED THEN UPDATE SET v=s.v", true},
-		{"MERGE INTO t USING (SELECT 1 AS v) s ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(s.v)", false},
+	for _, q := range []string{
+		"INSERT INTO t SELECT 1",
+		"UPDATE t SET v=1 WHERE v=2",
+		"UPDATE t SET v=s.v FROM (SELECT 1 AS v) s WHERE t.v=2",
+		"MERGE INTO t USING (SELECT 2 AS old,1 AS v) s ON t.v=s.old WHEN MATCHED THEN UPDATE SET v=s.v",
+		"MERGE INTO t USING (SELECT 1 AS v) s ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(s.v)",
 	} {
-		q := consumer.query
 		t.Run(q, func(t *testing.T) {
 			fixture.ExclusionReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				run := func(s fixture.Step) { fixture.ExclusionReferenceRun(t, p, b, b.DB, s) }
@@ -77,13 +72,6 @@ func TestReferenceExclusionWriteConsumers(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					s := fixture.ErrorDiagnostic(q, fixture.ExclusionReferenceConflict("t", "ex", "v", "1", "1"))
 					s.Prepared, s.ErrorStage = prepared, "execute"
-					if consumer.matched && !b.PG {
-						d := fixture.ControlsReferenceDiagnostic("0A000", "MERGE MATCHED actions are unsupported")
-						d.Position = fixture.Position(strings.Index(q, "MATCHED") + 1)
-						s = fixture.ErrorDiagnostic(q, d)
-						s.Prepared = prepared
-						s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]
-					}
 					run(s)
 					run(fixture.ExclusionReferenceRows("SELECT v FROM t ORDER BY v", 1, 2))
 				}

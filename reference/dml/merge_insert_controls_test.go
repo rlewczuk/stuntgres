@@ -15,7 +15,7 @@ func TestReferenceMergeInsertControls(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
-			run := fixture.MergeInsertRun(t, p, b, false)
+			run := fixture.MergeRun(t, p, b, false)
 			for _, q := range []string{"CREATE TABLE source(k INT,v INT)", "CREATE VIEW source_view AS SELECT k,v FROM source", "CREATE TABLE t(id INT GENERATED ALWAYS AS IDENTITY CONSTRAINT t_pkey UNIQUE,k INT,v INT DEFAULT 8,g INT GENERATED ALWAYS AS(v+1) STORED)"} {
 				run(fixture.Exec(q, 0))
 			}
@@ -118,7 +118,7 @@ func TestReferenceMergeInsertControls(t *testing.T) {
 
 func TestReferenceMergeInsertRetainedControls(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT,v TEXT)", 0))
 		run(fixture.Exec("INSERT INTO t VALUES(1,'old')", 1))
 		retained, err := b.DB.QueryContext(p.Ctx, "SELECT * FROM t ORDER BY id")

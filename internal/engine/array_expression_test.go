@@ -219,12 +219,12 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 		t.Fatal("derived access has physical origin")
 	}
 	b.uses = nil
-	target, err := b.bindArrayTarget(b.relation.columns[0], raw, parser.Position{}, true)
+	target, err := b.bindArrayTarget(b.relation.columns[0], raw, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(b.uses, []int{1, 0}) {
-		t.Fatal("partial target must read bounds and original container", b.uses)
+	if !reflect.DeepEqual(b.uses, []int{1}) {
+		t.Fatal("partial target must read bounds, not the implicit old container", b.uses)
 	}
 	var slots []int
 	var storage [13]BoundExpr
@@ -233,8 +233,8 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 			slots = append(slots, col.slot)
 		}
 	}
-	if !reflect.DeepEqual(slots, []int{0, 1}) {
-		t.Fatal("target traversal omitted a column", slots)
+	if !reflect.DeepEqual(slots, []int{1}) {
+		t.Fatal("target traversal must retain bound column references", slots)
 	}
 }
 

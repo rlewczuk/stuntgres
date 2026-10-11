@@ -33,7 +33,7 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 	return usage
 }
 
-func (b *expressionBinder) bindArrayTarget(column ColumnDescriptor, raw []parser.ArraySubscript, pos parser.Position, read bool) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindArrayTarget(column ColumnDescriptor, raw []parser.ArraySubscript, pos parser.Position) (*arrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
 	if !usage.Type.IsArray() {
 		return nil, expressionError("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", usage.Type.DiagnosticName()), pos)
@@ -42,18 +42,14 @@ func (b *expressionBinder) bindArrayTarget(column ColumnDescriptor, raw []parser
 	if err != nil {
 		return nil, err
 	}
-	var base BoundExpr
-	if read {
-		base, err = b.column(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: column.Name, Pos: pos}}}, Pos: pos})
-		if err != nil {
-			return nil, err
-		}
-	}
+	// The executor supplies the old container for partial UPDATE assignments.
+	// Like PostgreSQL's implicit assignment Var, it is not a SELECT reference;
+	// only explicit RHS and subscript expressions contribute read authority.
 	plan, err := sqltype.PlanCoercion(usage, column.Usage, sqltype.Assignment)
 	if err != nil {
 		return nil, err
 	}
-	return &arrayAssignmentTarget{node: subscriptExpression{base: base, subscripts: subs, slice: slice}, container: column.Usage, destination: arrayTargetUsage(column.Usage, raw), reapply: plan, name: column.Name, pos: pos}, nil
+	return &arrayAssignmentTarget{node: subscriptExpression{subscripts: subs, slice: slice}, container: column.Usage, destination: arrayTargetUsage(column.Usage, raw), reapply: plan, name: column.Name, pos: pos}, nil
 }
 
 func (t *arrayAssignmentTarget) column(original ColumnDescriptor) ColumnDescriptor {

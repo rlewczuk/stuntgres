@@ -8,6 +8,7 @@ func TestMergeInsertSyntax(t *testing.T) {
 		"MERGE INTO merge USING matched ON merge.source=matched.source WHEN NOT MATCHED THEN INSERT(target,nothing) OVERRIDING USER VALUE VALUES(1,DEFAULT)",
 		"MERGE INTO t USING (VALUES(1)) s(id) ON FALSE WHEN NOT MATCHED THEN INSERT VALUES((SELECT s.id))",
 		"MERGE INTO t USING s JOIN r USING(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(id)",
+		"MERGE INTO t USING s ON t.id=s.id WHEN MATCHED THEN UPDATE SET id=s.id",
 	}
 	for _, q := range queries {
 		statements, err := Parse(q)
@@ -32,6 +33,11 @@ func TestMergeInsertSyntax(t *testing.T) {
 					t.Fatal(value)
 				}
 			}
+			for _, assignment := range arm.Assignments {
+				if arm.Match != MergeMatched || arm.Action != MergeUpdateAction || assignment.Target.Pos.Character == 0 || assignment.Value.SourcePosition().Character == 0 {
+					t.Fatal("missing matched assignment kind/position", arm)
+				}
+			}
 		}
 	}
 	statements, err := Parse(queries[0])
@@ -46,7 +52,6 @@ func TestMergeInsertSyntax(t *testing.T) {
 
 func TestMergeInsertRejectsFullInput(t *testing.T) {
 	for _, suffix := range []string{
-		"WHEN MATCHED THEN UPDATE SET id=1",
 		"WHEN MATCHED THEN DELETE",
 		"WHEN NOT MATCHED THEN DO NOTHING",
 		"WHEN NOT MATCHED BY SOURCE THEN DELETE",
@@ -63,6 +68,27 @@ func TestMergeInsertRejectsFullInput(t *testing.T) {
 		statements, err := Parse(q)
 		if err == nil || len(statements) != 0 {
 			t.Fatalf("invalid or excluded full input accepted: %q %v %v", q, statements, err)
+		}
+	}
+}
+
+func TestMergeUpdateQueryVisitor(t *testing.T) {
+	q := "MERGE INTO t USING s ON TRUE WHEN MATCHED AND EXISTS(SELECT 1 FROM conditions) THEN UPDATE SET a[(SELECT i FROM lower_bound):(SELECT i FROM upper_bound)]=(SELECT a FROM payload)"
+	statements, err := Parse(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	err = VisitQuerySources(statements[0], nil, func(table *TableReference, _ *Select) error {
+		names = append(names, table.Name.Parts[0].Text)
+		return nil
+	})
+	if err != nil || len(names) != 5 {
+		t.Fatal("source/condition/bounds/RHS traversal", names, err)
+	}
+	for i, name := range []string{"s", "conditions", "lower_bound", "upper_bound", "payload"} {
+		if names[i] != name {
+			t.Fatal("nonlexical mutation visitor", names)
 		}
 	}
 }

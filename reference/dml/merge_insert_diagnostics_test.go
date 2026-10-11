@@ -30,7 +30,7 @@ func TestReferenceMergeInsertDiagnostics(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT,v TEXT)", 0))
 				run(fixture.Exec("CREATE TABLE s(id INT)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(99,'sentinel')", 1))
@@ -63,7 +63,7 @@ func TestReferenceMergeInsertAtomicity(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec(tc.ddl, 0))
 				run(fixture.Exec("INSERT INTO t VALUES(99,99)", 1))
 				s := fixture.ImplicitError(tc.q, tc.d)

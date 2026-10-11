@@ -10,7 +10,7 @@ func TestReferenceMergeInsertHeldACL(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
-			run := fixture.MergeInsertRun(t, p, b, false)
+			run := fixture.MergeRun(t, p, b, false)
 			if b.PG {
 				run(fixture.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
 			}

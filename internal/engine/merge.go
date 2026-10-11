@@ -9,12 +9,17 @@ import (
 )
 
 type boundMerge struct {
-	source LogicalNode
-	on     BoundExpr
-	arms   []boundMergeInsert
+	source        LogicalNode
+	on            BoundExpr
+	arms          []boundMergeArm
+	hasInsert     bool
+	insertTargets []int
+	updateTargets []int
 }
 
-type boundMergeInsert struct {
+type boundMergeArm struct {
+	match     parser.MergeMatch
+	action    parser.MergeAction
 	condition BoundExpr
 	input     binding
 	syntax    []parser.Expr
@@ -94,14 +99,18 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	default:
 		return expressionError("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
 	}
-	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeInsert, len(s.Arms))}
-	binder.queryNamespace = &source
-	unconditional := false
+	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms))}
+	var unconditional [2]bool
 	for i, raw := range s.Arms {
-		if unconditional {
+		if unconditional[raw.Match] {
 			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
 		}
+		binder.queryNamespace = &source
+		if raw.Match == parser.MergeMatched {
+			binder.queryNamespace = &combined
+		}
 		arm := &merge.arms[i]
+		arm.match, arm.action = raw.Match, raw.Action
 		if raw.Condition != nil {
 			binder.mergeWhen = true
 			binder.aggregateClause = "WHEN"
@@ -111,27 +120,36 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 				return err
 			}
 		} else {
-			unconditional = true
+			unconditional[raw.Match] = true
 		}
 		arm.input = binding{ref: ref, relation: out.relation, storage: out.storage}
-		arm.syntax = raw.Values
-		insert := parser.Insert{Name: s.Name, Targets: raw.Targets, Rows: [][]parser.Expr{raw.Values}, DefaultValues: raw.DefaultValues, Override: raw.Override, Pos: raw.ActionPos}
-		binder.mergeInput = true
-		err = e.bindInsertInput(&arm.input, binder, auth, &insert)
-		binder.mergeInput = false
-		if err != nil {
-			return err
-		}
-		// One declaration-order projection serves both identity and ordinary
-		// rows; the shared evaluator preserves per-attribute default demand.
-		if len(arm.input.insertProjection) == 0 {
-			arm.input.insertProjection = make([]int, len(out.relation.columns))
-			for j := range arm.input.insertProjection {
-				arm.input.insertProjection[j] = -1
+		if raw.Action == parser.MergeUpdateAction {
+			binder.aggregateClause = "UPDATE"
+			u := &boundUpdate{assignments: make([]BoundExpr, len(raw.Assignments))}
+			if err := e.bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
+				return err
 			}
-			for j, target := range arm.input.targets {
-				arm.input.insertProjection[target] = j
+			merge.updateTargets = mergeTargetUnion(merge.updateTargets, arm.input.targets)
+		} else {
+			merge.hasInsert = true
+			arm.syntax = raw.Values
+			insert := parser.Insert{Name: s.Name, Targets: raw.Targets, Rows: [][]parser.Expr{raw.Values}, DefaultValues: raw.DefaultValues, Override: raw.Override, Pos: raw.ActionPos}
+			binder.mergeInput = true
+			err = e.bindInsertInput(&arm.input, binder, auth, &insert)
+			binder.mergeInput = false
+			if err != nil {
+				return err
 			}
+			if len(arm.input.insertProjection) == 0 {
+				arm.input.insertProjection = make([]int, len(out.relation.columns))
+				for j := range arm.input.insertProjection {
+					arm.input.insertProjection[j] = -1
+				}
+				for j, target := range arm.input.targets {
+					arm.input.insertProjection[target] = j
+				}
+			}
+			merge.insertTargets = mergeTargetUnion(merge.insertTargets, arm.input.targets)
 		}
 		for _, target := range arm.input.targets {
 			found := false
@@ -148,6 +166,22 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	}
 	out.merge = merge
 	return nil
+}
+
+func mergeTargetUnion(union, targets []int) []int {
+	for _, target := range targets {
+		found := false
+		for _, prior := range union {
+			if target == prior {
+				found = true
+				break
+			}
+		}
+		if !found {
+			union = append(union, target)
+		}
+	}
+	return union
 }
 
 // Each Execute has a newly analyzed binding. Preflight mutates only that private
@@ -178,6 +212,16 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 		}
 		if err := validateExpressionJoinExecution(&owner, arm.condition, catalog); err != nil {
 			return err
+		}
+		if arm.action == parser.MergeUpdateAction {
+			arm.input.update, err = preflightUpdate(&owner, arm.input.update)
+			if err != nil {
+				return err
+			}
+			if err := validateMutationJoinExecution(&owner, &arm.input, nil, catalog); err != nil {
+				return err
+			}
+			continue
 		}
 		for j, expression := range arm.input.expressions[0] {
 			if len(arm.input.identityDiscard) != 0 && arm.input.identityDiscard[arm.input.targets[j]] {
@@ -256,104 +300,8 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if err := scope.Writes().applyValidated(b.ref, rows); err != nil {
+	if err := rows.stage(scope.Writes(), b.ref); err != nil {
 		return Result{}, err
 	}
-	return Result{Count: int64(len(rows))}, nil
-}
-
-func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b binding, target *querySource, cursor RowCursor, state *queryState, schema string, unique bool) (rows [][]sqltype.Value, err error) {
-	defer func() {
-		closeErr := cursor.Close()
-		if err == nil {
-			err = closeErr
-			if err == nil {
-				err = ctx.Err()
-			}
-		}
-		if err != nil {
-			rows = nil
-		}
-	}()
-	sourceRow := make([]sqltype.Value, len(cursor.Schema()))
-	frame := make([]sqltype.Value, len(b.relation.columns)+len(sourceRow))
-	onContext := state.evaluation(ctx)
-	onContext.Row = frame
-	sourceContext := state.evaluation(ctx)
-	sourceContext.Row = sourceRow
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		present, err := cursor.Next(ctx, sourceRow)
-		if err != nil {
-			return nil, err
-		}
-		if !present {
-			break
-		}
-		copy(frame[len(b.relation.columns):], sourceRow)
-		matched := false
-		for i := range target.count() {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			copy(frame, target.row(i))
-			value, err := b.merge.on.Eval(&onContext)
-			if err != nil {
-				return nil, err
-			}
-			truth, err := mergeOnTruth(value)
-			if err != nil {
-				return nil, err
-			}
-			if truth == True {
-				matched = true
-				break
-			}
-		}
-		if matched {
-			continue
-		}
-		for i := range b.merge.arms {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			arm := &b.merge.arms[i]
-			if arm.condition != nil {
-				value, err := arm.condition.Eval(&sourceContext)
-				if err != nil {
-					return nil, err
-				}
-				truth, err := TruthOf(value)
-				if err != nil {
-					return nil, err
-				}
-				if truth != True {
-					continue
-				}
-			}
-			row := make([]sqltype.Value, len(b.relation.columns))
-			for j, c := range b.relation.columns {
-				row[j] = sqltype.Null(c.Usage.Type)
-			}
-			if err := evaluateIdentityValuesRow(scope.commentCatalog, &arm.input, arm.input.expressions[0], arm.syntax, row, false, &sourceContext); err != nil {
-				return nil, err
-			}
-			// Generation/CHECK evaluation changes its row/frame. It must not
-			// overwrite the source context for the next source occurrence.
-			rowContext := sourceContext
-			if err := e.validateInsertRow(scope, b, schema, row, &rowContext); err != nil {
-				return nil, err
-			}
-			if unique {
-				if err := scope.checkUniqueRow(b.ref, row, nil, rows); err != nil {
-					return nil, err
-				}
-			}
-			rows = append(rows, row)
-			break
-		}
-	}
-	return rows, nil
+	return Result{Count: int64(len(rows.values))}, nil
 }

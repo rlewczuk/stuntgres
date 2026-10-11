@@ -143,17 +143,18 @@ expressions. See [timezone lookup views](docs/DIALECT.md#timezone-lookup-views--
 Smoke: `make check RUN='^TestReferenceTimezoneViewsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTimezoneViewsFeatureSmoke$'`.
 
-Change note: PostgreSQL18 `MERGE` supports source-target matching and ordered
-conditional `WHEN NOT MATCHED [BY TARGET] THEN INSERT` arms. Sources reuse the
-query pipeline; each selected arm reuses INSERT mapping, defaults, identity,
-generated columns and constraints. A frozen target snapshot preserves source
-occurrences, and only a fully validated batch publishes. MATCHED/BY SOURCE
-actions, DO NOTHING, RETURNING and writable target views remain excluded.
-See [MERGE insertion](docs/QUERIES.md#merge-insertion--change-note).
+Change note: PostgreSQL18 `MERGE` supports ordered conditional
+`WHEN MATCHED THEN UPDATE SET` and `WHEN NOT MATCHED [BY TARGET] THEN INSERT`.
+All source-target pairs are frozen before row waits; matched SET expressions,
+including array bounds, use the original target/source frame. Real concurrent
+updates restart arm selection against the latest predecessor without widening
+that join. Mixed actions share constraints and one atomic statement publication.
+DELETE/BY SOURCE, DO NOTHING, RETURNING and writable target views remain excluded.
+See [MERGE matching and actions](docs/QUERIES.md#merge-insertion--change-note).
 Feature smoke (900 seconds per invocation):
-`make check RUN='^TestReferenceMergeInsertFeatureSmoke$'`;
+`make check RUN='^TestReferenceMergeUpdateFeatureSmoke$'`;
 pinned counterpart:
-`make check REFERENCE=1 RUN='^TestReferenceMergeInsertFeatureSmoke$'`.
+`make check REFERENCE=1 RUN='^TestReferenceMergeUpdateFeatureSmoke$'`.
 The complete implicit INSERT smoke union now lives in the external shared
 `TestReferenceInsertImplicitShort` family, including
 `TestReferenceInsertImplicitShortFeatureSmoke`; no native-only duplicate remains.

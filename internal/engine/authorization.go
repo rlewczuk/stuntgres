@@ -751,8 +751,15 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Merge:
-		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
-			return err
+		if b.merge.hasInsert {
+			if err := v.checkColumns(b, InsertPrivilege, b.merge.insertTargets); err != nil {
+				return err
+			}
+		}
+		if len(b.merge.updateTargets) != 0 {
+			if err := v.checkColumns(b, UpdatePrivilege, b.merge.updateTargets); err != nil {
+				return err
+			}
 		}
 		if len(b.usedColumns) != 0 {
 			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {

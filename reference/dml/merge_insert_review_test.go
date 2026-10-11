@@ -20,7 +20,7 @@ func TestReferenceMergeInsertOnCarriers(t *testing.T) {
 		for _, domain := range []bool{false, true} {
 			t.Run(tc.name+map[bool]string{false: "/base", true: "/domain"}[domain], func(t *testing.T) {
 				mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-					run := fixture.MergeInsertRun(t, p, b, prepared)
+					run := fixture.MergeRun(t, p, b, prepared)
 					typ := tc.typ
 					if domain {
 						run(fixture.Exec("CREATE DOMAIN carrier AS "+typ, 0))
@@ -130,7 +130,7 @@ func TestReferenceMergeInsertIsolation(t *testing.T) {
 	for _, level := range []string{"READ COMMITTED", "REPEATABLE READ"} {
 		t.Run(level, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, false)
+				run := fixture.MergeRun(t, p, b, false)
 				run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 				run(fixture.Exec("CREATE TABLE source(id INT)", 0))
 				reader, err := b.DB.Conn(p.Ctx)

@@ -46,8 +46,8 @@ package parser
  selectStmt *Select
  parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
- mergeArms []MergeInsert
- mergeArm MergeInsert
+ mergeArms []MergeArm
+ mergeArm MergeArm
  valuesQuery *ValuesQuery
  order *Order
  orderKey OrderKey
@@ -1277,22 +1277,25 @@ merge: MERGE INTO relation_name update_alias USING joined_table ON target_or mer
    $$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos}
  }
  | MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms RETURNING returning_aliases projection { sqllex.(*lexer).deferUnsupported($10,"MERGE RETURNING is unsupported");$$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos} } ;
-merge_arms: merge_arm { $$=[]MergeInsert{$1} }
+merge_arms: merge_arm { $$=[]MergeArm{$1} }
  | merge_arms merge_arm { $$=append($1,$2) } ;
 merge_target_class: /* empty */ { $$=lexeme{} } | BY TARGET { $$=$2 } ;
 merge_condition: /* empty */ { $$=nil } | AND target_or { $$=$2 } ;
 merge_arm: WHEN NOT MATCHED merge_target_class merge_condition THEN merge_insert { $$=$7;$$.Condition=$5;$$.Pos=$1.pos }
- | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { sqllex.(*lexer).deferUnsupported($7,"MERGE DO NOTHING is unsupported");$$=MergeInsert{} }
- | WHEN MATCHED merge_condition THEN merge_excluded_action { sqllex.(*lexer).deferUnsupported($2,"MERGE MATCHED actions are unsupported");$$=MergeInsert{} }
- | WHEN NOT MATCHED BY SOURCE merge_condition THEN merge_excluded_action { sqllex.(*lexer).deferUnsupported($5,"MERGE BY SOURCE actions are unsupported");$$=MergeInsert{} } ;
+ | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { sqllex.(*lexer).deferUnsupported($7,"MERGE DO NOTHING is unsupported");$$=MergeArm{} }
+ | WHEN MATCHED merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeMatched,Action:MergeUpdateAction,Condition:$3,Assignments:$7,Pos:$1.pos,ActionPos:$5.pos} }
+ | WHEN MATCHED merge_condition THEN UPDATE SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$7.pos.Offset);return 1 }
+ | WHEN MATCHED merge_condition THEN DELETE { sqllex.(*lexer).deferUnsupported($2,"MERGE MATCHED actions are unsupported");$$=MergeArm{} }
+ | WHEN MATCHED merge_condition THEN DO NOTHING { sqllex.(*lexer).deferUnsupported($5,"MERGE DO NOTHING is unsupported");$$=MergeArm{} }
+ | WHEN NOT MATCHED BY SOURCE merge_condition THEN merge_excluded_action { sqllex.(*lexer).deferUnsupported($5,"MERGE BY SOURCE actions are unsupported");$$=MergeArm{} } ;
 merge_excluded_action: UPDATE SET update_assignments { $$=$1 }
  | DELETE { $$=$1 }
  | DO NOTHING { $$=$1 } ;
-merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeInsert{Values:$4,ActionPos:$1.pos} }
- | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=MergeInsert{Targets:$3,Values:$7,ActionPos:$1.pos} }
- | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeInsert{Override:$2,Values:$5,ActionPos:$1.pos} }
- | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeInsert{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
- | INSERT DEFAULT VALUES { $$=MergeInsert{DefaultValues:true,ActionPos:$1.pos} } ;
+merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPos:$1.pos} }
+ | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Values:$7,ActionPos:$1.pos} }
+ | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
+ | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
+ | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
 delete: DELETE FROM relation_name delete_alias delete_using delete_where returning { if $5==nil {if token:=deleteQualification($6,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6,Returning:$7,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_using delete_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;

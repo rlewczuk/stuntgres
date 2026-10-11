@@ -202,22 +202,36 @@ Admitted native results retain prior values, schema and presentation after repla
 ### MERGE insertion — change note
 
 `MERGE INTO table USING joined_table ON expression` supports ordered conditional
-`WHEN NOT MATCHED [BY TARGET] THEN INSERT` arms, with one VALUES tuple or DEFAULT
-VALUES. Current table/view/derived/VALUES/join source capabilities are reused.
-Source occurrences match a frozen target; first TRUE unmatched arm inserts via
-ordinary INSERT mappings/defaults/identity/generated/constraints, atomically.
-Command-only Query has no metadata/rows; native affected count is the inserted
-count, while pinned lib/pq exports0 and shared tests independently inspect rows.
+`WHEN MATCHED [AND condition] THEN UPDATE SET` and
+`WHEN NOT MATCHED [BY TARGET] [AND condition] THEN INSERT` arms. INSERT takes one
+VALUES tuple or DEFAULT VALUES. Current table/view/derived/VALUES/join sources
+are reused. Frozen all-pairs membership retains distinct target occurrences;
+the first TRUE arm within each class executes. SET expressions and array
+element/slice bounds see the original target/source frame, while partial writes
+compose in assignment order. Existing UPDATE assignment restrictions remain.
+Mixed INSERT/UPDATE constraints and actual-modification cardinality are atomic.
+Command-only Query has no metadata/rows; native affected count sums updates and
+inserts, while pinned lib/pq exports0 and shared tests independently inspect rows.
 The observed integer/unknown-string nonboolean ON behavior is MERGE-local;
 ordinary JOIN/WHERE/WHEN boolean rules remain unchanged.
 
-MATCHED actions, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multiple
+MATCHED DELETE, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multiple
 tuples and writable target views remain unsupported, never successful no-ops.
 Physical source non-tableoid system columns are prohibited in WHEN (42P10).
 Permitted positive source system references still use the existing unavailable
 native query-column provider boundary (42703); PostgreSQL supplies real identities.
-No native MVCC/OID provider, fake NULL carrier, generic GRANT implementation or
-external durability/network/pg_dump/native-ABI promise is added.
+Initial row lock strength follows actual key changes; a concurrent-update
+follow-chain additionally uses the union of syntactic updated key columns.
+Read Committed rechecks ON and restarts arms after a peer commit. Repeatable Read
+MERGE follows an updated predecessor, retaining the old snapshot version plus
+its own descendant when their bases differ; a concurrent deletion still raises
+40001. The canonical visibility owner exposes that bag without new logical rows.
+Real GRANT/REVOKE checks every action's destination union and actual reads,
+including false/empty arms and held executions. Partial array assignment's
+implicit old-container preservation requires UPDATE, not SELECT; explicit
+old-value RHS and subscript expressions retain their SELECT requirements.
+No physical MVCC/OID provider or external durability/network/pg_dump/native-ABI
+promise is added.
 See [matching and lifecycle semantics](QUERIES.md#merge-insertion--change-note).
 
 ### RANGE table partitions — change note
@@ -779,8 +793,8 @@ the column default. UPDATE RHS and bounds read the old row while partial writes
 compose privately. NULL assignment bounds are errors; NULL slice RHS is a
 no-op. One-dimensional writes may enlarge arrays with typed NULL gaps.
 Multi-dimensional writes preserve shape, and slice assignment consumes enough
-flattened RHS elements while ignoring excess. MERGE partial targets remain
-unsupported.
+flattened RHS elements while ignoring excess. MERGE partial INSERT targets remain
+unsupported; matched UPDATE partial assignments reuse ordinary UPDATE behavior.
 Nonempty slice writes validate destination dimensions in order and final shape
 before RHS size. Empty/NULL originals construct explicit spans: zero yields
 canonical empty, negative/overflow yields SQLSTATE `54000`, and omitted boundaries

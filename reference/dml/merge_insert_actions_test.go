@@ -8,7 +8,7 @@ import (
 
 func TestReferenceMergeInsertIdentityGenerated(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT GENERATED ALWAYS AS IDENTITY,v INT,g INT GENERATED ALWAYS AS(v+1) STORED)", 0))
 		for _, q := range []string{
 			"MERGE INTO t USING (VALUES(7)) s(v) ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(DEFAULT,s.v,DEFAULT)",
@@ -60,7 +60,7 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 	} {
 		t.Run(tc.suffix, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 				q := "MERGE INTO t USING (VALUES(1)) s(id) ON FALSE " + tc.suffix
 				d := fixture.Diagnostic{Code: "42601", Message: "syntax error at end of input", Position: fixture.Position(len(q) + 1)}
@@ -75,20 +75,26 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 			})
 		})
 	}
+	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
+		run := fixture.MergeRun(t, p, b, prepared)
+		run(fixture.Exec("CREATE TABLE t(id INT)", 0))
+		run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
+		run(fixture.Exec("MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET id=2", 1))
+		run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
+	})
 	for _, tc := range []struct {
 		suffix, token, message string
 		rows                   [][]any
 		returning              bool
 	}{
 		{"WHEN NOT MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}, false},
-		{"WHEN MATCHED THEN UPDATE SET id=2", "MATCHED", "MERGE MATCHED actions are unsupported", [][]any{{int64(2)}}, false},
 		{"WHEN MATCHED THEN DELETE", "MATCHED", "MERGE MATCHED actions are unsupported", [][]any{}, false},
 		{"WHEN NOT MATCHED BY SOURCE THEN DELETE", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{}, false},
 		{"WHEN NOT MATCHED THEN INSERT VALUES(s.id) RETURNING t.id", "RETURNING", "MERGE RETURNING is unsupported", [][]any{{int64(1)}, {int64(2)}}, true},
 	} {
 		t.Run(tc.suffix, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
 				source := "(VALUES(1)) s(id)"
@@ -118,7 +124,7 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 		})
 	}
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 		run(fixture.Exec("CREATE VIEW writable AS SELECT * FROM t", 0))
 		q := "MERGE INTO writable USING (VALUES(1)) s(id) ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(s.id)"

@@ -36,7 +36,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		if b.arrayTargets == nil {
 			b.arrayTargets = make([]*arrayAssignmentTarget, len(b.targets))
 		}
-		partial, err := binder.bindArrayTarget(b.relation.columns[b.targets[i]], target.Subscripts, target.Pos, false)
+		partial, err := binder.bindArrayTarget(b.relation.columns[b.targets[i]], target.Subscripts, target.Pos)
 		if err != nil {
 			return err
 		}

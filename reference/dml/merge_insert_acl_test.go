@@ -14,7 +14,7 @@ func TestReferenceMergeInsertAuthorization(t *testing.T) {
 			p := fixture.NewScenario(t)
 			for _, b := range p.Backends() {
 				t.Run(b.Name, func(t *testing.T) {
-					run := fixture.MergeInsertRun(t, p, b, prepared)
+					run := fixture.MergeRun(t, p, b, prepared)
 					run(fixture.Exec("CREATE USER merge_denied_actor", 0))
 					run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 					run(fixture.Exec("CREATE TABLE s(id INT)", 0))

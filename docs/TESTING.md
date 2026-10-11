@@ -963,8 +963,13 @@ OracleQuestions permanently records O1–O4: demanded nonboolean ON, action
 subqueries, system-column namespaces/providers and permission/read-only order.
 Native count n and observed pinned pq export0 are separate expectations with
 exact persisted rows, never inferred from driver count alone. Native provider42703
-versus positive PostgreSQL system identities is explicit; native column ACL units
-supplement real PostgreSQL GRANT, without implementing an adjacent public API.
+versus positive PostgreSQL system identities is explicit. O4 exercises genuine
+public column GRANT in both backends, including empty-manifest DEFAULT VALUES,
+source denial and permission/read-only ordering; native ACL units supplement it.
+Schema-USAGE setup remains PostgreSQL-only; native uses its existing public
+schema authority. O4 explicitly asserts native sequence-GRANT `0A000` while
+PostgreSQL performs that setup. Empty sources prevent default-sequence demand;
+the complete column/table authority scenario executes in both modes.
 Fixtures use supported named UNIQUE constraints with NOT NULL (implicit for
 identity); they do not depend on PRIMARY KEY support. Native controls receive the unwrapped `p.Native` pool;
 wrapped same-DSN peers remain SQL visibility witnesses. Denied PostgreSQL actors
@@ -978,9 +983,27 @@ checks unavailable native FLOAT8 ON interpretation versus PostgreSQL effects.
 proves native blocking with bounded SQL timeout and PostgreSQL blocking through
 its external wait catalog, then asserts commit23505 or rollback insertion without
 ON restart. `Isolation` separately distinguishes public RC/RR source visibility.
-`HeldACL` retains one actual PostgreSQL handle through target all-arm INSERT and
-source SELECT revoke/restore; native `TestMergeInsertHeldACL` retains the same
-AST/description through the adapter's `scope.Expected` execution seam.
+`HeldACL` retains an actual handle through target all-arm INSERT and source
+SELECT revoke/restore in both backends; native `TestMergeInsertHeldACL` also
+supplements this with the adapter's `scope.Expected` execution seam.
+
+`TestReferenceMergeUpdateDefaultInsertAuthority` covers empty INSERT destination
+manifests through direct/prepared DEFAULT VALUES: denied selected, false and
+empty-source arms, an unselected INSERT beside a matched UPDATE, and permitted
+column/relation INSERT controls. Denials require complete42501 diagnostics and
+unchanged data. `TestReferenceMergeUpdateDefaultInsertHeldACL` retains the same
+actual handle through column/relation INSERT revoke and restore.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdateDefaultInsert(Authority|HeldACL)$'
+make check RUN='^TestReferenceMergeUpdateDefaultInsert(Authority|HeldACL)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeInsertOracleQuestions/^O4$'
+make check RUN='^TestReferenceMergeInsertOracleQuestions/^O4$'
+```
+
+Pin the new authority regressions on PostgreSQL before observing native red or
+correcting action-presence authorization. Each command has an external900-second
+deadline; completed changed definitions require both modes before review.
 
 Actual public feature smokes:
 
@@ -1000,6 +1023,110 @@ The old native-only implicit INSERT smoke file is removed. Its full direct/
 prepared/reordered/count/metadata/error/peer/retained-control/failed-staging/
 handwritten-short-Restore union is covered by the complete
 `TestReferenceInsertImplicitShort` family, not just its cohesive FeatureSmoke.
+
+### MERGE matched UPDATE oracle-first regressions
+
+The untagged `TestReferenceMergeUpdate` definitions share direct and actual
+prepared SQL bodies and independent expected rows, metadata and full logical
+diagnostics. These tests require selected native and pinned proofs after cutover.
+Use these small selected groups with a separate external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Matching|Conditions|Bindings)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Expressions|Arrays|AssignmentBoundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Cardinality|OraclePrecedence|ArrayCardinalityPrecedence)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Constraints|Atomicity|UniquePrefixes)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(ReadCommitted|RepeatableRead|RowLocks|FollowChainRowModes)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Privileges|HeldACL|PreflightOrder|SystemColumns)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(ArrayAuthority|ExcludedAssignments|MalformedActions|FieldAssignmentBoundary)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Diagnostics|CommandMetadata|Prepared)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Transactions|Cancellation|ServerCancellation)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdate(Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdateMixedDisclosure$'
+make check REFERENCE=1 RUN='^TestReferenceMergeUpdateRepeatableReadFollowup$'
+make check RUN='^TestReferenceExclusionWriteConsumers$'
+make check REFERENCE=1 RUN='^TestReferenceExclusionWriteConsumers$'
+make check RUN='^TestArrayExpressionColumnUseAndTargetManifest$'
+make check RUN='^TestMergeUpdate(CaptureBaseOverlay|CaptureCancellation|QueryVisitor|MixedPendingCancellation)$'
+make check RUN='^TestMergeUpdate(RowLocks|SyntacticRowModes|Publication|Cancellation|HeldACL|SourceCompletion)$'
+make check RUN='^TestMergeUpdate(ReadCommittedPending|RepeatableReadPending|FollowChainPending)$'
+make check RACE=1 RUN='^TestMergeUpdate(CaptureBaseOverlay|CaptureCancellation|MixedPendingCancellation)$'
+make check RACE=1 RUN='^TestMergeUpdate(ReadCommittedPending|RepeatableReadPending|FollowChainPending|RowLocks|Cancellation)$'
+```
+
+Run each completed public definition with the identical selector without
+`REFERENCE=1` for native-red, then both modes after the production cutover.
+All temporary discovery gates/wrappers, including Prepared/HeldACL, are removed;
+ordinary scenarios reuse `mergeInsertScenario` and the existing shared fixture.
+No PostgreSQL-only ancestry selector is needed or appropriate for native-red.
+
+ArrayAuthority retains independently expected subscript-source denial even with
+an empty source and FALSE action, then exercises ordinary UPDATE and matched
+MERGE with UPDATE-only array authority. Implicit old-container preservation is
+not a SELECT reference: PostgreSQL18's
+[transformAssignedExpr](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/parser/parse_target.c)
+constructs its assignment Var directly, without marking SELECT privilege.
+Explicit old-value RHS reads and subscript reads still require SELECT.
+Prepared/PreflightOrder assert the full existing unnamed-portal parameter Context
+on both adapters; SystemColumns asserts the established42P10 WHEN rejection.
+ExclusionWriteConsumers now requires genuine23P01 parity for MATCHED UPDATE,
+including direct/prepared diagnostics and unchanged rows after failure; its
+other write consumers remain covered. SyntacticRowModes checks the canonical
+NKU-plus-UPDATE held union for actual key upgrades and the exact row resource's
+journal membership/removal across savepoint rollback, not total journal size.
+
+Public waiting bodies retain PostgreSQL's real in-flight RowWait observer.
+Native instead executes a synchronous, bounded real SQL lock_timeout, asserts
+full55P03/nil result/no published prefix, resets the timeout, releases the holder,
+and retries the same actual prepared handle (or direct command). This is recovery
+proof, not original-candidate restart proof. Fresh native RC retry sees source8
+instead of the original retained7; noWiden commit leaves row1=20 and updates
+newly matching row3=100/count1, rollback updates both rows/count2. PostgreSQL's
+original blocked command retains source7 and excludes newly matching row3:
+noWiden commit count0/rows(1,20),(3,10), rollback count1/(1,100),(3,10).
+Native RR timeout uses SAVEPOINT/ROLLBACK TO/RELEASE without replacing the
+transaction or snapshot; prior own row2=21 survives recovery.
+
+`TestMergeUpdateReadCommittedPending` supplements public retries with actual
+manager-pending executor/Finish restart commit/rollback, key change with/without
+insert, delete with/without insert, retained source7, and noWiden vectors.
+`TestMergeUpdateRepeatableReadPending` covers all update/delete commit/rollback
+vectors with prior private UPDATE/DELETE/INSERT, exact count/diagnostic, logical
+replacement identity/base and peer reuse. Committed RR update succeeds1:
+the pinned old version10 and own descendant100 both remain visible, alongside
+prior own writes; committed deletion raises40001 concurrent delete and25P02.
+Worker rollback restores peer data, never collapses the RR bag to latest-only.
+`TestMergeUpdateFollowChainPending` asserts the original pending NKU request,
+then a real rowUpdate wait on surviving KEY SHARE for sameKey/unselected key
+arms; the nonkey control completes while KEY SHARE survives. Public native
+follow-chain timeout/retry deliberately does not claim this bitmap transition.
+
+Pinned goldens retain original candidate WHEN/RHS frames, actual initial
+key-change modes versus syntactic follow-chain union, whole UPDATE-arm supplied
+column disclosure and exact source-grounded diagnostics/positions.
+Privileges/HeldACL use genuine GRANT/REVOKE in both backends; there is no native
+GRANT skip. Existing native system-column-provider and ordinary UPDATE DEFAULT
+boundaries remain explicit divergent SQL expectations.
+
+`MixedDisclosure` independently checks the cross-action supplied-column union
+with restricted actors: matched NULL assignment retains secret99 from an
+unexecuted INSERT destination, and INSERT DEFAULT99 retains disclosure from an
+unexecuted UPDATE destination. `RepeatableReadFollowup` performs a second MERGE
+over the old10/own100 bag with unconditional, original10-only and own100-only
+conditions, checking cardinality/count, exact bag and savepoint recovery.
+The focused pinned oracle and subsequent dual-mode proof establish these
+diagnostic and prior-own-current-head outcomes; they are not pending proposals.
+
+Controls exercise actual matched replacements and latest live-head Dump,
+Reset/Restore, retained old rows, same-DSN peer values, failed/canceled replacement,
+held reexecution and actual emitted SQL replay on PostgreSQL. PostgreSQL is never
+given an invented native control API. Native exported MERGE affected counts are
+exact; lib/pq exports zero for this tag while independently asserted stored rows
+prove the complete logical effects. Public feature smoke uses
+`^TestReferenceMergeUpdateFeatureSmoke$` in both modes. Process-local logical
+transactions/locks do not imply disk/WAL/crash recovery, wire/network service,
+physical tuple identifiers/planner/storage, pg_dump or native ABI replication.
+
 INSERT SELECT is included above because INSERT input binding is shared.
 
 ### Encoding, locale and float-presentation settings

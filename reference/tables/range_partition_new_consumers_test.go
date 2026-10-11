@@ -68,7 +68,7 @@ func TestReferenceRangePartitionMergeBoundary(t *testing.T) {
 			t.Run(target+fmt.Sprint(prepared), func(t *testing.T) {
 				referenceRangeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 					referenceRangeExtensionSetup(t, p, b)
-					run := fixture.MergeInsertRun(t, p, b, prepared)
+					run := fixture.MergeRun(t, p, b, prepared)
 					query := "MERGE INTO " + target + " AS t USING (VALUES(2)) AS s(k) ON t.k=s.k WHEN NOT MATCHED THEN INSERT(k) VALUES(s.k)"
 					step := fixture.Exec(query, 1)
 					if !b.PG {

@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func MergeInsertRun(t *testing.T, p *Pair, b Backend, prepared bool) func(Step) {
+func MergeRun(t *testing.T, p *Pair, b Backend, prepared bool) func(Step) {
 	return func(s Step) {
 		if len(s.Query) >= 5 && s.Query[:5] == "MERGE" {
 			s.Prepared = prepared || s.Prepared

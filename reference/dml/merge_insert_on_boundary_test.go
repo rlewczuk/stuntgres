@@ -8,7 +8,7 @@ import (
 
 func TestReferenceMergeInsertOnCarrierBoundary(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 		run(fixture.Exec("INSERT INTO t VALUES(99)", 1))
 		run(fixture.Exec("CREATE TABLE source(id INT,v DOUBLE PRECISION)", 0))

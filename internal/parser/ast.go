@@ -631,18 +631,34 @@ type InsertTarget struct {
 
 func (*Insert) statement() {}
 
-// Merge retains only the supported NOT MATCHED BY TARGET insertion class.
-// Source and expression subqueries share ordinary query binding/admission.
+// Merge uses the ordinary query and mutation expression machinery.
 type Merge struct {
 	Name   ObjectName
 	Alias  Identifier
 	Source FromItem
 	On     Expr
-	Arms   []MergeInsert
+	Arms   []MergeArm
 	Pos    Position
 }
 
-type MergeInsert struct {
+type MergeMatch uint8
+
+const (
+	MergeNotMatched MergeMatch = iota
+	MergeMatched
+)
+
+type MergeAction uint8
+
+const (
+	MergeInsertAction MergeAction = iota
+	MergeUpdateAction
+)
+
+type MergeArm struct {
+	Match          MergeMatch
+	Action         MergeAction
+	Assignments    []UpdateAssignment
 	Condition      Expr
 	Targets        []InsertTarget
 	Values         []Expr

@@ -130,7 +130,19 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			}
 		}
 	}
-	for i, a := range s.Assignments {
+	return e.bindUpdateAssignments(b, binder, s.Assignments, u)
+}
+
+// Assignment analysis is shared by UPDATE and MERGE. The caller owns the
+// namespace, including any retained source frame, and statement clauses.
+func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []parser.UpdateAssignment, u *boundUpdate) error {
+	binder.updateParameters = true
+	defer func() {
+		binder.updateParameters = false
+		binder.updateInputParameters = nil
+	}()
+	var err error
+	for i, a := range assignments {
 		if len(a.Subscripts) != 0 {
 			if _, requested := a.Value.(parser.DefaultExpr); requested {
 				return expressionError("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
@@ -162,8 +174,8 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			return err
 		}
 	}
-	seen := make(map[int]bool, len(s.Assignments))
-	for i, a := range s.Assignments {
+	seen := make(map[int]bool, len(assignments))
+	for i, a := range assignments {
 		slot, ok := b.relation.index[a.Target.Text]
 		if !ok {
 			switch a.Target.Text {
@@ -206,12 +218,12 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		}
 		var target *arrayAssignmentTarget
 		if partial {
-			target, err = binder.bindArrayTarget(dest, a.Subscripts, a.Target.Pos, true)
+			target, err = binder.bindArrayTarget(dest, a.Subscripts, a.Target.Pos)
 			if err != nil {
 				return err
 			}
 			if u.arrayTargets == nil {
-				u.arrayTargets = make([]*arrayAssignmentTarget, len(s.Assignments))
+				u.arrayTargets = make([]*arrayAssignmentTarget, len(assignments))
 			}
 			u.arrayTargets[i] = target
 			dest = target.column(dest)

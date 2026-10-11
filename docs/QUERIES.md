@@ -26,31 +26,41 @@ or stored rewrite/deparse surface is added.
 ```sql
 MERGE INTO destination AS t
 USING source AS s ON t.id=s.id
+WHEN MATCHED AND s.id>0
+  THEN UPDATE SET value=t.value+s.value
 WHEN NOT MATCHED BY TARGET AND s.id>0
   THEN INSERT(id,value) VALUES(s.id,s.value)
 WHEN NOT MATCHED THEN INSERT DEFAULT VALUES;
 ```
 
-Each source occurrence is classified against the statement's frozen target.
-Any true ON pair makes it matched and skips insertion. Otherwise, conditions
-are tested in textual order: only the first TRUE arm inserts; FALSE and NULL
-continue to the next arm. With no TRUE arm nothing inserts. An empty target
-does not evaluate ON; an empty source demands no action/default/identity value.
-Inserted rows never become matching targets for later source occurrences.
-Duplicates are not deduplicated: two unmatched equal occurrences insert twice
-unless a constraint rejects them. Such unique violations are23505, not21000;
-scalar action subqueries producing multiple rows retain their own21000 error.
+Each source occurrence is classified against every captured target occurrence
+before the first row wait. Every true ON pair produces a matched candidate;
+zero pairs produce one unmatched candidate. Equal-valued but distinct target
+rows are not deduplicated. Within each class, only the first TRUE arm executes;
+FALSE/NULL fall through and a matched candidate with no selected arm never inserts.
+An unconditional arm prevents subsequent arms of its own class, not the other.
+An empty target demands no ON; an empty source demands no action/default draw.
+Current-command replacements/inserts never change frozen membership or later
+candidates' original WHEN/SET frames.
 
-ON sees both target and source namespaces. WHEN conditions and action values
-see only the source; target references there are hidden-entry42P01 errors.
-All arms are analyzed even when empty or unreachable at execution. An
-unconditional insertion arm cannot precede another arm. Supplied values retain
-their source types before ordinary INSERT assignment; implicit first-N and
-explicit reordered mappings, DEFAULT, omitted defaults, identity overrides,
-generated values and NOT NULL/CHECK/unique checks use the existing INSERT owners.
-Permissions include the union of every arm's inserted columns, actual target
-ON reads and every source relation, including empty sources with constant actions.
-Sequence permissions/draws remain demand-owned; failed drawn values are not undone.
+ON and MATCHED conditions/SET expressions see both target and source namespaces.
+NOT MATCHED conditions/insert values see only source; target references there
+are hidden-entry42P01 errors. SET RHS and array element/slice bounds use one
+unchanged old frame; partial writes compose in their private replacement.
+Generated values recompute from the completed payload. Existing UPDATE DEFAULT,
+generated/identity restrictions and field/row assignment boundaries remain.
+All arms are analyzed and authorized even when false or empty. Separate INSERT
+and UPDATE destination unions govern privileges, together with actual target
+reads and recursive source SELECT. Sequence draws remain demand-owned.
+
+Cardinality measures actual modifications: false conditions consume no RowID,
+same-value updates do, and a second attempted update raises21000
+`MERGE command cannot affect row a second time`, with the source-multiplicity
+Hint. Projection/row-constraint errors can precede that check; unique conflicts
+use23505, including duplicate unmatched inserts. Scalar-subquery21000 retains
+its distinct primary and no MERGE Hint. Mixed actions check unique constraints
+in action order against the accepted logical prefix and remaining original rows;
+key swaps are not deferred. Any late error rolls back the whole command.
 
 Pinned PostgreSQL18.0 has a nonboolean ON quirk: integer zero and NULL do not
 match, while nonzero integer and a non-NULL unknown string do. MERGE implements
@@ -60,25 +70,39 @@ that restriction. General positive system-column providers are unavailable
 through the native query binder (ordinary42703), not fabricated identities or
 NULL placeholders; pinned PostgreSQL independently supplies actual identities.
 
-The source and target share one captured frontier and existing isolation/locks.
-After all demanded source rows, conditions, values/defaults, constraints and
-required cursor Close succeed, one completed batch enters the private statement
-stage. Late errors/cancellation publish none; transaction rollback/savepoint
-recovery use existing owners. A concurrent unique claimant can still cause23505
-after waiting; this does not restart ON matching. Read-only MERGE fails25006 even
-for matched/FALSE/empty commands, after analysis and immutable input preflight.
-Held statements reanalyze current names, defaults and ACLs and use the appropriate
-transaction snapshot. Command Query exposes no columns or rows. Native Exec
-RowsAffected is the inserted count; the pinned lib/pq adapter exports0, so the
-shared witnesses separately inspect exact persisted effects. LastInsertId is unsupported.
+Source and target share one captured frontier including prior successful own
+writes. Required source Close succeeds before action row locking. Initial
+FOR NO KEY UPDATE upgrades only for an actual changed eligible key. Following
+a peer-updated predecessor additionally uses the whole syntactic UPDATE-key
+union, even for an unselected/same-value key arm. Read Committed rechecks ON
+against the latest target and retained source and restarts from the first arm;
+ON-false/deleted pairs may select unmatched insertion, without widening the join.
+Unique-key claimant waits never restart ON.
+
+MERGE's Repeatable Read update path follows the latest committed predecessor
+instead of ordinary UPDATE's concurrent-update40001. If its own replacement
+base differs from the pinned snapshot VersionID, public SELECT sees both the
+old snapshot version and its own descendant, with the same logical RowID; the
+intermediate peer version remains invisible. It neither advances the frontier
+nor creates a new INSERT. A concurrent deletion still raises40001
+`could not serialize access due to concurrent delete`.
+
+After all demanded actions/constraints/cancellation checks succeed, ordered
+private runs reuse canonical replace/insert staging and the sole Finish owner.
+Errors, required-Close failure and cancellation publish none; explicit failed
+transactions require rollback/savepoint recovery. Read-only MERGE fails25006
+even for matched/FALSE/empty commands after analysis/input preflight. Held
+statements reanalyze current names, assignments and ACLs. Command Query exposes
+no columns or rows. Native RowsAffected sums updates and inserts; pinned lib/pq
+exports0, so witnesses independently inspect exact effects. LastInsertId is unsupported.
 
 Dump persists ordinary object definitions, rows and sequence state, not MERGE
 statements or cursor caches. Native Reset/Restore replacement and replay of the
 actual emitted SQL on PostgreSQL are covered separately from SQL execution.
 This remains process-local logical behavior, not disk/WAL crash durability,
 wire-protocol compatibility, external pg_dump equivalence or native ABI support.
-MATCHED actions, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multirow
-tuples and writable target views are outside this selected feature.
+MATCHED DELETE, BY SOURCE, DO NOTHING, RETURNING, action INSERT SELECT/multirow
+tuples and writable target views remain outside this selected feature.
 
 ## Column-default catalog — change note
 

@@ -14,7 +14,7 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 				for _, on := range []string{"1", "0", "'oops'", "NULL", "$1::integer"} {
 					t.Run(map[bool]string{false: "emptyTarget/", true: "populatedTarget/"}[populated]+source+"/"+on, func(t *testing.T) {
 						mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-							run := fixture.MergeInsertRun(t, p, b, prepared)
+							run := fixture.MergeRun(t, p, b, prepared)
 							run(fixture.Exec("CREATE TABLE t(i INT)", 0))
 							if populated {
 								run(fixture.Exec("INSERT INTO t VALUES(99)", 1))
@@ -54,7 +54,7 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-					run := fixture.MergeInsertRun(t, p, b, prepared)
+					run := fixture.MergeRun(t, p, b, prepared)
 					run(fixture.Exec("CREATE TABLE t(i INT)", 0))
 					q := "MERGE INTO t USING (VALUES(1)) s(i) ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(" + tc.expr + ")"
 					if tc.rows == nil {
@@ -95,7 +95,7 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 		} {
 			t.Run(tc.q, func(t *testing.T) {
 				mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-					run := fixture.MergeInsertRun(t, p, b, prepared)
+					run := fixture.MergeRun(t, p, b, prepared)
 					run(fixture.Exec("CREATE TABLE t(i TEXT)", 0))
 					run(fixture.Exec("CREATE TABLE s(i INT)", 0))
 					run(fixture.Exec("INSERT INTO s VALUES(1)", 1))
@@ -133,18 +133,12 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 	t.Run("O4", mergeInsertColumnGrants)
 }
 
-// Real PostgreSQL's column GRANT API is an explicit external-only phase. Native
-// equivalent authority manifests are exercised through engine SetObjectACL units.
+// Public column GRANT exercises the same authority manifests in both backends.
 func mergeInsertColumnGrants(t *testing.T) {
 	const role = "merge_oracle_writer"
-	if *fixture.Mode {
-		fixture.RoleReferenceCleanup(t, []string{role})
-	}
+	fixture.RoleReferenceCleanup(t, []string{role})
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
-		if !b.PG {
-			continue
-		}
 		c, err := b.DB.Conn(p.Ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -156,7 +150,9 @@ func mergeInsertColumnGrants(t *testing.T) {
 		run("CREATE SEQUENCE merge_defaults")
 		run("CREATE TABLE t(id INT DEFAULT nextval('merge_defaults'),v INT)")
 		run("CREATE TABLE s(id INT,v INT)")
-		run("GRANT USAGE ON SCHEMA public TO " + role)
+		if b.PG {
+			run("GRANT USAGE ON SCHEMA public TO " + role)
+		}
 		run("GRANT INSERT(id) ON t TO " + role)
 		run("GRANT SELECT(id) ON s TO " + role)
 		queries := []string{
@@ -187,7 +183,14 @@ func mergeInsertColumnGrants(t *testing.T) {
 			run("RESET SESSION AUTHORIZATION")
 		}
 		run("GRANT INSERT(v),SELECT(id) ON t TO " + role)
-		run("GRANT USAGE ON SEQUENCE merge_defaults TO " + role)
+		if b.PG {
+			run("GRANT USAGE ON SEQUENCE merge_defaults TO " + role)
+		} else {
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError(
+				"GRANT USAGE ON SEQUENCE merge_defaults TO "+role,
+				fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"},
+			))
+		}
 		for _, prepared := range []bool{false, true} {
 			run("SET SESSION AUTHORIZATION " + role)
 			for _, q := range queries {

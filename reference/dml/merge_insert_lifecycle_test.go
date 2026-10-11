@@ -13,7 +13,7 @@ func TestReferenceMergeInsertTransactions(t *testing.T) {
 	for _, commit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT NOT NULL CONSTRAINT t_pkey UNIQUE)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(99)", 1))
 				tx, err := b.DB.BeginTx(p.Ctx, nil)
@@ -67,7 +67,7 @@ func TestReferenceMergeInsertPreparedRebind(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
-			run := fixture.MergeInsertRun(t, p, b, false)
+			run := fixture.MergeRun(t, p, b, false)
 			run(fixture.Exec("CREATE TABLE t(id INT,v TEXT DEFAULT 'old')", 0))
 			run(fixture.Exec("CREATE TABLE source(id INT)", 0))
 			q := "MERGE INTO t USING source s ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id) VALUES(s.id)"
@@ -102,7 +102,7 @@ func TestReferenceMergeInsertPreparedRebind(t *testing.T) {
 
 func TestReferenceMergeInsertCommandMetadata(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT,v TEXT)", 0))
 		q := "MERGE INTO t USING (VALUES($1::integer)) s(id) ON t.id=s.id WHEN NOT MATCHED AND s.id=$1 THEN INSERT VALUES(s.id,'typed')"
 		run(fixture.Exec(q, 1, int64(1)))
@@ -141,7 +141,7 @@ func TestReferenceMergeInsertCommandMetadata(t *testing.T) {
 
 func TestReferenceMergeInsertReadOnly(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 		run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
 		for _, q := range []string{
@@ -168,7 +168,7 @@ func TestReferenceMergeInsertCancellation(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
-			run := fixture.MergeInsertRun(t, p, b, false)
+			run := fixture.MergeRun(t, p, b, false)
 			run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 			run(fixture.Exec("CREATE TABLE s(id INT)", 0))
 			run(fixture.Exec("INSERT INTO t VALUES(99)", 1))

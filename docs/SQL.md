@@ -4,7 +4,7 @@
 
 Detailed contracts are grouped by topic:
 
-- [Queries and data manipulation](QUERIES.md): INSERT, MERGE insertion, DELETE, UPDATE, SELECT, expressions and casts.
+- [Queries and data manipulation](QUERIES.md): INSERT, MERGE insertion/matched UPDATE, DELETE, UPDATE, SELECT, expressions and casts.
 - [Table definitions and comments](TABLES.md): defaults, constraints, renames and column removal.
   CHECK supports complete-row TRUE/NULL acceptance, false-only INSERT/UPDATE
   rejection, TYPE dependency reparse/final-row validation, named identity, local
@@ -243,8 +243,10 @@ INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
 MERGE INTO [schema.]name [[AS] alias] USING joined_table ON expression
-      merge_insert_arm [merge_insert_arm ...]
-merge_insert_arm := WHEN NOT MATCHED [BY TARGET] [AND boolean_expression]
+      merge_arm [merge_arm ...]
+merge_arm := WHEN MATCHED [AND boolean_expression]
+             THEN UPDATE SET update_assignment [, ...]
+           | WHEN NOT MATCHED [BY TARGET] [AND boolean_expression]
                     THEN INSERT [(column [, ...])]
                          [OVERRIDING (SYSTEM | USER) VALUE]
                          VALUES (insert_value [, ...])

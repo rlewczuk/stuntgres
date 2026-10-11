@@ -43,7 +43,7 @@ func TestReferenceMergeInsertMatching(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT,v TEXT)", 0))
 				if tc.target != "" {
 					run(fixture.Exec("INSERT INTO t VALUES"+tc.target, int64(len(tc.rows))-tc.count))
@@ -59,7 +59,7 @@ func TestReferenceMergeInsertMatching(t *testing.T) {
 
 func TestReferenceMergeInsertConditions(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT,v TEXT DEFAULT 'tail')", 0))
 		run(fixture.Exec("INSERT INTO t VALUES(1,'old')", 1))
 		run(fixture.Exec("MERGE INTO t USING (VALUES(1),(2),(3)) s(id) ON t.id=s.id WHEN NOT MATCHED BY TARGET AND s.id=2 THEN INSERT VALUES(s.id,'first') WHEN NOT MATCHED THEN INSERT VALUES(s.id,'fallback')", 2))
@@ -81,7 +81,7 @@ func TestReferenceMergeInsertConditions(t *testing.T) {
 
 func TestReferenceMergeInsertMappingsDefaults(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT DEFAULT 8,v TEXT DEFAULT 'tail',flag BOOL DEFAULT TRUE)", 0))
 		for _, q := range []string{
 			"MERGE INTO t USING (VALUES(1)) s(id) ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(s.id)",
@@ -99,7 +99,7 @@ func TestReferenceMergeInsertMappingsDefaults(t *testing.T) {
 
 func TestReferenceMergeInsertCardinality(t *testing.T) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-		run := fixture.MergeInsertRun(t, p, b, prepared)
+		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 		run(fixture.Exec("MERGE INTO t USING (VALUES(7),(7)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id)", 2))
 		run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}}))
@@ -116,7 +116,7 @@ func TestReferenceMergeInsertSources(t *testing.T) {
 	for _, source := range []string{"s", "v", "(SELECT id,v FROM s) q", "(VALUES(1,'one'),(2,'two')) q(id,v)", "s JOIN keys ON s.id=keys.k"} {
 		t.Run(source, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-				run := fixture.MergeInsertRun(t, p, b, prepared)
+				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT,v TEXT)", 0))
 				run(fixture.Exec("CREATE TABLE s(id INT,v TEXT)", 0))
 				run(fixture.Exec("INSERT INTO s VALUES(1,'one'),(2,'two')", 2))

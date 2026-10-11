@@ -396,12 +396,13 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier Commit
 		return source, nil
 	}
 	total := len(source.committed) + len(source.own)
-	var heads map[RowID]int
+	var heads map[VersionID]int
+	singleSubstituted := false
 	if replacements > 1 {
-		heads = make(map[RowID]int, replacements)
+		heads = make(map[VersionID]int, replacements)
 		for i, row := range source.own {
 			if row.base != 0 {
-				heads[row.row] = len(source.committed) + i
+				heads[row.base] = len(source.committed) + i
 			}
 		}
 	}
@@ -423,11 +424,13 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier Commit
 	}
 	for i, row := range source.committed {
 		raw := i
-		if replacements == 1 && row.row == source.own[single].row {
+		if replacements == 1 && row.row == source.own[single].row && row.version == source.own[single].base {
 			raw = len(source.committed) + single
+			singleSubstituted = true
 		}
-		if head, ok := heads[row.row]; ok {
+		if head, ok := heads[row.version]; ok && source.versionAt(head).row == row.row {
 			raw = head
+			delete(heads, row.version)
 		}
 		if err := include(raw, i); err != nil {
 			source.close()
@@ -435,7 +438,7 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier Commit
 		}
 	}
 	for i, row := range source.own {
-		if row.base != 0 {
+		if row.base != 0 && ((replacements == 1 && singleSubstituted) || (replacements > 1 && heads[row.base] == 0)) {
 			continue
 		}
 		raw := len(source.committed) + i

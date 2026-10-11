@@ -270,6 +270,19 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if err := expressions(arm.Values); err != nil {
 				return err
 			}
+			for _, assignment := range arm.Assignments {
+				for _, bound := range assignment.Subscripts {
+					if err := expression(bound.Lower); err != nil {
+						return err
+					}
+					if err := expression(bound.Upper); err != nil {
+						return err
+					}
+				}
+				if err := expression(assignment.Value); err != nil {
+					return err
+				}
+			}
 		}
 	case *Update:
 		if err := from(s.From, &Select{From: s.From}); err != nil {

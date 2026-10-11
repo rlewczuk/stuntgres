@@ -14,7 +14,7 @@ func TestReferenceMergeInsertFeatureSmoke(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
-			run := fixture.MergeInsertRun(t, p, b, false)
+			run := fixture.MergeRun(t, p, b, false)
 			run(fixture.Exec("CREATE TABLE t(id INT NOT NULL CONSTRAINT t_pkey UNIQUE,v TEXT,tail TEXT DEFAULT 'tail')", 0))
 			run(fixture.Exec("CREATE TABLE source(id INT,v TEXT)", 0))
 			run(fixture.Exec("INSERT INTO t VALUES(1,'old','old-tail')", 1))
