@@ -212,7 +212,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return quote(text) + "::regtype", nil
 	case sqltype.Timetz:
 		return datetimeZoneTimetzDeparse(ctx, v, typ, text, quote)
-	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+	case sqltype.Inet, sqltype.Cidr, sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse constant type %d", u.Type.ID())

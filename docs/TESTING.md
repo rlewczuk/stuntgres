@@ -508,6 +508,19 @@ atomicity observer. This adapter distinction never weakens domain SQL diagnostic
 Native inherited-domain defaults, sibling-domain/implicit-array executability
 and general information-schema/pg_type views are explicit exclusions.
 
+INET/CIDR scalar acceptance uses `make check RUN='^TestReferenceINET.*$'`
+and `make check REFERENCE=1 RUN='^TestReferenceINET.*$'` (external900-second
+deadlines), plus codec/coercion/ordering units with
+`make check RUN='^TestNetwork.*$'`.
+Feature smoke selects `^TestReferenceINETFeatureSmoke$` in both modes.
+The definitions independently assert exact values/types/counts, full
+diagnostics/stages, raw transport and empty/all-NULL metadata, held binds,
+statement atomicity and real native Dump/Reset/Restore with PostgreSQL replay.
+Native control API/cursor phases are explicitly native-only, not a fabricated
+PostgreSQL equivalent. The oracle-first discovery filter is not permanent.
+A separate throwaway public executable additionally exercises prepared binds,
+prefix-aware ordering/casts, diagnostics, metadata and real control round trips;
+its temporary main package is not committed or substituted by a test.
 
 RANGE window coverage selects the complete `^TestReferenceQueryWindow` family
 in both `make check RUN='^TestReferenceQueryWindow'`

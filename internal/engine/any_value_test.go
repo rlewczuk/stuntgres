@@ -34,6 +34,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Int4Range: {"[1,4]", "empty", "[,]", "[-2147483648,2147483647)"},
 		sqltype.Int8Range: {"(1,4]", "empty", "[,]", "[-9223372036854775808,9223372036854775807)"},
 		13254:             {"2004-10-19 10:23:54.126+02", "2004-10-19 23:59:59.999+00", "infinity", "-infinity"},
+		sqltype.Inet:      {"10.255.255.255/8", "::ffff:1.2.3.4", "::1"},
+		sqltype.Cidr:      {"10", "192.168/25", "2001:db8::/113"},
 	}
 	for _, d := range sqltype.Builtins() {
 		if !d.Concrete() {

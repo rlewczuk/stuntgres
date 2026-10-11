@@ -10,6 +10,15 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
+direct/prepared binds, metadata and native Dump/Restore. INET preserves host
+bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical
+output and prefix-aware ordering distinguish network values from TEXT.
+Network arrays, helper functions and containment/arithmetic operators remain
+outside this scalar feature. See [network types](docs/TYPES.md#inet-and-cidr--change-note).
+Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
+
 Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
 and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
 for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.

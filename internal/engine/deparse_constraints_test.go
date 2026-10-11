@@ -130,6 +130,8 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 		{sqltype.VarChar, "hi", "'hi'::character varying", "'hi'::character varying"},
 		{sqltype.Bytea, `\x00ff`, `'\x00ff'::bytea`, `'\x00ff'::bytea`},
 		{sqltype.UUID, "00000000-0000-0000-0000-000000000001", "'00000000-0000-0000-0000-000000000001'::uuid", "'00000000-0000-0000-0000-000000000001'::uuid"},
+		{sqltype.Inet, "192.168.0.129/25", "'192.168.0.129/25'::inet", "'192.168.0.129/25'::inet"},
+		{sqltype.Cidr, "10", "'10.0.0.0/8'::cidr", "'10.0.0.0/8'::cidr"},
 		{sqltype.Numeric, "1.20", "1.20", "1.20"},
 		{sqltype.Numeric, "NaN", "'NaN'::numeric", "'NaN'::numeric"},
 		{sqltype.Numeric, "Infinity", "'Infinity'::numeric", "'Infinity'::numeric"},

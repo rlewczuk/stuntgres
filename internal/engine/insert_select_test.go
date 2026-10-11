@@ -86,6 +86,9 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 		{[]sqltype.ID{sqltype.Unknown, sqltype.UUID}, sqltype.UUID},
 		{[]sqltype.ID{sqltype.Time, sqltype.Time}, sqltype.Time},
 		{[]sqltype.ID{sqltype.Timestamp, sqltype.Timestamp}, sqltype.Timestamp},
+		{[]sqltype.ID{sqltype.Cidr, sqltype.Inet}, sqltype.Inet},
+		{[]sqltype.ID{sqltype.Inet, sqltype.Cidr}, sqltype.Inet},
+		{[]sqltype.ID{sqltype.Unknown, sqltype.Cidr}, sqltype.Cidr},
 	} {
 		got, err := commonValuesUsage(nodes(tc.ids...), nil, 0, usage(sqltype.Text))
 		if err != nil || got.Type.ID() != tc.want {

@@ -2024,7 +2024,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		// A rejected cast from an existing stored scalar to an existing array is
 		// a type mismatch, not an unimplemented scalar provider. This only
 		// selects the diagnostic below; it adds no coercion capability.
-		if !b.datetimeZoneOperands && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -2415,7 +2415,7 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 	return b.bind(o.raw, expressionPolicy{context: projectionContext, expected: typ.Usage()})
 }
 
-// Apply existing implicit integer→OID and TIME→TIMETZ edges after
+// Apply existing implicit integer→OID, TIME→TIMETZ and CIDR→INET edges after
 // occurrence-sensitive unknown inference. Coercion owns NULL/range/environment
 // semantics and volatility; the comparison provider remains homogeneous.
 func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (BoundExpr, BoundExpr, error) {
@@ -2426,6 +2426,10 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 	var child BoundExpr
 	var target sqltype.Usage
 	switch {
+	case lt.ID() == sqltype.Inet && rt.ID() == sqltype.Cidr:
+		child, target = right, lt.Usage()
+	case rt.ID() == sqltype.Inet && lt.ID() == sqltype.Cidr:
+		child, target = left, rt.Usage()
 	case lt.ID() == sqltype.Oid && integer(rt):
 		child, target = right, lt.Usage()
 	case rt.ID() == sqltype.Oid && integer(lt):
@@ -2442,7 +2446,7 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 		return nil, nil, err
 	}
 	converted := coercionExpression{b.info(target, child.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Implicit}
-	if lt.ID() == sqltype.Oid || lt.ID() == sqltype.Timetz {
+	if lt.ID() == sqltype.Oid || lt.ID() == sqltype.Timetz || lt.ID() == sqltype.Inet {
 		right = converted
 	} else {
 		left = converted

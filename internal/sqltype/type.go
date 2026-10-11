@@ -28,10 +28,12 @@ const (
 	Xid         ID = 28
 	JSON        ID = 114
 	PgNodeTree  ID = 194
+	Cidr        ID = 650
 	Float4      ID = 700
 	Float8      ID = 701
 	Unknown     ID = 705
 	Money       ID = 790
+	Inet        ID = 869
 	NameArray   ID = 1003
 	BPChar      ID = 1042
 	VarChar     ID = 1043
@@ -172,6 +174,8 @@ func Builtins() []*Descriptor {
 		{id: Float4, name: "float4", sql: "REAL", database: "FLOAT4", associatedArray: 1021},
 		{id: Float8, name: "float8", sql: "DOUBLE PRECISION", database: "FLOAT8", associatedArray: 1022},
 		{id: Money, name: "money", sql: "MONEY", database: "MONEY", associatedArray: 791},
+		{id: Cidr, name: "cidr", sql: "CIDR", database: "CIDR", associatedArray: 651},
+		{id: Inet, name: "inet", sql: "INET", database: "INET", associatedArray: 1041},
 		{id: Date, name: "date", sql: "DATE", database: "DATE", associatedArray: 1182},
 		{id: Time, name: "time", sql: "TIME", database: "TIME", associatedArray: 1183},
 		{id: Timestamp, name: "timestamp", sql: "TIMESTAMP", database: "TIMESTAMP", associatedArray: 1115},
@@ -230,6 +234,7 @@ type Value struct {
 	jsonb           *jsonbPayload
 	jsonpath        *jsonpathPayload
 	rangeDatum      integerRangeDatum
+	network         networkDatum
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -258,6 +263,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && (d.BaseType().id == Int4Range || d.BaseType().id == Int8Range) && !v.validIntegerRange() {
 		return Value{}, fmt.Errorf("invalid integer range datum")
+	}
+	if !v.null && IsNetwork(d.BaseType().id) && !v.network.valid(d.BaseType().id == Cidr) {
+		return Value{}, fmt.Errorf("invalid network datum")
 	}
 	if v.typ.BaseType().IsComposite() != d.BaseType().IsComposite() {
 		return Value{}, fmt.Errorf("incompatible composite declaration")
@@ -478,6 +486,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.enumInput(text, env)
 	}
 	switch d.id {
+	case Inet, Cidr:
+		return d.networkInput(text)
 	case Int4Range, Int8Range:
 		return d.integerRangeInput(ctx, text)
 	case Money:
@@ -699,6 +709,11 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.enumOutput(v)
 	}
 	switch d.id {
+	case Inet, Cidr:
+		if !v.network.valid(d.id == Cidr) {
+			return "", fmt.Errorf("invalid network value")
+		}
+		return v.network.output(d.id == Cidr), nil
 	case Int4Range, Int8Range:
 		return v.integerRangeOutput()
 	case Money:
@@ -790,6 +805,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid literal value")
 	}
 	if v.null {
+		if IsNetwork(d.BaseType().id) {
+			return "CAST(NULL AS " + d.BaseType().SQLName() + ")", nil
+		}
 		if d.BaseType().id == Money {
 			return "CAST(NULL AS money)", nil
 		}
@@ -820,6 +838,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
 	switch d.id {
+	case Inet, Cidr:
+		text, err := d.Output(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return d.sql + " '" + text + "'", nil
 	case Int4Range, Int8Range:
 		text, err := v.integerRangeOutput()
 		if err != nil {
@@ -918,6 +942,8 @@ const (
 	charTextConversion
 	bitStringConversion
 	arrayConversion
+	networkConversion
+	networkTextConversion
 )
 
 type CoercionPlan struct {
@@ -956,6 +982,9 @@ func (p CoercionPlan) RequiresCatalogOutput() bool {
 func (p CoercionPlan) EvaluationFunctionCount() int {
 	if p.element != nil {
 		return p.element.EvaluationFunctionCount()
+	}
+	if p.method == networkConversion && p.source.Type.id == Cidr && p.target.Type.id == Inet {
+		return 0 // Binary-compatible relabel, not a cast function.
 	}
 	if p.method == viaIO {
 		return 2
@@ -1064,7 +1093,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype:
+		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Inet, Cidr:
 		return true
 	}
 	return false
@@ -1121,6 +1150,24 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if IsNetwork(source.Type.id) || IsNetwork(target.Type.id) {
+		switch {
+		case source.Type == target.Type:
+			return p, nil
+		case source.Type.id == Cidr && target.Type.id == Inet,
+			source.Type.id == Inet && target.Type.id == Cidr && context >= Assignment:
+			p.method = networkConversion
+		case context == Explicit && source.Type.id == Text && IsNetwork(target.Type.id):
+			p.method = viaIO
+		case context == Explicit && IsNetwork(source.Type.id) && target.Type.id == Text:
+			p.method = networkTextConversion
+		case context == Assignment && IsNetwork(source.Type.id) && IsCharacter(target.Type.id):
+			p.method = viaIO
+		default:
+			return p, failure("42804", "incompatible source and destination types")
+		}
+		return p, nil
+	}
 	if source.Type.IsComposite() || target.Type.IsComposite() {
 		if source.Type == target.Type {
 			return p, nil
@@ -1297,6 +1344,14 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case networkConversion:
+		v.typ = p.target.Type
+		if v.typ.id == Cidr {
+			v.network = v.network.masked()
+		}
+		return v, nil
+	case networkTextConversion:
+		return String(p.target.Type, v.network.output(true)), nil
 	case moneyConversion:
 		return moneyCoercion(v, p.target, input.MonetaryLocale)
 	case arrayConversion:
@@ -1438,7 +1493,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Text, VarChar, Time,
-			Timestamp, Timestamptz, Timetz, UUID, JSONB:
+			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr:
 		case Void:
 			message := "could not identify an ordering operator for type void"
 			return Comparison{}, &sqlstate.Error{
@@ -1480,6 +1535,9 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	}
 	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == Xid || right.id == Xid {
 		return p, failure("42883", "incompatible comparison operands")
+	}
+	if IsNetwork(left.id) && IsNetwork(right.id) {
+		return p, nil
 	}
 	if dateTimestampType(left.id) && dateTimestampType(right.id) {
 		return p, nil
@@ -1581,6 +1639,8 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		return 0, nil
 	}
 	switch p.left.id {
+	case Inet, Cidr:
+		return compareNetwork(a.network, b.network), nil
 	case Regclass, Regtype:
 		if a.integer != 1 || b.integer != 1 {
 			return 0, fmt.Errorf("invalid regclass comparison value")

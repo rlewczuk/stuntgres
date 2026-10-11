@@ -76,7 +76,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if v != nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
 		}
-		if target.Type.ID() == sqltype.Int4Range || target.Type.ID() == sqltype.Int8Range || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
+		if sqltype.IsNetwork(target.Type.ID()) || target.Type.ID() == sqltype.Int4Range || target.Type.ID() == sqltype.Int8Range || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
 			return sqltype.Null(target.Type), nil
 		}
 	case time.Time:
@@ -201,6 +201,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
+	case sqltype.Inet, sqltype.Cidr:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Regtype:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Xid:
@@ -254,6 +256,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
+	case sqltype.Inet, sqltype.Cidr:
+		return reflect.TypeFor[string]()
 	case sqltype.Bytea, sqltype.Xid:
 		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp, sqltype.Timestamptz:

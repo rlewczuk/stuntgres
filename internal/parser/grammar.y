@@ -1419,7 +1419,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | INTERVAL '(' NUMBER ')' STRING {raw,ok:=intervalPrecision(sqllex,32767,$3,$2);if !ok{return 1};raw.Name="interval";raw.Pos=$1.pos;$$=TypedLiteralExpr{TypeName:raw,Text:$5.text,Pos:$5.pos}}
  /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
   * belong exclusively to temporal_type, not the ordinary name reduction. */
- | IDENT STRING { if $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
+ | IDENT STRING { if $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | KW_C STRING { if $1.text!="json" {sqllex.(*lexer).syntax($2);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | column_reference %prec NAME_LIST { $$=$1 }
  | name '.' col_label STRING {raw,ok:=qualifiedTypedLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}

@@ -9,6 +9,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Int2, Int2}, {Int2, Int4}, {Int2, Int8}, {Int4, Int2}, {Int4, Int4}, {Int4, Int8}, {Int8, Int2}, {Int8, Int4}, {Int8, Int8},
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
 	{Money, Money},
+	{Inet, Inet},
 	{Text, Text}, {BPChar, BPChar}, {Name, Name}, {Name, Text}, {Text, Name},
 	{Date, Date}, {Time, Time}, {Timestamp, Timestamp}, {Date, Timestamp}, {Timestamp, Date}, {UUID, UUID}, {Bytea, Bytea},
 	{Timestamptz, Timestamptz}, {Timetz, Timetz},
@@ -17,6 +18,8 @@ var equalitySignatures = [...]EqualitySignature{
 
 func equalityCategory(id ID) byte {
 	switch id {
+	case Inet, Cidr:
+		return 'I'
 	case Bool:
 		return 'B'
 	case Oid, Int2, Int4, Int8, Numeric, Money, Float4, Float8:
@@ -33,10 +36,13 @@ func equalityCategory(id ID) byte {
 	return 0
 }
 func equalityPreferred(id ID) bool {
-	return id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz || id == Interval
+	return id == Inet || id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz || id == Interval
 }
 func equalityImplicit(from, to ID) bool {
 	if from == to {
+		return true
+	}
+	if from == Cidr && to == Inet {
 		return true
 	}
 	if IsCharacter(from) && IsCharacter(to) {

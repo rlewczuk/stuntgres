@@ -6,6 +6,27 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### INET and CIDR — change note
+
+Typed scalar INET/CIDR declarations, contextual input, direct/prepared textual
+binds, CAST/`::` and plain/pg_catalog typed literals support IPv4 and IPv6.
+INET keeps host bits; CIDR input rejects them, while assignment/explicit
+INET→CIDR clears them and CIDR→INET is implicit. Canonical raw INET output
+omits full-host masks; CIDR and explicit network→TEXT always show masks.
+Comparison is family/common-network-bits/prefix/full-address order, not TEXT
+or raw-address order: IPv4 precedes mapped IPv6, and `10.255.255.255/8` precedes
+`10.0.0.0/16`. Existing scalar comparisons and NULL policies apply.
+Metadata, complete English22P02 input diagnostics and actual native
+Dump/Restore use the existing typed/control paths.
+
+Network arrays remain lookup-only; grouping/hash, helper functions,
+containment/overlap, arithmetic/bitwise operators, aggregates and MAC types
+are not added. Physical disk/WAL/durability, wire serving, OS networking,
+native ABI and external pg_dump/custom archives are non-engine boundaries.
+See [network types](TYPES.md#inet-and-cidr--change-note).
+Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
+
 ### Table and column grants — change note
 
 Autocommit GRANT and plain REVOKE support SELECT, INSERT, UPDATE, DELETE,
@@ -2562,7 +2583,7 @@ Every result is BOOL (`?column?`, native bool ScanType, no physical-column origi
 including empty results; either NULL yields typed BOOL NULL/UNKNOWN, which WHERE
 does not keep. INT2/INT4/INT8 compare exactly across widths without narrowing or
 floating-point conversion. Existing NAME/TEXT, BOOL, FLOAT4/8, exact NUMERIC,
-UUID, BYTEA and same-type DATE/TIME/TIMESTAMP providers keep their existing admission and
+UUID, INET/CIDR, BYTEA and same-type DATE/TIME/TIMESTAMP providers keep their existing admission and
 ordering (C text order, FALSE before TRUE); no cross-temporal casts are added.
 Unknown quoted strings/NULL take a known peer's type; two unknowns choose TEXT.
 Known TEXT is not implicitly integer/BOOL. Parameter occurrences copy their

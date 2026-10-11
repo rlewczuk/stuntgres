@@ -237,6 +237,9 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 
 func storedArrayElement(typ *sqltype.Descriptor) bool {
 	physical := typ.BaseType()
+	if sqltype.IsNetwork(physical.ID()) {
+		return false
+	}
 	if physical.IsArray() {
 		return storedArrayElement(physical.Element())
 	}
@@ -403,7 +406,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	case "char",
 		"timetz",
 		"timestamptz", "xml",
-		"name", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
+		"name", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
 		return true
 	}

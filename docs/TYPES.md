@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, bytea, json, bit, varbit, int4range and int8range. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID, exact JSON source, canonical BIT/VARBIT digits and canonical integer ranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, inet, cidr, bytea, json, bit, varbit, int4range and int8range. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID/INET/CIDR, exact JSON source, canonical BIT/VARBIT digits and canonical integer ranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950, INT4RANGE3904, INT8RANGE3926; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, CIDR650, FLOAT4 700, FLOAT8 701, INET869, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950, INT4RANGE3904, INT8RANGE3926; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -13,7 +13,7 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID/BIT/VARBIT and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID/INET/CIDR/BIT/VARBIT and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
@@ -29,6 +29,77 @@ It has no collation or typmod; its associated `_xid` identity (OID1011) is
 lookup-only, not an executable XID array family. This catalog projection does
 not enable XID column declarations, casts to OID/regclass/numerics, ordering/
 index classes or XID functions. See [prepared transactions](TRANSACTIONS.md#prepared-transactions).
+
+## INET and CIDR — change note
+
+`INET` (OID869) and `CIDR` (OID650) are noncollatable, modifier-free scalar
+values with an owned inline address, family and prefix. CREATE/INSERT/SELECT,
+ordinary direct/prepared string and textual `[]byte` binds, NULL, stored
+defaults/views and the existing native controls use the same codecs.
+Typed-nil `[]byte` is SQL NULL; nonnil empty bytes are invalid network input.
+Public Go conversion remains `database/sql`'s ordinary converter/Valuer boundary,
+not a binary network API or special support for `net.IP`/Go arrays.
+
+INET defaults to /32 for IPv4 and /128 for IPv6, retains host bits and omits
+a full-host mask on raw output. CIDR always shows its mask and rejects input
+with bits to its right. IPv4 CIDR shorthand uses classful defaults widened to
+the number of supplied octets: `10` → `10.0.0.0/8`, `10.1` → `10.1.0.0/16`,
+`192.168` → `192.168.0.0/24`; four supplied octets default to /32, including
+`10.0.0.0`. IPv6 CIDR without a mask defaults to /128. Explicit-prefix INET
+shorthand permits `192.168/23` but rejects `192.168/24`; without a mask all
+four IPv4 octets are required. Standalone INET permits a terminal dot after
+the final supplied octet (`1.2.3.4.` → `1.2.3.4`, `1.2.3./24` → `1.2.3.0/24`);
+it does not supply another octet or relax those mask constraints. Standalone CIDR
+rejects that terminal dot. For both INET and CIDR, IPv6 distinguishes EOF from
+an explicit mask: `::ffff:1.2.3./128` supplies a zero final octet, yielding
+`::ffff:1.2.3.0` for INET and `::ffff:1.2.3.0/128` for CIDR;
+`1:2:3:4:5:6:7:8:/128` yields `1:2:3:4:5:6:7:8` and
+`1:2:3:4:5:6:7:8/128`, respectively. The same terminal dot/colon without a
+mask fails, and excess octets/words, malformed masks and CIDR host bits
+remain invalid. Decimal IPv4 leading zeros and CIDR hexadecimal nybble
+notation follow PostgreSQL input. Input is not trimmed;
+bracketed or zone-qualified addresses, DNS names and malformed address/prefix text fail.
+IPv6 output lowercases hex and compresses the first longest zero run, retaining
+PostgreSQL-compatible dotted IPv4 tails and the IPv6 family of mapped addresses.
+
+CIDR→INET is implicit; INET→CIDR is assignment/explicit and clears host bits
+without changing the source. Thus `'192.168.0.1/24'::cidr` fails, but
+`('192.168.0.1/24'::inet)::cidr` yields `192.168.0.0/24`. CAST, `::`, and
+plain/`pg_catalog` INET/CIDR typed literals are admitted. Explicit known TEXT
+input is supported; explicit network→TEXT always includes the prefix, e.g.
+`'192.168.1.5'::inet::text` yields `192.168.1.5/32`, unlike raw INET output.
+Assignment to existing character destinations retains their ordinary I/O route.
+
+All six scalar comparisons and ASC/DESC ordering use family first (IPv4 before
+IPv6), common network bits, prefix length, then full address. In particular
+`10.255.255.255/8` precedes `10.0.0.0/16`. Equality includes prefix and host
+bits; either NULL yields UNKNOWN. The existing order-class seam uses released
+B-tree `inet_ops` (OID10015, family `network_ops`, input INET), including CIDR
+through implicit relabel. This is not a new specialized index method.
+
+Native raw values and ScanType are immutable string/string; pinned pq returns
+canonical owned []byte/interface{}. INET/CIDR database type names survive
+nonempty, empty and all-NULL results. Length and DecimalSize are unavailable.
+Native declared-column nullability is known; computed projections retain the
+existing unknown-nullability contract. Pq nullability is unknown.
+Invalid text uses22P02 and `invalid input syntax for type inet/cidr: "..."`.
+CIDR host-bit failure uses22P02, `invalid cidr value: "..."`, and Detail
+`Value has bits set to right of mask.` Eager literals point at the opening
+quote in characters, including during Prepare; bound input failures have no
+Position and use actual parameter-number Context with nonempty values redacted
+as `'...'` (empty values use `''`). Known TEXT conversion fails at Execute
+without Position. Native diagnostics never invent PostgreSQL C source fields.
+
+Actual native Dump/Reset/Restore preserves declarations, data, typed defaults
+and views, with atomic staging and retained cursor metadata/data. Restore
+failures preserve the original catalog. INET[]1041 and CIDR[]651 retain truthful
+lookup-only identities but are not executable array types; no network grouping/
+hash provider is added. Network helper functions, containment/overlap,
+arithmetic/bitwise operators, aggregates and MAC types are separate features.
+Physical storage/WAL/durability, wire protocol serving, OS networking, native
+ABI and external pg_dump/custom archives are non-engine boundaries, not no-ops.
+Coverage: `make check RUN='^TestReferenceINET.*$'` and
+`make check REFERENCE=1 RUN='^TestReferenceINET.*$'`.
 
 ## Bit strings — change note
 
