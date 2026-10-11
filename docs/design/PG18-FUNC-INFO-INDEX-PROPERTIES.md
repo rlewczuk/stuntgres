@@ -135,15 +135,15 @@ false and NULL inquiries, native Reset/Restore and independent destination Resto
 Run each selective invocation with a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexProperties' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexProperties' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(SequenceRegclassInput|DeparseRelations|VisibilityInquiry(FixedAndTyped|PreparedInputsAndCancellation|ChecksAndViews)|ArrayRegclassDomains)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SequenceRegclassInput|DeparseRelations|VisibilityInquiry(FixedAndTyped|PreparedInputsAndCancellation|ChecksAndViews)|ArrayRegclassDomains)' VERBOSE=0
+make check RUN='^TestReferenceIndexProperties'
+make check REFERENCE=1 RUN='^TestReferenceIndexProperties'
+make check RUN='^TestReferenceIndexPropertiesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceIndexPropertiesFeatureSmoke$'
+make check RUN='^TestReference(SequenceRegclassInput|DeparseRelations|VisibilityInquiry(FixedAndTyped|PreparedInputsAndCancellation|ChecksAndViews)|ArrayRegclassDomains)'
+make check REFERENCE=1 RUN='^TestReference(SequenceRegclassInput|DeparseRelations|VisibilityInquiry(FixedAndTyped|PreparedInputsAndCancellation|ChecksAndViews)|ArrayRegclassDomains)'
 ```
 
-These supplement ordinary quickcheck and the root's post-merge fullcheck. This
+These supplement ordinary quickcheck and the root's post-merge finalcheck. This
 implementation document records no test execution result.
 
 ## Authority

@@ -33,8 +33,8 @@ Reuse existing package seams, binders and storage paths; do not introduce parall
 - Use TDD: write the failing behavioral regression, observe the failure, implement the smallest correct change, then refactor with tests passing. Every new PostgreSQL functionality and compatibility bug requires new or modified dual-mode reference coverage. Follow [docs/TESTING.md](docs/TESTING.md): real PostgreSQL first, record oracle expectations, quick mode second, then verify both modes. Internal unit regressions may supplement this coverage; never duplicate public SQL/API tests outside `reference/`.
 - Prefer clear, self-explanatory, maintainable code with separated concerns and testable boundaries. Keep functions focused and files short; split by responsibility, not arbitrary line counts. Grammar and generated files are exceptions. Reference functional test files have a hard 750-line limit; the cohesive shared fixture is exempt.
 - Test consumer-visible outcomes, boundaries, errors, atomicity and lifecycle transitions with independently specified expectations. Cover direct/prepared behavior and relevant metadata/cancellation paths. Do not test source text, wiring counts or mock echoes in place of real behavior.
-- Keep test output quiet: assertions report failures through the test runner, not printed success labels. Extra debug output requires an explicit verbosity flag, off by default (`VERBOSE=1` for make targets).
-- Each `make quickcheck` invocation must finish within 900 seconds. Final `make fullcheck` runs after merge under one 1800-second wall-clock deadline across generation/build, quick native tests, race-enabled native and real pinned PostgreSQL reference tests, benchmarks and dependency checks. Commit any failure remedies separately from the merged task. Fix slow or hanging tests rather than increasing deadlines, dropping coverage or skipping failures. Only explicitly enabled specialized benchmarks may exceed these limits; never include them in default targets.
+- Keep test output quiet: report failures through the test runner, not success labels; debug output must be opt-in.
+- Agents own command deadlines: 900 seconds for `check`, `quickcheck`, `racecheck` and `bench`; 1800 seconds total for post-merge `finalcheck`. Targets impose no deadlines. Fix slow/hanging tests rather than increasing deadlines, dropping coverage or skipping failures; specialized opt-in benchmarks are exempt.
 - Pay particular attention to mutexes, goroutines and cancellation. Document lock ownership/order, avoid recursive acquisition and callbacks/external I/O under locks, release resources on every exit, and preserve immutable published snapshots and atomic publication. Use deterministic synchronization rather than sleep-based ordering; exercise cancellation, contention and teardown with the race detector.
 - Transaction isolation uses one owner: RR retains all immutable relation/end roots before analysis waits; RC/RU execution views stay grant-time fresh. Never copy row values for snapshot retention, cache an owner on prepared statements, or add a second settings/lock authority. Current characteristic routes validate owner-first; healthy CHAIN preserves final modes, abort restores entry defaults before overrides, and aborted CHAIN carries restored modes. Every chain clears snapshot state.
 - Read-only utility execution rejects supported modifying tags before object resolution, authorization or relation locks; DML retains analysis-before-read-only diagnostics. Do not apply execution rejection to Prepare. Selected ALTER TABLE nullability/named-NOT-NULL/DROP COLUMN lists and sequence DDL are the bounded explicit-transaction exceptions; do not enable unrelated utilities. Independently assert SHOW ALL built-in descriptions against PostgreSQL 18.0 short_desc, including current/default transaction settings, and registered custom descriptions without empty-string exemptions.
@@ -65,27 +65,27 @@ Primary references: [PostgreSQL 18 SQL](https://www.postgresql.org/docs/18/sql-c
 
 ## Commands and proof
 
-Run from repository root with Go >=1.26 and GNU `timeout` (reference targets also require Docker).
-Always use make targets for standard actions:
+Run from repository root with Go >=1.26; selected real-reference checks also require Docker.
+Use make targets for standard actions:
 
 ```sh
-make generate   # regenerate the checked-in parser with pinned goyacc
+make generate   # regenerate checked-in parser and Unicode tables
 make build      # compile production packages
-make quickcheck # uncached Docker-free units, quick reference tests and legacy smoke
-make fullcheck  # after merge: generate/build, quick + native/reference race, bench/deps
+make check RUN='^TestName$' # development: individual tests or small selected sets only
+make quickcheck # full-project Docker-free verification after edits/before review or merge
+make racecheck  # full quick-mode suite with race detector
+make finalcheck # after merge: five startup benchmarks, full quick-mode race suite, deps
 make bench      # fresh-engine startup benchmark, five runs with allocation counts
 make deps       # list non-standard production dependencies
 ```
 
-Read `Makefile` for non-standard actions. Use `RUN='^TestName$'` to select tests,
-`PACKAGES=./internal/parser` to scope tests, `RACE=1` for the race detector,
-`REFERENCE=1 PACKAGES=./reference` for real pinned PostgreSQL, and `VERBOSE=1` for diagnostics.
-Every changed or new reference definition MUST pass selected native and real runs before
-review/integration: `make quickcheck PACKAGES=./reference RUN='...'` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='...'`. Real mode enables the
-`reference` build tag and `-args -reference=true`. This proof cannot wait for final fullcheck.
-Do not replace final verification with selected tests. After merge, run `make fullcheck`;
-commit any failure remedies separately. Exercise the changed public path before delivery;
-report only observed results and name any blocked checks.
-Dependency output may contain only this module's paths. Benchmark real fresh engines through
-Ping and Close, not lazy Open alone; report ns/op and allocations against the <1ms startup target.
+Only `check` accepts options: required `RUN`, `RACE=1`, and `REFERENCE=1` (real pinned
+PostgreSQL via `-tags reference` and `-args -reference=true`). Never use it for broad
+or whole-package testing. Agents MUST NEVER invoke human-only `make refcheck`.
+Every changed/new reference definition must pass `make check RUN='...'` and
+`make check REFERENCE=1 RUN='...'` before review/integration; finalcheck is not a substitute.
+Run full `quickcheck` after implementation/remedies and rebases before review/integration,
+then `finalcheck` after merge. Commit post-merge remedies separately.
+Exercise the changed public path before delivery; report observed results and blocked checks.
+Dependency output may contain only this module's paths. Benchmark fresh engines through
+Ping and Close, not lazy Open; report ns/op and allocations against the <1ms startup target.

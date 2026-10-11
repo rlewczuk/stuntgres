@@ -93,18 +93,18 @@ and real-computation publication fences. They do not replace public reference SQ
 Run each selective command under a900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^Test(NumericArithmetic|NumericPower|NumericAvg|MathScalar)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestExpressionNumericArithmetic' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)'
+make check REFERENCE=1 RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)'
+make check RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)'
+make check REFERENCE=1 RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)'
+make check RUN='^Test(NumericArithmetic|NumericPower|NumericAvg|MathScalar)'
+make check RUN='^TestExpressionNumericArithmetic'
+make check RUN='^TestReferenceNumericArithmeticFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceNumericArithmeticFeatureSmoke$'
 ```
 
 Smoke demands exact0.3,9223372036854775809,2.76000, rounded division/remainder,
 left64/right512, fractional18.379173679952560, held scales/NULL/NUMERIC metadata,
 full diagnostics, late-write unchanged sentinel and native symbolic/control replay.
 Root owns verification; this design is not evidence that unexercised checks pass.
-After integration, final `make fullcheck VERBOSE=0` has one1800-second deadline.
+After integration, final `make finalcheck` has one1800-second deadline.

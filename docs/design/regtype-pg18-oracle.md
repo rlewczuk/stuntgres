@@ -129,7 +129,7 @@ and deliberate observation failures. Root must capture, with a 900-second
 deadline and assigned worktree cwd:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype(Input|Authorization|PendingSyntax)$' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferenceRegtype(Input|Authorization|PendingSyntax)$'
 ```
 
 Expected discovery result: nonzero solely from explicit remaining-observation
@@ -144,10 +144,10 @@ Both completed selectors and feature smokes are required before review, each
 quickcheck under a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceRegtype'
+make check REFERENCE=1 RUN='^TestReferenceRegtype'
+make check RUN='^TestReferenceRegtypeFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'
 ```
 
 Native proof initially must fail with actual absent regtype support. After full

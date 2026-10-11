@@ -245,15 +245,15 @@ retained definition. TYPE reconstruction uses the common index renderer with
 old-Usage normalization, preserving UNIQUE/NND and original predicate trees;
 immediate validation consumes final rebound definitions, not an old predicate.
 
-Root commands, each quickcheck invocation bounded to900 seconds:
+Root commands, each selected check invocation bounded to900 seconds:
 
 ```sh
 make generate
-make quickcheck VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(IndexClauses|BtreeIndex|ExpressionIndex|DeparseRelations|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(IndexClauses|BtreeIndex|ExpressionIndex|DeparseRelations|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0
+make quickcheck
+make check RUN='^TestReference(IndexClauses|BtreeIndex|ExpressionIndex|DeparseRelations|AlterTypeCompatiblePlainIndexBoundary)'
+make check REFERENCE=1 RUN='^TestReference(IndexClauses|BtreeIndex|ExpressionIndex|DeparseRelations|AlterTypeCompatiblePlainIndexBoundary)'
+make check RUN='^TestReferenceIndexClausesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceIndexClausesFeatureSmoke$'
 ```
 The identical broad selectors include every clause, B-tree, incoming expression
 and DeparseRelations preservation definition plus the compatible TYPE boundary,
@@ -271,5 +271,5 @@ Internal units supplement with provider/default/compatibility/domain matrices,
 actual unsigned/padding roots, key-count versus attribute-count, genuine unique
 payload equality, whole-index TYPE normalization, immutable merge, cancellation
 and private replacement reminting. Root alone executes generation/gates/smoke and
-review. Final fullcheck runs after integration under one1800-second deadline;
+review. Finalcheck runs after integration under one1800-second deadline;
 these prescribed commands are not readiness-based claims of completed checks.

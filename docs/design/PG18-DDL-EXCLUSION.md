@@ -190,16 +190,16 @@ projection/version identities, savepoint/prepared lifetime, existing key/complet
 queues, crossed-owner deadlock cleanup and immutable publication failure state.
 Public channels alone are not queue proof; workers are cancelled and joined.
 
-Root commands (each quickcheck has a 900-second deadline):
+Root commands (each selected check has a 900-second deadline):
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusion' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusion' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflictProviderBoundaries$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflictProviderBoundaries$' VERBOSE=0
-make quickcheck PACKAGES='./internal/engine ./internal/sqltype ./internal/parser' RUN='^TestExclusion' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceExclusion'
+make check REFERENCE=1 RUN='^TestReferenceExclusion'
+make check RUN='^TestReferenceInsertConflictProviderBoundaries$'
+make check REFERENCE=1 RUN='^TestReferenceInsertConflictProviderBoundaries$'
+make check RUN='^TestExclusion'
+make check RUN='^TestReferenceExclusionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceExclusionFeatureSmoke$'
 ```
 
 Feature smoke must observe real expression/predicate B-tree and constraint-local
@@ -207,7 +207,7 @@ HASH enforcement, duplicate23P01/no effects, exact INT4/TEXT/BOOL rows and count
 ALTER ADD/DROP, selective deferred SET failure/savepoint repair/COMMIT, omitted/
 named conflict omission and native Dump/Reset/Restore future conflicts. The root
 also runs the complete affected migration selectors and ordinary quickcheck before
-review, then fullcheck after integration under the user-updated 3600-second deadline.
+review, then finalcheck after integration under the user-updated 1800-second deadline.
 No oracle/native verification result is asserted by this design document.
 
 ## Primary release sources

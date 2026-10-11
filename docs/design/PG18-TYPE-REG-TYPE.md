@@ -145,16 +145,16 @@ native and pinned PostgreSQL modes (900-second deadline per quickcheck):
 
 ```sh
 make generate
-make quickcheck PACKAGES='./internal/sqltype ./internal/parser ./internal/engine' RUN='^TestRegtype' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
+make check RUN='^TestRegtype'
+make check RUN='^TestReferenceRegtype'
+make check REFERENCE=1 RUN='^TestReferenceRegtype'
+make check RUN='^TestReferenceRegtypeFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'
 ```
 
 Expected assertions cover complete identity lookup, standalone diagnostics,
 unsigned codecs, direct/prepared metadata, held path/drop/recreation/notice
 lifecycle, recursive authority, stored dependency diagnostics, actual native
 Dump/PostgreSQL replay, TypeClassID remapping and failure atomicity. Shared-seam
-regressions and ordinary quickcheck precede review; final postmerge fullcheck has
+regressions and ordinary quickcheck precede review; final postmerge finalcheck has
 one aggregate 1800-second deadline. No acceptance is reduced for native failures.

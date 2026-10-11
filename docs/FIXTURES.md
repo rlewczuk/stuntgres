@@ -27,7 +27,7 @@ with retained TEMP sequences. Equal label lists never authorize ordinary
 cross-enum casts or prepared-name retargeting. Changed user-type ACLs are refused.
 Read/parse/label/owner/cancellation failures preserve destination catalog/data
 and held eager snapshots. Feature controls:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceEnum(Controls|RestoreAtomicity|OwnerAndTemporaryRemapping)$' VERBOSE=0`
+`make check RUN='^TestReferenceEnum(Controls|RestoreAtomicity|OwnerAndTemporaryRemapping)$'`
 and the same command with `REFERENCE=1`.
 
 Persistent view definitions are dumped after their relation dependencies, with
@@ -47,7 +47,7 @@ and dynamic reads. Dump refuses explicit relation/column ACLs rather than
 discarding privileges. Cyclic view definitions are legal catalog state, but
 Dump returns `stuntgres: cyclic view dump dependencies`; repair the definition
 before dumping. These refusals do not narrow ordinary replacement retention.
-Feature roundtrip smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplaceSmokeCycleReplayControls$' VERBOSE=0`.
+Feature roundtrip smoke: `make check RUN='^TestReferenceViewReplaceSmokeCycleReplayControls$'`.
 Dump orders scalar user types, named composites, domains, tables and views through
 one captured persistent provider topology. Composite members depend on their
 child types/owning row relations; tables depend on column types and CHECK providers.
@@ -64,7 +64,7 @@ after their providers exist. Restore uses the ordinary default binder and the
 same replay eligibility decision. Required CHECK/generated dependencies are
 never relaxed; cycles that remain fail before SQL is emitted.
 Roundtrip and actual pinned replay:
-`make quickcheck PACKAGES=./reference RUN='^TestReferencePGDependReviewCapturedReplay$' VERBOSE=0`;
+`make check RUN='^TestReferencePGDependReviewCapturedReplay$'`;
 the pinned counterpart adds `REFERENCE=1`.
 
 Named composites replay as canonical CREATE TYPE AS declarations, never as
@@ -75,14 +75,14 @@ held snapshots remain immutable. Plain domains over rows/composites and mixed
 source-row→named-wrapper→domain→holder/view dependencies replay as ordinary SQL
 on PostgreSQL. No new harness, physical ABI, constrained-domain feature or
 composite-array storage is implied. Composite controls:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceComposite(MixedControls|ControlLifetime)$' VERBOSE=0`
+`make check RUN='^TestReferenceComposite(MixedControls|ControlLifetime)$'`
 and the same command with `REFERENCE=1` (900 seconds each).
 The two-retained-sequence, second-Dump/Restore regression and independent
 PostgreSQL nested-view consumers run through the same mode-aware definition:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
+make check RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$'
+make check REFERENCE=1 RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$'
 ```
 
 Joined imports remap every source occurrence, both join children, predicates,
@@ -109,8 +109,8 @@ Dump/Restore, including NUMERIC display scale. Public direct/prepared coverage,
 including `numeric_scale`, runs in both modes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
+make check RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$'
+make check REFERENCE=1 RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$'
 ```
 
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
@@ -214,8 +214,8 @@ strings or view result rows. Restore preserves index keys/unique flags and view
 identities through existing remapping; rediscover destination OIDs rather than
 assuming equality with the source allocator. Held function statements see fresh
 catalogs, while previously returned definition strings remain owned.
-Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$' VERBOSE=0`;
-oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$'`;
+oracle: `make check REFERENCE=1 RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$'`.
 Failed/canceled Restore leaves data/catalogs and held eager tree/result snapshots intact.
 
 Identity Dump emits current generation and actual sequence names inline, skips
@@ -231,7 +231,7 @@ newly declared identity sequence. Restoring literal SYSTEM rows bypasses identit
 generation, but ordinary CHECK validation can still call nextval; final setval
 restores the captured sequence state. Owner-table collisions with retained TEMP
 sequences preserve this replay ordering through Dump/Restore/redump.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIdentityCheckControlsSmoke$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestIdentityCheckControlsSmoke$'`.
 
 
 Timezone-aware declarations, precision, frozen defaults, NULLs, BC and infinities
@@ -267,14 +267,14 @@ and cache remain exact. Persistent metadata and detached values use coherent
 type identities without mutating retained source catalogs or rows. Public Restore
 still rejects TEMP declarations rather than importing them.
 
-`make quickcheck PACKAGES=./smoke RUN='^TestCatalogOwnersPublicWitness$'` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
+`make check RUN='^TestCatalogOwnersPublicWitness$'` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
 
 Whole-root control migration removes obsolete SQL helpers without changing these
 public APIs. Cohesive control/retention witnesses run in both modes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$' VERBOSE=0
+make check RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$'
+make check REFERENCE=1 RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$'
 ```
 
 Native I/O/cancellation/reader/writer errors, repeated owner-bearing replay and
@@ -350,7 +350,7 @@ destination state through the existing atomic replacement path.
 Feature controls run in both modes (900-second deadline per invocation):
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
+make check RUN='^TestReferenceRegtype'
+make check REFERENCE=1 RUN='^TestReferenceRegtype'
 ```
 

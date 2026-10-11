@@ -227,15 +227,15 @@ predecessor buckets and a successful subsequent mutation. Test contexts reuse
 existing Err polling/phase-stack seams, not mocked providers or production hooks.
 
 Every changed reference definition must run in both modes before review or
-integration. Each quickcheck invocation has one900-second deadline:
+integration. Each selected check invocation has one900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
-make quickcheck PACKAGES='./internal/sqltype ./internal/parser ./internal/engine' RUN='^Test(HashIndex|Index|BtreeIndex|ExpressionIndex|Grouping|Distinct|SequenceTemporaryForeignReplacement)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestHashIndexLookupFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)'
+make check REFERENCE=1 RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)'
+make check RUN='^Test(HashIndex|Index|BtreeIndex|ExpressionIndex|Grouping|Distinct|SequenceTemporaryForeignReplacement)'
+make check RUN='^TestReferenceHashIndexFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceHashIndexFeatureSmoke$'
+make check RUN='^TestHashIndexLookupFeatureSmoke$'
 ```
 
 The central referenceHeldStatement keeps its existing three-field layout and
@@ -246,11 +246,11 @@ Context fallbacks. This focused shared fixture extension requires additional
 identical all-reference risk selection, each invocation under900 seconds:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference' VERBOSE=0
+make check RUN='^TestReference'
+make check REFERENCE=1 RUN='^TestReference'
 ```
 
 Parser generation/formatting and all verification are root-owned after edits.
 Feature smoke must show actual candidates as well as public results. It does
-not replace ordinary quickcheck or the post-merge fullcheck under one1800-second
+not replace ordinary quickcheck or the post-merge finalcheck under one1800-second
 deadline. Verification readiness is not a claim that those checks ran.

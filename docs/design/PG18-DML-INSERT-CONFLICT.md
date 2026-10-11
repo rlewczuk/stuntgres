@@ -154,5 +154,5 @@ regranted publication. They do not fabricate public GRANT or PostgreSQL parity.
 No build, test or formatter was run by the implementer. Root must generate/format,
 run ordinary quickcheck plus both complete reference modes, feature smokes and
 focused races before review/integration. Commands and deadlines are recorded in
-[TESTING](../TESTING.md#insert-conflict-omission-acceptance). Final fullcheck is
+[TESTING](../TESTING.md#insert-conflict-omission-acceptance). Finalcheck is
 post-integration, under a single1800-second deadline; failures are separate remedies.

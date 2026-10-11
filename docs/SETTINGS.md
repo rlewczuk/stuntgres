@@ -225,8 +225,8 @@ and unsupported locale rejection leaves the previous captured policy intact.
 
 
 Migrated settings SQL uses the same external definitions in both modes:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`.
+`make check RUN='^TestReferenceSettings[A-Za-z0-9_]*$'`
+and `make check REFERENCE=1 RUN='^TestReferenceSettings[A-Za-z0-9_]*$'`.
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
 placeholders are never claimed to validate native typed registrations.
@@ -254,8 +254,8 @@ PostgreSQL consumes the preexisting same-owner stream before further commands;
 native eager retained rows remain live. Focused commands:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout(Stages|RollbackCleanup)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout(Stages|RollbackCleanup)$' VERBOSE=0
+make check RUN='^TestReferenceSettingsPublicTimeout(Stages|RollbackCleanup)$'
+make check REFERENCE=1 RUN='^TestReferenceSettingsPublicTimeout(Stages|RollbackCleanup)$'
 ```
 
 TEXT metadata checks include empty results, string ScanType and unbounded
@@ -398,7 +398,7 @@ season. SET LOCAL/savepoint/rollback/RESET and physical-session isolation apply
 through the existing settings owner. Held prepared execution sees new settings;
 already admitted native rows retain old facts and IntervalStyle.
 Public feature smoke (also run with `REFERENCE=1`):
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$' VERBOSE=0`.
+`make check RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke$'`.
 
 ## IntervalStyle — change note
 
@@ -422,7 +422,7 @@ session setting lifecycle. Dump/Restore neither stores nor changes IntervalStyle
 
 Invalid input is22023 `invalid value for parameter "IntervalStyle": "invalid"`
 with hint `Available values: postgres, postgres_verbose, sql_standard, iso_8601.`
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestIntervalSmoke$'`.
 
 
 ## Format, encoding and locale settings — change note

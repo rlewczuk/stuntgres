@@ -255,8 +255,8 @@ it creates/resolves no table or TEMP namespace and performs no read-only or
 destination rejection. Execute applies those checks and still excludes permanent
 transactional CREATE/DROP without effects.
 
-Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`;
-pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
+Smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
 
 ## Decompiled definitions — change note
 
@@ -430,7 +430,7 @@ identity providers order their owning tables first; legal default cycles instead
 emit ordinary sequence-reference SET DEFAULT statements after all definitions and
 before data. Restore admits these bounded deferred statements through the same
 default binder, not arbitrary ALTER scripts. UPDATE DEFAULT remains unsupported.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestAlterDefaultSmoke$'`.
 
 ### Adding a column
 
@@ -473,8 +473,8 @@ Native Control/context/I/O APIs are host mechanisms, not PostgreSQL control APIs
 no physical tuple optimization, server/wire protocol, disk durability or pg_dump
 process is implemented. Existing ACL Dump limits remain unchanged.
 Feature smoke:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$' VERBOSE=0`.
+`make check RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$'`
+and `make check REFERENCE=1 RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$'`.
 
 
 Each INSERT row evaluates declared defaults for omitted columns or per-cell
@@ -548,9 +548,9 @@ introducers, including BC comparisons whose civil ordering differs from TEXT.
 BYTEA defaults reuse the existing canonical hex codec and return raw octets;
 same-type BYTEA annotations add no known-TEXT-to-BYTEA conversion provider.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDefaultSmoke$' VERBOSE=0`.
-Dual-mode defaults: `make quickcheck PACKAGES=./reference RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$' VERBOSE=0`.
-Pinned PostgreSQL witnesses: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestDefaultSmoke$'`.
+Dual-mode defaults: `make check RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$'`.
+Pinned PostgreSQL witnesses: `make check REFERENCE=1 RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$'`.
 General sequence/volatile composition remains unsupported in declared DEFAULT;
 fixed nextval leaves support SERIAL and native replay. Identity instead uses an
 internally owned sequence. PostgreSQL disk/WAL
@@ -670,7 +670,7 @@ Witnesses: `TestAlterTypeIdentitySequenceGrantFreshness`,
 `TestAlterTypeIdentityCanceledSequencePublication`,
 `TestAlterTypeIdentityStagedSequenceDemand`,
 `TestAlterTypeIdentityPrivateSavepoints` and `TestAlterTypeIdentityControls`.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$'`.
 
 
 ## Ordinary table definitions and removal
@@ -774,7 +774,7 @@ this does not admit stale external TEMP references into permanent consumers.
 Actual independent permanent stream replay requires neither the original TEMP
 source nor its private namespace.
 Shared coverage: `RUN='^TestReferenceTable(Like|Core)'`. Feature smoke:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeFeatureSmoke$' VERBOSE=0`
+`make check RUN='^TestReferenceTableLikeFeatureSmoke$'`
 and the same command with `REFERENCE=1` for the pinned PostgreSQL oracle.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
@@ -822,7 +822,7 @@ root; newly staged generated sequences stay private until atomic publication.
 This is a native catalog-integrity fence, not a claim of identical PostgreSQL
 transaction-lock behavior. Dump orders inline identity providers before consumers,
 and defers sequence-reference defaults when otherwise legal defaults form a cycle.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSerialSmoke$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestSerialSmoke$'`.
 
 DROP preflights the entire explicit target group before one atomic catalog
 publication. A later missing or unauthorized target leaves every table intact.
@@ -938,7 +938,7 @@ fails42601 before deferred capability diagnostics or prefix effects.
 Foreign keys and physical PostgreSQL index/WAL/server mechanisms remain external.
 
 Feature smoke:
-`make quickcheck PACKAGES=./reference RUN='^TestReferencePrimaryKeyFeatureSmoke$' VERBOSE=0`;
+`make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.0.
 
 ## Exclusion constraints — change note
@@ -994,8 +994,8 @@ GiST/SP-GiST/range/extension providers, physical indexes/WAL and PostgreSQL serv
 pg_dump remain outside this native capability.
 
 See [design](design/PG18-DDL-EXCLUSION.md). Shared feature smoke:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`;
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExclusionFeatureSmoke$' VERBOSE=0`.
+`make check RUN='^TestReferenceExclusionFeatureSmoke$'`;
+`make check REFERENCE=1 RUN='^TestReferenceExclusionFeatureSmoke$'`.
 
 ## RANGE partition definitions — change note
 
@@ -1150,8 +1150,8 @@ Actual emitted SQL is also replayed unmodified on PostgreSQL in the reference
 tests; cross-owner replay explicitly provisions temporary inherited role membership
 and importing schema rights there, then revokes and removes them.
 
-Shared feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0`;
-pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0`.
+Shared feature smoke: `make check RUN='^TestReferenceRangePartitionFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'`.
 The former table-core smoke now lives in the same dual-mode reference area:
 `RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'`.
 
@@ -1237,9 +1237,9 @@ Concurrent standalone UNIQUE indexes are independently admitted without a parent
 constraint or fabricated constraint identity; see [concurrent creation](design/PG18-INDEX-CONCURRENT.md).
 See [the design](design/PG18-DDL-UNIQUE.md) and
 [transaction locking](TRANSACTIONS.md#row-locks--change-note).
-Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueFeatureSmoke$'`.
-Full shared suite: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUnique'`;
-the same selectors with `make quickcheck REFERENCE=1 PACKAGES=./reference` run the pinned PostgreSQL oracle.
+Feature smoke: `make check RUN='^TestReferenceUniqueFeatureSmoke$'`.
+Full shared suite: `make check RUN='^TestReferenceUnique'`;
+the same selectors with `make check REFERENCE=1` run the pinned PostgreSQL oracle.
 
 ## NOT NULL constraints
 
@@ -1341,10 +1341,10 @@ CHECK unknown acceptance and leaf UPDATE enforcement are shared witnesses.
 Public feature smokes:
 
 ```sh
-make quickcheck PACKAGES=./smoke RUN='^TestNotNullSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./smoke RUN='^TestNotNullControlsSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(NotNull.*|AlterNullability.*)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NotNull.*|AlterNullability.*)$' VERBOSE=0
+make check RUN='^TestNotNullSmoke$'
+make check RUN='^TestNotNullControlsSmoke$'
+make check RUN='^TestReference(NotNull.*|AlterNullability.*)$'
+make check REFERENCE=1 RUN='^TestReference(NotNull.*|AlterNullability.*)$'
 ```
 
 ## Identity-preserving table and column renames
@@ -1393,9 +1393,9 @@ Foreign keys and broader transactional DDL remain excluded; graph column RENAME 
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
-make quickcheck PACKAGES=./smoke RUN='^TestAlterRenameSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceAlterRename.*$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAlterRename.*$' VERBOSE=0
+make check RUN='^TestAlterRenameSmoke$'
+make check RUN='^TestReferenceAlterRename.*$'
+make check REFERENCE=1 RUN='^TestReferenceAlterRename.*$'
 ```
 
 ## Column removal and selected action lists
@@ -1472,9 +1472,9 @@ destination authority for replaying the distinct-owner dump.
 Executable public feature witnesses (Go test reports actual pass/failure):
 
 ```sh
-make quickcheck PACKAGES=./smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceAlterDropColumn.*$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAlterDropColumn.*$' VERBOSE=0
+make check RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'
+make check RUN='^TestReferenceAlterDropColumn.*$'
+make check REFERENCE=1 RUN='^TestReferenceAlterDropColumn.*$'
 ```
 
 Duplicate-relation `42P07` errors preserve decoded names inside literal outer
@@ -1485,11 +1485,11 @@ and rows; utility preparation succeeds before the execution-time failure.
 Executable feature proof (Go test reports actual assertions):
 
 ```sh
-make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestTableCore' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestCatalogDrop' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceTableCore.*$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableCore.*$' VERBOSE=0
-make quickcheck PACKAGES=./smoke RUN='^TestTableCoreSmoke$' VERBOSE=0
+make check RUN='^TestTableCore'
+make check RUN='^TestCatalogDrop'
+make check RUN='^TestReferenceTableCore.*$'
+make check REFERENCE=1 RUN='^TestReferenceTableCore.*$'
+make check RUN='^TestTableCoreSmoke$'
 ```
 
 The former root SQL-interaction definitions now live in the external dual-mode
@@ -1597,7 +1597,7 @@ Subqueries/windows/SRFs, other CHECK modifiers, ALTER ADD CHECK
 and VALIDATE are not supported. The shared row validator is available to later
 existing-data validation work; this change does not implement that traversal.
 
-Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+Public feature smoke: `make check RUN='^TestCheckSmoke$'`.
 The 31 root CHECK interaction tests now live as 38 merged/split dual-mode
 definitions in `reference/`. See the [complete CHECK selector](DEVELOPMENT.md#dual-mode-check-constraint-interactions)
 for Docker-free native and pinned PostgreSQL runs, including held frames,
@@ -1731,5 +1731,5 @@ copies the cooked STORED provider with destination row/tableoid remapping.
 Virtual columns, ADD generated and SET/DROP EXPRESSION remain outside scope.
 
 Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$' VERBOSE=0`.
+`make check RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$'`.
 

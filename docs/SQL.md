@@ -37,8 +37,8 @@ input-time ARE/ERE/BRE validation produce canonical output, without evaluating
 paths or introducing JSON query functions/operators. Explicit character IO
 casts reuse ordinary truncation/padding; typed character assignment remains denied.
 See [syntax, diagnostics, metadata and persistence](TYPES.md#jsonpath-typed-input--change-note).
-Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`;
-pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0`.
+Smoke: `make check RUN='^TestReferenceJSONPathFeatureSmoke$'`;
+pinned mode: `make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'`.
 
 ## Roles and attributes
 
@@ -341,7 +341,7 @@ TYPE/nullability/DROP COLUMN lists. Generic moves of sequences or indexes,
 temporary/system destinations and automatic row types are not added. B-tree/hash
 indexes, including expression definitions, move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
-controls. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
+controls. Smoke: `make check RUN='^TestAlterSchemaSmoke$'`.
 
 No-FROM projections use the ordinary local one-row input and existing scalar
 argument rules, without a selected-call witness or an implicit relation namespace.
@@ -660,7 +660,7 @@ Other INSERT/UPDATE/DELETE report55000 naming pg_shadow, with PostgreSQL's
 non-updatable-view Detail and operation-specific INSTEAD OF trigger/rule Hint,
 even when WHERE is false. No new role utilities, settings or locking surface
 is added. Independent public coverage and feature smoke use
-`make quickcheck PACKAGES=./reference RUN='^TestReferencePGUser' VERBOSE=0`
+`make check RUN='^TestReferencePGUser'`
 and the same command with `REFERENCE=1`; each invocation has a900-second deadline.
 
 ### Table and view summaries — change note
@@ -796,10 +796,10 @@ optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
 Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
 public native ACL API.
-Smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$' VERBOSE=0` and
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$' VERBOSE=0`;
-dual-mode replacement union: `make quickcheck PACKAGES=./reference RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$' VERBOSE=0`;
-same-definition oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$' VERBOSE=0`.
+Smokes: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'` and
+`make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`;
+dual-mode replacement union: `make check RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$'`;
+same-definition oracle: `make check REFERENCE=1 RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$'`.
 The true selection includes separately retained PostgreSQL-required companions.
 The source union includes all18 original replacement functions and the
 non-prefix DROP VIEW/index-kind consumer. Actual setup, typed relation/rule IDs,
@@ -874,10 +874,10 @@ Restore replays those differences atomically while retaining target shared role
 comments. See [comment mutation and native controls](TABLES.md#object-comments)
 for the remaining DDL/transaction boundaries.
 
-Feature stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCommentInquiry$' VERBOSE=0`;
-pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry$' VERBOSE=0`.
-Dual-mode native union: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`;
-pinned independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature stream: `make check RUN='^TestReferenceCommentInquiry$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCommentInquiry$'`.
+Dual-mode native union: `make check RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$'`;
+pinned independent reference: `make check REFERENCE=1 RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$'`.
 Captured old table/shared comments and fresh same-object inquiries preserve actual
 catalog identity, not a hardcoded PostgreSQL bootstrap roleOID.
 
@@ -942,10 +942,10 @@ logical Restore reconstructs declarations and can remint survivor attribute3 as2
 old allocator OIDs and historical attribute gaps are not promised round-trip.
 
 Feature smoke in both modes:
-`make quickcheck PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`.
+`make check RUN='^TestReferencePGDescriptionFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferencePGDescriptionFeatureSmoke$'`.
 Complete changed reference selection:
-`RUN='^TestReference(PGDescription|CommentInquiryBuiltins)'` with `PACKAGES=./reference`,
+`make check RUN='^TestReference(PGDescription|CommentInquiryBuiltins)'`,
 once in quick mode and once with `REFERENCE=1`, each under900 seconds.
 
 ### pg_shdescription catalog — change note
@@ -1001,7 +1001,7 @@ controls leave prior shared/local state intact. Already returned snapshots stay
 usable across successful replacement.
 
 Feature smoke:
-`make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0`
+`make check RUN='^TestReferencePGShDescriptionFeatureSmoke$'`
 and the same command with `REFERENCE=1`. Complete reference selection:
 `RUN='^TestReferencePGShDescription'`, both modes under separate900-second
 deadlines. Role identities are learned independently from a helper relation's
@@ -1065,7 +1065,7 @@ operations retain existing atomicity. Native catalog writes and row locking
 remain0A000 virtual-source boundaries, not PostgreSQL physical catalog mutation.
 No `pg_sequences` view or `pg_attribute`/`pg_depend` expansion is implied.
 
-Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0`,
+Feature smoke: `make check RUN='^TestReferencePGSequenceFeatureSmoke$'`,
 and the identical command with `REFERENCE=1` for pinned PostgreSQL.
 
 ## pg_depend catalog — change note
@@ -1191,10 +1191,10 @@ default-only cycles. One eligibility decision controls ordering, inline omission
 deferred ALTER emission and ordinary Restore binding. CHECK/generated edges
 remain mandatory; cycles that cannot be resolved this way fail before output.
 
-Complete reference family: `RUN='^TestReferencePGDepend'`, `PACKAGES=./reference`,
-once with `make quickcheck` and once with `REFERENCE=1`, each under900 seconds.
+Complete reference family: `RUN='^TestReferencePGDepend'` with `make check`,
+once natively and once with `REFERENCE=1`, each under an external900-second deadline.
 Feature smoke uses the identical modes with
-`RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0`; it covers actual construction
+`RUN='^TestReferencePGDependFeatureSmoke$'`; it covers actual construction
 bags, domain arrays, stable attributes, retained/held queries, scalar REGCLASS
 RESTRICT/CASCADE and explicit native controls plus actual emitted SQL PG replay.
 
@@ -1277,8 +1277,8 @@ and comment-looking bytes belong to unquoted names: `s--suffix` and `s/*suffix*/
 never select the prefix `s`. Dots and ASCII whitespace separate components;
 quoted components preserve case and embedded dots, and doubled quotes decode
 to one quote. Names use ASCII folding and UTF8-safe 63-byte clipping.
-Input-boundary stream: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`;
-pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequenceRegclassSourceInputStream$' VERBOSE=0`.
+Input-boundary stream: `make check RUN='^TestReferenceSequenceRegclassSourceInputStream$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSequenceRegclassSourceInputStream$'`.
 
 Standalone selected regclass casts have column label `regclass` and export
 the visible relation name, or a schema-qualified name when shadowed/off-path,
@@ -1362,7 +1362,7 @@ not the source token or consumed state. Acquisition may use a current-epoch lock
 reference only after existing bounded retained TEMP authority proves the original
 reference; stored expression/manifests and generic ObjectRef validity are unchanged.
 Permanent transactional CREATE/DROP, GLOBAL/LOCAL and TEMP views remain excluded.
-Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0`.
+Smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
 
 
 Reading a sequence returns one captured nonnull row with
@@ -1387,18 +1387,18 @@ the shared cast routing alongside the bounded int4/int8/text/bool and character
 explicit-cast matrix. Unsupported type pairs retain their documented positioned
 diagnostics; sequence support does not widen that matrix.
 
-Feature commands: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSequenceSourceConsumerStream$' VERBOSE=0`,
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequenceSourceConsumerStream$' VERBOSE=0`,
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`,
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature commands: `make check RUN='^TestReferenceSequenceSourceConsumerStream$'`,
+`make check REFERENCE=1 RUN='^TestReferenceSequenceSourceConsumerStream$'`,
+`make check RUN='^TestReferenceSequence[A-Za-z0-9_]*$'`,
+and `make check REFERENCE=1 RUN='^TestReferenceSequence[A-Za-z0-9_]*$'`.
 The sequence families include an exact concurrent CACHE1 bag, CACHE7
 distinctness, CHAIN/failed-commit/physical-end/replacement cleanup, the full
 USAGE/SELECT/UPDATE matrix, operation-specific wrong-kind records, and
 control failure atomicity. The public smoke exercises physical-end TEMP
 cleanup as well as normal SQL and native-control round trips.
 Prepared regression commands:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`.
+`make check RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$'`
+and `make check REFERENCE=1 RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$'`.
 These distinguish analyzed SQL from retained identity and exercise rename,
 schema/path/shadow/ACL/options, numeric drop/recreation, rollback and queued
 authority, coherent multi-literal groups and native temp-only replacement.
@@ -1672,10 +1672,10 @@ rows and their metadata retain their prior values through rename/drop and native
 Reset/Restore. Generic native catalog reads see latest committed definitions
 plus their own supported transaction overlay, not PostgreSQL's repeatable-read
 catalog snapshot. Dump/Restore serializes owning indexes, not pg_indexes rows.
-Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0`;
-pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0`.
+Feature smoke: `make check RUN='^TestReferencePGIndexesFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGIndexesFeatureSmoke$'`.
 See [the design](design/PG18-INDEX-MAINTENANCE.md).
-Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
+Smoke: `make check RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)'`;
 repeat the same selector with `REFERENCE=1`.
 
 

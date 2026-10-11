@@ -135,15 +135,15 @@ reference family after source-grounded pq ScanType correction; the subsequent
 native red established missing pg_catalog.pg_cast. Production/units must still
 pass fresh root verification; those observations are not an implementation pass.
 
-From the assigned repository worktree, each quickcheck has a900-second deadline:
+From the assigned repository worktree, each selected check has a900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGCast' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGCast' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^TestCastCatalog' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestPGCast' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferencePGCast'
+make check REFERENCE=1 RUN='^TestReferencePGCast'
+make check RUN='^TestCastCatalog'
+make check RUN='^TestPGCast'
+make check RUN='^TestReferencePGCastFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGCastFeatureSmoke$'
 ```
 
 The smoke asserts empty shape, the eight-row representative metadata subset,
@@ -153,7 +153,7 @@ atomic assignment failure, UTF8 missing-column position14, retained native
 catalog controls and actual dumped user SQL replay. It is an actual SQL/API
 scenario, not test discovery or an echoed golden. Both modes and the affected
 coercion/catalog families in [TESTING](../TESTING.md) precede review. Ordinary
-quickcheck and post-merge fullcheck (one1800-second gate) remain required.
+quickcheck and post-merge finalcheck (one1800-second gate) remain required.
 
 ## Primary sources
 

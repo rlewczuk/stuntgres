@@ -307,9 +307,9 @@ Explicit relation/column ACLs make native Dump fail before output; Restore does
 not accept GRANT, and Reset removes object ACLs while retaining roles/membership.
 
 Feature smoke (900 seconds per invocation):
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`
+`make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`
 and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`.
+`make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.
 
 New tables belong to current_user and have owner use rights, with no PUBLIC
 table privileges. Central checks cover schema CREATE/USAGE, all actually used
@@ -417,10 +417,10 @@ preserved by the corresponding existing reference families. The obsolete SQL
 smoke copy is removed; its command helper remains for unrelated legacy callers.
 
 Focused nonSQL ACL/unit checks use
-`make quickcheck PACKAGES='./internal/engine' RUN='^Test(Role|Authorization)'`.
+`make check RUN='^Test(Role|Authorization)'`.
 Focused role SQL checks use
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceRole[A-Za-z0-9_]*$' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole[A-Za-z0-9_]*$' VERBOSE=0`.
+`make check RUN='^TestReferenceRole[A-Za-z0-9_]*$'`
+and `make check REFERENCE=1 RUN='^TestReferenceRole[A-Za-z0-9_]*$'`.
 The true-mode family also selects genuine tagged membership/authority companions.
 Native trusted connectors and PostgreSQL SQL authentication are independent
 public routes, not interchangeable login substitutes.
@@ -538,9 +538,9 @@ normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
 Unsupported explicit namespace,
 table or column ACLs fail Dump before any output. Invalid Restore leaves the
 target catalog untouched. Bootstrap-only public dump bytes remain unchanged.
-Feature witnesses: `make quickcheck PACKAGES=./smoke RUN='^TestSchemaSmoke$'`,
-`make quickcheck PACKAGES=./reference RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature witnesses: `make check RUN='^TestSchemaSmoke$'`,
+`make check RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$'`
+and `make check REFERENCE=1 RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$'`.
 The migrated families retain resolved namespace/OID identities, NAME raw codecs,
 actual held consumers and owner-bearing native control replay. After dropping a
 peer's selected PostgreSQL role, the full invalid-role-OID record and SAME-peer

@@ -35,7 +35,7 @@ This is the authoritative test-placement and implementation workflow.
   run in both real pinned PostgreSQL mode and Docker-free quick mode, using the
   same completed test definitions and a `RUN` selector covering all affected tests.
   Repeat both selective runs after changes to those tests or their implementation.
-  Fullcheck does not replace this pre-review requirement.
+  Finalcheck does not replace this pre-review requirement.
 - Concurrency tests MUST identify a deadlock victim from its error outcome, not
   worker completion order: a ready channel select can choose either result.
   Victim cleanup can also wake a successful survivor before the victim reports
@@ -62,8 +62,8 @@ This is the authoritative test-placement and implementation workflow.
   `TestReferenceFixtureSessionAuthorizationReset` independently cover this boundary:
 
   ```sh
-  make quickcheck PACKAGES=./reference RUN='^TestReferenceFixture' VERBOSE=0
-  make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFixture' VERBOSE=0
+  make check RUN='^TestReferenceFixture'
+  make check REFERENCE=1 RUN='^TestReferenceFixture'
   ```
 
   Schema-owner introspection through `pg_namespace` is PostgreSQL-only. Native
@@ -76,22 +76,22 @@ This is the authoritative test-placement and implementation workflow.
 The affected visibility utility-boundary scenarios now assert supported MV
 creation/count/stored rows and cleanup in both backends, instead of obsolete
 native syntax rejection. Validate those changed contracts in both modes:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$' VERBOSE=0`
+`make check RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$'`
 and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$' VERBOSE=0`
+`make check REFERENCE=1 RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$'`
 (900 seconds each).
 
 Materialized-view coverage uses the same public dual-mode scenarios:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceMaterializedView' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMaterializedView' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceMaterializedViewFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMaterializedViewFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestMaterializedView' VERBOSE=0
+make check RUN='^TestReferenceMaterializedView'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedView'
+make check RUN='^TestReferenceMaterializedViewFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedViewFeatureSmoke$'
+make check RUN='^TestMaterializedView'
 ```
 
-Each quickcheck has a 900-second deadline. Independently specified bags retain
+Each selected check has a 900-second deadline. Independently specified bags retain
 duplicate/NULL rows after base changes, distinguish empty/populated/no-data
 states, and assert complete55000/42809/42501/25006 diagnostics, real cursor
 metadata, dependency DROP, source/drop lock timeouts and atomic failure.
@@ -107,8 +107,8 @@ portable atomicity assertions. Private units cover real descriptor/staging,
 frozen identities, strict codec/import and opt-in lexical comment boundaries.
 Review-remedy regressions use
 `RUN='^TestReferenceMaterializedView(KeywordTypes|SnapshotTypmods)$'` with both
-`make quickcheck PACKAGES=./reference` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds each).
+`make check` and
+`make check REFERENCE=1` (900 seconds each).
 They preserve unquoted `materialized` type/schema legality and reject native
 lossy snapshot coercions atomically beside genuine-Dump positives. NUMERIC
 assertions use exact decimal driver transport, not numeric-to-text SQL casts.
@@ -117,8 +117,8 @@ exclusion; fixture reset and supported DROP SCHEMA CASCADE clean up native enum
 types. Declaration, unquoted type references and cast legality remain shared.
 Recursive/specialized snapshot scenarios use
 `RUN='^TestReferenceMaterializedView(RecursiveSnapshots|TemporalSnapshots)$'`
-with both `make quickcheck PACKAGES=./reference` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds each).
+with both `make check` and
+`make check REFERENCE=1` (900 seconds each).
 Independently expected raw domain/enum/constrained-array/composite values and
 metadata precede native genuine-Dump restoration, reminted identities, retained
 MV cursors and atomic malformed recursive payload rejection. Temporal coverage
@@ -128,8 +128,8 @@ raw invalid-Location time.Time. Normal SQL expectations are shared; no PostgreSQ
 Restore API or native stored-row parity from PostgreSQL script replay is invented.
 
 SQL prepared lifecycle definitions use `RUN='^TestReferenceSQLPrepared'` with
-`make quickcheck PACKAGES=./reference VERBOSE=0` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference VERBOSE=0`, each with a
+`make check` and
+`make check REFERENCE=1`, each with a
 900-second deadline. The feature smoke selector is
 `RUN='^TestReferenceSQLPreparedFeatureSmoke$'` in both modes.
 Independent expectations cover typed/inferred fresh values, declaration
@@ -153,8 +153,8 @@ TEXT/BOOL/NULL values before comparison. The private
 do not capture unneeded catalog environments; it does not replace public references.
 
 Timezone lookup coverage uses `RUN='^TestReferenceTimezoneViews'` in both
-`make quickcheck PACKAGES=./reference` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds per invocation).
+`make check` and
+`make check REFERENCE=1` (900 seconds per invocation).
 Its smoke selector is `RUN='^TestReferenceTimezoneViewsFeatureSmoke$'` in both
 modes. Independent rows/types, full55000/42703/42804/42883 diagnostics, declared
 metadata, nil/typed NULL predicate parameters, session/transaction capture,
@@ -165,8 +165,8 @@ boundary, not a PostgreSQL parity claim. Smoke includes nil-bound empty metadata
 and semantic-error savepoint recovery. Provider units exercise DST transitions,
 negative DST, historical matching, inventory and cancellation without public SQL.
 MONEY definitions use `RUN='^TestReferenceMoney'` in both
-`make quickcheck PACKAGES=./reference` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds per invocation).
+`make check` and
+`make check REFERENCE=1` (900 seconds per invocation).
 Run affected catalog/locale definitions with
 `RUN='^TestReference(PGCast|PGDescription|FormatEncoding)'` in both modes.
 Feature smoke is `RUN='^TestReferenceMoneyFeatureSmoke$'` in both modes: exact
@@ -195,7 +195,7 @@ execution. Both preserve exact original rows/view and byte-identical catalog
 Dump; subsequent default insertion establishes recovery and retained defaults.
 
 Actual provider units use
-`make quickcheck PACKAGES=./internal/sqltype RUN='^TestMoney' VERBOSE=0`.
+`make check RUN='^TestMoney'`.
 `TestMoneyMinimumDivisionOverflow` binds the real MONEY/INT2/INT4/INT8
 Arithmetic providers with minimum raw units and -1, asserting complete native
 22003 diagnostics, no result, unchanged operands and subsequent valid division.
@@ -206,8 +206,8 @@ neighboring negative division and checked overflow remain dual-mode witnesses.
 
 
 Array aggregation uses `RUN='^TestReferenceArrayAgg'` with both
-`make quickcheck PACKAGES=./reference` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference` (900 seconds each).
+`make check` and
+`make check REFERENCE=1` (900 seconds each).
 Feature smoke uses `RUN='^TestReferenceArrayAggFeatureSmoke$'` in both modes.
 These shared scenarios independently assert scalar NULL inclusion, array rank
 and bounds, metadata/domain identity, complete diagnostics, direct/prepared
@@ -218,8 +218,8 @@ The `TestReferenceRoleGrant` family covers grants, origin-specific delegation,
 table/column revoke independence, warnings, atomicity, utility transaction
 boundaries and native control lifetimes. Its independent expectations require
 the pinned PostgreSQL oracle before native implementation. Select it with
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrant' VERBOSE=0`
-and `make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrant' VERBOSE=0`
+`make check REFERENCE=1 RUN='^TestReferenceRoleGrant'`
+and `make check RUN='^TestReferenceRoleGrant'`
 (900 seconds per invocation). Migrated consumer families must also be selected
 in both modes; this new family does not replace their complete assertion unions.
 `TestReferenceRoleGrantColumnNoticeOrder` covers reversed/duplicate/mixed
@@ -228,18 +228,18 @@ requests, dropped attribute gaps and renamed-column diagnostic traversal.
 four-privilege column mask with ALL under partial and zero grant options.
 Both assert complete ordered notices, quiet Prepare and real allowed/denied
 consumers through direct and prepared routes. Focused gates (900 seconds each):
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantColumn(NoticeOrder|FullMaskNotices)'`
+`make check RUN='^TestReferenceRoleGrantColumn(NoticeOrder|FullMaskNotices)'`
 and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantColumn(NoticeOrder|FullMaskNotices)'`.
+`make check REFERENCE=1 RUN='^TestReferenceRoleGrantColumn(NoticeOrder|FullMaskNotices)'`.
 `TestReferenceRoleGrantFeatureSmoke` exercises the complete public grant path.
 The additional root-owned standalone public Go source is retained in the OMP
 session, temporarily materialized as `./.role-grant-feature-smoke/main.go`, run
 with `go run ./.role-grant-feature-smoke`, and removed after recording its result.
 No permanent executable or native-only SQL witness belongs in the repository.
 Each invocation has a 900-second deadline:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`
+`make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`
 and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleGrantFeatureSmoke$' VERBOSE=0`.
+`make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.
 Source-provenance units complement, never replace, public delegation/revoke
 witnesses. Keep upstream table-option revocation with surviving distinct-origin
 column rights separate from a same-column chain's RESTRICT failure. Warning
@@ -287,31 +287,31 @@ The descriptor unit additionally asserts all inheritance-origin remapping, sourc
 immutability, retained storage and complete combined definition-identity validity.
 Run the completed body in both modes with no discovery filter (900 seconds each):
 ```sh
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestInheritanceControlsRetainedExclusionDefinitionCollision$' VERBOSE=0
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$'
+timeout 900s make check RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$'
+timeout 900s make check RUN='^TestInheritanceControlsRetainedExclusionDefinitionCollision$'
 ```
 
 Root-run selective gates (900 seconds each, after edits and generation finish):
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReference(Inheritance|NotNull|Check|TableLike)' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Inheritance|NotNull|Check|TableLike)' VERBOSE=0
-timeout 900s make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^(TestInheritance|TestNotNull|TestTableLike|TestAlterDefault)' VERBOSE=0
-timeout 900s make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestInheritance(Admission|Graph|Controls)' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceFeatureSmoke$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceFeatureSmoke$' VERBOSE=0
+timeout 900s make check RUN='^TestReference(Inheritance|NotNull|Check|TableLike)'
+timeout 900s make check REFERENCE=1 RUN='^TestReference(Inheritance|NotNull|Check|TableLike)'
+timeout 900s make check RUN='^(TestInheritance|TestNotNull|TestTableLike|TestAlterDefault)'
+timeout 900s make check RACE=1 RUN='^TestInheritance(Admission|Graph|Controls)'
+timeout 900s make check RUN='^TestReferenceInheritanceFeatureSmoke$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceFeatureSmoke$'
 ```
 The standalone public API smoke is supplied as temporary session material, not
 committed scaffolding. Neither selected gates nor smoke replace full quickcheck
-and the post-integration3600-second fullcheck.
+and the post-integration1800-second finalcheck.
 
 The dependency-shape review regressions independently assert PostgreSQL provider
 CASCADE column/definition removal and native atomic inheritance ALTER rejection,
 including consumer recovery and graph enforcement. Run the same completed bodies
 in both modes (900 seconds per invocation):
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$' VERBOSE=0
+make check RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$'
 ```
 
 Retirement authority regressions cover provider schemas containing the sole child
@@ -319,9 +319,9 @@ or the parent, each with typed-column, DEFAULT and CHECK dependencies. Both rout
 assert retained standalone physical rows/metadata/enforcement or complete outside
 descendant retirement, without weakening the surviving-graph boundary above:
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceRetirementAuthority$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceRetirementAuthority$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestInheritanceDependencyAuthority$' VERBOSE=0
+timeout 900s make check RUN='^TestReferenceInheritanceRetirementAuthority$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceRetirementAuthority$'
+timeout 900s make check RUN='^TestInheritanceDependencyAuthority$'
 ```
 
 Prospective retirement regressions use a parent that is also a regclass provider
@@ -332,9 +332,9 @@ metadata, consumed provider definitions and independent local definitions; nativ
 held eager child results retain actual original values and metadata. The real-stage
 units use the same q root with actual admission, not a pre-removed child:
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceInheritanceProspectiveRetirement$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInheritanceProspectiveRetirement$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestInheritanceProspectiveRetirement$' VERBOSE=0
+timeout 900s make check RUN='^TestReferenceInheritanceProspectiveRetirement$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceProspectiveRetirement$'
+timeout 900s make check RUN='^TestInheritanceProspectiveRetirement$'
 ```
 
 `TestReferenceInheritanceLocalExclusionReplay` covers a child with only inherited
@@ -361,12 +361,12 @@ replace these consumer outcomes with dump-string or canonical-byte assertions.
 4. **Finish by selectively running both modes.** Run the same completed definitions
    in quick and real PostgreSQL modes, confirming independent expectations and
    consistency for every added, changed or migrated scenario. Then run ordinary
-   `make quickcheck`; final `make fullcheck` runs after integration under the
+   `make quickcheck`; final `make finalcheck` runs after integration under the
    catalog-part workflow. Selected tests do not replace full verification.
 
 RANGE window coverage selects the complete `^TestReferenceQueryWindow` family
-in both `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryWindow' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryWindow' VERBOSE=0`
+in both `make check RUN='^TestReferenceQueryWindow'`
+and `make check REFERENCE=1 RUN='^TestReferenceQueryWindow'`
 (900 seconds each). Feature smoke uses `^TestReferenceQueryWindowRangeFeatureSmoke$` in both modes.
 Named volatile-offset identity is covered by
 `^TestReferenceQueryWindowRangeNamedOffsetIdentity` in both modes: same name
@@ -376,7 +376,7 @@ advances nextval once; distinct names advance it twice and give the final pair
 Dump/Restore. Actual clone/remap units preserve query-local named identity while
 checking shared sort groups. Successful support binding performs neither source
 diagnostic formatting nor class-input diagnostic lookup.
-Provider units use `PACKAGES=./internal/sqltype RUN='^TestWindowRange'`;
+Provider units use ` RUN='^TestWindowRange'`;
 parser/stage units use `RUN='^TestQueryWindow'` in their respective packages.
 Independent membership/type/English diagnostic constants are asserted before
 comparison. Pinned discovery establishes that count inside EXISTS still demands
@@ -410,8 +410,8 @@ declarations, lexical options and concurrent independent results/cancellation.
 The production-used explicit receiver helper lets reset tests observe a known
 receiver without manipulating the pool. Generated cleanup precedes full reset,
 which precedes return; original panics are not recovered by production code.
-Run `make quickcheck PACKAGES=./internal/parser RUN='^TestParseScratch'` and its
-`RACE=1` counterpart, then the complete parser package and ordinary quickcheck.
+Run `make check RUN='^TestParseScratch'` and its
+`RACE=1` counterpart, then ordinary quickcheck after edits.
 
 Performance evidence must compare the identical
 `internal/parser/parser_scratch_bench_test.go` harness before and after changes.
@@ -427,44 +427,38 @@ normal; neither warm identity assumptions nor disabled GC are acceptable.
 The prior channel can already reuse ordinary serial parses at default P; reduced
 P1 nested allocations do not promise default-P or whole-suite runtime gains.
 Historical fresh-parser allocation profiles are motivation, not candidate
-deltas. Rerun the complete real-reference race command under the unchanged
-900-second quickcheck deadline before claiming a corpus improvement; disclose
-timeouts/failures honestly. Selected dual-mode reference families and the actual
-public executable smoke supplement, never replace, complete verification and
-postintegration fullcheck.
+deltas. Complete real-reference race measurements are human-only; agents MUST NOT
+invoke refcheck. Selected dual-mode proof and complete Docker-free verification
+precede postintegration finalcheck. Disclose timeouts/failures honestly.
 
 
 ### Commands and oracle-first discovery
 
-Run from repository root with Go >=1.26 and GNU `timeout`. Real mode also needs
-working Docker and image/module access.
+Run from repository root with Go >=1.26. Real mode needs Docker and image/module access.
 
 ```sh
-# First: real PostgreSQL discovery/validation.
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$' VERBOSE=1
-# Second: Docker-free validation of the recorded contract.
-make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
-# Before review: both modes, using exactly the same completed test.
-make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
-# Ordinary full Docker-free verification.
+# Oracle-first discovery, then native proof; repeat both after affected edits.
+make check RUN='^TestReferenceFeatureBehavior$' REFERENCE=1
+make check RUN='^TestReferenceFeatureBehavior$'
+# Whole-project verification after edits, before review/integration.
 make quickcheck
-# After integration: all final gates under a one-hour deadline.
-make fullcheck
+# Same Docker-free suite with race detection.
+make racecheck
+# After integration: startup benchmark, full native race suite, dependencies.
+make finalcheck
 ```
 
-Ordinary quickcheck and selective reference runs retain their 900-second limits.
-Fullcheck gives its complete pinned PostgreSQL race stage a 3600-second shell and
-Go package deadline inside the same 3600-second aggregate gate; native stages
-remain capped at 900 seconds. This exception preserves the complete scenario and
-race coverage, not a skip or permission to loosen SQL timeout expectations.
-`TEST_TIMEOUT` is a numeric count of seconds, defaulting to `900`; fullcheck
-explicitly selects `900` for native stages and `3600` for complete reference race.
+`check` requires `RUN` selecting individual tests or small sets; add `RACE=1` for
+selected race proof. All test targets regenerate parser and Unicode data and keep
+output quiet. The Makefile imposes no deadline and disables Go's implicit test
+timeout (`-timeout=0`). Agents MUST set external command deadlines of 900 seconds
+for check, quickcheck, racecheck and bench, or 1800 seconds for finalcheck.
+`refcheck` runs the whole real reference suite for humans only; agents MUST NEVER
+invoke it. Neither whole-project target replaces selected dual-mode pre-review proof.
 
-
-`make quickcheck REFERENCE=1 PACKAGES=./reference` enables `-reference=true` and the `reference` build tag; it runs
-both native and PostgreSQL backends, not PostgreSQL alone. The ordinary runner
-visits native first. During the initial oracle-discovery iteration, use the
+`make check RUN='...' REFERENCE=1` enables `-reference=true` and the `reference`
+build tag; it runs both native and PostgreSQL backends, not PostgreSQL alone.
+The ordinary runner visits native first. During the initial oracle-discovery iteration, use the
 shared `p.backends()` loop and temporarily select only `backend.pg` (for example,
 `if !backend.pg { continue }`) so an unimplemented native feature cannot prevent
 PostgreSQL observations. Remove that discovery filter before quick validation
@@ -477,8 +471,8 @@ and remove discovery scaffolding. `p.step` validates expectations; it does not
 learn or update them. Do not weaken assertions to accommodate native failures.
 
 PG_USER coverage uses `RUN='^TestReferencePGUser'` in both
-`make quickcheck PACKAGES=./reference` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference`, with a 900-second deadline
+`make check` and
+`make check REFERENCE=1`, with a 900-second deadline
 per invocation. The smoke selector is `RUN='^TestReferencePGUserFeatureSmoke$'`.
 The shared scenarios independently specify the nine-column LOGIN projection,
 OID identity through a separately owned sequence, direct privilege flags,
@@ -489,7 +483,7 @@ Password setup is deliberately excluded from the recorder and diagnostic
 failure text. Native Dump replay uses the actual emitted local SQL, not a
 PostgreSQL control substitute.
 Supplemental typed provider/saved-root/cancellation checks use
-`make quickcheck PACKAGES=./internal/engine RUN='^(TestPGUser|TestTableViewSummaryBuiltinIdentity)' VERBOSE=0`.
+`make check RUN='^(TestPGUser|TestTableViewSummaryBuiltinIdentity)'`.
 Related reference regression uses
 `RUN='^(TestReferencePGUser|TestReferenceTimezoneViews|TestReferenceRegtype|TestReferencePGTableViews)'`
 in both quick and REFERENCE=1 modes (900 seconds per invocation). This preserves
@@ -498,13 +492,13 @@ summary inventories while checking pg_user view classification.
 
 For initial oracle discovery, temporarily filter native backends in the common
 scenario helper as described above, then run
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGUser' VERBOSE=0`.
+`make check REFERENCE=1 RUN='^TestReferencePGUser'`.
 The exact postgres-only subtest selector is
 `RUN='^TestReferencePGUser[^/]*$/^postgres$'`; full diagnostics can be selected
 with `RUN='^TestReferencePGUserDiagnostics$/^postgres$/./^(direct|prepared)$'`.
 `TestReferencePGUserOracleCatalog/postgres` additionally checks release attribute
 types, typmods, collations and relation/rowtype identities, and independently
-asserts the exact `pg_views` definition (differences print under VERBOSE=0).
+asserts the exact `pg_views` definition (differences print under).
 These allocator assertions are
 release-only research, not cross-backend role or relation allocator parity.
 Remove the temporary backend filter before recording the missing-feature quick
@@ -520,17 +514,17 @@ can truncate later tests, so a focused passing run does not establish family
 coverage. Each invocation has a separate 900-second deadline:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursor' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursor' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSQLCursorRegtypeWarnings$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSQLCursorRegtypeWarnings$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeWarnings$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeWarnings$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestSQLCursor(CompletedPublicationBoundary|CancellationClearsAuthority)$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestSQLCursor' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestSQLCursor' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferenceSQLCursor'
+make check RUN='^TestReferenceSQLCursor'
+make check REFERENCE=1 RUN='^TestReferenceSQLCursorFeatureSmoke$'
+make check RUN='^TestReferenceSQLCursorFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSQLCursorRegtypeWarnings$'
+make check RUN='^TestReferenceSQLCursorRegtypeWarnings$'
+make check REFERENCE=1 RUN='^TestReferenceRegtypeWarnings$'
+make check RUN='^TestReferenceRegtypeWarnings$'
+make check RUN='^TestSQLCursor(CompletedPublicationBoundary|CancellationClearsAuthority)$'
+make check RUN='^TestSQLCursor'
+make check RUN='^TestSQLCursor'
 ```
 
 The permanent definitions have no discovery backend filter. Native-only controls
@@ -592,8 +586,8 @@ authority, select the entire existing advisory family and prepared-transaction
 boundary scenario alongside every cursor definition, in both modes before review:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)' VERBOSE=0
+make check RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)'
+make check REFERENCE=1 RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)'
 ```
 
 Each command has its own900-second deadline. The prepared-transaction boundary
@@ -623,13 +617,13 @@ driver to imitate this lib/pq limitation.
 Run each selective command under its own900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceMergeInsert' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMergeInsert' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertImplicitShort' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertImplicitShort' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertSelect' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertSelect' VERBOSE=0
-make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestMerge' VERBOSE=0
+make check RUN='^TestReferenceMergeInsert'
+make check REFERENCE=1 RUN='^TestReferenceMergeInsert'
+make check RUN='^TestReferenceInsertImplicitShort'
+make check REFERENCE=1 RUN='^TestReferenceInsertImplicitShort'
+make check RUN='^TestReferenceInsertSelect'
+make check REFERENCE=1 RUN='^TestReferenceInsertSelect'
+make check RUN='^TestMerge'
 ```
 
 The shared MERGE family independently checks frozen matching/bag multiplicity,
@@ -662,10 +656,10 @@ AST/description through the adapter's `scope.Expected` execution seam.
 Actual public feature smokes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceMergeInsertFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceMergeInsertFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertImplicitShortFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertImplicitShortFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceMergeInsertFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMergeInsertFeatureSmoke$'
+make check RUN='^TestReferenceInsertImplicitShortFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceInsertImplicitShortFeatureSmoke$'
 ```
 
 MERGE smoke expects source1/2/3 versus existing1old to insert2two/first and
@@ -686,8 +680,8 @@ Their completed selector must run in both modes before review/integration,
 under separate 900-second deadlines, without verbose output:
 
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Settings|UTF8|Locales|ICU|FloatPrecision|Consumers|Privileges|Scope|Atomicity|Controls|FeatureSmoke)$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Settings|UTF8|Locales|ICU|FloatPrecision|Consumers|Privileges|Scope|Atomicity|Controls|FeatureSmoke)$' VERBOSE=0
+timeout 900s make check RUN='^TestReferenceFormatEncoding(Settings|UTF8|Locales|ICU|FloatPrecision|Consumers|Privileges|Scope|Atomicity|Controls|FeatureSmoke)$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceFormatEncoding(Settings|UTF8|Locales|ICU|FloatPrecision|Consumers|Privileges|Scope|Atomicity|Controls|FeatureSmoke)$'
 ```
 
 For changed locale numeric-parsing witnesses, validate the existing nested
@@ -696,18 +690,18 @@ against the pinned oracle first; do not admit general Numeric-to-TEXT just to
 make a selected-setting witness executable:
 
 ```sh
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Locales|Consumers)$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Locales|Consumers)$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES='./internal/sqltype ./internal/engine ./internal/parser' RUN='^(TestFormatEncoding.*|TestExplicitCoercionMatrix|TestStringPlanSpecializedOutputStability|TestSettingUtilitySnapshotOwnership|TestArrayVolatilityPreservesScalarClassification|TestStringGenerationOutputDependence)$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReference(SettingsBuiltinRegistry|SettingsShowAllPlaceholdersAndLifecycle|SettingsShowAllCurrentOverrides|SettingsAuthenticatedAccessClasses|Float.*|NumericFormatting.*|DatetimeFormatting.*|StringEncoding.*|AnyValueTypes|ExtremaTransitions|ExtremaTypes|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SettingsBuiltinRegistry|SettingsShowAllPlaceholdersAndLifecycle|SettingsShowAllCurrentOverrides|SettingsAuthenticatedAccessClasses|Float.*|NumericFormatting.*|DatetimeFormatting.*|StringEncoding.*|AnyValueTypes|ExtremaTransitions|ExtremaTypes|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceFormatEncoding(Locales|Consumers)$'
+timeout 900s make check RUN='^TestReferenceFormatEncoding(Locales|Consumers)$'
+timeout 900s make check RUN='^(TestFormatEncoding.*|TestExplicitCoercionMatrix|TestStringPlanSpecializedOutputStability|TestSettingUtilitySnapshotOwnership|TestArrayVolatilityPreservesScalarClassification|TestStringGenerationOutputDependence)$'
+timeout 900s make check RUN='^TestReference(SettingsBuiltinRegistry|SettingsShowAllPlaceholdersAndLifecycle|SettingsShowAllCurrentOverrides|SettingsAuthenticatedAccessClasses|Float.*|NumericFormatting.*|DatetimeFormatting.*|StringEncoding.*|AnyValueTypes|ExtremaTransitions|ExtremaTypes|TimezoneBuiltinRegistryDescriptions)$'
+timeout 900s make check REFERENCE=1 RUN='^TestReference(SettingsBuiltinRegistry|SettingsShowAllPlaceholdersAndLifecycle|SettingsShowAllCurrentOverrides|SettingsAuthenticatedAccessClasses|Float.*|NumericFormatting.*|DatetimeFormatting.*|StringEncoding.*|AnyValueTypes|ExtremaTransitions|ExtremaTypes|TimezoneBuiltinRegistryDescriptions)$'
 ```
 
 The executable feature/control smoke is in `format_encoding_controls_test.go`:
 
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$' VERBOSE=0
+timeout 900s make check RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$'
 ```
 
 It asserts UTF8 Unicode transport, C numeric/time masks, current-role message
@@ -716,7 +710,7 @@ native exact binary/Dump/Reset/Restore/emitted replay controls. PostgreSQL's
 rounded scalar transport and native's exact scalar export are independently
 asserted, not normalized into false equality. Native locale/client-encoding
 capability errors have explicit backend expectations; ICU is policy only.
-Ordinary quickcheck and the single post-integration 1800-second fullcheck remain
+Ordinary quickcheck and the single post-integration 1800-second finalcheck remain
 required. Commands above are acceptance instructions, not claims they passed.
 
 ### JSONPath typed-input reference contracts
@@ -756,10 +750,10 @@ the declared scalar, array or domain name and original SQL source position.
 Run all changed definitions in both modes, with a 900-second deadline per command:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPath' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPath' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONPathFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceJSONPath'
+make check REFERENCE=1 RUN='^TestReferenceJSONPath'
+make check RUN='^TestReferenceJSONPathFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'
 ```
 
 The feature smoke expects inferred repeated-slot insertion, strict indexed-path
@@ -776,8 +770,8 @@ native never substitutes C for an unavailable provider. Run every changed
 definition in both modes, each under a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceTemporaryTable.*|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceTemporaryTable.*|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
+make check RUN='^(TestReferenceCollation.*|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceTemporaryTable.*|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$'
+make check REFERENCE=1 RUN='^(TestReferenceCollation.*|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceTemporaryTable.*|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$'
 ```
 
 The cohesive feature selector is
@@ -803,8 +797,8 @@ with source/pattern explicit COLLATE, direct/prepared context and non-context
 routes, BOOL metadata and implicit copied identities in stored views. Run:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceCollationSimilarCopiedUnicode$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCollationSimilarCopiedUnicode$' VERBOSE=0
+make check RUN='^TestReferenceCollationSimilarCopiedUnicode$'
+make check REFERENCE=1 RUN='^TestReferenceCollationSimilarCopiedUnicode$'
 ```
 
 Change note: SIMILAR class dispatch now follows the registered immutable provider
@@ -869,7 +863,7 @@ final publication fences, rather than rereading mutable roles inside the provide
 publication with snapshot provider validation. Its race gate is:
 
 ```sh
-make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestCollationProviderConcurrentRolePublication$' VERBOSE=0
+make check RACE=1 RUN='^TestCollationProviderConcurrentRolePublication$'
 ```
 
 The already integrated `TestReferenceLikeLegacyMigration` and its stage/namespace
@@ -878,8 +872,8 @@ duplicate collation-named migration is removed. Required final selective gates
 also explicitly include the three changed non-collation-named scenarios:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceLikeLegacyMigration|TestReferenceLikeLegacyStageConsumers|TestReferenceLikeLegacyMissingNamespace|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceCollation.*|TestReferenceLikeLegacyMigration|TestReferenceLikeLegacyStageConsumers|TestReferenceLikeLegacyMissingNamespace|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$' VERBOSE=0
+make check RUN='^(TestReferenceCollation.*|TestReferenceLikeLegacyMigration|TestReferenceLikeLegacyStageConsumers|TestReferenceLikeLegacyMissingNamespace|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$'
+make check REFERENCE=1 RUN='^(TestReferenceCollation.*|TestReferenceLikeLegacyMigration|TestReferenceLikeLegacyStageConsumers|TestReferenceLikeLegacyMissingNamespace|TestReferenceAlterTypeNondefaultLocaleBoundary|TestReferenceVisibilityInquiryBoundaries|TestReferenceVisibilityInquiryUtilityBoundaries)$'
 ```
 
 Each invocation has a 900-second deadline. Complete-suite passes do not replace
@@ -914,17 +908,17 @@ versus PostgreSQL2,3,4, and predicate-only external counts0 versus1. Exact nativ
 analyzed/execution manifests and shared real DROP/column lifecycle/controls prove
 the underlying predicate dependencies; this inquiry boundary never skips a scenario.
 The partial-copy subfamily is `RUN='^TestReferenceTableLikePartial'`; run
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikePartial' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikePartial' VERBOSE=0`.
+`make check RUN='^TestReferenceTableLikePartial'`
+and `make check REFERENCE=1 RUN='^TestReferenceTableLikePartial'`.
 Private cooked-tree, stable/dense attribute, fresh membership-root and actual
 provider-admission witnesses use
-`make quickcheck PACKAGES=./internal/engine RUN='^TestTableLikePartial' VERBOSE=0`.
+`make check RUN='^TestTableLikePartial'`.
 The expanded existing feature smoke includes actual partial-index Dump/Restore
 and PostgreSQL replay with future membership, uniqueness and predicate-first
 errors. The complete shared union also retains CoreNativeControlRoundTrip's
 standalone typed/direct and quoted/prepared MAXINT8/O'Brien/TRUE rows and metadata
 after actual Restore, plus CoreSemanticSkipNotices' quoted unknown `"integer"`
-IF NOT EXISTS notice and unchanged-data witnesses. Each quickcheck invocation
+IF NOT EXISTS notice and unchanged-data witnesses. Each selected check invocation
 has its own 900-second deadline.
 TEMP composition uses `RUN='^TestReferenceTableLikeTemporary'` in both modes and
 `RUN='^TestTableLikeTemporary'` for native engine units. Shared SQL covers
@@ -949,9 +943,9 @@ Pinned PostgreSQL composite discovery expectations are encoded; the temporary
 scenario-local backend filter is removed before the native regression.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeComposite' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikeComposite' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestTableLikeComposite' VERBOSE=0
+make check RUN='^TestReferenceTableLikeComposite'
+make check REFERENCE=1 RUN='^TestReferenceTableLikeComposite'
+make check RUN='^TestTableLikeComposite'
 ```
 
 The retained row-expression regression family is
@@ -979,11 +973,11 @@ backend filters removed. The native-red and final dual-mode gates use the
 complete scenarios. Each invocation below has a900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceTableLikeTemporaryRetained' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTableLikeTemporaryRetained' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)' VERBOSE=0
-make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestTableLikeDefinitionDependencyOrder' VERBOSE=0
+make check RUN='^TestReferenceTableLikeTemporaryRetained'
+make check REFERENCE=1 RUN='^TestReferenceTableLikeTemporaryRetained'
+make check RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)'
+make check RACE=1 RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)'
+make check RUN='^TestTableLikeDefinitionDependencyOrder'
 ```
 
 
@@ -1019,20 +1013,20 @@ and PostgreSQL implicit-coercion success, not parity-derived goldens.
 
 Run changed definitions in both modes, each under900seconds:
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTrunc' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTrunc' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTruncFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^TestDatetimeTrunc' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestDatetimeTrunc' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestDatetimeTrunc' VERBOSE=0
+make check RUN='^TestReferenceDatetimeTrunc'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeTrunc'
+make check RUN='^TestReferenceDatetimeTruncFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeTruncFeatureSmoke$'
+make check RUN='^TestDatetimeTrunc'
+make check RUN='^TestDatetimeTrunc'
+make check RUN='^TestDatetimeTrunc'
 ```
 Smoke expects distinct NY fold hours05/06UTC, spring day05UTC, Sydney day13UTC,
 held NULL/error recovery, unchanged late-write sentinel and symbolic stored
 default/view/generated/index replay. Full family checks additionally cover
 week2006-01-01→2005-12-26, quarter2001-02-16→2001-01-01, negative interval
 seconds→-1second and TIME24:00→zero-day24hour INTERVAL. These selected gates
-do not replace ordinary quickcheck or post-merge fullcheck.
+do not replace ordinary quickcheck or post-merge finalcheck.
 
 The transaction-time family uses the same completed public body for all five
 providers: direct/held metadata and raw codecs, transaction/statement ownership,
@@ -1047,11 +1041,11 @@ TestReferenceTimestampSQLTransactionChainClock; the superseded smoke file is rem
 
 Each selective invocation has its own 900-second deadline:
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES='./internal/engine ./internal/parser' RUN='^TestTransactionTime' VERBOSE=0
+make check RUN='^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)'
+make check REFERENCE=1 RUN='^TestReference(DatetimeTxTimes|TimestampSQLTransactionChainClock)'
+make check RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$'
+make check RUN='^TestTransactionTime'
 ```
 
 
@@ -1083,13 +1077,13 @@ unrelated volatility and row/parameter/stage rejection.
 
 Run all changed definitions in both modes under separate 900-second deadlines:
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericFormattingFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^TestNumericFormatting' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^Test(NumericFormatting|DatetimeFormattingBindingAuthority)' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestNumericFormatting' VERBOSE=0
+make check RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)'
+make check REFERENCE=1 RUN='^TestReference(NumericFormatting|DatetimeFormattingSignaturesOwnerBoundary)'
+make check RUN='^TestReferenceNumericFormattingFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceNumericFormattingFeatureSmoke$'
+make check RUN='^TestNumericFormatting'
+make check RUN='^Test(NumericFormatting|DatetimeFormattingBindingAuthority)'
+make check RUN='^TestNumericFormatting'
 ```
 Smoke independently expects exact BIGINT9007199254740993, PR `<485>`,
 Roman `CDLXXXV`, scientific ` 4.86e-04`, and V input
@@ -1108,13 +1102,13 @@ SQL on PostgreSQL. Select the whole affected family and smoke in both modes,
 each invocation under900 seconds:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversion' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversion' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversionFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^TestBinary(Conversion|Encoding|Format)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestBinaryConversion' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestBinaryConversion' VERBOSE=0
+make check RUN='^TestReferenceBinaryConversion'
+make check REFERENCE=1 RUN='^TestReferenceBinaryConversion'
+make check RUN='^TestReferenceBinaryConversionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryConversionFeatureSmoke$'
+make check RUN='^TestBinary(Conversion|Encoding|Format)'
+make check RUN='^TestBinaryConversion'
+make check RUN='^TestBinaryConversion'
 ```
 
 The shared hex/escape cores also serve BYTEA input; run existing
@@ -1139,8 +1133,8 @@ same pre-held read/write statements. No pg_sleep substitute or production delay
 is used. Existing precanceled/expired contexts remain separate coverage.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryConversionActiveCancellation$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryConversionActiveCancellation$' VERBOSE=0
+make check RUN='^TestReferenceBinaryConversionActiveCancellation$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryConversionActiveCancellation$'
 ```
 
 The no-bind direct repeated-parameter witness asserts an explicit inherited
@@ -1158,13 +1152,13 @@ with actual emitted SQL replay, and public cancellation. Run the complete
 affected family in both modes before review, each under the 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(StringNumericBase|BinaryHash)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(StringNumericBase|BinaryHash)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringNumericBaseFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^Test(StringNumericBase|BinaryHash)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^Test(StringNumericBase|BinaryHash)' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestStringNumericBase' VERBOSE=0
+make check RUN='^TestReference(StringNumericBase|BinaryHash)'
+make check REFERENCE=1 RUN='^TestReference(StringNumericBase|BinaryHash)'
+make check RUN='^TestReferenceStringNumericBaseFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceStringNumericBaseFeatureSmoke$'
+make check RUN='^Test(StringNumericBase|BinaryHash)'
+make check RUN='^Test(StringNumericBase|BinaryHash)'
+make check RUN='^TestStringNumericBase'
 ```
 
 The smoke expects `fffffb2e` versus `fffffffffffffb2e` for INTEGER/BIGINT -1234,
@@ -1173,7 +1167,7 @@ diagnostics, no partial publication, and successful held-call recovery. Typed
 nil `[]byte` inferred as TEXT intentionally retains native empty-input MD5 versus
 pq NULL; do not erase this inherited adapter difference or use Go kinds for
 signature selection. These selectors do not replace ordinary quickcheck or
-post-merge fullcheck.
+post-merge finalcheck.
 
 Size parsing/formatting coverage uses the untagged `TestReferenceSize` family:
 independent exact binary/fractional/signed-limit vectors, every promotion
@@ -1186,12 +1180,12 @@ consumes the actual native-emitted Dump SQL. Every changed definition must run
 in both modes before review, each within the 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSize' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSize' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSizeFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^Test(Size|Math|Numeric)' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestSize' VERBOSE=0
+make check RUN='^TestReferenceSize'
+make check REFERENCE=1 RUN='^TestReferenceSize'
+make check RUN='^TestReferenceSizeFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSizeFeatureSmoke$'
+make check RUN='^Test(Size|Math|Numeric)'
+make check RUN='^TestSize'
 ```
 
 The smoke expects 1048576 INT8, `1024 bytes`, `-11 kB`, `10.5000 bytes`,
@@ -1199,7 +1193,7 @@ beyond-BIGINT `10240 PB`, typed TEXT NULL metadata, exact malformed-unit and
 overflow records, held recovery, no failed-write prefix, and faithful stored
 overloads/control replay. The shared MathPlan and numeric codec seams also
 require existing math/numeric regression coverage; selected checks do not
-replace ordinary quickcheck or post-merge fullcheck.
+replace ordinary quickcheck or post-merge finalcheck.
 
 Size consumer witnesses retain the explicit native internal-CHAR coercion
 boundary alongside independent PostgreSQL results; shared COUNT and SUM
@@ -1233,10 +1227,10 @@ cancellation and a five-second, exactly-once outcome/exit join before queue
 assertions; failure cleanup closes any retained result before session teardown.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsing|^TestReferenceDeleteCoreExcludedForms' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsing|^TestReferenceDeleteCoreExcludedForms' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteUsingSmoke' VERBOSE=0
+make check RUN='^TestReferenceDeleteUsing|^TestReferenceDeleteCoreExcludedForms'
+make check REFERENCE=1 RUN='^TestReferenceDeleteUsing|^TestReferenceDeleteCoreExcludedForms'
+make check RUN='^TestReferenceDeleteUsingSmoke'
+make check REFERENCE=1 RUN='^TestReferenceDeleteUsingSmoke'
 ```
 
 Each selective invocation has a900-second deadline. Real oracle evidence precedes
@@ -1255,22 +1249,22 @@ actual PostgreSQL query/PID and the native provider/worker synchronization
 pattern. Each direct/prepared subcase cleans its fixtures even on failure.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(DatetimeZone|Timezone)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DatetimeZone|Timezone)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeZoneFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^TestDatetimeZone' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestDatetimeZone' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^TestDatetimeZone' VERBOSE=0
+make check RUN='^TestReference(DatetimeZone|Timezone)'
+make check REFERENCE=1 RUN='^TestReference(DatetimeZone|Timezone)'
+make check RUN='^TestReferenceDatetimeZoneFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeZoneFeatureSmoke$'
+make check RUN='^TestDatetimeZone'
+make check RUN='^TestDatetimeZone'
+make check RUN='^TestDatetimeZone'
 ```
 
-Both complete reference modes must run before review/integration. Each quickcheck
+Both complete reference modes must run before review/integration. Each selected check
 has a900-second deadline. Provider units include warmed EST/MSK/IANA allocation
 witnesses; they supplement, not replace, public independent SQL expectations.
 The discovery backend.pg filter and focused logging-only oracle probes are
 temporary and must be removed before native checks; neither remains in the
 completed family. The root runs verification and feature smoke after edits, then
-the final post-merge fullcheck under one1800-second deadline.
+the final post-merge finalcheck under one1800-second deadline.
 
 The interval-justification family covers exact30-day/24-hour boundaries,
 mixed signs and component extrema, complete diagnostics and phases, metadata,
@@ -1280,17 +1274,17 @@ ordinary context errors are a native-only API boundary, not a race-prone fast pq
 request assertion. Run the same complete definitions in both modes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustify' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustify' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeJustifyFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceDatetimeJustify'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeJustify'
+make check RUN='^TestReferenceDatetimeJustifyFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeJustifyFeatureSmoke$'
 ```
 
 Each invocation has a900-second deadline. Supplemental units use
-`PACKAGES=./internal/sqltype RUN='^TestDatetimeJustify'`,
-`PACKAGES=./internal/parser RUN='^TestDatetimeJustify'` and
-`PACKAGES=./internal/engine RUN='^TestDatetimeJustify'`; neither these nor selected
-smoke replace ordinary quickcheck or the post-merge1800-second fullcheck.
+` RUN='^TestDatetimeJustify'`,
+` RUN='^TestDatetimeJustify'` and
+` RUN='^TestDatetimeJustify'`; neither these nor selected
+smoke replace ordinary quickcheck or the post-merge1800-second finalcheck.
 
 ### Shared-comment catalog coverage
 
@@ -1311,11 +1305,11 @@ opening and entry/in-loop cancellation without private public-SQL duplicates.
 Run the same completed definitions in both modes, each within900 seconds:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescription' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGShDescription' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGShDescriptionFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestPGShDescription' VERBOSE=0
+make check RUN='^TestReferencePGShDescription'
+make check REFERENCE=1 RUN='^TestReferencePGShDescription'
+make check RUN='^TestReferencePGShDescriptionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGShDescriptionFeatureSmoke$'
+make check RUN='^TestPGShDescription'
 ```
 
 ### Period overlap reference coverage
@@ -1342,17 +1336,17 @@ BOOL name/scan/length/decimal/nullability metadata. Native exports no public
 OID/typmod hook and this family does not implement adjacent catalog relations.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlaps' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlaps' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceDatetimeOverlaps'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlaps'
+make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'
 ```
 
 Each invocation has a900-second deadline. Supplementary parser, sqltype and
 engine units use `RUN='^TestDatetimeOverlaps'` with the matching
-`PACKAGES=./internal/parser`, `./internal/sqltype` or `./internal/engine`.
+`./internal/parser`, `./internal/sqltype` or `./internal/engine`.
 These selective checks do not replace ordinary quickcheck or the single
-1800-second post-merge fullcheck. The feature smoke asserts actual period
+1800-second post-merge finalcheck. The feature smoke asserts actual period
 results `(true,false,true,true,NULL)`, held reuse, Denver day/hour differences,
 diagnostic recovery and native stored-clock-duration replay.
 
@@ -1384,21 +1378,21 @@ fixtures use default absent PUBLIC privileges with the independent false
 predicates or denied-operation witnesses above, without native REVOKE support.
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGSequence' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequence' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferencePGSequence'
+make check RUN='^TestReferencePGSequence'
 ```
 
 After implementation, include all migrated definition probes in both modes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(PGSequence|SequenceCacheBoundsRow|SequenceHugeCacheArithmetic|SequenceCreateRestart|AlterTypeIdentityTargets|AlterTypeIdentityFailuresAndPrephase)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(PGSequence|SequenceCacheBoundsRow|SequenceHugeCacheArithmetic|SequenceCreateRestart|AlterTypeIdentityTargets|AlterTypeIdentityFailuresAndPrephase)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGSequenceFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestPGSequence' VERBOSE=0
+make check RUN='^TestReference(PGSequence|SequenceCacheBoundsRow|SequenceHugeCacheArithmetic|SequenceCreateRestart|AlterTypeIdentityTargets|AlterTypeIdentityFailuresAndPrephase)'
+make check REFERENCE=1 RUN='^TestReference(PGSequence|SequenceCacheBoundsRow|SequenceHugeCacheArithmetic|SequenceCreateRestart|AlterTypeIdentityTargets|AlterTypeIdentityFailuresAndPrephase)'
+make check RUN='^TestReferencePGSequenceFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGSequenceFeatureSmoke$'
+make check RUN='^TestPGSequence'
 ```
 
-Each quickcheck invocation has a 900-second deadline. The final fullcheck runs
+Each selected check invocation has a 900-second deadline. The finalcheck runs
 after merge under its single 1800-second deadline; neither gate replaces the
 selective dual-mode runs.
 
@@ -1408,18 +1402,18 @@ covers all six source types and both APIs, strictness, ISO/BC, interval parts,
 infinities, precision, prepared Execute-time zones and stored-definition replay:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtractFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeExtract' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeExtract' VERBOSE=0
+make check RUN='^TestReferenceDatetimeExtractFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeExtractFeatureSmoke$'
+make check RUN='^TestReferenceDatetimeExtract'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeExtract'
 ```
 
 Each invocation has a900-second deadline. Both complete modes must pass before
-review/integration; the pinned mode is not deferred until final fullcheck.
-Supplemental units use `PACKAGES=./internal/sqltype`, `./internal/parser` or
+review/integration; the pinned mode is not deferred until finalcheck.
+Supplemental units live in `./internal/sqltype`, `./internal/parser` or
 `./internal/engine` with `RUN='^TestDatetimeExtract'`. Regenerate grammar with
 `make generate` after parser source changes; generated code is not hand-edited.
-The root performs these checks and the single1800-second final fullcheck.
+The root performs these checks and the single1800-second finalcheck.
 Extraction boundary witnesses distinguish unsupported native constrained-domain
 DDL/current_setting/random predicate admission from actual PostgreSQL behavior;
 they do not skip either backend or introduce adjacent capabilities. Plain-domain
@@ -1482,18 +1476,18 @@ Run the completed review-remedy witnesses in both modes before review, each with
 a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype(OutputAuthority|UnrelatedRoles|ArrayDisplacement)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype(OutputAuthority|UnrelatedRoles|ArrayDisplacement)' VERBOSE=0
+make check RUN='^TestReferenceRegtype(OutputAuthority|UnrelatedRoles|ArrayDisplacement)'
+make check REFERENCE=1 RUN='^TestReferenceRegtype(OutputAuthority|UnrelatedRoles|ArrayDisplacement)'
 ```
 
 Validate the same completed definitions in both modes before review; each
 quickcheck invocation has a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtype' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRegtypeFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceRegtype'
+make check REFERENCE=1 RUN='^TestReferenceRegtype'
+make check RUN='^TestReferenceRegtypeFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'
 ```
 
 The feature smoke independently asserts name/OID conversion, builtin and user
@@ -1503,7 +1497,7 @@ controls must replay the actual emitted native stream on PostgreSQL; never
 substitute a manually reconstructed stream or an invented PostgreSQL
 Dump/Reset/Restore API. The unchanged cohesive fixture's `checkRaw` hook supplies
 independent REGTYPE/array transport checks through the small regtype helper.
-These selectors do not replace ordinary quickcheck or the post-merge fullcheck
+These selectors do not replace ordinary quickcheck or the post-merge finalcheck
 under its single 1800-second deadline. Completed definitions are not passing
 verification until the root records successful runs.
 
@@ -1515,9 +1509,9 @@ outside-array admission, failed UPDATE atomicity and retained native cursor
 metadata/content. It supplements, not replaces, the complete Regtype family:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(PartialIndexTypeGeneration|RegtypeArrayDisplacement.*)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(PartialIndexTypeGeneration|RegtypeArrayDisplacement.*)$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestPartialIndexPredicateTypeGeneration' VERBOSE=0
+make check RUN='^TestReference(PartialIndexTypeGeneration|RegtypeArrayDisplacement.*)$'
+make check REFERENCE=1 RUN='^TestReference(PartialIndexTypeGeneration|RegtypeArrayDisplacement.*)$'
+make check RUN='^TestPartialIndexPredicateTypeGeneration'
 ```
 
 `TestReferencePartialIndexWindowDiagnostics` retains direct/held and UTF8-position
@@ -1529,9 +1523,9 @@ changes. Structural metadata has no native SQL pg_index projection; direct
 truth/membership and original attribute dependencies despite simplification.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(PartialIndexWindowDiagnostics|QueryWindow)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(PartialIndexWindowDiagnostics|QueryWindow)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestPartialIndexMetadataPredicate' VERBOSE=0
+make check RUN='^TestReference(PartialIndexWindowDiagnostics|QueryWindow)'
+make check REFERENCE=1 RUN='^TestReference(PartialIndexWindowDiagnostics|QueryWindow)'
+make check RUN='^TestPartialIndexMetadataPredicate'
 ```
 
 Regtype control witnesses retain a supported TEMP SEQUENCE across Reset/Restore
@@ -1557,8 +1551,8 @@ reader identity/settings and denied table access across host replacement.
 Run the completed remedy/migration definitions in both modes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)' VERBOSE=0
+make check RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)'
+make check REFERENCE=1 RUN='^TestReference(Regtype|Role|ControlTransactionsHostAuthorization)'
 ```
 
 Role-attribute oracle findings are encoded in the untagged shared
@@ -1567,15 +1561,15 @@ are removed. Root-observed selected native and pinned gates passed before this
 documentation cutover. A separate actual public Go smoke reached creator ADMIN,
 ALTER USER omission, expired trusted admission, physical limit release, NOLOGIN
 and held authority refresh. Those observations do not replace the remaining
-full quickcheck, fresh affected selectors, review or post-merge fullcheck.
+full quickcheck, fresh affected selectors, review or post-merge finalcheck.
 
 Run the exact changed reference definitions in both modes before review, each
 with a900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRole(Attributes(DefaultsAndAliases|Authority|DiagnosticsAndAtomicity|ConnectionAdmission|PasswordAndValidity|RetentionAndControls|FeatureSmoke)|MigratedSmokeControls|TransactionMutationBoundary|TrustedConnectorAdmissionAndOpaqueIsolation)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole(Attributes(DefaultsAndAliases|Authority|DiagnosticsAndAtomicity|ConnectionAdmission|PasswordAndValidity|RetentionAndControls|FeatureSmoke)|MigratedSmokeControls|TransactionMutationBoundary|TrustedConnectorAdmissionAndOpaqueIsolation)$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^Test(Role(Attributes(DefaultsAndRetention|Authority|MembershipNonInheritanceAndAdminTraversal|ConnectionLimitLifecycle|ConnectionLimitRaces|PasswordStorage|PasswordSASLprep|ValidityInput|PublicationAndSnapshots|ControlsRetention)|AuthorityAndSurface)|FormatEncodingCurrentRoleAndResetAll)$' VERBOSE=0
+make check RUN='^TestReferenceRole(Attributes(DefaultsAndAliases|Authority|DiagnosticsAndAtomicity|ConnectionAdmission|PasswordAndValidity|RetentionAndControls|FeatureSmoke)|MigratedSmokeControls|TransactionMutationBoundary|TrustedConnectorAdmissionAndOpaqueIsolation)$'
+make check REFERENCE=1 RUN='^TestReferenceRole(Attributes(DefaultsAndAliases|Authority|DiagnosticsAndAtomicity|ConnectionAdmission|PasswordAndValidity|RetentionAndControls|FeatureSmoke)|MigratedSmokeControls|TransactionMutationBoundary|TrustedConnectorAdmissionAndOpaqueIsolation)$'
+make check RUN='^Test(Role(Attributes(DefaultsAndRetention|Authority|MembershipNonInheritanceAndAdminTraversal|ConnectionLimitLifecycle|ConnectionLimitRaces|PasswordStorage|PasswordSASLprep|ValidityInput|PublicationAndSnapshots|ControlsRetention)|AuthorityAndSurface)|FormatEncodingCurrentRoleAndResetAll)$'
 ```
 
 The format fixture uses the canonical attribute executor with a real captured
@@ -1650,15 +1644,15 @@ The close witness also roundtrips native persistent output without the removed
 CHECK/provider while retaining the peer TEMP serial counter and stored rows.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)' VERBOSE=0
-make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^Test(TemporaryTable|TemporaryRelation|CatalogTemporary|SchemaSearchPathSessionDefaultsAndSpecials|SerializableEvidenceActualTemporaryNamespaceAndSequenceProviders|PGDependDefaultReplay)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTemporaryTableFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
+make check REFERENCE=1 RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
+make check RUN='^Test(TemporaryTable|TemporaryRelation|CatalogTemporary|SchemaSearchPathSessionDefaultsAndSpecials|SerializableEvidenceActualTemporaryNamespaceAndSequenceProviders|PGDependDefaultReplay)'
+make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'
 ```
 
 Both selected modes use the same completed definitions under900-second deadlines;
-ordinary quickcheck and the post-merge1800-second fullcheck remain required.
+ordinary quickcheck and the post-merge1800-second finalcheck remain required.
 
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
@@ -1667,16 +1661,16 @@ later-row write atomicity and named stored-definition Dump/Restore with replay
 of actual emitted native SQL against PostgreSQL:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeMakeFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceDatetimeMakeFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeMakeFeatureSmoke$'
 ```
 
 Run the complete identical `RUN='^TestReferenceDatetimeMake'` family in both
 modes before review, with900-second deadlines. Supplemental constructor units
-use `PACKAGES=./internal/sqltype RUN='^TestDatetimeMake'`,
-`PACKAGES=./internal/parser RUN='^TestDatetimeMakeNamedArguments$'` and
-`PACKAGES=./internal/engine RUN='^TestDatetimeMake(Binding|Properties|ArgumentAssociation)$'`.
-These selectors do not replace ordinary quickcheck or post-merge fullcheck.
+use ` RUN='^TestDatetimeMake'`,
+` RUN='^TestDatetimeMakeNamedArguments$'` and
+` RUN='^TestDatetimeMake(Binding|Properties|ArgumentAssociation)$'`.
+These selectors do not replace ordinary quickcheck or post-merge finalcheck.
 Successful interval witnesses assert `INTERVAL` metadata and exact public output
 codec strings directly; they do not require an `interval::text` conversion edge.
 Constructor write coverage uses INSERT affected counts and existing UPDATE/DELETE
@@ -1691,13 +1685,13 @@ modifiers, differing-width repeated slots and held parameterized cursor snapshot
 Run each invocation under the quickcheck900-second deadline, quietly:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$' VERBOSE=0
+make check RUN='^TestReferenceBitstring'
+make check REFERENCE=1 RUN='^TestReferenceBitstring'
+make check RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'
+make check REFERENCE=1 RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'
 ```
 
-Both modes are required before review/integration. Final fullcheck remains one
+Both modes are required before review/integration. Finalcheck remains one
 1800-second gate after merge. Discovery-only deliberate observation failures
 and PG-only filters must be removed before the native failing proof and gates.
 
@@ -1708,14 +1702,14 @@ Native phases exercise retained snapshots, Dump/Reset/Restore, failed Restore
 atomicity and real PostgreSQL replay of actual emitted native SQL:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringEncodingFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceStringEncoding' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringEncoding' VERBOSE=0
+make check RUN='^TestReferenceStringEncodingFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceStringEncodingFeatureSmoke$'
+make check RUN='^TestReferenceStringEncoding'
+make check REFERENCE=1 RUN='^TestReferenceStringEncoding'
 ```
 
 Each invocation has a900-second deadline. Smoke does not replace the complete
-family, ordinary quickcheck or post-merge fullcheck. The offline Unicode generator
+family, ordinary quickcheck or post-merge finalcheck. The offline Unicode generator
 also emits assignment ranges from the existing vendored Unicode16 data:
 
 ```sh
@@ -1742,8 +1736,8 @@ The supplemental `TestConcurrentIndexHashInvalidQueryCapture` uses actual
 incomplete buckets and matching storage identity to prove invalid capture is
 rejected, heap filtering returns the row, and healthy reconstruction is selected.
 Both regressions preserve pre-ready admission rather than repairing the fixture.
-Run each selector with both `make quickcheck PACKAGES=./reference RUN='...' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='...' VERBOSE=0`.
+Run each selector with both `make check RUN='...'`
+and `make check REFERENCE=1 RUN='...'`.
 Affected ordinary-route regression selectors additionally include
 `^TestReferenceBtreeIndex(OrdinaryShareBuild|ExcludedDefinitionsDiagnostics)$`
 and `^TestReferenceRelationDeadlock`.
@@ -1752,11 +1746,11 @@ ordinary pending-Share/later-writer queue ordering is proved by internal lock
 units: no public native queue catalog or worker-start timing is substituted.
 The discovery-only pg-only filter has been removed: every final shared backend
 loop discovers native and PostgreSQL scenarios according to the standard mode.
-Native U1–U7 use `make quickcheck PACKAGES=./internal/engine RUN='^TestConcurrentIndex' VERBOSE=0`;
-parser ordinary/concurrent heads use the same invocation with `PACKAGES=./internal/parser`.
-Each quickcheck invocation has one 900-second deadline. Root owns parser
+Native U1–U7 use `make check RUN='^TestConcurrentIndex'`;
+parser ordinary/concurrent heads use the same RUN selector.
+Each selected check invocation has one 900-second deadline. Root owns parser
 generation, formatting and verification after all implementation edits land;
-agents do not run mid-flight checks. Final post-merge fullcheck uses one
+agents do not run mid-flight checks. Final post-merge finalcheck uses one
 1800-second deadline. These commands are required inputs, not reported passes.
 
 The current-tip ordinary UNIQUE/NND integration retains its independent shared
@@ -1778,8 +1772,8 @@ assertions cover default/provider spelling, the INCLUDE ordinal boundary and
 post-TYPE state without changing canonical Dump/replay authority:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceIndexClausesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceIndexClausesFeatureSmoke$'
 ```
 
 This smoke does not replace the complete identical dual-mode family selection
@@ -1790,24 +1784,24 @@ for B-tree AM/index capabilities, mixed DESC/NULLS ordering and INCLUDE roles,
 plus prepared true/false/NULL and explicit native Reset/Restore/foreign restore:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceIndexPropertiesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceIndexPropertiesFeatureSmoke$'
 ```
 
 Run both with a900-second deadline. The full `^TestReferenceIndexProperties`
 selector covers every new definition; see [the inquiry design](design/PG18-FUNC-INFO-INDEX-PROPERTIES.md)
 for the shared-coercion consumer risk selectors. Smoke does not replace those
-identical dual-mode selective runs, ordinary quickcheck or post-merge fullcheck.
+identical dual-mode selective runs, ordinary quickcheck or post-merge finalcheck.
 The dependency catalog family independently specifies exact represented edge bags,
 all seven result descriptors, owner-specific diagnostics, supported private
 sequence changes, retained cursors and native controls with actual SQL replay.
 Run the identical complete family in both modes, each with a900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGDepend' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGDepend' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGDependFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferencePGDepend'
+make check REFERENCE=1 RUN='^TestReferencePGDepend'
+make check RUN='^TestReferencePGDependFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGDependFeatureSmoke$'
 ```
 Changed existing default definitions must also run in both modes; the family
 prefix does not select them. They preserve genuine direct and prepared CREATE,
@@ -1815,8 +1809,8 @@ default INSERT, data/provider sentinels and existing excluded sequence-expressio
 controls without separate duplicated PostgreSQL-only success bodies:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(SequenceLatestIntegrationDefaultBoundary|StringCoreRegclassDefaultSourceConsumerRoutes|StringCoreRegclassDefaultBoundary)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(SequenceLatestIntegrationDefaultBoundary|StringCoreRegclassDefaultSourceConsumerRoutes|StringCoreRegclassDefaultBoundary)$' VERBOSE=0
+make check RUN='^TestReference(SequenceLatestIntegrationDefaultBoundary|StringCoreRegclassDefaultSourceConsumerRoutes|StringCoreRegclassDefaultBoundary)$'
+make check REFERENCE=1 RUN='^TestReference(SequenceLatestIntegrationDefaultBoundary|StringCoreRegclassDefaultSourceConsumerRoutes|StringCoreRegclassDefaultBoundary)$'
 ```
 
 Each selective invocation has a900-second deadline. Source-route migration
@@ -1825,9 +1819,9 @@ or these changed existing definitions.
 
 
 Supplemental collector/walker units use
-`make quickcheck PACKAGES=./internal/engine RUN='^TestPGDepend' VERBOSE=0`.
+`make check RUN='^TestPGDepend'`.
 These do not replace the dual-mode runs, ordinary quickcheck or post-merge
-fullcheck. Public capability boundaries remain explicit: no REGCLASS column
+finalcheck. Public capability boundaries remain explicit: no REGCLASS column
 storage, set-operation query rollout, transactional CREATE TABLE/ALTER DEFAULT
 or native TEMP-table creation is implied by metadata reading.
 
@@ -1838,10 +1832,10 @@ SESSION/LOCAL and TEMP restrictions, held resources, coupled existing-index/
 ALTER/data/sequence publication, SSI finalization and native replacement guards:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransaction' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransaction' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePreparedTransactionFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferencePreparedTransaction'
+make check REFERENCE=1 RUN='^TestReferencePreparedTransaction'
+make check RUN='^TestReferencePreparedTransactionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePreparedTransactionFeatureSmoke$'
 ```
 
 Bound each invocation to900 seconds. Smoke expects private7 invisible to both
@@ -1897,7 +1891,7 @@ diagnostics. Invalid key definitions still fail both validation-only and
 materializing phases.
 
 ```sh
-make quickcheck PACKAGES=./internal/engine RUN='^TestPrepared' VERBOSE=0
+make check RUN='^TestPrepared'
 ```
 
 Held-resource timeout Context includes genuine PostgreSQL physical tuple
@@ -1915,15 +1909,15 @@ restoration, two foreign restores, destination-owned enum/domain/array grouping
 after source Reset, and retained rows/schema across destination Reset/Restore.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$' VERBOSE=0
+make check RUN='^TestReferenceQuerySetOpsFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySetOpsFeatureSmoke$'
+make check RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$'
 ```
 
 Each invocation has a900-second deadline. The complete family selector is
 `RUN='^TestReferenceQuerySetOps'` in both modes; smoke does not replace it or
-ordinary quickcheck/post-merge fullcheck. Lifecycle checks row-dependent late
+ordinary quickcheck/post-merge finalcheck. Lifecycle checks row-dependent late
 source/assignment failures, zero-demand runtime suppression with all-arm analysis
 and argument admission, ordinary native pre-cancellation, genuine observed
 PostgreSQL server admission/cancellation, and SAME owner/preheld set recovery.
@@ -1941,9 +1935,9 @@ under LIMIT0; native private ACL units exercise the same authority boundary
 alongside shared public table/column grants. Run each command within900 seconds:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestQuerySetStored(InheritedMarks|LockAuthority|ReferenceKinds|RelationModes)$' VERBOSE=0
+make check RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$'
+make check RUN='^TestQuerySetStored(InheritedMarks|LockAuthority|ReferenceKinds|RelationModes)$'
 ```
 
 The private units retain local wait/strength/diagnostic recipes, ordinary-view
@@ -1959,17 +1953,17 @@ prove indexing, so also run the package-function smoke that asserts the captured
 real root, duplicate bucket candidates and consumption by the original filter:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceHashIndexFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestHashIndexLookupFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReferenceHashIndexFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceHashIndexFeatureSmoke$'
+make check RUN='^TestHashIndexLookupFeatureSmoke$'
 ```
 
-Each quickcheck has a900-second deadline. Full changed-definition selectors must
+Each selected check has a900-second deadline. Full changed-definition selectors must
 run identically in both reference modes before review/integration:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)' VERBOSE=0
+make check RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)'
+make check REFERENCE=1 RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)'
 ```
 
 The `TestReferencePGTableViews` family independently pins exact eight/four-field
@@ -1986,11 +1980,11 @@ Run every new/migrated reference definition in both modes, each with a900-second
 deadline, before review:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^(TestReferencePGTableViews.*|TestReferenceViewSmokeCatalogReplayControls)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferencePGTableViews.*|TestReferenceViewSmokeCatalogReplayControls)$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^Test(TableSummary.*|TableViewSummaryBuiltinIdentity)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$' VERBOSE=0
+make check RUN='^(TestReferencePGTableViews.*|TestReferenceViewSmokeCatalogReplayControls)$'
+make check REFERENCE=1 RUN='^(TestReferencePGTableViews.*|TestReferenceViewSmokeCatalogReplayControls)$'
+make check RUN='^Test(TableSummary.*|TableViewSummaryBuiltinIdentity)$'
+make check RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$'
+make check REFERENCE=1 RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$'
 ```
 
 Expected feature observations include DROP-last-index preserving true, a fresh
@@ -2007,10 +2001,10 @@ ready-invalid concurrent hash witness also checks descriptor enumeration.
 Run the complete affected selector in both modes (900 seconds per invocation):
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferencePGIndexes.*|TestReferenceIndexMaintenanceMetadataOracle|TestReferenceDropViewIndexWrongKind|TestReferenceConcurrentIndexHashInvalidQuery|TestReferenceConcurrentIndexFeatureSmoke)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^(TestReferencePGIndexes.*|TestReferenceIndexMaintenanceMetadataOracle|TestReferenceDropViewIndexWrongKind|TestReferenceConcurrentIndexHashInvalidQuery|TestReferenceConcurrentIndexFeatureSmoke)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGIndexesFeatureSmoke$' VERBOSE=0
+make check REFERENCE=1 RUN='^(TestReferencePGIndexes.*|TestReferenceIndexMaintenanceMetadataOracle|TestReferenceDropViewIndexWrongKind|TestReferenceConcurrentIndexHashInvalidQuery|TestReferenceConcurrentIndexFeatureSmoke)$'
+make check RUN='^(TestReferencePGIndexes.*|TestReferenceIndexMaintenanceMetadataOracle|TestReferenceDropViewIndexWrongKind|TestReferenceConcurrentIndexHashInvalidQuery|TestReferenceConcurrentIndexFeatureSmoke)$'
+make check RUN='^TestReferencePGIndexesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGIndexesFeatureSmoke$'
 ```
 
 Initial pinned oracle discovery passed before production. All scenario-local
@@ -2026,7 +2020,7 @@ captures and original invoker dispatch. Structural metadata units remain
 ACL-neutral. Run alongside the shared reference gate:
 
 ```sh
-make quickcheck PACKAGES=./internal/engine RUN='^(TestPGIndexes.*|TestIndexMaintenanceMetadata.*)$' VERBOSE=0
+make check RUN='^(TestPGIndexes.*|TestIndexMaintenanceMetadata.*)$'
 ```
 
 The shared referenceHeldStatement retains its three-field layout and adds actual
@@ -2036,8 +2030,8 @@ underlying plain DB/Tx, never a Context stand-in. This central fixture change al
 requires supplemental identical all-reference risk selection (each900 seconds):
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference' VERBOSE=0
+make check RUN='^TestReference'
+make check REFERENCE=1 RUN='^TestReference'
 ```
 
 
@@ -2061,17 +2055,17 @@ metadata/empty-buffer differences remain explicit, not normalized goldens.
 Run each selective quickcheck under a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check REFERENCE=1 RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccessFeatureSmoke$'
 ```
 
 StringPad protects the reused reverse provider and shared parser/binder.
 Feature smoke exercises the released six-function projection, held frames,
 bounds/new-bit failure and recovery, retained source, empty/NULL metadata and
 controls replay. These gates do not replace root quickcheck or post-merge
-fullcheck (one 1800-second deadline).
+finalcheck (one 1800-second deadline).
 
 ## RANGE partition reference coverage
 
@@ -2225,25 +2219,25 @@ Run the same completed reference definitions in both modes, with a separate
 900-second deadline for every invocation:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$' VERBOSE=0
-make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestRangePartition' VERBOSE=0
-make quickcheck RACE=1 PACKAGES=./internal/engine RUN='^TestRangePartition(Concurrency|Publication|Capture|Remap)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^Test(CheckInsertPrivilegeDisclosure|RangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|Retirement|RemapExplicitCollation))' VERBOSE=0
+make check RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)'
+make check REFERENCE=1 RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)'
+make check RUN='^TestReferenceRangePartitionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'
+make check RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'
+make check RUN='^TestRangePartition'
+make check RACE=1 RUN='^TestRangePartition(Concurrency|Publication|Capture|Remap)'
+make check RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$'
+make check RUN='^Test(CheckInsertPrivilegeDisclosure|RangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|Retirement|RemapExplicitCollation))'
 ```
 
 Package-function witnesses inspect owned descriptors, cooked type/row identities,
 private importer provenance, real lock queues, multi-leaf transaction stages and
 complete self-catalog expression remapping with retained old cursors. They supplement
 the shared public reference routes. The root generates/formats the parser and runs
-verification only after all edits pause; the post-integration fullcheck runs once
-under a single 3600-second deadline, with actual failures remedied separately.
+verification only after all edits pause; the post-integration finalcheck runs once
+under a single 1800-second deadline, with actual failures remedied separately.
 
 ## How the dual-mode fixture works
 
@@ -2275,9 +2269,9 @@ fresh wrapped/native control settings, identities, prepared consumers and case
 catalogs; admin-only sanitation checks run in pinned mode. It does not assert
 incidental backend PIDs, reconnection counts or timing. Focused gates, each with
 a 900-second deadline:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`
+`make check RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`
 and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`.
+`make check REFERENCE=1 RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`.
 
 Non-public schemas are not reset by the fixture. Register
 `schemaReferenceCleanup(t, "schema_name")` before constructing the scenario
@@ -2362,12 +2356,12 @@ existing CPU scenarios, and lock workers use `referenceLockOperation` plus the
 PostgreSQL external queue barrier. No new delay SQL is needed.
 
 ```sh
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimeoutFeatureSmoke$' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceTimeoutFeatureSmoke$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout' VERBOSE=0
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$'
+timeout 900s make check RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceTimeoutFeatureSmoke$'
+timeout 900s make check RUN='^TestReferenceTimeoutFeatureSmoke$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceSettingsPublicTimeout'
+timeout 900s make check RUN='^TestReferenceSettingsPublicTimeout'
 ```
 
 The pinned full ten-definition discovery run passed before production changes.
@@ -2400,8 +2394,8 @@ the same predicate and owned-buffer assertions. No sentinel is converted into
 a manufactured diagnostic object.
 
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestTimeoutOracleLogFrames$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestTimeoutOracleLogFrames$' VERBOSE=0
+timeout 900s make check RUN='^TestTimeoutOracleLogFrames$'
+timeout 900s make check REFERENCE=1 RUN='^TestTimeoutOracleLogFrames$'
 ```
 
 Native still asserts its full structured portable diagnostics. Capture PID/OID
@@ -2456,8 +2450,8 @@ its independently specified100ms/300ms budgets and650ms idle stimuli.
 The complete pinned run also confirmed actual Go-Tx-held ErrBadConn transport,
 distinct from Conn-held ErrConnDone. Native caller context cancellation retains
 its ordinary error; pq health stays separate. Native mechanics selectors are
-`timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestSessionTimeout'`
-and `timeout 900s make quickcheck PACKAGES=. RUN='^TestSessionFatalNoReplayMechanics$'`.
+`timeout 900s make check RUN='^TestSessionTimeout'`
+and `timeout 900s make check RUN='^TestSessionFatalNoReplayMechanics$'`.
 These cover callback generation/token/ref/deadline authority, provisional adoption,
 assignment/restoration, configured idle suppression, active/ready boundaries,
 first end reason, copied fatal diagnostics, canonical RESET ALL batch/journal/cache
@@ -2465,7 +2459,7 @@ publication/restoration and no-replay adapter classification.
 The root runs these and both completed reference modes after edits; readiness
 or a discovery pass is not production verification.
 
-`timeout 900s make quickcheck PACKAGES=./internal/engine RUN='^TestSessionTimeoutPending' VERBOSE=0`
+`timeout 900s make check RUN='^TestSessionTimeoutPending'`
 exercises actual Session liveness, not merely relation-wait diagnostic ordering.
 Canonical scopes and real queued requests cover due/delivered lock ERROR,
 absolute statement expiry before context delivery, both SQL deadlines, ERROR
@@ -2477,8 +2471,8 @@ recoverable ERROR on a physically ended owner. Workers/callbacks join with
 bounds; no SQL text, sleeps or production scheduler hook is used.
 
 Changed complete builtin-inventory definitions also require both modes:
-`timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0`
-and `timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$' VERBOSE=0`.
+`timeout 900s make check RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$'`
+and `timeout 900s make check REFERENCE=1 RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle)|FormatEncodingSettings|TimezoneBuiltinRegistryDescriptions)$'`.
 The supported native registry is29 independently named definitions, not the
 previous26; the PostgreSQL projection independently checks the new three0-valued
 definitions and exact release short_desc, not whole-server catalog equality.
@@ -2658,10 +2652,10 @@ SQLSTATE assertion is a separate failure witness. Standard steps also check
 owned middleware rows and closure; the fixture closes its pools after the
 borrowed connection is returned.
 
-Run `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureAnswer$' VERBOSE=1` first, then
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureAnswer$'`. After any
+Run `make check REFERENCE=1 RUN='^TestReferenceFeatureAnswer$'` first, then
+`make check RUN='^TestReferenceFeatureAnswer$'`. After any
 test or implementation changes, rerun both selectively before review, then run
-ordinary quickcheck and the post-integration fullcheck.
+ordinary quickcheck and the post-integration finalcheck.
 
 ## Allocation checks
 
@@ -2692,8 +2686,8 @@ held-handle, mutation, metadata, admission, locking and stored-view scenarios.
 Both backends execute the same callback without a discovery-only backend filter:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySubquery'
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySubquery'
+make check RUN='^TestReferenceQuerySubquery'
+make check REFERENCE=1 RUN='^TestReferenceQuerySubquery'
 ```
 
 The integration handoff additionally supplies the exact selector for migrated
@@ -2708,7 +2702,7 @@ public SQL feature fixtures and do not use fake database APIs. Parser
 `TestQuerySubqueryAST` / `TestQuerySubquerySourceWalk` check structural syntax,
 positions, source occurrence order and child-specific rowmark ownership.
 Run those private units with
-`make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestQuery(Subquery|DerivedSubquerySyntax)'`.
+`make check RUN='^TestQuery(Subquery|DerivedSubquerySyntax)'`.
 
 
 ## Cast metadata catalog discovery and smoke
@@ -2730,20 +2724,20 @@ Dump replay against PostgreSQL. Discovery-only filters have been removed.
 Run the same completed definitions in both modes before review/integration:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGCast' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGCast' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGCastFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^TestCastCatalog' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestPGCast' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(OID|CastExplicit|Character|JSON|JSONB|PGSequence|PGDepend|PGDescription|QueryOrderCatalogChar)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(OID|CastExplicit|Character|JSON|JSONB|PGSequence|PGDepend|PGDescription|QueryOrderCatalogChar)' VERBOSE=0
+make check RUN='^TestReferencePGCast'
+make check REFERENCE=1 RUN='^TestReferencePGCast'
+make check RUN='^TestReferencePGCastFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGCastFeatureSmoke$'
+make check RUN='^TestCastCatalog'
+make check RUN='^TestPGCast'
+make check RUN='^TestReference(OID|CastExplicit|Character|JSON|JSONB|PGSequence|PGDepend|PGDescription|QueryOrderCatalogChar)'
+make check REFERENCE=1 RUN='^TestReference(OID|CastExplicit|Character|JSON|JSONB|PGSequence|PGDepend|PGDescription|QueryOrderCatalogChar)'
 ```
 
 Every quickcheck invocation has a900-second deadline. Private units exercise
 owner planning/application in all claimed and excluded contexts and projection
 ownership/cancellation/generation retention, without issuing SQL. Selective
-runs and smoke do not replace ordinary quickcheck or the post-merge fullcheck
+runs and smoke do not replace ordinary quickcheck or the post-merge finalcheck
 under its single1800-second deadline.
 
 ## Numeric SUM reference contract
@@ -2764,12 +2758,12 @@ the separate SSI selector covers its comment-only maintenance. Avoid interior
 `$` anchors in `RUN`: make consumes them even inside shell single quotes.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(NumericSum|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects|UpdateReturning|GeneratedStoredDefinitionDiagnostics|ExpressionIndexDiagnostics|NumericAvg|IntervalAvgDiagnostics|DatetimeExtractStoredConsumers|DatetimeExtractFeatureSmoke)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericSum|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects|UpdateReturning|GeneratedStoredDefinitionDiagnostics|ExpressionIndexDiagnostics|NumericAvg|IntervalAvgDiagnostics|DatetimeExtractStoredConsumers|DatetimeExtractFeatureSmoke)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSumSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSerializableWriteSkew$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerializableWriteSkew$' VERBOSE=0
+make check RUN='^TestReference(NumericSum|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects|UpdateReturning|GeneratedStoredDefinitionDiagnostics|ExpressionIndexDiagnostics|NumericAvg|IntervalAvgDiagnostics|DatetimeExtractStoredConsumers|DatetimeExtractFeatureSmoke)'
+make check REFERENCE=1 RUN='^TestReference(NumericSum|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects|UpdateReturning|GeneratedStoredDefinitionDiagnostics|ExpressionIndexDiagnostics|NumericAvg|IntervalAvgDiagnostics|DatetimeExtractStoredConsumers|DatetimeExtractFeatureSmoke)'
+make check RUN='^TestReferenceNumericSumSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceNumericSumSmoke$'
+make check RUN='^TestReferenceSerializableWriteSkew$'
+make check REFERENCE=1 RUN='^TestReferenceSerializableWriteSkew$'
 ```
 
 Numeric SUM followed the oracle-first order above: root recorded the pinned
@@ -2792,8 +2786,8 @@ their own contracts. Root validated these new cases on pinned PostgreSQL before
 removing their discovery filter and observing native behavioral red:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericSumReview' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericSumReview' VERBOSE=0
+make check RUN='^TestReferenceNumericSumReview'
+make check REFERENCE=1 RUN='^TestReferenceNumericSumReview'
 ```
 
 Both completed-mode runs require separate900-second deadlines after remedies;
@@ -2815,10 +2809,10 @@ transitions, old/new-generation remapping, actual provider cancellation checks,
 late/prepublication eager cancellation and exact column-ACL manifests:
 
 ```sh
-make quickcheck PACKAGES=./internal/sqltype RUN='^Test(NumericSum|NumericAvg)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^Test(Sum|NumericSum|NumericAvg|Avg|UpdateReturningMalformedSumShape)' VERBOSE=0
-make quickcheck PACKAGES=./internal/parser RUN='^Test(Sum|NumericSum|UpdateReturningAggregate)' VERBOSE=0
-make quickcheck VERBOSE=0
+make check RUN='^Test(NumericSum|NumericAvg)'
+make check RUN='^Test(Sum|NumericSum|NumericAvg|Avg|UpdateReturningMalformedSumShape)'
+make check RUN='^Test(Sum|NumericSum|UpdateReturningAggregate)'
+make quickcheck
 ```
 
 Focused smoke expects direct/prepared six outputs4, promoted nullable metadata,
@@ -2826,7 +2820,7 @@ typed empty/all-NULL results, exact INT8 max-pair NUMERIC, decimal4.656/0.0000,
 ordered REAL0, negative zero, held parameter recovery, full diagnostics/no
 partial effects, global INSERT affected1 versus empty keyed0, and SUM view
 control replay with retained metadata. Root runs selective checks under separate
-900-second deadlines after generation/formatting, and fullcheck only after merge
+900-second deadlines after generation/formatting, and finalcheck only after merge
 under one1800-second deadline.
 
 ## Numeric arithmetic oracle-first contract
@@ -2855,14 +2849,14 @@ Prepare routes independently require42P08, not protocol emulation.
 Root runs each invocation under a separate 900-second deadline:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericArithmeticFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^Test(NumericArithmetic|NumericPower|NumericAvg|MathScalar)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestExpressionNumericArithmetic' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)'
+make check RUN='^TestReference(NumericArithmetic|ArithmeticBoundaries)'
+make check RUN='^TestReferenceNumericArithmeticFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceNumericArithmeticFeatureSmoke$'
+make check RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)'
+make check REFERENCE=1 RUN='^TestReference(NumericAvg|MathScalar|FloatingArithmetic)'
+make check RUN='^Test(NumericArithmetic|NumericPower|NumericAvg|MathScalar)'
+make check RUN='^TestExpressionNumericArithmetic'
 ```
 
 The composed feature smoke demands exact0.3, large integer9223372036854775809,
@@ -2889,11 +2883,11 @@ replace native behavioral-red or final dual-mode validation.
 Run every invocation under its own 900-second deadline:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleMembership' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembership' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembershipFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleMembershipFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^Test(Membership|Role|Authorization|SessionIdentity|ViewReplace)' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferenceRoleMembership'
+make check RUN='^TestReferenceRoleMembership'
+make check RUN='^TestReferenceRoleMembershipFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRoleMembershipFeatureSmoke$'
+make check RUN='^Test(Membership|Role|Authorization|SessionIdentity|ViewReplace)'
 ```
 
 The feature smoke requires inherited owner row7 with INT4 metadata versus
@@ -2940,14 +2934,14 @@ warnings and independent origins. INHERIT/SET actions remain updates even when
 already false; do not incorrectly treat them as ADMIN-style no-ops.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleMembershipBatch' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleMembershipBatch' VERBOSE=0
+make check RUN='^TestReferenceRoleMembershipBatch'
+make check REFERENCE=1 RUN='^TestReferenceRoleMembershipBatch'
 ```
 The full-role consumer selector must also run in both reference modes:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(Role|SessionIdentity|ViewReplace)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Role|SessionIdentity|ViewReplace)' VERBOSE=0
+make check RUN='^TestReference(Role|SessionIdentity|ViewReplace)'
+make check REFERENCE=1 RUN='^TestReference(Role|SessionIdentity|ViewReplace)'
 ```
 
 ## Session advisory lock reference contract
@@ -2983,20 +2977,20 @@ Every worker owns cancellation and bounded join before physical/schema cleanup.
 Prior advisory holds survive deadlock/timeout/rollback; cleanup must explicitly
 unlock or close them before requiring a blocked survivor to finish.
 
-Each quickcheck invocation has a900second deadline:
+Each selected check invocation has a900second deadline:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionCheckConsumers' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySession' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySession' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySessionReview' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionReview' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceCheck(VolatileEffects|ScalarConstants|CompleteRowAndAtomicity|CorePreparedFrames|Controls|ExplicitTransactionAndSavepoint|PreparedExecutionOutputEnvironment|AlterCandidates|AlterCandidateTransactions|ReviewReplayHistory|ReviewReplayOwnedSequence|Review2OrderLogicalRoundtrip)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCheck(VolatileEffects|ScalarConstants|CompleteRowAndAtomicity|CorePreparedFrames|Controls|ExplicitTransactionAndSavepoint|PreparedExecutionOutputEnvironment|AlterCandidates|AlterCandidateTransactions|ReviewReplayHistory|ReviewReplayOwnedSequence|Review2OrderLogicalRoundtrip)' VERBOSE=0
-make quickcheck PACKAGES='./internal/engine ./internal/parser' RUN='^TestAdvisorySession' VERBOSE=0
-make quickcheck RACE=1 PACKAGES='./internal/engine ./internal/parser' RUN='^Test(AdvisorySession|RelationLock|RelationDeadlock)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAdvisorySessionFeatureSmoke' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferenceAdvisorySessionCheckConsumers'
+make check RUN='^TestReferenceAdvisorySession'
+make check REFERENCE=1 RUN='^TestReferenceAdvisorySession'
+make check RUN='^TestReferenceAdvisorySessionReview'
+make check REFERENCE=1 RUN='^TestReferenceAdvisorySessionReview'
+make check RUN='^TestReferenceCheck(VolatileEffects|ScalarConstants|CompleteRowAndAtomicity|CorePreparedFrames|Controls|ExplicitTransactionAndSavepoint|PreparedExecutionOutputEnvironment|AlterCandidates|AlterCandidateTransactions|ReviewReplayHistory|ReviewReplayOwnedSequence|Review2OrderLogicalRoundtrip)'
+make check REFERENCE=1 RUN='^TestReferenceCheck(VolatileEffects|ScalarConstants|CompleteRowAndAtomicity|CorePreparedFrames|Controls|ExplicitTransactionAndSavepoint|PreparedExecutionOutputEnvironment|AlterCandidates|AlterCandidateTransactions|ReviewReplayHistory|ReviewReplayOwnedSequence|Review2OrderLogicalRoundtrip)'
+make check RUN='^TestAdvisorySession'
+make check RACE=1 RUN='^Test(AdvisorySession|RelationLock|RelationDeadlock)'
+make check RUN='^TestReferenceAdvisorySessionFeatureSmoke'
+make check REFERENCE=1 RUN='^TestReferenceAdvisorySessionFeatureSmoke'
 ```
 
 The feature smoke requires double prepared acquisition42, rollback survival,
@@ -3004,7 +2998,7 @@ peer exclusion until the second matching decrement, exact unmatched warning,
 shared pair coexistence and bigint independence, real timeout/wake outcomes and
 empty unlock-all. Native phases additionally require retained counts and data
 through actual controls. Private ownership/graph/binding/parser tests supplement,
-not replace, the identical public contract. Final fullcheck runs only after merge
+not replace, the identical public contract. Finalcheck runs only after merge
 under one1800second deadline.
 
 
@@ -3029,14 +3023,14 @@ now but are not exercised by the PostgreSQL-only discovery phase.
 Run each command with a separate 900-second deadline, in this order:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryAccess.*$' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccess.*$'
 # After removing the temporary filter: establish native failing proof.
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccess.*$' VERBOSE=0
+make check RUN='^TestReferenceBinaryAccess.*$'
 # After implementation: both completed shared definitions and reverse regression union.
-make quickcheck PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(BinaryAccess|StringPad).*$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryAccessFeatureSmoke$' VERBOSE=0
+make check RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check REFERENCE=1 RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccessFeatureSmoke$'
 ```
 
 The composed smoke asserts the six-function released projection, orientation and
@@ -3060,10 +3054,10 @@ The original discovery filter was removed; final scenarios must visit both backe
 Final family selectors (900 seconds each):
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$'
+make check RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$'
+make check REFERENCE=1 RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'
+make check RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'
 ```
 
 Root removed the initial PostgreSQL-only discovery loop before native red.
@@ -3093,7 +3087,7 @@ cancellation, column ACL manifests, physical output origins and Restore whitelis
 No production hook or pg_sleep substitute satisfies active-loop obligations.
 
 Internal selectors for root verification:
-`make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^Test(GroupingSets|QueryAggregate|AggregateModifiers)' VERBOSE=0`.
+`make check RUN='^Test(GroupingSets|QueryAggregate|AggregateModifiers)'`.
 Native control branches remain in shared public scenarios. The typed lifecycle
 uses admitted unconstrained domains; illegal RETURNING grouping uses the admitted
 UPDATE route, not an expansion of the INSERT RETURNING boundary.
@@ -3117,9 +3111,9 @@ Root must freshly validate the completed definitions in both modes, under a
 separate900-second deadline per invocation:
 
 ```sh
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceGroupingSetsReview.*$' VERBOSE=0
+make check REFERENCE=1 RUN='^TestReferenceGroupingSetsReview.*$'
 # Both backends execute shared definitions; no temporary discovery helper.
-make quickcheck PACKAGES=./reference RUN='^TestReferenceGroupingSetsReview.*$' VERBOSE=0
+make check RUN='^TestReferenceGroupingSetsReview.*$'
 ```
 
 Final complete-family selectors above include every changed/new definition.
@@ -3164,15 +3158,15 @@ observes entry into translation/compiler/matcher work. It must not substitute
 Root runs both modes before review, each under the Makefile's 900-second bound:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilar' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSimilar' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilarFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSimilarFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceSimilarReview' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSimilarReview' VERBOSE=0
-make quickcheck PACKAGES='./internal/engine ./internal/sqltype' RUN='^TestSimilar(SubstringPresentationIdentity|ExecutionReplacementOwnership|ExecutionReplacementBudget)$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(BinarySlice|LikeLegacy)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(BinarySlice|LikeLegacy)' VERBOSE=0
+make check RUN='^TestReferenceSimilar'
+make check REFERENCE=1 RUN='^TestReferenceSimilar'
+make check RUN='^TestReferenceSimilarFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSimilarFeatureSmoke$'
+make check RUN='^TestReferenceSimilarReview'
+make check REFERENCE=1 RUN='^TestReferenceSimilarReview'
+make check RUN='^TestSimilar(SubstringPresentationIdentity|ExecutionReplacementOwnership|ExecutionReplacementBudget)$'
+make check RUN='^TestReference(BinarySlice|LikeLegacy)'
+make check REFERENCE=1 RUN='^TestReference(BinarySlice|LikeLegacy)'
 ```
 
 The BinarySlice capability selector preserves positional TEXT/two-argument
@@ -3181,7 +3175,7 @@ legacy migration retains its independent matching/metadata/replay assertion
 union. Genuine parser/provider/bound-node units supplement public reference
 coverage; they must not recreate SQL-through-internal-engine tests. Native
 resource-accounting units use injected limits rather than claiming a portable
-PostgreSQL complexity cutoff. Final fullcheck belongs to the root after merge
+PostgreSQL complexity cutoff. Finalcheck belongs to the root after merge
 under one 1800-second deadline.
 
 ## Role attribute coverage and feature smoke
@@ -3206,13 +3200,13 @@ derivation step and assert unchanged roots/allocator plus RequestEnd completion.
 
 The current `RUN='^TestReferenceRole'` selector covers every affected role
 definition, including the two review regressions and trusted-connector boundary;
-run it in both native and pinned modes before review. Each quickcheck has a
-900-second deadline. Final fullcheck remains the post-merge gate under one
+run it in both native and pinned modes before review. Each selected check has a
+900-second deadline. Finalcheck remains the post-merge gate under one
 1800-second deadline.
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$' VERBOSE=0
+make check RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$'
 ```
 
 Expected smoke: a CREATEROLE actor creates and alters its target through automatic
@@ -3236,19 +3230,19 @@ Restore and cancellation boundaries are independent expectations, not fake
 PostgreSQL capabilities. Package supplements use actual expressions, descriptors,
 roots, cursors, roles/ACLs and lock tickets; they issue no public SQL.
 
-Run each quickcheck separately under a 900-second deadline:
+Run each selected check separately under a 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflict' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflict' VERBOSE=0
-make quickcheck PACKAGES='./internal/parser ./internal/engine ./internal/sqltype' RUN='^TestInsertConflict' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestInsertConflict(Predicate|IndexPositionHints|AuthorizationAfterWait)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestInsertConflictAuthorizationAfterWait$' RACE=1 VERBOSE=0
-make quickcheck PACKAGES=./internal/engine TEST_FLAGS='-count=1 -timeout=120s -run NoTestMatches -bench BenchmarkInsertConflictCommittedOmissions -benchmem' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflictFeatureSmoke$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflictFeatureSmoke$' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertConflict(Contention|ConcurrentSameKey|SnapshotVisibility|ReadCommittedInvisibleConflict|Cancellation|OmittedReservations|ConcurrentProviderPhases|CanceledProvider)$' RACE=1 VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertConflict(Contention|ConcurrentSameKey|SnapshotVisibility|ReadCommittedInvisibleConflict|Cancellation|OmittedReservations|ConcurrentProviderPhases|CanceledProvider)$' RACE=1 VERBOSE=0
+make check RUN='^TestReferenceInsertConflict'
+make check REFERENCE=1 RUN='^TestReferenceInsertConflict'
+make check RUN='^TestInsertConflict'
+make check RUN='^TestInsertConflict(Predicate|IndexPositionHints|AuthorizationAfterWait)'
+make check RUN='^TestInsertConflictAuthorizationAfterWait$' RACE=1
+timeout 900s go test ./internal/engine -count=1 -timeout=0 -run '^$' -bench BenchmarkInsertConflictCommittedOmissions -benchmem
+make check RUN='^TestReferenceInsertConflictFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceInsertConflictFeatureSmoke$'
+make check RUN='^TestReferenceInsertConflict(Contention|ConcurrentSameKey|SnapshotVisibility|ReadCommittedInvisibleConflict|Cancellation|OmittedReservations|ConcurrentProviderPhases|CanceledProvider)$' RACE=1
+make check REFERENCE=1 RUN='^TestReferenceInsertConflict(Contention|ConcurrentSameKey|SnapshotVisibility|ReadCommittedInvisibleConflict|Cancellation|OmittedReservations|ConcurrentProviderPhases|CanceledProvider)$' RACE=1
 ```
 
 The feature smoke asserts exact accepted rows/counts and empty command metadata,
@@ -3266,10 +3260,10 @@ regranted publication. `IndexPositionHints` covers all entries, publication slot
 partial membership, shape/trusted/private reconstruction, reusable TYPE tombstones,
 bad-hint fences and ordinary/nonstable bypass. The benchmark reports both batch
 cost and ns/proposal across128,4096,65536 committed duplicates; compare scaling,
-not a brittle timing threshold. Its make TEST_FLAGS override retains the harness
-and gives the benchmark a120-second internal timeout.
+not a brittle timing threshold. Run this specialized benchmark directly with the
+external deadline and Go timeout disabled, rather than overriding test-target flags.
 Passing native alone does not validate the changed reference definitions.
-Ordinary quickcheck precedes review; final fullcheck runs after integration under
+Ordinary quickcheck precedes review; finalcheck runs after integration under
 one 1800-second deadline.
 
 ## DISTINCT ON reference contracts and feature smoke
@@ -3292,10 +3286,10 @@ Run the complete family and executable feature smoke in both modes, each command
 under its own900-second deadline:
 
 ```sh
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOn' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinctOn' VERBOSE=0
-timeout 900s make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0
-timeout 900s make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$' VERBOSE=0
+timeout 900s make check RUN='^TestReferenceQueryDistinctOn'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceQueryDistinctOn'
+timeout 900s make check RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$'
 ```
 
 Smoke requires seven events→ids3/5/7, hidden payload metadata, NULL grouping,
@@ -3312,8 +3306,8 @@ The former public SQL smoke scenarios now live in untagged reference tests.
 Run both selectors before review, each under its own 900-second deadline:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|TransactionBeginContextCancellation|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|TransactionBeginContextCancellation|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$' VERBOSE=0
+make check RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|TransactionBeginContextCancellation|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$'
+make check REFERENCE=1 RUN='^TestReference(TransactionControlsSmoke|TransactionSmoke|TransactionBeginContextCancellation|ControlTransactionsSmoke|AlterNullability(Smoke|ControlsSmoke)|AlterDropColumn(Smoke|ZeroColumnControlsSmoke))$'
 ```
 
 These definitions preserve direct and prepared SQL, held statements, independent
@@ -3340,7 +3334,7 @@ routes. Run the changed cancellation definitions under race in both modes before
 review, each invocation bounded to 900 seconds:
 
 ```sh
-make quickcheck RACE=1 PACKAGES=./reference RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$' VERBOSE=0
-make quickcheck RACE=1 REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$' VERBOSE=0
+make check RACE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
+make check RACE=1 REFERENCE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 ```
 

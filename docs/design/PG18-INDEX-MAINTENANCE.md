@@ -227,26 +227,26 @@ TestIndexMaintenance units cover real root/membership/publication/grant, complet
 key/payload vectors and decoration equivalence; TestOrderingBtreeIdentity covers
 independently pinned default/actual class identities and original enum consumers.
 
-Root runs generation/formatting and these selective gates; each quickcheck has
+Root runs generation/formatting and these selective gates; each selected check has
 one 900-second deadline. Commands describe required verification, not a claim that
 this document's commands were already exercised.
 
 ```sh
-make quickcheck PACKAGES=./internal/parser RUN='^TestIndexMaintenance' VERBOSE=0
-make quickcheck PACKAGES=./internal/sqltype RUN='^Test(OrderingBtreeIdentity|IndexClauses)' VERBOSE=0
-make quickcheck PACKAGES=./internal/engine RUN='^TestIndexMaintenance' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReference(IndexMaintenance|IndexClauses|BtreeIndex|ExpressionIndex|Unique|DeparseRelations)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(IndexMaintenance|IndexClauses|BtreeIndex|ExpressionIndex|Unique|DeparseRelations)' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders|UniqueDomains)' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders|UniqueDomains)' VERBOSE=0
+make check RUN='^TestIndexMaintenance'
+make check RUN='^Test(OrderingBtreeIdentity|IndexClauses)'
+make check RUN='^TestIndexMaintenance'
+make check RUN='^TestReference(IndexMaintenance|IndexClauses|BtreeIndex|ExpressionIndex|Unique|DeparseRelations)'
+make check REFERENCE=1 RUN='^TestReference(IndexMaintenance|IndexClauses|BtreeIndex|ExpressionIndex|Unique|DeparseRelations)'
+make check RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders|UniqueDomains)'
+make check REFERENCE=1 RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders|UniqueDomains)'
 ```
 
 Smoke checks actual new rename/INDEX/TABLE rebuild/drop behavior, current names,
 exact ordered rows/duplicate bags, backing enforcement/dependencies, explicit
 provider semantics and repeated/non-orderable payloads, unavailable physical
 options without changes, and Dump/Restore/DML/control invariants.
-Ordinary quickcheck and the root's post-integration fullcheck remain required;
-fullcheck has one 1800-second deadline. Readiness is not verification evidence.
+Ordinary quickcheck and the root's post-integration finalcheck remain required;
+finalcheck has one 1800-second deadline. Readiness is not verification evidence.
 
 ## PostgreSQL18 sources
 
