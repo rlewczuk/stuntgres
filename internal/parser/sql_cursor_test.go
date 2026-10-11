@@ -29,8 +29,8 @@ func TestSQLCursorGrammar(t *testing.T) {
 	}{
 		{"FETCH 1 FROM c", 1, false, false},
 		{"FETCH FORWARD +2 IN c", 2, false, false},
-		{"FETCH FORWARD -9223372036854775808 FROM c", math.MinInt64, false, false},
-		{"FETCH FORWARD 9223372036854775807 FROM c", math.MaxInt64, false, false},
+		{"FETCH FORWARD -2147483647 FROM c", -math.MaxInt32, false, false},
+		{"FETCH FORWARD 2147483647 FROM c", math.MaxInt32, false, false},
 		{"FETCH c", 1, false, false},
 		{"FETCH FORWARD FROM c", 1, false, false},
 		{"FETCH ALL FROM c", 0, true, false},
@@ -43,7 +43,7 @@ func TestSQLCursorGrammar(t *testing.T) {
 			t.Fatal(test.query, statements, err)
 		}
 		cursor, ok := statements[0].(*FetchCursor)
-		if !ok || cursor.Name.Text != "c" || cursor.Count != test.count || cursor.All != test.all || cursor.Backward != test.backward {
+		if !ok || cursor.Name.Text != "c" || cursor.Count != test.count || cursor.All != test.all || (cursor.Direction == CursorBackward) != test.backward {
 			t.Fatal(test.query, statements[0])
 		}
 	}
@@ -58,6 +58,53 @@ func TestSQLCursorGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestSQLCursorMotionGrammar(t *testing.T) {
+	for _, test := range []struct {
+		sql       string
+		direction CursorDirection
+		count     int64
+		move      bool
+	}{
+		{"FETCH NEXT FROM c", CursorForward, 1, false},
+		{"FETCH PRIOR IN c", CursorBackward, 1, false},
+		{"FETCH FIRST c", CursorAbsolute, 1, false},
+		{"FETCH LAST c", CursorAbsolute, -1, false},
+		{"FETCH ABSOLUTE -2 c", CursorAbsolute, -2, false},
+		{"FETCH RELATIVE +2 c", CursorRelative, 2, false},
+		{"MOVE BACKWARD -2 c", CursorBackward, -2, true},
+		{"MOVE RELATIVE 0 c", CursorRelative, 0, true},
+	} {
+		statements, err := Parse(test.sql)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(test.sql, err)
+		}
+		m := statements[0].(*FetchCursor)
+		if m.Direction != test.direction || m.Count != test.count || m.Move != test.move || m.Name.Text != "c" {
+			t.Fatal(test.sql, m)
+		}
+	}
+	for _, mode := range []struct {
+		text string
+		want CursorScroll
+	}{
+		{"", CursorScrollDefault}, {"NO SCROLL", CursorNoScroll}, {"SCROLL", CursorScrollEnabled},
+	} {
+		statements, err := Parse("DECLARE c " + mode.text + " CURSOR FOR SELECT 1")
+		if err != nil || statements[0].(*DeclareCursor).Scroll != mode.want {
+			t.Fatal(mode, statements, err)
+		}
+	}
+	for _, count := range []string{"2147483648", "-2147483648", "1.0", "1e1"} {
+		for _, command := range []string{"FETCH", "MOVE"} {
+			_, err := Parse(command + " ABSOLUTE " + count + " FROM c")
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {
+				t.Fatal(command, count, err)
+			}
+		}
+	}
+}
 func TestSQLCursorFullInputAndExcludedCapabilities(t *testing.T) {
 	for _, q := range []string{"FETCH FORWARD $1 FROM c", "FETCH 1+1 FROM c", "FETCH 1 FROM c trailing", "CLOSE c trailing", "DECLARE c NO SCROLL CURSOR FOR SELECT 1 junk junk"} {
 		statements, err := Parse(q)
@@ -65,16 +112,9 @@ func TestSQLCursorFullInputAndExcludedCapabilities(t *testing.T) {
 			t.Fatal("partial cursor syntax accepted", q, statements, err)
 		}
 	}
-	for _, q := range []string{"DECLARE c SCROLL CURSOR FOR SELECT 1", "FETCH ABSOLUTE 1 FROM c", "FETCH RELATIVE 1 FROM c"} {
-		statements, err := Parse(q)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || len(statements) != 0 {
-			t.Fatal(q, statements, err)
-		}
-	}
 	statements, err := Parse("FETCH FORWARD 9223372036854775808 FROM c")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || len(statements) != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || len(statements) != 0 {
 		t.Fatal(statements, err)
 	}
 	// The utility FETCH entry must not consume SELECT's existing bound syntax.

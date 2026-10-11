@@ -171,7 +171,7 @@ package parser
 %token <tok> NOT_DEFERRABLE_LA NOT_IN_LA
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
-%token <tok> DECLARE CURSOR CLOSE SCROLL HOLD FORWARD BACKWARD ABSOLUTE RELATIVE
+%token <tok> DECLARE CURSOR CLOSE SCROLL HOLD FORWARD BACKWARD ABSOLUTE RELATIVE MOVE
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW MATERIALIZED LEFT RIGHT FULL OUTER
 %token <tok> DELETE
@@ -308,8 +308,9 @@ package parser
 %type <expr> copy_where
 %type <stmt> declare_cursor fetch_cursor close_cursor
 %type <cursorFetch> cursor_direction
-%type <desc> cursor_scroll cursor_hold
-%type <tok> cursor_from cursor_word
+%type <integer> cursor_scroll cursor_integer
+%type <desc> cursor_hold
+%type <tok> cursor_from cursor_word cursor_command
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
 %type <ctes> cte_list
@@ -690,30 +691,35 @@ discard: DISCARD ALL { $$=&Discard{Category:DiscardAll,Pos:$1.pos} }
    switch $2.text {case "plans":case "sequences":category=DiscardSequences;default:sqllex.(*lexer).syntax($2);return 1}
    $$=&Discard{Category:category,Pos:$1.pos}
  } ;
-declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Query:$7,Hold:$5,Pos:$1.pos} } ;
-cursor_scroll: /* empty */ { $$=false }
- | NO SCROLL { $$=false }
- | SCROLL { sqllex.(*lexer).failAt("0A000","SCROLL cursors are unsupported",$1.pos.Offset);return 1 } ;
+declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Scroll:CursorScroll($3),Query:$7,Hold:$5,Pos:$1.pos} } ;
+cursor_scroll: /* empty */ { $$=int64(CursorScrollDefault) }
+ | NO SCROLL { $$=int64(CursorNoScroll) }
+ | SCROLL { $$=int64(CursorScrollEnabled) } ;
 cursor_hold: /* empty */ { $$=false }
  | WITHOUT HOLD { $$=false }
  | WITH HOLD { $$=true } ;
 cursor_from: FROM | IN ;
-fetch_cursor: FETCH cursor_direction cursor_from name { $2.Name=Identifier{Text:$4.text,Pos:$4.pos};$2.Pos=$1.pos;$$=$2 }
- | FETCH cursor_direction name { $2.Name=Identifier{Text:$3.text,Pos:$3.pos};$2.Pos=$1.pos;$$=$2 } ;
+cursor_command: FETCH | MOVE ;
+fetch_cursor: cursor_command cursor_direction cursor_from name { $2.Name=Identifier{Text:$4.text,Pos:$4.pos};$2.Pos=$1.pos;$2.Move=$1.text=="move";$$=$2 }
+ | cursor_command cursor_direction name { $2.Name=Identifier{Text:$3.text,Pos:$3.pos};$2.Pos=$1.pos;$2.Move=$1.text=="move";$$=$2 } ;
+cursor_integer: NUMBER { n,ok:=cursorInteger(sqllex,$1,"");if !ok{return 1};$$=n }
+ | '+' NUMBER { n,ok:=cursorInteger(sqllex,$2,"+");if !ok{return 1};$$=n }
+ | '-' NUMBER { n,ok:=cursorInteger(sqllex,$2,"-");if !ok{return 1};$$=n } ;
 cursor_direction: /* empty */ { $$=&FetchCursor{Count:1} }
- | sequence_integer { $$=&FetchCursor{Count:$1} }
+ | cursor_integer { $$=&FetchCursor{Count:$1} }
  | ALL { $$=&FetchCursor{All:true} }
  | FORWARD { $$=&FetchCursor{Count:1} }
- | FORWARD sequence_integer { $$=&FetchCursor{Count:$2} }
+ | FORWARD cursor_integer { $$=&FetchCursor{Count:$2} }
  | FORWARD ALL { $$=&FetchCursor{All:true} }
- | BACKWARD { $$=&FetchCursor{Count:1,Backward:true} }
- | BACKWARD sequence_integer { $$=&FetchCursor{Count:$2,Backward:true} }
- | BACKWARD ALL { $$=&FetchCursor{All:true,Backward:true} }
- | ABSOLUTE sequence_integer { sqllex.(*lexer).failAt("0A000","ABSOLUTE cursor movement is unsupported",$1.pos.Offset);return 1 }
- | RELATIVE sequence_integer { sqllex.(*lexer).failAt("0A000","RELATIVE cursor movement is unsupported",$1.pos.Offset);return 1 } ;
+ | BACKWARD { $$=&FetchCursor{Count:1,Direction:CursorBackward} }
+ | BACKWARD cursor_integer { $$=&FetchCursor{Count:$2,Direction:CursorBackward} }
+ | BACKWARD ALL { $$=&FetchCursor{All:true,Direction:CursorBackward} }
+ | ABSOLUTE cursor_integer { $$=&FetchCursor{Count:$2,Direction:CursorAbsolute} }
+ | RELATIVE cursor_integer { $$=&FetchCursor{Count:$2,Direction:CursorRelative} }
+ | KW_U { direction,count:=CursorForward,int64(1);switch $1.text {case "next":case "prior":direction=CursorBackward;case "first":direction=CursorAbsolute;case "last":direction=CursorAbsolute;count=-1;default:sqllex.(*lexer).syntax($1);return 1};$$=&FetchCursor{Count:count,Direction:direction} } ;
 close_cursor: CLOSE name { $$=&CloseCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | CLOSE ALL { $$=&CloseCursor{All:true,Pos:$1.pos} } ;
-cursor_word: DECLARE | CURSOR | CLOSE | SCROLL | HOLD | FORWARD | BACKWARD | ABSOLUTE | RELATIVE ;
+cursor_word: DECLARE | CURSOR | CLOSE | SCROLL | HOLD | FORWARD | BACKWARD | ABSOLUTE | RELATIVE | MOVE ;
 sequence_persistence: /* empty */ { $$="logged" } | TEMP { $$="temporary" } | UNLOGGED { $$="unlogged" } ;
 sequence_create_head: CREATE sequence_persistence SEQUENCE relation_name { $$=&CreateSequence{Name:$4,Persistence:$2,Pos:$1.pos} }
  | CREATE sequence_persistence SEQUENCE IF NOT EXISTS relation_name { $$=&CreateSequence{Name:$7,Persistence:$2,IfNotExists:true,Pos:$1.pos} } ;

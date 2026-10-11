@@ -95,6 +95,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 		return nil
 	}
 	c.authority.expression = &cursorExpressionData{identity: s.identity, statementStart: s.statementStart}
+	c.state.retain = c.scroll
 	stage, err := openQueryProjectStage(c.authority, &c.state, c.root)
 	if err != nil {
 		return err
@@ -121,6 +122,14 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	}
 	var values []sqltype.Value
 	count := 0
+	savedOrdinal, savedPosition, savedEnd := c.ordinalPosition, c.position, c.atEnd
+	offset := savedOrdinal
+	if c.scroll {
+		if err = c.rewind(); err != nil {
+			return err
+		}
+		offset = 0
+	}
 	if c.position != cursorAfter {
 		if err = c.openProducer(s); err != nil {
 			return err
@@ -150,7 +159,8 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if err = s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
-	c.values, c.count, c.next = values, count, 0
+	c.values, c.count, c.storeOffset = values, count, offset
+	c.ordinalPosition, c.position, c.atEnd = savedOrdinal, savedPosition, savedEnd
 	c.releaseProducer()
 	c.authority = nil
 	c.tx = TxRef{}
@@ -180,31 +190,34 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog Catalog
 	return nil
 }
 
-func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor) (Result, error) {
-	count := c.count - c.next
-	if !fetch.All && fetch.Count < int64(count) {
-		count = int(fetch.Count)
+func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor) (result Result, err error) {
+	defer func() {
+		if err != nil {
+			c.position = cursorFailed
+			c.dispose()
+		}
+	}()
+	var rows *finalRows
+	if !fetch.Move {
+		rows = newFinalRows(c.schema, 0)
+		rows.output = s.output
 	}
-	rows := newFinalRows(c.schema, count)
-	// The store and each returned batch share immutable typed values, not a live
-	// producer. Closing either owner never mutates another detached batch.
-	width := len(c.schema)
-	start, end := c.next*width, (c.next+count)*width
-	rows.values = c.values[start:end:end]
-	rows.output = s.output
-	if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+	moved, err := c.motion(fetch, rows, s)
+	if err != nil {
 		return Result{}, err
 	}
-	if err := s.sessionPublicationPreflight(); err != nil {
+	if rows != nil {
+		if err = s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+			return Result{}, err
+		}
+	}
+	if err = s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
-	}
-	c.next += count
-	if count != 0 {
-		c.position = cursorOn
-	}
-	if (fetch.All || fetch.Count > int64(count)) && c.next == c.count {
-		c.position = cursorAfter
 	}
 	s.completed, s.sessionCompleted = true, true
-	return Result{Count: int64(count), Rows: rows}, nil
+	result.Count = moved
+	if rows != nil {
+		result.Rows = rows
+	}
+	return result, nil
 }

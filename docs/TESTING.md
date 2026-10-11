@@ -1636,7 +1636,11 @@ stored occurrence counts. The later UNION arm is first demanded by the second
 FETCH; its common-type consumer expression is the evaluated target.
 
 `TestSQLCursorCompletedPublicationBoundary` cancels synchronously after Execute
-success but before Finish for FETCH, DECLARE, CLOSE and CLOSE ALL. Expect success
+success but before Finish for MOVE, FETCH, DECLARE, CLOSE and CLOSE ALL. MOVE must
+publish its affected count with a genuinely nil RowResult interface, not a typed
+nil detached receiver: Query MOVE must expose empty metadata without invoking
+detached-row methods. `TestReferenceSQLCursorMoveCountsAndPreparation` covers
+that public direct/prepared Query boundary in both modes. Expect success
 from repeated Finish, an active transaction, preserved install/removal and detached
 row ownership. After rollback to a savepoint, the older cursor next returns row2
 after its delivered row1, never replaying or skipping it; CLOSE is not resurrected.
@@ -5819,3 +5823,104 @@ Dump/Reset/Restore with held-handle reuse, and DROP ownership/canonical redump.
 Exit zero with no output is the expected observation; reference FeatureSmoke
 and full native-control/fence families remain required independent proof.
 
+## Cursor motion selected proof
+
+SCROLL and shared FETCH/MOVE positioning have independent, pinned PostgreSQL
+18.0 expectations. The oracle-first discovery round establishes complete ordered
+sequence traces for late/derived/view projection, ORDER caches, and volatile
+WHERE/VALUES rewind; native results must never supply expected values.
+All selected groups below require both `make check RUN='SELECTOR'` and
+`make check REFERENCE=1 RUN='SELECTOR'`, with an external 900-second deadline.
+The same completed definitions run unchanged in both modes; no discovery filter
+remains. Native precancel continuation is an explicit native-only public-control
+supplement because pq may asynchronously retire its physical socket.
+
+| Group | Exact selector |
+|---|---|
+| Directions/boundaries/metadata | `^TestReferenceSQLCursor(ScrollDirections|ScrollBoundaries|ScrollMetadataAndOccurrences)$` |
+| Counts/projection/smoke | `^TestReferenceSQLCursor(MoveCountsAndPreparation|MotionProjectionEffects|MoveFeatureSmoke)$` |
+| Grammar/no-scroll/analysis | `^TestReferenceSQLCursor(NoScrollMotionExceptions|MotionSyntaxAndDiagnostics|ZeroAndDirections|AnalysisAndDiagnostics)$` |
+| Lifetime/current-of | `^TestReferenceSQLCursor(ScrollLifecycleAndAuthority|ScrollCurrentOf)$` |
+| Prepared preservation | `^TestReferenceSQLCursor(PreparedUtilities|PreparedMetadata|EmptyAndMetadata|RegtypeWarnings|FeatureSmoke)$` |
+| Demand/output preservation | `^TestReferenceSQLCursor(OrderedBatches|DeclarationTiming|Snapshots|QueryConsumers|OutputCapture|Parameters)$` |
+| Authority/locking preservation | `^TestReferenceSQLCursor(NestedDemand|ScopePhases|CorrelatedFailure|AdvisoryScope|LockingLatestRow|SecondFetchLockTimeout)$` |
+| Lifecycle preservation | `^TestReferenceSQLCursor(Savepoints|TransactionEnds|CloseAndSession|Cancellation|NativeControls)$` |
+| Positioned mutation preservation | `^TestReference(DeleteCurrentOf(PositionedRow|DuplicateIdentityAndLastFetch|EligibilityAndDiagnostics|RollbackAndRepeat|FeatureSmoke)|UpdateCurrentOf(PositionedRowAndCounts|IdentityAndPreparation|EligibilityAndDiagnostics|LifetimeAndRollback|FeatureSmoke))$` |
+
+Selected system/frame identity smoke:
+`make check RUN='^TestReferenceSQLCursorScrollSystemIdentity$'` and
+`make check REFERENCE=1 RUN='^TestReferenceSQLCursorScrollSystemIdentity$'`.
+The supported contract is generated-query frame identity, not a new physical
+`ctid` provider. Integrated virtual `n GENERATED ALWAYS AS(i+1)` and compound
+`n+1` projection have independently predetermined values `3,4,5` for `i=1,2,3`;
+native cursor output never supplies those expectations. The first case composes
+the existing LEFT JOIN with generated right rows present only for `i=1,2`:
+compound outputs are `3,4,NULL`. NEXT, ABSOLUTE2, then PRIOR selects present
+`i=1` while a stale next-demand frame would identify absent `i=3`. This is an
+independent non-EOF identity assertion, not a claimed observed native mismatch.
+The all-present `3,4,5` case follows. Direct/prepared traces cover reverse,
+absolute/relative, exact-last and after-EOF motion with meaningful metadata.
+Completed definitions run unfiltered in both modes. A native external-deadline
+expiry is failure evidence, not proof of a particular value mismatch or panic.
+
+Preserve upstream public identity coverage in both modes with
+`RUN='^TestReferenceGeneratedVirtual(BoundedProjection|Frames|WindowIdentity|TableOID|Composition)$'`
+and private native coverage with
+`make check RUN='^TestGeneratedVirtual(ScheduledProjectionIdentity|RetainedViewProjectionIdentity|WindowInputIdentityAdapter)$'`.
+
+Selected-ordinal projection binds its generated frame to the same physical
+index as the selected row and cached order values, independently of the
+sequential next-demand frontier. Preserve both virtual-read and motion-retention
+flags. Private proof:
+`make check RUN='^TestGeneratedVirtualSelectedOrdinalIdentity$'` and
+`make check RUN='^TestSQLCursorScrollVirtualFrameIdentity$'`.
+The first uses real occurrence provenance and a permutation to check present
+and absent selections with a divergent frontier, including a frontier at EOF;
+it also asserts no recipe demand for a missing occurrence, no input mutation
+and no sequential-position change. The second exercises the actual retained SQL
+cursor through reverse/absolute/relative/EOF and CLOSE without public adapter
+socket teardown. Neither suppresses a panic.
+
+Integrated HOLD shared-seam preservation requires these additional small groups
+in both native and real pinned modes, with the same 900-second external deadlines:
+
+* H1: `^TestReferenceSQLCursorHold(CommitRemaining|AutocommitAndPrepared|RollbackAndSavepoints|Materialization|FeatureSmoke)$`
+* H2: `^TestReferenceSQLCursorHold(FailureAndPromotion|ScopeAndPresentation|CatalogChanges|RecursiveCatalogChanges|Restrictions|NestedRowLocks|PrepareBoundaries)$`
+* H3: `^TestReferenceSQLCursorHold(Cancellation|SessionAndControls)$`
+* H4: `^TestReference(SQLCursorZeroAndDirections|SQLCursorAnalysisAndDiagnostics|SQLCursorTransactionEnds|PreparedTransactionUnsupportedSessionBoundaries)$`
+* Additional positioned preservation: `^TestReferenceDeleteCurrentOfUsingReturningAndConstraints$`
+
+Combined SCROLL/HOLD capture and saved-position witnesses are
+`^TestReferenceSQLCursorScrollHold(CommitPosition|CapturedValues)$`.
+Their independent release-source expectations require an oracle-first checkpoint
+before production composition, followed by the same complete definitions in both
+modes without discovery gates. No prior cursor motion golden is replaced by these
+interaction witnesses.
+The combined witnesses assert MOVE's empty schema and affected counts separately,
+complete EOF descriptors and closed MOVE34000, captured RELATIVE1 values, and
+sequence stability at every stored operation including before-first/after-last.
+Computed NEXTVAL metadata uses the documented unknown-nullability contract, not
+the catalog-column helper assumption or a native-derived value/type golden.
+Supplementary witnesses require pinned oracle proof before native/final proof.
+
+Stored-view partial-capture witnesses use
+`^TestReferenceSQLCursor(StoredViewFrontier|ScrollHoldStoredViewFrontier)$`
+in both modes. Their stored definition is `SELECT i FROM cursor_rows ORDER BY i`,
+with no outer sort: partial MOVE then rewind must drain exactly `[1,2,3]`.
+The SCROLL HOLD variant commits after partial MOVE, preserves the saved position,
+and checks all three stored occurrences, reverse/absolute/relative seeks and
+MOVE counts. Its late NEXTVAL target draws 10 before commit and 11..13 during
+full capture; stored motion preserves those values and sequence state.
+The private `TestSQLCursorStoredViewFrontier` additionally inspects the retained
+child's next-uncaptured position, captured prefix, full-drain cardinality and
+producer release. A position-only rewind preserves that frontier; only actual
+child invalidation clears the view's values, selection, completion and lineage.
+Selected private command: `make check RUN='^TestSQLCursorStoredViewFrontier$'`.
+
+Private parser/engine supplement: `make check RUN='^TestSQLCursor'`.
+Shared public smoke: `make check RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`
+and the identical command with `REFERENCE=1`. It observes SCROLL EOF/reverse,
+absolute/relative traversal, quiet MOVE counts, held prepared movement, detached
+rows and closed-name 34000. Whole-project Docker-free verification remains
+`make quickcheck`, after edits finish; final integration verification remains the
+root's `make finalcheck`, not a replacement for selected dual-mode evidence.

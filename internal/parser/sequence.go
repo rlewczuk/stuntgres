@@ -25,3 +25,16 @@ func sequenceInteger(l sqlLexer, tok lexeme, sign string) (int64, bool) {
 	l.(*lexer).err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 	return 0, false
 }
+
+func cursorInteger(l sqlLexer, tok lexeme, sign string) (int64, bool) {
+	v := numberValue(tok, "")
+	if v.Kind != IntegerValue || v.Integer > 2147483647 {
+		l.(*lexer).syntax(tok)
+		return 0, false
+	}
+	value := v.Integer
+	if sign == "-" {
+		value = -value
+	}
+	return value, true
+}

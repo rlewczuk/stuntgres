@@ -145,3 +145,65 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
+	_, _, d := generatedUnitDescriptor(t)
+	typ := d.columns[0].Usage.Type
+	one, _ := sqltype.Integer(typ, 1)
+	calls := 0
+	probe := generatedOccurrenceProbe{expressionInfo: expressionInfo{usage: typ.Usage()}, calls: &calls, value: one}
+	column := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
+	source := &querySource{
+		materialized: true, flatWidth: 2, flatCount: 3, occurrence: 4,
+		anonymous: [][]sqltype.Value{
+			{sqltype.Null(typ), sqltype.Null(typ)},
+			{sqltype.Null(typ), sqltype.Null(typ)},
+			{sqltype.Null(typ), sqltype.Null(typ)},
+		},
+		occurrences: []int{4}, provenance: []int{0, absentQueryIndex, 1},
+	}
+	state := &queryState{source: source, virtualReads: true}
+	stage := indexedStage{
+		source: source, schema: []ColumnDescriptor{d.columns[1]},
+		expressions: []BoundExpr{column}, retain: true,
+		permutation: []int{2, 0, 1},
+		evaluation:  EvalContext{Scope: 1, Frame: 1, query: state},
+	}
+	dst := make([]sqltype.Value, 1)
+	for _, seek := range []struct {
+		position, ordinal int
+		present           bool
+	}{
+		{2, 0, true},  // frontier absent, selected occurrence present
+		{0, 2, false}, // frontier present, selected occurrence absent
+		{3, 1, true},  // frontier at EOF, selected occurrence present
+		{3, 2, false}, // frontier at EOF, selected occurrence absent
+	} {
+		stage.position = seek.position
+		before := calls
+		ok, err := stage.projectOrdinal(context.Background(), seek.ordinal, dst)
+		wantCalls := before
+		if seek.present {
+			wantCalls++
+		}
+		if err != nil || !ok || dst[0].Type() != typ || dst[0].IsNull() == seek.present || calls != wantCalls {
+			t.Fatal("selected ordinal lost virtual identity", seek, ok, err, dst, calls)
+		}
+		if stage.position != seek.position {
+			t.Fatal("random projection advanced sequential frontier", stage.position, seek)
+		}
+	}
+	stage.position = 3
+	before := calls
+	if ok, err := stage.projectOrdinal(context.Background(), 3, dst); err != nil || ok || calls != before {
+		t.Fatal("EOF projected a nonexistent occurrence", ok, err, calls)
+	}
+	for _, row := range source.anonymous {
+		if !row[0].IsNull() || !row[1].IsNull() {
+			t.Fatal("generated projection mutated physical input", row)
+		}
+	}
+	if err := stage.Close(); err != nil {
+		t.Fatal(err)
+	}
+}

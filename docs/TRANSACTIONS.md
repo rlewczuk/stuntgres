@@ -560,13 +560,13 @@ recoverable error unwind restore its held resource/mode snapshot. New resources
 and later upgrades disappear; earlier and incomparable modes survive. RELEASE
 retains contributions for the parent. SQL cursor declarations after the mark
 are removed; earlier positions/failure/closure are not restored. PL/pgSQL remains
-excluded. See [SQL cursor ownership](DRIVER.md#forward-only-sql-cursors--change-note).
+excluded. See [SQL cursor ownership](DRIVER.md#sql-cursors--change-note).
 Successful Reset/Restore fences and discards stale private marks; rollback-to
 cannot resurrect an old catalog epoch. Full rollback remains recovery-eligible.
 Dump omits private writes; Restore does not accept transaction controls.
 
-Successful DECLARE, FETCH and CLOSE/CLOSE ALL have one final cursor publication
-preflight before irreversible installation, finalized batch delivery or removal.
+Successful DECLARE, FETCH, MOVE and CLOSE/CLOSE ALL have one final cursor publication
+preflight before irreversible installation, batch/count delivery or removal.
 Cancellation after that success cannot retract it in statement Finish. These
 utilities have no private write stage to merge: Finish preserves existing
 transaction writes/deletions/catalog roots, advances the command once and performs
@@ -577,6 +577,20 @@ Mid-demand or preflight failure returns no partial FETCH batch and permanently
 fails that portal; recovery never rewinds it. Runtime notices/warnings use each
 FETCH's current operation and notice policy, independently of DECLARE's snapshot
 and first-demand identity/time data.
+
+Explicit SCROLL retains its executor after EOF. FETCH/MOVE direction, seek and
+rewind change position in that same retained tree; rewind can invalidate volatile
+WHERE/VALUES demand while ORDER caches remain. MOVE has no result schema and
+counts FETCH-equivalent occurrences. Live motion uses current query authority, and
+its final visited row supplies CURRENT OF physical lineage. Endpoints and rewind
+clear lineage. Creating commit rewinds SCROLL HOLD's retained tree, materializes
+the full typed result and restores its ordinal/endpoints; NO SCROLL HOLD keeps
+the efficient remainder-only drain. Promoted motion reads captured typed values
+without query authorization, target replay or physical lineage; current output
+presentation and publication preflight still apply. CURRENT OF retains its
+previous-transaction 24000 restriction. Savepoint rollback never reverses
+successful motion or resurrects closed/failed cursors; later rollback preserves
+promoted stores, while creating rollback removes new live HOLD.
 
 Positioned `UPDATE/DELETE WHERE CURRENT OF name` is ordinary DML, not a stage-free
 cursor utility. Its captured physical RowID is remapped into the current command

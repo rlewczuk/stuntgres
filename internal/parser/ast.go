@@ -1003,22 +1003,41 @@ type GroupingExpr struct {
 func (GroupingExpr) expression()                {}
 func (e GroupingExpr) SourcePosition() Position { return e.Pos }
 
-// SQL cursors retain a private query or exported HOLD remainder; FETCH publishes detached batches.
+// SQL cursors retain a private query or exported HOLD output; FETCH publishes detached batches.
+type CursorScroll uint8
+
+const (
+	CursorScrollDefault CursorScroll = iota
+	CursorNoScroll
+	CursorScrollEnabled
+)
+
+type CursorDirection uint8
+
+const (
+	CursorForward CursorDirection = iota
+	CursorBackward
+	CursorAbsolute
+	CursorRelative
+)
+
 type DeclareCursor struct {
-	Name  Identifier
-	Query *Select
-	Hold  bool
-	Pos   Position
+	Name   Identifier
+	Query  *Select
+	Hold   bool
+	Scroll CursorScroll
+	Pos    Position
 }
 
 func (*DeclareCursor) statement() {}
 
 type FetchCursor struct {
-	Name     Identifier
-	Count    int64
-	All      bool
-	Backward bool
-	Pos      Position
+	Name      Identifier
+	Count     int64
+	All       bool
+	Direction CursorDirection
+	Move      bool
+	Pos       Position
 }
 
 func (*FetchCursor) statement() {}

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,7 +28,8 @@ type sqlCursor struct {
 	epoch                                       CatalogEpoch
 	hold, promoted                              bool
 	values                                      []sqltype.Value
-	count, next                                 int
+	count                                       int
+	storeOffset                                 int64
 	root                                        *projectNode
 	schema                                      []ColumnDescriptor
 	source                                      *querySource
@@ -37,6 +37,9 @@ type sqlCursor struct {
 	stage                                       *indexedStage
 	authority                                   *queryAuthority
 	position                                    cursorPosition
+	scroll                                      bool
+	ordinalPosition                             int64
+	atEnd                                       bool
 	currentSource                               *querySource
 	currentIndex                                int
 	leaves                                      []queryLeaf
@@ -77,7 +80,7 @@ func (c *sqlCursor) releaseProducer() {
 func (c *sqlCursor) dispose() {
 	c.releaseProducer()
 	c.values = nil
-	c.count, c.next = 0, 0
+	c.count, c.storeOffset = 0, 0
 }
 
 // Transaction end removes only its still-live producers. An exported portal's
@@ -149,6 +152,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, visibilityCatalog: s.visibilityCatalog,
 		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
+	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
 	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.output.Regclass, c.state.output.Regtype = nil, nil
@@ -222,14 +226,10 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if c.position == cursorFailed {
 		return Result{}, sqlError("55000", fmt.Sprintf("portal %q cannot be run", fetch.Name.Text))
 	}
-	if fetch.Backward || fetch.Count < 0 || (!fetch.All && fetch.Count == 0 && c.position == cursorOn) {
-		c.position = cursorFailed
-		c.dispose()
-		return Result{}, forwardSQLCursorError()
-	}
 	if c.promoted {
 		return s.fetchHeldCursor(c, fetch)
 	}
+	// Live movement restrictions use the effective direction in the shared owner.
 	c.admit(s)
 	defer func() {
 		c.authority.scope = nil
@@ -241,52 +241,33 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if err := s.authorizeSQLCursor(c); err != nil {
 		return Result{}, err
 	}
-	rows := newFinalRows(c.schema, 0)
-	rows.output = c.state.output
-	if !fetch.All && fetch.Count == 0 || c.position == cursorAfter {
-		if err := s.sessionPublicationPreflight(); err != nil {
+	var rows *finalRows
+	if !fetch.Move {
+		rows = newFinalRows(c.schema, 0)
+		rows.output = c.state.output
+	}
+	moved, motionErr := c.motion(fetch, rows, s)
+	if motionErr != nil {
+		return Result{}, motionErr
+	}
+	// HOLD commit continues from the same live producer's next occurrence.
+	if c.stage != nil {
+		c.stage.position = int(c.ordinalPosition)
+	}
+	if rows != nil {
+		if err := s.captureSQLCursorOutput(rows, c.catalog); err != nil {
 			return Result{}, err
 		}
-		s.completed, s.sessionCompleted = true, true
-		return Result{Rows: rows}, nil
-	}
-	if err := c.openProducer(s); err != nil {
-		return Result{}, err
-	}
-	width := len(c.schema)
-	// Project directly into geometrically growing detached flat storage. Distinct
-	// zero-width occurrences still count; no extra projected tuple is probed.
-	for fetch.All || int64(rows.count) < fetch.Count {
-		max := int(^uint(0) >> 1)
-		if rows.count == max || len(rows.values) > max-width {
-			return Result{}, fmt.Errorf("stuntgres: cursor batch cardinality exhausted")
-		}
-		start := len(rows.values)
-		rows.values = slices.Grow(rows.values, width)
-		rows.values = rows.values[:start+width]
-		present, pullErr := c.stage.Next(c.authority, rows.values[start:])
-		if pullErr != nil {
-			return Result{}, pullErr
-		}
-		if !present {
-			rows.values = rows.values[:start]
-			c.position = cursorAfter
-			c.currentSource, c.currentIndex = nil, 0
-			break
-		}
-		rows.count++
-		c.position = cursorOn
-		c.currentSource = c.stage.source
-		c.currentIndex = c.stage.index(c.stage.position - 1)
-	}
-	if err := s.captureSQLCursorOutput(rows, c.catalog); err != nil {
-		return Result{}, err
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
 	s.completed, s.sessionCompleted = true, true
-	return Result{Count: int64(rows.count), Rows: rows}, nil
+	result.Count = moved
+	if rows != nil {
+		result.Rows = rows
+	}
+	return result, nil
 }
 func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int) (Result, error) {
 	if count != 0 {

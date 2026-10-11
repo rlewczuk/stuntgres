@@ -344,7 +344,7 @@ var keywords = [...]keyword{
 	{"minvalue", Unreserved, true, MINVALUE},
 	{"mode", Unreserved, true, MODE},
 	{"month", Unreserved, false, MONTH},
-	{"move", Unreserved, true, 0},
+	{"move", Unreserved, true, MOVE},
 	{"name", Unreserved, true, 0},
 	{"names", Unreserved, true, NAMES},
 	{"national", ColumnName, true, 0},

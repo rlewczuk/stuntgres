@@ -639,6 +639,7 @@ type queryState struct {
 	inherited    queryRowMark
 	frame        uint32
 	outer        *EvalContext
+	retain       bool
 	derived      map[*derivedNode]*querySource
 	ctes         *cteInvocation
 }
@@ -660,6 +661,8 @@ type indexedStage struct {
 	produce          func(context.Context, *indexedStage) (bool, error)
 	finish           func() error
 	done             bool
+	retain           bool
+	reset            func(*indexedStage) bool
 }
 
 func (s indexedStage) count() int {
@@ -704,17 +707,35 @@ func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (
 	if err := ctx.Err(); err != nil {
 		return fail(err)
 	}
-	present, err := s.ensure(ctx, s.position)
+	present, err := s.projectOrdinal(ctx, s.position, dst)
 	if err != nil {
 		return fail(err)
 	}
-	if !present {
+	if !present && !s.retain {
 		if err := s.Close(); err != nil {
 			return fail(err)
 		}
-		return false, nil
 	}
-	row := s.source.row(s.index(s.position))
+	if present {
+		s.position++
+	}
+	return present, nil
+}
+
+func (s *indexedStage) rewind() bool {
+	s.position = 0
+	if s.reset != nil {
+		return s.reset(s)
+	}
+	return false
+}
+
+func (s *indexedStage) projectOrdinal(ctx context.Context, ordinal int, dst []sqltype.Value) (bool, error) {
+	present, err := s.ensure(ctx, ordinal)
+	if err != nil || !present {
+		return present, err
+	}
+	row := s.source.row(s.index(ordinal))
 	if s.expressions == nil {
 		if dst != nil {
 			copy(dst, row)
@@ -722,24 +743,23 @@ func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (
 	} else {
 		s.evaluation.setContext(ctx)
 		s.evaluation.Row = row
-		s.evaluation.bindQueryIdentity(s.source, s.index(s.position))
+		s.evaluation.bindQueryIdentity(s.source, s.index(ordinal))
 		if s.cacheWidth != 0 {
-			s.evaluation.orderValues = s.orderRow(s.position)
+			s.evaluation.orderValues = s.orderRow(ordinal)
 		}
 		for i, expr := range s.expressions {
 			value, err := expr.Eval(&s.evaluation)
 			if err != nil {
-				return fail(err)
+				return false, s.fail(err)
 			}
 			if value.Type() == nil || !value.Type().Concrete() || value.Type() != s.schema[i].Usage.Type {
-				return fail(fmt.Errorf("stuntgres: invalid finalized query value"))
+				return false, s.fail(fmt.Errorf("stuntgres: invalid finalized query value"))
 			}
 			if dst != nil {
 				dst[i] = value
 			}
 		}
 	}
-	s.position++
 	return true, nil
 }
 func (s *indexedStage) release() {
@@ -766,6 +786,7 @@ func (s *indexedStage) Close() error {
 		err = finish()
 	}
 	s.produce = nil
+	s.reset = nil
 	s.release()
 	s.closed = true
 	s.terminal = nil
@@ -778,6 +799,11 @@ func (s *indexedStage) fail(err error) error {
 	return err
 }
 func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
+	return openRetainedQueryNode(ctx, state, node)
+}
+
+func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalNode) (out indexedStage, err error) {
+	defer func() { out.retain = state.retain }()
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
@@ -809,6 +835,11 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority}
 		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 		evaluation := state.evaluation(nil)
+		out.reset = func(out *indexedStage) bool {
+			source.flat, source.flatCount = source.flat[:0], 0
+			out.selection, out.done = out.selection[:0], false
+			return true
+		}
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			i := source.flatCount
 			if i == len(n.rows) {
@@ -888,6 +919,19 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		out := producingStage(&child, n.Schema())
 		out.hashCandidates = candidates
+		baseReset := out.reset
+		out.reset = func(out *indexedStage) bool {
+			changed := baseReset(out)
+			if n.predicate.Properties().Volatility == Volatile {
+				child.rewind()
+				out.selection, out.cacheOccurrences, out.done = out.selection[:0], out.cacheOccurrences[:0], false
+				if out.hashCandidates != nil {
+					out.hashCandidates.position = 0
+				}
+				return true
+			}
+			return changed
+		}
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			for {
 				var i int
@@ -1040,6 +1084,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return 0, ctx.Err()
 		})
 		transferred = err == nil
+		child.reset = nil
 		return child, err
 	case *projectNode:
 		if !state.virtualReads {

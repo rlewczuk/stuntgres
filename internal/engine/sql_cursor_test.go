@@ -110,7 +110,7 @@ func TestSQLCursorZeroWidthAndForwardStates(t *testing.T) {
 	sessionSQL(t, s, "ROLLBACK TO recover")
 	sessionSQL(t, s, "CLOSE c")
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT FROM unit_rows")
-	cursorUnitBatch(t, s, "FETCH FORWARD 9223372036854775807 FROM c", [][]driver.Value{{}, {}, {}})
+	cursorUnitBatch(t, s, "FETCH FORWARD 2147483647 FROM c", [][]driver.Value{{}, {}, {}})
 	cursorUnitBatch(t, s, "FETCH FORWARD 0 FROM c", [][]driver.Value{})
 	sessionSQL(t, s, "CLOSE ALL")
 	sessionSQL(t, s, "CLOSE ALL")
@@ -386,6 +386,16 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		}
 		return result
 	}
+	t.Run("move", func(t *testing.T) {
+		s := cursorUnitSetup(t)
+		sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
+		result := completed(t, s, "MOVE FORWARD 2 FROM c")
+		c := s.cursors.entries["c"]
+		if result.Count != 2 || result.Rows != nil || c.authority.scope != nil || c.position != cursorOn || c.currentSource == nil {
+			t.Fatal("completed MOVE loses count, physical authority or quiet output", result, c)
+		}
+		cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(1)}})
+	})
 	t.Run("fetch-older-than-savepoint", func(t *testing.T) {
 		s := cursorUnitSetup(t)
 		sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")

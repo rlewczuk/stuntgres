@@ -306,6 +306,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		}
 		return StatementDescription{}, nil
 	case *parser.FetchCursor:
+		if s.Move {
+			return StatementDescription{}, nil
+		}
 		if cursor := op.session.cursors.entries[s.Name.Text]; cursor != nil {
 			return StatementDescription{Results: cursor.schema}, nil
 		}
@@ -737,6 +740,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if s.Hold && len(s.Query.Locking) != 0 {
 			err := sqlError("0A000", "DECLARE CURSOR WITH HOLD ... "+s.Query.Locking[0].Mode+" is not supported")
 			err.(*sqlstate.Error).Detail = "Holdable cursors must be READ ONLY."
+			return b, err
+		}
+		if s.Scroll == parser.CursorScrollEnabled && len(s.Query.Locking) != 0 {
+			err := sqlError("0A000", "DECLARE SCROLL CURSOR ... "+s.Query.Locking[0].Mode+" is not supported")
+			err.(*sqlstate.Error).Detail = "Scrollable cursors must be READ ONLY."
 			return b, err
 		}
 		b.commandQuery = true

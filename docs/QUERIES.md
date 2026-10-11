@@ -1614,16 +1614,16 @@ make check RUN='^TestInsertSelectSmoke$'
 ## Positioned DELETE — change note
 
 `DELETE FROM target [AS alias] [USING sources] WHERE CURRENT OF cursor_name
-[RETURNING outputs]` deletes only the physical occurrence most recently returned
-by that named cursor. It is not a Boolean expression and cannot be combined with
+[RETURNING outputs]` deletes only the live physical occurrence most recently visited
+by FETCH or MOVE on that named cursor. It is not a Boolean expression and cannot be combined with
 AND/OR. Names use ordinary identifier folding/quoted decoding. Raw `$1` cursor
 syntax remains syntax42601; RETURNING parameters retain their normal type binding.
 Prepare validates target/source/output analysis without demanding a cursor;
 each Execute resolves the current name, eligibility and position anew.
 
-One bounded FETCH positions on its **last** returned row, including zero-width
+One bounded FETCH or MOVE positions on its **last** visited row, including zero-width
 and duplicate-valued occurrences. Exactly consuming the last row is positioned
-until a real EOF probe; FETCH ALL ends after-last. DELETE neither advances nor
+until a real EOF probe; forward FETCH ALL and MOVE ALL end after-last. DELETE neither advances nor
 clears the cursor: the first deletion counts one and repetition counts zero.
 Equal-valued replacement tuples are not substitutes. Existing row arbitration
 selects the actual current predecessor for RETURNING and preserves RC/RR failures.
@@ -1652,8 +1652,8 @@ are never rebound as an updatable occurrence.
 Native Dump excludes private deletion and all execution state; committed dumps
 restore only survivors and persistent metadata. Failed Restore preserves current
 identity, successful replacement fences it, and detached FETCH/RETURNING rows
-remain immutable. Backward/scroll cursor capabilities and refcursor parser
-hooks are not added. UPDATE CURRENT OF is described below.
+remain immutable. Eligible live SCROLL cursors support backward positioning;
+refcursor parser hooks are not added. UPDATE CURRENT OF is described below.
 Smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
 
@@ -1665,8 +1665,8 @@ positioned DELETE. The qualifier is not a Boolean predicate or raw refcursor
 parameter. Prepare analyzes target/SET/output types without capturing a cursor.
 Each execution resolves the current name, including CLOSE/redeclare incarnations.
 
-Only the last successfully fetched RowID is updated, even with identical or
-zero-column projections or after its values stop matching the cursor's query.
+Only the last successfully visited live physical RowID is updated, including MOVE,
+even with identical or zero-column projections or after its values stop matching the cursor's query.
 UPDATE does not move the cursor. Simultaneous SET expressions and OLD/NEW output
 use the current predecessor, not stale FETCH values; unassigned columns persist.
 Same-value and repeated successful updates count one. A deleted current identity

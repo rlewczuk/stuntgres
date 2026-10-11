@@ -76,7 +76,18 @@ func retainOccurrence(out *indexedStage, child *indexedStage, i int) {
 	}
 }
 func producingStage(child *indexedStage, schema []ColumnDescriptor) indexedStage {
-	return indexedStage{source: child.source, schema: schema, selection: []int{}, cacheWidth: child.cacheWidth, pending: child.pending, finish: child.Close}
+	return indexedStage{source: child.source, schema: schema, selection: []int{}, cacheWidth: child.cacheWidth, pending: child.pending, finish: child.Close,
+		reset: func(out *indexedStage) bool {
+			position := child.position
+			if !child.rewind() {
+				// Cached parent occurrences still own this child's demand frontier.
+				child.position = position
+				return false
+			}
+			out.selection, out.cacheOccurrences, out.orderValues = out.selection[:0], out.cacheOccurrences[:0], out.orderValues[:0]
+			out.done = false
+			return true
+		}}
 }
 
 // Evaluation keeps the input frame/provenance intact and shares the existing
@@ -199,12 +210,24 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 		return child, nil
 	}
 	out := producingStage(&child, n.Schema())
+	initialOffset, initialCount := offset, count
+	baseReset := out.reset
+	out.reset = func(out *indexedStage) bool {
+		if !baseReset(out) {
+			return false
+		}
+		offset, count = initialOffset, initialCount
+		return true
+	}
 	var boundary []sqltype.Value
 	if finite && n.withTies {
 		boundary = make([]sqltype.Value, len(n.peerKeys))
 	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		if finite && count == 0 && !n.withTies {
+			if state.retain {
+				return false, nil
+			}
 			return false, child.Close()
 		}
 		for {
@@ -222,6 +245,9 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 					return false, err
 				}
 				if !peer {
+					if state.retain {
+						return false, nil
+					}
 					return false, child.Close()
 				}
 			}

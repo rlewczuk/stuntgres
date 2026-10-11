@@ -510,37 +510,44 @@ or bit casts/operators/arrays are introduced. See
 Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make check RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`.
 
-Change note: forward-only SQL cursors support `DECLARE [NO SCROLL] CURSOR
-[WITHOUT HOLD|WITH HOLD]`, constant-count/ALL forward FETCH and CLOSE/name/ALL.
+Change note: SQL cursors support `DECLARE [NO SCROLL|SCROLL] CURSOR
+[WITHOUT HOLD|WITH HOLD]`, signed-count/ALL FETCH and MOVE with
+forward/backward/absolute/relative motion, and CLOSE/name/ALL.
 Default/WITHOUT HOLD requires an explicit transaction; WITH HOLD also works in
-autocommit. DECLARE retains visibility without drawing targets. Creating commit
-drains the unfetched HOLD remainder once into session-owned typed output, releases
-its producer/source pins, and preserves exported names across later transactions.
+autocommit. DECLARE retains visibility without drawing targets; FETCH publishes
+detached eager batches under fresh execution authority. MOVE has no result schema
+and reports the corresponding FETCH count. Explicit SCROLL retains execution
+across EOF; rewind rescans node-specific demand while preserving ORDER caches.
+Omitted mode remains conservatively forward-only.
+Creating commit drains NO SCROLL HOLD's unfetched remainder; SCROLL HOLD rewinds
+the retained tree, materializes the full typed result and restores its exact
+position/endpoints. Export releases producer/source pins and preserves names
+across later transactions. Stored FETCH/MOVE never re-evaluates query targets.
 Promotion is per portal, not atomic with later drain/publication failure.
 Transaction end closes unexported ordinary/newly aborted cursors; physical end and
 CLOSE release stores. Savepoints do not rewind surviving movement or undo CLOSE.
 Native prepared FETCH uses the current schema, not lib/pq's stale description.
-SCROLL/backward movement remains excluded. See [SQL cursor ownership](docs/DRIVER.md#forward-only-sql-cursors--change-note).
-Feature smoke: `make check RUN='^TestReferenceSQLCursorFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+See [SQL cursor ownership](docs/DRIVER.md#sql-cursors--change-note).
+Feature smoke: `make check RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`.
 HOLD smoke: `make check RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`.
 
 Change note: `DELETE FROM target WHERE CURRENT OF cursor_name` deletes only the
-physical occurrence most recently delivered by a live updatable SQL cursor.
-Bounded FETCH positions on its last returned row; duplicate values and omitted
+physical occurrence most recently visited by FETCH or MOVE on a live updatable SQL cursor.
+Bounded FETCH or MOVE positions on its last visited row; duplicate values and omitted
 projected keys do not change identity. DELETE does not move the cursor; repeating
 it after successful deletion reports zero. Prepare is quiet and each execution
 resolves the current named incarnation. USING/RETURNING retain their normal
 scopes, metadata and atomic publication. Savepoint rollback restores data without
-rewinding older FETCH movement; full transaction end closes ordinary names.
+rewinding older cursor movement; full transaction end closes ordinary names.
 Exported HOLD has no live physical source and CURRENT OF reports24000.
 See [positioned DELETE](docs/QUERIES.md#positioned-delete--change-note).
 Feature smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
 
 Change note: `UPDATE target SET a=b,b=a WHERE CURRENT OF cursor_name` updates only
-the last fetched physical occurrence, never projected-value matches or a re-run
+the last visited live physical occurrence, including MOVE, never projected-value matches or a re-run
 cursor query. Repeated/same-value updates count one and use the latest old row;
 SET is simultaneous, FROM/RETURNING keep their existing contracts, and UPDATE
 does not move the cursor. Normal row grants and cancellation-sensitive private

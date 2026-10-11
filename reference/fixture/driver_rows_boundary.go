@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-func DriverBasicMetadata(t *testing.T, rows *sql.Rows, postgres bool, types []string, nullable []bool) {
+// Computed targets have unknown nullability, unlike catalog-origin columns.
+func DriverBasicMetadata(t *testing.T, rows *sql.Rows, postgres bool, types []string, nullable []bool, computed ...int) {
 	t.Helper()
 	meta, err := rows.ColumnTypes()
 	if err != nil {
@@ -40,9 +41,13 @@ func DriverBasicMetadata(t *testing.T, rows *sql.Rows, postgres bool, types []st
 			t.Fatalf("ScanType %d %v want %v", i, meta[i].ScanType(), scan)
 		}
 		value, known := meta[i].Nullable()
-		if postgres {
+		unknown := postgres
+		for _, index := range computed {
+			unknown = unknown || i == index
+		}
+		if unknown {
 			if value || known {
-				t.Fatalf("pq Nullable %d %t/%t", i, value, known)
+				t.Fatalf("unknown Nullable %d %t/%t", i, value, known)
 			}
 		} else if !known || value != nullable[i] {
 			t.Fatalf("native Nullable %d %t/%t want %t", i, value, known, nullable[i])

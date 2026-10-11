@@ -181,25 +181,39 @@ expired trusted admission, physical limit release, NOLOGIN and held authority
 refresh. Its repeatable reference selector is
 `RUN='^TestReferenceRoleAttributesFeatureSmoke$'` in both check modes.
 
-## Forward-only SQL cursors — change note
+## SQL cursors — change note
 
-`DECLARE name [NO SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query` belongs to
-one physical session, so use a pinned `sql.Conn` or `sql.Tx`. The default and
-WITHOUT HOLD require a transaction block: an explicit block or a retained implicit
-direct message. WITH HOLD also works in autocommit. DECLARE analyzes the complete
-query and captures its data snapshot and owned parameters without producing
-target values. `FETCH [FORWARD] count FROM|IN name` and `FETCH [FORWARD] ALL`
-continue retained query/result order. Each successful FETCH publishes a fully
-eager, detached batch with the complete schema, including
+`DECLARE name [NO SCROLL|SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query`
+belongs to one physical session, so use a pinned `sql.Conn` or `sql.Tx`.
+The default and WITHOUT HOLD require a transaction block: an explicit block or a
+retained implicit direct message. WITH HOLD also works in autocommit. DECLARE
+analyzes the complete query and captures its data snapshot and owned parameters
+without producing target values.
+FETCH and MOVE accept NEXT/PRIOR/FIRST/LAST, FORWARD/BACKWARD signed count or ALL,
+ABSOLUTE signed count and RELATIVE signed count
+(cursor counts have an int32 lexical magnitude limit).
+Explicit SCROLL retains execution across EOF and permits reverse/seek motion.
+MOVE returns no schema and reports corresponding FETCH cardinality; finite
+discarded traversal still evaluates targets. Rewind rescans node-specific
+volatile WHERE/VALUES demand but preserves ORDER caches. Volatile targets may
+redraw, including transparent derived/view routes; no universal redraw or
+freezing promise applies. Omitted mode remains conservatively forward-only;
+NO SCROLL rejects actual backward demand/rewind, with pristine/zero MOVE exceptions.
+Top-level SCROLL locking clauses are rejected during analysis; nested row marks
+remain legal. Each successful FETCH publishes a fully eager, detached batch with
+the live cursor's complete schema, including
 empty/exhausted and zero-column results. Ordinary SELECT remains fully eager.
 Blocking sorts, aggregates, joins and views may demand input before a batch;
 there is no universal one-expression-draw-per-returned-row promise.
+Retained derived/filter/limit adapters keep their child's next uncaptured demand
+position when rewind preserves cached occurrences. Re-reading the cached prefix
+does not append it again; actual child invalidation still resets generated demand.
 
-The first effective demand (FETCH or creating commit's HOLD drain) captures
-selected stable identity and statement-time expression data; before-first FETCH0
-does not start demand. Live FETCH and commit demand use fresh operation/context,
-current cancellation/notice/lock policy, original transaction authority and
-sequence acquisition. DECLARE's source snapshot is never rebound
+The first effective demand (FETCH, MOVE or creating commit's HOLD materialization)
+captures selected stable identity and statement-time expression data; before-first
+FETCH0 does not start demand. Live FETCH/MOVE and commit demand use fresh
+operation/context, current cancellation/notice/lock policy, original transaction
+authority and sequence acquisition. DECLARE's source snapshot is never rebound
 or reopened. Already returned batches remain immutable after SQL CLOSE,
 transaction/session end or native catalog replacement.
 
@@ -227,10 +241,14 @@ ROLLBACK TO removes declarations after its mark but does not rewind older cursor
 motion, undo CLOSE or heal an executing failure. Recovered failed cursors report
 55000 `portal "name" cannot be run`; missing names give34000.
 
-Creating SQL/Go COMMIT (including CHAIN) drains each healthy HOLD producer's
-unfetched remainder before ON COMMIT actions, write publication and transaction
-cleanup. Export preserves typed values, cardinality, schema and original epoch,
-not a query producer, source pin, lock, operation, context or transaction authority.
+Creating SQL/Go COMMIT (including CHAIN) drains each healthy NO SCROLL HOLD
+producer's unfetched remainder before ON COMMIT actions, write publication and
+transaction cleanup. Explicit SCROLL HOLD instead rewinds the same retained tree,
+materializes its entire typed result and restores the saved ordinal and endpoints,
+even after live EOF. This commit demand can redraw volatile targets; subsequent
+stored FETCH/MOVE only reads captured values through the shared motion owner.
+Export preserves typed values, cardinality, schema and original epoch, not a query
+producer, source pin, lock, operation, context or transaction authority.
 Promotion is per portal: an already exported portal survives a later portal's
 drain failure or final serialization/publication failure even though private
 transaction writes roll back. Subsequent transactions/rollback/PREPARE preserve
@@ -243,6 +261,11 @@ own their codecs, not a retained DECLARE catalog; already delivered batches keep
 their captured spellings after later catalog changes. CLOSE, DISCARD ALL and
 physical session end release stores; returning a connection to its pool does not.
 
+Cursor descriptors preserve column origin: catalog columns retain native known
+nullability; computed targets (including NEXTVAL) retain unknown `(false,false)`
+nullability. pq reports unknown nullability for both. Promotion does not synthesize
+nullable descriptors or convert typed values to text.
+
 Direct top-level FOR UPDATE/NO KEY UPDATE/SHARE/KEY SHARE is rejected after query
 analysis with0A000 and Detail `Holdable cursors must be READ ONLY.` Nested and
 stored-view row marks remain supported and release their locks at creating end.
@@ -250,9 +273,9 @@ A healthy unexported HOLD cursor created in the current transaction prohibits
 PREPARE with0A000 `cannot PREPARE a transaction that has created a cursor WITH HOLD`;
 closed, rolled-back-to, failed-after-recovery and previously exported entries do not.
 
-`UPDATE/DELETE WHERE CURRENT OF name` borrows the most recently delivered physical
-occurrence of the live eligible cursor, not its projected values or a Prepare-time
-incarnation. FETCH FORWARD 2 positions on its second returned row, and an exact
+`UPDATE/DELETE WHERE CURRENT OF name` borrows the most recently visited physical
+occurrence of the live eligible cursor, including MOVE, not its projected values or a
+Prepare-time incarnation. FETCH FORWARD 2 positions on its second returned row, and an exact
 bounded last row stays positioned until an actual EOF probe. Positioned mutations
 use ordinary DML publication, never the stage-free cursor completion exception;
 cancellation/output failure exposes no partial writes or RETURNING batch.
@@ -268,12 +291,13 @@ The native current occurrence retains no operation, context or projected-value
 copy. Reset/Restore fences old identities rather than refreshing them from equal
 restored tuples; detached FETCH/RETURNING results retain their own values/schema.
 
-Backward/negative and on-row zero FETCH give55000 `cursor can only scan forward`
-with the SCROLL hint. SCROLL and ABSOLUTE/RELATIVE movement remain
-independent unsupported capabilities.
+NO SCROLL effective backward demand and actual rewind give55000
+`cursor can only scan forward` with the SCROLL hint. Negative BACKWARD is
+effective forward; zero MOVE does not refetch and can succeed on-row.
+FETCH0 on-row performs backward-discard then forward-refetch and requires SCROLL.
 
 Preparing DECLARE analyzes parameters/dependencies but installs nothing;
-preparing FETCH/CLOSE performs no movement/name-error lookup. A native held
+preparing FETCH/MOVE/CLOSE performs no movement/name-error lookup. A native held
 FETCH always returns the current entry's actual names/types/values, even after
 same-name replacement or missing-at-Prepare declaration. Only FETCH is exempt
 from ordinary immutable prepared SELECT-result signatures. lib/pq independently
@@ -284,8 +308,8 @@ corruption. Closing Go Rows or Stmt does not close or rewind the named cursor.
 Dump excludes names, positions and retained query execution; successful native
 Reset/Restore fences the next admitted use rather than recapturing sources.
 
-Feature smoke: `make check RUN='^TestReferenceSQLCursorFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+Feature smoke: `make check RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`.
 HOLD smoke: `make check RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`.
 

@@ -776,45 +776,60 @@ controls retain their ordinary precanceled context-error contract.
 Complete dual-mode family: `RUN='^TestReferenceStringEncoding'`; feature smoke:
 `RUN='^TestReferenceStringEncodingFeatureSmoke$'` under both check modes.
 
-### Forward-only SQL cursors — change note
+### SQL cursors — change note
 
-`DECLARE [NO SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query`, forward
-constant-count/ALL FETCH and CLOSE/name/ALL reuse the typed query pipeline and one
-physical-session registry. Default/WITHOUT HOLD requires an explicit transaction;
-WITH HOLD also works in autocommit. FETCH is eager/detached; live producers retain
-DECLARATION visibility and position. First-demand identity/time is separate from
-each live FETCH/commit's current operation, context, cancellation, notices, locks
-and original transaction authority. Blocking demand and ordinary SELECT eagerness
-are unchanged; empty/zero-width results retain full schema/cardinality.
-Creating commit drains the unreturned HOLD remainder once before ON COMMIT,
-SSI/write publication and transaction cleanup. Each portal exports immediately;
-its store survives later drain/publication failure while private writes roll back.
-Export keeps typed output/schema/epoch but releases producer/source pins and
-execution authority. Later stored FETCH reevaluates no targets, acquires no query
-locks, and captures current catalog/auth/search_path/timezone presentation.
-REGCLASS/REGTYPE rename/drop names and numeric fallback apply recursively to
-arrays, domains and composites. No DECLARE catalog is retained after export;
-typed values/schema keep their codecs and earlier batches keep captured spellings.
-Later transaction ends and PREPARE preserve exported HOLD; creating rollback
-removes unexported entries. CLOSE, DISCARD ALL and physical end release stores.
-Savepoints do not rewind surviving motion or undo CLOSE/failure. Direct top-level
-rowmarks are prohibited after analysis; nested/stored-view rowmarks are admitted.
+`DECLARE [NO SCROLL|SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query`,
+signed-count/ALL FETCH and MOVE with forward/backward/absolute/relative motion,
+and CLOSE/name/ALL reuse the typed query pipeline and one physical-session registry.
+Default/WITHOUT HOLD requires an explicit transaction; WITH HOLD also works in
+autocommit. FETCH is eager/detached; live producers retain DECLARE visibility
+and position. First-demand identity/time is separate from each live FETCH/MOVE
+or commit's current operation, context, cancellation, notices, locks and original
+transaction authority. Blocking demand and ordinary SELECT eagerness are unchanged;
+empty/zero-width results retain full schema/cardinality.
+Creating commit materializes HOLD output before ON COMMIT, SSI/write publication
+and transaction cleanup. Each portal exports immediately; its store survives later
+drain/publication failure while private writes roll back. Export keeps typed
+output/schema/epoch but releases producer/source pins and execution authority.
+NO SCROLL/omitted HOLD exports only the remaining occurrences. Explicit SCROLL
+HOLD rewinds the retained tree and materializes the full typed result, restoring
+the saved ordinal and before-first/on-row/after-last state. Commit can redraw
+volatile targets; promoted FETCH/MOVE uses that immutable store through the same
+directional/absolute/relative owner, with no query replay or physical CURRENT OF.
+Later stored FETCH reevaluates no targets, acquires no query locks, and captures
+current catalog/auth/search_path/timezone presentation. REGCLASS/REGTYPE rename/drop
+names and numeric fallback apply recursively to arrays, domains and composites.
+No DECLARE catalog is retained after export; typed values/schema keep their codecs
+and earlier batches keep captured spellings. Later transaction ends and PREPARE
+preserve exported HOLD; creating rollback removes unexported entries.
+CLOSE, DISCARD ALL and physical end release stores. Savepoints do not rewind
+surviving motion or undo CLOSE/failure. Top-level HOLD or SCROLL rowmarks are
+prohibited after analysis; nested/stored-view rowmarks are admitted.
 Native prepared FETCH uses the actual live/store schema, not pq's stale decoder.
 Live utility completion preflights preserve delivered batches against late
-cancellation. Implicit HOLD installation is not completion until drain and
-canonical transaction publication succeed. Runtime REGTYPE warnings use current
-demand policy (FETCH/COMMIT/autocommit DECLARE); quiet analysis/non-demanding
-DECLARE/FETCH0 and stored FETCH emit no target warnings. SCROLL/backward and
-ABSOLUTE/RELATIVE movement remain excluded. See [driver ownership and transport distinctions](DRIVER.md#forward-only-sql-cursors--change-note).
-Dual-mode family: `RUN='^TestReferenceSQLCursor'`; feature smoke:
-`RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
+cancellation. Implicit HOLD installation is not completion until materialization
+and canonical transaction publication succeed. Runtime REGTYPE warnings use
+current demand policy (FETCH/MOVE/COMMIT/autocommit DECLARE); quiet analysis,
+non-demanding DECLARE/FETCH0 and stored FETCH emit no target warnings.
+Explicit SCROLL retains the query across EOF and supports reverse/seek motion.
+MOVE returns no schema and counts corresponding FETCH occurrences, not distance
+for absolute/relative motion. Discarded traversal still evaluates targets;
+rewind resets node-specific demand while retaining ORDER caches. Volatile targets
+may redraw; there is no universal freezing or redraw guarantee.
+Random motion binds generated-query frame identity to the selected occurrence,
+not the sequential demand frontier. Retained virtual projections preserve
+outer-join absence through reverse seeks and after-EOF revisits without adding
+a new physical system-column provider.
+Omitted mode remains conservatively forward-only.
+See [driver ownership and transport distinctions](DRIVER.md#sql-cursors--change-note).
+Selected dual-mode groups and motion smoke: [testing](TESTING.md#cursor-motion-selected-proof).
 HOLD smoke: `RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'` in both modes.
 
 ### Positioned DELETE — change note
 
 `DELETE FROM target WHERE CURRENT OF cursor_name` is a dedicated alternative to
 a Boolean WHERE. It resolves the live cursor at execution, not Prepare, and
-deletes the most recently fetched physical occurrence without moving the cursor.
+deletes the most recently visited live physical occurrence, including MOVE, without moving the cursor.
 Unlocked simple physical scans/transparent derived or view projections are
 eligible; actual sort/group/distinct/set/join frontiers are not simply updatable.
 A unique locking reference to the target permits supported sorting and joins;
@@ -5379,7 +5394,8 @@ Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions,
 UPDATE FROM/row-subqueries beyond their selected surfaces. UPDATE and DELETE
-CURRENT OF are admitted for the bounded forward-only named-cursor surface above.
+CURRENT OF is admitted for eligible live named cursors, including SCROLL motion;
+exported HOLD stores retain the previous-transaction restriction.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ/SERIALIZABLE, READ ONLY/READ WRITE
 and [NOT] DEFERRABLE modes. SET TRANSACTION changes current owner modes;

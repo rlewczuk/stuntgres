@@ -64,6 +64,24 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 	// frozen-slot bridge selects the attributes retained by a dependent view.
 	producedSchema := source.nestedRoot.Schema()
 	out := indexedStage{source: source, schema: schema, selection: []int{}, pending: pendingSourceMarks(source, nil)}
+	out.reset = func(out *indexedStage) bool {
+		if source.nestedStage == nil {
+			return false
+		}
+		position := source.nestedStage.position
+		if !source.nestedStage.rewind() {
+			// Retained view rows still own the child's next-uncaptured frontier.
+			source.nestedStage.position = position
+			return false
+		}
+		source.flat, source.flatCount = source.flat[:0], 0
+		out.selection, out.done = out.selection[:0], false
+		if source.lineage != nil {
+			source.lineage.selection = source.lineage.selection[:0]
+			source.lineage.cacheOccurrences = source.lineage.cacheOccurrences[:0]
+		}
+		return true
+	}
 	out.finish = func() error {
 		if source.nestedStage != nil {
 			return source.nestedStage.Close()
@@ -76,7 +94,7 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 			if !ok {
 				return false, fmt.Errorf("stuntgres: view lacks final projection")
 			}
-			innerState := &queryState{source: source.nestedInputs, locking: source.locks.rowMarked(), input: state.input, output: state.output, inherited: source.inherited}
+			innerState := &queryState{source: source.nestedInputs, locking: source.locks.rowMarked(), input: state.input, output: state.output, inherited: source.inherited, retain: state.retain}
 			inner, err := openQueryNode(ctx, innerState, project)
 			if err != nil {
 				return false, err
