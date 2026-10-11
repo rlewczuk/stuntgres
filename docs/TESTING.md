@@ -4005,3 +4005,37 @@ supplement, rather than replace, the root-owned whole-project Docker-free
 quickcheck and final verification.
 
 
+
+## NUMRANGE oracle-first contract
+
+`TestReferenceNumericRange` definitions independently specify continuous numeric
+bounds, exact scale-preserving output, empty/unbounded/NULL distinctions, explicit
+numeric infinities and NaN, direct/prepared binds, metadata, full diagnostics,
+statement atomicity and already-admitted plain/nested domain composition.
+The control scenarios use public native Dump/Reset/Restore and replay actual
+emitted SQL on pinned PostgreSQL; PostgreSQL has no native-control API analogue.
+The feature smoke is `TestReferenceNumericRangeFeatureSmoke`.
+
+The oracle-first Round A definitions were introduced before production changes.
+The temporary discovery filter was removed before native red. Completed definitions
+now share `reference/types/range_helpers_test.go` with the integer-range scenarios:
+actual NUMRANGE/INT4RANGE/INT8RANGE raw values and metadata are asserted before
+normalization. Pinned PostgreSQL18.0 grounds expected diagnostics and phases;
+never learn golden values from native output.
+
+Run from the assigned worktree, with an external900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceNumericRange' REFERENCE=1
+make check RUN='^TestReferenceNumericRange'
+make check RUN='^TestReferenceNumericRangeFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceNumericRangeFeatureSmoke$'
+```
+
+Because common range helpers are consolidated, both selected modes must additionally
+cover `^TestReferenceIntegerRange`. Reserve `make quickcheck` for completed
+whole-project Docker-free verification. Standalone smoke source
+is supplied in the OMP session as `local://numrange-smoke.go`: materialize it
+temporarily as `.numrange-feature-smoke/main.go`, run
+`timeout 60s go run ./.numrange-feature-smoke`, record observations and remove
+the materialized source. Success is quiet exit0; failure reports an actual mismatch.

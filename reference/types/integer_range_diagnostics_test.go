@@ -54,7 +54,7 @@ func TestReferenceIntegerRangeDiagnostics(t *testing.T) {
 				for _, backend := range p.Backends() {
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("CREATE TABLE r(v "+typ+")", 0))
 					want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Detail: tc.detail}
-					query := "/*é*/ INSERT INTO r VALUES (" + integerRangeLiteral(tc.input) + ")"
+					query := "/*é*/ INSERT INTO r VALUES (" + rangeLiteral(tc.input) + ")"
 					// Rune counting, not byte offsets: the opener is character29/byte30.
 					want.Position = "29"
 					for _, route := range []string{"exec", "prepare", "query", "bind", "prepared_bind"} {
@@ -81,9 +81,9 @@ func TestReferenceIntegerRangeDiagnostics(t *testing.T) {
 						})
 					}
 					name := strings.ToUpper(typ)
-					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, integerRangeSelect(backend, "SELECT v FROM r", []string{"v"}, []string{name}, nil, []bool{true}))
+					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, rangeSelect(backend, "SELECT v FROM r", []string{"v"}, []string{name}, nil, []bool{true}))
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("INSERT INTO r VALUES ('[7,8)')", 1))
-					atomic := "INSERT INTO r VALUES ('[1,4]'),(" + integerRangeLiteral(tc.input) + ")"
+					atomic := "INSERT INTO r VALUES ('[1,4]'),(" + rangeLiteral(tc.input) + ")"
 					want.Position = strconv.Itoa(utf8.RuneCountInString(atomic[:strings.LastIndex(atomic, "('")+1]) + 1)
 					for _, prepared := range []bool{false, true} {
 						s := fixture.ErrorDiagnostic(atomic, want)
@@ -98,7 +98,7 @@ func TestReferenceIntegerRangeDiagnostics(t *testing.T) {
 						want.Context = `unnamed portal parameter $1 = ''`
 					}
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(fixture.ErrorDiagnostic("INSERT INTO r VALUES ('[1,4]'),($1)", want, tc.input)))
-					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, integerRangeSelect(backend, "SELECT v FROM r", []string{"v"}, []string{name}, [][]any{{"[7,8)"}}, []bool{true}))
+					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, rangeSelect(backend, "SELECT v FROM r", []string{"v"}, []string{name}, [][]any{{"[7,8)"}}, []bool{true}))
 				}
 			})
 		}

@@ -78,7 +78,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 			var err error
 			destination := t.columns[i].Usage.Type
 			base := destination.BaseType().ID()
-			if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range) {
+			if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange) {
 				// The INSERT destination reconstructs the domain via ordinary
 				// contextual input. Do not introduce an unsupported range cast;
 				// non-contextual stored expressions keep catalogLiteralSQL.

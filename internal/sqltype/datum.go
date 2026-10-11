@@ -56,8 +56,8 @@ func SameDatum(a, b Value) bool {
 	switch a.typ.BaseType().id {
 	case Inet, Cidr:
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
-	case Int4Range, Int8Range:
-		return a.validIntegerRange() && b.validIntegerRange() && a.rangeDatum == b.rangeDatum
+	case Int4Range, Int8Range, NumRange:
+		return a.validRange() && b.validRange() && a.rangeDatum == b.rangeDatum
 	case JSONPath:
 		return a.jsonpath != nil && b.jsonpath != nil && a.text == b.text
 	case JSONB:

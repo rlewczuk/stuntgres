@@ -8,15 +8,15 @@ import (
 	"testing"
 )
 
-func integerRangeLiteral(input string) string {
+func rangeLiteral(input string) string {
 	return "'" + strings.ReplaceAll(input, "'", "''") + "'"
 }
 
 // Check both the public any-scan and middleware-owned stream before normalization.
-func integerRangeSelect(backend fixture.Backend, query string, columns, types []string, values [][]any, nullable []bool) fixture.Step {
+func rangeSelect(backend fixture.Backend, query string, columns, types []string, values [][]any, nullable []bool) fixture.Step {
 	s := fixture.Select(query, columns, types, values)
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if types[column] != "INT4RANGE" && types[column] != "INT8RANGE" {
+		if types[column] != "INT4RANGE" && types[column] != "INT8RANGE" && types[column] != "NUMRANGE" {
 			return false
 		}
 		if value != nil {
@@ -39,7 +39,7 @@ func integerRangeSelect(backend fixture.Backend, query string, columns, types []
 			t.Fatal(err)
 		}
 		for i, typ := range metadata {
-			if types[i] != "INT4RANGE" && types[i] != "INT8RANGE" {
+			if types[i] != "INT4RANGE" && types[i] != "INT8RANGE" && types[i] != "NUMRANGE" {
 				continue
 			}
 			want := reflect.TypeFor[string]()
@@ -66,4 +66,40 @@ func integerRangeSelect(backend fixture.Backend, query string, columns, types []
 		}
 	}
 	return s
+}
+
+func rangeConsumeHeld(t *testing.T, rows *sql.Rows, check fixture.Step) {
+	t.Helper()
+	defer rows.Close()
+	check.CheckMetadata(t, rows)
+	types, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, typ := range types {
+		if typ.Name() != check.Columns[i] || typ.DatabaseTypeName() != check.Types[i] {
+			t.Fatal("held column changed", i, typ)
+		}
+	}
+	got := [][]any{}
+	for rows.Next() {
+		row := make([]any, len(check.Columns))
+		dst := make([]any, len(row))
+		for i := range row {
+			dst[i] = &row[i]
+		}
+		if err := rows.Scan(dst...); err != nil {
+			t.Fatal(err)
+		}
+		for i, value := range row {
+			if !check.CheckRaw(t, i, len(got), value) {
+				fixture.AssertRawValue(t, false, check.Types[i], value)
+			}
+			row[i] = fixture.Normalize(value)
+		}
+		got = append(got, row)
+	}
+	if rows.Err() != nil || !reflect.DeepEqual(got, check.Rows) {
+		t.Fatalf("held rows=%#v want=%#v err=%v", got, check.Rows, rows.Err())
+	}
 }

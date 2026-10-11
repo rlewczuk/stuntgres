@@ -36,12 +36,12 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("INSERT INTO nested VALUES (1,'[1,4]','(1,4]')", 1))
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(fixture.Exec("INSERT INTO nested VALUES ($1,$2,$3)", 1, 2, nil, []byte(nil))))
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("INSERT INTO required VALUES (1,'[1,4]','(1,4]')", 1))
-		check := integerRangeSelect(backend, "SELECT k,a,b FROM r ORDER BY k", []string{"k", "a", "b"}, []string{"INT4", "INT4RANGE", "INT8RANGE"}, want, []bool{false, true, true})
-		vacant := integerRangeSelect(backend, "SELECT a,b FROM vacant", []string{"a", "b"}, []string{"INT4RANGE", "INT8RANGE"}, nil, []bool{false, true})
+		check := rangeSelect(backend, "SELECT k,a,b FROM r ORDER BY k", []string{"k", "a", "b"}, []string{"INT4", "INT4RANGE", "INT8RANGE"}, want, []bool{false, true, true})
+		vacant := rangeSelect(backend, "SELECT a,b FROM vacant", []string{"a", "b"}, []string{"INT4RANGE", "INT8RANGE"}, nil, []bool{false, true})
 		nestedWant := [][]any{{int64(1), "[1,5)", "[2,5)"}, {int64(2), nil, nil}}
-		nested := integerRangeSelect(backend, "SELECT k,a,b FROM nested ORDER BY k", check.Columns, check.Types, nestedWant, []bool{false, true, true})
+		nested := rangeSelect(backend, "SELECT k,a,b FROM nested ORDER BY k", check.Columns, check.Types, nestedWant, []bool{false, true, true})
 		requiredWant := [][]any{{int64(1), "[1,5)", "[2,5)"}}
-		required := integerRangeSelect(backend, "SELECT k,a,b FROM required ORDER BY k", check.Columns, check.Types, requiredWant, []bool{false, false, false})
+		required := rangeSelect(backend, "SELECT k,a,b FROM required ORDER BY k", check.Columns, check.Types, requiredWant, []bool{false, false, false})
 		for _, tc := range []struct {
 			column, detail string
 			a, b           any
@@ -85,7 +85,7 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal("same-engine range domain Restore of actual Dump", err)
 		}
-		integerRangeConsumeHeld(t, held, check)
+		rangeConsumeHeld(t, held, check)
 		for _, step := range []fixture.Step{check, fixture.Prepared(check), vacant} {
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, step)
 		}
@@ -134,7 +134,7 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 			script := "CREATE DOMAIN public.span4 AS int4range; CREATE DOMAIN public.span8 AS int8range; CREATE DOMAIN public.chain4 AS public.span4; CREATE DOMAIN public.chain8 AS public.span8; CREATE TABLE required(k integer NOT NULL,a public.chain4 NOT NULL,b public.chain8 NOT NULL); INSERT INTO required VALUES (1,'[7,8)','[7,8)'); INSERT INTO required VALUES (2," + a + "," + b + ");"
 			wantError := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "` + column + `" of relation "required" violates not-null constraint`, Detail: detail, Schema: "public", Table: "required", Column: column}
 			fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString(script)), &wantError)
-			integerRangeConsumeHeld(t, held, nested)
+			rangeConsumeHeld(t, held, nested)
 			for _, step := range []fixture.Step{check, nested, required, vacant} {
 				fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, step)
 			}
@@ -152,7 +152,7 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 		if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString("CREATE TABLE nested(v text NOT NULL); INSERT INTO nested VALUES ('replacement');")); err != nil {
 			t.Fatal(err)
 		}
-		integerRangeConsumeHeld(t, held, nested)
+		rangeConsumeHeld(t, held, nested)
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM nested", []string{"v"}, []string{"TEXT"}, [][]any{{"replacement"}}))
 		if p.Postgres != nil {
 			if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
@@ -163,10 +163,10 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 			}
 			pg := fixture.Backend{PG: true, DB: p.Postgres, Recorder: p.PostgresRecord}
 			for _, step := range []fixture.Step{
-				integerRangeSelect(pg, check.Query, check.Columns, check.Types, want, []bool{false, true, true}),
-				integerRangeSelect(pg, vacant.Query, vacant.Columns, vacant.Types, nil, []bool{false, true}),
-				integerRangeSelect(pg, nested.Query, nested.Columns, nested.Types, nestedWant, []bool{false, true, true}),
-				integerRangeSelect(pg, required.Query, required.Columns, required.Types, requiredWant, []bool{false, false, false}),
+				rangeSelect(pg, check.Query, check.Columns, check.Types, want, []bool{false, true, true}),
+				rangeSelect(pg, vacant.Query, vacant.Columns, vacant.Types, nil, []bool{false, true}),
+				rangeSelect(pg, nested.Query, nested.Columns, nested.Types, nestedWant, []bool{false, true, true}),
+				rangeSelect(pg, required.Query, required.Columns, required.Types, requiredWant, []bool{false, false, false}),
 			} {
 				fixture.RunStep(t, p.Ctx, pg.DB, pg.Recorder, step)
 			}

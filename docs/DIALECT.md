@@ -1113,6 +1113,28 @@ pinned counterpart:
 
 
 
+### Continuous numeric range columns — change note
+
+CREATE TABLE additionally admits `numrange`/`pg_catalog.numrange`, including
+NULL/NOT NULL, through the existing common range codec. Continuous finite
+delimiters are preserved, not advanced: `(4,5)` stays `(4,5)`.
+Exact numeric endpoints compare by magnitude while retaining display scale;
+`[1.0,1.00]` stays a singleton, whereas `[1.0,1.00)` is empty.
+Explicit -Infinity/Infinity/NaN are subtype values, not omitted-end sentinels.
+Unknown literal text and string/byte parameters use contextual input.
+Native output/ScanType are string/string, database type NUMRANGE, with no
+Length/DecimalSize. NULL is nil; typed-nil bytes bind NULL.
+Grammar22P02, numeric input22P02, format22003 and reversal22000 retain complete
+PostgreSQL English diagnostics and parameter/literal provenance.
+Range modifiers reject42601; prepared CREATE rejects at execution.
+Native controls and already-admitted simple/nested domains preserve exact
+values, metadata, retained readers and atomic replacement.
+No constructors/operators/functions, range SQL comparison/order/group/index
+providers, casts, typed literals, arrays, multiranges or temporal ranges are added.
+See [continuous numeric ranges](TYPES.md#continuous-numeric-range-columns--change-note).
+Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1`.
+
 ### Integer range columns — change note
 
 CREATE TABLE additionally admits `int4range` and `int8range`, including qualified

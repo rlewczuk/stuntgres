@@ -25,7 +25,7 @@ func TestReferenceIntegerRangeColumns(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, create)
 				want := make([][]any, 0, len(cases)+10)
 				for i, tc := range cases {
-					literal := integerRangeLiteral(tc.input)
+					literal := rangeLiteral(tc.input)
 					s := fixture.Exec(fmt.Sprintf("INSERT INTO r VALUES (%d,%s,%s)", i, literal, literal), 1)
 					s.Prepared = prepared
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
@@ -41,14 +41,14 @@ func TestReferenceIntegerRangeColumns(t *testing.T) {
 				}
 				for i, tc := range extrema {
 					k := len(cases) + i
-					s := fixture.Exec(fmt.Sprintf("INSERT INTO r VALUES (%d,%s,%s)", k, integerRangeLiteral(tc.a), integerRangeLiteral(tc.b)), 1)
+					s := fixture.Exec(fmt.Sprintf("INSERT INTO r VALUES (%d,%s,%s)", k, rangeLiteral(tc.a), rangeLiteral(tc.b)), 1)
 					s.Prepared = prepared
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 					want = append(want, []any{int64(k), tc.outA, tc.outB})
 				}
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("INSERT INTO r VALUES (100,NULL,NULL)", 1))
 				want = append(want, []any{int64(100), nil, nil})
-				s := integerRangeSelect(backend, "SELECT k,a,b FROM r ORDER BY k", []string{"k", "a", "b"}, []string{"INT4", "INT4RANGE", "INT8RANGE"}, want, []bool{true, true, true})
+				s := rangeSelect(backend, "SELECT k,a,b FROM r ORDER BY k", []string{"k", "a", "b"}, []string{"INT4", "INT4RANGE", "INT8RANGE"}, want, []bool{true, true, true})
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 			}

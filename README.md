@@ -592,6 +592,17 @@ See [JSONB types](docs/TYPES.md#jsonb-normalized-storage--change-note).
 Feature smoke: `make check RUN='^TestReferenceJSONBFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONBFeatureSmoke$'`.
 
+Change note: numrange columns extend the common range representation with exact
+continuous NUMERIC endpoints. `(4,5)` remains nonempty; `[1.0,1.00]` preserves
+both scales, and `[1.0,1.00)` becomes empty. Explicit numeric Infinity/NaN
+remain distinct from omitted unbounded endpoints. Direct/prepared text/byte
+binds, NUMRANGE metadata, full atomic diagnostics and native/domain Dump/Restore
+reuse existing ownership and staging. Constructors/operators/casts/arrays and
+temporal ranges remain outside this feature.
+See [continuous numeric ranges](docs/TYPES.md#continuous-numeric-range-columns--change-note).
+Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
 Change note: int4range/int8range columns now use typed integer endpoints and
 bound flags with discrete canonical text: `[1,4]` becomes `[1,5)`.
 Empty, unbounded and SQL NULL remain distinct; malformed bounds, endpoint/

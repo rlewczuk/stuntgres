@@ -62,7 +62,7 @@ func TestReferenceIntegerRangeBinds(t *testing.T) {
 				}
 				for _, prepared := range []bool{false, true} {
 					t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-						s := integerRangeSelect(backend, "SELECT k,a,b FROM r ORDER BY k", []string{"k", "a", "b"}, []string{"INT4", name, name}, want, []bool{true, true, true})
+						s := rangeSelect(backend, "SELECT k,a,b FROM r ORDER BY k", []string{"k", "a", "b"}, []string{"INT4", name, name}, want, []bool{true, true, true})
 						s.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 					})

@@ -11,12 +11,20 @@ import (
 )
 
 func TestIntegerRangeAdapterOwnershipNullMetadata(t *testing.T) {
+	testRangeAdapterOwnershipNullMetadata(t, []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range})
+}
+
+func TestNumericRangeAdapterOwnershipNullMetadata(t *testing.T) {
+	testRangeAdapterOwnershipNullMetadata(t, []sqltype.ID{sqltype.NumRange})
+}
+
+func testRangeAdapterOwnershipNullMetadata(t *testing.T, ids []sqltype.ID) {
 	ctx := context.Background()
 	e := engine.New()
-	for _, id := range []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range} {
+	for _, id := range ids {
 		d, ok := e.CatalogRead().LookupType(id)
 		if !ok {
-			t.Fatal("missing integer range descriptor")
+			t.Fatal("missing range descriptor")
 		}
 		bytes := []byte("[1,4]")
 		arguments, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: bytes}})
@@ -31,7 +39,9 @@ func TestIntegerRangeAdapterOwnershipNullMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 		out, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
-		if err != nil || out != "[1,5)" || scanType(d) != reflect.TypeFor[string]() {
+		want := "[1,5)"
+		if id == sqltype.NumRange { want = "[1,4]" }
+		if err != nil || out != want || scanType(d) != reflect.TypeFor[string]() {
 			t.Fatal(out, err, scanType(d))
 		}
 		for _, raw := range []driver.Value{nil, []byte(nil)} {
@@ -73,8 +83,16 @@ func TestIntegerRangeAdapterOwnershipNullMetadata(t *testing.T) {
 }
 
 func TestIntegerRangeAdapterPortalDiagnostics(t *testing.T) {
+	testRangeAdapterPortalDiagnostics(t, []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range})
+}
+
+func TestNumericRangeAdapterPortalDiagnostics(t *testing.T) {
+	testRangeAdapterPortalDiagnostics(t, []sqltype.ID{sqltype.NumRange})
+}
+
+func testRangeAdapterPortalDiagnostics(t *testing.T, ids []sqltype.ID) {
 	e := engine.New()
-	for _, id := range []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range} {
+	for _, id := range ids {
 		d, _ := e.CatalogRead().LookupType(id)
 		for _, tc := range []struct{ input, code, message, detail, context string }{
 			{"", "22P02", `malformed range literal: ""`, "Missing left parenthesis or bracket.", `unnamed portal parameter $1 = ''`},
