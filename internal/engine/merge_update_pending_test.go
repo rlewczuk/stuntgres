@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"runtime"
+	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -184,6 +185,10 @@ func TestMergeUpdateReadCommittedPending(t *testing.T) {
 }
 
 func TestMergeUpdateRepeatableReadPending(t *testing.T) {
+	mergeUpdateRepeatableReadPending(t, false)
+}
+
+func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 	for _, deleted := range []bool{false, true} {
 		for _, commit := range []bool{false, true} {
 			t.Run(map[bool]string{false: "Update", true: "Delete"}[deleted]+map[bool]string{false: "Rollback", true: "Commit"}[commit], func(t *testing.T) {
@@ -207,23 +212,39 @@ func TestMergeUpdateRepeatableReadPending(t *testing.T) {
 				sessionSQL(t, worker, "UPDATE t SET v=21 WHERE id=2")
 				sessionSQL(t, worker, "DELETE FROM t WHERE id=3")
 				sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
+				worker.transactions.mu.Lock()
+				priorWrites := append([]rowVersion(nil), worker.transactions.writes[ref.Address]...)
+				priorDeletes := worker.transactions.deletes[ref.Address]
+				worker.transactions.mu.Unlock()
+				if targetOnly {
+					sessionSQL(t, worker, "SAVEPOINT before_target_only")
+				}
 				tx := transactionBegin(t, holder)
 				hold := "UPDATE t SET v=11 WHERE id=1"
 				if deleted {
 					hold = "DELETE FROM t WHERE id=1"
 				}
 				sessionSQL(t, holder, hold)
-				done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)")
+				q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
+				if targetOnly {
+					q = "MERGE INTO t USING (SELECT 9 AS id WHERE FALSE) s ON t.id=s.id WHEN NOT MATCHED BY SOURCE AND t.id=1 THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
+				}
+				done := mergeUpdatePendingExecute(t, worker, q)
 				mergeUpdatePendingRow(t, e, ref, original.row, worker, holder.transactions.ticket, 0)
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 				transactionEnd(t, holder, tx, commit)
 				if commit && deleted {
 					mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent delete"})
 					worker.transactions.mu.Lock()
-					discarded := len(worker.transactions.writes) == 0 && len(worker.transactions.deletes) == 0
+					correctOverlay := len(worker.transactions.writes) == 0 && len(worker.transactions.deletes) == 0
+					if targetOnly {
+						// The target-only lane has a recoverable savepoint: its
+						// successful ancestor work survives the failed statement.
+						correctOverlay = reflect.DeepEqual(worker.transactions.writes[ref.Address], priorWrites) && worker.transactions.deletes[ref.Address] == priorDeletes
+					}
 					worker.transactions.mu.Unlock()
-					if !discarded {
-						t.Fatal("concurrent delete retained prior mixed private work")
+					if !correctOverlay {
+						t.Fatal("concurrent delete violated private recovery boundary")
 					}
 					op := transactionOperation(t, worker)
 					_, err := e.Execute(op, statement(t, "SELECT * FROM t"), 0, nil)
@@ -231,6 +252,11 @@ func TestMergeUpdateRepeatableReadPending(t *testing.T) {
 					var got *sqlstate.Error
 					if !errors.As(err, &got) || got.Code != "25P02" {
 						t.Fatal("missing aborted transaction", err)
+					}
+					if targetOnly {
+						sessionSQL(t, worker, "ROLLBACK TO before_target_only")
+						transactionRows(t, worker, "SELECT v FROM t ORDER BY id", 10, 21, 40)
+						sessionSQL(t, worker, "RELEASE before_target_only")
 					}
 				} else {
 					mergeUpdatePendingOutcome(t, done, 1, nil)
@@ -264,6 +290,9 @@ func TestMergeUpdateRepeatableReadPending(t *testing.T) {
 					if !commit && own.base != original.version {
 						t.Fatal("rollback failed to retain original predecessor", own)
 					}
+					if targetOnly {
+						mergeSourceRepeatableReadFollowup(t, e, worker, commit)
+					}
 				}
 				sessionSQL(t, worker, "ROLLBACK")
 				if commit && deleted {
@@ -283,6 +312,14 @@ func TestMergeUpdateRepeatableReadPending(t *testing.T) {
 }
 
 func TestMergeUpdateFollowChainPending(t *testing.T) {
+	mergeUpdateFollowChainPending(t, false)
+}
+
+func mergeSourceFollowChainRowModes(t *testing.T) {
+	mergeUpdateFollowChainPending(t, true)
+}
+
+func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 	for _, tc := range []struct {
 		name, arms string
 		strong     bool
@@ -307,7 +344,11 @@ func TestMergeUpdateFollowChainPending(t *testing.T) {
 			r.Rows.Close()
 			b := transactionBegin(t, writer)
 			sessionSQL(t, writer, "UPDATE t SET v=20")
-			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id "+tc.arms)
+			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id " + tc.arms
+			if targetOnly {
+				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
+			}
+			done := mergeUpdatePendingExecute(t, worker, q)
 			mergeUpdatePendingRow(t, e, ref, row, worker, writer.transactions.ticket, noKeyUpdate)
 			transactionEnd(t, writer, b, true)
 			if tc.strong {

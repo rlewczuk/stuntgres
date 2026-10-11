@@ -357,7 +357,7 @@ Admitted native results retain prior values, schema and presentation after repla
 
 `MERGE INTO table USING joined_table ON expression` supports ordered conditional
 `WHEN MATCHED [AND condition] THEN UPDATE SET` or `DELETE`,
-`WHEN NOT MATCHED BY SOURCE [AND condition] THEN DELETE`, and
+`WHEN NOT MATCHED BY SOURCE [AND target_condition] THEN UPDATE SET` or `DELETE`, and
 `WHEN NOT MATCHED [BY TARGET] [AND condition] THEN INSERT` arms. INSERT takes one
 VALUES tuple or DEFAULT VALUES. Current table/view/derived/VALUES/join sources
 are reused. Frozen all-pairs membership retains distinct target occurrences;
@@ -367,32 +367,37 @@ compose in assignment order. Existing UPDATE assignment restrictions remain.
 Mixed INSERT/UPDATE/DELETE constraints and actual-modification cardinality are
 atomic, including duplicate DELETE21000. Command-only Query has no metadata/rows;
 native affected count sums all three actions, while pinned lib/pq exports0 and
-shared tests independently inspect rows. BY SOURCE conditions see only target
-columns; a matching source prevents BY SOURCE even if no MATCHED arm is selected.
-Empty-source BY SOURCE visits every captured target occurrence. DELETE uses a
-strong row lock and retires its keys before later ordered writes, without
-evaluating replacement/default/generated expressions.
+shared tests independently inspect rows. A matching source prevents BY SOURCE
+even if no MATCHED arm is selected. Empty-source BY SOURCE visits every captured
+target occurrence once. Target-only conditions, RHS, scalar correlations and
+array bounds expose target variables only; independently named FROM relations
+remain legal. DELETE uses a strong row lock and retires its keys before later
+ordered writes, without evaluating replacement/default/generated expressions.
 The observed integer/unknown-string nonboolean ON behavior is MERGE-local;
 ordinary JOIN/WHERE/WHEN boolean rules remain unchanged.
 
-BY SOURCE UPDATE, DO NOTHING, RETURNING, action INSERT SELECT/multiple tuples and
+BY SOURCE INSERT, DO NOTHING, RETURNING, action INSERT SELECT/multiple tuples and
 writable target views remain unsupported, never successful no-ops. Both missing-side
-families require FULL-join capability: equality and constant TRUE/FALSE/NULL are
-supported, as are the admitted row-independent integer/TEXT carriers, typed
-parameters and domains. Nonzero integers and every non-NULL TEXT value (including
-empty text, `'0'` and `'false'`) match; zero/NULL do not. This capability summary
-does not alter ordinary JOIN/WHEN typing or replace the analyzed ON expression.
-Non-merge/hash-joinable predicates such as `<` raise0A000 even with empty tables.
+families require FULL-join capability: effective hash/merge-joinable equality keys
+and constant TRUE/FALSE/NULL are supported, as are the admitted row-independent
+integer/TEXT carriers, typed parameters and domains. Nonzero integers and every
+non-NULL TEXT value (including empty text, `'0'` and `'false'`) match; zero/NULL
+do not. This does not alter ordinary JOIN/WHEN typing or replace analyzed ON.
+Non-merge/hash-joinable predicates such as `<` raise0A000 even with empty inputs
+or FALSE arms; equality merely somewhere in the expression is insufficient.
 Physical source non-tableoid system columns are prohibited in WHEN (42P10).
 Permitted positive source system references still use the existing unavailable
 native query-column provider boundary (42703); PostgreSQL supplies real identities.
 Initial row lock strength follows actual key changes; a concurrent-update
 follow-chain additionally uses the union of syntactic updated key columns and
-DELETE strength. Read Committed rechecks ON and restarts arms after a peer commit.
+DELETE strength. Read Committed rechecks ON only for a formerly matched pair.
+A surviving target-only candidate restarts its own arms without rechecking ON.
 An initially MATCHED candidate losing ON can select BY SOURCE and then BY TARGET
-on its retained source. An initially BY SOURCE candidate does not become MATCHED.
-Repeatable Read MERGE follows an updated predecessor, retaining the old snapshot
-version plus
+on its retained source. For an initial BY SOURCE UPDATE, pinned18.0 concurrent
+deletion can run INSERT with typed NULL source values, independently of a
+captured real-source INSERT. The integrated BY SOURCE DELETE lane retains its
+concurrent-delete skip contract. Repeatable Read MERGE follows an updated
+predecessor, retaining the old snapshot version plus
 its own descendant when their bases differ; a concurrent deletion still raises
 40001. The canonical visibility owner exposes that bag without new logical rows.
 Real GRANT/REVOKE checks every action's destination union, DELETE presence and actual
@@ -401,6 +406,10 @@ implicit old-container preservation requires UPDATE, not SELECT; explicit
 old-value RHS and subscript expressions retain their SELECT requirements.
 No physical MVCC/OID provider or external durability/network/pg_dump/native-ABI
 promise is added.
+The pinned18.0 correlated scalar array assignment-bound witness returned EOF
+and server recovery, not a SQLSTATE. Public dual-mode array proofs use target
+column bounds and an independent scalar bound; the exact correlated-bound swap
+has a separate actual native executor safety proof, not claimed PostgreSQL parity.
 See [matching and lifecycle semantics](QUERIES.md#merge-insertion--change-note).
 
 ### RANGE table partitions — change note

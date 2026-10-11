@@ -3,12 +3,22 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
 // Initial heap replacement uses actual key changes, not the all-arm bitmap.
 // Follow-chain bitmap strength has a separate public three-session witness.
 func TestMergeUpdateSyntacticRowModes(t *testing.T) {
+	mergeUpdateRowModes(t, false)
+}
+
+func TestMergeSourceUpdateRowModes(t *testing.T) {
+	mergeUpdateRowModes(t, true)
+	mergeSourceFollowChainRowModes(t)
+}
+
+func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 	for _, tc := range []struct {
 		name, arms string
 		mode       relationLockMode
@@ -28,7 +38,11 @@ func TestMergeUpdateSyntacticRowModes(t *testing.T) {
 			resource := lockResource{ObjectRef: ref, row: row}
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT before_merge")
-			sessionSQL(t, s, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id "+tc.arms)
+			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id " + tc.arms
+			if targetOnly {
+				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
+			}
+			sessionSQL(t, s, q)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[resource]
 			var mode relationLockMode
@@ -58,6 +72,15 @@ func TestMergeUpdateSyntacticRowModes(t *testing.T) {
 }
 
 func TestMergeUpdateCancellation(t *testing.T) {
+	mergeUpdateCancellation(t, false)
+}
+
+func TestMergeSourceUpdateCancellation(t *testing.T) {
+	mergeUpdatePendingCancellation(t, true)
+	mergeUpdateCancellation(t, true)
+}
+
+func mergeUpdateCancellation(t *testing.T, targetOnly bool) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	peer := sessionStart(t, e, nil)
@@ -74,12 +97,18 @@ func TestMergeUpdateCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := scope.Execute(statement(t, "MERGE INTO t USING (VALUES(1),(2)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=20 WHEN NOT MATCHED THEN INSERT VALUES(s.id,30)"), 0, nil)
+	q := "MERGE INTO t USING (VALUES(1),(2)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=20 WHEN NOT MATCHED THEN INSERT VALUES(s.id,30)"
+	want := int64(2)
+	if targetOnly {
+		q = "MERGE INTO t USING (SELECT 2 AS id WHERE FALSE) s ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=20"
+		want = 1
+	}
+	result, err := scope.Execute(statement(t, q), 0, nil)
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if result.Count != 2 {
+	if result.Count != want {
 		scope.Finish(errors.New("bad count"))
 		t.Fatal(result)
 	}

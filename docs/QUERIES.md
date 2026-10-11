@@ -28,6 +28,7 @@ MERGE INTO destination AS t
 USING source AS s ON t.id=s.id
 WHEN MATCHED AND s.value<0 THEN DELETE
 WHEN MATCHED AND s.id>0 THEN UPDATE SET value=t.value+s.value
+WHEN NOT MATCHED BY SOURCE AND t.value<100 THEN UPDATE SET value=t.value+1
 WHEN NOT MATCHED BY SOURCE AND t.id>0 THEN DELETE
 WHEN NOT MATCHED BY TARGET AND s.id>0
   THEN INSERT(id,value) VALUES(s.id,s.value)
@@ -52,6 +53,13 @@ NOT MATCHED conditions/insert values see only source; target references there
 are hidden-entry42P01 errors. BY SOURCE conditions see only target, with analogous
 inaccessible-source diagnostics. SET RHS and array element/slice bounds use one
 unchanged old frame; partial writes compose in their private replacement.
+BY SOURCE conditions, RHS, correlated scalar subqueries and array bounds see
+only target variables. References to the absent source are inaccessible-entry
+errors without an invented LATERAL hint; an independent FROM relation/local
+alias is not banned. UPDATE-only actions do not require INSERT authority.
+Specifying both BY SOURCE and BY TARGET requires FULL-join legality at Execute:
+an effective hash/merge-joinable cross-side key or supported constant condition,
+not merely an equality anywhere in ON. FALSE arms/empty inputs do not waive it.
 Generated values recompute from the completed payload. Existing UPDATE DEFAULT,
 generated/identity restrictions and field/row assignment boundaries remain.
 All arms are analyzed and authorized even when false or empty. Separate INSERT
@@ -85,12 +93,15 @@ writes. Required source Close succeeds before action row locking.
 DELETE takes FOR UPDATE strength; UPDATE initially uses FOR NO KEY UPDATE and
 upgrades for an actual changed eligible key. A peer-update follow-chain additionally
 uses the syntactic UPDATE-key union and DELETE strength. Read Committed rechecks ON
-against the latest target and retained source and restarts from the first arm.
+against the latest target and retained source for a formerly matched pair.
 An initial MATCHED candidate losing ON may execute BY SOURCE for its target and
 then BY TARGET for its retained source. An initial BY SOURCE candidate remains
-that class even if a peer makes ON true. Genuine peer deletion may select BY TARGET;
-current-command deletion instead participates in cardinality, never insertion.
-Unique-key claimant waits never restart ON.
+that class even if a peer makes ON true. For an initial BY SOURCE UPDATE,
+pinned18.0 concurrent deletion can select BY TARGET with typed NULL source,
+independently of captured real-source candidates. The integrated BY SOURCE
+DELETE lane retains its concurrent-delete skip contract. Current-command
+deletion participates in cardinality, never insertion. No restart widens
+membership. Unique-key claimant waits never restart ON.
 
 MERGE's Repeatable Read update path follows the latest committed predecessor
 instead of ordinary UPDATE's concurrent-update40001. If its own replacement
@@ -123,8 +134,14 @@ and equality witnesses are admitted, as are MERGE-local row-independent integer/
 TEXT carriers (including typed parameters/domains): nonzero integers and non-NULL
 TEXT match, while zero/NULL do not. The analyzed ON expression remains intact and
 ordinary JOIN/WHEN Boolean rules stay unchanged. `<` raises the ordinary FULL-join
-0A000 even when a table happens to be empty. BY SOURCE UPDATE, DO NOTHING, RETURNING, action
-INSERT SELECT/multirow tuples and writable target views remain outside this feature.
+0A000 even when a table happens to be empty. BY SOURCE INSERT, DO NOTHING, RETURNING,
+action INSERT SELECT/multirow tuples and writable target views remain outside this feature.
+
+The exact correlated scalar array assignment-bound case caused EOF/server
+recovery on pinned18.0; it is not an SQLSTATE golden or a claimed parity result.
+Public array witnesses retain old-frame composition using target column bounds
+and an independent scalar bound. A private actual native executor test preserves
+the correlated `(SELECT t.id)` bound and expected `{20,10,30}` swap.
 
 ## Column-default catalog — change note
 

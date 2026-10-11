@@ -71,6 +71,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	binder.insertTarget = out.relation
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+	sourceHiddenStart := len(binder.queryHidden)
 	root, source, err := binder.bindFrom(s.Source)
 	if err != nil {
 		return err
@@ -106,10 +107,13 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	}
 	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms)), targetWidth: len(target.frame), sourceWidth: len(source.frame)}
 	var unconditional [3]bool
+	hidden := binder.queryHidden
+	var sourceHidden []queryQualifier
 	for i, raw := range s.Arms {
 		if unconditional[raw.Match] {
 			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
 		}
+		binder.queryHidden = hidden
 		binder.queryNamespace = &source
 		switch raw.Match {
 		case parser.MergeMatched:
@@ -119,6 +123,19 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			merge.hasBySource = true
 		case parser.MergeNotMatched:
 			merge.hasByTarget = true
+		}
+		if raw.Match == parser.MergeNotMatchedBySource {
+			binder.queryNamespace = &target
+			if sourceHidden == nil {
+				sourceHidden = append([]queryQualifier(nil), hidden...)
+				// bindFrom already records each source entry, including aliases.
+				// Change only its action-local accessibility flag; appending the
+				// same entries would turn one missing column into plural ambiguity.
+				for i := sourceHiddenStart; i < len(sourceHidden); i++ {
+					sourceHidden[i].lateralForbidden = true
+				}
+			}
+			binder.queryHidden = sourceHidden
 		}
 		arm := &merge.arms[i]
 		arm.match, arm.action = raw.Match, raw.Action
@@ -178,6 +195,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			}
 		}
 	}
+	binder.queryHidden = hidden
 	out.merge = merge
 	return nil
 }

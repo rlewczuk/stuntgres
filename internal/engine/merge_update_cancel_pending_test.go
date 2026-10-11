@@ -8,6 +8,10 @@ import (
 )
 
 func TestMergeUpdateMixedPendingCancellation(t *testing.T) {
+	mergeUpdatePendingCancellation(t, false)
+}
+
+func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	e := New()
 	holder := sessionStart(t, e, nil)
 	worker := sessionStart(t, e, nil)
@@ -18,9 +22,18 @@ func TestMergeUpdateMixedPendingCancellation(t *testing.T) {
 	row := e.storage[ref.Address].versions[0].row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=20")
+	if targetOnly {
+		sessionSQL(t, worker, "BEGIN")
+		sessionSQL(t, worker, "INSERT INTO t VALUES(9,90)")
+		sessionSQL(t, worker, "SAVEPOINT before_cancel")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ast := statement(t, "MERGE INTO t USING (VALUES(2),(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)")
+	q := "MERGE INTO t USING (VALUES(2),(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
+	if targetOnly {
+		q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
+	}
+	ast := statement(t, q)
 	type completion struct {
 		result Result
 		err    error
@@ -64,6 +77,27 @@ func TestMergeUpdateMixedPendingCancellation(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("mixed pending cancellation did not finish")
+	}
+	if targetOnly {
+		sessionSQL(t, worker, "ROLLBACK TO before_cancel")
+		resource := lockResource{ObjectRef: ref, row: row}
+		e.locks.mu.Lock()
+		entry := e.locks.entries[resource]
+		held := entry != nil && entry.holders[worker.transactions.ticket].mode != 0
+		_, journaled := worker.transactions.ticket.resources[resource]
+		pending := false
+		if entry != nil {
+			for _, request := range entry.pending {
+				pending = pending || !request.terminal && request.ticket.ref.session == worker.token
+			}
+		}
+		e.locks.mu.Unlock()
+		if held || journaled || pending {
+			t.Fatal("savepoint retained canceled row contribution", held, journaled, pending)
+		}
+		transactionRows(t, worker, "SELECT v FROM t ORDER BY id", 10, 90)
+		sessionSQL(t, worker, "RELEASE before_cancel")
+		sessionSQL(t, worker, "ROLLBACK")
 	}
 	transactionEnd(t, holder, tx, false)
 	transactionRows(t, peer, "SELECT v FROM t", 10)

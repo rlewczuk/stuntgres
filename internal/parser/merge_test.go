@@ -9,6 +9,7 @@ func TestMergeInsertSyntax(t *testing.T) {
 		"MERGE INTO t USING (VALUES(1)) s(id) ON FALSE WHEN NOT MATCHED THEN INSERT VALUES((SELECT s.id))",
 		"MERGE INTO t USING s JOIN r USING(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(id)",
 		"MERGE INTO t USING s ON t.id=s.id WHEN MATCHED THEN UPDATE SET id=s.id",
+		"MERGE INTO t USING s ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET id=t.id",
 	}
 	for _, q := range queries {
 		statements, err := Parse(q)
@@ -34,8 +35,8 @@ func TestMergeInsertSyntax(t *testing.T) {
 				}
 			}
 			for _, assignment := range arm.Assignments {
-				if arm.Match != MergeMatched || arm.Action != MergeUpdateAction || assignment.Target.Pos.Character == 0 || assignment.Value.SourcePosition().Character == 0 {
-					t.Fatal("missing matched assignment kind/position", arm)
+				if arm.Match == MergeNotMatched || arm.Action != MergeUpdateAction || assignment.Target.Pos.Character == 0 || assignment.Value.SourcePosition().Character == 0 {
+					t.Fatal("missing update assignment kind/position", arm)
 				}
 			}
 		}
@@ -53,7 +54,7 @@ func TestMergeInsertSyntax(t *testing.T) {
 func TestMergeInsertRejectsFullInput(t *testing.T) {
 	for _, suffix := range []string{
 		"WHEN NOT MATCHED THEN DO NOTHING",
-		"WHEN NOT MATCHED BY SOURCE THEN UPDATE SET id=1",
+		"WHEN NOT MATCHED BY TARGET THEN UPDATE SET id=1",
 		"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING",
 		"WHEN NOT MATCHED THEN INSERT INTO t VALUES(1)",
 		"WHEN NOT MATCHED THEN INSERT SELECT 1",
@@ -146,6 +147,38 @@ func TestMergeDeleteQueryVisitor(t *testing.T) {
 	for i := range want {
 		if names[i] != want[i] {
 			t.Fatal("nonlexical DELETE dependency order", names)
+		}
+	}
+}
+
+func TestMergeSourceUpdateSyntax(t *testing.T) {
+	statements, err := Parse("MERGE INTO t USING s ON t.id=s.id WHEN NOT MATCHED BY SOURCE AND t.id>0 THEN UPDATE SET a[(SELECT t.id)]=t.a[1]")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	arm := statements[0].(*Merge).Arms[0]
+	if arm.Match != MergeNotMatchedBySource || arm.Action != MergeUpdateAction || arm.Condition == nil || len(arm.Assignments) != 1 {
+		t.Fatal(arm)
+	}
+}
+
+func TestMergeSourceUpdateQueryVisitor(t *testing.T) {
+	statements, err := Parse("MERGE INTO t USING s ON TRUE WHEN NOT MATCHED BY SOURCE AND EXISTS(SELECT 1 FROM conditions) THEN UPDATE SET a[(SELECT i FROM lower_bound):(SELECT i FROM upper_bound)]=(SELECT a FROM payload)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	err = VisitQuerySources(statements[0], nil, func(table *TableReference, _ *Select) error {
+		names = append(names, table.Name.Parts[0].Text)
+		return nil
+	})
+	want := []string{"s", "conditions", "lower_bound", "upper_bound", "payload"}
+	if err != nil || len(names) != len(want) {
+		t.Fatal(names, err)
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatal(names)
 		}
 	}
 }

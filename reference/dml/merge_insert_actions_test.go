@@ -82,6 +82,15 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 		run(fixture.Exec("MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET id=2", 1))
 		run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
 	})
+	t.Run("bySourceUpdate", func(t *testing.T) {
+		mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
+			run := fixture.MergeRun(t, p, b, prepared)
+			run(fixture.Exec("CREATE TABLE t(id INT)", 0))
+			run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
+			run(fixture.Exec("MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET id=3", 1))
+			run(fixture.Select("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(3)}}))
+		})
+	})
 	for _, tc := range []struct {
 		suffix, token, message string
 		rows                   [][]any
@@ -89,7 +98,6 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 	}{
 		{"WHEN NOT MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}, false},
 		{"WHEN MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}, false},
-		{"WHEN NOT MATCHED BY SOURCE THEN UPDATE SET id=3", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{{int64(3)}}, false},
 		{"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{{int64(1)}}, false},
 		{"WHEN NOT MATCHED THEN INSERT VALUES(s.id) RETURNING t.id", "RETURNING", "MERGE RETURNING is unsupported", [][]any{{int64(1)}, {int64(2)}}, true},
 	} {

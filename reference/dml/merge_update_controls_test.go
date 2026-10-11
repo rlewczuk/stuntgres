@@ -11,19 +11,36 @@ import (
 )
 
 func TestReferenceMergeUpdateControls(t *testing.T) {
+	mergeUpdateControls(t, false)
+}
+
+func TestReferenceMergeSourceUpdateControls(t *testing.T) {
+	mergeUpdateControls(t, true)
+}
+
+func mergeUpdateControls(t *testing.T, targetOnly bool) {
 	mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 		run := fixture.MergeRun(t, p, b, prepared)
 		for _, q := range []string{"CREATE TABLE source(k INT,v INT)", "CREATE VIEW source_view AS SELECT * FROM source", "CREATE TABLE t(id INT GENERATED ALWAYS AS IDENTITY CONSTRAINT t_key UNIQUE,k INT,v INT DEFAULT 8,g INT GENERATED ALWAYS AS(v+1) STORED)"} {
 			run(fixture.Exec(q, 0))
 		}
 		run(fixture.Exec("INSERT INTO t(k,v) VALUES(1,10)", 1))
-		run(fixture.Exec("INSERT INTO source VALUES(1,7),(2,70)", 2))
+		sourceSQL := "INSERT INTO source VALUES(1,7),(2,70)"
+		sourceCount := int64(2)
+		if targetOnly {
+			sourceSQL = "INSERT INTO source VALUES(2,70)"
+			sourceCount = 1
+		}
+		run(fixture.Exec(sourceSQL, sourceCount))
 		retained, err := b.DB.QueryContext(p.Ctx, "SELECT * FROM t ORDER BY id")
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer retained.Close()
 		q := "MERGE INTO t USING source_view s ON t.k=s.k WHEN MATCHED THEN UPDATE SET v=t.v+s.v WHEN NOT MATCHED THEN INSERT(k) VALUES(s.k)"
+		if targetOnly {
+			q = "MERGE INTO t USING source_view s ON t.k=s.k WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=t.v+7 WHEN NOT MATCHED THEN INSERT(k) VALUES(s.k)"
+		}
 		held, err := b.DB.PrepareContext(p.Ctx, q)
 		if err != nil {
 			t.Fatal(err)
@@ -96,8 +113,13 @@ func TestReferenceMergeUpdateControls(t *testing.T) {
 			t.Fatal("retained saw replacements", retained.Err())
 		}
 		r, err = held.ExecContext(p.Ctx)
-		mergeInsertAffected(t, b, r, err, 2)
-		read.Rows = [][]any{{int64(1), int64(1), int64(24), int64(25)}, {int64(2), int64(2), int64(78), int64(79)}}
+		count := int64(2)
+		second := int64(78)
+		if targetOnly {
+			count, second = 1, 8
+		}
+		mergeInsertAffected(t, b, r, err, count)
+		read.Rows = [][]any{{int64(1), int64(1), int64(24), int64(25)}, {int64(2), int64(2), second, second + 1}}
 		run(read)
 	})
 }

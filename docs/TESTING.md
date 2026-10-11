@@ -1664,6 +1664,92 @@ prove the complete logical effects. Public feature smoke uses
 transactions/locks do not imply disk/WAL/crash recovery, wire/network service,
 physical tuple identifiers/planner/storage, pg_dump or native ABI replication.
 
+### MERGE target-only UPDATE acceptance
+
+The untagged `TestReferenceMergeSourceUpdate` definitions use the existing
+direct/prepared fixture, independent typed rows and complete logical diagnostics.
+Run these bounded groups in **both** native and pinned PostgreSQL modes: use
+`make check RUN='<selector>'` and `make check REFERENCE=1 RUN='<selector>'`,
+each with an external900-second deadline:
+
+```text
+^TestReferenceMergeSourceUpdate(Membership|Classification|Conditions)$
+^TestReferenceMergeSourceUpdate(ThreeClasses|JoinLegality)$
+^TestReferenceMergeSourceUpdate(Bindings|Diagnostics|Assignments)$
+^TestReferenceMergeSourceUpdate(Analysis|Parameters)$
+^TestReferenceMergeSourceUpdate(Cardinality|Constraints|Atomicity)$
+^TestReferenceMergeSourceUpdate(Privileges|HeldACL)$
+^TestReferenceMergeSourceUpdate(Prepared|CommandMetadata|Transactions)$
+^TestReferenceMergeSourceUpdateReadCommitted$
+^TestReferenceMergeSourceUpdateRepeatableRead$
+^TestReferenceMergeSourceUpdate(Cancellation|ServerCancellation)$
+^TestReferenceMergeSourceUpdate(Controls|FeatureSmoke)$
+```
+
+The obsolete BY SOURCE UPDATE0A000 insertion-boundary expectation is migrated
+to a direct/prepared positive `TestReferenceMergeInsertBoundaries/bySourceUpdate`:
+unmatched target1 becomes3/count1 natively (lib/pq0), with exact stored rows.
+Run the full changed `^TestReferenceMergeInsertBoundaries$` in both modes.
+Hidden-source diagnostics use the existing FROM manifest once, retaining
+singular inaccessible-column Detail/no Hint for UPDATE and integrated DELETE.
+The RR pending helper distinguishes whole-transaction discard from savepoint
+ancestor retention; the target-only lane compares exact prior overlays before
+recovery. Native smoke peer reads use the existing instrumented Memory pool and
+its recorder, while actual Dump/Reset/Restore continue through Native controls.
+
+Privileges checks UPDATE-only authority without INSERT, explicit target reads,
+false-arm destination rights and empty-source INSERT authority. HeldACL revokes
+and restores target UPDATE/source SELECT on the same actual handle. Controls
+shares the established persistence fixture with matched UPDATE, but executes real
+BY SOURCE replacements with identity/default/generated objects and a source view,
+latest-head Dump/Reset/Restore, peer reads, canonical redump, retained old rows,
+failed/canceled replacement, held epoch rebind and actual PostgreSQL script replay.
+The changed incumbent Controls and ServerCancellation definitions also require
+both modes, with `^TestReferenceMergeUpdate(Controls|ServerCancellation)$`.
+
+Private actual executor proofs supplement public native fresh-command recovery:
+
+```sh
+make check RUN='^TestMergeSourceUpdate(Syntax|QueryVisitor)$'
+make check RUN='^TestMergeSourceUpdate(SourceCompletion|Capture|Publication|CorrelatedArrayBound)$'
+make check RUN='^TestMergeSourceUpdate(Pending|RowModes|Cancellation)$'
+make check RACE=1 RUN='^TestMergeSourceUpdate(Pending|RowModes|Publication|Cancellation)$'
+```
+
+Pending establishes exact live manager requests before holder commit/rollback:
+target-only class retention/no widening, retained-source matched two-action
+conversion, late INSERT fault rollback and release18.0 typed-NULL deletion
+fallback/default/constraint cases. Its RR lane retains prior private work and
+snapshot roots, follows committed updates without generic40001, checks old+own
+cardinality and condition restart, and recovers concurrent-delete40001/25P02
+through a savepoint. RowModes asserts initial actual-key upgrades, follow-chain
+syntactic-key union and exact resource journal removal. Cancellation includes
+actual pending retirement and cancel-at-Finish; SourceCompletion covers empty
+source Next/Close faults and cancel-at-Close before action locks. Capture preserves
+distinct equal targets and the coherent source/target frontier. Publication keeps
+all replacements private until the sole Finish and retains old row payloads.
+Changed incumbent private fixtures retain their matched scenarios; include the
+existing SourceCompletion/SyntacticRowModes/Cancellation/RepeatableReadPending/
+FollowChainPending/MixedPendingCancellation selectors in regression proof.
+
+Pinned18.0's exact correlated scalar array assignment bound
+`a[(SELECT t.id)]=t.a[1],a[1]=t.a[t.id]` returned EOF and backend recovery
+(historical reports10/20/22), not a PostgreSQL diagnostic or passing SQL contract.
+Finalized public Assignments keeps direct target bounds and an independent
+`(SELECT 2)` bound, alongside scalar RHS/generated/original-frame witnesses;
+reports23 established those direct/prepared pinned expectations. The exact
+correlated-bound `{20,10,30}` swap is tested separately by the actual native
+executor: safety proof, **not** fabricated PostgreSQL parity or a conditional skip.
+
+Standalone feature smoke source is an ephemeral OMP session artifact, executed
+as `go run /tmp/stuntgres-merge-source-smoke/main.go` from the worktree. Expected
+exit0/empty output: ordered target-only updates leave matched1 untouched, a held
+parameter updates two targets, late22012 publishes nothing, command Query has
+empty names/types/rows, and Dump/Reset/Restore plus held reexecution preserves
+peer/canonical results. Root runs generation/quickcheck only after all edits;
+selected dual/race/smoke observations precede review, finalcheck follows integration.
+
+
 INSERT SELECT is included above because INSERT input binding is shared.
 
 ### MERGE matched and BY SOURCE DELETE

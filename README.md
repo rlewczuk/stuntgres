@@ -214,23 +214,25 @@ See [conflict update](docs/QUERIES.md#insert-conflict-update--change-note) and
 [selected proof](docs/TESTING.md#insert-conflict-update-acceptance).
 
 Change note: PostgreSQL18 `MERGE` supports ordered conditional
-`WHEN MATCHED THEN UPDATE SET` or `DELETE`, `WHEN NOT MATCHED BY SOURCE THEN DELETE`,
-and `WHEN NOT MATCHED [BY TARGET] THEN INSERT`.
-All source-target pairs are frozen before row waits; matched SET expressions,
-including array bounds, use the original target/source frame. Real concurrent
-updates restart arm selection against the latest predecessor without widening
-that join. Mixed actions share constraints and one atomic statement publication.
-Empty-source BY SOURCE deletes unmatched targets; all selected actions contribute
-to the native count. BY SOURCE UPDATE, DO NOTHING, RETURNING and writable target
-views remain excluded.
+`WHEN MATCHED THEN UPDATE SET` or `DELETE`,
+`WHEN NOT MATCHED BY SOURCE THEN UPDATE SET` or `DELETE`,
+and `WHEN NOT MATCHED [BY TARGET] THEN INSERT`. Target-only candidates include
+every unmatched target occurrence, even with an empty source; their conditions,
+assignment bounds and RHS see only the original target. Membership freezes before
+row waits. Latest-row restarts preserve the target-only class; a formerly matched
+pair can act on its surviving target then insert its retained source. Specifying
+both outer classes requires the existing FULL-join legality rules. Mixed actions
+share constraints and one atomic publication, including native Dump/Restore;
+all selected actions contribute to the native count.
 Both missing-side families retain MERGE-local constant/parameter ON carriers:
 nonzero integers and non-NULL TEXT match, while zero/NULL do not, including domains.
 This does not relax ordinary JOIN or WHEN Boolean typing.
+BY SOURCE INSERT, DO NOTHING, RETURNING and writable target views remain excluded.
 See [MERGE matching and actions](docs/QUERIES.md#merge-insertion--change-note).
-Feature smoke (900 seconds per invocation):
-`make check RUN='^TestReferenceMergeDeleteFeatureSmoke$'`;
+Feature smoke (900 seconds per invocation; run each in both modes):
+`make check RUN='^TestReferenceMerge(Delete|SourceUpdate)FeatureSmoke$'`;
 pinned counterpart:
-`make check REFERENCE=1 RUN='^TestReferenceMergeDeleteFeatureSmoke$'`.
+`make check REFERENCE=1 RUN='^TestReferenceMerge(Delete|SourceUpdate)FeatureSmoke$'`.
 The complete implicit INSERT smoke union now lives in the external shared
 `TestReferenceInsertImplicitShort` family, including
 `TestReferenceInsertImplicitShortFeatureSmoke`; no native-only duplicate remains.

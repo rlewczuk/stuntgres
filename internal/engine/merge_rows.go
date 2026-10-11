@@ -59,7 +59,8 @@ type mergeCandidate struct {
 // Source completion and ON membership precede every action wait. Match marks
 // refer to captured occurrences, preserving equal values and RR old+own bags.
 func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b binding, target *querySource, cursor RowCursor, state *queryState, schema string, unique bool) (*mergeRows, error) {
-	width := len(cursor.Schema())
+	sourceSchema := cursor.Schema()
+	width := len(sourceSchema)
 	scratch := make([]sqltype.Value, width)
 	var sources []sqltype.Value
 	var occurrences, provenance []int
@@ -156,6 +157,13 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			pairs = append(pairs, capture(i, parser.MergeNotMatchedBySource, -1))
 		}
 	}
+	var nullSource []sqltype.Value
+	if b.merge.hasBySource && b.merge.hasInsert {
+		nullSource = make([]sqltype.Value, width)
+		for i, column := range sourceSchema {
+			nullSource[i] = sqltype.Null(column.Usage.Type)
+		}
+	}
 	result := &mergeRows{}
 	var accepted map[RowID]bool
 	if len(b.merge.updateTargets) != 0 || b.merge.hasDelete {
@@ -166,7 +174,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		var source []sqltype.Value
+		source := nullSource
 		if candidate.sourceIndex >= 0 {
 			source = sources[candidate.sourceIndex*width : (candidate.sourceIndex+1)*width]
 			copy(frame[len(b.relation.columns):], source)
@@ -222,7 +230,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				}
 			}
 			if !live {
-				if class == parser.MergeNotMatchedBySource {
+				if class == parser.MergeNotMatchedBySource && arm.action == parser.MergeDeleteAction {
 					continue
 				}
 				class = parser.MergeNotMatched
