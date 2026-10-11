@@ -1108,6 +1108,7 @@ type expressionBinder struct {
 	// diagnostic without admitting additional explicit cast providers.
 	datetimeZoneOperands       bool
 	checkConsumer              bool
+	policyConsumer             bool
 	indexConsumer              bool
 	indexPredicateConsumer     bool
 	partitionConsumer          string

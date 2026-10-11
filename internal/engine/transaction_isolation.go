@@ -274,6 +274,12 @@ func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.RefreshMaterializedView:
 		return "REFRESH MATERIALIZED VIEW"
+	case *parser.CreatePolicy:
+		return "CREATE POLICY"
+	case *parser.AlterPolicy:
+		return "ALTER POLICY"
+	case *parser.DropPolicy:
+		return "DROP POLICY"
 	case *parser.CreateIndex:
 		return "CREATE INDEX"
 	case *parser.DropIndex:
@@ -405,7 +411,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
-	case *parser.RefreshMaterializedView:
+	case *parser.RefreshMaterializedView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true

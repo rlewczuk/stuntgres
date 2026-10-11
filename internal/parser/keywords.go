@@ -407,7 +407,7 @@ var keywords = [...]keyword{
 	{"placing", Reserved, true, 0},
 	{"plan", Unreserved, true, 0},
 	{"plans", Unreserved, true, 0},
-	{"policy", Unreserved, true, 0},
+	{"policy", Unreserved, true, POLICY},
 	{"position", ColumnName, true, 0},
 	{"preceding", Unreserved, true, FRAME_EDGE},
 	{"precision", ColumnName, false, 0},

@@ -157,6 +157,9 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	target := ref.Address
 	target.SubID = original.attributes[source]
+	if err := policyTypeChangeError(auth.catalog, target); err != nil {
+		return fail(err)
+	}
 	if edges := viewDependencyClosure(auth.catalog, []ObjectAddress{target}, stage); len(edges) != 0 {
 		view := edges[0].view
 		name := view.name

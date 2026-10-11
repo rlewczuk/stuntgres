@@ -693,3 +693,95 @@ destination authority also replays index definitions for independent schema and
 table owners, preserving named owner directives. This does not synthesize grants
 or bypass ordinary CREATE INDEX authority.
 
+
+## Row-security policy definitions — change note
+
+Policy definitions are table metadata, not ACL grants or native row-security
+enforcement. Names are unique per table; identical names on different tables
+are independent. CREATE defaults to PERMISSIVE, ALL and PUBLIC. SELECT/DELETE
+policies accept USING only; INSERT policies accept WITH CHECK only; ALL/UPDATE
+accept both. Absent conditions stay absent, including an omitted ALL/UPDATE
+WITH CHECK. ALTER replaces only supplied roles or conditions; rename preserves
+identity and all fields. AS/FOR are fixed until drop/recreate.
+
+CREATE, ALTER and rename require table ownership; existing-policy DROP requires
+relation ownership. Superusers and live inherited owner membership qualify.
+Data grants, schema ownership, CREATEROLE and SET-only membership do not.
+The target uses ordinary namespace USAGE/search_path lookup and an
+AccessExclusive lock. Authority is checked again after a lock wait and at
+publication. Prepare caches neither a target nor successful authority and emits
+no notices; held execution resolves current objects, identities and authority.
+Native read-only execution fails `25006` before lookup; explicit transaction
+policy utilities retain the native `0A000` boundary. PostgreSQL policy DDL is
+transactional.
+
+TO accepts named roles, PUBLIC, CURRENT_USER, CURRENT_ROLE and SESSION_USER.
+Identity forms resolve at execution and store the actual role identities, not
+session-dependent syntax. Duplicate named targets are retained, including
+duplicate role-dependency detail lines. PUBLIC short-circuits later targets:
+when mixed with other targets it emits WARNING `22023`,
+`ignoring specified roles other than PUBLIC`, with Hint
+`All roles are members of the PUBLIC role.` An invalid role encountered before
+PUBLIC still fails. ALTER TO or policy DROP releases superseded target
+dependencies; roles are not serialized or created by Dump/Restore.
+
+Conditions must be Boolean under ordinary shared coercion. Scalar supported
+functions, session-dependent expressions and supported subqueries are stored
+without evaluating conditions or scanning source rows. Aggregates owned by the
+policy frame fail `42803`, including calls syntactically inside a subquery whose
+arguments refer only to the policy frame. Child-local aggregates remain valid;
+signature and same-level nesting errors retain their ordinary precedence.
+Policy-level windows fail `42P20`. Parameters, including nested parameters,
+fail `42P02`. Definition errors use the PostgreSQL policy diagnostic context.
+
+DROP IF EXISTS emits NOTICE `00000` for a missing policy, table or schema;
+a missing policy is skipped before owner checking. Existing-policy DROP still
+requires ownership. **Rename differs:** release18 accepts
+`ALTER POLICY IF EXISTS ... RENAME TO ...`, but its handler does not suppress
+missing-table/policy errors or emit a skipping notice. Selective ALTER does
+not accept IF EXISTS. Rename checks ownership and destination conflicts before
+the old-policy lookup.
+
+Policies have outgoing dependencies on their owning table, used columns and
+represented expression providers, plus shared TO-role dependencies. Dropping
+the owning table removes its policies automatically. Dropping a referenced
+column, external relation/view or represented type/domain/collation/provider
+requires RESTRICT/CASCADE handling; CASCADE removes dependent policies, not
+their surviving owner tables. Dropping a policy leaves its providers intact.
+Relation retirement includes its owned row type and array identities: a policy
+referencing either through a REGTYPE value participates in the same captured
+CASCADE closure, while independent sibling policies and owner data survive.
+Dependency-driven policy removal acquires AccessExclusive on each surviving
+owner table before staging removal; a canceled wait preserves providers,
+policies and rows.
+Relation/column rename retains identities and updates exported spelling.
+Changing the type of a referenced column fails `0A000`,
+`cannot alter type of a column used in a policy definition`.
+Policies are not inherited by child tables.
+
+Dump captures coherent persistent definitions before external writer I/O and
+emits owner-grouped policies after their persistent providers. Restore replays
+parameter-free CREATE POLICY through the real binder and atomic private stage.
+Named owners and target roles must already exist; final installation preserves
+principal provenance rather than adopting a recreated same-name role.
+Trusted private creation authority covers ownership and provider access without
+changing policy TO semantics or caller session identity. CURRENT_USER and
+CURRENT_ROLE resolve to the actual effective stage-session role; SESSION_USER
+resolves to its actual session role. A named SET SESSION AUTHORIZATION directive
+therefore makes all three targets that named owner, not the bootstrap importer.
+Reset removes persistent policies and their dependencies while retaining live
+TEMP policies with their tables. Incompatible live TEMP dependencies prevent
+replacement; persistent policies depending on TEMP objects cannot be exported.
+Failed I/O, binding, cancellation or final authority/provenance checks preserve
+the original catalog. Explicit-ACL Dump remains unsupported.
+Provider-only TEMP policies also fence replacement, even without a relational
+subquery. Persistent domain/collation/sequence and REGTYPE identities cannot be
+silently rebound to same-name replacements. Supported TEMP collation, sequence
+and row-type providers retain their identities through Reset/Restore; TEMP
+domain creation remains outside the native surface.
+
+**No native filtering, proposed-row checks, enablement/force toggles or
+default-deny enforcement is provided.** The separate pinned PostgreSQL
+default-deny witness uses an enabled table and a nonowner; native metadata
+round trips do not certify that enforcement.
+

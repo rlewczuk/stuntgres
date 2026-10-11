@@ -75,6 +75,31 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		if !ok {
 			continue
 		}
+		for _, policy := range relation.policies {
+			for _, condition := range []*policyExpression{policy.using, policy.check} {
+				if condition == nil {
+					continue
+				}
+				for _, leaf := range condition.presentation.sources {
+					if _, retained := temporary[leaf.ref.Address]; retained {
+						continue
+					}
+					if next.descriptors[leaf.ref.Address] != e.state.descriptors[leaf.ref.Address] {
+						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
+					}
+				}
+				for _, dependency := range condition.presentation.dependencies {
+					address := dependency.ref.Address
+					address.SubID = 0
+					if _, retained := temporary[address]; retained {
+						continue
+					}
+					if next.descriptors[address] != e.state.descriptors[address] {
+						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
+					}
+				}
+			}
+		}
 		for _, column := range relation.columns {
 			typ := column.Usage.Type
 			if !typ.BaseType().IsArray() || !arrayDomainDependency(typ) {
@@ -129,6 +154,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			for _, definition := range relation.checkConstraints {
 				retainExpression(definition.expression)
 			}
+			for _, policy := range relation.policies {
+				for _, condition := range []*policyExpression{policy.using, policy.check} {
+					if condition != nil {
+						walkQueryArgumentExpression(condition.expression, func(node BoundExpr) { retainBuiltin(node.ResultUsage().Type) })
+					}
+				}
+			}
 			for _, definition := range relation.generations {
 				retainExpression(definition.expression)
 				retainExpression(definition.planned)
@@ -153,6 +185,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for address, descriptor := range temporary {
 		retainedIDs[address.ObjectID] = true
 		if relation, ok := descriptor.(*relationDescriptor); ok {
+			for _, policy := range relation.policies {
+				retainedIDs[policy.OID] = true
+			}
 			for _, definition := range relation.notNullConstraints {
 				retainedIDs[definition.OID] = true
 			}
@@ -353,6 +388,20 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			sequences[a] = g
 		}
 	}
+	for address, descriptor := range temporary {
+		relation, ok := descriptor.(*relationDescriptor)
+		if !ok || len(relation.policies) == 0 {
+			continue
+		}
+		view := CatalogRead{owner: e, state: next}
+		remap := func(ref ObjectRef) ObjectRef { ref.Epoch = next.epoch; return ref }
+		typ := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
+		replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
+		if err != nil {
+			return err
+		}
+		next.descriptors[address] = replacement
+	}
 	previous := make(map[ObjectAddress]Descriptor, len(next.descriptors))
 	for address, descriptor := range next.descriptors {
 		previous[address] = descriptor
@@ -364,6 +413,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	for _, descriptor := range next.descriptors {
+		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
+			if err := validatePolicies(CatalogRead{owner: e, state: next}, relation); err != nil {
+				return err
+			}
+		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.inheritance != nil {
 			if err := validateInheritance(CatalogRead{owner: e, state: next}, relation); err != nil {
 				return err

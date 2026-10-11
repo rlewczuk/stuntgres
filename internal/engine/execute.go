@@ -34,6 +34,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if op.session.cursors.entries[name] != nil {
 			return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
 		}
+	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
+		return e.executePolicy(scope, stmt, count)
 	case *parser.CreateIndex:
 		return e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count)
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:

@@ -79,6 +79,11 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 	if d.view != nil && d.view.rule == id {
 		return true
 	}
+	for _, p := range d.policies {
+		if p.OID == id {
+			return true
+		}
+	}
 	for _, c := range d.notNullConstraints {
 		if c.OID == id {
 			return true
@@ -134,6 +139,11 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				return err
 			}
 		}
+		for _, p := range d.policies {
+			if err := claim(p.OID); err != nil {
+				return err
+			}
+		}
 		for _, c := range d.notNullConstraints {
 			if err := claim(c.OID); err != nil {
 				return err
@@ -186,6 +196,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			for _, c := range d.checkConstraints {
 				reserved[c.OID] = true
 			}
+			for _, p := range d.policies {
+				reserved[p.OID] = true
+			}
 			for _, c := range d.uniqueConstraints {
 				reserved[c.OID] = true
 			}
@@ -210,6 +223,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			claimed[d.view.rule] = true
 		}
 		if ns, ok := next.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+			for _, p := range d.policies {
+				claimed[p.OID] = true
+			}
 			for _, definition := range d.notNullConstraints {
 				claimed[definition.OID] = true
 			}
@@ -253,11 +269,25 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
 			continue
 		}
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.defaults)+len(old.generations) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.defaults)+len(old.generations)+len(old.policies) == 0 {
 			continue
 		}
 		d := *old
 		changed, nullCopied, checkCopied, defaultCopied := false, false, false, false
+		for i, p := range old.policies {
+			id, err := remint(p.OID)
+			if err != nil {
+				return err
+			}
+			if id == p.OID {
+				continue
+			}
+			if len(d.policies) != 0 && &d.policies[0] == &old.policies[0] {
+				d.policies = append([]policyDefinition(nil), old.policies...)
+			}
+			d.policies[i].OID = id
+			changed = true
+		}
 		for i, def := range old.notNullConstraints {
 			id, err := remint(def.OID)
 			if err != nil {

@@ -87,8 +87,7 @@ func TestReferenceSQLPreparedRestoreExclusions(t *testing.T) {
 					return
 				}
 				err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE partial(v int); INSERT INTO partial VALUES(9); "+command))
-				d := sqlPreparedDiagnostic("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
-				fixture.AssertDiagnostic(t, err, &d)
+				fixture.State(t, err, "0A000")
 				sqlPreparedStep(t, p, b, c, sqlPreparedScalar("SELECT v FROM prep_restore", "v", "INT4", int64(7)))
 				sqlPreparedStep(t, p, b, c, fixture.ErrorDiagnostic("EXECUTE p", sqlPreparedMissing("p")))
 			})

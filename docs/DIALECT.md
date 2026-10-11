@@ -69,6 +69,46 @@ complete removal closure against live owner cursor source identities and fails
 fences permit, unlike pq's deallocated server statement names.
 See [PostgreSQL18 DISCARD](https://www.postgresql.org/docs/18/sql-discard.html).
 
+### Row-security policy definitions — change note
+
+`CREATE POLICY name ON table` supports optional `AS PERMISSIVE | RESTRICTIVE`,
+`FOR ALL | SELECT | INSERT | UPDATE | DELETE`, `TO` role lists, `USING (condition)`
+and `WITH CHECK (condition)`, in PostgreSQL clause order. Defaults are
+PERMISSIVE, ALL and PUBLIC; omitted conditions remain absent.
+`ALTER POLICY name ON table` changes only supplied TO/USING/WITH CHECK clauses;
+clause-free ALTER is valid. AS/FOR changes require drop/recreate. Rename is a
+separate `ALTER POLICY [IF EXISTS] name ON table RENAME TO name` form.
+Release18 accepts IF EXISTS for rename but does not skip missing tables or
+policies. Selective ALTER IF EXISTS, CREATE IF NOT EXISTS and CREATE OR REPLACE
+POLICY are not supported syntax. `DROP POLICY [IF EXISTS] name ON table
+[CASCADE | RESTRICT]` skips missing objects only with IF EXISTS; both drop modes
+remove just the policy.
+
+Conditions use the shared Boolean binder and stored-expression machinery, not
+definition-time evaluation. Top-level aggregates/windows and parameters are
+rejected; supported nested SELECT aggregate/window expressions retain their
+own query context. Selected scalar calls, including volatile `random()`
+comparisons, are admitted as operands in both USING and WITH CHECK without
+evaluating either condition. Supported expressions, resolved identities, current names
+and dependencies survive native Dump/Restore. Referenced column type changes
+fail rather than silently rebuilding policy expressions. See
+[authorization](AUTHORIZATION.md#row-security-policy-definitions--change-note)
+for authority, notices, role targets and dependency lifecycle.
+During native Restore, TO identity selectors use the actual named stage-session
+roles, independently of trusted ownership/provider authorization. Dump emits
+the resolved named target occurrences, including duplicates; Restore leaves
+the caller's session identity unchanged.
+
+**This is native metadata support only.** No row-security enablement/force
+toggles, read filtering, proposed-row checking, BYPASSRLS enforcement or native
+default-deny behavior is added. Dropping the last native policy leaves ordinary
+reads/writes unchanged. Native policy utilities are autocommit-only
+(`0A000` in explicit transactions); read-only execution fails `25006`.
+PostgreSQL transactional DDL and enabled-table default-deny are independently
+witnessed differences, not native enforcement claims. No policy catalog
+projection, wire server or physical persistence is implied.
+
+
 ### Table and column grants — change note
 
 Autocommit GRANT and REVOKE support SELECT, INSERT, UPDATE, DELETE,

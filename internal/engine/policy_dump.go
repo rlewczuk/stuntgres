@@ -1,0 +1,114 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+)
+
+type dumpPolicyGroup struct{ owner, table, sql string }
+
+func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *policyExpression) (string, error) {
+	r := newViewRenderer(expression.presentation)
+	r.frame = 1
+	source := viewFromRoot(r.frames[1])
+	leaf := r.sources[0]
+	d, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+	if !ok {
+		return "", fmt.Errorf("stuntgres: policy owner is missing")
+	}
+	r.reserved[d.name] = true
+	slots := make(map[int]string, len(leaf.attributes))
+	for i, attribute := range leaf.attributes {
+		for j, current := range d.attributes {
+			if current == attribute {
+				slots[i] = quoteIdentifier(d.name) + "." + quoteIdentifier(d.columns[j].Name)
+				break
+			}
+		}
+	}
+	r.slots[source] = slots
+	return r.expressionSQL(ctx, view, expression.syntax, viewLiteralPath{clause: viewTargetLiteral})
+}
+
+func policyDumpGroups(ctx context.Context, view CatalogRead, roles RoleRead) ([]dumpPolicyGroup, error) {
+	var groups []dumpPolicyGroup
+	for _, descriptor := range view.state.descriptors {
+		d, ok := descriptor.(*relationDescriptor)
+		if !ok || len(d.policies) == 0 {
+			continue
+		}
+		ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+		if ns.temporary != (SessionToken{}) {
+			continue
+		}
+		owner, err := roles.Descriptor(d.owner)
+		if err != nil {
+			return nil, err
+		}
+		table := quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name)
+		var sql strings.Builder
+		for _, policy := range d.policies {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			option := "PERMISSIVE"
+			if !policy.permissive {
+				option = "RESTRICTIVE"
+			}
+			sql.WriteString("CREATE POLICY " + quoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.command)) + " TO ")
+			for i, role := range policy.roles {
+				if i != 0 {
+					sql.WriteString(", ")
+				}
+				if role.public {
+					sql.WriteString("PUBLIC")
+				} else {
+					principal, err := roles.Descriptor(role.ref)
+					if err != nil {
+						return nil, err
+					}
+					sql.WriteString(quoteIdentifier(principal.Name))
+				}
+			}
+			for _, clause := range []struct {
+				name string
+				expr *policyExpression
+			}{{"USING", policy.using}, {"WITH CHECK", policy.check}} {
+				if clause.expr == nil {
+					continue
+				}
+				for _, leaf := range clause.expr.presentation.sources {
+					relation, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+					if !ok {
+						return nil, fmt.Errorf("stuntgres: policy provider is missing")
+					}
+					if view.state.descriptors[relation.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
+					}
+				}
+				for _, dependency := range clause.expr.presentation.dependencies {
+					address := dependency.ref.Address
+					address.SubID = 0
+					provider := view.state.descriptors[address]
+					if provider == nil {
+						return nil, fmt.Errorf("stuntgres: policy provider is missing")
+					}
+					if namespace, ok := view.state.descriptors[provider.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
+					}
+				}
+				text, err := policyExpressionSQL(ctx, view, clause.expr)
+				if err != nil {
+					return nil, err
+				}
+				sql.WriteString(" " + clause.name + " (" + text + ")")
+			}
+			sql.WriteString(";\n")
+		}
+		groups = append(groups, dumpPolicyGroup{owner: owner.Name, table: table, sql: sql.String()})
+	}
+	slices.SortFunc(groups, func(a, b dumpPolicyGroup) int { return strings.Compare(a.table, b.table) })
+	return groups, nil
+}

@@ -815,6 +815,29 @@ is implied. See [domain contracts](docs/TYPES.md#domains--change-note).
 Feature smoke: `make check RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`.
 
+Change note: `CREATE POLICY`, selective `ALTER POLICY`, policy rename and
+`DROP POLICY [IF EXISTS]` now define immutable, table-attached policy metadata.
+Definitions support PERMISSIVE/RESTRICTIVE, ALL/SELECT/INSERT/UPDATE/DELETE,
+resolved role/PUBLIC targets and Boolean USING/WITH CHECK conditions, including
+supported nested queries. Omitted ALTER clauses retain existing fields;
+ownership, role dependencies, column/provider dependencies and native
+Dump/Reset/Restore follow the existing catalog and atomic-control paths.
+Restore resolves policy CURRENT_USER/CURRENT_ROLE/SESSION_USER targets against
+the actual named stage session, separately from trusted import authorization;
+all three targets after a named owner directive name that owner. Dump retains
+resolved target multiplicity, and Restore does not change caller identity.
+**Native support is metadata-only:** it does not enable row security, filter
+reads, enforce proposed-row checks or implement default-deny after the last
+policy is dropped. The enabled-table default-deny witness is PostgreSQL-only.
+Release18 accepts `ALTER POLICY IF EXISTS ... RENAME TO ...`, but its rename
+handler still errors on a missing table or policy; selective ALTER has no
+IF EXISTS form. Native policy utilities remain autocommit-only and reject
+read-only execution; PostgreSQL supports transactional policy DDL.
+See [policy contracts](docs/AUTHORIZATION.md#row-security-policy-definitions--change-note)
+and [dialect limits](docs/DIALECT.md#row-security-policy-definitions--change-note).
+Feature smoke: `make check RUN='^TestReferenceRLSPolicyFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRLSPolicyFeatureSmoke$'`.
+
 
 Session identity uses typed scalar expressions: `current_catalog`,
 `current_database()`, `current_role`, `current_user`, `session_user`, `user`

@@ -13,6 +13,7 @@ import (
 type viewDefinition struct {
 	query             *BoundQuery
 	syntax            *parser.Select
+	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
 	sources           []viewLeaf
 	dependencies      []expressionDependency
 	sequenceRefs      map[int]ObjectRef
@@ -26,7 +27,7 @@ type viewDefinition struct {
 	namespaces        []viewNamespace
 	barrier, invoker  bool
 	rule              OID
-	collations map[viewLiteralPath]uint32
+	collations        map[viewLiteralPath]uint32
 }
 
 // Persistent leaves contain identities and frozen layout, never live storage or
@@ -391,7 +392,9 @@ func (v *viewDefinition) validateNamespaces() error {
 		}
 	}
 	for _, project := range v.frames {
-		countFrom(project.syntax.From)
+		if project.syntax != nil {
+			countFrom(project.syntax.From)
+		}
 	}
 	if expected != len(v.namespaces) {
 		return fmt.Errorf("stuntgres: invalid view namespace count")

@@ -46,6 +46,7 @@ const (
 	TypeClassID           OID = 1247
 	CollationClassID      OID = 3456
 	ConversionClassID     OID = 2607
+	PolicyClassID         OID = 3256
 	PGCatalogNamespaceOID OID = 11
 	PublicNamespaceOID    OID = 2200
 )
@@ -99,6 +100,7 @@ type relationDescriptor struct {
 	columnComments       map[int32]string
 	notNullConstraints   []notNullConstraint
 	checkConstraints     []checkConstraint
+	policies             []policyDefinition
 	uniqueConstraints    []uniqueConstraint
 	exclusionConstraints []exclusionConstraint
 	defaults             map[int32]columnDefault
@@ -248,6 +250,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if err := validateUsageCollation(v, c.Usage); err != nil {
 			return err
 		}
+	}
+	if err := validatePolicies(v, r); err != nil {
+		return err
 	}
 	if err := validateInheritance(v, r); err != nil {
 		return err
@@ -1123,6 +1128,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			if domainChanged || s.descriptors[descriptor.Address()] != nil {
 				if err := validateTypeProviders(CatalogRead{owner: e, state: next}, descriptor); err != nil {
+					return ChangeSet{}, err
+				}
+			}
+			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
+				if err := validatePolicies(CatalogRead{owner: e, state: next}, relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

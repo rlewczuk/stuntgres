@@ -540,6 +540,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
+	policyGroups, err := policyDumpGroups(ctx, catalog, domainRoles)
+	if err != nil {
+		return err
+	}
 	domainNodes := make(map[OID]*typeDescriptor, len(domains))
 	for _, d := range domains {
 		id := d.Address().ObjectID
@@ -926,6 +930,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	for _, group := range policyGroups {
+		if group.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = group.owner
+		}
+		if err := emit(group.sql); err != nil {
+			return err
+		}
+	}
 	return ctx.Err()
 }
 
@@ -1029,6 +1044,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only unpopulated materialized view definitions")
 			}
 		case *parser.CreateIndex:
+		case *parser.CreatePolicy:
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -1084,10 +1100,13 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreatePolicy); ok {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateSequence); ok {

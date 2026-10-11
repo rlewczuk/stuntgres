@@ -26,13 +26,15 @@ func (r dumpRegtypeOutput) FormatRegtype(id uint32) (string, error) {
 	return regtypeReference(r.view, id), nil
 }
 
-func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.Value) error {
+// walkRegtypeReferences visits existing type identities represented by a value,
+// independently of its datatype. Callers retain their own recording semantics.
+func walkRegtypeReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := r.recordRegtypeReferences(view, value.CompositeField(i)); err != nil {
+			if err := walkRegtypeReferences(view, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -40,7 +42,7 @@ func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := r.recordRegtypeReferences(view, value.ArrayElement(i)); err != nil {
+			if err := walkRegtypeReferences(view, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -52,9 +54,16 @@ func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.
 	}
 	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}
 	if _, exists := view.state.descriptors[address]; exists {
-		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
+		return record(address)
 	}
 	return nil
+}
+
+func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.Value) error {
+	return walkRegtypeReferences(view, value, func(address ObjectAddress) error {
+		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
+		return nil
+	})
 }
 
 func remapRegtypeDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {

@@ -340,6 +340,7 @@ type AccessRequirement struct {
 	Object     ObjectRef
 	Privileges Privileges
 	OwnerOnly  bool
+	OwnerNoun  string // Utility diagnostic context; never changes authority.
 }
 type AuthorizationStamp struct {
 	Catalog        CatalogEpoch
@@ -350,6 +351,8 @@ type AuthorizationView struct {
 	catalog  CatalogRead
 	roles    RoleRead
 	state    RoleState
+	// Actual session identities remain distinct from trusted import authority.
+	sessionRoleState RoleState
 	revision uint64
 	settings *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
@@ -385,6 +388,13 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore index authority")
+		}
+		auth.state.CurrentUser = bootstrap.Ref
+	}
+	if _, policy := stmt.(*parser.CreatePolicy); policy && op.restoreTableDestination {
+		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore policy authority")
 		}
 		auth.state.CurrentUser = bootstrap.Ref
 	}
@@ -455,7 +465,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	return AuthorizationView{engine: e, catalog: view, roles: r, state: identity, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}, nil
+	return AuthorizationView{engine: e, catalog: view, roles: r, state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}, nil
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {
@@ -618,6 +628,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if req.Object.Address.SubID > 0 && d.Kind() == RelationObject {
 			kind = "relation"
 		}
+		if req.OwnerNoun != "" {
+			kind = req.OwnerNoun
+		}
 		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, d.Name()))
 	}
 	mask := classPrivileges(d)
@@ -672,6 +685,19 @@ func validateACL(r RoleRead, d Descriptor) error {
 	if _, err := r.Descriptor(owner); err != nil {
 		return err
 	}
+	if relation, ok := d.(*relationDescriptor); ok {
+		for _, policy := range relation.policies {
+			for _, role := range policy.roles {
+				if role.public {
+					if role.ref != (PrincipalRef{}) {
+						return fmt.Errorf("stuntgres: PUBLIC policy principal")
+					}
+				} else if _, err := r.Descriptor(role.ref); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	check := func(a ACLValue, mask Privileges) error {
 		if !a.Explicit && len(a.Entries) != 0 {
 			return fmt.Errorf("stuntgres: entries in absent ACL")
@@ -721,6 +747,15 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	}
 	owner, acl, cols := descriptorACL(d)
 	refs := []PrincipalRef{owner}
+	if relation, ok := d.(*relationDescriptor); ok {
+		for _, policy := range relation.policies {
+			for _, role := range policy.roles {
+				if !role.public {
+					refs = append(refs, role.ref)
+				}
+			}
+		}
+	}
 	add := func(a ACLValue) {
 		for _, x := range a.Entries {
 			refs = append(refs, x.Grantor)

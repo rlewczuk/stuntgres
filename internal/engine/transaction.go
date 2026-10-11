@@ -629,8 +629,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, err
 	}
 	switch stmt.(type) {
-	case *parser.CreateTable, *parser.DropTable:
-		// Table utilities have no result signature. Resolve ownership, read-only
+	case *parser.CreateTable, *parser.DropTable, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
+		// Definition utilities have no result signature. Resolve ownership, read-only
 		// precedence and persistent-DDL exclusions only when actually executing.
 		return s.op.session.Engine().describeOperation(s, stmt)
 	}

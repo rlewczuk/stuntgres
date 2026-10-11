@@ -94,6 +94,9 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 		if path != nil {
 			visible := false
 			for _, ns := range path {
+				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+					continue
+				}
 				if a, ok := catalog.state.names[NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
 					visible = a == d.Address()
 					break
@@ -139,6 +142,15 @@ type supportedDependent struct {
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
 func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) []supportedDependent {
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults))
+	policyTargets := targets
+	if len(views) != 0 {
+		policyTargets = make([]ObjectAddress, len(targets), len(targets)+len(views))
+		copy(policyTargets, targets)
+		for _, edge := range views {
+			policyTargets = append(policyTargets, edge.view.address)
+		}
+	}
+	dependents = append(dependents, policyDependentLabels(catalog, policyTargets, path)...)
 	for _, edge := range defaults {
 		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
 		dependents = append(dependents, supportedDependent{oid: edge.relation.defaults[edge.attribute].OID, target: edge.target, label: label})
@@ -233,11 +245,14 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 	if err != nil {
 		return err
 	}
-	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 {
+	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policyDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 {
 		return nil
 	}
 	if mode == parser.DropRestrict {
 		return supportedRestrictError(stage.base, targets, checks, edges, defaults, stage.dependencyPath)
+	}
+	if err := stagePolicyDependents(stage, expanded, mode); err != nil {
+		return err
 	}
 	activeEdges := edges[:0]
 	for _, edge := range edges {
@@ -364,7 +379,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				return err
 			}
 		}
-		if project, ok := node.(*projectNode); ok && project.syntax != nil {
+		if project, ok := node.(*projectNode); ok && (project.syntax != nil || definition.frames[project.frame] == project) {
 			frame = project.frame
 			frozen := definition.frames[frame]
 			if frozen == nil || frozen.syntax != project.syntax {
@@ -534,7 +549,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 		return fmt.Errorf("stuntgres: invalid view query frame manifest")
 	}
 	for frame, project := range projects {
-		if project.syntax.Locking != nil && !marked[frame] {
+		if project.syntax != nil && project.syntax.Locking != nil && !marked[frame] {
 			return fmt.Errorf("stuntgres: missing stored view rowmark")
 		}
 	}

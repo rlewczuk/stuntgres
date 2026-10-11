@@ -158,6 +158,11 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 						}
 					}
 				}
+				for _, policy := range d.policies {
+					if policyDepends(policy, target) {
+						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, target: target, root: root, oid: policy.OID, label: "policy " + dependencyIdentifier(policy.Name) + " on table " + name, relation: d})
+					}
+				}
 				for i, c := range d.columns {
 					column := a
 					column.SubID = d.attributes[i]
@@ -347,13 +352,20 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 	}
 	for _, edge := range edges {
+		// Discovery can enter an owned provider without emitting a removal
+		// edge for it: relation retirement already removes its row type and
+		// array. Preserve the captured provider identity when pruning stored
+		// expressions, not just the requested root and dependent addresses.
+		if !slices.Contains(targets, edge.target) {
+			targets = append(targets, edge.target)
+		}
 		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
 			targets = append(targets, edge.address)
 			if edge.address.ClassID == RelationClassID && edge.address.SubID == 0 {
 				seen[edge.address] = true
 			}
 		}
-		if edge.relation != nil && edge.address.SubID == 0 && hierarchyRelation(edge.relation) {
+		if edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
 			hierarchyTargets = append(hierarchyTargets, edge.address)
 		}
 	}
@@ -364,7 +376,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 	}
 	for _, edge := range edges {
-		if scope != nil && edge.relation != nil && edge.address.SubID == 0 && hierarchyRelation(edge.relation) {
+		if scope != nil && edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
 			if err := scope.acquirePartitionDropLocks(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: edge.address}); err != nil {
 				return err
 			}
@@ -373,18 +385,29 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
 	e := stage.owner
 	if scope != nil {
+		// Lock owners are not deletion/projection targets. A policy edge
+		// captures its surviving owner's identity, even without a column edge.
+		lockRelations := make([]*relationDescriptor, 0, len(relations))
+		lockSeen := make(map[ObjectAddress]bool)
 		for _, r := range relations {
+			lockRelations = append(lockRelations, r)
+			lockSeen[r.address] = true
+		}
+		for _, edge := range edges {
+			r := edge.relation
+			if r == nil || lockSeen[r.address] {
+				continue
+			}
+			if edge.address.ClassID == PolicyClassID || edge.address == r.address && r.relationKind == tableRelation {
+				lockRelations = append(lockRelations, r)
+				lockSeen[r.address] = true
+			}
+		}
+		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].address.ObjectID < lockRelations[j].address.ObjectID })
+		for _, r := range lockRelations {
 			ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: r.address}
 			if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
 				return err
-			}
-		}
-		for _, edge := range edges {
-			if edge.relation != nil && edge.address == edge.relation.address && edge.relation.relationKind == tableRelation {
-				ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: edge.address}
-				if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
-					return err
-				}
 			}
 		}
 	}

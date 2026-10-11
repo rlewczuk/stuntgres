@@ -74,6 +74,9 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Prepared transactions prevent replacement without consuming their state.
 // Live temporary tables inheriting persistent parents prevent Reset/Restore
 // replacement; temporary-to-temporary graphs retain their exact identities.
+// Persistent policies disappear with their tables; live TEMP table policies
+// retain their identities. Incompatible live TEMP policy dependencies prevent
+// replacement rather than adopting new same-name persistent providers.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -89,6 +92,10 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Only committed data is serialized, never prepared private writes or GIDs.
 // Inheritance parents precede children; ordered INHERITS and local declaration
 // provenance reconstruct inherited defaults, generated columns, CHECK and NOT NULL.
+// Table-attached policies are emitted in a final named-owner pass after their
+// persistent providers. Policy conditions remain stored SQL, without evaluation.
+// Persistent policies referencing TEMP objects are rejected before writer I/O.
+// Policy export preserves metadata only; native row-security enforcement is absent.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -98,7 +105,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
 // SCHEMA, CREATE COLLATION (and ALTER COLLATION), CREATE TYPE AS ENUM, CREATE DOMAIN,
-// CREATE TABLE/SEQUENCE/VIEW/INDEX, parameter-free scalar INSERT (including integer
+// CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated
 // SELECT setval(name,value,is_called), and named owner directives succeed.
 // Parameters are recursively rejected; other statements remain excluded.
@@ -116,6 +123,13 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Private stage INSERT and database-local COMMENT use validated captured bootstrap
 // authority without changing named owner directives, session identity or ordinary
 // SQL authorization. Neither command stamps ownership or synthesizes ACL grants.
+// Policy TO roles must already exist and retain captured principal provenance.
+// CREATE POLICY uses validated private import authority without granting ordinary
+// SQL privileges. TO CURRENT_USER/CURRENT_ROLE/SESSION_USER resolve against the
+// actual named stage-session identities, never the trusted authorization actor.
+// Policy conditions and provider identities remap atomically;
+// live TEMP policies retain their table lifetime and incompatible dependencies
+// refuse replacement. Importing policies does not enable native row security.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 // Final installation refuses while prepared transactions exist, including entries
 // prepared during reader I/O; refusal preserves the target catalog and resources.

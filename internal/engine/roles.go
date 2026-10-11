@@ -159,9 +159,20 @@ type roleDependency struct {
 	address     ObjectAddress
 	kind        byte // PostgreSQL shared dependency types: ACL ('a'), owner ('o').
 	description string
+	policyTable ObjectAddress
+	policyName  string
 }
 
 func descriptorRoleDependencies(deps []roleDependency, d Descriptor, ref PrincipalRef) []roleDependency {
+	if relation, ok := d.(*relationDescriptor); ok {
+		for _, policy := range relation.policies {
+			for _, role := range policy.roles {
+				if !role.public && role.ref == ref {
+					deps = append(deps, roleDependency{address: ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name})
+				}
+			}
+		}
+	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
 		// The relation carries the ownership/ACL dependency for its internal
 		// row and associated array types; they are not independently owned.
@@ -261,6 +272,10 @@ func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor,
 
 func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	view := auth.catalog
+	if dep.kind == 'r' {
+		relation := view.state.descriptors[dep.policyTable].(*relationDescriptor)
+		return "target of policy " + dependencyIdentifier(dep.policyName) + " on table " + relationDiagnosticName(auth, relation)
+	}
 	if dep.description != "" {
 		return dep.description
 	}

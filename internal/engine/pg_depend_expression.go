@@ -57,6 +57,12 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
 		}
 		r.add(n.regclassRef.Address)
+		if r.err == nil {
+			r.err = walkRegtypeReferences(r.catalog, n.value, func(address ObjectAddress) error {
+				r.add(address)
+				return r.err
+			})
+		}
 	case coercionExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})

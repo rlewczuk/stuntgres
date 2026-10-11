@@ -224,6 +224,16 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		return expressions(r.Targets)
 	}
 	switch s := statement.(type) {
+	case *CreatePolicy:
+		if err := expression(s.Using); err != nil {
+			return err
+		}
+		return expression(s.Check)
+	case *AlterPolicy:
+		if err := expression(s.Using); err != nil {
+			return err
+		}
+		return expression(s.Check)
 	case *PrepareSQL:
 		return VisitQuerySources(s.Body, visitQuery, visitTable)
 	case *Select:

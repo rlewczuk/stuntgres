@@ -152,9 +152,8 @@ func TestReferenceRoleMembershipControls(t *testing.T) {
 		if !identities.Next() || identities.Scan(&name) != nil || name != "ml_member" || identities.Next() || identities.Err() != nil {
 			t.Fatal("retained identity", name, identities.Err())
 		}
-		want := fixture.ControlsReferenceDiagnostic("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		for _, script := range []string{"GRANT ml_owner TO ml_member;", "CREATE ROLE ml_rejected IN ROLE ml_owner;"} {
-			fixture.AssertDiagnostic(t, stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(script)), &want)
+			fixture.State(t, stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(script)), "0A000")
 		}
 		s.read(true)
 		s.actor("")

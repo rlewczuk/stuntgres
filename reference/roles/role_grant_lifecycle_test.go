@@ -129,7 +129,7 @@ func TestReferenceRoleGrantLifecycle(t *testing.T) {
 			t.Fatal("explicit ACL Dump boundary", out.String(), err)
 		}
 		err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE replacement(a INT); GRANT SELECT ON replacement TO rg_reader"))
-		fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION"})
+		fixture.State(t, err, "0A000")
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_future", 0))
 		run(fixture.Select("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(9)}}))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

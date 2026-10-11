@@ -5,6 +5,43 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// Policy conditions are optional definitions, not enforcement-time fallbacks.
+type CreatePolicy struct {
+	Name         Identifier
+	Table        ObjectName
+	Permissive   bool
+	Command      string
+	Roles        []GrantGrantee
+	Using, Check Expr
+	Pos          Position
+}
+
+func (*CreatePolicy) statement() {}
+
+type AlterPolicy struct {
+	Name         Identifier
+	Table        ObjectName
+	Roles        []GrantGrantee
+	Using, Check Expr
+	Rename       *Identifier
+	// Release 18 accepts this only for rename, but rename_policy does not
+	// suppress missing-object errors.
+	IfExists bool
+	Pos      Position
+}
+
+func (*AlterPolicy) statement() {}
+
+type DropPolicy struct {
+	Name     Identifier
+	Table    ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropPolicy) statement() {}
+
 // SQL names belong to the physical session, not to driver statement handles.
 type PrepareSQL struct {
 	Name   Identifier

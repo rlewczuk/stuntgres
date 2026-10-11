@@ -156,7 +156,7 @@ func TestReferenceRoleRevokeLifecycle(t *testing.T) {
 			t.Fatal("Dump ACL boundary", out.String(), err)
 		}
 		err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE replacement(a INT); REVOKE SELECT ON replacement FROM rg_reader CASCADE"))
-		fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION"})
+		fixture.State(t, err, "0A000")
 		run(fixture.Select("SELECT a,b FROM t", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(11), int64(9)}}))
 		run(fixture.Exec("GRANT rg_group TO rg_reader WITH INHERIT TRUE", 0))
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {

@@ -194,72 +194,23 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			}
 			next.descriptors[address] = d
 		}
+		if len(d.policies) != 0 {
+			var err error
+			d, err = remapPolicies(view, d, mapping, ref, typ, collation)
+			if err != nil {
+				return err
+			}
+			next.descriptors[address] = d
+		}
 		if d.view == nil {
 			continue
 		}
-		definition := *d.view
-		if collation != nil && len(d.view.collations) != 0 {
-			definition.collations = make(map[viewLiteralPath]uint32, len(d.view.collations))
-			for path, id := range d.view.collations {
-				if target, ok := mapping[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}]; ok {
-					id = uint32(target.ObjectID)
-				}
-				definition.collations[path] = id
-			}
-		}
-		// Namespace metadata has only labels, occurrence/frame slots and stable
-		// attribute SubIDs. It is immutable and has no catalog-generation refs
-		// or type pointers; the remapped leaves/tree supply its new identities.
-		definition.sources = append([]viewLeaf(nil), definition.sources...)
-		for i := range definition.sources {
-			definition.sources[i].ref = ref(definition.sources[i].ref)
-		}
-		if len(d.view.literals) != 0 {
-			definition.literals = make(map[viewLiteralPath]literalExpression, len(d.view.literals))
-			for path, literal := range d.view.literals {
-				node, _, err := retagBoundTypes(view, literal, typ, collation)
-				if err != nil {
-					return err
-				}
-				node, err = remapBoundExpression(node, ref, nil)
-				if err != nil {
-					return err
-				}
-				definition.literals[path] = node.(literalExpression)
-			}
-		}
-		if len(d.view.castUsages) != 0 {
-			definition.castUsages = make(map[viewLiteralPath]sqltype.Usage, len(d.view.castUsages))
-			for path, usage := range d.view.castUsages {
-				usage.Type = typ(usage.Type)
-				if collation != nil {
-					var err error
-					usage.Collation, err = collation(usage.Collation)
-					if err != nil {
-						return err
-					}
-				}
-				definition.castUsages[path] = usage
-			}
-		}
-		definition.sequenceRefs = make(map[int]ObjectRef, len(d.view.sequenceRefs))
-		for offset, old := range d.view.sequenceRefs {
-			definition.sequenceRefs[offset] = ref(old)
-		}
-		definition.dependencies = append([]expressionDependency(nil), definition.dependencies...)
-		for i := range definition.dependencies {
-			definition.dependencies[i].ref = ref(definition.dependencies[i].ref)
-		}
-		root, err := remapViewQuery(view, definition.query.Root, ref, typ, collation)
+		definition, err := remapFrozenPresentation(view, d.view, mapping, ref, typ, collation)
 		if err != nil {
 			return err
 		}
-		query := *definition.query
-		query.Root = root
-		definition.query = &query
-		definition.frames, definition.queries = collectQueryFrames(root)
 		copy := *d
-		copy.view = &definition
+		copy.view = definition
 		next.descriptors[address] = &copy
 	}
 	return nil

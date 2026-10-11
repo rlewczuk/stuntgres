@@ -486,7 +486,14 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 	for frame, project := range v.frames {
 		s := project.syntax
 		if s == nil {
-			return fmt.Errorf("stuntgres: missing stored query syntax")
+			if frame != 1 || v.expressionSyntax == nil {
+				return fmt.Errorf("stuntgres: missing stored query syntax")
+			}
+			ordinal := 0
+			if err := v.validateLiteralTree(catalog, v.expressionSyntax, viewLiteralPath{query: frame, clause: viewTargetLiteral}, &ordinal, &count, &columnCount); err != nil {
+				return err
+			}
+			continue
 		}
 		if s.Set != nil {
 			set, ok := viewFromRoot(project).(*setNode)

@@ -17,6 +17,12 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 			return nil, err
 		}
 	}
+	return e.freezeQueryPresentationLocked(auth, syntax, b, barrier, invoker, rule, temporaryMessage)
+}
+
+// Policies share analyzed expression/query presentation without inheriting a
+// view's temporary-source restriction. An empty message permits those sources.
+func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, temporaryMessage string) (*viewDefinition, error) {
 	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
 	definition.similarSubstrings = b.viewSimilarSubstrings
@@ -26,7 +32,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 	definition.namespaces = b.viewNamespaces
 	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))
 	for _, constant := range b.sequenceConstants {
-		if constant.temporary != (SessionToken{}) {
+		if constant.temporary != (SessionToken{}) && temporaryMessage != "" {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 		definition.sequenceRefs[constant.offset] = constant.ref
@@ -57,7 +63,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
 		}
-		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) {
+		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) && temporaryMessage != "" {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}

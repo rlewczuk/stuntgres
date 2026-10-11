@@ -611,7 +611,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if path.clause == viewValuesOrderLiteral && column.frame == path.query {
 			root = viewValuesAt(v.query.Root, path.source)
 		}
-		_, ownerSimple := owner.syntax.From.(*parser.TableReference)
+		// SELECT's simple-source spelling is a display-only rule for
+		// correlated view columns. Frozen expression frames (policy conditions)
+		// have slots and bound identities, but deliberately no SELECT syntax.
+		ownerSimple := false
+		if v.presentation.deparse && column.frame != path.query {
+			_, ownerSimple = owner.syntax.From.(*parser.TableReference)
+		}
 		if v.presentation.deparse && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
 			source, ok := root.(*sourceNode)
 			if !ok {
@@ -665,10 +671,10 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
-			if literal, ok := v.literals[literalPath]; ok && (literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money) {
+			if literal, ok := v.literals[literalPath]; ok && (literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || literal.ResultUsage().Type.ID() == sqltype.Regtype && rawLiteral.Value.Kind == parser.StringValue) {
 				// The binder types these literal children directly as the cast
-				// target. OID/NAME/MONEY literalSQL supplies the owning typed leaf;
-				// wrapping it again would grow another cast on every replay.
+				// target. REGTYPE string output supplies its owning typed leaf,
+				// but NULL still needs the explicit source cast.
 				return text, nil
 			}
 		}

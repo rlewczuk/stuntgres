@@ -1,0 +1,83 @@
+package engine
+
+import (
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestRLSPolicyAggregateSemanticOwner(t *testing.T) {
+	e, op, done, d := policyUnitFixture(t)
+	defer done()
+	for _, tc := range []struct {
+		condition string
+		code      string
+		message   string
+		hint      string
+	}{
+		{"sum(t.id)>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"(SELECT sum(t.id))>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"(SELECT (SELECT sum(t.id)) FROM helper)>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"FALSE AND (SELECT sum(t.id))>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"CASE WHEN TRUE THEN TRUE ELSE (SELECT (SELECT sum(t.id)))>0 END", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"sum(t.allowed)>0", "42883", "function sum(boolean) does not exist", "No function matches the given name and argument types. You might need to add explicit type casts."},
+		{"(SELECT sum(t.allowed))>0", "42883", "function sum(boolean) does not exist", "No function matches the given name and argument types. You might need to add explicit type casts."},
+		{"(SELECT sum(sum(helper.id)) FROM helper)>0", "42803", "aggregate function calls cannot be nested", ""},
+		{"(SELECT sum(sum(helper.id)+t.id) FROM helper)>0", "42803", "aggregate function calls cannot be nested", ""},
+		{"(SELECT sum(sum(t.id)))>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"(SELECT count(*) FROM helper)>0", "", "", ""},
+		{"(SELECT sum(1))>0", "", "", ""},
+		{"(SELECT sum(helper.id+t.id) FROM helper)>0", "", "", ""},
+		{"(SELECT (SELECT sum(helper.id)) FROM helper)>0", "", "", ""},
+		// Each child exit must restore POLICY for its following sibling.
+		{"(SELECT sum(helper.id) FROM helper)>0 AND sum(t.id)>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"(SELECT sum(helper.id) FROM helper)>0 AND (SELECT sum(t.id))>0", "42803", "aggregate functions are not allowed in policy expressions", ""},
+		{"(SELECT sum(helper.id) FROM helper)>0 AND (SELECT sum(helper.id+t.id) FROM helper)>0", "", "", ""},
+	} {
+		t.Run(tc.condition, func(t *testing.T) {
+			expression, err := policyUnitBind(t, e, op, d, tc.condition)
+			if tc.code == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := validatePolicyExpression(e.CatalogRead(), d, expression); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			diagnostic, ok := err.(*sqlstate.Error)
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Hint: tc.hint}
+			if !ok || *diagnostic != want {
+				t.Fatalf("diagnostic got %#v, want %#v", err, want)
+			}
+		})
+	}
+}
+
+func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
+	e, op, done, d := policyUnitFixture(t)
+	defer done()
+	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	b.relation = d
+	b.aggregateClause = "policy expressions"
+	for range 2 {
+		leaveChild := b.enterQuery(false)
+		if b.aggregateClause != "" || len(b.queryScopes) != 1 || b.queryScopes[0].clause != "policy expressions" {
+			t.Fatal("child did not capture policy owner", b.aggregateClause, b.queryScopes)
+		}
+		b.aggregateClause = "SELECT"
+		leaveGrandchild := b.enterQuery(false)
+		if len(b.queryScopes) != 2 || b.queryScopes[0].clause != "policy expressions" || b.queryScopes[1].clause != "SELECT" {
+			t.Fatal("deep query lost lexical owner clauses", b.queryScopes)
+		}
+		b.aggregateClause = "WHERE"
+		leaveGrandchild()
+		if b.aggregateClause != "SELECT" || len(b.queryScopes) != 1 {
+			t.Fatal("grandchild failed to restore child clause", b.aggregateClause, b.queryScopes)
+		}
+		leaveChild()
+		if b.aggregateClause != "policy expressions" || len(b.queryScopes) != 0 || b.queryFrame != 0 {
+			t.Fatal("child failed to restore policy clause", b.aggregateClause, b.queryScopes, b.queryFrame)
+		}
+	}
+}

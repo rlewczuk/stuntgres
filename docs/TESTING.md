@@ -4057,7 +4057,96 @@ Run every command with an external 900-second deadline. These selected proofs
 supplement, rather than replace, the root-owned whole-project Docker-free
 quickcheck and final verification.
 
+## Row-security policy definitions
 
+Public direct/prepared witnesses are the untagged `reference/roles/rls_policy*`
+families. They independently specify grammar, retained ALTER fields, ownership,
+role multiplicity, exact diagnostics/notices, provider/column dependencies,
+native controls, lock/cancellation lifecycle and unchanged native rows.
+Conditional rename witnesses retain release18's accepted-but-nonskipping
+IF EXISTS behavior; do not reuse DROP IF EXISTS notice expectations.
+Internal `TestRLSPolicy` units exercise real capture/bind/render/validation,
+catalog remapping and canceled publication, supplementing public witnesses.
+
+Root-selected verification, with an external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceRLSPolicy'
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicy'
+make check RUN='^TestRLSPolicy'
+make check RACE=1 RUN='^TestReferenceRLSPolicy(Ownership|Controls|Lifecycle|ConditionalRename)$'
+make check RACE=1 RUN='^TestRLSPolicy(Publication|Remap)'
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicyDefaultDenyPostgres$'
+```
+
+The last selector is intentionally PostgreSQL-only: an enabled table, nonowner
+SELECT grant and removal of its last policy establish genuine default-deny.
+Native policy support is metadata-only, without toggles/filtering/proposed-row
+checks. Do not infer enforcement from owner reads, successful DDL or a native
+round trip. Controls retain explicit native API phases; PostgreSQL independently
+checks SQL and genuine emitted-stream replay, not an invented Restore API.
+The commands specify required proof, not a claim that all selected checks passed.
+
+Review-remedy witnesses independently cover semantic aggregate ownership and
+signature/nesting precedence, REGTYPE-only provider RESTRICT/CASCADE and ALTER
+retention, and cascade owner-lock wait/cancel/retry with mixed dependencies.
+Provider-only TEMP controls exercise persistent-provider replacement refusal
+and compatible TEMP collation/sequence/row-type retention in both clauses.
+TEMP domain CREATE remains an explicit native capability boundary, not a
+retention success. `TestReferenceRLSPolicyPostgresReplay` executes the actual
+native Dump bytes unchanged on pinned PostgreSQL, with existing named roles,
+correlated conditions and domain/collation/sequence/REGTYPE providers; it checks
+metadata, identities, dependencies and rows independently.
+
+```sh
+make check RACE=1 RUN='^TestReferenceRLSPolicy(RegtypeDependencies|RegtypeTemporary|CascadeOwnerLock|AggregateOwner.*|ProviderControls|PostgresReplay)$'
+make check RUN='^TestPGDependRegtypeValueReferences'
+make check RACE=1 RUN='^TestRLSPolicy'
+```
+
+`TestReferenceRLSPolicyRestoreSelectors` executes the same named-session-owner
+SET SESSION AUTHORIZATION / CREATE TABLE / CREATE POLICY TO CURRENT_USER,
+CURRENT_ROLE, SESSION_USER input on PostgreSQL and through native Restore.
+The independent expectation is three occurrences of that named owner, not
+the private import-authority principal. PostgreSQL's actual policy OID vector
+and native Dump's ordered TO identifier vector supplement full role-dependency
+diagnostics: the owner plus three policy targets block DROP ROLE; ALTER TO
+PUBLIC releases the targets but not table ownership; dropping the table releases
+the owner. Native complete emitted bytes are reimported twice and, in real mode,
+replayed unchanged on PostgreSQL with independently expected ownership/targets/rows.
+SQL probes and dependency release run through both direct and prepared routes.
+
+Root-owned oracle-first discovery and native-red commands (external900s each):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicyRestoreSelectors/^prepared=/^postgres$'
+make check RUN='^TestReferenceRLSPolicyRestoreSelectors$'
+```
+
+After the source remedy, run the complete definition in both modes:
+
+```sh
+make check RUN='^TestReferenceRLSPolicyRestoreSelectors$'
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicyRestoreSelectors$'
+make check RUN='^TestRLSPolicyRestoreAuthorization$'
+make check RACE=1 RUN='^TestRLSPolicyRestoreAuthorization$'
+```
+
+These specify intended proof, not observed results. Existing Controls retains
+failed-Restore atomicity and trusted differently owned provider round trips;
+PostgresReplay retains its independent named-target actual-byte replay.
+
+`TestRLSPolicyRestoreAuthorization` supplements the public witness with real
+locked authorization captures: ordinary semantic state equals session state,
+trusted policy authority changes only its authorization actor, subsequent
+session revisions produce fresh target captures, retained captures stay
+immutable, and a live-engine importer flag cannot forge private authority.
+The root-owned temporary public policy smoke also imports selector-bearing
+SQL under a named stage owner while preserving a different named caller,
+asserts the actual Dump's three named targets and reimports its complete bytes.
+Its expected quiet stdout is
+`policy DDL smoke: create/alter/rename/roundtrip/drop/restore-selectors OK`,
+with empty stderr. The session smoke source is not a permanent deliverable.
 
 ## NUMRANGE oracle-first contract
 
@@ -4092,3 +4181,46 @@ is supplied in the OMP session as `local://numrange-smoke.go`: materialize it
 temporarily as `.numrange-feature-smoke/main.go`, run
 `timeout 60s go run ./.numrange-feature-smoke`, record observations and remove
 the materialized source. Success is quiet exit0; failure reports an actual mismatch.
+
+
+## Policy frozen-expression renderer regression
+
+Policy conditions use the stored-view expression renderer's analyzed literals,
+casts, collations, provider identities and lexical column slots. Their outer
+expression frame has no SELECT syntax. SELECT-only correlated-column display
+rules must not run during policy validation or export; view display keeps its
+existing simple-source spelling.
+
+`TestRLSPolicyFrozenExpression` exercises actual capture, validation, rendering
+and recapture, including typed temporal values, typed NULL, domain casts,
+collation/sequence/regtype providers, identity expressions, nested correlation,
+ANY/ALL, row comparison and nested aggregate/window queries. Rendered SQL must
+bind again and redump unchanged. A row-dependent division-by-zero condition must
+be stored without evaluation. `TestRLSPolicyRemap` checks the same frozen
+provider/cast/literal/correlation context after actual catalog replacement and
+retains the original immutable definition.
+
+`TestReferenceRLSPolicyExpressionsRegtype` independently expects direct/prepared
+policy DDL to accept domain and row-type REGTYPE constants, typed REGTYPE NULL
+and the supported symbolic `CURRENT_USER IS NOT NULL` condition. A shared view
+retains the renamed row-type identity rather than a new table with the old name;
+its Boolean identity comparisons must return `(true,false)` and policy DDL must
+leave both target rows unchanged. Native controls repeat exact Dump/Restore/Dump
+equality three times, including policy symbolic identity, current qualified type
+names and the view's live identity comparisons. Frozen non-NULL REGTYPE leaves
+already carry their type annotation, so replay adds no redundant cast. Typed
+NULL retains its explicit source cast. This adds no NAME-to-TEXT capability.
+
+Root-selected proofs, each with an external 900-second deadline:
+
+```sh
+make check RUN='^TestRLSPolicy(FrozenExpression|Remap)$'
+make check RUN='^TestReferenceRLSPolicy(FeatureSmoke|Expressions)$'
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicy(FeatureSmoke|Expressions)$'
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicyExpressionsRegtype$'
+make check RUN='^TestReferenceRLSPolicyExpressionsRegtype$'
+```
+
+The existing direct/prepared feature smoke is the public panic regression;
+internal presentation tests supplement, not replace, its dual-mode proof.
+These commands describe required verification, not observed passing outcomes.

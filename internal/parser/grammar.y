@@ -209,6 +209,7 @@ package parser
 %token <tok> CONCURRENTLY
 %token <tok> INCLUDE TABLESPACE
 %token <tok> EXCLUDE
+%token <tok> POLICY
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -277,6 +278,11 @@ package parser
 %type <frameBound> frame_bound
 %type <tok> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> create_policy alter_policy drop_policy
+%type <tok> policy_command policy_option
+%type <desc> policy_permissive
+%type <grantGrantees> policy_roles
+%type <expr> policy_using policy_check
 %type <stmt> declare_cursor fetch_cursor close_cursor
 %type <cursorFetch> cursor_direction
 %type <desc> cursor_scroll cursor_hold
@@ -551,10 +557,45 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | prepare_sql | execute_sql | deallocate_sql | discard
  | alter_collation | drop_collation
  | refresh_materialized_view
+ | create_policy | alter_policy | drop_policy
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
+create_policy: CREATE POLICY name ON relation_name policy_permissive policy_command policy_roles policy_using policy_check {
+ $$=&CreatePolicy{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Permissive:$6,Command:$7.text,Roles:$8,Using:$9,Check:$10,Pos:$1.pos}
+} ;
+policy_option: name ;
+policy_permissive: /* empty */ {$$=true}
+ | AS policy_option {
+ if $2.text!="permissive" && $2.text!="restrictive" {
+ sqllex.(*lexer).policyOptionError($2)
+ return 1
+ };$$=$2.text=="permissive"
+} ;
+policy_command: /* empty */ {$$=lexeme{text:"all"}}
+ | FOR ALL {$$=$2} | FOR SELECT {$$=$2} | FOR INSERT {$$=$2}
+ | FOR UPDATE {$$=$2} | FOR DELETE {$$=$2} ;
+policy_roles: /* empty */ {$$=nil} | TO grant_grantees {
+ for _,role:=range $2 {if role.Role.Name=="none" {sqllex.(*lexer).failAt("42939","role name \"none\" is reserved",role.Role.Pos.Offset);return 1}}
+ $$=$2
+} ;
+policy_using: /* empty */ {$$=nil}
+ | USING '(' {sqllex.(*lexer).policyExpression=true} target_or ')' {sqllex.(*lexer).policyExpression=false;$$=$4} ;
+policy_check: /* empty */ {$$=nil}
+ | WITH CHECK '(' {sqllex.(*lexer).policyExpression=true} target_or ')' {sqllex.(*lexer).policyExpression=false;$$=$5} ;
+alter_policy: ALTER POLICY name ON relation_name policy_roles policy_using policy_check {
+ $$=&AlterPolicy{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Roles:$6,Using:$7,Check:$8,Pos:$1.pos}
+} | ALTER POLICY name ON relation_name RENAME TO name {
+ target:=Identifier{Text:$8.text,Pos:$8.pos};$$=&AlterPolicy{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Rename:&target,Pos:$1.pos}
+} | ALTER POLICY IF EXISTS name ON relation_name RENAME TO name {
+ target:=Identifier{Text:$10.text,Pos:$10.pos};$$=&AlterPolicy{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,Rename:&target,IfExists:true,Pos:$1.pos}
+} ;
+drop_policy: DROP POLICY name ON relation_name drop_mode {
+ $$=&DropPolicy{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Mode:$6,Pos:$1.pos}
+} | DROP POLICY IF EXISTS name ON relation_name drop_mode {
+ $$=&DropPolicy{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
+} ;
 prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
 prepare_types: /* empty */ { $$=nil } | '(' prepare_type_list ')' { $$=$2 } ;
 prepare_type_list: type { $$=[]TypeName{$1} } | prepare_type_list ',' type { $$=append($1,$3) } ;
@@ -1849,7 +1890,7 @@ setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT ;
-window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER
+window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
@@ -1869,6 +1910,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | SIMILAR
  | COLLATION
  | EXCLUDE
+ | POLICY
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;

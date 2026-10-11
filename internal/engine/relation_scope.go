@@ -62,6 +62,14 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		return s.acquireQueryRelations(stmt, stmt, execute)
 	}
 	switch stmt.(type) {
+	case *parser.CreatePolicy, *parser.AlterPolicy:
+		if !execute {
+			return nil
+		}
+		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
+			return err
+		}
+		return s.acquireQueryRelations(stmt, stmt, execute)
 	case *parser.Update, *parser.Delete, *parser.Merge:
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
@@ -79,6 +87,21 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	viewReplacement := false
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
+	case *parser.CreatePolicy:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly, rename = v.Table, accessExclusive, true, true
+	case *parser.AlterPolicy:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly, rename = v.Table, accessExclusive, true, true
+	case *parser.DropPolicy:
+		if !execute {
+			return nil
+		}
+		name, mode, rename, ifExists = v.Table, accessExclusive, true, v.IfExists
 	case *parser.CreateTable:
 		if !execute || v.PartitionOf == nil {
 			return nil
@@ -185,6 +208,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	parentAuth := auth
+	if err == nil {
+		err = policyPreflight(s.op, auth, stmt, true)
+	}
 	if creation, ok := stmt.(*parser.CreateTable); ok && err == nil {
 		parentAuth, err = e.partitionParentAuthorization(s.op, auth, creation)
 		if err == nil {
@@ -247,7 +273,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		if ownerOnly && !viewReplacement && err == nil {
 			if ref.owner != nil {
-				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
 			}
 			if tableRename && ref.owner != nil && err == nil {
 				err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: auth.catalog.state.descriptors[ref.Address].Namespace()})
@@ -401,7 +427,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return err
 			}
 		}
-		if err := parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
 			return err
 		}
 		if tableRename {

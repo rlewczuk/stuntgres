@@ -8,6 +8,11 @@ import (
 	"unicode/utf8"
 )
 
+func (l *lexer) policyOptionError(option lexeme) {
+	l.failAt("42601", `unrecognized row security option "`+option.text+`"`, option.pos.Offset)
+	l.err.(*sqlstate.Error).Hint = "Only PERMISSIVE or RESTRICTIVE policies are supported currently."
+}
+
 type lexer struct {
 	input              string
 	offset             int
@@ -53,10 +58,12 @@ type lexer struct {
 	genericModifier     bool
 	dateLiteralModifier bool // Distinguishes raw DATE precision from cast operands.
 	multipleModifiers   bool
-	// CHECK alone admits existing selected scalar calls as operand leaves.
+	// CHECK and policy conditions admit existing selected scalar operand calls.
 	// Depth changes only for tokens returned to yacc, never raw lookahead.
 	checkPending bool
 	checkDepth   int
+	// Entered/exited by the actual policy condition grammar, not USING keywords.
+	policyExpression bool
 	// Entered by an actual format call-head reduction, not a format-named
 	// declaration. Only returned nested parentheses alter argument depth.
 	formatDepth                                           int
@@ -954,7 +961,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_get_serial_sequence") || token.lexeme.text == "current_schemas" || token.lexeme.text == "gen_random_uuid" || token.lexeme.text == "uuidv4" || token.lexeme.text == "uuidv7") {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.policyExpression || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_get_serial_sequence") || token.lexeme.text == "current_schemas" || token.lexeme.text == "gen_random_uuid" || token.lexeme.text == "uuidv4" || token.lexeme.text == "uuidv7") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {

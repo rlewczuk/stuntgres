@@ -119,6 +119,22 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 					}
 				}
 			}
+			if len(d.policies) != 0 {
+				n.policies = append([]policyDefinition(nil), d.policies...)
+				for i := range n.policies {
+					n.policies[i].roles = append([]policyRole(nil), d.policies[i].roles...)
+					for j := range n.policies[i].roles {
+						role := &n.policies[i].roles[j]
+						if role.public {
+							continue
+						}
+						role.ref, err = remap(role.ref)
+						if err != nil {
+							return nil, err
+						}
+					}
+				}
+			}
 			state.descriptors[addr] = &n
 		default:
 			return nil, fmt.Errorf("stuntgres: catalog provider has no principal remapping contract")

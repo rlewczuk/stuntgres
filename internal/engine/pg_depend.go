@@ -97,6 +97,17 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			if d.relationKind == catalogRelation {
 				continue
 			}
+			for _, policy := range d.policies {
+				owner := ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}
+				add(owner, d.address, 'a')
+				for _, condition := range []*policyExpression{policy.using, policy.check} {
+					if condition != nil {
+						if err := expression(owner, condition.expression, d.address, 'n'); err != nil {
+							return nil, err
+						}
+					}
+				}
+			}
 			if d.sqlIndex != nil {
 				definition := d.sqlIndex
 				if definition.constraint != nil {
