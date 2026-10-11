@@ -93,6 +93,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindDatetimeExtract(raw, visible)
 	case "date_trunc":
 		return b.bindDatetimeTrunc(raw, visible)
+	case "date_bin":
+		return b.bindDatetimeBin(raw, visible)
 	case "timezone", "date_add", "date_subtract":
 		return b.bindDatetimeZone(raw, visible)
 	case "age", "isfinite":

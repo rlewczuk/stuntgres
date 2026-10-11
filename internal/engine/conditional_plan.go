@@ -360,6 +360,22 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		e, changed = next, changed || did
 		expression = e
+	case datetimeBinExpression:
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i], changed = node, true
+			}
+		}
+		for _, arg := range e.args {
+			if randomLiteralNull(arg) {
+				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		expression = e
 	case datetimeTruncExpression:
 		for i, old := range e.children() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -752,6 +768,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case datetimeExtractExpression:
 		return literal(e.args[0]) && literal(e.args[1])
 	case datetimeOverlapsExpression:
+		for _, arg := range e.args {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case datetimeBinExpression:
 		for _, arg := range e.args {
 			if !literal(arg) {
 				return false

@@ -1454,7 +1454,7 @@ func indexPropertyCallName(name string) bool {
 func datetimeFunctionName(name string) bool {
 	return strings.EqualFold(name, "extract") || strings.EqualFold(name, "date_part") ||
 		strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") || strings.EqualFold(name, "overlaps") ||
-		strings.EqualFold(name, "date_trunc") ||
+		strings.EqualFold(name, "date_trunc") || strings.EqualFold(name, "date_bin") ||
 		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
 		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || strings.EqualFold(name, "to_number") ||

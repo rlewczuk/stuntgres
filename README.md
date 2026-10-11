@@ -356,6 +356,17 @@ the explicit naive-input timezone boundary and unsupported interval week.
 Feature smoke: `make check RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`.
 
+Change note: `date_bin(interval,timestamp,timestamp)` and the matching
+TIMESTAMPTZ signature floor-align fixed strides around an origin, including
+microsecond boundaries and exact bins before the origin. Days mean24elapsed
+hours; stored months/years are rejected. Mixed timestamp variants promote to
+TIMESTAMPTZ; DATE/unknown selection follows PostgreSQL's exact/preferred rules.
+Results preserve the selected type without inheriting input precision.
+See [datetime binning](docs/DIALECT.md#datetime-binning--change-note) for strict
+NULL, infinity/error precedence, coercion stability and native stored replay.
+Feature smoke: `make check RUN='^TestReferenceDatetimeBinFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeBinFeatureSmoke$'`.
+
 
 
 Change note: PostgreSQL BIT and BIT VARYING/VARBIT scalar storage preserves

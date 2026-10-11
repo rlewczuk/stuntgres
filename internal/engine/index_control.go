@@ -219,7 +219,7 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case datetimeOverlapsExpression:
 		return true
-	case datetimeTruncExpression:
+	case datetimeTruncExpression, datetimeBinExpression:
 		return true
 	case datetimeZoneCalendarExpression:
 		return true

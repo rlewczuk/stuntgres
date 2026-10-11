@@ -115,6 +115,28 @@ an exact TIMESTAMP binary argument also infers the other UNKNOWN argument.
 These positional calls have no declared argument labels. See
 [symbolic semantics and bounded resolution](DIALECT.md#age-and-finite-predicates--change-note).
 
+## Fixed-stride datetime bins
+
+```sql
+SELECT date_bin(INTERVAL '15 minutes',
+                TIMESTAMP '2000-01-01 00:02:29.999999',
+                TIMESTAMP '2000-01-01 00:02:30'); -- 1999-12-31 23:47:30
+SELECT date_bin(INTERVAL '30 minutes',
+                TIMESTAMP '2024-02-01 15:00',
+                TIMESTAMP '2024-02-01 17:00'); -- 2024-02-01 15:00
+SELECT date_bin('1 day', DATE '2000-01-02', DATE '2000-01-01');
+-- TIMESTAMPTZ at session-local midnight
+```
+
+The TIMESTAMP and TIMESTAMPTZ overloads floor-align positive elapsed strides
+around the origin. Days mean24hours, not calendar-day DST adjustment; nonzero
+months/years are rejected. Mixed timestamp variants promote to TIMESTAMPTZ.
+Use `date_bin($1::interval,$2::timestamp,$3::timestamp)` to fix the civil
+overload; all-unknown `date_bin($1,$2,$3)` infers INTERVAL/TIMESTAMPTZ/TIMESTAMPTZ.
+Calls have no declared argument labels. Results are strict typed NULL without
+hiding literal/parameter input errors and do not inherit precision modifiers.
+See [resolution, infinity and diagnostics](DIALECT.md#datetime-binning--change-note).
+
 ## Selected datetime constructor calls
 
 `make_date`, `make_time`, `make_timestamp`, `make_timestamptz` and

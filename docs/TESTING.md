@@ -1053,6 +1053,34 @@ week2006-01-01→2005-12-26, quarter2001-02-16→2001-01-01, negative interval
 seconds→-1second and TIME24:00→zero-day24hour INTERVAL. These selected gates
 do not replace ordinary quickcheck or post-merge finalcheck.
 
+The date-bin family uses independently specified shared direct/prepared bodies
+for both timestamp variants: shifted-origin boundaries, fractional bins,
+negative exact multiples, fixed-day DST behavior, mixed/date/unknown resolution,
+held session coercion and NULL/import recovery. Complete logical diagnostic
+records include exact stage/character Position and empty runtime optional fields.
+Overflow witnesses cover the release subtraction/day-product/lower-bound vectors,
+with package units distinguishing checked stride addition, component cancellation,
+int64 correction underflow and retained END. Metadata asserts unrestricted
+computed types and precision-2 inputs yielding an unrounded .119 result.
+Stored/default/CHECK/view/generated/index consumers include actual emitted SQL
+replay, fresh restored writes, compatible remapping and retained native rows/types.
+
+Run selected proofs with an external900-second deadline per command:
+```sh
+make check RUN='^TestDatetimeBin'
+make check RUN='^TestReferenceDatetimeBin'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeBin'
+make check RUN='^TestReferenceDatetimeBinFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDatetimeBinFeatureSmoke$'
+```
+The smoke independently expects before-origin23:47:30, first-bin00:02:30,
+next-bin00:17:30, negative-exact15:00, typed metadata, full22008 zero-stride
+diagnostics, NULL/error/good recovery, failed-later-write preservation and actual
+stored control replay. A root-owned ephemeral public Go smoke additionally runs
+`timeout 900s go run ./.date-bin-feature-smoke`; its source uses only stdlib/public
+stuntgres, and the directory is removed before review. Selected gates do not
+replace whole-project quickcheck or post-merge finalcheck.
+
 The transaction-time family uses the same completed public body for all five
 providers: direct/held metadata and raw codecs, transaction/statement ownership,
 peer/autocommit/CHAIN contexts, demanded wall variation, TimeZone and fixed

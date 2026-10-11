@@ -271,7 +271,7 @@ func closedUUIDDefault(node BoundExpr) bool {
 			}
 		}
 		return true
-	case datetimeTruncExpression:
+	case datetimeTruncExpression, datetimeBinExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid

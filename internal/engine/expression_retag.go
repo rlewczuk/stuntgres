@@ -318,6 +318,23 @@ func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType fun
 		}
 		n.plan, n.expressionInfo = plan, info
 		rebound = n
+	case datetimeBinExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		plan, failure := n.plan.Retag(retainedType)
+		if failure != nil {
+			return node, false, failure
+		}
+		changed = changed || plan != n.plan
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, n.expressionInfo = plan, info
+		rebound = n
 	case datetimeTruncExpression:
 		for i := range n.children() {
 			n.args[i] = child(n.args[i])

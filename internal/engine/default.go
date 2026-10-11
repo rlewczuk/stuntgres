@@ -211,7 +211,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.children())
 	case uuidGenerationExpression, randomExpression, binaryExpression,
 		datetimeJustifyExpression, datetimeExtractExpression, datetimeOverlapsExpression,
-		datetimeTruncExpression, datetimeAgeFiniteExpression, datetimeMakeExpression,
+		datetimeBinExpression, datetimeTruncExpression, datetimeAgeFiniteExpression, datetimeMakeExpression,
 		datetimeFormattingExpression, numericFormattingExpression, stringExpression,
 		mathExpression, nullCountExpression, formatExpression:
 		return r.scalarFunctionSQL(ctx, view, node, u)

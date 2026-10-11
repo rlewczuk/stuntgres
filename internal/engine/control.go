@@ -1159,7 +1159,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			case "pg_size_bytes", "pg_size_pretty":
 			case "age", "isfinite":
 			case "overlaps":
-			case "date_trunc":
+			case "date_trunc", "date_bin":
 			case "timezone", "date_add", "date_subtract":
 			case "justify_days", "justify_hours", "justify_interval":
 			case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":

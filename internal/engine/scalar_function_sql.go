@@ -85,6 +85,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		return n.logicalSQL("pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 	case datetimeOverlapsExpression:
 		return n.logicalSQL(func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+	case datetimeBinExpression:
+		return r.functionSQL(ctx, view, "pg_catalog.date_bin", n.children())
 	case datetimeTruncExpression:
 		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.children())
 	case datetimeAgeFiniteExpression:

@@ -178,6 +178,8 @@ func generationImmutable(node BoundExpr) bool {
 		return !n.plan.SessionDependent() && args(n.children())
 	case datetimeOverlapsExpression:
 		return !n.plan.SessionDependent() && args(n.children())
+	case datetimeBinExpression:
+		return args(n.children())
 	case datetimeTruncExpression:
 		return !n.plan.SessionDependent() && args(n.children())
 	case datetimeZoneCalendarExpression:
@@ -305,6 +307,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case datetimeExtractExpression:
 		return args(n.children())
 	case datetimeOverlapsExpression:
+		return args(n.children())
+	case datetimeBinExpression:
 		return args(n.children())
 	case datetimeTruncExpression:
 		return args(n.children())
@@ -539,6 +543,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case datetimeExtractExpression:
 		return args(n.children())
 	case datetimeOverlapsExpression:
+		return args(n.children())
+	case datetimeBinExpression:
 		return args(n.children())
 	case datetimeTruncExpression:
 		return args(n.children())

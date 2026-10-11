@@ -420,6 +420,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(datetimeOverlapsExpression); ok {
 			return children(r.Args, n.children())
 		}
+		if n, ok := bound.(datetimeBinExpression); ok {
+			return children(r.Args, n.children())
+		}
 		if n, ok := bound.(datetimeTruncExpression); ok {
 			return children(r.Args, n.children())
 		}

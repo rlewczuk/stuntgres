@@ -302,6 +302,50 @@ TIME children remain symbolic rather than becoming a new global cast.
 Feature smoke: `make check RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`.
 
+### Datetime binning — change note
+
+`date_bin(interval,timestamp,timestamp)` and
+`date_bin(interval,timestamptz,timestamptz)` return the start of the bin
+containing the source, aligned to the third argument's origin. Alignment floors
+negative offsets; an exact negative multiple stays on its own boundary.
+Arbitrary positive fixed strides preserve microseconds. INTERVAL days are
+24elapsed hours, independent of DST;30days and365days are legal. Any nonzero
+stored month field is forbidden, including `1 mon -30 days`. Mixed day/time
+signs are permitted when the checked elapsed total is positive.
+
+Both intrinsic signatures are immutable. Mixed TIMESTAMP/TIMESTAMPTZ inputs
+select TIMESTAMPTZ, using session TimeZone for civil-to-instant child coercion.
+DATE with TIMESTAMP selects TIMESTAMP; DATE with TIMESTAMPTZ selects TIMESTAMPTZ.
+DATE/DATE and all-unknown temporal slots select preferred TIMESTAMPTZ; a known
+exact TIMESTAMP slot with an unknown peer selects TIMESTAMP. Inferred parameters
+are INTERVAL plus the selected pair of temporal types, independent of Go input
+kinds. Execution captures session coercions, not a plan-retained zone. Stable
+coercions remain stable through immutable wrappers and are rejected by generated
+columns/expression indexes. Same-type zoned binning remains immutable.
+
+All three arguments are strict: NULL returns typed NULL after ordinary child
+evaluation and parameter import. NULL does not conceal malformed typed literals
+or parameter codec errors. A nonnull infinite source returns itself before
+origin/stride validation. Otherwise infinite origin fails22008 `origin out of
+range`, infinite interval fails22008 `timestamps cannot be binned into infinite
+intervals`, and stored months fail0A000 `timestamps cannot be binned into
+intervals containing months or years`. Checked day multiplication precedes time
+addition; either overflow, or source-origin subtraction overflow, fails22008
+`interval out of range`. A nonpositive total fails22008 `stride must be greater
+than zero`. Negative-boundary correction outside timestamp range fails22008
+`timestamp out of range`. Runtime bin errors have no SQL Position or context.
+Truly incompatible origins (INTEGER/TEXT/TIME) use ordinary42883 signature
+diagnostics; compatible mixed temporal variants are not rejected.
+
+Computed metadata is unrestricted TIMESTAMP/TIMESTAMPTZ, name `date_bin` unless
+aliased, ScanType time.Time, without inherited input precision or column identity.
+Finite raw values use time.Time, NULL uses nil, and infinities use owned bytes.
+Queries, predicates, ordering/grouping/aggregate children, DEFAULT/CHECK/views,
+generated/index expressions and symbolic `pg_catalog.date_bin` Dump/Restore
+reuse existing publication, remapping and descriptor ownership.
+Feature smoke: `make check RUN='^TestReferenceDatetimeBinFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeBinFeatureSmoke$'`.
+
 ### UUID generation — change note
 
 `gen_random_uuid()` and `uuidv4()` generate cryptographic version4 UUIDs.
