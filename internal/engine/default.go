@@ -205,6 +205,14 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		r.record(n.origin)
 		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
+	case datetimeSleepExpression:
+		if !n.validStored() {
+			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
+		}
+		if clock, ok := view.LookupType(sqltype.Timestamptz); !ok || clock != n.clockUsage.Type {
+			return "", fmt.Errorf("stuntgres: foreign datetime sleep clock type")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+datetimeSleepName(n.kind), []BoundExpr{n.arg})
 	case advisoryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")

@@ -118,3 +118,44 @@ func TestExplicitCoercionValueBoundaries(t *testing.T) {
 		t.Fatal("foreign descriptor admitted")
 	}
 }
+
+func TestExplicitVoidTextCoercion(t *testing.T) {
+	types := testTypes()
+	ctx := context.Background()
+	// Explicit is the added edge; Assignment retains the independently pinned
+	// generic character CoerceViaIO policy rather than becoming implicit.
+	for _, mode := range []CoercionContext{Explicit, Assignment} {
+		plan, err := PlanCoercion(types[Void].Usage(), types[Text].Usage(), mode)
+		if err != nil {
+			t.Fatal(mode, err)
+		}
+		null, err := plan.Apply(ctx, Null(types[Void]), InputEnvironment{}, OutputEnvironment{})
+		if err != nil || !null.IsNull() || null.Type() != types[Text] {
+			t.Fatal("cast must preserve NULL with the TEXT descriptor", mode, null, err)
+		}
+		value, err := plan.Apply(ctx, VoidValue(types[Void]), InputEnvironment{}, OutputEnvironment{})
+		if err != nil || value.IsNull() || value.Type() != types[Text] {
+			t.Fatal("successful VOID must produce non-NULL TEXT", mode, value, err)
+		}
+		text, err := types[Text].Output(ctx, value)
+		if err != nil || text != "" {
+			t.Fatal("successful VOID text output", mode, text, err)
+		}
+	}
+	for _, tc := range []struct {
+		source, target ID
+		mode           CoercionContext
+		code           string
+	}{
+		{Void, Text, Implicit, "42804"},
+		{Text, Void, Implicit, "42804"},
+		{Text, Void, Assignment, "42804"},
+		{Text, Void, Explicit, "0A000"},
+	} {
+		_, err := PlanCoercion(types[tc.source].Usage(), types[tc.target].Usage(), tc.mode)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
+			t.Fatalf("forbidden cast %v→%v mode=%v: diagnostic=%#v error=%v want=%s", tc.source, tc.target, tc.mode, diagnostic, err, tc.code)
+		}
+	}
+}

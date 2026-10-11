@@ -243,6 +243,16 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
+	case datetimeSleepExpression:
+		n.arg = child(n.arg)
+		clockType := retainedType(n.clockUsage.Type)
+		changed = changed || clockType != n.clockUsage.Type
+		n.clockUsage.Type = clockType
+		if err == nil && changed && n.kind == datetimeSleepInterval {
+			n.calendar, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, clockType, n.arg.ResultUsage().Type, clockType)
+		}
+		n.expressionInfo = info
+		rebound = n
 	case advisoryExpression:
 		var args []BoundExpr
 		for i, old := range n.args {

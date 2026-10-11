@@ -95,6 +95,18 @@ func bindViewOutput(query *BoundQuery, view *parser.CreateView) error {
 		}
 		columns[i].Nullable, columns[i].NullabilityKnown = true, true
 	}
+	if !view.Replace {
+		return checkViewOutputTypes(columns)
+	}
+	return nil
+}
+
+func checkViewOutputTypes(columns []ColumnDescriptor) error {
+	for _, column := range columns {
+		if column.Usage.Type.ID() == sqltype.Void {
+			return sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type void`, column.Name))
+		}
+	}
 	return nil
 }
 
@@ -321,6 +333,15 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, err
 		}
 		if err := checkViewPrefix(auth.catalog, old.columns, b.query.Root.Schema()); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	// Existing replacement shape errors precede the creation-only VOID
+	// boundary. Appended VOID columns and CREATE OR REPLACE of a missing
+	// destination still fail before a catalog stage can publish anything.
+	if view.Replace {
+		if err := checkViewOutputTypes(b.query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

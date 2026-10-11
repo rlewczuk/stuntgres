@@ -613,6 +613,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case randomExpression:
 		children = e.args
+	case datetimeSleepExpression:
+		children = []BoundExpr{e.arg}
 	case advisoryExpression:
 		children = e.args
 	case uuidGenerationExpression:

@@ -105,6 +105,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindDatetimeBin(raw, visible)
 	case "timezone", "date_add", "date_subtract":
 		return b.bindDatetimeZone(raw, visible)
+	case "pg_sleep", "pg_sleep_for", "pg_sleep_until":
+		return b.bindDatetimeSleep(raw, visible)
 	case "age", "isfinite":
 		return b.bindDatetimeAgeFinite(raw, visible)
 	case "overlaps":

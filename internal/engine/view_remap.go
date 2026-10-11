@@ -309,6 +309,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case randomExpression:
 		n.args = args(n.args)
 		next = n
+	case datetimeSleepExpression:
+		n.arg = child(n.arg)
+		next = n
 	case advisoryExpression:
 		n.args = args(n.args)
 		next = n

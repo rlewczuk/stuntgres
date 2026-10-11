@@ -411,13 +411,59 @@ See [session and adapter lifetimes](DRIVER.md#sql-prepared-statements--change-no
 Independent direct/Go-prepared references use `^TestReferenceSQLPrepared` in both
 quick and pinned modes, with 900-second deadlines per invocation.
 
+### Datetime delays
+
+`pg_sleep(double precision)`, `pg_sleep_for(interval)` and
+`pg_sleep_until(timestamp with time zone)` are STRICT, VOLATILE scalars returning
+VOID. Each takes exactly one argument through ordinary resolution/coercion;
+unknown parameters infer the selected signature. Prepare, Describe and
+Dump/Restore retain the expression without waiting. Every execution evaluates
+again; dead conditional branches do not wait. A successful non-NULL value is an
+empty native string (pq empty bytes); strict NULL is nil, with VOID metadata even
+for zero-row projections. Explicit VOID-to-TEXT output enables legal composed
+defaults/views without permitting VOID input or stored table columns. Direct
+VOID view output is rejected using its effective column name; an existing view's
+replacement shape/type diagnostic takes precedence over that creation guard.
+Rejected creation/replacement publishes no definition or changed rows, and no
+sleep is evaluated during definition analysis. Text/boolean compositions remain
+storable, including explicit NULL-to-TEXT output.
+
+Positive fractional elapsed waits last at least the requested duration, subject
+to longer platform scheduling delays. Zero, negative finite values, float NaN,
+negative infinity and past deadlines complete without intentional waiting, as
+in pinned PostgreSQL18.0. Positive infinity and huge positive values use bounded
+cancellable timer chunks, not overflowing Duration conversion. Malformed inputs,
+wrong signatures and calendar overflow retain their provider diagnostics.
+`pg_sleep_for` adds calendar months/days in the captured TimeZone to an actual
+current timestamp, then subtracts a second current-clock sample; days are not
+assumed to be24hours across DST. `pg_sleep_until` rechecks the actual absolute
+wall-clock target, not transaction/statement start, with full SQL-range and
+infinity handling. No backend process, scheduling service or host-zone dependency
+is introduced.
+
+Sleep holds the same execution owner as ordinary statements and **keeps all
+existing locks on success**. One sleeping physical connection does not block
+unrelated peer work. SQL-owned statement timeout returns57014
+`canceling statement due to statement timeout`; pinned server user cancellation
+returns57014 `canceling statement due to user request`. Native caller cancellation
+preserves `context.Canceled`/`context.DeadlineExceeded`, without invented SQLSTATE.
+Failure uses existing implicit/explicit/savepoint cleanup, never silently commits
+private writes, and never releases session advisory locks through rollback.
+Cancellation workers must join before their connection/transaction is closed.
+Use ROLLBACK (or the existing savepoint recovery boundary) after explicit errors.
+
+Selected dual-mode witnesses:
+`make check RUN='^TestReferenceDatetimeSleep(Values|Timing|Calendar|Diagnostics|Cancellation|Stored|FeatureSmoke)$'`;
+add `REFERENCE=1` for the pinned oracle. Private calculation/lifecycle units use
+`^TestDatetimeSleep(Binding|Wait|Calendar|Cleanup|Stored)$`.
+
 ### Transaction and idle timeouts — change note
 
 `transaction_timeout`, `idle_in_transaction_session_timeout` and
 `idle_session_timeout` join the existing statement/lock settings as real typed
 millisecond runtime limits, default0. Existing SET/LOCAL, SHOW, current_setting,
 set_config, DEFAULT and RESET routes share assignment validation and transaction/
-savepoint restoration. No SQL grammar, pg_sleep or public scheduler API is added.
+savepoint restoration. No SQL grammar or public scheduler API is added by these settings.
 Transaction budgets cover prebirth parsing, semantic Prepare, execution and lock
 waits; successful detach is timer-free, CHAIN gets a fresh restored budget and
 ERROR/savepoint restoration does not rearm stopped timers.

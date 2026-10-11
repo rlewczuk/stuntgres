@@ -1206,6 +1206,24 @@ and `make check REFERENCE=1 RUN='^TestReferenceTimezoneAbbreviationsFeatureSmoke
 Public feature smoke: `make check RUN='^TestReferenceDatetimeZoneFeatureSmoke$'`;
 pinned oracle: add `REFERENCE=1` to the same command.
 
+Datetime delays support `pg_sleep(double precision)`, `pg_sleep_for(interval)`
+and `pg_sleep_until(timestamp with time zone)`, including inferred prepared
+parameters. Successful non-NULL calls return an empty, non-NULL VOID value;
+strict NULL calls return NULL without waiting. Fractional waits are never
+intentionally shortened. Interval months/days use the captured session TimeZone
+and calendar arithmetic; absolute deadlines use the execution-time wall clock.
+Zero, negative finite floats, NaN, negative infinity and past deadlines complete
+without a delay; positive infinity and huge positive values remain cancellable.
+Existing transaction/table/session advisory locks are **not released by sleep**.
+SQL statement timeout reports57014; native caller cancellation preserves ordinary
+Go context errors and existing transaction rollback/owner cleanup.
+See [delay contracts](docs/DIALECT.md#datetime-delays).
+Dual-mode smoke: `make check RUN='^TestReferenceDatetimeSleepFeatureSmoke$'`,
+then the same command with `REFERENCE=1`. The standalone public source and
+root-only materialization/run instructions are in
+[testing](docs/TESTING.md#datetime-delay-selected-proof).
+
+
 SELECT and INSERT SELECT support comma products, CROSS JOIN and inner or
 LEFT/RIGHT/FULL [OUTER] joins with ON, USING or NATURAL, including nested joins,
 FROM/column aliases and the special USING alias. Unmatched operands receive

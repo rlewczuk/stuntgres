@@ -600,6 +600,17 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
+	case datetimeSleepExpression:
+		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+		if failure != nil {
+			return nil, false, failure
+		}
+		e.arg = node
+		if randomLiteralNull(node) {
+			return literalExpression{expressionInfo: expressionInfo{usage: e.usage, pos: e.pos}, value: sqltype.Null(e.usage.Type)}, true, nil
+		}
+		changed = changed || did
+		expression = e
 	case advisoryExpression:
 		var args []BoundExpr
 		for i, old := range e.args {

@@ -14,6 +14,17 @@ import (
 // caller closes its held statements or physical connection.
 func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider string, operation func(context.Context) RelationOutcome) {
 	t.Helper()
+	activeProviderCancel(t, p, b, c, query, provider, "", nil, operation)
+}
+
+// SleepActiveCancel observes a real wait, rather than a precancelled request.
+func SleepActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
+	t.Helper()
+	activeProviderCancel(t, p, b, c, query, "datetimeSleepWaitRemaining", "PgSleep", admitted, operation)
+}
+
+func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider, waitEvent string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
 	defer cancel()
 	pid := 0
@@ -45,7 +56,7 @@ func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 		default:
 		}
 		if b.PG {
-			if err := Admin.QueryRowContext(ctx, "SELECT COALESCE((SELECT state='active' AND query=$2 FROM pg_stat_activity WHERE pid=$1),false)", pid, query).Scan(&observed); err != nil {
+			if err := Admin.QueryRowContext(ctx, "SELECT COALESCE((SELECT state='active' AND query=$2 AND ($3='' OR wait_event=$3) FROM pg_stat_activity WHERE pid=$1),false)", pid, query, waitEvent).Scan(&observed); err != nil {
 				t.Fatal("conversion admission", err)
 			}
 		} else {
@@ -60,7 +71,7 @@ func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 				for {
 					frame, more := frames.Next()
 					providerFrame = providerFrame || strings.Contains(frame.Function, provider)
-					workerFrame = workerFrame || strings.Contains(frame.Function, "BinaryConversionActiveCancel")
+					workerFrame = workerFrame || strings.Contains(frame.Function, "activeProviderCancel")
 					if !more {
 						break
 					}
@@ -77,6 +88,9 @@ func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 	}
 	if !observed {
 		t.Fatal("conversion admission deadline", query, ctx.Err())
+	}
+	if admitted != nil {
+		admitted(ctx)
 	}
 	if b.PG {
 		var signaled bool

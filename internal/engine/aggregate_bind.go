@@ -401,6 +401,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case datetimeSleepExpression:
+		o, ok := other.(datetimeSleepExpression)
+		return ok && e.kind == o.kind && same(e.arg, o.arg)
 	case advisoryExpression:
 		o, ok := other.(advisoryExpression)
 		if !ok || e.name != o.name || len(e.args) != len(o.args) {
@@ -806,6 +809,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case datetimeSleepExpression:
+		e.arg = rewrite(e.arg)
+		stage(&e.expressionInfo)
+		expr = e
 	case advisoryExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
@@ -1028,6 +1035,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
+	case datetimeSleepExpression:
+		walk(e.arg)
 	case advisoryExpression:
 		for _, arg := range e.args {
 			walk(arg)

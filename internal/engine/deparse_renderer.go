@@ -512,7 +512,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		_, simpleColumn := n.child.(columnExpression)
 		_, simpleLiteral := n.child.(literalExpression)
 		_, castChild := n.child.(coercionExpression)
-		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || r.pretty && parent.functionArgument && castChild)
+		_, simpleSleepCall := n.child.(datetimeSleepExpression)
+		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleSleepCall || r.pretty && parent.functionArgument && castChild)
 	case arithmeticExpression:
 		ops := [...]string{"+", "-", "*", "/", "%", "^"}
 		if int(n.operator) >= len(ops) {
@@ -801,6 +802,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function(r.identifier(n.plan.Name()), n.args, true)
 	case randomExpression:
 		return function(n.name, n.args, true)
+	case datetimeSleepExpression:
+		if !n.validStored() {
+			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
+		}
+		return function(datetimeSleepName(n.kind), []BoundExpr{n.arg}, true)
 	case advisoryExpression:
 		return function(n.name, n.args, true)
 	case uuidGenerationExpression:

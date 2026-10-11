@@ -1008,6 +1008,16 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case datetimeSleepExpression:
+		folded, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.arg = folded
+		if randomLiteralNull(e.arg) {
+			return literalExpression{expressionInfo: expressionInfo{usage: e.usage, pos: e.pos}, value: sqltype.Null(e.usage.Type)}, true, nil
+		}
+		return e, changed, nil
 	case advisoryExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {

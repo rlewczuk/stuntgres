@@ -236,6 +236,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case randomExpression:
 		out.WriteString("Random " + n.name)
 		err = args(n.args)
+	case datetimeSleepExpression:
+		out.WriteString("DatetimeSleep " + datetimeSleepName(n.kind))
+		err = args([]BoundExpr{n.arg})
 	case advisoryExpression:
 		out.WriteString("AdvisorySession " + n.name)
 		err = args(n.args)

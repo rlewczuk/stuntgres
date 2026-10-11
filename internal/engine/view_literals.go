@@ -377,6 +377,18 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(randomExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(datetimeSleepExpression); ok {
+			// Retain the signature's implicit cast at the call occurrence:
+			// PostgreSQL displays function argument coercions even though the
+			// literal traversal below preserves the original operand type.
+			if coercion, ok := n.arg.(coercionExpression); ok && coercion.mode == sqltype.Implicit {
+				if b.viewCastUsages == nil {
+					b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+				}
+				b.viewCastUsages[path] = coercion.usage
+			}
+			return children(r.Args, []BoundExpr{n.arg})
+		}
 		if n, ok := bound.(advisoryExpression); ok {
 			return children(r.Args, n.args)
 		}

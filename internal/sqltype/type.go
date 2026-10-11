@@ -1306,6 +1306,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 		return p, failure("42804", "incompatible source and destination types")
 	}
+	// VOID remains a non-storable result pseudotype. Its explicit text output
+	// permits legal compositions of side-effecting scalar functions.
+	if context == Explicit && source.Type.id == Void && target.Type.id == Text {
+		p.method = viaIO
+		return p, nil
+	}
 	if context == Explicit {
 		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")

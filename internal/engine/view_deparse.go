@@ -696,7 +696,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			simpleLiteral := capturedLiteral && pgLiteralSimple(literal, text)
 			_, castChild := e.Child.(parser.CastExpr)
 			nestedCast := castChild || capturedLiteral && !simpleLiteral
-			return r.cast(text, usage, simpleColumn || simpleLiteral || v.presentation.pretty && parent.functionArgument && nestedCast)
+			simpleSleepCall := false
+			if call, ok := e.Child.(parser.FunctionExpr); ok {
+				name := call.Name.Parts[len(call.Name.Parts)-1].Text
+				simpleSleepCall = name == "pg_sleep" || name == "pg_sleep_for" || name == "pg_sleep_until"
+			}
+			return r.cast(text, usage, simpleColumn || simpleLiteral || simpleSleepCall || v.presentation.pretty && parent.functionArgument && nestedCast)
 		}
 		declaration, err := catalogTypeDeclaration(catalog, usage)
 		if err != nil {
@@ -1081,6 +1086,23 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		text, err := args(e.Args)
 		switch name {
+		case "pg_sleep", "pg_sleep_for", "pg_sleep_until":
+			if err != nil {
+				return "", err
+			}
+			if v.presentation.deparse {
+				if usage, ok := v.castUsages[path]; ok {
+					r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty}
+					simple := false
+					switch e.Args[0].(type) {
+					case parser.LiteralExpr, parser.TypedLiteralExpr, parser.ColumnExpr, parser.CastExpr:
+						simple = true
+					}
+					text, err = r.cast(text, usage, simple)
+				}
+				return name + "(" + text + ")", err
+			}
+			return "pg_catalog." + name + "(" + text + ")", err
 		case "convert", "convert_from", "convert_to", "encode", "decode", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 			if v.presentation.deparse {
 				return name + "(" + text + ")", err

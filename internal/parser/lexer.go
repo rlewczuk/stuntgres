@@ -985,9 +985,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	// Enum support calls reuse the ordinary failure-only decoration grammar;
+	// Selected time, enum and delay calls reuse failure-only decorations;
 	// their binder rejects aggregate modifiers after resolving the operands.
-	if token.code == CHECK_FUNC && (TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text)) {
+	if token.code == CHECK_FUNC && (TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1511,6 +1511,7 @@ func datetimeFunctionName(name string) bool {
 	return strings.EqualFold(name, "extract") || strings.EqualFold(name, "date_part") ||
 		strings.EqualFold(name, "age") || strings.EqualFold(name, "isfinite") || strings.EqualFold(name, "overlaps") ||
 		strings.EqualFold(name, "date_trunc") || strings.EqualFold(name, "date_bin") ||
+		strings.EqualFold(name, "pg_sleep") || strings.EqualFold(name, "pg_sleep_for") || strings.EqualFold(name, "pg_sleep_until") ||
 		strings.EqualFold(name, "justify_days") || strings.EqualFold(name, "justify_hours") ||
 		strings.EqualFold(name, "justify_interval") || strings.EqualFold(name, "to_char") ||
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || strings.EqualFold(name, "to_number") ||

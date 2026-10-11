@@ -6634,3 +6634,44 @@ absolute/relative traversal, quiet MOVE counts, held prepared movement, detached
 rows and closed-name 34000. Whole-project Docker-free verification remains
 `make quickcheck`, after edits finish; final integration verification remains the
 root's `make finalcheck`, not a replacement for selected dual-mode evidence.
+
+## Datetime delay selected proof
+
+The untagged public datetime-delay definitions independently assert direct and
+held-prepared rows/VOID versus NULL/raw values/metadata, minimum fractional and
+absolute waits, interval/calendar forms, complete diagnostic fields and phases,
+actual active cancellation, exact lock/savepoint/private-write cleanup, composed
+stored consumers and native control replay. No public SQL witnesses live in
+root/internal/smoke packages. Internal units supplement them with wide timestamp,
+nonfinite/chunk/cancellation, fixed-clock DST/month-end and descriptor-generation
+behavior. Ownership witnesses use existing relation LOCK/NOWAIT admission for
+transaction holds and existing session advisory try/unlock for physical-session
+holds; they do not require unsupported transaction advisory functions.
+
+Root runs these selected commands from the assigned worktree, each with an
+external900-second deadline:
+
+```sh
+make check RUN='^TestDatetimeSleep(Binding|Wait|Calendar|Cleanup|Stored)$'
+make check RUN='^TestReferenceDatetimeSleep(Values|Timing|Calendar|Diagnostics|Cancellation|Stored|FeatureSmoke)$'
+make check RUN='^TestReferenceDatetimeSleep(Values|Timing|Calendar|Diagnostics|Cancellation|Stored|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestDatetimeSleep(Wait|Cleanup)$' RACE=1
+```
+
+`fixture.SleepActiveCancel` preserves the common bounded worker lifecycle, requiring
+real PostgreSQL `PgSleep` admission or a native active wait stack before cancel.
+The admitted callback exercises unrelated peer work while the owner still waits;
+workers join before rollback/Close. The original binary cancellation caller
+contract remains unchanged through the shared private helper.
+
+Separate public source `local://datetime-sleep-feature-smoke.go` remains an OMP
+session artifact. Root materializes `.datetime-sleep-feature-smoke/main.go`, runs
+`timeout 60s go run ./.datetime-sleep-feature-smoke` from the assigned worktree,
+records actual argv/exit/output/observations and removes only that throwaway
+materialization before review. Successful exit0 prints exactly
+`datetime sleep smoke passed` after all assertions.
+Do not commit a smoke test, temporary executable directory or session source.
+Whole-project Docker-free verification remains `make quickcheck`; post-merge
+proof is `make finalcheck` with its external1800-second deadline. Neither
+finalcheck nor parity alone replaces both selected public modes.
+
