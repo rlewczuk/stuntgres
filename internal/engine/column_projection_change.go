@@ -142,3 +142,45 @@ func stagePrivateColumnShape(ctx context.Context, stage *CatalogStage, changes *
 	}
 	return writes, deletes, shape.replacement != store, nil
 }
+
+// Generic utility stages already project their baseline storage. Reuse the
+// canonical column projection for earlier own writes, deletions and stable
+// snapshots without projecting that physical baseline a second time.
+func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *catalogChanges) error {
+	for address, rowShape := range stage.rowShapes {
+		old, oldOK := stage.base.state.descriptors[address].(*relationDescriptor)
+		next, nextOK := stage.descriptors[address].(*relationDescriptor)
+		if !oldOK || !nextOK || slices.Equal(old.attributes, next.attributes) {
+			continue
+		}
+		shape := changes.storage[address]
+		shape.fills = maps.Clone(shape.fills)
+		for attribute := range shape.fills {
+			if !next.hasAttribute(attribute) {
+				delete(shape.fills, attribute)
+			}
+		}
+		projection, err := newColumnProjection(old, next, shape.fills)
+		if err != nil {
+			return err
+		}
+		writes, deletes := scope.columnProjectionRoots(address)
+		writes, err = projection.versions(scope.op.Context(), writes)
+		if err != nil {
+			return err
+		}
+		scope.stageProjectedColumnRoots(address, writes, projectDeletions(deletes, rowShape.replacement))
+		stage.owner.mu.Lock()
+		snapshot, snapshotExists := scope.owner.roots[address]
+		stage.owner.mu.Unlock()
+		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.rewritten {
+			shape.snapshot, err = projectVersions(scope.op.Context(), snapshot.versions, snapshot.relation, next, shape.fills)
+			if err != nil {
+				return err
+			}
+			shape.hasSnapshot = true
+		}
+		changes.storage[address] = shape
+	}
+	return nil
+}

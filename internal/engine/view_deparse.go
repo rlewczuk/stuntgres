@@ -50,7 +50,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	presentation := renderer.presentation
 	presentation.columns = columns
 	_, renderer.simple = s.From.(*parser.TableReference)
-	renderer.simple = renderer.simple && presentation.deparse
+	renderer.simple = renderer.simple && (presentation.deparse || renderer.currentNames)
 	if table, ok := s.From.(*parser.TableReference); ok && viewCTETable(viewFromRoot(project), table) != nil {
 		renderer.simple = false
 	}
@@ -614,14 +614,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if path.clause == viewValuesOrderLiteral && column.frame == path.query {
 			root = viewValuesAt(v.query.Root, path.source)
 		}
-		// SELECT's simple-source spelling is a display-only rule for
-		// correlated view columns. Frozen expression frames (policy conditions)
-		// have slots and bound identities, but deliberately no SELECT syntax.
+		// Current simple-source names require owner qualification for correlated
+		// columns and source keys that could collide with output labels.
+		// Frozen expression frames have slots but no SELECT syntax.
+		currentNames := v.presentation.deparse || v.currentNames
 		ownerSimple := false
-		if v.presentation.deparse && column.frame != path.query {
+		if currentNames && column.frame != path.query && owner.syntax != nil {
 			_, ownerSimple = owner.syntax.From.(*parser.TableReference)
 		}
-		if v.presentation.deparse && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
+		if currentNames && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
 			source, ok := root.(*sourceNode)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing simple view source")

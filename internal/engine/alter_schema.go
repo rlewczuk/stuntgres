@@ -175,9 +175,10 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	if _, conflict := err.(CatalogConflict); conflict {
 		e.mu.Lock()
-		if e.state.epoch == ref.Epoch {
+		current := e.stageCatalogBaseLocked(stage)
+		if current.epoch == ref.Epoch {
 			for _, r := range group {
-				winner, exists := e.state.names[NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]
+				winner, exists := current.names[NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]
 				if exists && winner != r.address {
 					err = collision(r)
 					break

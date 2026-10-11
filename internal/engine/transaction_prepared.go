@@ -37,7 +37,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 		return nil
 	}
 	if p.preparing {
-		if p.origin.ref != p.entry.ref || p.origin.state != TxActive {
+		if p.origin.ref != p.entry.ref || !p.origin.inBlock() {
 			return errors.New("stuntgres: stale preparing transaction")
 		}
 		if e.prepared[p.entry.gid] != nil {
@@ -54,11 +54,13 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
-	actor, err := (RoleRead{e, e.roles}).Descriptor(op.session.authorization.state.CurrentUser)
-	if err != nil {
+	roles := RoleRead{e, e.roles}
+	current := op.session.authorization.state.CurrentUser
+	if err := roles.validatePrincipal(current); err != nil {
 		return err
 	}
-	if actor.Ref != entry.owner && !actor.Superuser {
+	actor, exists := roles.state.roles[current]
+	if current != entry.owner && (!exists || !actor.Superuser) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
 	}
 	return nil
@@ -97,6 +99,9 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	if state == TxIdle {
 		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		return nil
+	}
+	if state == TxImplicit {
+		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 	}
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted
@@ -159,9 +164,8 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		err = sqlError("42704", `prepared transaction with identifier "`+gid+`" does not exist`)
 	}
 	if err == nil {
-		actor, actorErr := auth.roles.Descriptor(auth.state.CurrentUser)
-		err = actorErr
-		if err == nil && actor.Ref != entry.owner && !actor.Superuser {
+		actor, exists := auth.roles.state.roles[auth.state.CurrentUser]
+		if auth.state.CurrentUser != entry.owner && (!exists || !actor.Superuser) {
 			err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
 		}
 	}

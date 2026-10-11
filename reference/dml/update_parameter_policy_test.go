@@ -66,44 +66,29 @@ func TestReferenceUpdateCoreSuffixBoundaries(t *testing.T) {
 						run(fixture.Select("SELECT a,n FROM t", []string{"a", "n"}, []string{"INT4", "INT2"}, [][]any{{int64(1), int64(1)}}))
 						continue
 					}
-					if !backend.PG {
-						if _, err := backend.DB.ExecContext(p.Ctx, q); err == nil {
-							t.Fatal("excluded suffix executed", q)
-						}
+					if i == 2 && !prepared {
+						run(fixture.Exec(q, 1))
+						a = 9
 					} else {
-						if i == 2 && !prepared {
-							run(fixture.Exec(q, 1))
-							a = 9
-						} else {
-							want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42712", Message: `table name "t" specified more than once`}
-							if i == 1 {
-								want.Code = "42601"
-								want.Message = `syntax error at or near "trailing"`
-								want.Position = "18"
-							}
-							if i == 2 {
-								want.Code = "42601"
-								want.Message = "cannot insert multiple commands into a prepared statement"
-							}
-							if prepared {
-								stmt, err := backend.DB.PrepareContext(p.Ctx, q)
-								if stmt != nil {
-									stmt.Close()
-									t.Fatal("invalid suffix prepared")
-								}
-								fixture.AssertDiagnostic(t, err, &want)
-							} else {
-								result, err := backend.DB.ExecContext(p.Ctx, q)
-								if result != nil {
-									t.Fatal("invalid suffix returned result")
-								}
-								fixture.AssertDiagnostic(t, err, &want)
-							}
+						want := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "trailing"`)
+						want.Position = "18"
+						if i == 2 {
+							want.Message = "cannot insert multiple commands into a prepared statement"
+							want.Position = ""
 						}
+						step := fixture.ErrorDiagnostic(q, want)
+						if prepared {
+							step = fixture.Prepared(step)
+							step.ErrorStage = "prepare"
+						}
+						run(step)
 					}
 					run(fixture.Select("SELECT a,n FROM t", []string{"a", "n"}, []string{"INT4", "INT2"}, [][]any{{a, int64(1)}}))
 				}
 			}
+			run(fixture.Exec("UPDATE t SET a=1", 1))
+			run(fixture.ImplicitError("UPDATE t SET a=$1; SELECT a FROM t", fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"}, 9))
+			run(fixture.Select("SELECT a,n FROM t", []string{"a", "n"}, []string{"INT4", "INT2"}, [][]any{{int64(1), int64(1)}}))
 		})
 	}
 }

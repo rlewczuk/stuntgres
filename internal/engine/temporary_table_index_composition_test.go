@@ -152,9 +152,26 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			e.mu.Lock()
 			err = e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil)
 			if err == nil {
-				err = e.stageTemporaryCatalogChangesLocked(context.Background(), stage, changes)
+				e.stageCatalogChangesLocked(stage, changes)
 			}
 			e.mu.Unlock()
+			if err == nil {
+				op, acquireErr := owner.Acquire(context.Background())
+				if acquireErr != nil {
+					t.Fatal(acquireErr)
+				}
+				scope, scopeErr := e.StartStatement(op)
+				if scopeErr != nil {
+					op.Done()
+					t.Fatal(scopeErr)
+				}
+				err = scope.gate(statement(t, "SELECT 1"))
+				if err == nil {
+					err = e.prepareCatalogOverlayIndexes(scope, stage, changes)
+				}
+				_ = scope.Finish(context.Canceled)
+				op.Done()
+			}
 			if err != nil {
 				t.Fatal(err)
 			}

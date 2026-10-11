@@ -105,7 +105,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if old.revision == DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
-	original := e.storage[ref.Address]
+	original := e.authorizationStorageLocked(auth, ref.Address)
 	if original == nil && old.partition == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}

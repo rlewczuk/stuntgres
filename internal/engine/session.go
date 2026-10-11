@@ -113,6 +113,7 @@ type Operation struct {
 	self                    *Operation
 	session                 *Session
 	ctx                     context.Context
+	commandContext          context.Context // Session-cancelable parent of per-statement budgets.
 	cancel                  context.CancelCauseFunc
 	done                    bool
 	private                 bool
@@ -293,7 +294,7 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
 	combined, cancel := context.WithCancelCause(ctx)
-	op := &Operation{session: s, ctx: combined, sourceContext: ctx, cancel: cancel, private: private}
+	op := &Operation{session: s, ctx: combined, commandContext: combined, sourceContext: ctx, cancel: cancel, private: private}
 	op.self = op
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})

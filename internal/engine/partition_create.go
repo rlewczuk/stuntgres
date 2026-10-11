@@ -249,7 +249,7 @@ type partitionReadFence struct {
 
 func (e *Engine) partitionReadsValidLocked(stage *CatalogStage) bool {
 	for _, read := range stage.partitionReads {
-		current := e.storage[read.address]
+		current := e.stageStorageLocked(stage, read.address)
 		if current != read.storage || current == nil || len(current.versions) != read.length || current.ends != read.ends || current.generation != read.generation {
 			return false
 		}

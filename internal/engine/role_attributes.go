@@ -134,7 +134,7 @@ func (e *Engine) validateRoleAttributesLocked(op *Operation, stmt parser.Stateme
 			return actor, target, o, err
 		}
 	}
-	if e.roles.revision == ^uint64(0) {
+	if v.roles.state.revision == ^uint64(0) {
 		return actor, target, o, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	return actor, target, o, op.Context().Err()
@@ -215,7 +215,8 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		d.ValidUntil = expiry
 		d.HasValidUntil = true
 	}
-	n := cloneRoles(e.roles)
+	roles := e.operationRolesLocked(op)
+	n := cloneRoles(roles)
 	if _, creating := stmt.(*parser.CreateRole); creating {
 		d.Ref, err = e.nextRolePrincipalLocked()
 		if err != nil {
@@ -223,9 +224,9 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		}
 		n.names[d.Name] = d.Ref
 		if !actor.Superuser {
-			n.edges = make([]Membership, len(e.roles.edges)+1)
-			copy(n.edges, e.roles.edges)
-			n.edges[len(e.roles.edges)] = Membership{Role: d.Ref, Member: actor.Ref, Grantor: e.roles.names["postgres"], Admin: true}
+			n.edges = make([]Membership, len(roles.edges)+1)
+			copy(n.edges, roles.edges)
+			n.edges[len(roles.edges)] = Membership{Role: d.Ref, Member: actor.Ref, Grantor: roles.names["postgres"], Admin: true}
 		}
 	}
 	n.roles[d.Ref] = d
@@ -269,7 +270,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	if _, creating := stmt.(*parser.CreateRole); creating {
 		e.nextPrincipal = d.Ref.id + 1
 	}
-	e.roles = n
+	e.installOperationRolesLocked(op, n)
 	notice.emit(op)
 	return Result{}, nil
 }

@@ -311,7 +311,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				return Result{}, err
 			}
 			if candidate == nil {
-				candidate = cloneCatalog(e.state)
+				candidate = cloneCatalog(v.catalog.state)
 			}
 			candidate.descriptors[address] = next
 		}
@@ -319,16 +319,24 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if candidate == nil {
 		return Result{}, op.Context().Err()
 	}
-	if e.roles.revision == ^uint64(0) {
+	if v.roles.state.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	roles := advanceRoleRevision(e.roles)
+	roles := advanceRoleRevision(v.roles.state)
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.state = candidate
-	e.roles = roles
+	if op.session.transactions.retainedMessage {
+		changes := cloneCatalogChanges(op.session.transactions.catalog)
+		for address, change := range changed {
+			e.catalogChangeLocked(changes, address, change.relation)
+		}
+		op.session.transactions.catalog = changes
+	} else {
+		e.state = candidate
+	}
+	e.installOperationRolesLocked(op, roles)
 	return Result{}, nil
 }

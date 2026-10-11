@@ -104,9 +104,9 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 			if auth.namespaceUser != (PrincipalRef{}) {
 				principal = auth.namespaceUser
 			}
-			d, err := auth.roles.Descriptor(principal)
-			if err != nil {
-				return nil, false, err
+			d, exists := auth.roles.state.roles[principal]
+			if !exists {
+				continue
 			}
 			name = d.Name
 		}
@@ -260,11 +260,8 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
 	foreignTemporary := ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token)
 	if foreignTemporary && kind == collationLookup {
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-		if err != nil {
-			return namespaceSelection{}, err
-		}
-		foreignTemporary = !actor.Superuser
+		actor, exists := auth.roles.state.roles[auth.state.CurrentUser]
+		foreignTemporary = !exists || !actor.Superuser
 	}
 	if foreignTemporary {
 		if kind == relationLookup {

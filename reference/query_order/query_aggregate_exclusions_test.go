@@ -62,25 +62,19 @@ func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
 			})
 		}
 		fixture.GroupingSetsAnalysisError(run, fixture.GroupingSetsError("SELECT v FROM t GROUP BY ()", "42803", "column \"t.v\" must appear in the GROUP BY clause or be used in an aggregate function", "v FROM"))
-		// Unrelated window-frame exclusion is unchanged and native-only.
-		if !backend.PG {
-			q := "INSERT INTO t VALUES(1);SELECT count(*) OVER (ROWS UNBOUNDED PRECEDING) FROM t"
-			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Error(q, "0A000"))
-			queryAggregatePrepareRejection(t, p, q, "0A000")
-			run(fixture.Select("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
-		}
+		// The supported ROWS frame executes in a direct message; prepared and
+		// argument-bearing messages reject multiple commands before analysis.
+		q := "INSERT INTO t VALUES(1);SELECT count(*) OVER (ROWS UNBOUNDED PRECEDING) FROM t"
+		run(fixture.Exec(q, 1))
+		sentinel := fixture.Select("SELECT v FROM t", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}})
+		run(sentinel)
+		batch := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"})
+		batch.ErrorStage = "prepare"
+		run(fixture.Prepared(batch))
+		run(sentinel)
+		batch.Args = []any{1}
+		batch.ErrorStage = "execute"
+		run(batch)
+		run(sentinel)
 	})
-}
-
-func queryAggregatePrepareRejection(t *testing.T, p *fixture.Pair, query, state string) {
-	t.Helper()
-	stmt, err := p.Memory.PrepareContext(p.Ctx, query)
-	if stmt != nil {
-		stmt.Close()
-		t.Fatal("failed analysis exposed a statement", query)
-	}
-	if err == nil {
-		t.Fatal("analysis unexpectedly prepared", query)
-	}
-	fixture.State(t, err, state)
 }

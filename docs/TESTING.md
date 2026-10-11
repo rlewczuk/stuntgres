@@ -114,6 +114,10 @@ new captures or a generation stamp. Cursor rejection recovery checks the next
 row (not a rewind), EOF with the original schema, and before-first-FETCH admission.
 Use top-level selectors for these subcases, not slash-qualified selectors.
 
+TransactionGates also checks DISCARD ALL first and after a write/setting prefix
+inside a retained message: exact25001, no prefix publication, preserved SQL/TEMP/
+sequence/settings/advisory resources and unchanged peers.
+
 The configured-startup role/default supplement is a genuine PG options connection;
 native configured defaults have separate private-owner units, not a new connector
 API. Retained SQL errors use the original PREPARE source position (33 in temp_p),
@@ -123,6 +127,127 @@ in both modes. The standalone public smoke is a root-materialized ephemeral
 `timeout 900s go run ./.discard-feature-smoke` and remove only that root-created
 scaffold. It must exercise category cleanup, healthy retention, exact same-owner
 cleaned reuse and unchanged peers/durable9, not merely Ping.
+
+## Direct-message selected proof
+
+The shared, unfiltered driver-batch definitions cover effects/counts (B1), result
+sets (B2), parsing/prepared boundaries (B3), error timing/rollback (B4), transaction
+boundaries (B5), clocks/settings/timeouts (B6), cancellation/lifecycle (B7), the
+complete supported utility inventory (B8), diagnostics/authorization (B9),
+retained block controls (B10), and the public feature smoke.
+Run each selector below in native mode and again with `REFERENCE=1` against the
+real pinned PostgreSQL18.0 UTF8/C oracle before review:
+
+```sh
+make check RUN='^TestReferenceDriverBatch(EffectsCounts|ResultSets|ParsePrepared|ErrorTimingRollback|FeatureSmoke)$'
+make check RUN='^TestReferenceDriverBatch(TransactionBoundaries|ClockSettingsTimeouts|CancellationLifecycle)$'
+make check RUN='^TestReferenceDriverBatch(UtilityAtomicity|DiagnosticsAuthorization|RetainedBlockControls)$'
+make check RUN='^TestReference(DeleteCoreDiagnosticBoundaries|InsertConflictPredicateSuffix|RowsMetadataAndCommandSemantics)$'
+make check RUN='^TestReferenceDriverBatch(PreparedBoundaries|InitialPrepare|Refresh(Composition|Atomicity|Promotion|Authorization|Cancellation|Controls))$'
+```
+
+These are shared acceptance definitions, not comparison-only parity assertions.
+Utility observations use supported metadata and actual command/authorization
+consumers rather than inventing pg_roles/pg_namespace/pg_attribute/pg_constraint/
+pg_type or has_* inquiry support. Enum/composite/plain-domain messages create and
+consume real typed destinations; missing-type CREATE TABLE probes establish
+rollback and private-peer invisibility, and committed peers use the published type.
+Class probes use name/kind plus the independently captured raw public namespace.
+Domain CASCADE asserts actual exposed SELECT * columns/values, restored rollback
+shape and missing-column42703. Physical relnatts retains dropped attribute slots
+and is not an exposed-column counter.
+Identity names remain NAME; raw generated OIDs are formatted in Go, not via new
+casts. The renamed-column dependent view must display its current physical name
+and still return its frozen output label/value. Selected summary regressions:
+`make check RUN='^TestReferencePGTableViews'`, also with `REFERENCE=1`.
+Native REINDEX peers read the old committed value before COMMIT and the final
+value afterward; PostgreSQL independently observes its actual utility wait.
+Column rename uses PostgreSQL's actual dependent-view wait before commit/join.
+Native peers retain the old nonblocking catalog summary, but the dependent-view
+consumer also waits: a bounded held-conflict deadline proves exclusion before
+COMMIT, and the final consumer returns the new value afterward.
+Other peer reads queued behind utility locks are released by commit before
+joining; cancellation uses a held conflicting lock and bounded native deadline,
+with PostgreSQL's public actual-wait observation.
+Notice callbacks run only after a message and cannot synchronize its active wait.
+
+The detached-private-role prepared COMMIT/ROLLBACK subcases are part of
+RetainedBlockControls. They capture the real private role OID independently before
+PREPARE, assert exact current_user/session_user and ordinary authorization
+diagnostics afterward, then assert separate prepared finish and SET ROLE NONE
+recovery. No discovery filter remains. A narrow selector must escape the dollar
+before slash through make; unescaped `$/` can silently select no test:
+
+```sh
+make check RUN='^TestReferenceDriverBatchRetainedBlockControls$$/detached_private_role_prepared$$'
+make check REFERENCE=1 RUN='^TestReferenceDriverBatchRetainedBlockControls$$/detached_private_role_prepared$$'
+```
+
+PreparedBoundaries pins first/post-COMMIT/post-ROLLBACK completion rejection
+before lookup for existing and nonexistent GIDs, immutable prepared entries,
+independent prefix disposition and unchanged singleton completion. InitialPrepare
+pins warning25P01 plus an actual prepared empty implicit segment, independent
+successful/failing suffixes and the singleton idle warning/no-entry contrast.
+
+The six Refresh definitions retain independent duplicate/NULL row bags, DATA/
+NO DATA population, source writes, private CREATE, repeated replacement, pending
+role/MAINTAIN and MV-owner population, promotion before BEGIN, late rollback,
+held-conflict cancellation and detached output across actual native control epochs.
+Controls uses the unwrapped native pool sharing the notice connector's engine,
+never the wrapped recording pool. PostgreSQL independently observes real waits
+and57014; native uses its held-conflict bounded caller deadline. Index obligations
+are supported source indexes, not new CREATE INDEX ON materialized-view support.
+Concurrent, genuine explicit-block and Restore refresh exclusions remain intact.
+Supplemental TestDriverBatchMaterializedReplacementRoots and
+TestDriverBatchMaterializedPublicationGuards inspect first committed versus
+immediate private predecessor, generation/end/root/index/role/TxRef/epoch/cancel
+fences and row births at true end. TestDriverBatchMaterializedPromotionSavepoint
+pins the retained replacement across genuine promotion, failure and mark recovery.
+The focused
+TestDriverBatchPolicyIdentityPublication inspects actual private CREATE→ALTER/
+rename OID retention, committed-root isolation, final installation and late
+rollback/dependency closure; it does not add native pg_policy inquiry.
+
+RoleRetirementPeers independently checks PostgreSQL's role-lock wait and captured-
+OID42704 against native optimistic publication rejection after a peer schema or
+policy dependency. Dispositions covers own dependency retirement, unrelated peer
+changes, rollback, promotion, savepoints and prepared completion. Native schema
+GRANT remains excluded; the PostgreSQL fixture alone grants/revokes public USAGE.
+Pure retirement guards preserve exact catalog/role/frontier/prepared authority.
+
+HoldTrueEnd observes a middle sequence inquiry before holdable-cursor materialization
+at the actual message end, stable later FETCH values, and no draw/cursor after a
+failed message. ForeignKeyComposition creates and consumes private parent/child
+descriptors in one direct message; a late FK failure rolls back both descriptors.
+These preserve current upstream capabilities, not adjacent feature implementation.
+
+Run these additional bounded groups in native mode and again with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceDriverBatchRoleRetirement(Peers|Dispositions)$'
+make check RUN='^TestReferenceDriverBatch(HoldTrueEnd|ForeignKeyComposition)$'
+make check RACE=1 RUN='^TestDriverBatchRoleRetirement(PublicationGuard|CandidateRestoration|Membership)$'
+```
+
+Wrap regex alternatives once; an internal `$|` is a Make automatic variable and
+can silently erase an anchor/alternation, selecting no tests. No-match package
+output is not behavioral evidence.
+
+
+Package admission, message ownership, private catalog/roles/index sources and
+cursor cleanup supplement those public proofs. Mechanical batch fixtures use
+AcquireCommand, matching the public statement budget and SQL-activity/idle
+completion boundaries, not plain native-control Acquire:
+
+```sh
+make check RUN='^TestDriverBatch'
+make check RACE=1 RUN='^TestDriverBatch'
+```
+
+Each check invocation has an external 900-second deadline; targets own no deadline.
+`make quickcheck` remains whole-project Docker-free verification, not a substitute
+for selected real PostgreSQL evidence. Finalcheck's external deadline is 1800
+seconds and likewise does not replace either selected mode.
 
 ## Mandatory policy
 
@@ -238,8 +363,11 @@ outside the checkout from the implementation session's `local://role-switch-smok
 Run `go run "$SESSION_TMP/role-switch-smoke.go"` from the checkout with an external
 900-second deadline. It independently checks utility affected0, NAME metadata,
 stable login identity, owner sentinel7, SESSION/LOCAL/savepoint/commit, NONE/reset,
-outside-block warning25P01 and denied42501. Generic multi-command execution remains
-a native0A000 boundary; malformed scripts still parse completely before effects.
+outside-block warning25P01 and denied42501. Parameterless direct multi-command
+execution follows [the direct-message contract](#direct-message-selected-proof);
+prepared/parameterized multiple commands reject with42601, while unsupported
+utilities retain their specific capability diagnostics. Malformed scripts still
+parse completely before effects.
 
 Enum support-function public witnesses use the shared direct/prepared definition:
 `make check RUN='^TestReferenceEnumFunctions'` and

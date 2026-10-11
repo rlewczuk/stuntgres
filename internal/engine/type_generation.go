@@ -30,7 +30,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				columnsChanged = columnsChanged || old.columns[i].Usage.Type != column.Usage.Type
 			}
 			if columnsChanged {
-				store := e.storage[address]
+				store := e.stageStorageLocked(stage, address)
 				if shape, ok := stage.rowShapes[address]; ok {
 					store = shape.replacement
 				}
@@ -63,7 +63,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			stage.rowShapes[address] = shape
 			continue
 		}
-		original := e.storage[address]
+		original := e.stageStorageLocked(stage, address)
 		stage.rowShapes[address] = catalogRowShape{original: original, replacement: replacement, observedLength: len(original.versions), observedEnds: original.ends, generation: original.generation}
 	}
 	return nil

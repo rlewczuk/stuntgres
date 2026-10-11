@@ -66,17 +66,8 @@ func TestReferenceInsertConflictPredicateSuffix(t *testing.T) {
 				run(insertConflictRows("SELECT k FROM t", []any{int64(1)}))
 				if !prepared {
 					script := "INSERT INTO t SELECT k FROM s WHERE active ON CONFLICT DO NOTHING; SELECT k FROM s WHERE active"
-					if b.PG {
-						if _, err := b.DB.ExecContext(p.Ctx, script); err != nil {
-							t.Fatal(err)
-						}
-						run(insertConflictRows("SELECT k FROM t ORDER BY k", []any{int64(1)}, []any{int64(2)}))
-					} else {
-						boundary := fixture.ErrorDiagnostic(script, fixture.ControlsReferenceDiagnostic("0A000", "multiple statements are unsupported"))
-						boundary.ErrorStage = "execute"
-						run(boundary)
-						run(insertConflictRows("SELECT k FROM t", []any{int64(1)}))
-					}
+					run(fixture.Exec(script, 2)) // Last SELECT count, not INSERT count or sum.
+					run(insertConflictRows("SELECT k FROM t ORDER BY k", []any{int64(1)}, []any{int64(2)}))
 				}
 			})
 		})

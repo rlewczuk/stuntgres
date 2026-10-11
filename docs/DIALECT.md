@@ -170,6 +170,37 @@ Dump/Restore preserves policy metadata, raw rows and all flag combinations,
 including disabled+forced. No row_security setting, full policy catalog,
 expression evaluator, wire server or physical persistence is implied.
 
+### Direct SQL messages — change note
+
+Parameterless direct Exec/Query accept complete multi-command input; full parsing
+precedes any execution. Quoted/comment semicolons do not split commands, and empty
+segments are ignored. Arguments or either Go/SQL prepared definitions still
+require one command: valid multi-command input reports `42601`,
+`cannot insert multiple commands into a prepared statement`. No prefix runs.
+No new statement syntax, explicit-transaction utility eligibility, inquiry
+function, relation or privilege class is introduced by message composition.
+
+Commands execute eagerly under one admission and statement timestamp. Query
+preserves each completed row set with its own metadata and any later terminal
+error; failed commands contribute no partial output. Exec uses the final command
+count. Supported transactional utility effects and DML remain private until the
+implicit segment ends; BEGIN promotes that owner, SQL ends delimit segments, and
+runtime failure rolls back the current implicit segment. Nonrollback generators,
+random/advisory state and prepared registries keep their existing semantics.
+SET LOCAL/DECLARE/LOCK and block-restricted utility paths recognize retained
+implicit blocks; SAVEPOINT and AND CHAIN still require a genuinely explicit one.
+Native early NextResultSet skips unread rows; pinned lib/pq's next-description
+discovery and cancellation/disposal behavior are tested independently.
+See [driver results](DRIVER.md#direct-sql-messages--change-note) and
+[transaction semantics](TRANSACTIONS.md#retained-direct-message-transactions).
+
+Prepared detach preserves effective identity IDs, not private role-name visibility.
+A newly created/selected role consequently gives demanded current_user `42704`
+with its actual OID while ordinary table authorization independently gives
+`42501` until prepared COMMIT publishes the grant. SET ROLE NONE recovers after
+prepared rollback. SESSION AUTHORIZATION remains excluded inside genuinely
+explicit blocks; no private-name fallback is introduced.
+
 
 ### Table and column grants — change note
 

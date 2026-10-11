@@ -133,8 +133,9 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	if _, conflict := err.(CatalogConflict); conflict && !columnRename {
 		e.mu.Lock()
-		winner, exists := e.state.names[NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]
-		sameEpoch := e.state.epoch == ref.Epoch
+		current := e.stageCatalogBaseLocked(stage)
+		winner, exists := current.names[NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]
+		sameEpoch := current.epoch == ref.Epoch
 		e.mu.Unlock()
 		if sameEpoch && exists && winner != ref.Address {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination))

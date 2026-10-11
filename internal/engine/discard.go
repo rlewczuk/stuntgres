@@ -16,7 +16,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category > parser.DiscardTemp {
 		return Result{}, fmt.Errorf("stuntgres: invalid DISCARD category")
 	}
-	if raw.Category == parser.DiscardAll && !s.implicit {
+	if raw.Category == parser.DiscardAll && s.owner.inBlock() {
 		return Result{}, sqlError("25001", "DISCARD ALL cannot run inside a transaction block")
 	}
 	session := s.op.session
@@ -168,7 +168,12 @@ func (e *Engine) resetAllSettingsLocked(session *Session) {
 func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	e, session := s.op.session.Engine(), s.op.session
 	e.mu.Lock()
-	base := e.privateCatalogLocked(s.owner.catalog)
+	auth, err := e.authorizationLocked(s.op)
+	if err != nil {
+		e.mu.Unlock()
+		return err
+	}
+	base := auth.catalog
 	owned := make(map[ObjectAddress]bool)
 	for address, d := range base.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
@@ -187,12 +192,12 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	}
 	changes := cloneCatalogChanges(s.owner.catalog)
 	stage := e.BeginCatalogStage(base)
+	stage.authSession, stage.authRevision, stage.roleRevision = session, auth.revision, auth.roles.state.revision
 	for address := range owned {
 		stage.domainBases = append(stage.domainBases, base.state.descriptors[address].(*namespaceDescriptor))
 	}
 	// Exclude every owned target before projecting surviving dependents, exactly
 	// as physical collation cleanup does, but retain the namespace descriptor.
-	var err error
 	for _, address := range children {
 		if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: address}, false); err != nil {
 			break
@@ -245,10 +250,9 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	if _, err = e.ValidateCatalogStage(s.op.Context(), stage); err != nil {
 		return err
 	}
-	if err = e.stageTemporaryCatalog(s, stage, changes); err != nil {
+	if err = e.stageCatalogOverlay(s, stage, changes); err != nil {
 		return err
 	}
-	s.discardRemovedTemporaryWrites(stage)
 	s.owner.accessedTemporary = true
 	return nil
 }

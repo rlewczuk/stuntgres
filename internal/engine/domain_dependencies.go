@@ -524,9 +524,9 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 			continue
 		}
 		e.mu.Lock()
-		storage := e.storage[old.address]
+		storage := e.stageStorageLocked(stage, old.address)
 		storageOwner := stage.base.state.descriptors[old.address].(*relationDescriptor)
-		if e.state.descriptors[old.address] != storageOwner || storage == nil {
+		if e.stageCatalogBaseLocked(stage).descriptors[old.address] != storageOwner || storage == nil {
 			e.mu.Unlock()
 			return CatalogConflict{}
 		}

@@ -90,16 +90,12 @@ func TestReferenceRowsMetadataAndCommandSemantics(t *testing.T) {
 				t.Fatal(err)
 			}
 			rows.Close()
-			_, err = db.Exec("INSERT INTO metadata(i) VALUES(9); INSERT INTO metadata(i) VALUES(10)")
-			if backend.PG {
-				if err != nil {
-					t.Fatal(err)
-				}
-				fixture.DriverWantTuples(t, db, "SELECT i FROM metadata ORDER BY i", [][]any{{int64(1)}, {int64(9)}, {int64(10)}})
-			} else {
-				fixture.DriverSQLState(t, err, "0A000")
-				fixture.DriverWantTuples(t, db, "SELECT i FROM metadata", [][]any{{int64(1)}})
+			r = fixture.DriverExecSQL(t, db, "INSERT INTO metadata(i) VALUES(9); INSERT INTO metadata(i) VALUES(10)")
+			n, err = r.RowsAffected()
+			if err != nil || n != 1 {
+				t.Fatalf("batch last count: %d %v", n, err)
 			}
+			fixture.DriverWantTuples(t, db, "SELECT i FROM metadata ORDER BY i", [][]any{{int64(1)}, {int64(9)}, {int64(10)}})
 		})
 	}
 }

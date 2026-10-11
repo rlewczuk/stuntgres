@@ -71,7 +71,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	successor.base = 1
 	successor.version = 4
 	successor.values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(ctx, parent, index, root.entries, &rowPublication{writes: []rowVersion{successor}}, false, true, "", sqltype.OutputEnvironment{}, nil)
+	merged, err := mergeIndexRoot(ctx, parent, index, root.entries, &rowPublication{writes: []rowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

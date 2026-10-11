@@ -82,7 +82,7 @@ func representedSummaryTable(oid OID) bool {
 	return false
 }
 
-func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
+func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, roles RoleRead, ref ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, value) }
@@ -110,7 +110,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		} else if relation.relationKind != viewRelation && builtinDefinition == "" {
 			continue
 		}
-		owner, err := (RoleRead{e, e.roles}).Descriptor(relation.owner)
+		owner, err := roles.Descriptor(relation.owner)
 		if err != nil {
 			return nil, err
 		}
@@ -126,8 +126,13 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		} else {
 			definition := builtinDefinition
 			if relation.view != nil {
+				// Follow current physical names without changing the caller's
+				// replay/display policy or the view's frozen output labels.
 				presentation.columns = relation.columns
-				definition, err = relation.view.selectSQL(ctx, catalog, presentation)
+				renderer := newViewRenderer(relation.view)
+				renderer.presentation = presentation
+				renderer.currentNames = true
+				definition, err = renderer.selectQuerySQL(ctx, catalog, relation.view.syntax, relation.view.queries[relation.view.syntax])
 				if err != nil {
 					return nil, err
 				}

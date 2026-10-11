@@ -25,7 +25,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}
-	if _, exists := e.state.names[key]; exists {
+	if _, exists := auth.catalog.state.names[key]; exists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
 			return nil, nil, true, nil
@@ -35,8 +35,8 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, false, err
 	}
-	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, e.roles.revision
+	stage := e.BeginCatalogStage(auth.catalog)
+	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
 	if err != nil {
 		return nil, nil, false, err

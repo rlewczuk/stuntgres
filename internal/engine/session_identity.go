@@ -23,7 +23,10 @@ func (k sessionIdentityKind) spelling() string {
 	return [...]string{"current_catalog", "current_database", "current_role", "current_user", "session_user", "user", "system_user", "current_schema"}[k]
 }
 
-type identitySnapshot struct{ database, current, session, system sqltype.Value }
+type identitySnapshot struct {
+	database, current, session, system sqltype.Value
+	currentMissing, sessionMissing     PrincipalRef
+}
 type identityExpression struct {
 	expressionInfo
 	kind         sessionIdentityKind
@@ -46,8 +49,14 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	case identityCatalog, identityDatabase:
 		return identity.database, nil
 	case identityRole, identityCurrentUser, identityUser:
+		if identity.currentMissing != (PrincipalRef{}) {
+			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.currentMissing.ID()))
+		}
 		return identity.current, nil
 	case identitySessionUser:
+		if identity.sessionMissing != (PrincipalRef{}) {
+			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.sessionMissing.ID()))
+		}
 		return identity.session, nil
 	case identitySystemUser:
 		return identity.system, nil
@@ -80,15 +89,25 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 	name, _ := auth.catalog.LookupType(sqltype.Name)
 	text, _ := auth.catalog.LookupType(sqltype.Text)
-	current, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil {
+	if err := auth.roles.validatePrincipal(auth.state.CurrentUser); err != nil {
 		return err
 	}
-	session, err := auth.roles.Descriptor(auth.state.SessionUser)
-	if err != nil {
+	current, currentExists := auth.roles.state.roles[auth.state.CurrentUser]
+	if err := auth.roles.validatePrincipal(auth.state.SessionUser); err != nil {
 		return err
 	}
-	s.identity = identitySnapshot{sqltype.String(name, s.op.session.databaseName), sqltype.String(name, current.Name), sqltype.String(name, session.Name), sqltype.Null(text)}
+	session, sessionExists := auth.roles.state.roles[auth.state.SessionUser]
+	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text)}
+	if sessionExists {
+		s.identity.session = sqltype.String(name, session.Name)
+	} else {
+		s.identity.sessionMissing = auth.state.SessionUser
+	}
+	if currentExists {
+		s.identity.current = sqltype.String(name, current.Name)
+	} else {
+		s.identity.currentMissing = auth.state.CurrentUser
+	}
 	return nil
 }
 

@@ -70,7 +70,6 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 	if err = op.Context().Err(); err != nil {
 		return Result{}, err
 	}
-	actor, _ := v.roles.Descriptor(v.state.CurrentUser)
 	switch s := stmt.(type) {
 	case *parser.ObjectGrant:
 		return e.objectGrantLocked(op, v, s)
@@ -92,9 +91,12 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 				return Result{}, err
 			}
 		} else {
-			allowed, err := v.roles.canSetRole(v.state.SessionUser, target)
-			if err != nil {
-				return Result{}, err
+			allowed := target == v.state.SessionUser
+			if !allowed {
+				allowed, err = v.roles.canSetRole(v.state.SessionUser, target)
+				if err != nil {
+					return Result{}, err
+				}
 			}
 			if !allowed {
 				return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
@@ -107,14 +109,14 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		session.mu.Lock()
 		defer session.mu.Unlock()
 		a := session.authorization
-		// Preserve revision headroom for failure unwind, each retained
-		// savepoint and the outer transaction, in addition to this mutation.
+		// Reserve failure unwind, retained savepoints and outer restoration.
 		if err := roleRevisionHeadroom(a, uint64(len(session.transactions.savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
+		e.touchOperationIdentityLocked(op)
 		settings.touchRole(a.state.CurrentUser, s.Local)
 		a.state.CurrentUser = target
 		a.revision++
@@ -133,21 +135,27 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
 		}
 		session := op.session
+		settings := session.settings
+		settings.mu.Lock()
+		defer settings.mu.Unlock()
 		session.mu.Lock()
 		defer session.mu.Unlock()
 		a := session.authorization
-		if a.revision == ^uint64(0) {
-			return Result{}, fmt.Errorf("stuntgres: session authorization revision exhausted")
+		if err := roleRevisionHeadroom(a, uint64(len(session.transactions.savepoints))+3); err != nil {
+			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
+		e.touchOperationIdentityLocked(op)
+		settings.touchRole(a.state.CurrentUser, false)
 		a.state.SessionUser = target
 		a.state.CurrentUser = target
 		a.revision++
 		return Result{}, nil
 	case *parser.DropRole:
-		if !actor.Superuser {
+		actor, exists := v.roles.state.roles[v.state.CurrentUser]
+		if !exists || !actor.Superuser {
 			return Result{}, roleDiagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
 		}
 		return e.dropRolesLocked(op, v, s)
@@ -163,49 +171,61 @@ type roleDependency struct {
 	policyName  string
 }
 
-func descriptorRoleDependencies(deps []roleDependency, d Descriptor, ref PrincipalRef) []roleDependency {
+// A nil collector stops at the first dependency without building diagnostics.
+// Admission and final publication share the exact same descriptor classification.
+func descriptorRoleDependencies(d Descriptor, ref PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*relationDescriptor); ok {
 		for _, policy := range relation.policies {
 			for _, role := range policy.roles {
 				if !role.public && role.ref == ref {
-					deps = append(deps, roleDependency{address: ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name})
+					if recordRoleDependency(deps, roleDependency{address: ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
+						return true
+					}
 				}
 			}
 		}
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
-		// The relation carries the ownership/ACL dependency for its internal
-		// row and associated array types; they are not independently owned.
-		return deps
+		// Internal row/array ownership belongs to the parent relation.
+		return false
 	}
 	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == indexRelation {
-		// Index ownership follows its validated parent relation. PostgreSQL
-		// records the parent's shared owner dependency, not an extra index
-		// dependency (just as for the relation's internal row types above).
-		return deps
+		// Index ownership belongs to its validated parent relation.
+		return false
 	}
 	owner, acl, columns := descriptorACL(d)
 	if owner == ref {
-		deps = append(deps, roleDependency{address: d.Address(), kind: 'o'})
-		// Shared ACL dependencies omit the owner, whose ownership dependency
-		// already prevents removal, including when named by a column ACL.
-		return deps
+		// The owner's shared ACL dependencies are represented by ownership.
+		return recordRoleDependency(deps, roleDependency{address: d.Address(), kind: 'o'})
 	}
-	add := func(a ACLValue, sub int32) {
-		for _, entry := range a.Entries {
-			if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-				address := d.Address()
-				address.SubID = sub
-				deps = append(deps, roleDependency{address: address, kind: 'a'})
-				return
-			}
+	if aclRoleDependencies(d.Address(), acl, ref, deps) {
+		return true
+	}
+	for sub, acl := range columns {
+		address := d.Address()
+		address.SubID = sub
+		if aclRoleDependencies(address, acl, ref, deps) {
+			return true
 		}
 	}
-	add(acl, 0)
-	for sub, acl := range columns {
-		add(acl, sub)
+	return false
+}
+
+func aclRoleDependencies(address ObjectAddress, acl ACLValue, ref PrincipalRef, deps *[]roleDependency) bool {
+	for _, entry := range acl.Entries {
+		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
+			return recordRoleDependency(deps, roleDependency{address: address, kind: 'a'})
+		}
 	}
-	return deps
+	return false
+}
+
+func recordRoleDependency(deps *[]roleDependency, dependency roleDependency) bool {
+	if deps == nil {
+		return true
+	}
+	*deps = append(*deps, dependency)
+	return false
 }
 
 // PostgreSQL 18 quote_identifier quotes every keyword except UNRESERVED.
@@ -335,8 +355,8 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	}
 	// Hypothetical endpoint cleanup precedes every dependency check. A grantor
 	// alone is not an endpoint and therefore retains its membership dependency.
-	retained := make([]Membership, 0, len(e.roles.edges))
-	for _, edge := range e.roles.edges {
+	retained := make([]Membership, 0, len(v.roles.state.edges))
+	for _, edge := range v.roles.state.edges {
 		if _, ok := targets[edge.Role]; ok {
 			continue
 		}
@@ -351,8 +371,8 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
 		var dependencies []roleDependency
-		for _, object := range e.state.descriptors {
-			dependencies = descriptorRoleDependencies(dependencies, object, ref)
+		for _, object := range v.catalog.state.descriptors {
+			descriptorRoleDependencies(object, ref, &dependencies)
 		}
 		for _, edge := range retained {
 			if edge.Grantor == ref {
@@ -393,10 +413,10 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			return Result{}, roleDiagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
 		}
 	}
-	if e.roles.revision == ^uint64(0) {
+	if v.roles.state.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	n := cloneRoles(e.roles)
+	n := cloneRoles(v.roles.state)
 	n.edges = retained
 	for ref, d := range targets {
 		delete(n.roles, ref)
@@ -407,6 +427,16 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.roles = n
+	e.installOperationRolesLocked(op, n)
+	if t := op.session.transactions; t.retainedMessage {
+		// installOperationRolesLocked cloned the same catalog owner; no saved
+		// candidate shares this mutable set. Standalone publication needs none.
+		if t.catalog.retiredRoles == nil {
+			t.catalog.retiredRoles = make(map[PrincipalRef]struct{}, len(ordered))
+		}
+		for _, ref := range ordered {
+			t.catalog.retiredRoles[ref] = struct{}{}
+		}
+	}
 	return Result{}, nil
 }

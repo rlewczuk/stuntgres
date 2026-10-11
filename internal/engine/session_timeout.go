@@ -153,7 +153,7 @@ func (s *Session) startProvisionalTimeout(scope *StatementScope) {
 		return
 	}
 	s.timeouts.transaction.scope = scope
-	s.armTimeoutLocked(&s.timeouts.transaction, scope.statementStart.Add(s.timeouts.transactionLimit), "25P04")
+	s.armTimeoutLocked(&s.timeouts.transaction, scope.transactionStart.Add(s.timeouts.transactionLimit), "25P04")
 }
 
 // Called under Session.mu at canonical birth; adopting the provisional slot
@@ -188,7 +188,7 @@ func (s *Session) finishScopeTimeout(scope *StatementScope, failed bool) {
 	defer s.mu.Unlock()
 	slot := &s.timeouts.transaction
 	if scope.op != nil && scope.op.timeoutScope == scope {
-		scope.op.sqlFinished = true
+		scope.op.sqlFinished = !scope.message
 		scope.op.pendingTimeoutRequest.Store(nil)
 		scope.op.pendingTimeoutError.Store(false)
 	}

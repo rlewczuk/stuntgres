@@ -81,12 +81,11 @@ func (s *sessionSettings) touchRole(current PrincipalRef, local bool) {
 	s.roleAction = a
 }
 
-func (s *sessionSettings) restoreRoleLocked(target PrincipalRef) {
+// Install a complete boundary state once; admission reserves revision capacity.
+func (s *sessionSettings) restoreIdentityLocked(target RoleState) {
 	a := s.session.authorization
-	if a != nil && a.state.CurrentUser != target {
-		// Admission reserves every unavoidable unwind. No callbacks or
-		// permission checks can veto restoration after a transaction fails.
-		a.state.CurrentUser = target
+	if a != nil && a.state != target {
+		a.state = target
 		a.revision++
 	}
 }
@@ -140,13 +139,23 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 	}
 	if s.session != nil {
 		s.session.mu.Lock()
+		t := s.session.transactions
+		target := s.session.authorization.state
+		if !commit && t.identityCaptured {
+			target.Authenticated = t.identityEntry.Authenticated
+			target.SessionUser = t.identityEntry.SessionUser
+			target.ResetRole = t.identityEntry.ResetRole
+		}
 		if a := s.roleAction; a.present {
 			if !commit || a.kind == settingLocal {
-				s.restoreRoleLocked(a.original)
+				target.CurrentUser = a.original
 			} else if a.kind == settingSessionLocal {
-				s.restoreRoleLocked(a.candidate)
+				target.CurrentUser = a.candidate
 			}
 		}
+		s.restoreIdentityLocked(target)
+		t.identityEntry = RoleState{}
+		t.identityCaptured = false
 		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
 		s.session.mu.Unlock()
 	}
@@ -253,11 +262,8 @@ func settingAccess(d SettingDefinition, op *Operation) error {
 			if err != nil {
 				return err
 			}
-			role, err := view.Roles().Descriptor(view.state.CurrentUser)
-			if err != nil {
-				return err
-			}
-			if role.Superuser {
+			role, exists := view.roles.state.roles[view.state.CurrentUser]
+			if exists && role.Superuser {
 				return nil
 			}
 		}

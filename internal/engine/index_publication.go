@@ -344,7 +344,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				if publications[i].address != parent.address {
 					continue
 				}
-				reconstruct := rebuildParents[parent.address] && index.sqlIndex.valid
+				reconstruct := (rebuildParents[parent.address] || old == nil) && index.sqlIndex.valid
 				root, err = mergeHashIndexRoot(ctx, parent, index, root, &publications[i], reconstruct, materialize || index.sqlIndex.isExclusion())
 				if err != nil {
 					return nil, err
@@ -396,8 +396,8 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			if index.sqlIndex.unique || index.sqlIndex.isExclusion() {
 				schema = next.descriptors[parent.namespace].(*namespaceDescriptor).name
 			}
-			reconstruct := rebuildParents[parent.address] && index.sqlIndex.valid
-			merged, err := mergeIndexRoot(ctx, parent, index, entries, &publications[i], reconstruct, materialize, schema, output, auth)
+			reconstruct := (rebuildParents[parent.address] || old == nil) && index.sqlIndex.valid
+			merged, err := mergeIndexRoot(ctx, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, auth)
 			if err != nil {
 				return nil, err
 			}

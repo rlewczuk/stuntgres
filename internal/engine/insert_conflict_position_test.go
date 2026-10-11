@@ -80,7 +80,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)
 				}
-				next, err := mergeIndexRoot(context.Background(), f.parent, f.index, root.entries, &p, false, true, "public", scope.output, nil)
+				next, err := mergeIndexRoot(context.Background(), f.parent, f.index, root.entries, &p, false, true, false, "public", scope.output, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

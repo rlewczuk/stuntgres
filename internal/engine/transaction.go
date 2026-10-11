@@ -99,6 +99,10 @@ type transactionOwner struct {
 	savepoints        []savepointMark
 	accessedTemporary bool
 	exclusionModes    exclusionModes
+	retainedMessage   bool // Admission spans a direct multi-command message.
+	identityEntry     RoleState
+	identityCaptured  bool
+	messageBorn       bool
 }
 
 func (t *transactionOwner) clear() {
@@ -185,6 +189,9 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	settings.currentDeferrable = t.deferrable
 	e.enrollSerializableLocked(t.ref, t.isolation)
 	t.start = start
+	if t.retainedMessage {
+		t.messageBorn = true
+	}
 	session.beginTimeoutLocked(t.ref, state == TxActive, start)
 	return nil
 }
@@ -264,6 +271,9 @@ type StatementScope struct {
 	stage                 WriteStage
 	view                  *VisibilityView
 	finished              bool
+	message               bool
+	messageEnded          bool
+	messageResult         error
 	result                error
 	worked                bool
 	completed             bool
@@ -307,6 +317,7 @@ type StatementScope struct {
 	implicit              bool
 	input                 sqltype.InputEnvironment
 	statementStart        time.Time
+	transactionStart      time.Time
 	timeoutRef            TxRef // admission projection for preparse ERROR timer retirement
 	output                sqltype.OutputEnvironment
 	initialParameters     []sqltype.Usage
@@ -351,13 +362,11 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 		t.admission.Unlock()
 		return nil, err
 	}
-	s := newStatementScope(op, t, start)
-	op.session.startProvisionalTimeout(s)
-	return s, nil
+	return e.newStatementScope(op, t, start), nil
 }
 
-// Both statement admission and held-cursor precommit borrow the same current
-// operation/presentation initializer; neither retains a finished FETCH scope.
+// Held-cursor precommit borrows a fresh current operation/presentation scope
+// without starting a new admitted statement or provisional timeout.
 func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) *StatementScope {
 	s := &StatementScope{owner: owner, op: op, statementStart: start}
 	s.self = s
@@ -430,6 +439,11 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	if control, ok := stmt.(*parser.TransactionControl); ok {
 		s.owner.mu.Lock()
 		defer s.owner.mu.Unlock()
+		if s.message {
+			if err := s.admitTransactionLocked(s.op.session.Engine()); err != nil {
+				return err
+			}
+		}
 		if err := s.op.session.Engine().endPreflight(s.op); err != nil {
 			return err
 		}
@@ -460,22 +474,9 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.state == TxIdle {
-		if err := e.beginLocked(s.op, t, TxImplicit, s.statementStart); err != nil {
-			return err
-		}
+	if err := s.admitTransactionLocked(e); err != nil {
+		return err
 	}
-	if t.ticket == nil && t.state != TxAborted {
-		ref := t.ref
-		t.mu.Unlock()
-		ticket, err := e.locks.register(ref)
-		t.mu.Lock()
-		if err != nil {
-			return err
-		}
-		t.ticket = ticket
-	}
-	s.attachTransactionLocked()
 	e.mu.Lock()
 	stale := t.ref.epoch != e.state.epoch
 	e.mu.Unlock()

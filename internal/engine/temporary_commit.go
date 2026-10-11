@@ -116,7 +116,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 			}
 		}
 		if err == nil {
-			err = e.stageTemporaryCatalogChangesLocked(op.Context(), stage, next)
+			e.stageCatalogChangesLocked(stage, next)
 			for a := range stage.removals {
 				delete(nextWrites, a)
 				delete(nextDeletes, a)

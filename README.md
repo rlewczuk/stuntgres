@@ -56,6 +56,21 @@ See [cleanup categories](docs/DIALECT.md#discard--change-note) and
 Feature smoke: `make check RUN='^TestReferenceDiscardFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDiscardFeatureSmoke$'`.
 
+Change note: parameterless direct `ExecContext` and `QueryContext` accept complete
+multi-command SQL messages. A message parses before any effect, executes eagerly
+in order, and retains its implicit transaction until the segment ends. Supported
+utility definitions, roles/ACLs and DML publish together or roll back together.
+`Exec` reports the final command count; `Query` retains every completed row set,
+its own metadata, and any later execution error. Advancing result sets never
+executes SQL. Parameterized direct calls and prepared definitions still require
+one command (`42601` for a syntactically valid multi-command definition).
+See [direct SQL messages](docs/DRIVER.md#direct-sql-messages--change-note)
+and [message transaction boundaries](docs/TRANSACTIONS.md#retained-direct-message-transactions).
+Feature smoke (900 seconds per invocation):
+`make check RUN='^TestReferenceDriverBatchFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceDriverBatchFeatureSmoke$'`.
+
 Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
 and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
 for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.

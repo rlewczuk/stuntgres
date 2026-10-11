@@ -58,7 +58,7 @@ func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescrip
 
 func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	s.owner.mu.Lock()
-	active := s.owner.state == TxActive
+	active := s.owner.inBlock()
 	s.owner.mu.Unlock()
 	if !active {
 		return sqlError("25P01", "LOCK TABLE can only be used in transaction blocks")

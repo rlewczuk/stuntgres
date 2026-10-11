@@ -29,7 +29,9 @@ func (s *StatementScope) Finish(err error) error {
 		s.result = err
 		s.op.session.finishScopeTimeout(s, err != nil)
 		s.releaseCopyReservation()
-		s.owner.admission.Unlock()
+		if !s.message {
+			s.owner.admission.Unlock()
+		}
 		return err
 	}
 	t := s.owner
@@ -43,14 +45,14 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	// Implicit HOLD declaration installation is not its external completion:
 	// unfetched targets must settle before publication and ON COMMIT actions.
-	if err == nil && s.worked && t.state == TxImplicit {
+	if err == nil && s.worked && t.state == TxImplicit && !t.retainedMessage {
 		t.mu.Unlock()
 		err = s.materializeHeldCursors()
 		t.mu.Lock()
 	}
 	if err == nil && s.worked {
 		t.mu.Unlock()
-		err = s.checkExclusionEvents(t.state == TxImplicit, nil)
+		err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainedMessage, nil)
 		if err == nil {
 			err = s.checkForeignKeys()
 		}
@@ -61,7 +63,7 @@ func (s *StatementScope) Finish(err error) error {
 		if s.catalog != nil {
 			catalog = s.catalog
 		}
-		if t.state == TxImplicit {
+		if t.state == TxImplicit && !t.retainedMessage {
 			if !s.completed {
 				t.mu.Unlock()
 				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority)
@@ -123,7 +125,7 @@ func (s *StatementScope) Finish(err error) error {
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *relationTicket
-	if t.state == TxImplicit {
+	if t.state == TxImplicit && (!t.retainedMessage || err != nil) {
 		t.session.settings.finishTransaction(err == nil)
 		e.endSerializable(t.ref, err == nil)
 		endedTicket = t.ticket
@@ -199,6 +201,8 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	e.locks.end(endedTicket)
 	s.releaseCopyReservation()
-	t.admission.Unlock()
+	if !s.message {
+		t.admission.Unlock()
+	}
 	return err
 }

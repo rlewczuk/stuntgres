@@ -11,6 +11,21 @@ import (
 func TestReferenceDiscardTransactionGates(t *testing.T) {
 	discardScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, peer *sql.Conn) {
 		discardSeed(t, p, b, a, peer)
+		t.Run("retained_message", func(t *testing.T) {
+			for _, query := range []string{
+				"INSERT INTO discard_durable VALUES(10); SET application_name='private'; DISCARD ALL",
+				"DISCARD ALL; INSERT INTO discard_durable VALUES(10)",
+			} {
+				discardError(t, p, b, a, query, "25001", "DISCARD ALL cannot run inside a transaction block", "")
+				discardScalar(t, p, b, a, "SELECT v FROM discard_durable", "v", "INT4", int64(9))
+				discardScalar(t, p, b, a, "SHOW application_name", "application_name", "TEXT", "discard_7")
+				discardScalar(t, p, b, a, "EXECUTE p", "v", "INT4", int64(7))
+				discardScalar(t, p, b, a, "SELECT v FROM discard_t", "v", "INT4", int64(7))
+				discardScalar(t, p, b, a, "SELECT currval('discard_s')", "currval", "INT8", int64(1))
+				discardScalar(t, p, b, peer, "SELECT pg_try_advisory_lock(81001::bigint)", "pg_try_advisory_lock", "BOOL", false)
+				discardPeerIntact(t, p, b, peer)
+			}
+		})
 		for _, driverTx := range []bool{false, true} {
 			for _, prepared := range []bool{false, true} {
 				var stmt *sql.Stmt

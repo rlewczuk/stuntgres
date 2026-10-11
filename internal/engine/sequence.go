@@ -512,6 +512,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	// Every stored-expression owner shares one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.catalog)
+	checkStage.authSession, checkStage.authRevision, checkStage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
 	defer e.DiscardCatalogStage(checkStage)
 	checkStage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {

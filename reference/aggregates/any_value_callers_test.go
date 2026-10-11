@@ -23,10 +23,14 @@ func TestReferenceAnyValueCallers(t *testing.T) {
 				}
 			}
 			q := "INSERT INTO out VALUES(99); INSERT INTO out SELECT any_value(10/v) FROM t"
-			batch := fixture.ImplicitError(q, fixture.Diagnostic{Code: "22012", Message: "division by zero"})
-			if !backend.PG {
-				batch = fixture.Error(q, "0A000")
-			}
+			run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "22012", Message: "division by zero"}))
+			run(fixture.Select("SELECT v FROM out", []string{"v"}, []string{"INT4"}, nil))
+			batch := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"})
+			batch.ErrorStage = "prepare"
+			run(fixture.Prepared(batch))
+			run(fixture.Select("SELECT v FROM out", []string{"v"}, []string{"INT4"}, nil))
+			batch.Args = []any{99}
+			batch.ErrorStage = "execute"
 			run(batch)
 			run(fixture.Select("SELECT v FROM out", []string{"v"}, []string{"INT4"}, nil))
 			for _, prepared := range []bool{false, true} {

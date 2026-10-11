@@ -150,7 +150,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.commentCatalog.state == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
-		scope.commentRoles = RoleRead{e, e.roles}
+		scope.commentRoles = RoleRead{e, e.operationRolesLocked(scope.op)}
 	}
 	if scope.deparsePath == nil {
 		auth, err := e.authorizationLocked(scope.op)

@@ -28,7 +28,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.CloseCursor:
 		return scope.executeCloseCursor(stmt.(*parser.CloseCursor), count)
 	case *parser.DeclareCursor:
-		if scope.implicit && !stmt.(*parser.DeclareCursor).Hold {
+		if !scope.owner.inBlock() && !stmt.(*parser.DeclareCursor).Hold {
 			return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 		}
 		name := stmt.(*parser.DeclareCursor).Name.Text
@@ -73,13 +73,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant:
-		result, err := e.executeRole(op, stmt, count, scope.implicit)
+		result, err := e.executeRole(op, stmt, count, !scope.owner.inBlock())
 		if err == nil {
 			scope.completed = true
 		}
 		return result, err
 	case *parser.Set, *parser.Show, *parser.Reset:
-		result, err := e.executeSetting(op, stmt, count, scope.implicit)
+		result, err := e.executeSetting(op, stmt, count, !scope.owner.inBlock())
 		if err == nil {
 			scope.completed = true
 		}

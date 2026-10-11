@@ -252,11 +252,22 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	}
 	if control.Kind == parser.KindStart {
 		if state == TxIdle {
-			_, err = e.beginAdmitted(s.op, t, s.statementStart)
+			_, err = e.beginAdmitted(s.op, t, s.transactionStart)
 			if err == nil {
 				t.mu.Lock()
 				err = t.assignModes(control.Modes)
 				t.mu.Unlock()
+			}
+		} else if state == TxImplicit {
+			err = e.endPreflight(s.op)
+			if err == nil {
+				t.mu.Lock()
+				t.state = TxActive
+				err = t.assignModes(control.Modes)
+				t.mu.Unlock()
+				t.session.mu.Lock()
+				t.session.timeouts.explicit = true
+				t.session.mu.Unlock()
 			}
 		} else {
 			err = e.endPreflight(s.op)
@@ -276,7 +287,21 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 	} else {
-		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, s.statementStart)
+		if state == TxImplicit {
+			if control.Chain {
+				word := "COMMIT"
+				if control.Kind == parser.KindRollback {
+					word = "ROLLBACK"
+				}
+				return Result{}, sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
+			}
+			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+		}
+		nextStart := s.statementStart
+		if s.message {
+			nextStart = time.Now().UTC().Truncate(time.Microsecond)
+		}
+		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, nextStart)
 	}
 	if err == nil {
 		s.controlOutcome = controlExecuted

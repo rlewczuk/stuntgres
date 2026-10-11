@@ -112,19 +112,6 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 	}
 	return &tx{conn: c, ref: ref}, nil
 }
-func parseOne(query string, options parser.Options) (parser.Statement, error) {
-	ss, err := parser.ParseWithOptions(query, options)
-	if err != nil {
-		return nil, err
-	}
-	if len(ss) > 1 {
-		return nil, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "multiple statements are unsupported"}
-	}
-	if len(ss) == 0 {
-		return nil, nil
-	}
-	return ss[0], nil
-}
 func (c *conn) Prepare(query string) (driver.Stmt, error) {
 	return c.PrepareContext(context.Background(), query)
 }
@@ -136,9 +123,28 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	return &stmt{conn: c, ast: ast, source: query, description: description}, nil
 }
 
-// Direct parsing and prepared execution share one admitted completion boundary.
-// A prepared handle retains only its AST/description, never a visibility snapshot.
-func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *engine.StatementDescription) (r engine.Result, description engine.StatementDescription, parsed parser.Statement, err error) {
+// Direct and prepared execution share one message/statement admission path.
+// Completed outputs are transport, not transaction or execution authority.
+type commandOutput struct {
+	engine.Result
+	sets []engine.RowResult
+}
+
+func (r *commandOutput) close() error {
+	var first error
+	if r.Rows != nil {
+		first = r.Rows.Close()
+		r.Rows = nil
+	}
+	for _, set := range r.sets {
+		if err := set.Close(); first == nil {
+			first = err
+		}
+	}
+	r.sets = nil
+	return first
+}
+func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *engine.StatementDescription) (r commandOutput, description engine.StatementDescription, parsed parser.Statement, err error) {
 	defer runtime.KeepAlive(c)
 	if err = c.check(ctx); err != nil {
 		return
@@ -158,14 +164,17 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 		err = c.terminalError(op.CommandError(err))
 		return
 	}
+	batch := false
 	defer func() {
-		err = scope.Finish(err)
+		if batch {
+			err = scope.FinishMessage(err)
+		} else {
+			err = scope.Finish(err)
+		}
 		err = c.terminalError(op.CommandError(err))
-		if err != nil {
-			if r.Rows != nil {
-				r.Rows.Close()
-			}
-			r = engine.Result{}
+		if err != nil && r.Rows != nil {
+			r.Rows.Close()
+			r.Rows = nil
 		}
 		notices := op.DetachNotices()
 		op.Done()
@@ -175,10 +184,18 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 			}
 		}
 	}()
+	var statements []parser.Statement
 	if parse {
-		ast, err = parseOne(query, options)
+		statements, err = parser.ParseWithOptions(query, options)
 		if err != nil {
 			return
+		}
+		if len(statements) > 1 && (describe || len(args) != 0) {
+			err = &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "cannot insert multiple commands into a prepared statement"}
+			return
+		}
+		if len(statements) != 0 {
+			ast = statements[0]
 		}
 	}
 	parsed = ast
@@ -190,36 +207,67 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	}
 	if describe {
 		description, err = scope.Describe(ast)
-	} else {
-		// Signature and immutable timestamp scalars travel together; execution
-		// still resolves the current catalog and imports a fresh parameter frame.
-		scope.Expected = expected
-		r, err = scope.Execute(ast, len(values), frameImporter(values))
+		return
 	}
+	if len(statements) > 1 {
+		if err = scope.RetainMessage(); err != nil {
+			return
+		}
+		batch = true
+		for i, statement := range statements {
+			if i != 0 {
+				var next *engine.StatementScope
+				next, err = scope.NextStatement()
+				if err != nil {
+					return
+				}
+				scope = next
+			}
+			var current engine.Result
+			current, err = scope.Execute(statement, 0, frameImporter(values))
+			err = scope.Finish(err)
+			err = op.CommandError(err)
+			if err != nil {
+				if current.Rows != nil {
+					current.Rows.Close()
+				}
+				return
+			}
+			r.Count = current.Count
+			if current.Rows != nil {
+				r.sets = append(r.sets, current.Rows)
+			}
+		}
+		return
+	}
+	scope.Expected = expected
+	r.Result, err = scope.Execute(ast, len(values), frameImporter(values))
 	return
 }
 func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *engine.StatementDescription) (engine.Result, error) {
 	r, _, _, err := c.request(ctx, "", ast, args, false, false, expected)
-	return r, err
+	return r.Result, err
 }
 func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	r, _, _, err := c.request(ctx, query, nil, args, true, false, nil)
+	closeErr := r.close()
 	if err != nil {
 		return nil, err
 	}
-	if r.Rows != nil {
-		if err := r.Rows.Close(); err != nil {
-			return nil, err
-		}
+	if closeErr != nil {
+		return nil, closeErr
 	}
 	return result(r.Count), nil
 }
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	r, _, _, err := c.request(ctx, query, nil, args, true, false, nil)
+	if len(r.sets) != 0 {
+		return newBatchRows(ctx, r.sets, err), nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	return newRows(ctx, r), nil
+	return newRows(ctx, r.Result), nil
 }
 func named(values []driver.Value) []driver.NamedValue {
 	out := make([]driver.NamedValue, len(values))

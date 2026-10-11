@@ -39,7 +39,7 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority) error {
 	if a == nil {
 		return nil
 	}
-	if a.session.authorization.revision != a.authorization || e.roles.revision != a.roles || e.state.descriptors[a.ref.Address] != a.descriptor {
+	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.state.descriptors[a.ref.Address] != a.descriptor {
 		return CatalogConflict{}
 	}
 	return nil

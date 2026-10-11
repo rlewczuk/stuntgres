@@ -85,16 +85,18 @@ func TestReferenceTimezoneMulticommandBoundary(t *testing.T) {
 	p := fixture.TimezoneReferencePair(t)
 	p.Step(t, fixture.Exec("UPDATE tz_witness SET z='epoch' WHERE id=1", 1))
 	query := "INSERT INTO tz_witness(z) VALUES('2005-01-01+00'); INSERT INTO tz_witness(z) VALUES('2006-01-01+00')"
-	if _, err := p.Memory.ExecContext(p.Ctx, query); err == nil {
-		t.Fatal("native accepted unsupported multiple commands")
-	}
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT z::TEXT AS z FROM tz_witness", []string{"z"}, []string{"TEXT"}, [][]any{{"1970-01-01 00:00:00+00"}}))
-	if p.Postgres != nil {
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec(query, 1))
-		s := fixture.Select("SELECT z::TEXT AS z FROM tz_witness", []string{"z"}, []string{"TEXT"}, [][]any{{"1970-01-01 00:00:00+00"}, {"2005-01-01 00:00:00+00"}, {"2006-01-01 00:00:00+00"}})
-		s.Bag = true
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s)
-	}
+	batch := fixture.ImplicitError(query, fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"})
+	batch.ErrorStage = "prepare"
+	p.Step(t, fixture.Prepared(batch))
+	timezoneBoth(t, p, fixture.Select("SELECT z::TEXT AS z FROM tz_witness", []string{"z"}, []string{"TEXT"}, [][]any{{"1970-01-01 00:00:00+00"}}))
+	batch.Args = []any{"2005-01-01+00"}
+	batch.ErrorStage = "execute"
+	p.Step(t, batch)
+	timezoneBoth(t, p, fixture.Select("SELECT z::TEXT AS z FROM tz_witness", []string{"z"}, []string{"TEXT"}, [][]any{{"1970-01-01 00:00:00+00"}}))
+	p.Step(t, fixture.Exec(query, 1))
+	values := fixture.Select("SELECT z::TEXT AS z FROM tz_witness", []string{"z"}, []string{"TEXT"}, [][]any{{"1970-01-01 00:00:00+00"}, {"2005-01-01 00:00:00+00"}, {"2006-01-01 00:00:00+00"}})
+	values.Bag = true
+	timezoneBoth(t, p, values)
 	query = "UPDATE tz_witness SET z='2005-01-01+00'; nonsense"
 	s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "nonsense"`, Position: fixture.Position(strings.Index(query, "nonsense") + 1)})
 	s.ErrorStage = "execute"

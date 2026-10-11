@@ -5,8 +5,10 @@
 ## DISCARD transaction boundaries
 
 `DISCARD ALL` fails25001 `DISCARD ALL cannot run inside a transaction block` in
-SQL BEGIN and driver `sql.Tx`, including read-only blocks. The check is execution
-time, not Prepare time, and precedes cleanup. In an already-aborted block every
+SQL BEGIN, driver `sql.Tx`, and retained multi-command implicit blocks, including
+read-only blocks. Rejection preserves owner resources and rolls back private
+prefix writes/settings. The check is execution time, not Prepare time, and
+precedes cleanup. In an already-aborted block every
 category fails25P02 `current transaction is aborted, commands ignored until end
 of transaction block`; recovery ROLLBACK and subsequent standalone ALL are
 separate executions. Standalone ALL is allowed with default read-only enabled.
@@ -17,6 +19,107 @@ tails. TEMP uses the normal catalog/storage/index overlay: existing objects and
 rows return on outer/savepoint rollback, newly private objects keep honest
 original-absence fences, and COMMIT publishes the removal once. Subsets preserve
 the transaction's other writes, savepoints and ordinary relation locks.
+
+## Retained direct-message transactions
+
+A parameterless multi-command direct call uses the existing transaction owner,
+command identity, private row/deletion roots, catalog overlay and setting journal.
+Every reached command starts an implicit incarnation when the owner is Idle,
+including a control first in the message or immediately after an SQL end.
+Successful commands remain private until message completion or an SQL end.
+Supported schema/table/index/view/materialized-view/type/domain/collation,
+sequence, TEMP, comment, role/membership and object-ACL utility effects compose
+with DML under the same final preflight and publication. This adds no new syntax
+or eligibility to a genuinely explicit block.
+
+Supported nonconcurrent REFRESH MATERIALIZED VIEW carries its complete replacement
+rows and population state through that same private overlay. Source writes,
+private CREATE, repeated refresh and pending role/MAINTAIN authority compose;
+BEGIN may promote an already-refreshed private segment. The first committed
+descriptor/store/root/generation/end fences remain distinct from each latest
+private predecessor. Source indexes publish with source rows; this does not
+enable indexes on materialized views. Replacement rows acquire their committed
+birth only at the true end. Concurrent refresh, later REFRESH in a genuine
+explicit block and REFRESH in Restore input retain their existing exclusions.
+
+A runtime failure rolls back the retained implicit segment, including earlier
+utility and session/LOCAL-setting changes and earlier SET ROLE/SESSION
+AUTHORIZATION changes. An explicit block instead follows its existing Aborted
+and savepoint recovery behavior. Already returned eager results are independent
+of this disposition. Sequence/identity allocation, random draws, advisory state,
+cursor movement and SQL/Go prepared registries retain their existing lifetimes;
+rollback does not rewind those authorities.
+
+BEGIN promotes a retained implicit incarnation without publishing its prefix or
+replacing its reference, start time, modes, private roots or held locks. An
+identity reached before promotion is captured by savepoints and survives
+ROLLBACK TO, while outer rollback restores the message's original identity.
+SET/RESET/LOCAL ROLE use the canonical role settings journal in explicit and
+retained blocks; SESSION AUTHORIZATION remains excluded once genuinely explicit.
+Session authorization also replaces any earlier LOCAL role candidate. Boundary
+restoration composes role disposition and other identity fields into one state
+installation and one changed-state revision stamp.
+Changed identity restoration advances the authorization revision rather than
+reusing an old authority stamp. Mutations reserve capacity for reached savepoint
+restorations and outer rollback; exhaustion is an ordinary host error, not a
+wrapped counter or fabricated SQLSTATE.
+COMMIT/ROLLBACK end the current segment; outside an explicit block they retain
+the ordinary `25P01` warning. The next transactional suffix starts a fresh
+incarnation. AND CHAIN and SAVEPOINT controls require a genuinely explicit block.
+
+Retained implicit segments do count as transaction blocks for DECLARE, LOCK,
+SET LOCAL, SET TRANSACTION, SET CONSTRAINTS and the existing concurrent-index and
+prepared-end block restrictions. Deferred obligations run at the segment end,
+not at every intermediate command. The message has one statement timestamp,
+but each new segment has its own transaction start, and each command rereads
+current timeout/notice settings from the original caller context. Fatal
+transaction timeout retains the existing fatal/disposal path.
+
+PREPARE TRANSACTION detaches the segment into the existing prepared owner; it
+does not publish its role/catalog/row effects, and a later suffix failure does
+not undo that completed detach. Prepared COMMIT/ROLLBACK remain prohibited inside
+either kind of transaction block (`25001`). Existing TEMP/2PC exclusions and
+prepared-registry Reset/Restore fences remain unchanged.
+The block restriction applies before GID lookup even when prepared completion is
+the first command or follows COMMIT/ROLLBACK in the same message. Initial retained
+PREPARE emits WARNING25P01 but detaches the empty implicit segment; subsequent
+commands begin independent work. A genuine singleton idle PREPARE keeps its
+warning/no-registry-entry behavior, and singleton prepared completion is unchanged.
+
+If a role is first created and selected before PREPARE, its effective numeric ID
+survives while its private name and grants are absent from subsequent commands.
+Demanding current_user reports `42704`, `invalid role OID: <actual OID>`;
+session_user retains the original session identity. Ordinary authorization checks
+use numeric self/PUBLIC rights, never a fabricated role descriptor, inherited
+rights, superuser flags or a detached private-name fallback. In the selected
+witness an ordinary table consumer independently reports `42501`. A separate
+prepared COMMIT restores the same role name and grants; prepared ROLLBACK leaves
+the ID unresolved until SET ROLE NONE restores the session identity.
+Concurrent CREATE INDEX retains its singleton behavior but is rejected inside a
+retained implicit message with the existing block diagnostic (`25001`).
+
+
+Admission remains held between commands. Final catalog/role/row publication
+validates the real committed predecessors, source storage, namespace/index
+membership, ACL authority, epoch and completion resources before installing
+anything. Runtime providers execute outside engine/session/owner publication
+locks; an uncommitted utility cannot grant a peer access or leak a descriptor.
+
+Retained DROP ROLE also carries exact retired-principal obligations in that same
+catalog overlay, including clone/savepoint restoration, BEGIN promotion and
+prepared detach/completion. Final locked publication checks the combined latest
+catalog plus own removals/replacements, pending membership and registered role
+references before installing anything. A peer's newly committed schema ownership,
+policy selector or other supported role dependency rejects native optimistic
+publication with the ordinary `stuntgres: catalog replaced before publication`
+error, without orphaning or overwriting peer objects. Failed prepared completion
+keeps its entry available for retry or ROLLBACK PREPARED. Unrelated peer catalog
+changes do not forbid retirement; removing one's own dependencies can discharge
+the obligation. Admission DROP ROLE retains its original `2BP01` diagnostics.
+PostgreSQL instead holds a role-object lock: the peer waits until the owner's
+commit, then reports `42704`, `role <actual OID> was concurrently dropped`, or
+succeeds after owner rollback. This adds neither native role-lock parity nor
+explicit-block DROP ROLE eligibility.
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support
 READ COMMITTED, READ UNCOMMITTED, REPEATABLE READ and SERIALIZABLE, with read-only or read-write
@@ -112,7 +215,7 @@ sequence rows, currval/lastval and caller-owned TEMP sequence mutations remain
 allowed. Existing own TEMP table INSERT/UPDATE/DELETE is permitted in read-only
 blocks, while TEMP CREATE/DROP remains modifying utility DDL and fails25006.
 
-Supported whole-input SQL syntax (one statement per public call):
+Supported SQL transaction-control syntax (also composable in direct messages):
 
 ```sql
 BEGIN [WORK | TRANSACTION]
@@ -684,9 +787,11 @@ sessions see only committed data. READ COMMITTED/UNCOMMITTED execution captures 
 fresh view, so a peer commit becomes visible to the next command,
 including a query prepared before that commit. Duplicate rows retain their
 multiplicity. Commit atomically publishes all staged relations, preserving peer
-commits; Rollback discards them. Every standalone statement commits independently.
-A failed multirow INSERT publishes none of that statement, without undoing earlier
-autocommit statements.
+commits; Rollback discards them. A standalone one-command call commits independently;
+a direct multi-command call retains its implicit segment until its end.
+A failed multirow INSERT publishes none of that statement. Retained implicit
+message failure additionally rolls back earlier commands in that segment,
+without undoing previously committed segments or earlier standalone calls.
 
 Committed row vectors grow amortized rather than copying the entire relation on
 each INSERT. Captured visible prefixes never change; query views retain only the
@@ -723,7 +828,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/replace/ALTER/DROP VIEW, permanent CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Owner-TEMP CREATE/DROP and selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. Mixed permanent/TEMP DROP remains excluded atomically. Read-only view utility tags are CREATE VIEW, ALTER VIEW and DROP VIEW. |
+| Explicit CREATE/replace/ALTER/DROP VIEW, permanent CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT, role creation/removal or SESSION AUTHORIZATION utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). SET/RESET/LOCAL ROLE, owner-TEMP CREATE/DROP and selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. Mixed permanent/TEMP DROP remains excluded atomically. Read-only view utility tags are CREATE VIEW, ALTER VIEW and DROP VIEW. |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported Go isolation option | Ordinary `stuntgres: unsupported transaction isolation level`, before state change |

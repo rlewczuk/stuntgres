@@ -7,7 +7,8 @@ import (
 func (s *StatementScope) acquireViewSources() error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	d, _ := e.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
+	catalog := e.privateCatalogLocked(s.owner.catalog)
+	d, _ := catalog.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
 	hasView := d != nil && (d.relationKind == viewRelation || s.materializedRefresh && d.relationKind == materializedViewRelation)
 	for _, leaf := range s.querySources {
 		if leaf.relation.relationKind == viewRelation {
@@ -29,7 +30,7 @@ func (s *StatementScope) acquireViewSources() error {
 			return nil
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
-		d, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if ref.owner != e.owner || ref.Epoch != e.state.epoch || !ok {
 			return ErrCatalogReplaced
 		}
@@ -57,7 +58,7 @@ func (s *StatementScope) acquireViewSources() error {
 				}
 			}
 			for i, leaf := range d.view.sources {
-				use, err := storedViewUseReference(CatalogRead{e, e.state}, d, leaf.ref)
+				use, err := storedViewUseReference(catalog, d, leaf.ref)
 				if err != nil {
 					return err
 				}
@@ -67,7 +68,7 @@ func (s *StatementScope) acquireViewSources() error {
 			}
 			for _, dependency := range d.view.dependencies {
 				if dependency.ref.Address.ClassID == RelationClassID {
-					child, err := storedViewUseReference(CatalogRead{e, e.state}, d, dependency.ref)
+					child, err := storedViewUseReference(catalog, d, dependency.ref)
 					if err != nil {
 						return err
 					}
@@ -96,14 +97,14 @@ func (s *StatementScope) acquireViewSources() error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	catalog = e.privateCatalogLocked(s.owner.catalog)
 	if s.materializedRefresh {
 		for _, observed := range s.materializedSources {
-			if e.state.descriptors[observed.Address()] != observed {
+			if catalog.state.descriptors[observed.Address()] != observed {
 				return ErrCatalogReplaced
 			}
 		}
 	}
-	catalog := e.privateCatalogLocked(s.owner.catalog)
 	for _, view := range retainedViews {
 		for ref := range view.view.references {
 			if !storedViewReferenceValid(catalog, view, ref) {
@@ -159,7 +160,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 			s.replacementRead = true
 		}
 		e.mu.Lock()
-		_, exists := e.state.descriptors[ref.Address]
+		_, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address]
 		valid := ref.owner == e.owner && ref.Epoch == e.state.epoch && exists
 		e.mu.Unlock()
 		if !valid {

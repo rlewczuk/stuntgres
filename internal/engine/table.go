@@ -153,10 +153,9 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		return Result{}, err
 	}
 	if temporary {
-		if err := e.stageTemporaryCatalog(scope, stage, changes); err != nil {
+		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {
 			return Result{}, err
 		}
-		scope.discardRemovedTemporaryWrites(stage)
 		scope.owner.accessedTemporary = true
 		emitViewCascade(op, stage.viewCascadeNames)
 		for _, notice := range notices {

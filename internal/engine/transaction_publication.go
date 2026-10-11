@@ -218,7 +218,11 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				}
 			}
 			var indexErr error
-			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, nil, prepared, materialize, output, &disclosure)
+			var rebuildIntents map[ObjectAddress]*relationDescriptor
+			if c != nil {
+				rebuildIntents = c.indexRebuilds
+			}
+			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure)
 			if indexErr != nil {
 				return indexErr
 			}
@@ -258,6 +262,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		}
 		if err == nil && !changed && c != nil {
 			err = e.catalogPreflightLocked(c)
+			if err == nil {
+				err = e.roleRetirementPreflightLocked(c, nextCatalog)
+			}
 		}
 		if err == nil {
 			err = e.catalogAuthorityPreflightLocked(authority)
@@ -330,10 +337,20 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			p.store.generation++
 		}
 		if c != nil {
+			for _, shape := range c.storage {
+				if shape.rewritten && shape.relation.relationKind == materializedViewRelation {
+					for i := range shape.replacement.versions {
+						shape.replacement.versions[i].born = e.commitSeq + 1
+					}
+				}
+			}
 			e.sequences = nextSequences
 			e.storage = nextStorage
 			e.state = nextCatalog
 			e.nextRevision = nextRevision
+			if c.roles != nil {
+				e.roles = c.roles
+			}
 			for a, d := range c.descriptors {
 				if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
 					session.temporaryNamespace = a

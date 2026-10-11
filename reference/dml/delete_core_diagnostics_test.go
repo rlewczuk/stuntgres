@@ -67,54 +67,6 @@ func TestReferenceDeleteCoreDiagnostics(t *testing.T) {
 	}
 }
 
-func TestReferenceDeleteCoreDiagnosticBoundaries(t *testing.T) {
-	p := fixture.NewPair(t)
-	for i, db := range []*sql.DB{p.Memory, p.Postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			r := []*fixture.Recorder{p.MemoryRecord, p.PostgresRecord}[i]
-			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, db, r, s) }
-			run(fixture.Exec("CREATE TABLE t(id INT)", 0))
-			run(fixture.Exec("INSERT INTO t VALUES(1),(2)", 2))
-			for _, prepared := range []bool{false, true} {
-				want := fixture.Diagnostic{Code: "42P18", Message: "could not determine data type of parameter $1"}
-				stage := "execute"
-				if prepared {
-					stage = "prepare"
-				}
-				if i == 1 && !prepared {
-					want = fixture.Diagnostic{Code: "42P02", Message: "there is no parameter $2", Position: "24"}
-				}
-				s := fixture.ImplicitError("DELETE FROM t WHERE id=$2", want)
-				s.Prepared, s.SelectRows, s.ErrorStage = prepared, true, stage
-				run(s)
-				fixture.DeleteReferenceRows(t, p, db, r, 1, 2)
-			}
-			query := "DELETE FROM t WHERE id=1; DELETE FROM t WHERE id=2"
-			if i == 0 {
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "multiple statements are unsupported"})
-					s.Prepared, s.SelectRows = prepared, true
-					s.ErrorStage = "execute"
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					run(s)
-					fixture.DeleteReferenceRows(t, p, db, r, 1, 2)
-				}
-			} else {
-				// Simple PostgreSQL queries do support scripts. The rejection
-				// boundary is independently tested at semantic Prepare only.
-				s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"})
-				s.Prepared, s.ErrorStage = true, "prepare"
-				run(s)
-				fixture.DeleteReferenceRows(t, p, db, r, 1, 2)
-				run(fixture.Exec(query, 1)) // lib/pq exposes the last command tag.
-				fixture.DeleteReferenceRows(t, p, db, r)
-			}
-		})
-	}
-}
-
 func TestReferenceDeleteCorePermissionDiagnostic(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"delete_denied"})
 	p := fixture.NewPair(t)

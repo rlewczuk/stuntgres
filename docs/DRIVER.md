@@ -66,6 +66,76 @@ EXECUTE gives26000); native Go AST handles remain callable for valid persistent
 sources. lib/pq server-backed handles may instead fail26000 after server ALL.
 Retained anonymous Rows and executing subset cursors are not rewound or disposed.
 
+## Direct SQL messages — change note
+
+Parameterless direct `ExecContext` and `QueryContext` accept multiple statements
+in one SQL string, including semicolons inside quoted text and comments. Empty
+segments are ignored. The entire input is parsed before execution: malformed
+suffix syntax cannot leave prefix effects. Syntactically valid multiple commands
+with direct arguments, Go `Prepare`, or SQL `PREPARE` return ERROR `42601`,
+`cannot insert multiple commands into a prepared statement`, without executing a
+prefix. Prepared handles retain their existing one-command typed parameter frame.
+Native empty/comment-only calls retain their zero-count/empty-row behavior; this
+change does not make the lib/pq empty `Exec` route return a native-style count.
+
+One operation owns message admission and statement time. Every command executes
+eagerly, advances its command identity, and captures current settings, identity,
+parameters and catalog/data authority. The first failure stops execution. No SQL,
+notice delivery, or transaction publication is deferred to `Next` or
+`NextResultSet`; notices detach after the message and callbacks run outside locks.
+See [transaction boundaries](TRANSACTIONS.md#retained-direct-message-transactions).
+
+Transaction controls first in a retained message, or after COMMIT/ROLLBACK,
+use a fresh ordinary implicit segment. COMMIT/ROLLBACK PREPARED therefore
+reject with25001 before GID lookup; genuine singleton completion is unchanged.
+Initial retained PREPARE TRANSACTION warns25P01 and detaches the empty segment,
+while its suffix runs independently. Singleton idle PREPARE still creates no entry.
+
+Nonconcurrent materialized refresh retains its full private replacement, including
+DATA/NO DATA population, across source writes, private CREATE, repeated refresh and
+pending role/MAINTAIN grants. BEGIN promotes already-refreshed roots without
+publication; late errors discard them. Supported source indexes remain atomic with
+source rows. This does not enable MV indexes, concurrent refresh, explicit-block
+refresh or REFRESH as native Restore input.
+
+`Exec` closes all eager row results and reports the final successful command's
+count: SELECT reports its row count, and command-only utilities report zero.
+An error wins over cleanup errors and makes the public result unavailable.
+`Query` retains every successfully completed row-producing command, including
+empty sets and zero-column sets.
+Commands without a row result do not add a set. Each set exposes its own
+column names, database types, lengths, precision/scale and nullability; previously
+returned metadata does not mutate when advancing.
+
+Native `driver.RowsNextResultSet` may skip unread rows of the current set.
+The pinned lib/pq route instead needs `Next` to discover the following result
+description; the native early-skip contract is deliberately not replaced by that
+adapter limitation. A failed command contributes no partial set. Completed prefix
+sets remain available before the original terminal execution error; normal
+result-set boundaries are EOF. Final exhaustion, early close and repeated close
+preserve the primary error and release each owned row result once. Closing early
+does not suppress an error from a later command that already executed.
+Caller cancellation during iteration remains sticky in `Rows.Err`; explicit
+driver-row Close releases resources without newly returning that context error.
+An already-executed terminal batch SQL error is still returned by Close.
+
+Cancellation/deadlines use the original caller context and current per-command
+timeout settings, not the prior command's expiring timer. Native cancellation
+remains an ordinary context error: an implicit segment rolls back and the
+connection is reusable; an explicit block becomes Aborted until rollback.
+The pinned PostgreSQL cancellation witness independently observes `57014` and
+lib/pq disposal of that physical connection rather than claiming native fatality.
+Already completed detached outputs retain their ownership after SQL rollback or
+catalog replacement.
+
+Role-name visibility is not physical command admission. After PREPARE detaches a
+newly created/selected role, a subsequent demanded current_user name reports the
+dynamic `42704` invalid-role-OID diagnostic. session_user and ordinary permission
+checks remain independently usable; private prepared names/ACLs do not become
+fallback session authority. Separate prepared COMMIT restores name/permission
+visibility, or SET ROLE NONE recovers the original session role after rollback.
+
+
 ## Database names and lifetime
 
 The DSN is an **exact opaque string**, not a libpq connection string or network address. Identical strings (including the empty string) within the same Driver share an engine; different strings or Driver instances are isolated. The registered `stuntgres` driver uses one default Driver. Engines live as long as their Driver, even after every connection or pool closes. Use `NewDriver().OpenConnector(name)` with `sql.OpenDB` for independently owned fixtures. Nothing is shared between processes or persisted across process exit.
@@ -115,11 +185,12 @@ refresh. Its repeatable reference selector is
 
 `DECLARE name [NO SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query` belongs to
 one physical session, so use a pinned `sql.Conn` or `sql.Tx`. The default and
-WITHOUT HOLD require an explicit transaction. WITH HOLD also works in autocommit.
-DECLARE analyzes the complete query and captures its data snapshot and owned
-parameters without producing target values. `FETCH [FORWARD] count FROM|IN name`
-and `FETCH [FORWARD] ALL` continue retained query/result order. Each successful
-FETCH publishes a fully eager, detached batch with the complete schema, including
+WITHOUT HOLD require a transaction block: an explicit block or a retained implicit
+direct message. WITH HOLD also works in autocommit. DECLARE analyzes the complete
+query and captures its data snapshot and owned parameters without producing
+target values. `FETCH [FORWARD] count FROM|IN name` and `FETCH [FORWARD] ALL`
+continue retained query/result order. Each successful FETCH publishes a fully
+eager, detached batch with the complete schema, including
 empty/exhausted and zero-column results. Ordinary SELECT remains fully eager.
 Blocking sorts, aggregates, joins and views may demand input before a batch;
 there is no universal one-expression-draw-per-returned-row promise.

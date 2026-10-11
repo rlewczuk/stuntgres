@@ -171,7 +171,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	if err := e.endPreflight(s.op); err != nil {
 		return Result{}, err
 	}
-	if t.state == TxImplicit {
+	if !t.inBlock() {
 		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
 	err := t.assignModes(stmt.Modes)
@@ -404,10 +404,10 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	t := s.owner
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 && t.inBlock() {
+		return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
+	}
 	if t.state == TxActive {
-		if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 {
-			return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
-		}
 		return sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	return nil

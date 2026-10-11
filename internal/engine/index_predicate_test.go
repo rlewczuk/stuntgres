@@ -135,21 +135,21 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 		write(4, 9, 4, sqltype.Null(boolean)),
 		write(5, 10, 5, sqltype.Boolean(boolean, true)),
 	}}
-	next, err := mergeIndexRoot(context.Background(), f.parent, f.index, old.entries, p, false, true, "", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(context.Background(), f.parent, f.index, old.entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[RowID]VersionID{2: 7, 3: 8, 5: 10})
 	partialWantMembership(t, old, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
 	p = &rowPublication{deletion: &privateDeletionRoot{rows: map[RowID]deleteCandidate{2: {version: 7}, 1: {version: 6}}}}
-	next, err = mergeIndexRoot(context.Background(), f.parent, f.index, next.entries, p, false, true, "", sqltype.OutputEnvironment{}, nil)
+	next, err = mergeIndexRoot(context.Background(), f.parent, f.index, next.entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[RowID]VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
 	p = &rowPublication{writes: []rowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{rows: map[RowID]deleteCandidate{2: {version: 12, own: true}}}}
-	next, err = mergeIndexRoot(context.Background(), f.parent, f.index, next.entries, p, false, true, "", sqltype.OutputEnvironment{}, nil)
+	next, err = mergeIndexRoot(context.Background(), f.parent, f.index, next.entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	if err != nil || calls != 0 || len(built.entries) != 0 {
 		t.Fatal("build evaluated excluded keys", calls, err)
 	}
-	merged, err := mergeIndexRoot(context.Background(), f.parent, &idx, built.entries, &rowPublication{writes: excluded.versions}, false, true, "", sqltype.OutputEnvironment{}, nil)
+	merged, err := mergeIndexRoot(context.Background(), f.parent, &idx, built.entries, &rowPublication{writes: excluded.versions}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil || calls != 0 || merged != nil {
 		t.Fatal("excluded writes changed root or evaluated keys", merged, calls, err)
 	}
@@ -215,7 +215,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 		t.Fatal("build predicate error", calls, err)
 	}
 	calls = 0
-	if _, err := mergeIndexRoot(context.Background(), f.parent, &idx, f.e.indexRoots[f.index.address].entries, &rowPublication{writes: scope.stage.rows[f.parent.address]}, false, true, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, failure) || calls != 1 {
+	if _, err := mergeIndexRoot(context.Background(), f.parent, &idx, f.e.indexRoots[f.index.address].entries, &rowPublication{writes: scope.stage.rows[f.parent.address]}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("merge predicate error", calls, err)
 	}
 }
@@ -234,7 +234,7 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 	if _, err := buildIndexRoot(ctx, f.parent, f.index.sqlIndex, f.store); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := mergeIndexRoot(ctx, f.parent, f.index, root.entries, &rowPublication{}, false, true, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, context.Canceled) {
+	if _, err := mergeIndexRoot(ctx, f.parent, f.index, root.entries, &rowPublication{}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, root, map[RowID]VersionID{1: 1, 4: 4, 5: 5})

@@ -79,11 +79,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			return source, err
 		}
 		if d.address.ObjectID == 12006 {
-			source, err := e.captureTableViewSummary(ctx, catalog, ref, d, viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+			source, err := e.captureTableViewSummary(ctx, catalog, scope.commentRoles, ref, d, viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
 			e.mu.Unlock()
 			return source, err
 		}
-		source, err := e.captureCatalogSourceLocked(ctx, catalog, ref, d)
+		source, err := e.captureCatalogSourceLocked(ctx, catalog, scope.commentRoles, ref, d)
 		e.mu.Unlock()
 		return source, err
 	case sequenceRelation:

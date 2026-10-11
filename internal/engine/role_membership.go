@@ -441,19 +441,19 @@ func (e *Engine) membershipLocked(op *Operation, v AuthorizationView, s *parser.
 	if err != nil {
 		return Result{}, err
 	}
-	if slices.Equal(edges, e.roles.edges) {
+	if slices.Equal(edges, v.roles.state.edges) {
 		return Result{}, op.Context().Err()
 	}
-	if e.roles.revision == ^uint64(0) {
+	if v.roles.state.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	n := advanceRoleRevision(e.roles)
+	n := advanceRoleRevision(v.roles.state)
 	n.edges = edges
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.roles = n
+	e.installOperationRolesLocked(op, n)
 	return Result{}, nil
 }

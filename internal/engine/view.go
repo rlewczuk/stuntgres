@@ -411,7 +411,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	if scope.viewChanges != nil {
 		scope.owner.accessedTemporary = true
-		if err := e.stageTemporaryCatalog(scope, stage, scope.viewChanges); err != nil {
+		if err := e.stageCatalogOverlay(scope, stage, scope.viewChanges); err != nil {
 			return Result{}, err
 		}
 		return Result{}, nil

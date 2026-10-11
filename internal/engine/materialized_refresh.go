@@ -70,7 +70,10 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	}
 	e.mu.Lock()
 	auth, err = e.authorizationLocked(s.op)
-	current, _ := e.state.descriptors[ref.Address].(*relationDescriptor)
+	var current *relationDescriptor
+	if err == nil {
+		current, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	}
 	if err == nil && (s.txRef.epoch != e.state.epoch || !materializedRefreshCompatible(observed, current)) {
 		err = ErrCatalogReplaced
 	}
@@ -78,7 +81,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		err = materializedRefreshAccess(auth, ref)
 	}
 	if err == nil {
-		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, e.storage[ref.Address]
+		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, e.authorizationStorageLocked(auth, ref.Address)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -115,12 +118,12 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		return Result{}, err
 	}
 	d := caller.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if d != scope.lockedDescriptor || e.storage[ref.Address] != scope.lockedStorage {
+	if d != scope.lockedDescriptor || e.authorizationStorageLocked(caller, ref.Address) != scope.lockedStorage {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(caller.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, caller.revision, e.roles.revision
+	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, caller.revision, caller.roles.state.revision
 	stage.querySources = scope.materializedSources
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value
@@ -199,7 +202,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.relationKind != materializedViewRelation || d.view == nil || s.base.state.descriptors[d.address] != d || e.state.descriptors[d.address] != d || previous == nil || e.storage[d.address] != previous || !populated && len(rows) != 0 {
+	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.relationKind != materializedViewRelation || d.view == nil || s.base.state.descriptors[d.address] != d || e.stageCatalogBaseLocked(s).descriptors[d.address] != d || previous == nil || e.stageStorageLocked(s, d.address) != previous || !populated && len(rows) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
 	if s.base.Epoch() != e.state.epoch {
@@ -264,7 +267,7 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	return nil
 }
 
-func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, storage map[ObjectAddress]*relationStorage) error {
+func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, storage *relationStorage) error {
 	r := s.materializedReplacement
 	if r == nil {
 		return nil
@@ -272,7 +275,7 @@ func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, sto
 	if s.descriptors[r.original.address] != r.descriptor {
 		return CatalogConflict{}
 	}
-	if catalog.epoch != s.base.Epoch() || catalog.descriptors[r.original.address] != r.original || storage[r.original.address] != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
+	if catalog.epoch != s.base.Epoch() || catalog.descriptors[r.original.address] != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
 		return CatalogConflict{}
 	}
 	return nil

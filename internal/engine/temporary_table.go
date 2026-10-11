@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"slices"
 	"stuntgres/internal/parser"
 )
 
@@ -103,7 +101,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	created := ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: stage.names[key]}
 	if temporary {
 		scope.owner.accessedTemporary = true
-		if err := e.stageTemporaryCatalog(scope, stage, changes); err != nil {
+		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {
 			return Result{}, err
 		}
 		return Result{created: created}, nil
@@ -156,20 +154,73 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 
 // Convert an already validated ordinary catalog stage into the transaction's
 // immutable overlay. New stores use committed absence as their honest fence.
-func (e *Engine) stageTemporaryCatalog(scope *StatementScope, stage *CatalogStage, changes *catalogChanges) error {
+func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *catalogChanges) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	if scope.txRef.epoch != e.state.epoch {
+		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
-	if err := e.stageTemporaryCatalogChangesLocked(scope.op.Context(), stage, changes); err != nil {
+	if stage.initialTx != (TxRef{}) && stage.initialTx != scope.txRef {
+		e.mu.Unlock()
+		return ErrCatalogReplaced
+	}
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).state)
+	if err == nil {
+		e.stageCatalogChangesLocked(stage, changes)
+	}
+	e.mu.Unlock()
+	if err != nil {
 		return err
 	}
-	scope.catalog = changes
-	return nil
+	if len(stage.removals) > 0 {
+		scope.discardRemovedWrites(stage)
+	}
+	if err = scope.projectCatalogOverlayShapes(stage, changes); err != nil {
+		return err
+	}
+	if r := stage.materializedReplacement; r != nil {
+		// A private CREATE WITH DATA has own rows on the old empty store.
+		// REFRESH replaces that complete target, not an append to those rows.
+		a := r.original.address
+		if len(scope.ownWrites[a]) != 0 || scope.ownDeletes[a] != nil {
+			scope.stageProjectedColumnRoots(a, nil, nil)
+			delete(scope.stage.rows, a)
+			delete(scope.stage.deletes, a)
+		}
+	}
+	if len(stage.initialTables) > 0 {
+		if scope.stage.rows == nil {
+			scope.stage.rows = make(map[ObjectAddress][]rowVersion, len(stage.initialTables))
+		}
+		for a, store := range stage.initialTables {
+			scope.stage.rows[a] = store.versions
+		}
+	}
+	if err = e.prepareCatalogOverlayIndexes(scope, stage, changes); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	scope.op.session.mu.Lock()
+	err = publicationOperationLocked(e, scope.op)
+	if err == nil && scope.txRef.epoch != e.state.epoch {
+		err = ErrCatalogReplaced
+	}
+	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).revision != stage.roleRevision) {
+		err = fmt.Errorf("stuntgres: authorization changed before publication")
+	}
+	if err == nil {
+		err = e.catalogPreflightLocked(changes)
+	}
+	if err == nil {
+		scope.catalog = changes
+		stage.lifecycle = catalogPublished
+	}
+	scope.op.session.mu.Unlock()
+	e.mu.Unlock()
+	return err
 }
 
-func (e *Engine) stageTemporaryCatalogChangesLocked(ctx context.Context, stage *CatalogStage, changes *catalogChanges) error {
+func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalogChanges) {
 	for a, rowShape := range stage.rowShapes {
 		shape, exists := changes.storage[a]
 		if !exists {
@@ -179,9 +230,22 @@ func (e *Engine) stageTemporaryCatalogChangesLocked(ctx context.Context, stage *
 		shape.relation = stage.descriptors[a].(*relationDescriptor)
 		changes.storage[a] = shape
 	}
+	if r := stage.materializedReplacement; r != nil {
+		a := r.original.address
+		shape, exists := changes.storage[a]
+		if !exists {
+			shape = catalogStorageChange{original: r.predecessor, root: r.predecessor.versions, ends: r.ends, generation: r.generation}
+		}
+		// Keep the first committed predecessor (or genuine private CREATE
+		// absence). A repeated refresh replaces only the latest private root.
+		shape.replacement, shape.relation = r.storage, r.descriptor
+		shape.rewritten, shape.frontier = true, e.commitSeq
+		shape.snapshot, shape.hasSnapshot = nil, false
+		changes.storage[a] = shape
+	}
 	for a, d := range stage.descriptors {
 		e.catalogChangeLocked(changes, a, d)
-		if table, ok := d.(*relationDescriptor); ok && table.relationKind == tableRelation && e.privateStorageLocked(changes, a) == nil {
+		if table, ok := d.(*relationDescriptor); ok && table.relationKind.stored() && e.privateStorageLocked(changes, a) == nil {
 			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
 		}
 	}
@@ -190,36 +254,11 @@ func (e *Engine) stageTemporaryCatalogChangesLocked(ctx context.Context, stage *
 		delete(changes.generators, a)
 		delete(changes.storage, a)
 		delete(changes.uniqueRoots, a)
+		delete(changes.indexRebuilds, a)
 	}
 	for a, g := range stage.generators {
 		changes.generators[a] = g
 	}
-	view := e.privateCatalogLocked(changes)
-	for a, d := range view.state.descriptors {
-		index, ok := d.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
-			continue
-		}
-		parent := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-		oldParent, existed := stage.base.state.descriptors[parent.address].(*relationDescriptor)
-		_, staged := stage.descriptors[a]
-		if !staged && (!existed || slices.Equal(oldParent.attributes, parent.attributes)) {
-			continue
-		}
-		if !index.sqlIndex.ready {
-			delete(changes.uniqueRoots, a)
-			continue
-		}
-		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, e.privateStorageLocked(changes, parent.address))
-		if err != nil {
-			return err
-		}
-		if changes.uniqueRoots == nil {
-			changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
-		}
-		changes.uniqueRoots[a] = root
-	}
-	return nil
 }
 
 func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Statement) bool {
@@ -233,7 +272,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 	return false
 }
 
-func (s *StatementScope) discardRemovedTemporaryWrites(stage *CatalogStage) {
+func (s *StatementScope) discardRemovedWrites(stage *CatalogStage) {
 	rows, deletes := s.ownWrites, s.ownDeletes
 	if s.projectedRoots {
 		rows, deletes = s.stage.rows, s.stage.deletes

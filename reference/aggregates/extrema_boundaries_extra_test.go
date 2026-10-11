@@ -38,14 +38,18 @@ func TestReferenceExtremaBatchAtomicBoundary(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
 		run(fixture.Exec("CREATE TABLE extrema_batch(v INTEGER)", 0))
 		const q = "INSERT INTO extrema_batch VALUES(99); SELECT min(TRUE) FROM extrema_batch"
-		if pg {
-			want := fixture.ControlsReferenceDiagnostic("42883", "function min(boolean) does not exist")
-			want.Position = fixture.Position(strings.Index(q, "min(") + 1)
-			want.Hint = extremaSignatureHint
-			run(fixture.ErrorDiagnostic(q, want))
-		} else {
-			run(fixture.Error(q, "0A000"))
-		}
+		want := fixture.ControlsReferenceDiagnostic("42883", "function min(boolean) does not exist")
+		want.Position = fixture.Position(strings.Index(q, "min(") + 1)
+		want.Hint = extremaSignatureHint
+		run(fixture.ErrorDiagnostic(q, want))
+		run(fixture.Select("SELECT v FROM extrema_batch", []string{"v"}, []string{"INT4"}, nil))
+		batch := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"})
+		batch.ErrorStage = "prepare"
+		run(fixture.Prepared(batch))
+		run(fixture.Select("SELECT v FROM extrema_batch", []string{"v"}, []string{"INT4"}, nil))
+		batch.Args = []any{99}
+		batch.ErrorStage = "execute"
+		run(batch)
 		run(fixture.Select("SELECT v FROM extrema_batch", []string{"v"}, []string{"INT4"}, nil))
 	})
 }

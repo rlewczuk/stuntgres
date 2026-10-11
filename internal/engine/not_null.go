@@ -84,7 +84,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	original := e.storage[ref.Address]
 	store := e.privateStorageLocked(changes, ref.Address)
-	if store == nil || original == nil {
+	if store == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}
 	var shape catalogStorageChange
@@ -135,11 +135,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 				}
 				next, err = e.identityCandidate(scope, auth, stage, next, action)
 			} else if action.Action == parser.DropColumn {
 				if _, exists := next.index[action.Column.Text]; exists && stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 				}
 				next, err = scope.dropColumnCandidate(stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
@@ -165,6 +167,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 				}
 				copy := *next
 				copy.exclusionConstraints = slices.Clone(next.exclusionConstraints)
@@ -189,6 +192,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if err == nil && len(pendingIndexes) > 0 {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 				}
 				err = e.rebindAlterTypeIndexes(scope, auth, next, stage, pendingIndexes)
 			}
@@ -314,6 +318,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.catalog)
+		stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	}
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err

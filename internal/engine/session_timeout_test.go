@@ -60,7 +60,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	defer op.Done()
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-	scope := &StatementScope{statementStart: now}
+	scope := &StatementScope{statementStart: now, transactionStart: now}
 	s.startProvisionalTimeout(scope)
 	s.transactions.mu.Lock()
 	if s.transactions.next != 0 || s.transactions.state != TxIdle {
@@ -272,7 +272,7 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			defer op.Done()
 			now := time.Now()
 			timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-			scope := &StatementScope{op: op, statementStart: now}
+			scope := &StatementScope{op: op, statementStart: now, transactionStart: now}
 			s.startProvisionalTimeout(scope)
 			timed, expireStatement := context.WithCancelCause(op.ctx)
 			s.mu.Lock()

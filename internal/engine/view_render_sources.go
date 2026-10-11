@@ -74,6 +74,8 @@ type viewRenderer struct {
 	aliases      map[viewRenderAlias]string
 	presentation viewPresentation
 	simple       bool
+	// Summary names follow current attributes independently of literal presentation.
+	currentNames bool
 	rowTargets   map[string]string
 }
 

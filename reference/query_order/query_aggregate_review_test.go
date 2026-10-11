@@ -3,6 +3,7 @@ package reference_test
 import (
 	"stuntgres/reference/fixture"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestReferenceQueryAggregateReviewRegression(t *testing.T) {
@@ -40,9 +41,16 @@ func TestReferenceQueryAggregateReviewRegression(t *testing.T) {
 			})
 		}
 		t.Run("no prefix effects", func(t *testing.T) {
-			failure := fixture.Error("INSERT INTO t VALUES(3);SELECT count(*) WHERE", "42601")
-			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, failure)
-			queryAggregatePrepareRejection(t, p, failure.Query, failure.State)
+			query := "INSERT INTO t VALUES(3);SELECT count(*) WHERE"
+			want := fixture.ControlsReferenceDiagnostic("42601", "syntax error at end of input")
+			want.Position = fixture.Position(utf8.RuneCountInString(query) + 1)
+			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.ErrorDiagnostic(query, want))
+			stmt, err := p.Memory.PrepareContext(p.Ctx, query)
+			if stmt != nil {
+				stmt.Close()
+				t.Fatal("malformed suffix exposed a prepared statement")
+			}
+			fixture.AssertDiagnostic(t, err, &want)
 			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		})
 	})

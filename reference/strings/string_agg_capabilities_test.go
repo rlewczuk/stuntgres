@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -39,12 +40,20 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 					}
 				})
 			}
-			if !backend.PG {
-				q := "INSERT INTO capabilities VALUES(5,'leaked','!'); SELECT string_agg(DISTINCT v,d ORDER BY id) FROM capabilities"
-				s := fixture.Error(q, "0A000")
-				run(s)
-				run(fixture.Select("SELECT id FROM capabilities ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {int64(4)}}))
-			}
+			q := "INSERT INTO capabilities VALUES(5,'leaked','!'); SELECT string_agg(DISTINCT v,d ORDER BY id) FROM capabilities"
+			want := fixture.ControlsReferenceDiagnostic("42P10", "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list")
+			want.Position = fixture.Position(strings.Index(q, "id) FROM") + 1)
+			run(fixture.ErrorDiagnostic(q, want))
+			sentinel := fixture.Select("SELECT id FROM capabilities ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {int64(4)}})
+			run(sentinel)
+			batch := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: "cannot insert multiple commands into a prepared statement"})
+			batch.ErrorStage = "prepare"
+			run(fixture.Prepared(batch))
+			run(sentinel)
+			batch.Args = []any{5}
+			batch.ErrorStage = "execute"
+			run(batch)
+			run(sentinel)
 		})
 	}
 }

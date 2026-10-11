@@ -350,7 +350,7 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 	}
 	return entries, nil
 }
-func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
+func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	d := index.sqlIndex
 	validate := (d.unique || d.isExclusion()) && (d.constraint != nil || d.valid || reconstruct)
 	o, err := bindIndexOrdering(parent, d)
@@ -402,7 +402,7 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 	}
 	if len(added) == 0 && len(ended) == 0 {
 		if validate {
-			if err := validateUniqueEntries(ctx, parent, index, old, schema, output, auth, false, o); err != nil {
+			if err := validateUniqueEntries(ctx, parent, index, old, schema, output, auth, building, o); err != nil {
 				return nil, err
 			}
 		}
@@ -420,7 +420,7 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 	havePrevious := false
 	accept := func(entry logicalIndexEntry) error {
 		if havePrevious && validate {
-			if err := validateUniquePair(ctx, parent, index, previous, entry, schema, output, auth, false, o); err != nil {
+			if err := validateUniquePair(ctx, parent, index, previous, entry, schema, output, auth, building, o); err != nil {
 				return err
 			}
 		}
@@ -486,7 +486,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if err = scope.captureIdentityLocked(auth); err != nil {
 			return fail(err)
 		}
-		parent, ok := e.state.descriptors[scope.lockedRef.Address].(*relationDescriptor)
+		parent, ok := auth.catalog.state.descriptors[scope.lockedRef.Address].(*relationDescriptor)
 		if !ok {
 			return fail(ErrCatalogReplaced)
 		}
@@ -505,7 +505,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
 		}
-		ns := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: parent.namespace}
+		ns := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: parent.namespace}
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
 			if !scope.op.restoreTableDestination || !ok || denied.Code != "42501" {
@@ -549,12 +549,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				}
 			}
 			name = generatedRelationName(parent.name, addition.String(), "idx", func(n string) bool {
-				_, ok := e.state.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: n}]
+				_, ok := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: n}]
 				return ok
 			})
 		}
 		key := NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}
-		if _, exists := e.state.names[key]; exists {
+		if _, exists := auth.catalog.state.names[key]; exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
 				scope.op.existingRelationNotice(name)
@@ -625,8 +625,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			if s.IfNotExists {
 				e.mu.Lock()
 				currentAuth, authErr := e.statementAuthorizationLocked(scope.op, s)
-				_, exists := e.state.names[key]
-				same := e.state.epoch == base.Epoch() && e.state.descriptors[parent.address] != nil
+				current := e.privateCatalogLocked(scope.owner.catalog)
+				_, exists := current.state.names[key]
+				same := current.Epoch() == base.Epoch() && current.state.descriptors[parent.address] != nil
 				if authErr == nil && same && exists {
 					authErr = currentAuth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true})
 				}

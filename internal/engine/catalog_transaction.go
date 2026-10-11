@@ -8,17 +8,25 @@ import (
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals    map[ObjectAddress]Descriptor
-	descriptors  map[ObjectAddress]Descriptor
-	names        map[NameKey]ObjectAddress
-	generators   map[ObjectAddress]*sequenceGenerator
-	storage      map[ObjectAddress]catalogStorageChange
-	uniqueRoots  map[ObjectAddress]*logicalIndexRoot
-	dependencies []catalogDependencyObservation
-	cachedBase   *catalogState
-	cached       CatalogRead
-	enumCreated  map[ObjectAddress]bool // CREATE at top transaction level only.
-	enumUnsafe   map[int64]bool         // Globally nonreused member identities.
+	originals       map[ObjectAddress]Descriptor
+	descriptors     map[ObjectAddress]Descriptor
+	names           map[NameKey]ObjectAddress
+	generators      map[ObjectAddress]*sequenceGenerator
+	storage         map[ObjectAddress]catalogStorageChange
+	uniqueRoots     map[ObjectAddress]*logicalIndexRoot
+	dependencies    []catalogDependencyObservation
+	cachedBase      *catalogState
+	cached          CatalogRead
+	enumCreated     map[ObjectAddress]bool // CREATE at top transaction level only.
+	enumUnsafe      map[int64]bool         // Globally nonreused member identities.
+	rolesBase       *roleCatalog
+	roles           *roleCatalog
+	retiredRoles    map[PrincipalRef]struct{}
+	indexRebuilds   map[ObjectAddress]*relationDescriptor
+	indexFences     []catalogIndexFence
+	namespaceFences []catalogNamespaceFence
+	readFences      []partitionReadFence
+	domainChanged   bool
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -63,6 +71,23 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		}
 	}
 	n.dependencies = append(n.dependencies, c.dependencies...)
+	n.rolesBase, n.roles = c.rolesBase, c.roles
+	if len(c.retiredRoles) != 0 {
+		n.retiredRoles = make(map[PrincipalRef]struct{}, len(c.retiredRoles))
+		for ref := range c.retiredRoles {
+			n.retiredRoles[ref] = struct{}{}
+		}
+	}
+	n.domainChanged = c.domainChanged
+	if c.indexRebuilds != nil {
+		n.indexRebuilds = make(map[ObjectAddress]*relationDescriptor, len(c.indexRebuilds))
+		for a, d := range c.indexRebuilds {
+			n.indexRebuilds[a] = d
+		}
+	}
+	n.indexFences = append(n.indexFences, c.indexFences...)
+	n.namespaceFences = append(n.namespaceFences, c.namespaceFences...)
+	n.readFences = append(n.readFences, c.readFences...)
 	return n
 }
 func relationNameKey(d Descriptor) NameKey {
@@ -75,6 +100,11 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		return CatalogRead{e, e.state}
 	}
 	if c.cachedBase == e.state && c.cached.state != nil {
+		return c.cached
+	}
+	if len(c.descriptors) == 0 {
+		c.cachedBase = e.state
+		c.cached = CatalogRead{e, e.state}
 		return c.cached
 	}
 	n := cloneCatalog(e.state)
@@ -148,7 +178,11 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	}
 	view := e.privateCatalogLocked(c)
 	e.mu.Unlock()
-	for a, d := range c.descriptors {
+	descriptors := c.descriptors
+	if c.domainChanged {
+		descriptors = view.state.descriptors
+	}
+	for a, d := range descriptors {
 		if d == nil {
 			continue
 		}
@@ -163,6 +197,12 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	return view.state, ctx.Err()
 }
 func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
+	if c.rolesBase != nil && e.roles != c.rolesBase {
+		return CatalogConflict{}
+	}
+	if err := e.catalogReadPreflightLocked(c); err != nil {
+		return err
+	}
 	for _, observation := range c.dependencies {
 		for a, descriptor := range e.state.descriptors {
 			if descriptor == observation.base.descriptors[a] {
@@ -208,7 +248,11 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
+			roles := e.roles
+			if c.roles != nil {
+				roles = c.roles
+			}
+			if err := validateACL(RoleRead{e, roles}, d); err != nil {
 				return err
 			}
 		}

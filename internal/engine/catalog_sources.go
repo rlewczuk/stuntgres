@@ -152,7 +152,7 @@ func (e *Engine) initializeCatalogSources() error {
 	return nil
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.address.ObjectID == 3456 {
 		return capturePGCollation(ctx, catalog, ref, source)
 	}
@@ -175,7 +175,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return capturePGDepend(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 12000 || source.address.ObjectID == 12003 {
-		return e.captureTableViewSummary(ctx, catalog, ref, source, viewPresentation{})
+		return e.captureTableViewSummary(ctx, catalog, roles, ref, source, viewPresentation{})
 	}
 	var relations []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {

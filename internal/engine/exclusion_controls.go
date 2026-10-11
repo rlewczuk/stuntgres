@@ -81,7 +81,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			return Result{}, err
 		}
 	}
-	if s.implicit {
+	if !s.owner.inBlock() {
 		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"})
 	}
 	e := s.op.session.Engine()
@@ -172,7 +172,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		}
 		candidate.events = s.exclusionModes.events
 	}
-	if !s.implicit {
+	if s.owner.inBlock() {
 		s.exclusionModes = candidate
 	}
 	return Result{}, nil

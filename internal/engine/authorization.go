@@ -51,9 +51,15 @@ func (r RoleRead) Lookup(name string) (RoleDescriptor, bool) {
 	d, ok := r.state.roles[ref]
 	return d, ok
 }
-func (r RoleRead) Descriptor(ref PrincipalRef) (RoleDescriptor, error) {
+func (r RoleRead) validatePrincipal(ref PrincipalRef) error {
 	if r.owner == nil || r.state == nil || ref.owner != r.owner || ref.id == 0 {
-		return RoleDescriptor{}, fmt.Errorf("stuntgres: foreign or zero principal")
+		return fmt.Errorf("stuntgres: foreign or zero principal")
+	}
+	return nil
+}
+func (r RoleRead) Descriptor(ref PrincipalRef) (RoleDescriptor, error) {
+	if err := r.validatePrincipal(ref); err != nil {
+		return RoleDescriptor{}, err
 	}
 	d, ok := r.state.roles[ref]
 	if !ok {
@@ -363,6 +369,9 @@ type AuthorizationView struct {
 	stagedTemporary        ObjectAddress
 	session                *Session
 	materializedPopulation bool
+	// Only command admission can retain an actually installed, unnamed role ID.
+	// Arbitrary stale/retired actor substitutions do not acquire this authority.
+	missingCurrent PrincipalRef
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.
@@ -456,9 +465,14 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if a == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: missing authorization")
 	}
-	r := RoleRead{e, e.roles}
-	for _, ref := range [...]PrincipalRef{a.state.Authenticated, a.state.SessionUser, a.state.CurrentUser} {
-		if _, err := r.Descriptor(ref); err != nil {
+	r := RoleRead{e, e.operationRolesLocked(op)}
+	if _, err := r.Descriptor(a.state.Authenticated); err != nil {
+		return AuthorizationView{}, err
+	}
+	// PREPARE can detach a newly created role while preserving SET ROLE's ID.
+	// Admission validates that ID's authority, not its current name visibility.
+	for _, ref := range [...]PrincipalRef{a.state.SessionUser, a.state.CurrentUser} {
+		if err := r.validatePrincipal(ref); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
@@ -473,7 +487,11 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	return AuthorizationView{engine: e, catalog: view, roles: r, state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}, nil
+	authorization := AuthorizationView{engine: e, catalog: view, roles: r, state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	if _, exists := r.state.roles[identity.CurrentUser]; !exists {
+		authorization.missingCurrent = identity.CurrentUser
+	}
+	return authorization, nil
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {
@@ -556,20 +574,26 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 		return 0, err
 	}
 	owner, acl, columns := descriptorACL(d)
-	actor, err := v.roles.Descriptor(v.state.CurrentUser)
-	if err != nil {
+	if err := v.roles.validatePrincipal(v.state.CurrentUser); err != nil {
 		return 0, err
+	}
+	actor, actorExists := v.roles.state.roles[v.state.CurrentUser]
+	if !actorExists && v.state.CurrentUser != v.missingCurrent {
+		return 0, fmt.Errorf("stuntgres: stale principal")
 	}
 	mask := classPrivileges(d)
 	if ref.Address.SubID > 0 {
 		mask = columnGrantPrivileges
 	}
-	if actor.Superuser {
+	if actorExists && actor.Superuser {
 		return mask, nil
 	}
-	principals, err := v.roles.roleClosure(context.Background(), actor.Ref, true)
-	if err != nil {
-		return 0, err
+	principals := []PrincipalRef{v.state.CurrentUser}
+	if actorExists {
+		principals, err = v.roles.roleClosure(context.Background(), actor.Ref, true)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if grantOptions {
 		for _, ref := range principals {
@@ -582,7 +606,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 	if ref.Address.SubID > 0 {
 		rights |= aclRights(columns[ref.Address.SubID], PrincipalRef{}, principals, mask, grantOptions)
 	}
-	if !grantOptions {
+	if !grantOptions && actorExists {
 		rights |= predefinedPrivileges(d, principals)
 	}
 	return rights & mask, nil
@@ -596,18 +620,23 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		req.Object.Address.ObjectID = OID(t.typ.Element().ID())
 		return v.Check(req)
 	}
-	actor, err := v.roles.Descriptor(v.state.CurrentUser)
-	if err != nil {
+	if err := v.roles.validatePrincipal(v.state.CurrentUser); err != nil {
 		return err
+	}
+	if _, exists := v.roles.state.roles[v.state.CurrentUser]; !exists && v.state.CurrentUser != v.missingCurrent {
+		return fmt.Errorf("stuntgres: stale principal")
 	}
 	owner, _, _ := descriptorACL(d)
 	if req.OwnerOnly {
 		if req.Privileges != 0 {
 			return fmt.Errorf("stuntgres: owner check has ordinary mask")
 		}
-		allowed, err := v.roles.inheritsRole(actor.Ref, owner)
-		if err != nil {
-			return err
+		allowed := v.state.CurrentUser == owner
+		if _, exists := v.roles.state.roles[v.state.CurrentUser]; exists && !allowed {
+			allowed, err = v.roles.inheritsRole(v.state.CurrentUser, owner)
+			if err != nil {
+				return err
+			}
 		}
 		if allowed {
 			return nil

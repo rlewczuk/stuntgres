@@ -24,6 +24,7 @@ type savepointMark struct {
 	cursors             uint64
 	exclusionModes      exclusionModes
 	exclusionProjection *exclusionProjection
+	identity            RoleState
 }
 
 type settingsMark struct {
@@ -55,14 +56,15 @@ func (s *sessionSettings) savepoint() settingsMark {
 
 // candidate is already independent of the retained mark; no callbacks or
 // allocation are allowed between final preflight and effect installation.
-func (s *sessionSettings) restoreSavepoint(candidate settingsMark) {
+func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity RoleState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values, s.typed, s.actions = candidate.values, candidate.typed, candidate.actions
 	s.roleAction = candidate.roleAction
 	if s.session != nil {
 		s.session.mu.Lock()
-		s.restoreRoleLocked(candidate.currentRole)
+		identity.CurrentUser = candidate.currentRole
+		s.restoreIdentityLocked(identity)
 		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
 		s.session.mu.Unlock()
 	}
@@ -79,13 +81,16 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 	e.mu.Lock()
 	projection := e.exclusionPending[t.ticket]
 	e.mu.Unlock()
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection}
+	t.session.mu.Lock()
+	identity := t.session.authorization.state
+	t.session.mu.Unlock()
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
 	t.session.cursors.rollback(mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
-	t.session.settings.restoreSavepoint(settings)
+	t.session.settings.restoreSavepoint(settings, mark.identity)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
 	t.deferrable = mark.deferrable
 	t.syncCharacteristics()
@@ -115,6 +120,11 @@ func (s *StatementScope) gateSavepoint(control *parser.SavepointControl) error {
 	t, e := s.owner, s.op.session.Engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if s.message {
+		if err := s.admitTransactionLocked(e); err != nil {
+			return err
+		}
+	}
 	if err := e.endPreflight(s.op); err != nil {
 		return err
 	}
@@ -136,7 +146,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	t, e := s.owner, s.op.session.Engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.state == TxIdle {
+	if t.state == TxIdle || t.state == TxImplicit {
 		word := "SAVEPOINT"
 		if control.Kind == parser.RollbackSavepoint {
 			word = "ROLLBACK TO SAVEPOINT"
@@ -187,9 +197,8 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if control.Kind != parser.CreateSavepoint && index < 0 {
 			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
 		}
-		if t.session.settings.roleAction.present && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
-			// A failed preflight can itself restore the latest mark. Keep
-			// enough stamps for that unwind and all remaining boundaries.
+		if (t.identityCaptured || t.session.settings.roleAction.present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
+			// Reserve failed-preflight restoration and remaining boundaries.
 			if err := roleRevisionHeadroom(t.session.authorization, uint64(len(t.savepoints))+3); err != nil {
 				return Result{}, err
 			}
@@ -200,9 +209,11 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		case parser.RollbackSavepoint:
 			t.session.cursors.rollback(mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
+			targetIdentity := mark.identity
+			targetIdentity.CurrentUser = settings.currentRole
+			t.session.settings.restoreIdentityLocked(targetIdentity)
 			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
 			t.session.settings.roleAction = settings.roleAction
-			t.session.settings.restoreRoleLocked(settings.currentRole)
 			t.session.publishTimeoutSettingsLocked(t.session.settings, false, time.Now())
 			t.isolation, t.readOnly = mark.isolation, mark.readOnly
 			t.deferrable = mark.deferrable

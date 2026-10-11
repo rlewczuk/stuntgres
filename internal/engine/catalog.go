@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -629,7 +628,7 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 	if s.terminalCleanup && ok && old.revision == DefinitionRevision(^uint64(0)) {
 		validRevision = d != nil && d != old && d.revision == old.revision
 	}
-	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || !validRevision || original == nil || replacement == nil || e.storage[ref.Address] != original {
+	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || !validRevision || original == nil || replacement == nil || e.stageStorageLocked(s, ref.Address) != original {
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
@@ -822,7 +821,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		e.mu.Unlock()
 		return nil, CatalogConflict{}
 	}
-	if err := s.validateIndexMaintenance(e.state); err != nil {
+	if err := s.validateIndexMaintenance(e.stageCatalogBaseLocked(s)); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -835,14 +834,16 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	for address, shape := range s.rowShapes {
-		if e.storage[address] != shape.original || shape.original.generation != shape.generation || len(shape.original.versions) != shape.observedLength {
+		if e.stageStorageLocked(s, address) != shape.original || shape.original.generation != shape.generation || len(shape.original.versions) != shape.observedLength {
 			e.mu.Unlock()
 			return nil, CatalogConflict{}
 		}
 	}
-	if err := s.materializedReplacementCurrent(e.state, e.storage); err != nil {
-		e.mu.Unlock()
-		return nil, err
+	if r := s.materializedReplacement; r != nil {
+		if err := s.materializedReplacementCurrent(e.stageCatalogBaseLocked(s), e.stageStorageLocked(s, r.original.address)); err != nil {
+			e.mu.Unlock()
+			return nil, err
+		}
 	}
 	e.mu.Unlock()
 	var view CatalogRead
@@ -863,7 +864,8 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 			return nil, err
 		}
 		e.mu.Lock()
-		authErr := validateACL(RoleRead{e, e.roles}, d)
+		roles := e.sessionRolesLocked(s.authSession)
+		authErr := validateACL(RoleRead{e, roles}, d)
 		e.mu.Unlock()
 		if authErr != nil {
 			return nil, authErr
@@ -876,6 +878,9 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 	return e.publishCatalog(nil, p, token)
 }
 func (e *Engine) publishCatalogOperation(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+	if op != nil && op.session.transactions.retainedMessage {
+		return e.stageMessageCatalog(op, p, token)
+	}
 	return e.publishCatalog(op, p, token)
 }
 func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
@@ -883,28 +888,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
 	s := p.stage
-	changes := ChangeSet{Definitions: make([]ObjectAddress, 0, len(s.descriptors)+len(s.removals))}
-	for a := range s.descriptors {
-		changes.Definitions = append(changes.Definitions, a)
-	}
-	for a := range s.removals {
-		changes.Definitions = append(changes.Definitions, a)
-	}
-	sort.Slice(changes.Definitions, func(i, j int) bool {
-		a, b := changes.Definitions[i], changes.Definitions[j]
-		if a.ClassID != b.ClassID {
-			return a.ClassID < b.ClassID
-		}
-		if a.ObjectID != b.ObjectID {
-			return a.ObjectID < b.ObjectID
-		}
-		return a.SubID < b.SubID
-	})
-	for _, a := range changes.Definitions {
-		if a.ClassID == NamespaceClassID {
-			changes.Namespaces = append(changes.Namespaces, a)
-		}
-	}
+	changes := catalogStageChanges(s)
 	for {
 		e.mu.Lock()
 		if s.lifecycle != catalogValidated {
@@ -1004,9 +988,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
-		if err := s.materializedReplacementCurrent(current, currentStorage); err != nil {
-			e.mu.Unlock()
-			return ChangeSet{}, err
+		if r := s.materializedReplacement; r != nil {
+			if err := s.materializedReplacementCurrent(current, currentStorage[r.original.address]); err != nil {
+				e.mu.Unlock()
+				return ChangeSet{}, err
+			}
 		}
 		for address, candidate := range s.indexCandidates {
 			index, ok := s.descriptors[address].(*relationDescriptor)
@@ -1203,12 +1189,14 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
-		if err := s.materializedReplacementCurrent(e.state, e.storage); err != nil {
-			if op != nil {
-				op.session.mu.Unlock()
+		if r := s.materializedReplacement; r != nil {
+			if err := s.materializedReplacementCurrent(e.state, e.storage[r.original.address]); err != nil {
+				if op != nil {
+					op.session.mu.Unlock()
+				}
+				e.mu.Unlock()
+				return ChangeSet{}, err
 			}
-			e.mu.Unlock()
-			return ChangeSet{}, err
 		}
 		err := p.ctx.Err()
 		if err == nil && op != nil {

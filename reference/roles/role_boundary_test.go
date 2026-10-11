@@ -66,12 +66,7 @@ func TestReferenceRoleExcludedCommands(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					notices = nil
 					s := fixture.Exec(query, 0)
-					if !backend.PG && strings.Contains(query, ";") {
-						s = fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("0A000", "multiple statements are unsupported"))
-						if prepared {
-							s.ErrorStage = "prepare"
-						}
-					} else if prepared && strings.Contains(query, ";") {
+					if prepared && strings.Contains(query, ";") {
 						s = fixture.ErrorDiagnostic(query, fixture.ControlsReferenceDiagnostic("42601", "cannot insert multiple commands into a prepared statement"))
 						s.ErrorStage = "prepare"
 					} else if !strings.Contains(query, "DEFAULT") && !strings.Contains(query, "NONE") {
