@@ -42,25 +42,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 		b.arrayTargets[i] = partial
 	}
-	if len(b.relation.defaults) != 0 || len(b.relation.identities) != 0 {
-		b.defaults = make([]BoundExpr, len(b.relation.columns))
-		for i, attribute := range b.relation.attributes {
-			b.defaults[i] = b.relation.defaults[attribute].expression
-		}
-		for i, attribute := range b.relation.attributes {
-			identity, ok := b.relation.identities[attribute]
-			if !ok {
-				continue
-			}
-			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
-		}
-		if s.Override == parser.OverrideUser {
-			b.identityDiscard = make([]bool, len(b.relation.columns))
-			for i, attribute := range b.relation.attributes {
-				_, b.identityDiscard[i] = b.relation.identities[attribute]
-			}
-		}
-	}
+	e.bindInsertDefaults(b, auth, s.Override)
 	if s.Source != nil {
 		if err := e.bindInsertSource(b, binder, auth, s); err != nil {
 			return err
@@ -208,4 +190,24 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 	}
 	return binder.captureRetainedWriteInput(b.defaults, nil, nil)
+}
+
+// Both INSERT and COPY consume these catalog-owned default and identity plans.
+func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override parser.InsertOverride) {
+	if len(b.relation.defaults) == 0 && len(b.relation.identities) == 0 {
+		return
+	}
+	b.defaults = make([]BoundExpr, len(b.relation.columns))
+	for i, attribute := range b.relation.attributes {
+		b.defaults[i] = b.relation.defaults[attribute].expression
+		if identity, ok := b.relation.identities[attribute]; ok {
+			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
+		}
+	}
+	if override == parser.OverrideUser {
+		b.identityDiscard = make([]bool, len(b.relation.columns))
+		for i, attribute := range b.relation.attributes {
+			_, b.identityDiscard[i] = b.relation.identities[attribute]
+		}
+	}
 }

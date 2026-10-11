@@ -2,6 +2,54 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Pinned COPY text streams — change note
+
+`stuntgres.CopyFrom(ctx, conn, sql, reader)` and
+`stuntgres.CopyTo(ctx, conn, sql, writer)` use a pinned native `*sql.Conn`.
+Both return `CopyResult{Count, CommandTag}`: successful operations report the
+complete row count and `COPY n`; every failure returns a zero result. A nil
+connection/stream, foreign or wrapped driver, non-COPY/multiple statements,
+direction mismatch and precanceled context fail without reading or writing.
+Streams remain caller-owned and are never closed.
+
+Use table `COPY ... FROM STDIN`, table `COPY ... TO STDOUT`, or
+`COPY (query) TO STDOUT`. Ordinary Exec/Query/Prepare cannot supply a stream and
+report native0A000 `COPY FROM STDIN requires stuntgres.CopyFrom` or
+`COPY TO STDOUT requires stuntgres.CopyTo`; file and PROGRAM endpoints instead
+report their explicit capability boundary. No filesystem or process
+access is performed. SQL arguments are not interpolated into a second statement.
+
+Text supports ordered columns, FORMAT text, DELIMITER, NULL, DEFAULT (FROM only)
+and HEADER Boolean/MATCH. Defaults and identities, generated columns, real type
+input/output, constraints, partition routing, ACLs and transaction publication
+use existing native authorities. See [the bounded dialect](DIALECT.md#copy-text-streams--change-note)
+and [the implementation design](design/PG18-DRIVER-COPY-TEXT.md).
+
+COPY is one admitted command on the physical session. Explicit transactions must
+stay pinned; malformed SQL and SQL COPY errors preserve ordinary transaction
+abort semantics. Native caller I/O errors retain their error identity rather
+than being invented SQL errors. COPY FROM stages the complete statement privately;
+a late decode, reader, constraint, cancellation or publication error cannot publish
+a prefix. COPY TO may have written a prefix on failure but returns no success
+count/tag. Short writes report `io.ErrShortWrite`.
+
+The physical transaction owner is reserved while caller I/O runs, but no engine,
+session, transaction-owner, admission or replacement mutex is held inside Read
+or Write. Same-owner commands wait for this reservation with their own cancellation;
+peers and native replacement controls can progress. Reset/Restore never cause an
+in-flight stream to rebind replacement objects. Session termination cancels the
+operation while waiting for the caller to release a blocked I/O call; the driver
+does not close caller streams or launch an unjoinable read/write goroutine.
+Read and Write callbacks must not execute SQL or otherwise reenter the same
+pinned `*sql.Conn`: `database/sql` Raw retains that connection's ownership for
+the entire transfer even while engine mutexes are released. Use independent peer
+connections for concurrent SQL and controls.
+
+Feature smoke: `make check RUN='^TestReferenceCopyTextFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceCopyTextFeatureSmoke$'`.
+
+
 ## Explicit DISCARD and pool reuse
 
 Pin `*sql.Conn` for owner cleanup. Execute standalone `DISCARD ALL` **before**
@@ -377,8 +425,8 @@ does not undo committed execution or replace its result. Reenter through another
 already held physical connection or a separate pool with free capacity, **not**
 the same sql.Conn or an exhausted originating pool. Preparation emits no execution
 notices. Native controls do not serialize or deliver staging notices.
-No native DO/RAISE, warning-producing procedural SQL, COPY or asynchronous
-LISTEN/NOTIFY support is implied.
+No native DO/RAISE, warning-producing procedural SQL or asynchronous
+LISTEN/NOTIFY support is implied by notice delivery.
 
 `make check RUN='^TestNoticesSmoke$'` exercises actual notices,
 filters, ownership, peer reentry and control round trips; Go test reports the result.

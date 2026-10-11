@@ -42,6 +42,39 @@ type DropPolicy struct {
 
 func (*DropPolicy) statement() {}
 
+type CopyEndpoint uint8
+
+const (
+	CopyStdin CopyEndpoint = iota
+	CopyStdout
+	CopyFile
+	CopyProgram
+)
+
+// Copy retains ordered options so duplicate diagnostics preserve their positions.
+type Copy struct {
+	Name     ObjectName
+	Query    *Select
+	Columns  []Identifier
+	From     bool
+	Endpoint CopyEndpoint
+	Filename string
+	Options  []CopyOption
+	Where    Expr
+	Pos      Position
+}
+
+func (*Copy) statement() {}
+
+type CopyOption struct {
+	Name     string
+	Value    string
+	HasValue bool
+	Numeric  bool
+	Columns  []Identifier
+	Pos      Position
+}
+
 // SQL names belong to the physical session, not to driver statement handles.
 type PrepareSQL struct {
 	Name   Identifier

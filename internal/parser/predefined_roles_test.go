@@ -12,7 +12,6 @@ func TestPredefinedUnavailableSyntax(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
 		{"CHECKPOINT", "statement is unsupported", "1"},
 		{"CREATE SUBSCRIPTION guarded CONNECTION 'host=invalid password=unused' PUBLICATION unavailable WITH (connect=false,slot_name=NONE)", "CREATE syntax is unsupported", "8"},
-		{"COPY t TO '/unavailable'", "statement is unsupported", "1"},
 		{"VACUUM t", "statement is unsupported", "1"},
 		{"ANALYZE t", "statement is unsupported", "1"},
 		{"CLUSTER t", "statement is unsupported", "1"},

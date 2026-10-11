@@ -7,6 +7,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/lib/pq"
 	"github.com/ngrok/sqlmw"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -73,7 +76,10 @@ func runReferenceMain(m *testing.M) (code int) {
 }
 
 type Pair struct {
-	Memory, Postgres, Native     *sql.DB
+	Memory, Postgres, Native *sql.DB
+	// CopyPostgres is an unwrapped, genuine stream transport on the same oracle.
+	// Ordinary SQL middleware and pq coverage continue to use Postgres.
+	CopyPostgres                 *sql.DB
 	MemoryRecord, PostgresRecord *Recorder
 	Ctx                          context.Context
 	NativeConnector              *stuntgres.Connector
@@ -132,7 +138,7 @@ func NewFixture(t *testing.T, withPostgres, freshNative bool) *Pair {
 		p.PostgresRecord.RawBackend = RawPostgres
 	}
 	t.Cleanup(func() {
-		for _, db := range []*sql.DB{p.Memory, p.Postgres, p.Native} {
+		for _, db := range []*sql.DB{p.CopyPostgres, p.Memory, p.Postgres, p.Native} {
 			if db != nil {
 				if err := db.Close(); err != nil {
 					t.Errorf("case close: %v", err)
@@ -169,6 +175,11 @@ func NewFixture(t *testing.T, withPostgres, freshNative bool) *Pair {
 		if err != nil {
 			t.Fatal(err)
 		}
+		config, configErr := pgx.ParseConfig(DSN)
+		if configErr != nil {
+			t.Fatal(configErr)
+		}
+		p.CopyPostgres = sql.OpenDB(stdlib.GetConnector(*config))
 	}
 	for _, db := range []*sql.DB{p.Memory, p.Postgres, p.Native} {
 		if db != nil {
@@ -215,6 +226,27 @@ func ExtractDiagnostic(t *testing.T, err error) Diagnostic {
 		}
 		if len(got.Code) != 5 || got.InternalPosition != "" && got.InternalQuery == "" {
 			t.Fatalf("invalid native diagnostic contract: %#v", got)
+		}
+		return got
+	}
+	var stream *pgconn.PgError
+	if errors.As(err, &stream) {
+		position := func(n int32) string {
+			if n == 0 {
+				return ""
+			}
+			return strconv.FormatInt(int64(n), 10)
+		}
+		got := Diagnostic{
+			Severity: stream.Severity, SeverityUnlocalized: stream.SeverityUnlocalized,
+			Code: stream.Code, Message: stream.Message, Detail: stream.Detail, Hint: stream.Hint,
+			Position: position(stream.Position), InternalPosition: position(stream.InternalPosition),
+			InternalQuery: stream.InternalQuery, Context: stream.Where, Schema: stream.SchemaName,
+			Table: stream.TableName, Column: stream.ColumnName, DataType: stream.DataTypeName,
+			Constraint: stream.ConstraintName,
+		}
+		if len(got.Code) != 5 || got.InternalPosition != "" && got.InternalQuery == "" {
+			t.Fatalf("invalid PostgreSQL stream diagnostic contract: %#v", got)
 		}
 		return got
 	}

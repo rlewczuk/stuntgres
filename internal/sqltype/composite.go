@@ -61,7 +61,7 @@ func Composite(id ID, name, declaration string, associatedArray ID, members []Co
 		if member.Attribute <= 0 || member.Name == "" || len(member.Name) > 63 || !member.Usage.Valid() || member.Usage.Type.BaseType().id == Void || !coherent(member.Usage.Type) {
 			return nil, fmt.Errorf("invalid composite member")
 		}
-		if err := validateCharacterInput(member.Name); err != nil {
+		if err := ValidateTextInput(member.Name); err != nil {
 			return nil, err
 		}
 		if _, exists := definition.attributes[member.Attribute]; exists {
@@ -192,7 +192,7 @@ func validateCompositeInput(ctx context.Context, text string) error {
 		}
 		_, width := utf8.DecodeRuneInString(text[i:])
 		if text[i] == 0 || width == 1 && text[i] >= utf8.RuneSelf {
-			return validateCharacterInput(text[i:])
+			return ValidateTextInput(text[i:])
 		}
 		i += width
 	}

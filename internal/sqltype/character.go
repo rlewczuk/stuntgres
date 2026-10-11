@@ -65,7 +65,7 @@ func (u Usage) Length() (int64, bool) {
 
 // Report the first invalid database-encoding sequence, with PostgreSQL's
 // bounded byte window (including an invalid continuation or truncated tail).
-func validateCharacterInput(text string) error {
+func ValidateTextInput(text string) error {
 	for i := 0; i < len(text); {
 		if text[i] == 0 {
 			return failure("22021", `invalid byte sequence for encoding "UTF8": 0x00`)

@@ -35,7 +35,7 @@ func EnumWithMembers(id ID, name, declaration string, members []EnumMember) (*De
 		if member.ID <= 0 || len(member.Label) > 63 {
 			return nil, fmt.Errorf("invalid enum member")
 		}
-		if err := validateCharacterInput(member.Label); err != nil {
+		if err := ValidateTextInput(member.Label); err != nil {
 			return nil, err
 		}
 		if _, ok := definition.byLabel[member.Label]; ok {

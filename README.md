@@ -10,6 +10,16 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: native `CopyFrom` and `CopyTo` on a pinned `*sql.Conn` stream
+PostgreSQL text COPY through real type codecs and atomic DML staging.
+Table FROM STDIN, table/query TO STDOUT, column lists, delimiter/NULL/default
+markers and header matching share physical-session settings, ACLs and transaction
+semantics. Caller I/O runs without engine/owner mutexes; same-owner commands wait
+on a cancellable reservation. File/PROGRAM and CSV/binary remain explicit
+capability boundaries. See [COPY streams](docs/DRIVER.md#pinned-copy-text-streams--change-note).
+Feature smoke: `make check RUN='^TestReferenceCopyTextFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyTextFeatureSmoke$'`.
+
 Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
 direct/prepared binds, metadata and native Dump/Restore. INET preserves host
 bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical

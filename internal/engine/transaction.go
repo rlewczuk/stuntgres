@@ -72,6 +72,8 @@ type rowVersion struct {
 
 type transactionOwner struct {
 	admission       sync.Mutex
+	copyScope       *StatementScope
+	copyDone        chan struct{}
 	ticket          *relationTicket
 	mu              sync.Mutex
 	session         *Session
@@ -121,7 +123,9 @@ func (t *transactionOwner) clear() {
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
-	t.admission.Lock()
+	if err := t.acquireAdmission(context.Background(), nil); err != nil {
+		return err
+	}
 	defer t.admission.Unlock()
 	t.mu.Lock()
 	if token != t.session.token {
@@ -194,7 +198,9 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 		return TxRef{}, err
 	}
 	t := op.session.transactions
-	t.admission.Lock()
+	if err := t.acquireAdmission(op.Context(), op); err != nil {
+		return TxRef{}, err
+	}
 	defer t.admission.Unlock()
 	ref, err := e.beginAdmitted(op, t, start)
 	if err == nil {
@@ -227,7 +233,9 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	t := op.session.transactions
-	t.admission.Lock()
+	if err := t.acquireAdmission(op.Context(), op); err != nil {
+		return EndResult{}, err
+	}
 	defer t.admission.Unlock()
 	return e.endAdmitted(op, t, ref, false, false, false, time.Time{})
 }
@@ -238,7 +246,9 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, admissionErr
 	}
 	t := op.session.transactions
-	t.admission.Lock()
+	if err := t.acquireAdmission(op.Context(), op); err != nil {
+		return EndResult{}, err
+	}
 	defer t.admission.Unlock()
 	return e.endAdmitted(op, t, ref, true, false, false, time.Time{})
 }
@@ -333,7 +343,9 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 		return nil, err
 	}
 	t := op.session.transactions
-	t.admission.Lock()
+	if err := t.acquireAdmission(op.Context(), op); err != nil {
+		return nil, err
+	}
 	if err := e.transactionAdmission(op); err != nil {
 		t.admission.Unlock()
 		return nil, err
@@ -422,7 +434,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Unlock()
 	if idle {
 		switch stmt.(type) {
-		case *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard:
+		case *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		case *parser.Comment:
@@ -599,6 +611,9 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.gate(stmt); err != nil {
 		return StatementDescription{}, err
 	}
+	if copy, ok := stmt.(*parser.Copy); ok {
+		return StatementDescription{}, CopyBoundary(copy)
+	}
 	if _, ok := stmt.(*parser.SavepointControl); ok {
 		s.controlOutcome = controlDescribed
 		return StatementDescription{}, nil
@@ -671,6 +686,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	}
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
+	}
+	if copy, ok := stmt.(*parser.Copy); ok {
+		return Result{}, CopyBoundary(copy)
 	}
 	if control, ok := stmt.(*parser.SavepointControl); ok {
 		return s.executeSavepoint(control, count)

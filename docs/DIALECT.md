@@ -6,6 +6,57 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### COPY text streams — change note
+
+The native public stream API supports table FROM STDIN, physical table TO STDOUT
+and parenthesized query TO STDOUT, with ordered column lists and session-aware
+text type input/output. Table export omits generated columns by default and
+rejects explicit generated targets with42P10 in both directions. Query export
+can include generated values and follows the query's own schema/order. FROM
+omitted/default fields use ordinary defaults/identities; generated values are
+computed by existing INSERT assembly. Native partitioned
+FROM routes through existing DML; virtual partitioned-table TO is rejected with
+the query-variant hint rather than silently exporting descendants.
+
+Modern WITH options and bounded legacy DELIMITER/NULL/HEADER syntax support
+FORMAT text, one safe one-byte DELIMITER, NULL, DEFAULT (FROM only), and HEADER
+Boolean or FROM HEADER MATCH. Boolean forms true/false, on/off and numeric1/0
+are accepted; yes/no and quoted numeric values are not generic Boolean aliases.
+DEFAULT requires a different marker from NULL; a NULL-valued or absent default
+does not provide an effective default for a marker. Duplicate/unknown options
+retain source positions. CSV/binary, encoding overrides, FREEZE, WHERE, FORCE
+options and error-skipping/logging options are not silently accepted.
+FORMAT string literals are case-sensitive: `'text'` is accepted, while `'TEXT'`
+or `'Text'` returns22023 with the original spelling and FORMAT option position.
+Unquoted identifiers retain ordinary lexer case folding. Table COPY resolves and
+locks the target and checks columns/INSERT-or-SELECT rights before processing
+options or input defaults; query TO validates options before query analysis.
+
+Input recognizes consistent LF/CR/CRLF, final lines without a newline, escaped
+physical newlines, raw standalone `\\.` termination and text backslash/octal/hex
+escapes. NULL/default markers compare raw fields before conversion; UTF8/NUL
+validation uses the canonical text-input authority. Output uses the actual type
+and captured session/catalog environment, not fmt or hand-written type switches.
+Logical failures preserve PostgreSQL-shaped optional diagnostics, including
+COPY line/column Context where supplied by the COPY input stage.
+An SQL-owned statement timeout during admitted FROM input returns57014 with the
+active COPY line Context. Relation-opening statement timeout keeps empty Context;
+ordinary caller cancellation and I/O failures are not invented SQL diagnostics.
+
+Ordinary database/sql calls reject stream COPY with0A000
+`COPY FROM STDIN requires stuntgres.CopyFrom` or
+`COPY TO STDOUT requires stuntgres.CopyTo`; files and PROGRAM retain separate
+capability errors and never perform external I/O. Native RLS execution is an
+existing unavailable prerequisite, not synthesized by this feature.
+Native inherited-parent query export retains the existing0A000
+`recursive table inheritance is unsupported` boundary; physical table COPY still
+exports only that parent's stored rows. Supported ordinary/leaf queries use the
+real query path. No SELECT ONLY syntax or new explicit-cast provider is introduced.
+
+
+See [the public API](DRIVER.md#pinned-copy-text-streams--change-note) and
+[selected proof](TESTING.md#copy-text-selected-proof).
+
 ### INET and CIDR — change note
 
 Typed scalar INET/CIDR declarations, contextual input, direct/prepared textual

@@ -28,6 +28,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.finished = true
 		s.result = err
 		s.op.session.finishScopeTimeout(s, err != nil)
+		s.releaseCopyReservation()
 		s.owner.admission.Unlock()
 		return err
 	}
@@ -184,6 +185,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.replacementRead = false
 	}
 	e.locks.end(endedTicket)
+	s.releaseCopyReservation()
 	t.admission.Unlock()
 	return err
 }

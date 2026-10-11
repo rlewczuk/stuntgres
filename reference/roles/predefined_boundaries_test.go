@@ -20,9 +20,13 @@ func predefinedMissingFunction(s *membershipScenario, q, signature string) {
 
 func predefinedNativeBoundaries(s *membershipScenario) {
 	s.t.Helper()
-	for _, q := range []string{"CHECKPOINT", "COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'", "COPY t TO PROGRAM 'false'", "VACUUM t", "ANALYZE t", "CLUSTER t"} {
+	for _, q := range []string{"CHECKPOINT", "VACUUM t", "ANALYZE t", "CLUSTER t"} {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 	}
+	for _, q := range []string{"COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'"} {
+		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "COPY server files are unsupported"}, false, "prepare")
+	}
+	predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
 	predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 	for _, tc := range []struct{ q, signature string }{
 		{"SELECT pg_read_file('/nonexistent')", "pg_read_file(unknown)"},
@@ -204,9 +208,8 @@ func TestReferencePredefinedBoundaryFeatureSmoke(t *testing.T) {
 		if s.backend.PG {
 			s.exec("CHECKPOINT")
 		} else {
-			for _, q := range []string{"CHECKPOINT", "COPY t TO PROGRAM 'false'"} {
-				predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
-			}
+			predefinedFailure(s, "CHECKPOINT", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
+			predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
 			predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 		}
 		s.actor("")

@@ -5,6 +5,9 @@ package parser
  tok lexeme
  stmt Statement
  insertStmt *Insert
+ copyStmt *Copy
+ copyOption CopyOption
+ copyOptions []CopyOption
  insertConflict *InsertConflict
  col *Column
  columns []Column
@@ -154,6 +157,7 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
+%token <tok> COPY
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> FILTER
@@ -253,7 +257,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -289,6 +293,13 @@ package parser
 %type <desc> policy_permissive
 %type <grantGrantees> policy_roles
 %type <expr> policy_using policy_check
+%type <stmt> copy
+%type <copyStmt> copy_target copy_endpoint
+%type <desc> copy_direction
+%type <copyOptions> copy_options copy_option_list copy_legacy_options
+%type <copyOption> copy_option copy_option_value copy_legacy_option
+%type <tok> copy_option_name
+%type <expr> copy_where
 %type <stmt> declare_cursor fetch_cursor close_cursor
 %type <cursorFetch> cursor_direction
 %type <desc> cursor_scroll cursor_hold
@@ -562,6 +573,7 @@ optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+ | copy
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
  | set_constraints
@@ -608,6 +620,42 @@ drop_policy: DROP POLICY name ON relation_name drop_mode {
 } | DROP POLICY IF EXISTS name ON relation_name drop_mode {
  $$=&DropPolicy{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
 } ;
+copy: COPY copy_target copy_direction copy_endpoint copy_options copy_where {
+ $$=$2;$2.Pos=$1.pos;$2.From=$3;$2.Endpoint=$4.Endpoint;$2.Filename=$4.Filename;$2.Options=$5;$2.Where=$6
+ if ($2.Query!=nil && $2.From)||($2.From && $2.Endpoint==CopyStdout)||(!$2.From && $2.Endpoint==CopyStdin) {sqllex.(*lexer).syntax($1);return 1}
+} ;
+copy_target: relation_name view_columns { $$=&Copy{Name:$1,Columns:$2} }
+ | '(' query_select ')' { $$=&Copy{Query:$2} } ;
+copy_direction: FROM { $$=true } | TO { $$=false } ;
+copy_endpoint: generic_word {
+ switch $1.text {case "stdin":$$=&Copy{Endpoint:CopyStdin};case "stdout":$$=&Copy{Endpoint:CopyStdout};default:sqllex.(*lexer).syntax($1);return 1}
+ }
+ | STRING { $$=&Copy{Endpoint:CopyFile,Filename:$1.text} }
+ | generic_word STRING {if $1.text!="program" {sqllex.(*lexer).syntax($1);return 1};$$=&Copy{Endpoint:CopyProgram,Filename:$2.text}} ;
+copy_options: /* empty */ { $$=nil }
+ | WITH '(' copy_option_list ')' { $$=$3 }
+ | '(' copy_option_list ')' { $$=$2 }
+ | copy_legacy_options { $$=$1 }
+ | WITH copy_legacy_options { $$=$2 } ;
+copy_option_list: copy_option { $$=[]CopyOption{$1} }
+ | copy_option_list ',' copy_option { $$=append($1,$3) } ;
+copy_option_name: generic_word | NULL | DEFAULT ;
+copy_option: copy_option_name { $$=CopyOption{Name:$1.text,Pos:$1.pos} }
+ | copy_option_name copy_option_value { $$=$2;$$.Name=$1.text;$$.Pos=$1.pos} ;
+copy_option_value: STRING { $$=CopyOption{HasValue:true,Value:$1.text} }
+ | NUMBER { $$=CopyOption{HasValue:true,Value:$1.text,Numeric:true} }
+ | TRUE { $$=CopyOption{HasValue:true,Value:"true"} }
+ | FALSE { $$=CopyOption{HasValue:true,Value:"false"} }
+ | generic_word { $$=CopyOption{HasValue:true,Value:$1.text} }
+ | TEXT { $$=CopyOption{HasValue:true,Value:$1.text} }
+ | '*' { $$=CopyOption{HasValue:true,Value:"*"} }
+ | '(' view_names ')' { $$=CopyOption{HasValue:true,Columns:$2} } ;
+copy_legacy_options: copy_legacy_option { $$=[]CopyOption{$1} }
+ | copy_legacy_options copy_legacy_option { $$=append($1,$2) } ;
+copy_legacy_option: generic_word STRING { $$=CopyOption{Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
+ | NULL STRING { $$=CopyOption{Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
+ | generic_word {if $1.text!="header" {sqllex.(*lexer).syntax($1);return 1};$$=CopyOption{Name:"header",Pos:$1.pos}} ;
+copy_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 } ;
 prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
 prepare_types: /* empty */ { $$=nil } | '(' prepare_type_list ')' { $$=$2 } ;
 prepare_type_list: type { $$=[]TypeName{$1} } | prepare_type_list ',' type { $$=append($1,$3) } ;
@@ -1911,6 +1959,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
+ | COPY
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | EXCLUDE
@@ -1939,6 +1988,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
+ | COPY
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | cursor_word
@@ -1958,6 +2008,7 @@ generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
+ | COPY
  | EXCLUDE
  | NAMES
  | COLLATION

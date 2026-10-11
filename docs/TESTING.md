@@ -1,5 +1,93 @@
 # Adding and maintaining tests
 
+## COPY text selected proof
+
+Shared untagged `reference/dml/copy_text_*_test.go` definitions run on the native
+public pinned-connection API and a genuine pgx stdlib5.9.2 stream transport using
+the fixture's existing pinned PostgreSQL18.0 container/DSN. No SQL success
+substitute, mocked stream, expectation derived from native output or permanent
+PG-only discovery filter is retained. The ancillary pgx pool does not replace
+lib/pq for existing reference definitions.
+
+Selected commands (root-run, external900s deadlines):
+
+```sh
+make check RUN='^TestReferenceCopyText'
+make check REFERENCE=1 RUN='^TestReferenceCopyText'
+make check RUN='^TestCopy(Text|Parser)'
+make check RUN='^(TestInsertSelect(RequiredClose|CancellationOnRequiredClose|EagerFailureAndCancellation)|TestInsertConflictProducerConsumedCountAndClose|TestQueryLimit(RequiredClose|EOFCloses))$'
+make check RACE=1 RUN='^Test(CopyText(OwnerReservation|OwnerWaitCompletion|Replacement|OutputReplacement|Termination|Timeout|PanicCleanup|CopiedReservation|FinalCancellationVeto)|ReferenceCopyText(AdmissionAndLocks|Cancellation|InputStatementTimeout))$'
+make check RUN='^TestReferencePredefined(UnavailableCapabilities|BoundaryFeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePredefined(UnavailableCapabilities|BoundaryFeatureSmoke)$'
+make check RUN='^TestReferenceCopyText(OptionsAdmissionPrecedence|QuotedFormat|InputStatementTimeout)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyText(OptionsAdmissionPrecedence|QuotedFormat|InputStatementTimeout)$'
+```
+
+The feature definition `^TestReferenceCopyTextFeatureSmoke$` has selected native
+and pinned counterparts. Standalone source `local://copy-text-smoke.go` is an
+ephemeral public Go program: root materializes `.copy-text-smoke/main.go` without
+staging it, runs `go run ./.copy-text-smoke` from this checkout with an
+external900s deadline, and removes the temporary directory. It checks exact
+bytes/counts/tags, typed rows, failed-import
+atomicity and native Dump/Reset/Restore; successful stdout is exactly `COPY 3`,
+`COPY 3`, `COPY text smoke passed`, each on its own line, after every assertion.
+
+Private units separately prove reservation ownership, context-cancelled owner
+entrants, replacement fencing, termination, panic cleanup and final cancellation.
+Blocked stream assertions release and join their caller goroutines before
+connection cleanup. Native replacement and caller-error identity assertions remain
+explicitly native-owned, not presented as PostgreSQL control/error identities.
+
+Codec raw transport asserts all seventeen real SELECT fields and metadata without
+requiring unrelated TEXT casts. pgx DATE is a `time.Time`, native DATE is a string;
+these shapes are asserted before civil-value normalization. BYTEA bytes and native/
+pgx timestamps stay actual typed values. An unregistered pgx enum metadata tag is
+the decimal server OID, checked against an independent pg_type identity query.
+pgx stdlib's binary TIMESTAMPTZ scan preserves time.Unix's host-local location
+when ScanLocation is nil. The witness asserts the exact instant and that actual
+local location/offset before UTC normalization; it does not confuse a Go transport
+location with server TimeZone, whose actual COPY output is independently checked.
+Schema USAGE setup is PostgreSQL-only because native PUBLIC already has USAGE;
+the table/column authorization body remains shared.
+
+The Cancellation scenario's PostgreSQL transaction-timeout phase verifies100ms
+configuration and observes peer server clock_timestamp reaching the captured PID's
+xact_start+100ms deadline under a bounded context (or actual backend disappearance),
+then releases and joins the blocked reader. Pending COPY interrupt processing can
+require that drain before final teardown; no client sleep guesses expiry.
+Native expiry uses the actual private Operation signal in TestCopyTextTimeout;
+there is no invented public native timer channel or falsely asserted adapter parity.
+
+InputStatementTimeout performs a real public COPY baseline/count/tag/typed-row
+assertion on both backends, then the genuine PostgreSQL expiry phase independently
+verifies100ms with SHOW, observes its PID's active COPY/ClientRead, and waits for
+server clock_timestamp to reach that command's query_start+100ms deadline under a
+bounded context before releasing/joining input. Its complete57014 diagnostic has
+`COPY copy_input_timeout, line 2` Context and preserves the typed sentinel.
+The private native TestCopyTextTimeout observes its actual Operation.Context
+expiry at the same admitted-input stage and requires `COPY t, line 2`, separately
+from relation-opening timeouts with empty Context. No public native timer channel,
+client sleep or mock oracle is substituted for this adapter capability distinction.
+
+OptionsAdmissionPrecedence independently checks missing relation, missing column
+and denied INSERT/SELECT before bad table options, but bad query options before
+query-source analysis. QuotedFormat checks preserved uppercase/mixed STRING case,
+full22023 fields/positions, no native reader/writer invocation and actual lowercase
+quoted/unquoted lexer-folded transfers; its error expectations come from the
+pinned oracle rather than a native-generated golden.
+
+For PostgreSQL admitted cancellation, the peer first observes the captured backend
+executing COPY in ClientRead and obtains pg_cancel_backend's true acknowledgement,
+then releases/joins the reader so COPY can drain its protocol. It does not wait
+for idle while blocking that drain. The complete57014 user-request diagnostic
+and unchanged sentinel prove server-side cancellation atomicity. Merely canceling
+a client context while simultaneously releasing EOF races successful autocommit
+and cannot portably establish this oracle outcome. Native caller-context
+cancellation still independently requires ordinary identity, zero result and no rows.
+COPY table-target lock timeout has no Position; query-source SELECT positioning
+keeps its existing authority instead of sharing a fabricated COPY target position.
+
+
 ## DISCARD selected proof
 
 The untagged shared `reference/sessions/discard_*_test.go` definitions assert

@@ -220,7 +220,7 @@ func (e *Engine) stageTemporaryCatalogChangesLocked(ctx context.Context, stage *
 
 func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Statement) bool {
 	switch stmt.(type) {
-	case *parser.Insert, *parser.Update, *parser.Delete:
+	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete:
 		if b.relation != nil {
 			ns, ok := auth.catalog.state.descriptors[b.relation.namespace].(*namespaceDescriptor)
 			return ok && auth.session != nil && ns.temporary == auth.session.token

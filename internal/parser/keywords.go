@@ -165,7 +165,7 @@ var keywords = [...]keyword{
 	{"content", Unreserved, true, 0},
 	{"continue", Unreserved, true, 0},
 	{"conversion", Unreserved, true, 0},
-	{"copy", Unreserved, true, 0},
+	{"copy", Unreserved, true, COPY},
 	{"cost", Unreserved, true, 0},
 	{"create", Reserved, false, CREATE},
 	{"cross", TypeFunctionName, true, CROSS},

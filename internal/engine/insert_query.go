@@ -404,6 +404,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		rows = make([][]sqltype.Value, 0)
 	}
 	scratch := make([]sqltype.Value, len(b.targets))
+	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, Input: input, Output: output, statementScope: scope, query: query}
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if err := ctx.Err(); err != nil {
@@ -434,7 +435,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			row[target] = value
 		}
 		for j, expression := range b.defaults {
-			if expression != nil {
+			if expression != nil && (defaultSource == nil || defaultSource.rowDefaults()[j]) {
 				row[j], err = expression.Eval(&evaluation)
 				if err != nil {
 					return nil, err

@@ -57,6 +57,9 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 	if sel, ok := stmt.(*parser.Select); ok {
 		return s.acquireQueryRelations(sel, stmt, execute)
 	}
+	if copy, ok := stmt.(*parser.Copy); ok && copy.Query != nil {
+		return s.acquireQueryRelations(copy.Query, copy.Query, execute)
+	}
 	if insert, ok := stmt.(*parser.Insert); ok {
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
@@ -143,6 +146,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		mode = accessShare
 		if v.Locking != nil {
 			mode = relationRowShare
+		}
+	case *parser.Copy:
+		name, mode = v.Name, accessShare
+		if v.From {
+			mode = rowExclusive
 		}
 	case *parser.Insert:
 		name = v.Name
@@ -243,7 +251,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				}
 			}
 		} else if mode == accessShare || mode == relationRowShare || mode == rowExclusive {
-			ref, err = e.resolveReference(auth, name)
+			if _, copyTarget := stmt.(*parser.Copy); copyTarget {
+				ref, err = e.resolveRelationReference(auth, name, true)
+			} else {
+				ref, err = e.resolveReference(auth, name)
+			}
 		} else {
 			_, indexBuild := stmt.(*parser.CreateIndex)
 			_, partitionCreate := stmt.(*parser.CreateTable)
@@ -318,9 +330,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	if err != nil {
 		// Parse analysis opens SELECT/INSERT/UPDATE/DELETE with a positioned
-		// error callback. Cached execution and utility locks do not. Query
-		// cancellation (57014) deliberately bypasses that callback.
-		if (mode == accessShare || mode == relationRowShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
+		// error callback. Cached execution, COPY targets and utility locks do not.
+		// Query cancellation (57014) deliberately bypasses that callback.
+		_, copyTarget := stmt.(*parser.Copy)
+		if !copyTarget && (mode == accessShare || mode == relationRowShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
 			var diagnostic *sqlstate.Error
 			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01" || diagnostic.Code == "25P04") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic
@@ -348,6 +361,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	case *parser.Select, *parser.Insert:
 		if err = s.acquirePartitionDescendants(ref, accessShare); err != nil {
 			return err
+		}
+	case *parser.Copy:
+		if creation.From {
+			if err = s.acquirePartitionDescendants(ref, accessShare); err != nil {
+				return err
+			}
 		}
 	}
 	s.owner.mu.Lock()
@@ -383,12 +402,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		s.lockedDescriptor = descriptor
 		storageTarget := false
 		switch statement := stmt.(type) {
+		case *parser.Copy:
+			storageTarget = descriptor.relationKind == tableRelation || descriptor.relationKind == materializedViewRelation
 		case *parser.Delete, *parser.Update:
-			storageTarget = true
+			storageTarget = descriptor.relationKind == tableRelation
 		case *parser.Insert:
-			storageTarget = statement.Conflict != nil && statement.Conflict.Update
+			storageTarget = descriptor.relationKind == tableRelation && statement.Conflict != nil && statement.Conflict.Update
 		}
-		if storageTarget && descriptor.relationKind == tableRelation {
+		if storageTarget {
 			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if s.lockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")

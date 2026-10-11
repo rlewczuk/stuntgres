@@ -377,7 +377,7 @@ func Names(d *Descriptor, names []string) (Value, error) {
 	}
 	elements := make([]Value, len(names))
 	for i, name := range names {
-		if err := validateCharacterInput(name); err != nil {
+		if err := ValidateTextInput(name); err != nil {
 			return Value{}, err
 		}
 		if len(name) > 63 {
@@ -475,7 +475,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return plan.Apply(ctx, value, env, OutputEnvironment{})
 	}
 	if d.IsArray() {
-		if err := validateCharacterInput(text); err != nil {
+		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
 		return d.arrayInput(ctx, text, typmod, env)
@@ -490,7 +490,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
 	if IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
-		if err := validateCharacterInput(text); err != nil {
+		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
 	} else if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
