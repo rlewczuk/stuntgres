@@ -132,12 +132,24 @@ therefore still fails even if its allocation count is constant. Run the focused
 gate with `make check RUN='^TestBinaryHashAllocations$'`
 and again with `RACE=1`, under the existing deadlines.
 
-The public smoke tests live in `smoke/*_test.go` and are part of `make quickcheck`.
-Use a concrete `make check RUN='...'` selector for focused proof, not a package-wide run.
-The baseline `TestSmoke` verifies rows, metadata, affected counts,
-Dump/Reset/Restore and a second already-open pool. Run the catalog witness with
+Public SQL/API smoke scenarios now live in the existing `reference/` feature
+packages as shared-body, dual-mode tests named `TestReferenceSmoke<OriginalName>`.
+The whole-file migration moved 38 source files (46 shared test definitions and
+two helper companions) and removed 33 redundant test/support files.
+Native Dump/Reset/Restore and eager
+cursor guarantees remain explicit native phases; PostgreSQL executes the shared
+ordinary SQL witnesses without invented control APIs.
+
+`smoke/catalog_test.go` retains only `TestCatalogOwnersPublicWitness`: its subject
+is a native Driver's opaque-DSN instance attachment and lifetime, with no practical
+PostgreSQL counterpart. Run it with
 `make check RUN='^TestCatalogOwnersPublicWitness$'`.
-Go test reports each test's pass or failure instead of standalone output labels.
+For migrated scenarios, select individual files' definitions in both modes, e.g.
+`make check RUN='^TestReferenceSmokeCompareNullSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceSmokeCompareNullSmoke$'`.
+Use the same small selector with `RACE=1` for locking scenarios; do not substitute
+a broad smoke-family selector for selective proof. All remain part of ordinary
+`make quickcheck` and `make racecheck`.
 
 The explicitly enabled reference suite requires working Docker and image/module access. Each reference test package independently owns one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. Real-mode targets use `-p 1` to serialize package processes and their container lifecycles. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
 

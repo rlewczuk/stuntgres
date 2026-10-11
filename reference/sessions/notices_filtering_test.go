@@ -43,10 +43,10 @@ func TestReferenceNoticesFiltering(t *testing.T) {
 				want := fixture.Diagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: `identifier "` + original + `" will be truncated to "` + clipped + `"`}
 				for _, mode := range []string{"exec", "prepared-exec"} {
 					before := len(notices)
-					if err := noticesCommand(t, p.Ctx, c, record, &notices, mode, "SET application_name TO '"+original+"'", threshold); err != nil {
+					if err := noticesCommand(t, p.Ctx, c, record, &notices, mode, "SET application_name TO '"+original+"'"); err != nil {
 						t.Fatal(err)
 					}
-					noticesWitness(t, backend.PG, notices[before:], want, delivered, "SET application_name TO '"+original+"'")
+					noticesWitness(t, backend.PG, notices[before:], want, delivered)
 					noticesShow(t, p.Ctx, c, record, "application_name", clipped)
 				}
 				before := len(notices)

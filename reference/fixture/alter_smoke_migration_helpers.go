@@ -60,6 +60,9 @@ func (m MigrationSmoke) NullRows(rows *sql.Rows, names, types []string, nullable
 	if err != nil || len(metadata) != len(types) {
 		m.T.Fatal(metadata, err)
 	}
+	if m.PG {
+		TableDDLColumnTypes(m.T, true, metadata, names, types, make([]bool, len(types)))
+	}
 	for i, c := range metadata {
 		if c.DatabaseTypeName() != types[i] {
 			m.T.Fatal(c, types[i])

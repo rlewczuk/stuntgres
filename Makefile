@@ -41,7 +41,7 @@ finalcheck:
 refcheck:
 	go generate ./internal/parser
 	go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go -regex-output ./internal/sqltype/unicode16/regex_tables_generated.go
-	packages=$$(go run ./reference/cmd/checkpackages '.*') && go test -count=1 -timeout=0 -p 1 -tags reference $$packages -args -reference=true
+	packages=$$(go run ./reference/cmd/checkpackages '.*') && go test -count=1 -timeout=0 -p 8 -tags reference $$packages -args -reference=true
 
 # Development ONLY: individual tests or small selected sets, never broad/package
 # checks. RUN is required; REFERENCE=1 enables real PostgreSQL, RACE=1 enables race.

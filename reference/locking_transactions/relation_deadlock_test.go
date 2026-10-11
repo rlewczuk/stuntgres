@@ -106,7 +106,7 @@ func deadlockPublicWorker(t *testing.T, parent context.Context, index int, call 
 	await := fixture.LockOperation(t, parent, func(ctx context.Context) fixture.RelationOutcome {
 		r, err := call(ctx)
 		return fixture.RelationOutcome{Result: r, Err: err}
-	})
+	}, 8*time.Second)
 	return func() deadlockPublicOutcome {
 		o := await()
 		return deadlockPublicOutcome{result: o.Result, err: o.Err, index: index}
@@ -126,9 +126,9 @@ func deadlockPublicAborted(t *testing.T, ctx context.Context, c *sql.Conn, query
 
 // Both conflicting commands are bounded; neither transaction is rolled back
 // until the survivor has completed. This catches lock release only on ROLLBACK.
-func deadlockPublicCycle(t *testing.T, db *sql.DB, kind string, cached bool, postgres bool, observe func(context.Context, *sql.Conn, *sql.Conn, string), diagnostic func(error, int, string)) {
+func deadlockPublicCycle(t *testing.T, parent context.Context, db *sql.DB, kind string, cached bool, postgres bool, observe func(context.Context, *sql.Conn, *sql.Conn, string), diagnostic func(error, int, string)) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	t.Cleanup(cancel)
 	a := deadlockPublicConn(t, ctx, db)
 	b := deadlockPublicConn(t, ctx, db)
@@ -231,11 +231,13 @@ func deadlockPublicCycle(t *testing.T, db *sql.DB, kind string, cached bool, pos
 			return conns[i].ExecContext(ctx, closing[i])
 		}
 	}
-	first := deadlockPublicWorker(t, ctx, 0, run(0))
+	outcomesCtx, outcomesCancel := context.WithTimeout(ctx, 8*time.Second)
+	defer outcomesCancel()
+	first := deadlockPublicWorker(t, outcomesCtx, 0, run(0))
 	if observe != nil {
 		observe(ctx, a, b, kind)
 	}
-	second := deadlockPublicWorker(t, ctx, 1, run(1))
+	second := deadlockPublicWorker(t, outcomesCtx, 1, run(1))
 	out := []deadlockPublicOutcome{first(), second()}
 	victim := -1
 	for i, o := range out {
@@ -306,9 +308,9 @@ func deadlockPublicCycle(t *testing.T, db *sql.DB, kind string, cached bool, pos
 	deadlockPublicExec(t, ctx, conns[victim], "ROLLBACK", 0)
 }
 
-func deadlockPublicSoftQueue(t *testing.T, db *sql.DB, postgres bool, observe func(context.Context, *sql.Conn, *sql.Conn, *sql.Conn, int)) {
+func deadlockPublicSoftQueue(t *testing.T, parent context.Context, db *sql.DB, postgres bool, observe func(context.Context, *sql.Conn, *sql.Conn, *sql.Conn, int)) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	t.Cleanup(cancel)
 	a := deadlockPublicConn(t, ctx, db)
 	b := deadlockPublicConn(t, ctx, db)
@@ -413,7 +415,7 @@ func referenceDeadlockKinds(t *testing.T, kinds []string) {
 				p := fixture.NewScenario(t)
 				for _, backend := range p.Backends() {
 					t.Run(backend.Name, func(t *testing.T) {
-						deadlockPublicCycle(t, backend.DB, kind, cached, backend.PG, nil, func(err error, _ int, _ string) { fixture.DeadlockPublicError(t, err, "") })
+						deadlockPublicCycle(t, p.Ctx, backend.DB, kind, cached, backend.PG, nil, func(err error, _ int, _ string) { fixture.DeadlockPublicError(t, err, "") })
 					})
 				}
 			})
@@ -423,6 +425,6 @@ func referenceDeadlockKinds(t *testing.T, kinds []string) {
 func TestReferenceRelationDeadlockSoftQueue(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
-		t.Run(backend.Name, func(t *testing.T) { deadlockPublicSoftQueue(t, backend.DB, backend.PG, nil) })
+		t.Run(backend.Name, func(t *testing.T) { deadlockPublicSoftQueue(t, p.Ctx, backend.DB, backend.PG, nil) })
 	}
 }

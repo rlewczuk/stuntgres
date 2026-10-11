@@ -16,6 +16,10 @@ This is the authoritative test-placement and implementation workflow.
   appropriate, and remove the superseded tests. Do not leave native-only copies.
   A migration subagent MAY handle this independent slice to keep the current
   implementation context focused; give it the original assertions and this guide.
+  The approved smoke migration retains only `smoke/catalog_test.go`:
+  `TestCatalogOwnersPublicWitness` tests the native Driver's opaque-DSN attachment
+  and physical lifetime. SQL supplies incidental state observations, not a
+  portable PostgreSQL scenario. Do not expand this named retention exception.
 - Internal unit tests that exercise package functions rather than public SQL APIs
   may remain beside their package. They supplement, never replace, reference
   coverage for PostgreSQL functionality.
@@ -31,6 +35,10 @@ This is the authoritative test-placement and implementation workflow.
 - Assert behavior, boundaries, errors, atomicity and lifecycle transitions, not
   source text, wiring counts, mock echoes or parity alone. Keep functional files
   at most 750 lines; shared fixture code is exempt. Keep output quiet by default.
+  PostgreSQL internal DEBUG trace wording, allocator identities, record counts
+  and loader order are implementation details, not SQL notice expectations.
+  Keep independently specified feature notices and their complete diagnostics
+  exact; distinguish DEBUG tracing from unexpected NOTICE/WARNING delivery.
 - Organize whole test files in feature-group packages under `reference/`, with
   common importable helpers in `reference/fixture/`. Keep at most 30 packages
   total including the fixture, and at most 1,000,000 bytes per package counting
@@ -3371,4 +3379,3 @@ review, each invocation bounded to 900 seconds:
 make check RACE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 make check RACE=1 REFERENCE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 ```
-

@@ -77,12 +77,16 @@ type RelationOutcome struct {
 	RawBackend referenceRawBackend
 }
 
-func LockResult(t *testing.T, done <-chan RelationOutcome) RelationOutcome {
+func LockResult(t *testing.T, done <-chan RelationOutcome, limit ...time.Duration) RelationOutcome {
 	t.Helper()
+	timeout := 5 * time.Second
+	if len(limit) != 0 {
+		timeout = limit[0]
+	}
 	select {
 	case r := <-done:
 		return r
-	case <-time.After(5 * time.Second):
+	case <-time.After(timeout):
 		t.Fatal("lock command did not finish")
 		return RelationOutcome{}
 	}

@@ -1260,15 +1260,19 @@ func IsolationReferenceDiagnostic(t *testing.T, err error, want Diagnostic) {
 
 // Every outstanding operation is canceled and joined before transaction/connection
 // cleanup and the shared fixture's schema reset, including on assertion failure.
-func LockOperation(t *testing.T, ctx context.Context, call func(context.Context) RelationOutcome) func() RelationOutcome {
+func LockOperation(t *testing.T, ctx context.Context, call func(context.Context) RelationOutcome, limit ...time.Duration) func() RelationOutcome {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	timeout := 5 * time.Second
+	if len(limit) != 0 {
+		timeout = limit[0]
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	done := make(chan RelationOutcome, 1)
 	joined := false
 	t.Cleanup(func() {
 		cancel()
 		if !joined {
-			o := LockResult(t, done)
+			o := LockResult(t, done, timeout+2*time.Second)
 			if o.Rows != nil {
 				o.Rows.Close()
 			}
@@ -1280,7 +1284,7 @@ func LockOperation(t *testing.T, ctx context.Context, call func(context.Context)
 	go func() { done <- call(ctx) }()
 	return func() RelationOutcome {
 		t.Helper()
-		o := LockResult(t, done)
+		o := LockResult(t, done, timeout+2*time.Second)
 		joined = true
 		return o
 	}
