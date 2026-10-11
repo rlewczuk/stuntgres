@@ -1725,7 +1725,7 @@ LATERAL joins, CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity/UNIQUE, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,
-UPDATE row assignments/CURRENT OF (named-cursor DELETE CURRENT OF is supported),
+UPDATE row assignments (named-cursor UPDATE/DELETE CURRENT OF is supported),
 INSERT RETURNING and whole-row RETURNING records,
 general COLLATE, two-phase commit, transactional table DDL outside selected
 TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,

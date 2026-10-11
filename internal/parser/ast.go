@@ -759,8 +759,8 @@ type Delete struct {
 	Pos       Position
 }
 
-// DELETE owns exactly one qualifier; CURRENT OF is not a Boolean expression.
-type deleteQualifier struct {
+// Mutations own exactly one qualifier; CURRENT OF is not a Boolean expression.
+type mutationQualifier struct {
 	Where     Expr
 	CurrentOf *Identifier
 }
@@ -786,6 +786,7 @@ type Update struct {
 	From        FromItem
 	Assignments []UpdateAssignment
 	Where       Expr
+	CurrentOf   *Identifier
 	Returning   *Returning
 	Pos         Position
 }

@@ -991,6 +991,47 @@ its OMP-session public-API smoke source; no repository smoke harness is added.
 All new cursor fixtures use the prerequisite's admitted `FETCH FORWARD 1 FROM`
 constant-count form, not adjacent FETCH NEXT syntax.
 
+## Positioned UPDATE reference proof
+
+The nine `TestReferenceUpdateCurrentOf` definitions in `reference/dml/` share
+public-driver bodies across native and pinned PostgreSQL18.0 modes. The temporary
+discovery filter is removed. Native Dump/Reset/Restore, detached rows,
+pre-cancellation, pool persistence and independent Driver phases remain explicit.
+Independent expectations cover last fetched physical identity, same-value count1,
+simultaneous/latest-old-row SET and OLD/NEW metadata, duplicate/zero-width
+projections, quiet preparation/live names, full diagnostics and character positions,
+actual row-version arbitration, rollback without motion rewind, atomic failures,
+and committed-only persistence/replacement fences.
+
+Pinned discovery established empty-FROM cursor validation, losing-pair SET demand,
+RR concurrent-delete wording, and analysis/Prepare0A000 rejection of a view UPDATE
+target. A transparent cursor view to a base target remains a positive witness.
+No PostgreSQL optimizer parity is required: physical sort versus simple/index scan
+eligibility is independently asserted. Every added/changed definition requires
+both selected modes after final edits; prior discovery is not final native proof.
+
+Run each small batch under an external900s deadline, then repeat without
+`REFERENCE=1`:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceUpdateCurrentOf(PositionedRowAndCounts|IdentityAndPreparation|EligibilityAndDiagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceUpdateCurrentOf(VersionsAndArbitration|LifetimeAndRollback|ExistingFromReturningComposition)$'
+make check REFERENCE=1 RUN='^TestReferenceUpdateCurrentOf(FailureAndCancellation|NativeControls|FeatureSmoke)$'
+make check RUN='^(TestUpdateCurrentOfGrammar|TestUpdateCoreExcludedAndMalformed|TestUpdateCoreSyntax)$'
+make check RUN='^TestUpdateCurrentOf(Identity|Publication|Arbitration|Lifetime)$'
+make check RACE=1 RUN='^TestUpdateCurrentOf(Identity|Publication|Arbitration|Lifetime)$'
+```
+
+The private units inspect real borrowed RowID/source/index, staged replacement
+versions before Finish, cancellation nonpublication, exact pending automatic row
+grant and name-incarnation/disposal state. Existing DELETE occurrence/version,
+eligibility, publication, arbitration, lifetime and join-cache assertions remain
+regression authority for the shared mutation helper. Run all eleven positioned
+DELETE definitions in their documented small batches in both modes after cutover.
+Feature smoke selects `^TestReferenceUpdateCurrentOfFeatureSmoke$` in both modes;
+the root's standalone public-API smoke source lives outside the checkout.
+
+
 ### Forward-only SQL cursor verification
 
 Run the entire cursor family after changing an oracle expectation: a driver panic

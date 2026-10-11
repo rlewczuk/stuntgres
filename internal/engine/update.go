@@ -80,6 +80,9 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 
 // Transform FROM, WHERE, RETURNING (output fallback), then RHS/destinations.
 func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
+	if s.CurrentOf != nil {
+		b.currentOf = s.CurrentOf.Text
+	}
 	binder.relation, binder.ref = b.relation, b.ref
 	binder.targetName = b.relation.name
 	binder.targetAlias = s.Alias.Text
@@ -130,7 +133,13 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			}
 		}
 	}
-	return e.bindUpdateAssignments(b, binder, s.Assignments, u)
+	if err := e.bindUpdateAssignments(b, binder, s.Assignments, u); err != nil {
+		return err
+	}
+	if s.CurrentOf != nil && b.relation.view != nil {
+		return sqlError("0A000", "WHERE CURRENT OF on a view is not implemented")
+	}
+	return nil
 }
 
 // Assignment analysis is shared by UPDATE and MERGE. The caller owns the
@@ -326,6 +335,23 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
 	source.scope = s
+	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.read().generationAt(b.ref.Address) {
+		if from != nil {
+			from.close()
+		}
+		return Result{}, ErrCatalogReplaced
+	}
+	var positioned RowID
+	if b.currentOf != "" {
+		var err error
+		positioned, err = s.positionedMutationRow(b)
+		if err != nil {
+			if from != nil {
+				from.close()
+			}
+			return Result{}, err
+		}
+	}
 	inputs := source
 	if from != nil {
 		if err := selectQuerySources(ctx, from); err != nil {
@@ -379,6 +405,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var candidates []updateCandidate
 	for i := range source.count() {
 		old := source.versionAt(source.rawIndex(i))
+		if b.currentOf != "" && (positioned == 0 || old.row != positioned) {
+			continue
+		}
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err

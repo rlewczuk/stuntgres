@@ -103,13 +103,15 @@ cursors. ROLLBACK TO removes declarations after its mark but does not rewind
 older cursor motion, undo CLOSE or heal an executing cursor failure. Recovered
 failed cursors report55000 `portal "name" cannot be run`; missing names give34000.
 
-`DELETE WHERE CURRENT OF name` borrows the most recently delivered physical
+`UPDATE/DELETE WHERE CURRENT OF name` borrows the most recently delivered physical
 occurrence of the live eligible cursor, not its projected values or a Prepare-time
 incarnation. FETCH FORWARD 2 positions on its second returned row, and an exact
-bounded last row stays positioned until an actual EOF probe. Positioned DELETE
-uses ordinary DML publication, never the stage-free cursor completion exception;
-cancellation/output failure exposes no partial deletion or RETURNING batch.
-DELETE does not move/fail a healthy cursor, and a successful repeat counts zero.
+bounded last row stays positioned until an actual EOF probe. Positioned mutations
+use ordinary DML publication, never the stage-free cursor completion exception;
+cancellation/output failure exposes no partial writes or RETURNING batch.
+Neither mutation moves/fails a healthy cursor. Repeat DELETE counts zero after
+deletion; repeat UPDATE counts one and uses the latest old values, including
+same-value assignments. Cursor lookup is live at Execute, not captured by Prepare.
 RETURNING metadata comes from target/source analysis independently of FETCH schema.
 After a failed FETCH and savepoint recovery, CURRENT OF uses the executor-lifetime
 24000 diagnostic (`cursor "name" is held from a previous transaction`), distinct

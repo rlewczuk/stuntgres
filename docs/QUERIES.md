@@ -1608,10 +1608,44 @@ Full transaction/PREPARE/session end closes nonholdable names.
 Native Dump excludes private deletion and all execution state; committed dumps
 restore only survivors and persistent metadata. Failed Restore preserves current
 identity, successful replacement fences it, and detached FETCH/RETURNING rows
-remain immutable. UPDATE CURRENT OF, backward/scroll/hold cursor capabilities
-and refcursor parser hooks are not added.
+remain immutable. Backward/scroll/hold cursor capabilities and refcursor parser
+hooks are not added. UPDATE CURRENT OF is described below.
 Smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
+
+## Positioned UPDATE — change note
+
+`UPDATE target SET a=b,b=a WHERE CURRENT OF cursor_name [RETURNING outputs]`
+uses the same live session/transaction eligibility and physical occurrence as
+positioned DELETE. The qualifier is not a Boolean predicate or raw refcursor
+parameter. Prepare analyzes target/SET/output types without capturing a cursor.
+Each execution resolves the current name, including CLOSE/redeclare incarnations.
+
+Only the last successfully fetched RowID is updated, even with identical or
+zero-column projections or after its values stop matching the cursor's query.
+UPDATE does not move the cursor. Simultaneous SET expressions and OLD/NEW output
+use the current predecessor, not stale FETCH values; unassigned columns persist.
+Same-value and repeated successful updates count one. A deleted current identity
+counts zero and equal-value reinsertion is never a replacement identity.
+
+Existing FROM pairs and RETURNING schemas remain unchanged. Empty FROM produces
+zero updates but still validates cursor eligibility/position. Losing duplicate
+pairs retain SET demand and failure atomicity. A transparent cursor view may
+identify its base table; targeting a view with CURRENT OF instead rejects at
+analysis/Prepare with full0A000 `WHERE CURRENT OF on a view is not implemented`.
+Runtime cursor errors retain empty Position and optional diagnostic fields.
+RR peer updates/deletes report40001 concurrent-update/concurrent-delete wording.
+
+Ordinary automatic UPDATE grants, key-change escalation, private replacement
+staging and cancellation-sensitive Finish remain in force. Savepoint rollback
+restores data without rewinding an older cursor; failures do not invalidate a
+healthy cursor. Transaction/physical-session end closes nonholdable names.
+Dump/Restore persists committed changed rows/schema, not cursor or private state;
+catalog replacement fences original authority, never retargets equal tuples.
+
+Smoke: `make check RUN='^TestReferenceUpdateCurrentOfFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceUpdateCurrentOfFeatureSmoke$'`.
+
 
 ## DELETE rows
 
@@ -2029,7 +2063,7 @@ Triggers and whole-row records/parenthesized expansion,
 rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
 transformation/suppression and whole-row controls, not native successful no-ops.
-INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/top-level WITH UPDATE and recursive inheritance
+INSERT RETURNING, DEFAULT/row assignments/top-level WITH UPDATE and recursive inheritance
 remain excluded; leaf inherited-table DML is supported. No new evaluator,
 durability or retry path is introduced.
 
@@ -2123,7 +2157,7 @@ Retained native output survives rollback and Reset/Restore. Persistence includes
 committed live heads/catalog/sequence state, never source captures or output history.
 
 LATERAL/function FROM, top-level WITH UPDATE, row assignments and DEFAULT,
-CURRENT OF, whole-row records and INSERT RETURNING remain excluded.
+whole-row records and INSERT RETURNING remain excluded.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.
 Quick: `make check RUN='^TestReferenceUpdateFrom'`.
@@ -2140,7 +2174,8 @@ the same binder and provider, preserving its operand/type boundaries, NULL
 propagation and division/overflow errors; UPDATE adds no arithmetic provider.
 DATE and BYTEA participate through existing destination/contextual input rules,
 including typed NULL; this does not add explicit DATE/BYTEA casts or arithmetic,
-row assignment, CURRENT OF, DEFAULT or new casts/functions.
+row assignment, DEFAULT or new casts/functions. CURRENT OF has the separate
+positioned UPDATE contract above.
 Target aliases/FROM and RETURNING have the shared surfaces described above.
 
 All RHS expressions read the same old row: `SET a=b,b=a` swaps values.

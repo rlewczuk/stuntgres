@@ -215,7 +215,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 	var positioned RowID
 	if b.currentOf != "" {
 		var err error
-		positioned, err = s.positionedDeleteRow(b)
+		positioned, err = s.positionedMutationRow(b)
 		if err != nil {
 			if inputs != nil {
 				inputs.close()

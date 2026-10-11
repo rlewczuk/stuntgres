@@ -677,8 +677,8 @@ Rollback-to restores deletions without restoring older cursor motion; repeat
 deletion after rollback can delete the same physical occurrence again. Dump
 serializes only committed survivors, never cursor state, and replacement fences
 old execution rather than retargeting equal restored values.
-Raw parameter cursor syntax, UPDATE CURRENT OF and excluded cursor movement/hold
-capabilities remain excluded. Feature smoke:
+Raw parameter cursor syntax and excluded cursor movement/hold capabilities remain
+excluded. UPDATE CURRENT OF uses the same positioned authority described below. Feature smoke:
 `RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'` in both check modes.
 
 
@@ -2804,7 +2804,14 @@ UPDATE supports schema-qualified/quoted target relations, AS/bare target aliases
 ordered scalar SET assignments, supported inner/outer FROM trees and optional Boolean WHERE.
 SET destinations remain bare physical target columns; qualification applies to
 RHS/WHERE and RETURNING. FROM reuses table/view aliases, ON/USING/NATURAL and joins.
-Row assignment, CURRENT OF and DEFAULT remain excluded. Scalar subquery assignments and existing scalar
+Row assignment and DEFAULT remain excluded. `WHERE CURRENT OF cursor_name` is
+an alternative to a Boolean predicate; it updates only the last fetched physical
+occurrence without consuming or re-evaluating the cursor. Same-value updates
+count one; repeated updates use the latest old values. Existing FROM/RETURNING,
+row grants and atomic Finish remain authoritative. Transparent cursor views may
+identify base-table rows, but a view UPDATE target rejects CURRENT OF with
+0A000 `WHERE CURRENT OF on a view is not implemented` at analysis/Prepare.
+Scalar subquery assignments and existing scalar
 casts/functions and RETURNING are admitted through the same expression binder.
 Arithmetic retains its operand/type boundaries, NULL propagation and division/overflow errors, with no new provider.
 Assignments are simultaneous against one old row, preserve unassigned fields,
@@ -4971,8 +4978,8 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions,
-UPDATE FROM/row-subqueries/CURRENT OF. DELETE CURRENT OF is admitted for the
-bounded forward-only named-cursor surface described above.
+UPDATE FROM/row-subqueries beyond their selected surfaces. UPDATE and DELETE
+CURRENT OF are admitted for the bounded forward-only named-cursor surface above.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ/SERIALIZABLE, READ ONLY/READ WRITE
 and [NOT] DEFERRABLE modes. SET TRANSACTION changes current owner modes;

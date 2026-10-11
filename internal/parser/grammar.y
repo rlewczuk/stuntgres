@@ -41,7 +41,7 @@ package parser
  row []Expr
  value Value
  expr Expr
- deleteQualifier deleteQualifier
+ mutationQualifier mutationQualifier
  call FunctionExpr
  predicate PredicateKind
  selectStmt *Select
@@ -362,7 +362,7 @@ package parser
 %type <viewOptions> view_options view_option_list
 %type <viewOption> view_option
 %type <tok> view_option_value
-%type <deleteQualifier> delete_where
+%type <mutationQualifier> mutation_where
 %type <expr> scalar_projection
 %type <fromItem> optional_from
 %type <row> row_fields
@@ -1302,8 +1302,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: INHERIT { $$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-update: UPDATE relation_name update_alias SET update_assignments update_from where returning { $$=&Update{Name:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7,Returning:$8,Pos:$1.pos} }
- | UPDATE relation_name update_alias SET update_assignments update_from where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
+update: UPDATE relation_name update_alias SET update_assignments update_from mutation_where returning { $$=&Update{Name:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7.Where,CurrentOf:$7.CurrentOf,Returning:$8,Pos:$1.pos} }
+ | UPDATE relation_name update_alias SET update_assignments update_from mutation_where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
  | UPDATE relation_name update_alias SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$5.pos.Offset);return 1 } ;
 update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
@@ -1359,8 +1359,8 @@ merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPo
  | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
  | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
-delete: DELETE FROM relation_name delete_alias delete_using delete_where returning { if $5==nil {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
- | DELETE FROM relation_name delete_alias delete_using delete_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
+delete: DELETE FROM relation_name delete_alias delete_using mutation_where returning { if $5==nil {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
+ | DELETE FROM relation_name delete_alias delete_using mutation_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 returning: /* empty */ { $$=nil }
@@ -1373,10 +1373,10 @@ returning_option: name AS name {
    if $1.keyword==nil || ($1.text!="old" && $1.text!="new") { sqllex.(*lexer).syntax($1);return 1 }
    $$=ReturningAlias{New:$1.text=="new",Alias:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}
  } ;
-delete_where: /* empty */ { $$=deleteQualifier{} } | WHERE target_or { $$=deleteQualifier{Where:$2} }
+mutation_where: /* empty */ { $$=mutationQualifier{} } | WHERE target_or { $$=mutationQualifier{Where:$2} }
  | WHERE KW_U OF name {
    if $2.keyword==nil || $2.text!="current" { sqllex.(*lexer).syntax($3); return 1 }
-   $$=deleteQualifier{CurrentOf:&Identifier{Text:$4.text,Pos:$4.pos}}
+   $$=mutationQualifier{CurrentOf:&Identifier{Text:$4.text,Pos:$4.pos}}
  } ;
 like_operator: LIKE | ILIKE ;
 target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;

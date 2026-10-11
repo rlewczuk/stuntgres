@@ -2,9 +2,9 @@ package engine
 
 import "fmt"
 
-// The named cursor owns its retained execution. DELETE borrows only a physical
-// occurrence and then remaps its stable RowID into its fresh command view.
-func (s *StatementScope) positionedDeleteRow(b binding) (RowID, error) {
+// The named cursor owns its retained execution. Mutations borrow only a physical
+// occurrence and then remap its stable RowID into their fresh command view.
+func (s *StatementScope) positionedMutationRow(b binding) (RowID, error) {
 	c := s.op.session.cursors.entries[b.currentOf]
 	if c == nil || c.tx != s.txRef {
 		return 0, missingSQLCursor(b.currentOf)

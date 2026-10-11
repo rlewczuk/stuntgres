@@ -457,6 +457,20 @@ See [positioned DELETE](docs/QUERIES.md#positioned-delete--change-note).
 Feature smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
 
+Change note: `UPDATE target SET a=b,b=a WHERE CURRENT OF cursor_name` updates only
+the last fetched physical occurrence, never projected-value matches or a re-run
+cursor query. Repeated/same-value updates count one and use the latest old row;
+SET is simultaneous, FROM/RETURNING keep their existing contracts, and UPDATE
+does not move the cursor. Normal row grants and cancellation-sensitive private
+publication apply. Rollback restores data without rewinding older cursor motion.
+Committed Dump/Restore preserves changed rows, not cursor/private state.
+Transparent cursor views remain eligible for base targets; CURRENT OF on a view
+UPDATE target rejects with PostgreSQL0A000 at analysis/Prepare.
+See [positioned UPDATE](docs/QUERIES.md#positioned-update--change-note).
+Smoke: `make check RUN='^TestReferenceUpdateCurrentOfFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceUpdateCurrentOfFeatureSmoke$'`.
+
+
 
 Change note: `PREPARE TRANSACTION 'gid'`, `COMMIT PREPARED 'gid'` and
 `ROLLBACK PREPARED 'gid'` support process-local two-phase transaction state.
