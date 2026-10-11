@@ -134,8 +134,8 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 	}
 	same := func(a, d BoundExpr) bool { return b.sameGroupExpressionIn(a, d, c) }
 	switch n := a.(type) {
-	case *stringTableNode:
-		o, ok := d.(*stringTableNode)
+	case *functionFromNode:
+		o, ok := d.(*functionFromNode)
 		if !ok || n.ordinality != o.ordinality || n.correlated != o.correlated || len(n.calls) != len(o.calls) {
 			return false
 		}
@@ -166,7 +166,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 		return true
 	case *projectNode:
 		o, ok := d.(*projectNode)
-		if !ok || n.frozenValues != o.frozenValues || n.hasTargetStringSet != o.hasTargetStringSet {
+		if !ok || n.frozenValues != o.frozenValues || n.hasTargetSet != o.hasTargetSet {
 			return false
 		}
 		return c.expressions(b, n.expressions, o.expressions) && c.expressions(b, n.analysisExpressions, o.analysisExpressions)
@@ -219,7 +219,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 		}
 	case *joinNode:
 		o, ok := d.(*joinNode)
-		if !ok || n.kind != o.kind || n.leftWidth != o.leftWidth || n.rightWidth != o.rightWidth || !same(n.predicate, o.predicate) || !c.expressions(b, n.merges, o.merges) {
+		if !ok || n.kind != o.kind || n.leftWidth != o.leftWidth || n.rightWidth != o.rightWidth || n.correlatedRight != o.correlatedRight || n.correlationPrefix != o.correlationPrefix || !same(n.predicate, o.predicate) || !c.expressions(b, n.merges, o.merges) {
 			return false
 		}
 	case *derivedNode:
@@ -319,6 +319,9 @@ func sameQuerySourceAliases(a, b parser.FromItem) bool {
 	case *parser.ValuesQuery:
 		_, ok := b.(*parser.ValuesQuery)
 		return ok
+	case *parser.FunctionFrom:
+		o, ok := b.(*parser.FunctionFrom)
+		return ok && n.Ordinality == o.Ordinality && n.Lateral == o.Lateral && len(n.Calls) == len(o.Calls)
 	default:
 		return false
 	}

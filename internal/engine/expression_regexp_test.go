@@ -1,0 +1,278 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestRegexpScalarBinding(t *testing.T) {
+	e := New()
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	literal := func(s string) parser.Expr {
+		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
+	}
+	for _, tc := range []struct {
+		name string
+		args []parser.Expr
+		typ  sqltype.ID
+	}{
+		{"regexp_count", []parser.Expr{literal("aba"), literal("a")}, sqltype.Int4},
+		{"regexp_instr", []parser.Expr{literal("é🙂x"), literal("🙂")}, sqltype.Int4},
+		{"regexp_like", []parser.Expr{literal("a"), literal("a")}, sqltype.Bool},
+		{"regexp_match", []parser.Expr{literal("a"), literal("(a)")}, 1009},
+		{"regexp_replace", []parser.Expr{literal("aba"), literal("a"), literal("X")}, sqltype.Text},
+		{"regexp_split_to_array", []parser.Expr{literal("a b"), literal(" ")}, 1009},
+	} {
+		raw := nullCountRaw(tc.name, tc.args...)
+		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil {
+			t.Fatal(tc.name, err)
+		}
+		node, ok := bound.(regexpExpression)
+		if !ok || node.ResultUsage().Type.ID() != tc.typ || node.plan.ReturnsSet() {
+			t.Fatal(tc.name, bound)
+		}
+		value, err := bound.Eval(&EvalContext{Context: context.Background()})
+		if err != nil || value.Type() != node.ResultUsage().Type {
+			t.Fatal(tc.name, value, err)
+		}
+	}
+	raw := nullCountRaw("regexp_like", literal("a"), literal("a"))
+	raw.ArgNames = []parser.Identifier{{Text: "pattern"}, {Text: "string"}}
+	first, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw.ArgNames = nil
+	second, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil || !sameGroupExpression(first, second) {
+		t.Fatal(first, second, err)
+	}
+	collate := func(name string, pos int) parser.Expr {
+		return parser.CollateExpr{Child: literal("a"), Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Character: pos}}
+	}
+	raw = nullCountRaw("regexp_like", collate("C", 19), literal("a"))
+	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil || bound.(regexpExpression).plan.Collation().ID != 950 {
+		t.Fatal(bound, err)
+	}
+	raw = nullCountRaw("regexp_like", collate("C", 19), collate("POSIX", 34))
+	_, err = b.bind(raw, expressionPolicy{context: projectionContext})
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" {
+		t.Fatal(err)
+	}
+}
+
+func TestRegexpScalarStrictChildren(t *testing.T) {
+	text, boolean := similarUnitTypes()
+	plan, err := sqltype.BindRegexpFunction("regexp_like", []sqltype.Usage{text.Usage(), text.Usage()}, boolean.Usage(), text.Usage().Collation, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []int
+	failure := errors.New("later strict sibling")
+	null := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0}
+	pattern := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, err: failure, order: &order, index: 1}
+	node := regexpExpression{regexpCall{expressionInfo: expressionInfo{usage: boolean.Usage()}, plan: plan, args: []BoundExpr{null, pattern}, writtenSlots: [7]uint8{0, 1}}}
+	if _, err := node.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
+		t.Fatal(err, order)
+	}
+	pattern.err = nil
+	pattern.value = sqltype.String(text, "[")
+	node.args[1] = pattern
+	order = nil
+	value, err := node.Eval(&EvalContext{Context: context.Background()})
+	if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
+		t.Fatal(value, err, order)
+	}
+	node.args = []BoundExpr{pattern, null}
+	node.writtenSlots = [7]uint8{1, 0}
+	order = nil
+	value, err = node.Eval(&EvalContext{Context: context.Background()})
+	if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
+		t.Fatal(value, err, order)
+	}
+}
+
+func TestRegexpScalarPreflight(t *testing.T) {
+	e := New()
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := nullCountRaw("regexp_like", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "a"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "["}})
+	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil {
+		t.Fatal("Prepare compiled pattern", err)
+	}
+	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, bound, true)
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "2201B" || diagnostic.Position != "" {
+		t.Fatal(err)
+	}
+	node := bound.(regexpExpression)
+	node.args[1] = columnExpression{expressionInfo: expressionInfo{usage: node.args[1].ResultUsage(), properties: ExprProperties{Volatility: Immutable, RowDependent: true}}, slot: 0}
+	node.properties.RowDependent = true
+	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, node, true)
+	if err != nil {
+		t.Fatal("row-dependent pattern preflight", err)
+	}
+}
+
+func TestRegexpScalarGroupingAlias(t *testing.T) {
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	b.queryNamespace = &queryNamespace{}
+	literal := func(s string) parser.Expr {
+		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
+	}
+	first, err := b.bind(nullCountRaw("regexp_split_to_table", literal("a b"), literal(" ")), expressionPolicy{context: projectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := &parser.GroupClause{Items: []parser.GroupItem{{Kind: parser.GroupExpression, Expr: parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "x"}}}}}}}
+	keys, families, sets, err := b.bindGroupClause(raw, []BoundExpr{first}, []string{"x"})
+	if err != nil || len(keys) != 1 || len(families) != 1 || !reflect.DeepEqual(sets, [][]int{{0}}) {
+		t.Fatal(keys, families, sets, err)
+	}
+	if _, ok := keys[0].(regexpSetExpression); !ok {
+		t.Fatal("alias lost the set expression", keys[0])
+	}
+	second, err := b.bind(nullCountRaw("regexp_split_to_table", literal("c d"), literal(" ")), expressionPolicy{context: projectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, err = b.bindGroupClause(raw, []BoundExpr{first, second}, []string{"x", "x"})
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42702" || diagnostic.Message != `GROUP BY "x" is ambiguous` {
+		t.Fatal("ambiguous output alias", err)
+	}
+}
+
+func TestRegexpScalarOuterFromFrame(t *testing.T) {
+	e := New()
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := statement(t, `SELECT v.id,(SELECT (SELECT count(*) FROM regexp_split_to_table(v.s,' ') r(s))) AS n FROM (VALUES(1,'a b'),(2,'c')) v(id,s)`).(*parser.Select)
+	e.mu.Lock()
+	auth, err := e.authorizationLocked(b.op)
+	b.queryAuth = &auth
+	var query *BoundQuery
+	if err == nil {
+		query, err = b.bindSelect(raw, false)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[LogicalNode]bool)
+	from, captured := 0, 0
+	var inspect func(LogicalNode)
+	inspect = func(node LogicalNode) {
+		if node == nil || seen[node] {
+			return
+		}
+		seen[node] = true
+		if n, ok := node.(*functionFromNode); ok {
+			from++
+			if n.frame <= 1 {
+				t.Fatal("function lost its inner lexical frame", n.frame)
+			}
+			for _, call := range n.calls {
+				for _, arg := range functionCallArguments(call) {
+					walkBoundExpression(arg, func(child BoundExpr) {
+						if column, ok := child.(columnExpression); ok {
+							captured++
+							if column.frame != 1 {
+								t.Fatal("outer reference rebound to inner frame", column.frame)
+							}
+						}
+					})
+				}
+			}
+		}
+		queryExpressions(node, func(expr BoundExpr) {
+			walkBoundExpression(expr, func(child BoundExpr) {
+				if subquery, ok := child.(subqueryExpression); ok {
+					inspect(subquery.queryPlan.Root)
+				}
+			})
+		})
+		left, right := queryInputs(node)
+		inspect(left)
+		inspect(right)
+	}
+	inspect(query.Root)
+	if from != 1 || captured != 1 {
+		t.Fatal("missing correlated function argument", from, captured)
+	}
+}
+
+func TestRegexpScalarFilterPlacement(t *testing.T) {
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	b.aggregateClause = "SELECT"
+	b.argumentOwner = argumentWindowOwner{active: true}
+	literal := func(s string) parser.Expr {
+		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
+	}
+	set := nullCountRaw("regexp_split_to_table", literal("a b"), literal(" "))
+	filter := nullCountRaw("regexp_like", set, literal("a"))
+	_, err := b.bindAggregateFilter(parser.AggregateExpr{Name: "count", Filter: filter})
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "set-returning functions are not allowed in FILTER" || diagnostic.Hint != "" {
+		t.Fatal("FILTER lost its expression owner to aggregate arguments", err)
+	}
+	if b.aggregateClause != "SELECT" || b.regexpClause != "" || !b.argumentOwner.active {
+		t.Fatal("FILTER leaked binding context", b.aggregateClause, b.regexpClause, b.argumentOwner)
+	}
+}
+
+func TestRegexpScalarViewPrefix(t *testing.T) {
+	for _, sql := range []string{
+		`SELECT r.x FROM (VALUES('a b')) a(s) CROSS JOIN LATERAL regexp_split_to_table(a.s,' ') r(x)`,
+		`SELECT r.x FROM (VALUES('a b')) a(s) CROSS JOIN ((VALUES('x y')) b(t) CROSS JOIN LATERAL regexp_split_to_table(a.s||b.t,' ') r(x))`,
+	} {
+		t.Run(sql, func(t *testing.T) {
+			e := New()
+			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			b.noParameters = true
+			raw := statement(t, sql).(*parser.Select)
+			e.mu.Lock()
+			auth, err := e.authorizationLocked(b.op)
+			b.queryAuth = &auth
+			var query *BoundQuery
+			if err == nil {
+				query, err = b.bindSelect(raw, false)
+			}
+			e.mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Actual analyzed occurrences and lexical frames, with no query
+			// execution or captured output used as an expected SQL golden.
+			definition := &viewDefinition{
+				query: query, syntax: raw, literals: b.viewLiterals,
+				castUsages: b.viewCastUsages, columns: b.viewColumns,
+				stars: b.viewStars, namespaces: b.viewNamespaces,
+				collations: b.viewCollations,
+			}
+			definition.frames, definition.queries = collectQueryFrames(query.Root)
+			text, err := definition.selectSQL(context.Background(), auth.catalog, viewPresentation{})
+			if err != nil || !strings.Contains(text, `"a"."s"`) {
+				t.Fatal("lost dependent function argument prefix", text, err)
+			}
+			if strings.Contains(sql, "b.t") && !strings.Contains(text, `"b"."t"`) {
+				t.Fatal("lost nested RHS local prefix", text)
+			}
+			public, err := definition.selectSQL(context.Background(), auth.catalog, viewPresentation{deparse: true, pretty: true})
+			if err != nil || !strings.Contains(public, "a.s") || strings.Contains(public, `"a"`) || strings.Contains(public, " AS ") {
+				t.Fatal("public inquiry fell back to Dump bridge aliases", public, err)
+			}
+			if strings.Contains(sql, "b.t") && !strings.Contains(public, "b.t") {
+				t.Fatal("public inquiry lost nested current source names", public)
+			}
+		})
+	}
+}

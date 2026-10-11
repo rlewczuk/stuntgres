@@ -2414,9 +2414,10 @@ coerced preserved operand; FULL uses COALESCE with no physical output origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution retains valid occurrence identities and reanalyzes invalidated
 sources; current data/ACLs stay fresh and eager results survive native Reset/Restore.
-General lateral derived queries and other function FROM remain excluded;
-`string_to_table` alone admits function-only correlation and LATERAL.
-SELECT CTEs, derived SELECT and parenthesized VALUES remain non-lateral operands.
+General lateral derived queries and unrelated function FROM remain excluded;
+the selected `string_to_table` and regexp families admit function-only
+correlation and LATERAL. SELECT CTEs, derived SELECT and parenthesized VALUES
+remain supported non-lateral operands.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make check RUN='^TestReferenceQuery(OuterJoins|Joins)'`;
 independent pinned reference: `make check REFERENCE=1 RUN='^TestReferenceQuery(OuterJoins|Joins)'`.
@@ -2995,7 +2996,7 @@ Existing native join/view predicate boundaries also retain operand demand where
 PostgreSQL may avoid an already-rejected operand. Physical row replacement and
 predicate requalification remain supported; this adds no expression replay.
 Stored views deparse and round-trip through native controls with owned metadata
-and results. Lateral VALUES and additional locking syntax remain excluded.
+and results. LATERAL VALUES and additional locking syntax remain excluded.
 See [VALUES contracts](QUERIES.md#standalone-and-from-values--change-note-changelog).
 Independent pinned reference: `make check REFERENCE=1 RUN='^TestReferenceQueryFromValues'`.
 
@@ -7048,12 +7049,94 @@ The shared provider's 64 MiB checked memory boundary and resource diagnostics
 above apply to both frontends. Hostile patterns can require substantial work:
 use `statement_timeout` or a caller deadline. Cancellation occurs during actual
 compilation/matching and preserves atomic writes and healthy connection reuse.
-No arbitrary locale/nondeterministic provider, adjacent regexp function suite,
-positional TEXT substring or SQL XQuery regex function is introduced. Existing
-JSONPath `like_regex` remains a distinct XQuery flag validation adapter.
+No arbitrary locale/nondeterministic provider, positional TEXT substring or
+SQL XQuery regex function is introduced. The public function suite below uses
+this same matcher; existing JSONPath `like_regex` keeps its distinct XQuery
+flag validation adapter.
 Feature smoke: `make check RUN='^TestReferencePosixFeatureSmoke$'`; pinned mode
 adds `REFERENCE=1`.
 
+
+## Regular-expression functions — change note (changelog)
+
+The exact public suite is `regexp_count`, `regexp_instr`, `regexp_like`,
+`regexp_match`, `regexp_matches`, `regexp_replace`, `regexp_split_to_array` and
+`regexp_split_to_table`; `regexp_substr` and other adjacent functions are not
+included. All released overloads, normal implicit TEXT/INT4 coercion, named
+arguments (including case-sensitive `"N"`), `pg_catalog` qualification and
+function namespace visibility use ordinary binding. Return usages are INT4
+for count/instr, BOOL for like, TEXT for replace/split-to-table, and TEXT[]
+for match/matches/split-to-array. Strict NULL suppresses regex work only after
+all supplied child expressions have been evaluated.
+
+External flags are ordered: `b` and released18.0 `e` select BRE, `q` quotes,
+`i`/`c` select case, `x`/`t` expanded/tight, `n`/`m`/`p`/`w`/`s` select newline
+behavior, and `g` selects global matching/replacement where admitted. Embedded
+`(?e)` selects ERE. Quote mode bypasses embedded option recognition; incompatible
+quote/newline/expanded initial options fail2201B. Unknown flags and invalid
+indexes fail22023; global is rejected by count/instr/like/match/split functions,
+with the released match/replace overload hints where applicable.
+
+Positive start and instr positions count UTF8 characters from the full original
+source, including endoption and numbered subexpression selection. Iteration is
+nonoverlapping; empty matches advance one character and include a terminal
+match once. Captures are immutable owned one-dimensional TEXT[] arrays with
+lower bound1, NULL for nonparticipation and empty TEXT for participation; no
+groups falls back to the whole match. Replacement supports `\\1` through `\\9`,
+`\\&` and `\\\\`, preserves unknown escapes, and honors explicit occurrence over
+`g` (occurrence0 means all). Split discards capture delimiters and suppresses
+zero-width boundary/adjacent matches while retaining fields around real
+delimiters. Original provider collation, checked memory and cancellation
+authorities remain shared; consumer iteration/copy/allocation also participates.
+
+Set target expressions share the existing `string_to_table` expansion owner:
+deepest nested calls first, same-level calls in lockstep with typed NULL padding,
+including mixed string/regexp peers. Bare scalar siblings execute in written
+attempt order, including the terminal attempt; upper scalar wrappers execute
+only for emitted tuples. Group keys expand before grouping, window keys before
+windows, and final target/order expressions after aggregates/windows.
+DISTINCT, ORDER/LIMIT, EXISTS, subqueries, CTEs, set operations, INSERT SELECT and
+single-row INSERT VALUES retain real cardinality. Function FROM supports aliases,
+`ROWS FROM`, ordinality, ordinary joins and left-dependent correlation, including
+references within scalar subqueries. Dependence is relative to each join:
+RIGHT/FULL reject42P10 only for captures of their own left operand, with the
+actual qualifier and written reference position. An internally correlated RHS
+remains independent of an enclosing join; references to an already-visible
+ancestor/comma prefix remain legal inside RIGHT/FULL, including an empty local
+left operand. Only genuinely demanded inherited prefixes enter invocation
+frames; unused prefixes are removed without rebasing ordinary output slots.
+Mixed `ROWS FROM` uses the same closed group owner for `string_to_table`, the two
+selected regexp SRFs and the six selected scalar calls; scalar NULL remains one
+present row. One same-query invocation context carries normalized P+L values and
+provenance while the lexical outer context remains unchanged. Existing string
+placement guards remain provider-specific. Correlated joins, fixed target slots
+and expanding-source lock rechecks have one shared owner, not parallel regexp
+executors.
+SRFs remain illegal in restricted WHERE/HAVING/FILTER/JOIN/LIMIT/OFFSET,
+aggregate/window arguments, CASE/COALESCE, UPDATE/RETURNING, multirow VALUES,
+DDL expressions and window-frame contexts, with released diagnostic placement
+and hints. Target SRFs reject row locking; function sources cannot themselves be
+row-lock targets. Scalar calls compose in existing DML, DEFAULT, table CHECK,
+plain-domain coercion, generated/index/policy, view/materialized-view, deparse/
+remap and native-control replay consumers; no parallel evaluator or persistent
+regex cache is added. Existing non-regexp boundaries remain: array ORDER BY
+fails42883 with the ordering-operator hint, array btree keys fail42704 for the
+missing default opclass, and constrained-domain DDL fails0A000. Array function
+results still support table CHECK/default/generated columns, stored index
+predicates over scalar keys, grouping/equality and unordered result comparison.
+FILTER retains its own placed SRF diagnostic without a LATERAL Hint even inside
+an aggregate call. Supported INSERT/UPDATE RETURNING and existing COUNT windows
+exercise selected SRF restrictions through the shared placement diagnostic;
+other unsupported window providers remain separate native capability limits.
+Catalog/inquiry composition uses admitted pg_attrdef ordinals and
+standalone pg_get_viewdef calls, not new pg_attribute or inquiry-LIKE grammar.
+Correlated function-source deparse resolves captured columns against its lexical
+prefix before RHS construction; nested joins retain genuine inherited offsets.
+Public function-source view inquiry uses current physical names, implicit
+LATERAL classification and PostgreSQL compact/pretty aliases/joins,
+independently of Dump's frozen positional bridge aliases. Ordinary SELECT
+projection/order/DISTINCT analysis stays on the existing shared query path;
+there is no separate regexp set-lifting input/output allocation.
 
 ## Stored generated columns — change note (changelog)
 
@@ -7423,7 +7506,7 @@ CTAS, SELECT INTO, cursors and INSERT SELECT retain these contracts. Virtual nam
 never enter pg_class, persistent storage or native Dump. Stored definitions retain
 WITH syntax and real-object dependencies through rename and native Dump/Restore.
 Recursive/SEARCH/CYCLE, modifying bodies, top-level WITH DML, standalone
-VALUES/TABLE bodies and LATERAL remain excluded.
+VALUES/TABLE bodies and general LATERAL derived sources remain excluded.
 
 Dual-mode family: `RUN='^TestReferenceQueryCTE'`; feature smoke:
 `RUN='^TestReferenceQueryCTEFeatureSmoke$'`. See

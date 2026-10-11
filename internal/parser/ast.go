@@ -1280,6 +1280,7 @@ func singletonArgument(expr Expr) bool {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
 			case "unaccent":
+			case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
 				if !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {

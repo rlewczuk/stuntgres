@@ -63,6 +63,10 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return children(n.args[:]...)
 	case similarSubstringExpression:
 		return children(n.args[:]...)
+	case regexpExpression:
+		return children(n.args...)
+	case regexpSetExpression:
+		return children(n.args...)
 	case nullTestExpression:
 		return plannedVolatility(n.child)
 	case truthTestExpression:

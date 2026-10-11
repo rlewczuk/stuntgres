@@ -17,7 +17,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	independent := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "x,y"), order: &evaluations, index: 0}
 	call := stringSplitMarker(t, b, 1, dependent, stringSplitLiteral(b, ","), stringSplitLiteral(b, "replacement"))
 	peer := stringSplitMarker(t, b, 2, independent, stringSplitLiteral(b, ","))
-	node := &stringTableNode{calls: []stringExpression{call, peer}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	node := &functionFromNode{calls: []BoundExpr{call, peer}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	ordinal, err := sqltype.Integer(bigint, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -32,10 +32,10 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	if physical := queryTreeOccurrences(node, inputs, nil); len(physical) != 0 {
 		t.Fatal("computed function acquired physical identity", physical)
 	}
-	state := &queryState{source: inputs, frame: 1, stringRow: []sqltype.Value{sqltype.String(text, "replacement")}}
-	var cache stringRecheckCache
+	state := &queryState{source: inputs, frame: 1, invocation: &EvalContext{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(text, "replacement")}}}
+	var cache functionRecheckCache
 	defer cache.close()
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope, query: state, stringRecheckCache: &cache}
+	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope, query: state, functionRecheckCache: &cache}
 	scratch := make([]sqltype.Value, width)
 	for range 2 {
 		offset := 0
@@ -51,7 +51,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// A recheck searches later fields rather than testing only the first field.
 	filteredCall := stringSplitMarker(t, b, 3, dependent, stringSplitLiteral(b, ","))
-	filteredNode := &stringTableNode{calls: []stringExpression{filteredCall}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	filteredNode := &functionFromNode{calls: []BoundExpr{filteredCall}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	field := columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	raw := statement(t, "SELECT 'x'='b'").(*parser.Select).Targets[0].(parser.OperatorExpr)
 	predicate, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: field}, comparisonOperand{node: stringSplitLiteral(b, "b")})
@@ -59,7 +59,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 		t.Fatal(err)
 	}
 	filter := &filterNode{querySchema: filteredNode.querySchema, child: filteredNode, predicate: predicate}
-	state.stringRow[0] = sqltype.String(text, "x,b")
+	state.invocation.Row[0] = sqltype.String(text, "x,b")
 	offset := 0
 	scratch = make([]sqltype.Value, queryLockRecheckWidth(filter, inputs))
 	got, present, err := recheckLockedQuery(filter, inputs, nil, &evaluation, scratch, &offset, frozen)
@@ -96,7 +96,7 @@ func TestStringSplitRowMarks(t *testing.T) {
 		}
 	}
 	raw := statement(t, "SELECT string_to_table('a,b',',')").(*parser.Select)
-	function := &stringTableNode{}
+	function := &functionFromNode{}
 	for _, tc := range []struct {
 		name   string
 		node   LogicalNode
@@ -110,7 +110,7 @@ func TestStringSplitRowMarks(t *testing.T) {
 		{"function_expansion", &setProjectNode{child: function}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			project := &projectNode{syntax: raw, child: tc.node, hasTargetStringSet: true}
+			project := &projectNode{syntax: raw, child: tc.node, hasTargetSet: true}
 			err := queryRowLockLegality(project, rowUpdate)
 			if tc.marked != (err != nil) || err != nil && !strings.Contains(err.Error(), "set-returning functions in the target list") {
 				t.Fatal(tc.name, err)

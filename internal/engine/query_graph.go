@@ -48,7 +48,7 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 		}
 	}
 	switch n := node.(type) {
-	case *stringTableNode:
+	case *functionFromNode:
 		for _, call := range n.calls {
 			visit(call)
 		}

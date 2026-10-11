@@ -57,17 +57,20 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 	}
 	// Stage-owned set calls cannot be replaced by outer GROUP keys or folded
 	// into scalars. Their lexical arguments still use the ordinary rewrite.
-	stringCalls := func(old []stringExpression) []stringExpression {
-		var next []stringExpression
+	stringCalls := func(old []BoundExpr) []BoundExpr {
+		var next []BoundExpr
 		for i, call := range old {
-			arguments := args(call.args)
-			if len(arguments) == 0 || &arguments[0] == &call.args[0] {
+			original := functionCallArguments(call)
+			arguments := args(original)
+			if len(arguments) == 0 || &arguments[0] == &original[0] {
 				continue
 			}
 			if next == nil {
-				next = append([]stringExpression(nil), old...)
+				next = append([]BoundExpr(nil), old...)
 			}
-			next[i].args = arguments
+			if err == nil {
+				next[i], err = withFunctionCallArguments(call, arguments)
+			}
 		}
 		if next == nil {
 			return old
@@ -76,7 +79,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 	}
 	var out LogicalNode
 	switch n := node.(type) {
-	case *stringTableNode:
+	case *functionFromNode:
 		calls := stringCalls(n.calls)
 		if changed && err == nil {
 			copy := *n

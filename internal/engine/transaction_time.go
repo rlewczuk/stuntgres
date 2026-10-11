@@ -190,7 +190,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return validateTransactionTime(n) == nil
 	case datetimeSleepExpression:
 		return n.validStored() && closedTransactionTimeDefault(n.arg)
-	case posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression:
+	case posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression, regexpExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

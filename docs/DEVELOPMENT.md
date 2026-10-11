@@ -850,3 +850,57 @@ This migration's original outer300second aggregate deadline and later task-speci
 900 seconds for quickcheck and 1800 seconds for finalcheck.
 
 Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.0 runtime is the compatibility oracle.
+
+## Selected regexp function extension
+
+`sqltype.RegexpPlan` binds exactly eight names and all released signatures;
+immutable plans carry concrete usages/collation and selected formal roles.
+Engine `regexpCall` preserves written argument evaluation order independently
+from canonical slots, so named calls deparse correctly without changing semantic
+grouping identity. Every supplied child evaluates before strict NULL suppresses
+provider work. `RegexpPlan.Evaluate`/`EvaluateSet` share the statement-local
+`PGRegexExecution`; no global regex registry, prepared-program cache or second
+DDL/default evaluator is introduced.
+
+`PGRegexProgram.MatchFrom` searches the original source at a UTF8 byte boundary
+with explicit boolean/whole/capture demand. Start/index conversion, iteration,
+replacement copying, array/set ownership and growth peaks participate in the
+existing checked budget/cancellation authority. Published replacement buffers
+and arrays are invocation-owned; resetting/replacing the active program cannot
+mutate retained query results. Effective collation remains ordinary binding.
+
+Whole demand completes whole-match preference selection instead of taking the
+boolean acceptance shortcut; only capture demand publishes numbered spans.
+Compilation still precedes start-range exhaustion: the terminal character
+position can match empty once, while later starts yield zero/unchanged results
+without suppressing invalid-pattern errors.
+
+Set expressions are never scalar no-ops: their scalar Eval is an internal
+invariant failure. The existing query binder lifts nested/project/group/window/
+order calls into real stages. Function FROM and dependent joins keep the same
+frame, physical lineage, lock/version and eager-detachment protocols; walkers,
+rewriters, retag/remap, stored validation and deparse must cover both expression
+and logical-node variants. Parser grammar is authoritative; root regenerates
+`grammar_gen.go` before verification. Public proof is the intact dual-mode
+`TestReferenceRegexp` union, supplemented by genuine provider/parser/bound-node
+and isolated stage units, never native output as an oracle.
+
+Set lifting first detects actual sets and leaves ordinary/contextual output
+trees untouched, including unknown outputs awaiting destination inference.
+Regexp producer schema validation uses the immutable logical producer schema,
+never a stage schema narrowed by final projection. Single-row INSERT VALUES
+set expansion follows the command-query executor, while multirow SRF placement
+uses its own clause owner and preserves existing aggregate signature priority.
+
+Stored dependent FROM rendering publishes only the already-rendered lexical
+prefix while rendering function arguments, including inherited-prefix offsets
+inside nested RHS joins. It restores the prior frame map before propagating a
+rendering error or publishing the completed join's output slots.
+
+For public pg_get_viewdef frames containing selected FunctionFrom sources, reuse
+the existing presentation identifier, visibility, literal and target authorities:
+physical columns follow current attribute names, only explicit source-column
+aliases print, natural projection labels omit redundant AS, and pretty joins
+use the public layout. Dump continues to use frozen positional bridge aliases.
+The presentation choice is scoped/restored at each lexical query frame.
+

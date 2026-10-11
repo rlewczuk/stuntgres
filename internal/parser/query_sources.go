@@ -190,6 +190,12 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return query(n.Query)
 		case *ValuesQuery:
 			return values(n)
+		case *FunctionFrom:
+			for _, call := range n.Calls {
+				if err := expression(call); err != nil {
+					return err
+				}
+			}
 		case *AliasReference:
 			return from(n.Input, s)
 		case *JoinReference:

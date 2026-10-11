@@ -181,6 +181,7 @@ package parser
 %token <tok> DECLARE CURSOR CLOSE SCROLL HOLD FORWARD BACKWARD ABSOLUTE RELATIVE MOVE
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW MATERIALIZED LEFT RIGHT FULL OUTER
+%token <tok> ORDINALITY
 %token <tok> VIEW_CHECK_WITH
 %token <tok> DELETE
 %token <tok> MERGE MATCHED SOURCE TARGET DO NOTHING
@@ -1995,7 +1996,14 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
  | relation_name '*' { $$=&TableReference{Name:$1} }
  | ONLY relation_name { $$=&TableReference{Name:$2,Only:true} }
  | ONLY '(' relation_name ')' { $$=&TableReference{Name:$3,Only:true} }
- | function_table { $$=$1 }
+ | function_table {
+    n:=$1
+    selected:=true
+    for _,call:=range n.Calls {
+       if !RegexpFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) {selected=false;break}
+    }
+    if selected {$$=&FunctionFrom{Calls:n.Calls,Ordinality:n.Ordinality,Lateral:n.Lateral,Pos:n.Pos}} else {$$=n}
+   }
  | select_with_parens %prec NAME_LIST { if $1.Query.Values!=nil && len($1.Query.Locking)==0 {$$=$1.Query.Values} else {$$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos}} }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {
@@ -2147,6 +2155,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
  | GROUPING | SETS | ROLLUP | CUBE
  | MATERIALIZED
+ | ORDINALITY
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
@@ -2164,6 +2173,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | TRUNCATE | CONTINUE
  | COPY
  | MATCH | PERIOD
+ | ORDINALITY
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | cursor_word
@@ -2184,6 +2194,7 @@ generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | COPY
+ | ORDINALITY | LATERAL
  | EXCLUDE
  | NAMES
  | COLLATION
@@ -2203,6 +2214,7 @@ generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH 
  * GROUPING is dedicated syntax, not an unsupported aggregate provider. */
 bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} else {if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1} }
  | COLLATE { $$=$1 }
+ | LATERAL { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | COLLATION { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }

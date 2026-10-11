@@ -4,7 +4,7 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	row := out.expressions[0]
 	found := false
 	for _, expr := range row {
-		found = found || hasStringSet(expr)
+		found = found || querySetDepth(expr) != 0
 	}
 	if !found {
 		return nil
@@ -28,7 +28,7 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 			partials = append(partials, out.arrayTargets[i])
 		}
 	}
-	root, err := b.lowerStringSets(&singletonNode{}, projection, nil, true)
+	root, err := b.lowerQuerySets(&singletonNode{}, projection, nil, true)
 	if err != nil {
 		return err
 	}

@@ -291,11 +291,14 @@ func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Com
 }
 
 func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExpr, error) {
+	oldRegexp := b.regexpClause
 	if raw.Kind == parser.Coalesce {
 		old := b.stringSetGuard
 		b.stringSetGuard = "COALESCE"
+		b.regexpClause = "COALESCE"
 		defer func() { b.stringSetGuard = old }()
 	}
+	defer func() { b.regexpClause = oldRegexp }()
 	operands := make([]comparisonOperand, len(raw.Args))
 	for i, arg := range raw.Args {
 		o, err := b.comparisonOperand(arg)
@@ -353,9 +356,9 @@ type implicitComparisonOperand struct{ BoundExpr }
 func (implicitComparisonOperand) ExplicitCollation() parser.Position { return parser.Position{} }
 
 func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
-	oldGuard := b.stringSetGuard
-	b.stringSetGuard = "CASE"
-	defer func() { b.stringSetGuard = oldGuard }()
+	oldGuard, oldRegexp := b.stringSetGuard, b.regexpClause
+	b.stringSetGuard, b.regexpClause = "CASE", "CASE"
+	defer func() { b.stringSetGuard, b.regexpClause = oldGuard, oldRegexp }()
 	var test BoundExpr
 	var err error
 	if raw.Test != nil {

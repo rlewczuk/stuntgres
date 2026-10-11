@@ -1017,9 +1017,10 @@ copied outward without mutating source declaration proofs or child frames.
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 ORDER expressions resolve the complete joined namespace.
-General lateral derived queries and other FROM functions remain excluded.
-`string_to_table` admits only function-specific LATERAL; SELECT CTEs, derived SELECT
-queries and parenthesized VALUES remain non-lateral. DELETE USING and UPDATE FROM
+General lateral derived queries and unrelated FROM functions remain excluded.
+The selected `string_to_table` and regexp families admit function-specific
+LATERAL; SELECT CTEs, derived SELECT queries and parenthesized VALUES remain
+supported non-lateral sources. DELETE USING and UPDATE FROM
 consume the same bounded join tree and are described below.
 
 An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
@@ -2056,9 +2057,10 @@ table/whole-join/column/merged-key aliases, derived SELECT, VALUES, supported
 views/catalog relations reuse query binding and execution. Immediate sequence
 USING sources fail with 42809 (`cannot lock rows in sequence`); this reference-kind
 check does not acquire source tuple locks or require source UPDATE privileges. Existing
-FULL-path legality restrictions remain; top-level WITH DELETE, general lateral
-derived queries and other function sources remain excluded. `string_to_table`
-USING sources cannot reference the mutation target.
+FULL-path legality restrictions remain; top-level WITH DELETE, general LATERAL
+derived/VALUES sources and unrelated function sources remain excluded.
+`string_to_table` USING sources cannot reference the mutation target. Selected
+regexp FROM sources use the same shared binder and query stages.
 Internal source ON and derived queries cannot reference the mutation target;
 WHERE and RETURNING resolve the combined namespace. Source aliases hide original
 names, whole-join aliases hide operands, and merged-key aliases expose only keys.
@@ -2526,9 +2528,10 @@ Both backends preserve statement mutation atomicity; sequence draws are nonrollb
 Retained native output survives rollback and Reset/Restore. Persistence includes
 committed live heads/catalog/sequence state, never source captures or output history.
 
-General lateral derived queries/other function FROM, top-level WITH UPDATE,
-row assignments and DEFAULT, and whole-row UPDATE/DELETE records remain excluded;
-INSERT RETURNING is supported.
+General LATERAL derived/VALUES sources and unrelated function FROM, top-level
+WITH UPDATE, row assignments and DEFAULT, and whole-row UPDATE/DELETE records
+remain excluded; INSERT RETURNING is supported. Selected string/regexp
+function FROM sources use the shared binder and query stages.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.
 Quick: `make check RUN='^TestReferenceUpdateFrom'`.
@@ -3511,7 +3514,8 @@ VALUES entries and aliases still participate in ordinary missing-column spelling
 suggestions despite having no physical catalog identity. Rejected references to
 preceding physical or VALUES operands retain inaccessible-entry Detail and the
 observed table/column LATERAL Hint; that diagnostic does not enable correlation
-or LATERAL syntax.
+or LATERAL VALUES/derived syntax. Selected string/regexp function sources instead
+use the bounded shared correlated-source owner; this does not admit lateral VALUES.
 Diagnostic Positions count characters, including multibyte comments, and full
 raw-script parsing precedes effects from any valid prefix.
 
@@ -3545,7 +3549,9 @@ Restore still rejects query INSERT sources before publication, and failed
 Restore leaves the prior engine intact. Eager results own metadata and exported
 cells across subsequent Reset/Restore; public Next does not execute SQL.
 
-Lateral derived queries and other FROM functions remain excluded. SELECT CTEs, SELECT and VALUES compose with
+LATERAL VALUES/derived sources and unrelated FROM functions remain excluded.
+The selected string/regexp sources use the shared FROM dispatcher.
+SELECT CTEs, SELECT and VALUES compose with
 UNION/INTERSECT/EXCEPT; derived SELECT and admitted outer joins use the shared FROM
 dispatcher. Destination assignment follows set-source common typing and dedup,
 while ordinary INSERT VALUES/SELECT retain their existing assignment contexts.
@@ -3676,7 +3682,7 @@ cancellation; borrowed statement captures are owned by the enclosing execution.
 
 Names resolve in the nearest visible lexical frame. Local ambiguity or a local
 qualifier with a missing column cannot fall through to a grandparent. A derived
-FROM item cannot see same-level siblings; lateral derived SELECT remains excluded,
+FROM item cannot see same-level siblings; LATERAL derived SELECT remains excluded,
 but can see a legal enclosing query frame. Aggregate argument ownership follows
 the nearest visible referenced frame, including references through sublinks;
 child-local aggregates are not incorrectly treated as same-level nested calls.
@@ -4289,3 +4295,55 @@ KEY DDL remains bounded rather than simulated; INSERT RETURNING is supported. Th
 `TestReferenceInsertConflictUpdate` family has independently specified native and
 pinned PostgreSQL expectations; [testing](TESTING.md#insert-conflict-update-acceptance)
 separates public capture markers from actual native manager-pending proof.
+
+## Regular-expression function sources — change note (changelog)
+
+The eight selected regexp functions use the normal typed function binder. A
+function FROM item may expose a scalar result (including one NULL row) or the
+set result of `regexp_matches`/`regexp_split_to_table`. Optional relation/column
+aliases and `WITH ORDINALITY` describe computed values with no fabricated
+physical column identity. `ROWS FROM` invokes functions in written order and
+pads shorter results with NULL; separate FROM items retain Cartesian/ordinary
+join semantics. Ordinality is one-based INT8 and restarts per correlated input.
+This closed group also admits mixed `string_to_table`/selected regexp calls.
+An empty peer is padded rather than eliminating a nonempty peer; an all-empty
+group has zero rows. A selected scalar NULL contributes one row before padding.
+
+Preceding FROM columns, including references inside scalar subqueries, supply
+implicit or explicit LATERAL correlation. INNER/CROSS and LEFT joins support
+dependent invocation; LEFT preserves one NULL-extended row for an empty result.
+RIGHT/FULL reject42P10 only when the function captures that join's local left
+operand, retaining the actual offending qualifier and source position. Actual
+ancestor/comma-prefix captures remain legal; internally satisfied RHS captures
+do not make an enclosing join dependent. Independent RIGHT/FULL retain ordinary
+null extension even for an empty left operand. Invocation frames preserve only
+genuinely demanded inherited prefixes, physical tuple provenance, versions and
+pending source marks. Function outputs themselves cannot be locked.
+
+Target SRFs use the existing shared project-set/template owner, not scalar Eval
+or separate provider stages. String and regexp peers zip at each nesting level,
+including nesting in either direction. Fixed marker/scalar slots and written
+attempt order survive execution preflight: bare volatile siblings include the
+terminal attempt, while upper wrappers run only for emitted tuples. Group/window
+key expansion precedes those stages, final target/order expansion follows them,
+and sort/distinct/limit consume the expanded tuples. Ordinary SELECTs stay on the
+existing path without allocating a separate regexp lift/output list.
+Nested calls, same-level lockstep padding, volatile outer siblings, EXISTS,
+derived/CTE/set-operation consumers and single-row INSERT VALUES all preserve
+the specified cardinality. Planning evaluates invariant scalar calls but never
+executes an SRF without a selected input row. Stored views freeze/remap function
+arguments, correlated child frames, namespaces, ordinalities and literal paths
+through existing query walkers/deparse/control replay. General LATERAL
+derived/VALUES and unrelated function-source admission remain excluded.
+
+The shared join reopens a genuinely dependent RHS per left row using one borrowed
+same-query invocation context; lexical outer frames remain distinct. Per-row RHS
+lineage retains actual physical/version and virtual-read identities until normal
+detachment. Invocation-local pending marks are settled through the existing
+owner, and expanding function-source lock rechecks reuse its closed cursor cache.
+
+Selected dual-mode evidence: `make check RUN='^TestReferenceRegexpSet'` and the
+same command with `REFERENCE=1`. See
+[function semantics](DIALECT.md#regular-expression-functions--change-note-changelog)
+and [verification](TESTING.md#regular-expression-function-oracle-and-feature-checks).
+

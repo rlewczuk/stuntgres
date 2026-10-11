@@ -9,6 +9,16 @@ type TableReference struct {
 
 func (*TableReference) fromItem() {}
 
+// FunctionFrom is the selected regexp table-function source. Calls in a ROWS
+// FROM group run in lockstep; distinct FROM items retain ordinary join behavior.
+type FunctionFrom struct {
+	Calls               []FunctionExpr
+	Ordinality, Lateral bool
+	Pos                 Position
+}
+
+func (*FunctionFrom) fromItem() {}
+
 // ValuesQuery is a finite query source, not destination-context INSERT input.
 type ValuesQuery struct {
 	Rows   [][]Expr

@@ -54,9 +54,9 @@ type EvalContext struct {
 	queryProvenance  []int
 	queryRowSource   *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
-	queryCurrentRows   [][]sqltype.Value
-	physicalTable      ObjectRef // Existing generated recipe's containing physical row.
-	stringRecheckCache *stringRecheckCache
+	queryCurrentRows     [][]sqltype.Value
+	physicalTable        ObjectRef // Existing generated recipe's containing physical row.
+	functionRecheckCache *functionRecheckCache
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
@@ -537,6 +537,22 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		return e, changed, nil
+	case regexpExpression:
+		call, changed, err := preflightRegexpCall(c, e.regexpCall, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.regexpCall = call
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, changed, nil
+	case regexpSetExpression:
+		call, changed, err := preflightRegexpCall(c, e.regexpCall, decisiveDefaults)
+		e.regexpCall = call
+		return e, changed, err
 	case likeExpression:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -1282,10 +1298,10 @@ type expressionBinder struct {
 	regclassConcat             bool
 	aggregateClause            string
 	stringSetGuard             string
-	stringFromNamespace        *queryNamespace
 	stringFromForbidden        bool
 	stringSingleInsert         bool
-	queryHasTargetStringSet    bool
+	queryHasTargetSet          bool
+	regexpClause               string
 	aggregates                 []aggregateCall
 	groupingActive             bool
 	groupSets                  [][]int
@@ -1582,6 +1598,24 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	if raw == nil {
 		return nil, fmt.Errorf("stuntgres: missing scalar expression")
 	}
+	defer func() {
+		if bindError != nil || boundResult == nil {
+			return
+		}
+		if policy.context == assignmentContext && !policy.deferAssignment {
+			bindError = rejectRegexpSets(boundResult, "UPDATE", false)
+		}
+		if policy.context == filterContext {
+			clause := b.aggregateClause
+			if clause == "" || clause == "SELECT" {
+				clause = "WHERE"
+			}
+			bindError = rejectRegexpSets(boundResult, clause, false)
+		}
+		if bindError != nil {
+			boundResult = nil
+		}
+	}()
 	if b.partitionConsumer != "" {
 		switch r := raw.(type) {
 		case parser.ColumnExpr:

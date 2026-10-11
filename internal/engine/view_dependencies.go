@@ -490,7 +490,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					}
 				}
 			}
-		case *stringTableNode:
+		case *functionFromNode:
 			width := len(n.calls)
 			if n.ordinality {
 				width++
@@ -499,7 +499,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				return fmt.Errorf("stuntgres: invalid stored string function frame")
 			}
 			for i, call := range n.calls {
-				if call.plan.Name() != "string_to_table" || call.ResultUsage() != n.Schema()[i].Usage {
+				if !validFunctionSourceCall(call) || call.ResultUsage() != n.Schema()[i].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string function usage")
 				}
 			}
@@ -512,24 +512,24 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				n.scalarSlots != nil && len(n.scalarSlots) != len(n.scalars) {
 				return fmt.Errorf("stuntgres: invalid stored string set frame")
 			}
-			if err := validateStringSetSteps(n.template.steps, len(n.template.origins), len(n.template.scalars)); err != nil {
+			if err := validateQuerySetSteps(n.template.steps, len(n.template.origins), len(n.template.scalars)); err != nil {
 				return err
 			}
-			if err := validateStringSetSteps(n.steps, len(n.calls), len(n.scalars)); err != nil {
+			if err := validateQuerySetSteps(n.steps, len(n.calls), len(n.scalars)); err != nil {
 				return err
 			}
-			if err := validateStringSetStageOrder(n.template.steps, n.steps, n.callSlots, n.scalarSlots, len(n.scalars)); err != nil {
+			if err := validateQuerySetStageOrder(n.template.steps, n.steps, n.callSlots, n.scalarSlots, len(n.scalars)); err != nil {
 				return err
 			}
 			base := n.baseWidth
 			for i, original := range n.template.origins {
-				if !isStringSet(original) || original.ResultUsage() != n.Schema()[base+i].Usage {
+				if !isQuerySet(original) || original.ResultUsage() != n.Schema()[base+i].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string marker layout")
 				}
 			}
 			for i, scalar := range n.template.scalars {
 				request := n.template.scalarRequests[i]
-				if request < 0 || request >= len(n.template.expressions) || scalar == nil || isStringSet(scalar) || n.template.expressions[request] == nil || isStringSet(n.template.expressions[request]) || scalar.SourcePosition() != n.template.expressions[request].SourcePosition() || scalar.ResultUsage() != n.template.expressions[request].ResultUsage() {
+				if request < 0 || request >= len(n.template.expressions) || scalar == nil || isQuerySet(scalar) || n.template.expressions[request] == nil || isQuerySet(n.template.expressions[request]) || scalar.SourcePosition() != n.template.expressions[request].SourcePosition() || scalar.ResultUsage() != n.template.expressions[request].ResultUsage() {
 					return fmt.Errorf("stuntgres: invalid stored string scalar owner")
 				}
 				if scalar == nil || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+i].Usage {
@@ -551,17 +551,17 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 						return fmt.Errorf("stuntgres: duplicate stored string call slot")
 					}
 				}
-				if call.plan.Name() != "string_to_table" || call.ResultUsage() != n.Schema()[base+slot].Usage {
+				if !validFunctionSourceCall(call) || call.ResultUsage() != n.Schema()[base+slot].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string set usage")
 				}
 			}
 			for i, scalar := range n.scalars {
-				slot := stringSetScalarSlot(n.scalarSlots, i)
-				if slot < 0 || slot >= len(n.template.scalars) || scalar == nil || stringSetDepth(scalar) != 0 || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+slot].Usage || scalar.SourcePosition() != n.template.scalars[slot].SourcePosition() {
+				slot := querySetScalarSlot(n.scalarSlots, i)
+				if slot < 0 || slot >= len(n.template.scalars) || scalar == nil || querySetDepth(scalar) != 0 || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+slot].Usage || scalar.SourcePosition() != n.template.scalars[slot].SourcePosition() {
 					return fmt.Errorf("stuntgres: invalid stored string scalar usage")
 				}
 				for previous := range i {
-					if stringSetScalarSlot(n.scalarSlots, previous) == slot {
+					if querySetScalarSlot(n.scalarSlots, previous) == slot {
 						return fmt.Errorf("stuntgres: duplicate stored string scalar slot")
 					}
 				}

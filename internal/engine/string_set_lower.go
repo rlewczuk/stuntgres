@@ -5,48 +5,48 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type stringSetSlot struct {
+type querySetSlot struct {
 	original  BoundExpr
 	column    BoundExpr
 	scheduled bool // The owner reads its reserved slot only for an active scalar event.
 }
 
-func stringSetDepth(expr BoundExpr) int {
+func querySetDepth(expr BoundExpr) int {
 	depth := 0
 	boundExpressionChildren(expr, func(child BoundExpr) {
-		if d := stringSetDepth(child); d > depth {
+		if d := querySetDepth(child); d > depth {
 			depth = d
 		}
 	})
-	if isStringSet(expr) {
+	if isQuerySet(expr) {
 		depth++
 	}
 	return depth
 }
-func sameStringOccurrence(a, b BoundExpr) bool {
-	return isStringSet(a) && isStringSet(b) && a.SourcePosition() == b.SourcePosition()
+func sameQuerySetOccurrence(a, b BoundExpr) bool {
+	return isQuerySet(a) && isQuerySet(b) && isStringSet(a) == isStringSet(b) && a.SourcePosition() == b.SourcePosition()
 }
 
 // Requests identify this clause's required occurrences. Companions share only
 // already resolved occurrences; their unrelated SRFs remain for later stages.
-func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExpr, companions [][]BoundExpr, attempts bool, templateRoots ...[]BoundExpr) (LogicalNode, error) {
-	maxDepth, scalarUpper := stringSetProjectionDepth(requests)
+func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr, companions [][]BoundExpr, attempts bool, templateRoots ...[]BoundExpr) (LogicalNode, error) {
+	maxDepth, scalarUpper := querySetProjectionDepth(requests)
 	if maxDepth == 0 {
 		return root, nil
 	}
 	frame := b.frameID()
-	template := &stringSetTemplate{group: &frame, expressions: append([]BoundExpr(nil), requests...), attempts: attempts}
+	template := &querySetTemplate{group: &frame, expressions: append([]BoundExpr(nil), requests...), attempts: attempts}
 	if len(templateRoots) != 0 {
 		template.expressions = append([]BoundExpr(nil), templateRoots[0]...)
 	}
 	for level := range maxDepth {
 		for _, expr := range requests {
 			walkBoundExpression(expr, func(e BoundExpr) {
-				if !isStringSet(e) || stringSetDepth(e) != level+1 {
+				if !isQuerySet(e) || querySetDepth(e) != level+1 {
 					return
 				}
 				for _, previous := range template.origins {
-					if sameStringOccurrence(e, previous) {
+					if sameQuerySetOccurrence(e, previous) {
 						return
 					}
 				}
@@ -56,7 +56,7 @@ func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExp
 	}
 	if attempts {
 		for i, expr := range requests {
-			if !isStringSet(expr) && expr.ResultUsage().Type != nil {
+			if !isQuerySet(expr) && expr.ResultUsage().Type != nil {
 				template.scalars = append(template.scalars, expr)
 				template.scalarRequests = append(template.scalarRequests, i)
 			}
@@ -65,15 +65,15 @@ func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExp
 	for request, expression := range requests {
 		for i, scalarRequest := range template.scalarRequests {
 			if request == scalarRequest {
-				template.steps = append(template.steps, stringSetStep{kind: stringSetScalarStep, index: i})
+				template.steps = append(template.steps, querySetStep{kind: querySetScalarStep, index: i})
 			}
 		}
 		walkBoundExpression(expression, func(marker BoundExpr) {
 			for i, original := range template.origins {
-				if !sameStringOccurrence(marker, original) {
+				if !sameQuerySetOccurrence(marker, original) {
 					continue
 				}
-				step := stringSetStep{kind: stringSetCallStep, index: i}
+				step := querySetStep{kind: querySetCallStep, index: i}
 				for _, previous := range template.steps {
 					if previous == step {
 						return
@@ -97,9 +97,9 @@ func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExp
 		return columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: base + slot}
 	}
 	rewrite := func(expr BoundExpr, sql99 bool, beforeDepth int) (BoundExpr, error) {
-		return b.mapStringStage(expr, func(e BoundExpr) (BoundExpr, bool, error) {
+		return b.mapQuerySetStage(expr, func(e BoundExpr) (BoundExpr, bool, error) {
 			for i, original := range template.origins {
-				if (sameStringOccurrence(e, original) || sql99 && isStringSet(e) && b.sameGroupExpression(e, original)) && stringSetDepth(e) < beforeDepth {
+				if (sameQuerySetOccurrence(e, original) || sql99 && isQuerySet(e) && b.sameGroupExpression(e, original)) && querySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
 				}
 			}
@@ -110,11 +110,11 @@ func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExp
 		node := &setProjectNode{child: root, querySchema: schema, frame: b.frameID(), template: template,
 			baseWidth: base, markerWidth: len(template.origins)}
 		for i, original := range template.origins {
-			if stringSetDepth(original) != level+1 {
+			if querySetDepth(original) != level+1 {
 				continue
 			}
-			call := original.(stringExpression)
-			args := append([]BoundExpr(nil), call.args...)
+			call := original
+			args := append([]BoundExpr(nil), functionCallArguments(call)...)
 			for j, arg := range args {
 				var err error
 				args[j], err = rewrite(arg, false, level+1)
@@ -122,7 +122,10 @@ func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExp
 					return nil, err
 				}
 			}
-			call.args = args
+			call, err := withFunctionCallArguments(call, args)
+			if err != nil {
+				return nil, err
+			}
 			node.calls = append(node.calls, call)
 			node.callSlots = append(node.callSlots, i)
 		}
@@ -132,19 +135,19 @@ func (b *expressionBinder) lowerStringSets(root LogicalNode, requests []BoundExp
 				if err != nil {
 					return nil, err
 				}
-				if stringSetDepth(effective) == 0 {
+				if querySetDepth(effective) == 0 {
 					node.appendScalar(effective, i, len(template.scalars))
 				}
 			}
 		}
-		node.steps = stringSetStageSteps(template.steps, node.callSlots, node.scalarSlots, len(node.scalars))
+		node.steps = querySetStageSteps(template.steps, node.callSlots, node.scalarSlots, len(node.scalars))
 		root = node
 	}
 	owner := root.(*setProjectNode)
 	for i, expr := range requests {
 		cached := false
 		for local := range owner.scalars {
-			scalar := stringSetScalarSlot(owner.scalarSlots, local)
+			scalar := querySetScalarSlot(owner.scalarSlots, local)
 			if template.scalarRequests[scalar] == i {
 				requests[i] = column(template.scalars[scalar], len(template.origins)+scalar)
 				cached = true
@@ -184,7 +187,7 @@ func replaceStringSortExpressions(keys []sortKey, expressions []BoundExpr) {
 	}
 }
 
-func preflightStringSet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
+func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	if n.template == nil {
 		return n, nil
 	}
@@ -204,17 +207,17 @@ func preflightStringSet(c *EvalContext, n *setProjectNode) (LogicalNode, error) 
 	for _, root := range roots {
 		walkBoundExpression(root, func(marker BoundExpr) {
 			for i, original := range template.origins {
-				if sameStringOccurrence(marker, original) {
+				if sameQuerySetOccurrence(marker, original) {
 					live[i] = marker
 				}
 			}
 		})
 	}
-	maxDepth, scalarUpper := stringSetProjectionDepth(roots)
+	maxDepth, scalarUpper := querySetProjectionDepth(roots)
 	if !template.attempts {
 		maxDepth = 0
 		for _, marker := range live {
-			maxDepth = max(maxDepth, stringSetDepth(marker))
+			maxDepth = max(maxDepth, querySetDepth(marker))
 		}
 	}
 	base := n.child
@@ -239,7 +242,7 @@ func preflightStringSet(c *EvalContext, n *setProjectNode) (LogicalNode, error) 
 		next, _, err := mapBoundExpression(c.catalog, expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
 			func(root LogicalNode) (LogicalNode, error) { return root, nil }, func(e BoundExpr) (BoundExpr, bool, error) {
 				for i, original := range template.origins {
-					if sameStringOccurrence(e, original) && stringSetDepth(e) < beforeDepth {
+					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil
 					}
 				}
@@ -247,7 +250,7 @@ func preflightStringSet(c *EvalContext, n *setProjectNode) (LogicalNode, error) 
 			})
 		return next, err
 	}
-	bindings := make([]stringSetSlot, len(template.scalars))
+	bindings := make([]querySetSlot, len(template.scalars))
 	for i, original := range template.scalars {
 		request := template.scalarRequests[i]
 		if request < 0 || request >= len(roots) {
@@ -261,32 +264,35 @@ func preflightStringSet(c *EvalContext, n *setProjectNode) (LogicalNode, error) 
 		if err != nil {
 			return nil, err
 		}
-		scheduled := !scalarUpper && stringSetDepth(effective) == 0
+		scheduled := !scalarUpper && querySetDepth(effective) == 0
 		if !scalarUpper && !scheduled {
 			effective, err = rewrite(roots[request], maxDepth+1)
 			if err != nil {
 				return nil, err
 			}
 		}
-		bindings[i] = stringSetSlot{original: effective, column: column(original, len(template.origins)+i), scheduled: scheduled}
+		bindings[i] = querySetSlot{original: effective, column: column(original, len(template.origins)+i), scheduled: scheduled}
 	}
 	root := base
 	for level := range max(1, maxDepth) {
 		node := &setProjectNode{child: root, querySchema: n.querySchema, frame: n.frame,
 			baseWidth: n.baseWidth, markerWidth: n.markerWidth}
 		for i, marker := range live {
-			if marker == nil || stringSetDepth(marker) != level+1 {
+			if marker == nil || querySetDepth(marker) != level+1 {
 				continue
 			}
-			call := marker.(stringExpression)
-			args := append([]BoundExpr(nil), call.args...)
+			call := marker
+			args := append([]BoundExpr(nil), functionCallArguments(call)...)
 			for j, arg := range args {
 				args[j], err = rewrite(arg, level+1)
 				if err != nil {
 					return nil, err
 				}
 			}
-			call.args = args
+			call, err := withFunctionCallArguments(call, args)
+			if err != nil {
+				return nil, err
+			}
 			node.calls = append(node.calls, call)
 			node.callSlots = append(node.callSlots, i)
 		}
@@ -298,7 +304,7 @@ func preflightStringSet(c *EvalContext, n *setProjectNode) (LogicalNode, error) 
 				}
 			}
 		}
-		node.steps = stringSetStageSteps(template.steps, node.callSlots, node.scalarSlots, len(node.scalars))
+		node.steps = querySetStageSteps(template.steps, node.callSlots, node.scalarSlots, len(node.scalars))
 		root = node
 	}
 	return root, nil
@@ -320,24 +326,24 @@ func (n *setProjectNode) appendScalar(expression BoundExpr, candidate, candidate
 	n.scalars = append(n.scalars, expression)
 }
 
-func stringSetScalarSlot(slots []int, index int) int {
+func querySetScalarSlot(slots []int, index int) int {
 	if slots == nil {
 		return index
 	}
 	return slots[index]
 }
 
-func stringSetLocalStep(step stringSetStep, callSlots, scalarSlots []int, scalars int) (stringSetStep, bool) {
+func stringSetLocalStep(step querySetStep, callSlots, scalarSlots []int, scalars int) (querySetStep, bool) {
 	slots := callSlots
 	switch step.kind {
-	case stringSetCallStep:
-	case stringSetScalarStep:
+	case querySetCallStep:
+	case querySetScalarStep:
 		if scalarSlots == nil {
 			return step, step.index >= 0 && step.index < scalars
 		}
 		slots = scalarSlots
 	default:
-		return stringSetStep{}, false
+		return querySetStep{}, false
 	}
 	for i, slot := range slots {
 		if slot == step.index {
@@ -345,11 +351,11 @@ func stringSetLocalStep(step stringSetStep, callSlots, scalarSlots []int, scalar
 			return step, true
 		}
 	}
-	return stringSetStep{}, false
+	return querySetStep{}, false
 }
 
-func stringSetStageSteps(original []stringSetStep, callSlots, scalarSlots []int, scalars int) []stringSetStep {
-	steps := make([]stringSetStep, 0, len(callSlots)+scalars)
+func querySetStageSteps(original []querySetStep, callSlots, scalarSlots []int, scalars int) []querySetStep {
+	steps := make([]querySetStep, 0, len(callSlots)+scalars)
 	for _, step := range original {
 		if local, present := stringSetLocalStep(step, callSlots, scalarSlots, scalars); present {
 			steps = append(steps, local)
@@ -358,15 +364,15 @@ func stringSetStageSteps(original []stringSetStep, callSlots, scalarSlots []int,
 	return steps
 }
 
-func validateStringSetSteps(steps []stringSetStep, calls, scalars int) error {
+func validateQuerySetSteps(steps []querySetStep, calls, scalars int) error {
 	if len(steps) != calls+scalars {
 		return fmt.Errorf("stuntgres: incomplete string set schedule")
 	}
 	for i, step := range steps {
 		width := calls
 		switch step.kind {
-		case stringSetCallStep:
-		case stringSetScalarStep:
+		case querySetCallStep:
+		case querySetScalarStep:
 			width = scalars
 		default:
 			return fmt.Errorf("stuntgres: invalid string set schedule kind")
@@ -383,7 +389,7 @@ func validateStringSetSteps(steps []stringSetStep, calls, scalars int) error {
 	return nil
 }
 
-func validateStringSetStageOrder(original, executable []stringSetStep, callSlots, scalarSlots []int, scalars int) error {
+func validateQuerySetStageOrder(original, executable []querySetStep, callSlots, scalarSlots []int, scalars int) error {
 	position := 0
 	for _, original := range original {
 		step, present := stringSetLocalStep(original, callSlots, scalarSlots, scalars)
@@ -401,13 +407,13 @@ func validateStringSetStageOrder(original, executable []stringSetStep, callSlots
 	return nil
 }
 
-func stringSetProjectionDepth(expressions []BoundExpr) (int, bool) {
+func querySetProjectionDepth(expressions []BoundExpr) (int, bool) {
 	depth, upper := 0, false
 	for _, expression := range expressions {
-		current := stringSetDepth(expression)
+		current := querySetDepth(expression)
 		if current > depth {
-			depth, upper = current, !isStringSet(expression)
-		} else if current > 0 && current == depth && !isStringSet(expression) {
+			depth, upper = current, !isQuerySet(expression)
+		} else if current > 0 && current == depth && !isQuerySet(expression) {
 			upper = true
 		}
 	}
@@ -416,7 +422,7 @@ func stringSetProjectionDepth(expressions []BoundExpr) (int, bool) {
 
 // Only the current owner's direct scalar roots or reserved scalar references
 // change ownership. Child query frames and unrelated scalar subexpressions do not.
-func stringScalarOwner(child LogicalNode, expression BoundExpr) (BoundExpr, bool) {
+func queryScalarOwner(child LogicalNode, expression BoundExpr) (BoundExpr, bool) {
 	for child != nil {
 		if node, ok := child.(*setProjectNode); ok {
 			for _, binding := range node.scalarBindings {
@@ -455,10 +461,10 @@ func stringScalarOwner(child LogicalNode, expression BoundExpr) (BoundExpr, bool
 // A demanded level brings its peers and their lower dependencies, not unrelated
 // higher target levels. Templates retain complete scalar roots so simplification
 // can erase a peer's occurrence rather than making its extracted marker live.
-func stringSetPeerClosure(requests []BoundExpr, companions [][]BoundExpr) ([]BoundExpr, []BoundExpr) {
+func querySetPeerClosure(requests []BoundExpr, companions [][]BoundExpr) ([]BoundExpr, []BoundExpr) {
 	depth := 0
 	for _, expression := range requests {
-		depth = max(depth, stringSetDepth(expression))
+		depth = max(depth, querySetDepth(expression))
 	}
 	if depth == 0 {
 		return requests, nil
@@ -468,7 +474,7 @@ func stringSetPeerClosure(requests []BoundExpr, companions [][]BoundExpr) ([]Bou
 		templates = append(templates, expressions...)
 		for _, expression := range expressions {
 			walkBoundExpression(expression, func(marker BoundExpr) {
-				if isStringSet(marker) && stringSetDepth(marker) <= depth {
+				if isQuerySet(marker) && querySetDepth(marker) <= depth {
 					requests = append(requests, marker)
 				}
 			})

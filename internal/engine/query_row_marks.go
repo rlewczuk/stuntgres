@@ -130,6 +130,11 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 			if alias != "" {
 				targets = append(targets, target{name: alias})
 			}
+		case *parser.FunctionFrom:
+			if alias == "" {
+				alias = n.Calls[0].Name.Parts[len(n.Calls[0].Name.Parts)-1].Text
+			}
+			targets = append(targets, target{name: alias, function: true})
 		case *parser.DerivedQuery:
 			var selected []int
 			childTargets, _ := queryLockTargets(n.Query.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, virtual...)
@@ -185,6 +190,9 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 					continue
 				}
 				found = true
+				if target.function {
+					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
+				}
 				if target.cte {
 					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a WITH query", name.Parts[0].Pos)
 				}

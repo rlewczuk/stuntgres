@@ -80,6 +80,25 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			key = projection[ordinal]
 		} else {
 			key, err = b.bind(item.Expr, expressionPolicy{context: projectionContext})
+			// GROUP BY prefers an input column, unlike ORDER BY. Only a
+			// missing bare column can fall back to a SELECT output alias.
+			if column, ok := item.Expr.(parser.ColumnExpr); ok && len(column.Name.Parts) == 1 {
+				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42703" {
+					output := -1
+					for i, name := range names {
+						if name != column.Name.Parts[0].Text {
+							continue
+						}
+						if output >= 0 && !b.sameQueryTarget(projection[output], projection[i]) {
+							return out, expressionError("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
+						}
+						output = i
+					}
+					if output >= 0 {
+						key, err = projection[output], nil
+					}
+				}
+			}
 		}
 		if err != nil {
 			return out, err

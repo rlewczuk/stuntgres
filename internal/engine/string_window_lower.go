@@ -9,8 +9,8 @@ func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boun
 		}
 	}
 	originalWidth := len(requests)
-	requests, templates := stringSetPeerClosure(requests, companions)
-	root, err := b.lowerStringSets(root, requests, companions, false, templates)
+	requests, templates := querySetPeerClosure(requests, companions)
+	root, err := b.lowerQuerySets(root, requests, companions, false, templates)
 	requests = requests[:originalWidth]
 	if err != nil {
 		return nil, err

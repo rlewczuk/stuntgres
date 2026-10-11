@@ -44,6 +44,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
 	previous, previousFrame, previousSimple, previousNamespace := renderer.query, renderer.frame, renderer.simple, renderer.namespace
+	previousFunctionSources := renderer.functionSources
 	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.frame
 	renderer.namespace = len(renderer.namespaces)
 	if frame, ok := renderer.renderFrames[project.frame]; ok {
@@ -52,10 +53,12 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	renderer.depth++
 	defer func() {
 		renderer.query, renderer.frame, renderer.simple, renderer.namespace = previous, previousFrame, previousSimple, previousNamespace
+		renderer.functionSources = previousFunctionSources
 		renderer.depth--
 	}()
 	presentation := renderer.presentation
 	presentation.columns = columns
+	renderer.functionSources = presentation.deparse && viewHasFunctionSource(s.From)
 	_, renderer.simple = s.From.(*parser.TableReference)
 	renderer.simple = renderer.simple && (presentation.deparse || renderer.currentNames)
 	if table, ok := s.From.(*parser.TableReference); ok && viewCTETable(viewFromRoot(project), table) != nil {
@@ -159,12 +162,16 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	}
 	var from string
 	var setSourceColumns []viewRenderColumn
+	var functionSourceColumns []viewRenderColumn
 	if s.From != nil {
 		source, err := renderer.fromSQL(ctx, catalog, s.From)
 		if err != nil {
 			return "", err
 		}
 		from = source.text
+		if renderer.functionSources {
+			functionSourceColumns = source.columns
+		}
 		if setOperand && renderer.simple {
 			root, ok := source.root.(*sourceNode)
 			if !ok {
@@ -227,6 +234,14 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 						natural = name
 						break
 					}
+				}
+			}
+		}
+		if renderer.functionSources {
+			for _, column := range functionSourceColumns {
+				if column.slot >= 0 && targets[i] == renderer.slots[viewFromRoot(v.query.Root)][column.slot] {
+					natural = presentation.identifier(column.name)
+					break
 				}
 			}
 		}

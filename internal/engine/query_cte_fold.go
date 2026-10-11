@@ -206,11 +206,11 @@ func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame
 		return node, false, nil
 	}
 	switch n := node.(type) {
-	case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode, *filterNode:
+	case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode, *filterNode, *functionFromNode:
 		return &filterNode{querySchema: node.Schema(), child: node, predicate: predicate}, true, nil
-	case *windowNode:
-		// Filter the completed window rows, not its input: row_number and
-		// peer/partition frames must retain the definition's original members.
+	case *windowNode, *setProjectNode:
+		// Filter completed stage rows: windows and set expansion must retain
+		// the definition's original input and cardinality/error demand.
 		return &filterNode{querySchema: node.Schema(), child: node, predicate: predicate}, true, nil
 	case *sortNode:
 		child, moved, err := pushCTEInput(view, n.child, predicate, frame)

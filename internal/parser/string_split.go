@@ -5,7 +5,8 @@ func stringSplitFunction(name string) bool {
 }
 
 // FunctionTable retains ordinary SQL spelling and lexical argument ownership.
-// Only string_to_table is executable as a table source.
+// Binding admits only string_to_table and the eight selected regexp functions;
+// all-selected regexp syntax retains FunctionFrom, while mixed groups use this AST.
 type FunctionTable struct {
 	Calls                         []FunctionExpr
 	Ordinality, Lateral, RowsFrom bool

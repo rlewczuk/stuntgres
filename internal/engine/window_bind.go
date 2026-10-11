@@ -599,28 +599,25 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 	if len(b.windowCalls) == 0 {
 		return root, nil
 	}
-	calls := make([]windowCall, 0, len(b.windowCalls))
-	specs := make([]boundWindowSpec, 0, len(b.windowCalls))
-	indices := make([]int, 0, len(b.windowCalls))
-	schema := append([]ColumnDescriptor(nil), root.Schema()...)
-	for _, call := range b.windowCalls {
+	preparedCalls := append([]windowCall(nil), b.windowCalls...)
+	for i, call := range preparedCalls {
 		spec := call.spec
+		spec.partition = append([]BoundExpr(nil), spec.partition...)
+		spec.order = append([]sortKey(nil), spec.order...)
 		if grouped {
-			spec.partition = append([]BoundExpr(nil), spec.partition...)
-			spec.order = append([]sortKey(nil), spec.order...)
-			for j, expr := range spec.partition {
-				var err error
-				spec.partition[j], err = b.rewriteGroup(expr, keys)
+			for j, key := range spec.partition {
+				next, err := b.rewriteGroup(key, keys)
 				if err != nil {
 					return nil, err
 				}
+				spec.partition[j] = next
 			}
 			for j, key := range spec.order {
-				var err error
-				spec.order[j].expression, err = b.rewriteGroup(key.expression, keys)
+				next, err := b.rewriteGroup(key.expression, keys)
 				if err != nil {
 					return nil, err
 				}
+				spec.order[j].expression = next
 			}
 			var err error
 			if spec.frame.start.offset != nil {
@@ -636,6 +633,15 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 				}
 			}
 		}
+		preparedCalls[i].spec = spec
+	}
+	var err error
+	calls := make([]windowCall, 0, len(b.windowCalls))
+	specs := make([]boundWindowSpec, 0, len(b.windowCalls))
+	indices := make([]int, 0, len(b.windowCalls))
+	schema := append([]ColumnDescriptor(nil), root.Schema()...)
+	for _, call := range preparedCalls {
+		spec := call.spec
 		index := -1
 		for j, other := range specs {
 			if b.sameWindowSpec(spec, other) {
@@ -665,7 +671,6 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), NullabilityKnown: true})
 	}
 	originalWidth := len(root.Schema())
-	var err error
 	root, err = b.lowerStringWindowSpecs(root, specs, stringCompanions)
 	if err != nil {
 		return nil, err

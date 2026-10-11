@@ -377,6 +377,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	if b.queryRowDiagnosticMode != 0 {
 		suffix := ""
+		for _, expression := range projection {
+			if containsRegexpSet(expression) {
+				suffix = "set-returning functions in the target list"
+				break
+			}
+		}
 		switch {
 		case s.Distinct != nil:
 			suffix = "DISTINCT clause"
@@ -388,7 +394,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			suffix = "aggregate functions"
 		case len(b.windowCalls) != 0:
 			suffix = "window functions"
-		case b.queryHasTargetStringSet:
+		case b.queryHasTargetSet:
 			suffix = "set-returning functions in the target list"
 		}
 		if suffix != "" {
@@ -401,7 +407,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	if grouped {
 		runtimeKeys := append([]BoundExpr(nil), keys...)
-		root, err = b.lowerStringSets(root, runtimeKeys, nil, false)
+		root, err = b.lowerQuerySets(root, runtimeKeys, nil, false)
 		if err != nil {
 			return nil, err
 		}
@@ -450,7 +456,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return nil, err
 	}
 	if plainDistinct {
-		root, err = b.lowerStringSets(root, projection, nil, true)
+		root, err = b.lowerQuerySets(root, projection, nil, true)
 		if err != nil {
 			return nil, err
 		}
@@ -466,8 +472,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	earlySets := append(stringSortExpressions(order), stringSortExpressions(on)...)
 	earlyWidth := len(earlySets)
-	earlySets, earlyTemplates := stringSetPeerClosure(earlySets, [][]BoundExpr{projection})
-	root, err = b.lowerStringSets(root, earlySets, [][]BoundExpr{projection}, false, earlyTemplates)
+	earlySets, earlyTemplates := querySetPeerClosure(earlySets, [][]BoundExpr{projection})
+	root, err = b.lowerQuerySets(root, earlySets, [][]BoundExpr{projection}, false, earlyTemplates)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +490,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if bounds != nil {
 		bounds.finishTies(root)
 	}
-	root, err = b.lowerStringSets(root, projection, nil, true)
+	root, err = b.lowerQuerySets(root, projection, nil, true)
 	if err != nil {
 		return nil, err
 	}
@@ -550,7 +556,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.frame.end.offset)
 		}
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetStringSet: b.queryHasTargetStringSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {

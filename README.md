@@ -1957,9 +1957,9 @@ local one-row input. Full child binding/admission remains independent of
 runtime demand; eligible EXISTS may discard target-only output (see the linked
 eligibility contract). Scalar cardinality,
 NULL/empty reductions, coherent mutation consumers and stored-view dependencies
-retain their PostgreSQL contracts. Only the selected `string_to_table` family
-adds function FROM and function-only LATERAL; general lateral derived queries
-and other table functions remain excluded.
+retain their PostgreSQL contracts. The selected `string_to_table` and regexp
+families admit function FROM and function-only LATERAL; general lateral derived
+queries and unrelated table functions remain excluded.
 Nonrecursive SELECT CTEs use the same query pipeline.
 Direct/prepared reference cases independently specify scalar NULL-left IN/NOT IN
 on nonempty input and SOME empty/NULL reductions.
@@ -2209,7 +2209,23 @@ return empty TEXT. It uses effective argument collation, unlike the three-TEXT
 SQL wrapper. Both frontends share the checked execution-local PostgreSQL regex
 provider, including multiple captures, backreferences and variable-width
 lookaround. Use `statement_timeout` or a caller deadline for hostile patterns.
-SQL XQuery regex functions and other public regex functions are not added.
+Eight public PostgreSQL18 regular-expression functions are supported:
+`regexp_count`, `regexp_instr`, `regexp_like`, `regexp_match`, `regexp_matches`,
+`regexp_replace`, `regexp_split_to_array` and `regexp_split_to_table`.
+All released overloads share the same provider; captures are owned `TEXT[]`
+values, and start/index arguments count UTF8 characters without slicing away
+anchor/lookbehind context. The two set functions compose with `string_to_table`
+through one shared target/FROM owner, including mixed lockstep peers, nested
+expansion, `ROWS FROM`, `WITH ORDINALITY` and implicit/explicit LATERAL.
+Bare scalar attempt timing, typed padding, lexical frames and lock rechecks
+retain their distinct contracts. See [function details](docs/DIALECT.md#regular-expression-functions--change-note-changelog).
+`regexp_substr`, SQL XQuery regex functions and general LATERAL derived/VALUES
+sources remain excluded.
+Existing non-regexp array ordering/opclass and constrained-domain DDL limits
+remain explicit; array-valued regex results retain table/default/generated/
+CHECK, grouping, scalar-key index-predicate and unordered-query consumers.
+Function-suite smoke: `make check RUN='^TestReferenceRegexpFeatureSmoke$'`;
+the pinned counterpart adds `REFERENCE=1`.
 Feature smoke: `make check RUN='^TestReferencePosixFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
 
@@ -2220,7 +2236,8 @@ outputs with independent common typing (unknown-only becomes TEXT). Duplicate
 bags, local ordering/counts, inner/cross joins, INSERT SELECT and stored views
 share existing binding, execution, metadata and native replay paths. VALUES
 cells are non-lateral and reject DEFAULT and aggregates; lateral VALUES remains
-excluded. Derived SELECT uses the same source pipeline. Ordinary INSERT VALUES retains destination-context
+excluded. The selected string/regexp function sources admit function-only
+LATERAL. Derived SELECT uses the same source pipeline. Ordinary INSERT VALUES retains destination-context
 typing. See [VALUES contracts and change note](docs/QUERIES.md#standalone-and-from-values--change-note-changelog).
 Independent reference: `make check REFERENCE=1 RUN='^TestReferenceQueryFromValues'`.
 

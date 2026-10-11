@@ -76,6 +76,10 @@ func setQueryLineage(source *querySource, index int) {
 		setQueryLineage(lineage.stage, index)
 		return
 	}
+	if len(source.invocationLineage) != 0 {
+		setQueryInvocationLineage(source, index)
+		return
+	}
 	if source.joinPairs != nil {
 		if index == absentQueryIndex {
 			setQueryLineage(source.joinLeft, index)

@@ -150,6 +150,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 				break
 			}
 		}
+	case regexpExpression:
+		fmt.Fprintf(out, "Regexp %s", n.plan.Name())
+		err = args(n.args)
+	case regexpSetExpression:
+		fmt.Fprintf(out, "RegexpSet %s", n.plan.Name())
+		err = args(n.args)
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

@@ -11,6 +11,51 @@ func isStringSet(expr BoundExpr) bool {
 	e, ok := expr.(stringExpression)
 	return ok && e.plan.Name() == "string_to_table"
 }
+func isQuerySet(expr BoundExpr) bool {
+	if _, ok := expr.(regexpSetExpression); ok {
+		return true
+	}
+	return isStringSet(expr)
+}
+func validFunctionSourceCall(expr BoundExpr) bool {
+	switch call := expr.(type) {
+	case stringExpression:
+		return isStringSet(call)
+	case regexpSetExpression:
+		return call.plan.ReturnsSet()
+	case regexpExpression:
+		return !call.plan.ReturnsSet()
+	default:
+		return false
+	}
+}
+func functionCallArguments(expr BoundExpr) []BoundExpr {
+	switch call := expr.(type) {
+	case stringExpression:
+		return call.args
+	case regexpSetExpression:
+		return call.args
+	case regexpExpression:
+		return call.args
+	default:
+		return nil
+	}
+}
+func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
+	switch call := expr.(type) {
+	case stringExpression:
+		call.args = args
+		return call, nil
+	case regexpSetExpression:
+		call.args = args
+		return call, nil
+	case regexpExpression:
+		call.args = args
+		return call, nil
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid closed function call")
+	}
+}
 func hasStringSet(expr BoundExpr) bool {
 	found := false
 	walkBoundExpression(expr, func(e BoundExpr) { found = found || isStringSet(e) })
@@ -74,15 +119,13 @@ func stringLateralError(q queryQualifier, pos parser.Position, target bool) erro
 }
 func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNode, queryNamespace, error) {
 	old, clause := b.queryNamespace, b.aggregateClause
-	b.queryNamespace = b.stringFromNamespace
 	if b.queryNamespace == nil {
 		b.queryNamespace = &queryNamespace{}
 	}
 	b.aggregateClause = "FROM"
 	defer func() { b.queryNamespace, b.aggregateClause = old, clause }()
-	calls := make([]stringExpression, len(raw.Calls))
+	calls := make([]BoundExpr, len(raw.Calls))
 	schema := make(querySchema, len(calls))
-	correlated := false
 	ordinal := b.viewFunctionCount
 	b.viewFunctionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
@@ -93,7 +136,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 		var nested BoundExpr
 		boundExpressionChildren(expr, func(arg BoundExpr) {
 			walkBoundExpression(arg, func(e BoundExpr) {
-				if isStringSet(e) {
+				if isQuerySet(e) {
 					nested = e
 				}
 			})
@@ -104,9 +147,8 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 			}
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)
 		}
-		calls[i] = expr.(stringExpression)
+		calls[i] = expr
 		schema[i] = ColumnDescriptor{Name: "string_to_table", Usage: expr.ResultUsage()}
-		correlated = correlated || stringFrameReference(expr, b.frameID())
 		if b.noParameters || b.materializedDefinition {
 			if err := b.captureViewLiterals(call, expr, viewFunctionLiteral, ordinal+i); err != nil {
 				return nil, queryNamespace{}, err
@@ -123,22 +165,14 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	name := raw.Calls[0].Name.Parts[len(raw.Calls[0].Name.Parts)-1].Text
 	qualifier := queryQualifier{name: name, original: name, columns: columns}
 	b.queryHidden = append(b.queryHidden, qualifier)
-	node := &stringTableNode{querySchema: schema, calls: calls, ordinality: raw.Ordinality, correlated: correlated, frame: b.frameID(), viewOrdinal: ordinal}
+	captures := b.functionCaptures(calls)
+	node := &functionFromNode{querySchema: schema, calls: calls, ordinality: raw.Ordinality, correlated: len(captures) != 0, frame: b.frameID(), viewOrdinal: ordinal, captures: captures}
 	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
-}
-func functionFromDepends(node LogicalNode) bool {
-	switch n := node.(type) {
-	case *stringTableNode:
-		return n.correlated
-	case *joinNode:
-		return functionFromDepends(n.left) || functionFromDepends(n.right)
-	}
-	return false
 }
 
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
-func (b *expressionBinder) mapStringStage(expr BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
+func (b *expressionBinder) mapQuerySetStage(expr BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
 	mapped, _, err := mapBoundExpression(b.bindingCatalog(), expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, func(e BoundExpr) (BoundExpr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
@@ -150,30 +184,13 @@ func (b *expressionBinder) mapStringStage(expr BoundExpr, leaf func(BoundExpr) (
 	return mapped, err
 }
 
-func stringFrameReference(expr BoundExpr, frame uint32) bool {
+func functionFrameReference(expr BoundExpr, frame uint32) bool {
 	found := false
-	var expression func(BoundExpr)
-	var query func(LogicalNode)
-	expression = func(expr BoundExpr) {
-		walkBoundExpression(expr, func(e BoundExpr) {
-			switch n := e.(type) {
-			case columnExpression:
-				found = found || n.frame == frame
-			case subqueryExpression:
-				query(n.queryPlan.Root)
-			}
-		})
-	}
-	query = func(node LogicalNode) {
-		if node == nil {
-			return
+	walkQueryArgumentExpression(expr, func(node BoundExpr) {
+		if column, ok := node.(columnExpression); ok && column.frame == frame {
+			found = true
 		}
-		queryExpressions(node, expression)
-		left, right := queryInputs(node)
-		query(left)
-		query(right)
-	}
-	expression(expr)
+	})
 	return found
 }
 func stringForbiddenColumn(ns queryNamespace, slot int, pos parser.Position) error {
@@ -197,4 +214,32 @@ func (b *expressionBinder) stringFromContext() bool {
 		}
 	}
 	return false
+}
+
+func (b *expressionBinder) functionCaptures(calls []BoundExpr) []functionCorrelation {
+	var captures []functionCorrelation
+	for _, call := range calls {
+		for _, arg := range functionCallArguments(call) {
+			walkQueryArgumentExpression(arg, func(expr BoundExpr) {
+				column, ok := expr.(columnExpression)
+				if !ok || column.frame != b.frameID() {
+					return
+				}
+				name := ""
+				for _, qualifier := range b.queryNamespace.qualifiers {
+					for _, candidate := range qualifier.columns {
+						if candidate.slot == column.slot {
+							name = qualifier.name
+							break
+						}
+					}
+					if name != "" {
+						break
+					}
+				}
+				captures = append(captures, functionCorrelation{frame: column.frame, slot: column.slot, name: name, pos: column.pos})
+			})
+		}
+	}
+	return captures
 }

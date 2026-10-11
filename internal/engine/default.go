@@ -695,6 +695,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 		}
 		return renderRowComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
+	case regexpExpression:
+		return n.sql("pg_catalog."+n.plan.Name(), func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")

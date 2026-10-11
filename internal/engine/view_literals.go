@@ -366,6 +366,20 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Else, n.otherwise)
 		}
 	case parser.FunctionExpr:
+		var regexp *regexpCall
+		switch n := bound.(type) {
+		case regexpExpression:
+			regexp = &n.regexpCall
+		case regexpSetExpression:
+			regexp = &n.regexpCall
+		}
+		if regexp != nil {
+			written := make([]BoundExpr, len(regexp.args))
+			for i, slot := range regexp.writtenSlots[:len(written)] {
+				written[i] = regexp.args[slot]
+			}
+			return children(r.Args, written)
+		}
 		if n, ok := bound.(installedFunctionExpression); ok {
 			return children(r.Args, []BoundExpr{n.arg})
 		}
@@ -657,12 +671,18 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		from = func(item parser.FromItem, node LogicalNode) error {
 			switch raw := item.(type) {
 			case *parser.FunctionTable:
-				table, ok := viewFromRoot(node).(*stringTableNode)
+				table, ok := viewFromRoot(node).(*functionFromNode)
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored string function frame")
 				}
 				for i, call := range raw.Calls {
-					if err := validate(call, viewFunctionLiteral, table.viewOrdinal+i); err != nil {
+					if table.regexpNamespace {
+						path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: table.viewOrdinal, target: i}
+						ordinal := 0
+						if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount); err != nil {
+							return err
+						}
+					} else if err := validate(call, viewFunctionLiteral, table.viewOrdinal+i); err != nil {
 						return err
 					}
 				}
@@ -687,6 +707,18 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 					return fmt.Errorf("stuntgres: invalid stored VALUES frame")
 				}
 				return v.validateValuesLiterals(catalog, raw, frame, values.viewOrdinal, &count, &columnCount)
+			case *parser.FunctionFrom:
+				function, ok := viewFromRoot(node).(*functionFromNode)
+				if !ok {
+					return fmt.Errorf("stuntgres: invalid stored function frame")
+				}
+				for i, call := range raw.Calls {
+					path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: function.viewOrdinal, target: i}
+					ordinal := 0
+					if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount); err != nil {
+						return err
+					}
+				}
 			}
 			return nil
 		}

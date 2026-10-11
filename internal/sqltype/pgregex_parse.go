@@ -8,12 +8,16 @@ import (
 
 // PGRegexOptions supplies external operator defaults. Leading PostgreSQL
 // directors and options belong to the pattern and override these defaults.
-type PGRegexOptions struct{ CaseInsensitive bool }
+type PGRegexOptions struct {
+	CaseInsensitive                      bool
+	Mode                                 uint8
+	Expanded, NewlineStop, NewlineAnchor bool
+}
 type PGRegexSpan struct{ Start, End int }
 
-// When captures are requested, Whole and all Captures are byte-boundary
-// spans; Captures is borrowed execution scratch until the next Match or Reset.
-// Without that request only Matched is meaningful, avoiding unused BOOL work.
+// Whole/capture demand returns byte-boundary Whole spans. Capture demand also
+// returns Captures borrowed from execution scratch until the next Match or Reset.
+// Boolean demand leaves only Matched meaningful and publishes no span payload.
 type PGRegexMatch struct {
 	Matched  bool
 	Whole    PGRegexSpan
@@ -37,7 +41,11 @@ func compilePGRegexBudget(ctx context.Context, pattern string, options PGRegexOp
 	}
 	p := &PGRegexProgram{collation: collation, options: options}
 	s := pgRegexParser{program: p, budget: &budget, work: &work}
-	lex := pgRegexScanner{ctx: ctx, text: pattern, previous: "empty", caseInsensitive: options.CaseInsensitive}
+	if options.Mode == pgRegexQuote && (options.Expanded || options.NewlineStop || options.NewlineAnchor) {
+		return nil, pgRegexCompileError("invalid argument to regex function")
+	}
+	lex := pgRegexScanner{ctx: ctx, text: pattern, previous: "empty", caseInsensitive: options.CaseInsensitive,
+		mode: options.Mode, expanded: options.Expanded, newlineStop: options.NewlineStop, newlineAnchor: options.NewlineAnchor}
 	if err := lex.prefix(); err != nil {
 		return nil, err
 	}

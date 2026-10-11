@@ -16,6 +16,9 @@ type joinNode struct {
 	leftWidth, rightWidth int
 	merges                []BoundExpr
 	correlatedRight       bool
+	frame                 uint32
+	correlationPrefix     int
+	captures              []functionCorrelation
 }
 
 func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
@@ -104,14 +107,38 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			return indexedStage{}, failure
 		}
 		left = settledLeft
-		settledRight, failure := settlePendingQueryMarks(ctx, state, n.right, right)
-		if failure != nil {
-			left.Close()
-			right.Close()
-			return indexedStage{}, failure
+		if !n.correlatedRight {
+			settledRight, failure := settlePendingQueryMarks(ctx, state, n.right, right)
+			if failure != nil {
+				left.Close()
+				right.Close()
+				return indexedStage{}, failure
+			}
+			right = settledRight
 		}
-		right = settledRight
 	}
+	if n.correlatedRight && (n.kind == parser.JoinRight || n.kind == parser.JoinFull || n.correlationPrefix < 0) {
+		left.Close()
+		right.Close()
+		return indexedStage{}, fmt.Errorf("stuntgres: invalid correlated join layout")
+	}
+	if n.correlatedRight && n.correlationPrefix > 0 && (state.invocation == nil || state.invocation.Scope != 1 || state.invocation.Frame != n.frame || len(state.invocation.Row) < n.correlationPrefix) {
+		left.Close()
+		right.Close()
+		return indexedStage{}, fmt.Errorf("stuntgres: missing inherited function invocation frame")
+	}
+	var correlationRow []sqltype.Value
+	correlation := state.evaluation(nil)
+	if n.correlatedRight {
+		correlationRow = make([]sqltype.Value, n.correlationPrefix+n.leftWidth)
+		correlation.Frame = n.frame
+		correlation.Row = correlationRow
+	}
+	invocation := *state
+	if n.correlatedRight {
+		invocation.invocation = &correlation
+	}
+	rightIdentity := false
 	frame := make([]sqltype.Value, width)
 	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
 	locking := state.locking || state.source.locks.rowMarked()
@@ -120,7 +147,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		source.occurrences = appendQueryOccurrences(source.occurrences, left.source)
 		source.occurrences = appendQueryOccurrences(source.occurrences, right.source)
 	}
-	if locking && state.source.locks != nil {
+	if locking && state.source.locks != nil && !n.correlatedRight {
 		source.joinLeft, source.joinRight = left.source, right.source
 	}
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
@@ -183,7 +210,12 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		if locking && state.source.locks != nil {
 			source.versions = appendQueryVersions(source.versions, left.source, li, state.source.locks)
 			source.versions = appendQueryVersions(source.versions, right.source, ri, state.source.locks)
-			source.joinPairs = append(source.joinPairs, queryPair{left: li, right: ri})
+			if !n.correlatedRight {
+				source.joinPairs = append(source.joinPairs, queryPair{left: li, right: ri})
+			}
+		}
+		if identity && n.correlatedRight {
+			source.invocationLineage = append(source.invocationLineage, queryInvocationLineage{left.source, right.source, li, ri})
 		}
 		out.selection = append(out.selection, source.flatCount)
 		source.flatCount++
@@ -216,22 +248,37 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 						if err := right.Close(); err != nil {
 							return false, err
 						}
-						invocation := *state
-						invocation.stringRow = row
-						if len(state.stringRow) != 0 {
-							invocation.stringRow = make([]sqltype.Value, len(state.stringRow)+len(row))
-							copy(invocation.stringRow, state.stringRow)
-							copy(invocation.stringRow[len(state.stringRow):], row)
+						correlation.setContext(ctx)
+						if n.correlationPrefix > 0 {
+							copy(correlationRow, state.invocation.Row[:n.correlationPrefix])
+						}
+						copy(correlationRow[n.correlationPrefix:], row)
+						if identity {
+							correlation.queryOccurrences = correlation.queryOccurrences[:0]
+							correlation.queryProvenance = correlation.queryProvenance[:0]
+							if n.correlationPrefix > 0 {
+								correlation.queryOccurrences = append(correlation.queryOccurrences, state.invocation.queryOccurrences...)
+								correlation.queryProvenance = append(correlation.queryProvenance, state.invocation.queryProvenance...)
+							}
+							correlation.queryOccurrences = appendQueryOccurrences(correlation.queryOccurrences, left.source)
+							correlation.queryProvenance = appendQueryProvenance(correlation.queryProvenance, left.source, left.index(i))
 						}
 						right, err = openQueryNode(ctx, &invocation, n.right)
 						if err != nil {
 							return false, err
 						}
-						if n.kind != parser.JoinInner {
-							right, err = settlePendingQueryMarks(ctx, &invocation, n.right, right)
-							if err != nil {
-								return false, err
+						if len(right.pending) != 0 {
+							settled, failure := settlePendingQueryMarks(ctx, &invocation, n.right, right)
+							if failure != nil {
+								right.Close()
+								return false, failure
 							}
+							right = settled
+						}
+						if identity && !rightIdentity {
+							source.occurrences = appendQueryOccurrences(source.occurrences, right.source)
+							evaluation.queryOccurrences = source.occurrences
+							rightIdentity = true
 						}
 					}
 				}
@@ -329,4 +376,35 @@ func initializeJoinEquality(ctx context.Context, expr BoundExpr, leftWidth int) 
 		return nil
 	}
 	return comparison.predicate.DemandCollation(ctx)
+}
+
+// Captures retain their binding namespace and written origin while an enclosing
+// join consumes locally satisfied references. Slots are relative to that join's
+// inherited correlation frame, not to its output row.
+type functionCorrelation struct {
+	frame uint32
+	slot  int
+	name  string
+	pos   parser.Position
+}
+
+// Each dependent invocation owns a different execution-private right source.
+// Keep only identity pointers/ordinals, not duplicate row values or regex state.
+type queryInvocationLineage struct {
+	left, right           *querySource
+	leftIndex, rightIndex int
+}
+
+func setQueryInvocationLineage(source *querySource, index int) {
+	if index == absentQueryIndex {
+		if len(source.invocationLineage) != 0 {
+			lineage := source.invocationLineage[0]
+			setQueryLineage(lineage.left, index)
+			setQueryLineage(lineage.right, index)
+		}
+		return
+	}
+	lineage := source.invocationLineage[index]
+	setQueryLineage(lineage.left, lineage.leftIndex)
+	setQueryLineage(lineage.right, lineage.rightIndex)
 }

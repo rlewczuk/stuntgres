@@ -10,7 +10,7 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 	switch n := node.(type) {
 	case *sourceNode:
 		return appendQueryOccurrences(dst, querySourceAt(inputs, n.occurrence))
-	case *singletonNode, *valuesNode, *stringTableNode:
+	case *singletonNode, *valuesNode, *functionFromNode:
 		return dst
 	case *joinNode:
 		return queryTreeOccurrences(n.right, inputs, queryTreeOccurrences(n.left, inputs, dst))

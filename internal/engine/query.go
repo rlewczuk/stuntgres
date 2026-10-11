@@ -81,7 +81,7 @@ type projectNode struct {
 	frame               uint32
 	syntax              *parser.Select
 	cteOwner            bool // An invocation boundary, not statement-global producer state.
-	hasTargetStringSet  bool // Analyzed query flag, independent of constant folding.
+	hasTargetSet        bool // Analyzed query flag, independent of constant folding.
 }
 
 // Only a physical literal or this execution's imported parameter is row-free.
@@ -114,10 +114,10 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
-	case *stringTableNode:
+	case *functionFromNode:
 		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) })
 	case *setProjectNode:
-		return preflightStringSet(c, n)
+		return preflightQuerySet(c, n)
 	case *windowNode:
 		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) }, func(child LogicalNode) (LogicalNode, error) {
 			if child == n {
@@ -159,7 +159,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			if err != nil {
 				return nil, err
 			}
-			if owned, did := stringScalarOwner(child, folded); did {
+			if owned, did := queryScalarOwner(child, folded); did {
 				folded, changed = owned, true
 			}
 			if changed {
@@ -398,7 +398,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			if expressions != nil {
 				expression = expressions[i]
 			}
-			if owned, changed := stringScalarOwner(child, expression); changed {
+			if owned, changed := queryScalarOwner(child, expression); changed {
 				if expressions == nil {
 					expressions = append([]BoundExpr(nil), n.expressions...)
 				}
@@ -465,6 +465,7 @@ type querySource struct {
 	versionValid             []bool // Nil: complete sequential cache; nonnil: sparse frontier.
 	joinLeft, joinRight      *querySource
 	joinPairs                []queryPair
+	invocationLineage        []queryInvocationLineage
 	window                   bool
 	windowCount, windowWidth int
 	windowValues             []sqltype.Value
@@ -636,6 +637,7 @@ func (s *querySource) close() {
 	s.versions = nil
 	s.versionValid = nil
 	s.joinLeft, s.joinRight, s.joinPairs = nil, nil, nil
+	s.invocationLineage = nil
 	s.flatCount = 0
 	s.flatWidth = 0
 	s.materialized = false
@@ -674,23 +676,23 @@ func (s *querySource) close() {
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type queryState struct {
-	source        *querySource
-	stringRow     []sqltype.Value // Function-only predecessor frame for this invocation.
-	stringRecheck *stringQueryRecheck
-	hashFilter   *filterNode
-	parameters   []sqltype.Value
-	input        sqltype.InputEnvironment
-	output       sqltype.OutputEnvironment
-	locking      bool
-	virtualReads bool
-	inherited    queryRowMark
-	frame        uint32
-	outer        *EvalContext
-	retain       bool
-	derived      map[*derivedNode]*querySource
-	ctes         *cteInvocation
-	hashOwner    *queryState
-	memberships  map[subqueryMembershipKey]*subqueryMembership
+	source          *querySource
+	invocation      *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
+	functionRecheck *functionQueryRecheck
+	hashFilter      *filterNode
+	parameters      []sqltype.Value
+	input           sqltype.InputEnvironment
+	output          sqltype.OutputEnvironment
+	locking         bool
+	virtualReads    bool
+	inherited       queryRowMark
+	frame           uint32
+	outer           *EvalContext
+	retain          bool
+	derived         map[*derivedNode]*querySource
+	ctes            *cteInvocation
+	hashOwner       *queryState
+	memberships     map[subqueryMembershipKey]*subqueryMembership
 }
 
 // Physical child stages borrow the actual execution owner. Rescanning a parent
@@ -877,21 +879,21 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
-	if state.stringRecheck != nil {
-		entry, ok := state.stringRecheck.topology.entries[node]
+	if state.functionRecheck != nil {
+		entry, ok := state.functionRecheck.topology.entries[node]
 		if !ok {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing function recheck node")
 		}
 		if !entry.expanding {
-			return openStringRecheckPoint(ctx, state, node)
+			return openFunctionRecheckPoint(ctx, state, node)
 		}
 		if mark, ok := node.(*rowLockNode); ok {
 			return openQueryNode(ctx, state, mark.child)
 		}
 	}
 	switch n := node.(type) {
-	case *stringTableNode:
-		return openStringTableNode(ctx, state, n)
+	case *functionFromNode:
+		return openFunctionFromNode(ctx, state, n)
 	case *setProjectNode:
 		return openSetProjectNode(ctx, state, n)
 	case *windowNode:

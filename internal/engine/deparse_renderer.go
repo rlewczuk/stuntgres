@@ -608,6 +608,18 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: invalid row comparison")
 		}
 		return renderRowComparison(n, child, operator(n.comparisons[0].namespace, n.operator))
+	case regexpExpression:
+		return n.sql(n.plan.Name(), func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
+	case regexpSetExpression:
+		return n.sql(n.plan.Name(), func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:

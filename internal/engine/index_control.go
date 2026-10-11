@@ -241,7 +241,7 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case datetimeMakeExpression:
 		return true
-	case enumFunctionExpression, posixSubstringExpression:
+	case enumFunctionExpression, posixSubstringExpression, regexpExpression:
 		return true
 	case datetimeSleepExpression:
 		return true

@@ -325,7 +325,14 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	case nil:
 		return &singletonNode{}, queryNamespace{}, nil
 	case *parser.FunctionTable:
+		for _, raw := range n.Calls {
+			if sqltype.RegexpFunctionKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text) != 0 {
+				return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal)
+			}
+		}
 		return b.bindStringTable(n)
+	case *parser.FunctionFrom:
+		return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal)
 	case *parser.DerivedQuery:
 		query, err := b.bindSelectScoped(n.Query, false, true)
 		if err != nil {
@@ -392,7 +399,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if len(n.Columns) > len(ns.columns) {
 			kind := "join expression"
 			switch n.Input.(type) {
-			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery, *parser.FunctionTable:
+			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery, *parser.FunctionTable, *parser.FunctionFrom:
 				kind = "table"
 			}
 			return nil, queryNamespace{}, sqlError("42P10", fmt.Sprintf(`%s "%s" has %d columns available but %d columns specified`, kind, n.Name.Text, len(ns.columns), len(n.Columns)))
@@ -415,6 +422,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		} else if _, function := n.Input.(*parser.FunctionTable); function {
 			q.original = ns.qualifiers[0].original
 			b.queryHidden[len(b.queryHidden)-1] = q
+		} else if _, function := n.Input.(*parser.FunctionFrom); function {
+			b.queryHidden[len(b.queryHidden)-1] = q
 		} else {
 			q.excludeColumnDiagnostics = true
 			b.queryHidden = append(b.queryHidden, q)
@@ -423,23 +432,28 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		return root, ns, nil
 	case *parser.JoinReference:
 		joinOrdinal := b.viewJoinCount
+		inherited := b.queryNamespace
 		b.viewJoinCount++
 		left, lns, err := b.bindFrom(n.Left)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		prior, forbidden := b.stringFromNamespace, b.stringFromForbidden
-		predecessor := lns
-		if prior != nil {
-			predecessor, err = combineQueryNamespace(*prior, rebaseQueryNamespace(lns, len(prior.frame)))
+		oldStringForbidden := b.stringFromForbidden
+		oldNamespace := b.queryNamespace
+		rightNamespace := lns
+		prefix := 0
+		if inherited != nil {
+			prefix = len(inherited.frame)
+			rightNamespace, err = combineQueryNamespace(*inherited, rebaseQueryNamespace(lns, prefix))
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}
-		b.stringFromNamespace = &predecessor
-		b.stringFromForbidden = forbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
+		b.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
+		b.queryNamespace = &rightNamespace
 		right, rns, err := b.bindFrom(n.Right)
-		b.stringFromNamespace, b.stringFromForbidden = prior, forbidden
+		b.queryNamespace = oldNamespace
+		b.stringFromForbidden = oldStringForbidden
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -448,8 +462,39 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame), viewOrdinal: joinOrdinal}
-		join.correlatedRight = functionFromDepends(right)
+		// Only captures of this join's local left operand forbid RIGHT/FULL.
+		// Ancestor-prefix captures remain free for an enclosing boundary; a
+		// descendant's internally satisfied correlation is not exported here.
+		dependent, inheritedDemand := false, false
+		var forbidden functionCorrelation
+		captures := append([]functionCorrelation(nil), functionFromCaptures(left)...)
+		for _, capture := range functionFromCaptures(right) {
+			if capture.frame != b.frameID() || capture.slot < prefix {
+				captures = append(captures, capture)
+				inheritedDemand = inheritedDemand || capture.frame == b.frameID()
+				continue
+			}
+			if capture.slot >= prefix+len(lns.frame) {
+				return nil, queryNamespace{}, fmt.Errorf("stuntgres: invalid function correlation slot")
+			}
+			if !dependent || capture.pos.Offset < forbidden.pos.Offset {
+				forbidden = capture
+			}
+			dependent = true
+		}
+		if dependent && (n.Kind == parser.JoinRight || n.Kind == parser.JoinFull) {
+			e := expressionError("42P10", "invalid reference to FROM-clause entry for table "+quoteIdentifier(forbidden.name), forbidden.pos).(*sqlstate.Error)
+			e.Detail = "The combining JOIN type must be INNER or LEFT for a LATERAL reference."
+			return nil, queryNamespace{}, e
+		}
+		if prefix != 0 && !inheritedDemand {
+			right, err = rebaseFunctionCorrelation(b.bindingCatalog(), right, b.frameID(), prefix)
+			if err != nil {
+				return nil, queryNamespace{}, err
+			}
+			prefix = 0
+		}
+		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame), viewOrdinal: joinOrdinal, correlatedRight: dependent, frame: b.frameID(), correlationPrefix: prefix, captures: captures}
 		old := b.queryNamespace
 		b.queryNamespace = &ns
 		defer func() { b.queryNamespace = old }()
@@ -689,4 +734,218 @@ func (b *expressionBinder) queryQualifierNeedsLateral(q queryQualifier) bool {
 		}
 	}
 	return false
+}
+
+// These are only the references still free at a FROM subtree boundary. A
+// join's consumed local captures never escape into its enclosing join.
+func functionFromCaptures(root LogicalNode) []functionCorrelation {
+	switch n := root.(type) {
+	case *functionFromNode:
+		return n.captures
+	case *joinNode:
+		return n.captures
+	}
+	return nil
+}
+
+// Strip an unused ancestor prefix from function invocation layouts only.
+// Descendants with no free captures have already satisfied/normalized their
+// own dependencies and must not be rebased again. Ordinary join expressions
+// retain their independent output-row layout.
+func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32, prefix int) (LogicalNode, error) {
+	captures := functionFromCaptures(root)
+	needed := false
+	for _, capture := range captures {
+		if capture.frame == frame {
+			if capture.slot < prefix {
+				return nil, fmt.Errorf("stuntgres: captured function prefix cannot be removed")
+			}
+			needed = true
+		}
+	}
+	if !needed {
+		return root, nil
+	}
+	rebased := append([]functionCorrelation(nil), captures...)
+	for i := range rebased {
+		if rebased[i].frame == frame {
+			rebased[i].slot -= prefix
+		}
+	}
+	switch n := root.(type) {
+	case *joinNode:
+		left, err := rebaseFunctionCorrelation(view, n.left, frame, prefix)
+		if err != nil {
+			return nil, err
+		}
+		right, correlationPrefix := n.right, n.correlationPrefix
+		// A zero prefix means this right operand has already been normalized
+		// to local-left slots. Only the left operand may still export captures.
+		if n.frame == frame && correlationPrefix != 0 {
+			if correlationPrefix < prefix {
+				return nil, fmt.Errorf("stuntgres: invalid nested function correlation prefix")
+			}
+			right, err = rebaseFunctionCorrelation(view, right, frame, prefix)
+			if err != nil {
+				return nil, err
+			}
+			correlationPrefix -= prefix
+		}
+		copy := *n
+		copy.left, copy.right, copy.captures = left, right, rebased
+		copy.correlationPrefix = correlationPrefix
+		return &copy, nil
+	case *functionFromNode:
+		var rewrite func(BoundExpr) (BoundExpr, bool, error)
+		rewrite = func(expr BoundExpr) (BoundExpr, bool, error) {
+			// Virtual owner recipes have their own frame. The lexical walker
+			// stops at their column, so only actual argument captures enter.
+			used := false
+			walkQueryArgumentExpression(expr, func(node BoundExpr) {
+				if column, ok := node.(columnExpression); ok && column.frame == frame {
+					used = true
+				}
+			})
+			if !used {
+				return expr, false, nil
+			}
+			return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query LogicalNode) (LogicalNode, error) {
+				return rewriteQueryExpressions(query, rewrite)
+			}, func(node BoundExpr) (BoundExpr, bool, error) {
+				column, ok := node.(columnExpression)
+				if !ok {
+					return node, false, nil
+				}
+				if column.frame != frame {
+					// Do not enter an unrelated virtual owner recipe whose
+					// private frame number can coincide with this lexical one.
+					return node, column.virtual != nil, nil
+				}
+				if column.slot < prefix || column.virtual != nil && column.rowStart < prefix {
+					return nil, false, fmt.Errorf("stuntgres: invalid rebased function argument slot")
+				}
+				column.slot -= prefix
+				if column.virtual != nil {
+					column.rowStart -= prefix
+				}
+				return column, true, nil
+			})
+		}
+		copy := *n
+		copy.captures = rebased
+		copy.calls = append([]BoundExpr(nil), n.calls...)
+		for i := range copy.calls {
+			var args []BoundExpr
+			for j, arg := range functionCallArguments(copy.calls[i]) {
+				next, changed, err := rewrite(arg)
+				if err != nil {
+					return nil, err
+				}
+				if changed {
+					if args == nil {
+						args = append([]BoundExpr(nil), functionCallArguments(copy.calls[i])...)
+					}
+					args[j] = next
+				}
+			}
+			if args != nil {
+				var err error
+				copy.calls[i], err = withFunctionCallArguments(copy.calls[i], args)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		return &copy, nil
+	}
+	return nil, fmt.Errorf("stuntgres: invalid function correlation owner")
+}
+
+func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int) (LogicalNode, queryNamespace, error) {
+	calls := make([]BoundExpr, len(rawCalls))
+	schema := make([]ColumnDescriptor, len(calls))
+	oldClause := b.aggregateClause
+	b.aggregateClause = "FROM"
+	defer func() { b.aggregateClause = oldClause }()
+	// Selected calls diagnose actual P/L captures after binding, rather
+	// than inheriting the string family's blanket FROM lookup guard.
+	oldForbidden := b.stringFromForbidden
+	b.stringFromForbidden = false
+	defer func() { b.stringFromForbidden = oldForbidden }()
+	// FROM arguments are query expressions even before a local FROM
+	// namespace exists. An empty local frame still permits lexical outer
+	// references through queryScopes, including nested correlated SRFs.
+	if b.queryNamespace == nil {
+		b.queryNamespace = &queryNamespace{}
+		defer func() { b.queryNamespace = nil }()
+	}
+	for i, raw := range rawCalls {
+		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+		if name == "string_to_table" {
+			b.stringFromForbidden = oldForbidden
+			expr, err := b.bindFunction(raw)
+			b.stringFromForbidden = false
+			if err != nil {
+				return nil, queryNamespace{}, err
+			}
+			if !isStringSet(expr) {
+				return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
+			}
+			var nested BoundExpr
+			boundExpressionChildren(expr, func(arg BoundExpr) {
+				walkBoundExpression(arg, func(e BoundExpr) {
+					if isQuerySet(e) && (nested == nil || e.SourcePosition().Offset < nested.SourcePosition().Offset) {
+						nested = e
+					}
+				})
+			})
+			if nested != nil {
+				return nil, queryNamespace{}, expressionError("0A000", "set-returning functions must appear at top level of FROM", nested.SourcePosition())
+			}
+			calls[i] = expr
+		} else {
+			if sqltype.RegexpFunctionKind(name) == 0 {
+				return nil, queryNamespace{}, expressionError("0A000", "functions in FROM are unsupported", raw.Pos)
+			}
+			visible, err := b.builtinVisible(raw.Name, functionLookup)
+			if err != nil {
+				return nil, queryNamespace{}, err
+			}
+			call, err := b.bindRegexpCall(raw, visible)
+			if err != nil {
+				return nil, queryNamespace{}, err
+			}
+			if err := validateRegexpFromCall(call); err != nil {
+				return nil, queryNamespace{}, err
+			}
+			calls[i] = regexpExpression{call}
+			if call.plan.ReturnsSet() {
+				calls[i] = regexpSetExpression{call}
+			}
+		}
+		schema[i] = ColumnDescriptor{Name: name, Usage: calls[i].ResultUsage()}
+
+	}
+	if ordinality {
+		schema = append(schema, ColumnDescriptor{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+	}
+	columns := make([]queryColumn, len(schema))
+	for i, column := range schema {
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1}
+	}
+	name := schema[0].Name
+	q := queryQualifier{name: name, columns: columns}
+	if ordinal >= 0 {
+		for i, raw := range rawCalls {
+			bound := calls[i]
+			path := viewLiteralPath{query: b.frameID(), clause: viewFunctionLiteral, source: ordinal, target: i}
+			at := 0
+			if err := b.captureViewLiteralTree(raw, bound, path, &at); err != nil {
+				return nil, queryNamespace{}, err
+			}
+		}
+	}
+	captures := b.functionCaptures(calls)
+	b.queryHidden = append(b.queryHidden, q)
+	return &functionFromNode{querySchema: schema, calls: calls, ordinality: ordinality, frame: b.frameID(), correlated: len(captures) != 0, captures: captures, regexpNamespace: true, viewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
 }

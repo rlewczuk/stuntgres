@@ -139,7 +139,7 @@ func preflightDistinct(c *EvalContext, n *distinctNode) (LogicalNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		if owned, did := stringScalarOwner(child, folded); did {
+		if owned, did := queryScalarOwner(child, folded); did {
 			folded, changed = owned, true
 		}
 		if changed {

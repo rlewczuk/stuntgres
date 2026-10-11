@@ -83,16 +83,17 @@ func viewJoinOffset(root LogicalNode, target *joinNode) (int, bool) {
 // No SQL is rebound and no persistent execution layout is changed.
 type viewRenderer struct {
 	*viewDefinition
-	query        *BoundQuery
-	frame        uint32
-	slots        map[LogicalNode]map[int]string
-	reserved     map[string]bool
-	namespace    int
-	depth        int
-	renderFrames map[uint32]viewRenderFrame
-	aliases      map[viewRenderAlias]string
-	presentation viewPresentation
-	simple       bool
+	query           *BoundQuery
+	frame           uint32
+	slots           map[LogicalNode]map[int]string
+	reserved        map[string]bool
+	namespace       int
+	depth           int
+	renderFrames    map[uint32]viewRenderFrame
+	aliases         map[viewRenderAlias]string
+	presentation    viewPresentation
+	simple          bool
+	functionSources bool // Public presentation of a frame admitting FunctionFrom.
 	// Summary names follow current attributes independently of literal presentation.
 	currentNames bool
 	rowTargets   map[string]string
@@ -100,8 +101,8 @@ type viewRenderer struct {
 
 type viewRenderFrame struct {
 	namespace int
-	base      [viewFunctionNamespace + 1]int
-	seen      [viewFunctionNamespace + 1]bool
+	base      [viewRegexpNamespace + 1]int
+	seen      [viewRegexpNamespace + 1]bool
 }
 type viewRenderAlias struct {
 	depth, ordinal  int
@@ -192,7 +193,7 @@ func (v *viewRenderer) namespaceAlias(ns viewNamespace) string {
 		base = "__view_values_" + strconv.Itoa(key.ordinal)
 	case viewDerivedNamespace:
 		base = "__view_derived_" + strconv.Itoa(key.ordinal)
-	case viewFunctionNamespace:
+	case viewFunctionNamespace, viewRegexpNamespace:
 		base = "__view_function_" + strconv.Itoa(key.ordinal)
 	}
 	if key.depth > 1 {
@@ -262,6 +263,60 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 	return from
 }
 
+func viewHasFunctionSource(item parser.FromItem) bool {
+	switch n := item.(type) {
+	case *parser.FunctionTable:
+		for _, call := range n.Calls {
+			if parser.RegexpFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
+				return true
+			}
+		}
+		return false
+	case *parser.FunctionFrom:
+		return true
+	case *parser.AliasReference:
+		return viewHasFunctionSource(n.Input)
+	case *parser.JoinReference:
+		return viewHasFunctionSource(n.Left) || viewHasFunctionSource(n.Right)
+	}
+	return false
+}
+
+// Public inquiry aliases preserve actual current source names and only explicit
+// column aliases. Dump's positional bridge aliases remain owned by aliasFrom.
+func (v *viewRenderer) functionSourceAlias(from viewRenderFrom, name string, columns []parser.Identifier) viewRenderFrom {
+	identifier := v.presentation.identifier
+	qualifier := identifier(name)
+	from.slots = make(map[int]string, len(from.columns))
+	for i := range from.columns {
+		if i < len(columns) {
+			from.columns[i].name = columns[i].Text
+		}
+		column := from.columns[i]
+		if column.slot >= 0 {
+			from.slots[column.slot] = qualifier + "." + identifier(column.name)
+		}
+	}
+	text := from.relation
+	if text == "" {
+		text = "(" + from.text + ")"
+	}
+	from.text = text + " " + qualifier
+	if from.rowSource {
+		from.rowTargetSQL = qualifier
+	}
+	if len(columns) != 0 {
+		labels := make([]string, len(columns))
+		for i, column := range columns {
+			labels[i] = identifier(column.Text)
+		}
+		from.text += "(" + strings.Join(labels, ", ") + ")"
+	}
+	from.relation = ""
+	v.slots[from.root] = from.slots
+	return from
+}
+
 func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (viewRenderFrom, error) {
 	from, err := v.renderFromSQL(ctx, catalog, item)
 	if err == nil && v.rowTargets != nil && from.rowSource {
@@ -288,7 +343,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 	v.namespace++
 	switch n := item.(type) {
 	case *parser.FunctionTable:
-		return v.renderStringTableSQL(ctx, catalog, n, ns)
+		return v.renderFunctionTableSQL(ctx, catalog, n, ns)
+	case *parser.FunctionFrom:
+		return v.renderFunctionTableSQL(ctx, catalog, &parser.FunctionTable{Calls: n.Calls, Ordinality: n.Ordinality, Lateral: n.Lateral, RowsFrom: len(n.Calls) > 1, Pos: n.Pos}, ns)
 	case *parser.DerivedQuery:
 		root := viewDerivedAt(viewFromRoot(v.query.Root), n.Query)
 		if root == nil {
@@ -375,8 +432,36 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			v.slots[root] = from.slots
 			return from, nil
 		}
-		from := viewRenderFrom{relation: quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name), root: root}
+		from := viewRenderFrom{root: root}
 		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
+		if v.functionSources {
+			if v.presentation.output.QuoteAllIdentifiers {
+				from.relation = v.presentation.identifier(d.name)
+				if !relationVisibleAt(catalog, d, v.presentation.path) {
+					from.relation = v.presentation.identifier(catalog.state.descriptors[d.namespace].Name()) + "." + from.relation
+				}
+			} else {
+				from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
+			}
+			if leaf.only {
+				from.relation = "ONLY " + from.relation
+			}
+			from.text = from.relation
+			from.slots = make(map[int]string, len(frozen))
+			qualifier := v.presentation.identifier(d.name)
+			from.rowTargetSQL = qualifier
+			for i, attribute := range d.attributes {
+				column := viewRenderColumn{name: d.columns[i].Name, slot: -1}
+				if captured, ok := frozen[attribute]; ok {
+					column.slot = captured.slot
+					from.slots[column.slot] = qualifier + "." + v.presentation.identifier(column.name)
+				}
+				from.columns = append(from.columns, column)
+			}
+			v.slots[root] = from.slots
+			return from, nil
+		}
+		from.relation = quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
 		if v.presentation.deparse && v.presentation.pretty && !v.presentation.output.QuoteAllIdentifiers {
 			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
 		}
@@ -409,6 +494,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		if v.rowTargets != nil && from.rowSource {
 			from.rowTarget = n.Name.Text
 			from.rowTargetSQL = quoteIdentifier(n.Name.Text)
+		}
+		if v.functionSources {
+			return v.functionSourceAlias(from, n.Name.Text, n.Columns), nil
 		}
 		return v.aliasFrom(from, ns, n.Name.Text), nil
 	case *parser.JoinReference:
@@ -447,6 +535,8 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		for slot, text := range left.slots {
 			v.slots[owner][offset+slot] = text
 		}
+		// Frozen column occurrences retain their original full FROM-frame slots.
+		// Execution-only P/L normalization must not replace that public mapping.
 		right, err := v.fromSQL(ctx, catalog, n.Right)
 		if err != nil {
 			return viewRenderFrom{}, err
@@ -473,12 +563,26 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		case parser.JoinFull:
 			joinText = " FULL JOIN "
 		}
+		prettyFunctionSources := v.functionSources && v.presentation.pretty
+		rightText := right.text
+		if v.functionSources {
+			joinText = "\n     " + strings.TrimSpace(joinText) + " "
+			if _, nested := n.Right.(*parser.JoinReference); nested && prettyFunctionSources {
+				rightText = "(" + rightText + ")"
+			}
+		}
 		if n.On != nil {
 			on, err := v.expressionSQL(ctx, catalog, n.On, viewLiteralPath{clause: viewJoinLiteral, target: ordinal})
 			if err != nil {
 				return viewRenderFrom{}, err
 			}
-			from.text = "(" + left.text + joinText + right.text + " ON " + on + ")"
+			if v.functionSources && !v.presentation.pretty {
+				on = "(" + on + ")"
+			}
+			from.text = left.text + joinText + rightText + " ON " + on
+			if !prettyFunctionSources {
+				from.text = "(" + from.text + ")"
+			}
 		} else if len(ns.keys) > 0 {
 			keys := make([]string, len(ns.keys))
 			for i, key := range ns.keys {
@@ -498,9 +602,23 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			from.text += ")"
 		} else {
 			if bound.kind == parser.JoinInner {
-				from.text = "(" + left.text + " CROSS JOIN " + right.text + ")"
+				separator := " CROSS JOIN "
+				if v.functionSources {
+					separator = "\n     CROSS JOIN "
+				}
+				from.text = left.text + separator + rightText
 			} else {
-				from.text = "(" + left.text + joinText + right.text + " ON TRUE)"
+				condition := "TRUE"
+				if v.functionSources {
+					condition = "true"
+					if !v.presentation.pretty {
+						condition = "(" + condition + ")"
+					}
+				}
+				from.text = left.text + joinText + rightText + " ON " + condition
+			}
+			if !prettyFunctionSources {
+				from.text = "(" + from.text + ")"
 			}
 		}
 		for _, columns := range [][]viewRenderColumn{left.columns, right.columns} {

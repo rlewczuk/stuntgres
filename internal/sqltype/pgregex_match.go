@@ -6,16 +6,40 @@ import (
 )
 
 func (p *PGRegexProgram) Match(ctx context.Context, source string, wantCaptures bool) (PGRegexMatch, error) {
+	demand := PGRegexBoolean
+	if wantCaptures {
+		demand = PGRegexCaptures
+	}
+	return p.MatchFrom(ctx, source, 0, demand)
+}
+
+type PGRegexDemand uint8
+
+const (
+	PGRegexBoolean PGRegexDemand = iota
+	PGRegexWhole
+	PGRegexCaptures
+)
+
+// MatchFrom searches the original source, retaining preceding assertion context.
+func (p *PGRegexProgram) MatchFrom(ctx context.Context, source string, start int, demand PGRegexDemand) (PGRegexMatch, error) {
+	if start < 0 || start > len(source) || start < len(source) && !utf8.RuneStart(source[start]) {
+		return PGRegexMatch{Whole: PGRegexSpan{-1, -1}}, ctx.Err()
+	}
 	if err := ctx.Err(); err != nil {
 		return PGRegexMatch{}, err
 	}
 	p.matchWork = pgRegexWork{ctx: ctx}
 	p.budget.work = &p.matchWork
 	defer func() { p.budget.work = nil; p.matchWork.ctx = nil }()
-	if wantCaptures || p.backrefs {
-		return p.matchPGRegexTagged(&p.matchWork, source, wantCaptures)
+	if demand != PGRegexBoolean || p.backrefs {
+		result, err := p.matchPGRegexTagged(&p.matchWork, source, start, demand)
+		if demand == PGRegexBoolean {
+			result.Whole, result.Captures = PGRegexSpan{-1, -1}, nil
+		}
+		return result, err
 	}
-	yes, err := p.matchPGRegexStates(&p.matchWork, source)
+	yes, err := p.matchPGRegexStates(&p.matchWork, source, start)
 	return PGRegexMatch{Matched: yes, Whole: PGRegexSpan{-1, -1}}, err
 }
 func (p *PGRegexProgram) assertion(op pgRegexOp, source string, pos int) bool {
@@ -102,7 +126,7 @@ func (p *PGRegexProgram) closurePGRegex(w *pgRegexWork, source string, pos, pc i
 	}
 	return nil
 }
-func (p *PGRegexProgram) matchPGRegexStates(w *pgRegexWork, source string) (bool, error) {
+func (p *PGRegexProgram) matchPGRegexStates(w *pgRegexWork, source string, start int) (bool, error) {
 	var err error
 	n := len(p.code)
 	p.current, err = pgRegexGrow(&p.budget, p.current, n)
@@ -127,7 +151,7 @@ func (p *PGRegexProgram) matchPGRegexStates(w *pgRegexWork, source string) (bool
 	if err = p.nextGeneration(w); err != nil {
 		return false, err
 	}
-	for pos := 0; ; {
+	for pos := start; ; {
 		if err = w.step(); err != nil {
 			return false, err
 		}
@@ -298,7 +322,8 @@ func (p *PGRegexProgram) betterPGRegex(w *pgRegexWork, a, b []int) (bool, error)
 	}
 	return false, nil
 }
-func (p *PGRegexProgram) matchPGRegexTagged(w *pgRegexWork, source string, wantCaptures bool) (PGRegexMatch, error) {
+func (p *PGRegexProgram) matchPGRegexTagged(w *pgRegexWork, source string, start int, demand PGRegexDemand) (PGRegexMatch, error) {
+	wantCaptures := demand == PGRegexCaptures
 	captureBase := 3
 	rankBase := captureBase + 2*p.captures
 	progressBase := rankBase + 2*len(p.preferences)
@@ -310,7 +335,7 @@ func (p *PGRegexProgram) matchPGRegexTagged(w *pgRegexWork, source string, wantC
 		return PGRegexMatch{}, err
 	}
 	p.current = p.current[:stride]
-	for search := 0; ; {
+	for search := start; ; {
 		for k := range p.current {
 			if err = w.step(); err != nil {
 				return PGRegexMatch{}, err
@@ -353,7 +378,7 @@ func (p *PGRegexProgram) matchPGRegexTagged(w *pgRegexWork, source string, wantC
 			pc, pos := p.current[0], p.current[1]
 			i := p.code[pc]
 			if i.op == pgRegexAccept {
-				if !wantCaptures {
+				if demand == PGRegexBoolean {
 					return PGRegexMatch{Matched: true, Whole: PGRegexSpan{-1, -1}}, w.ctx.Err()
 				}
 				if best < 0 {

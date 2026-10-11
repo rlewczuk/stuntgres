@@ -358,7 +358,7 @@ func canSimplifyExists(query *BoundQuery) bool {
 			return false // Target sets, including terminal attempts, own cardinality.
 		case *setNode:
 			return false // Set keys determine presence, not just projected payload.
-		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode, *stringTableNode:
+		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode, *functionFromNode:
 			return true // FROM inputs retain their own demand and clause fences.
 		case *windowNode:
 			return false // Keep real window-key demand and eager failure frontiers.
@@ -460,6 +460,8 @@ func scheduledQueryTarget(node LogicalNode, slot int) BoundExpr {
 		case *aggregateNode:
 			node = n.child
 		case *windowNode:
+			node = n.child
+		case *setProjectNode:
 			node = n.child
 		case *distinctNode:
 			node = n.child

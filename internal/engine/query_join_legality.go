@@ -52,6 +52,8 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 		return nullableQueryRowMark(n.child, marks, inherited)
 	case *aggregateNode:
 		return nullableQueryRowMark(n.child, marks, inherited)
+	case *setProjectNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
 	}
 	return queryRowMark{}
 }
@@ -575,6 +577,10 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args[:]
 	case similarSubstringExpression:
 		children = e.args[:]
+	case regexpExpression:
+		children = e.args
+	case regexpSetExpression:
+		children = e.args
 	case nullTestExpression:
 		children = []BoundExpr{e.child}
 	case truthTestExpression:

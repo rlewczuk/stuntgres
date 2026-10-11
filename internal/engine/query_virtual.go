@@ -48,6 +48,7 @@ func (c *EvalContext) bindQueryIdentity(source *querySource, index int) {
 		c.queryOccurrences = appendQueryOccurrences(c.queryOccurrences[:0], source)
 		c.queryRowSource = source
 	}
+	setQueryLineage(source, index)
 	c.queryProvenance = appendQueryProvenance(c.queryProvenance[:0], source, index)
 }
 

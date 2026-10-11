@@ -205,6 +205,12 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case similarSubstringExpression:
 		o, ok := other.(similarSubstringExpression)
 		return ok && e.provider == o.provider && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1]) && same(e.args[2], o.args[2])
+	case regexpExpression:
+		o, ok := other.(regexpExpression)
+		return ok && sameRegexpCall(e.regexpCall, o.regexpCall, same)
+	case regexpSetExpression:
+		o, ok := other.(regexpSetExpression)
+		return ok && sameRegexpCall(e.regexpCall, o.regexpCall, same)
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
 		return ok && e.predicate == o.predicate && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -663,6 +669,20 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case regexpExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
+	case regexpSetExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -944,6 +964,14 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, pair := range e.comparisons {
 			walk(pair.left)
 			walk(pair.right)
+		}
+	case regexpExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case regexpSetExpression:
+		for _, arg := range e.args {
+			walk(arg)
 		}
 	case comparisonExpression:
 		walk(e.left)

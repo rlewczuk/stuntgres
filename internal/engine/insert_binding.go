@@ -51,6 +51,13 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 	}
 	binder.aggregateClause = "INSERT VALUES"
 	binder.stringSingleInsert = len(s.Rows) == 1 && !binder.mergeInput
+	// Keep aggregate signature/child error precedence independent of the
+	// stricter multi-row VALUES placement rule for set-returning functions.
+	oldRegexpClause := binder.regexpClause
+	defer func() { binder.regexpClause = oldRegexpClause }()
+	if len(s.Rows) > 1 {
+		binder.regexpClause = "VALUES"
+	}
 	b.expressions = make([][]BoundExpr, len(s.Rows))
 	for rowIndex, row := range s.Rows {
 		if rowIndex > 0 && len(row) != len(s.Rows[0]) {

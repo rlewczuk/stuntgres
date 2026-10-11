@@ -276,6 +276,24 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.comparisons[i] = pair
 		}
 		expression = e
+	case regexpExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i, arg := range e.args {
+			e.args[i], err = child(arg)
+			if err != nil {
+				break
+			}
+		}
+		expression = e
+	case regexpSetExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i, arg := range e.args {
+			e.args[i], err = child(arg)
+			if err != nil {
+				break
+			}
+		}
+		return e, changed, err // Sets are never constant-folded without an input row.
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -833,6 +851,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case rowComparisonExpression:
 		for _, pair := range e.comparisons {
 			if !literal(pair.left) || !literal(pair.right) {
+				return false
+			}
+		}
+		return true
+	case regexpExpression:
+		for _, arg := range e.args {
+			if !literal(arg) {
 				return false
 			}
 		}

@@ -9,43 +9,43 @@ import (
 // Rechecks share the ordinary JOIN/filter demand machinery, but each nonfunction
 // subtree supplies only its originally captured occurrence with refreshed leaves.
 // The execution-local cache is separate from the immutable retained blueprint.
-type stringRecheckCache struct {
-	topologies map[LogicalNode]*stringRecheckTopology
-	functions  map[*stringTableNode][]stringRecheckCall
+type functionRecheckCache struct {
+	topologies map[LogicalNode]*functionRecheckTopology
+	functions  map[*functionFromNode][]functionRecheckCall
 }
-type stringRecheckCall struct {
-	cursor           sqltype.StringFieldCursor
+type functionRecheckCall struct {
+	cursor           functionSetCursor
 	ready, dependent bool
 }
 
-func (c *stringRecheckCache) close() {
+func (c *functionRecheckCache) close() {
 	for _, calls := range c.functions {
 		for i := range calls {
-			calls[i].cursor.Close()
+			calls[i].cursor.close()
 		}
 	}
 	c.functions = nil
 	c.topologies = nil
 }
 
-type stringRecheckEntry struct {
+type functionRecheckEntry struct {
 	expanding bool
 	frozen    []sqltype.Value
 }
-type stringRecheckTopology struct {
-	entries map[LogicalNode]stringRecheckEntry
+type functionRecheckTopology struct {
+	entries map[LogicalNode]functionRecheckEntry
 }
-type stringQueryRecheck struct {
-	topology   *stringRecheckTopology
-	cache      *stringRecheckCache
+type functionQueryRecheck struct {
+	topology   *functionRecheckTopology
+	cache      *functionRecheckCache
 	inputs     *querySource
 	rows       [][]sqltype.Value
 	evaluation EvalContext
 }
 
-func stringRecheckContains(node LogicalNode) bool {
+func functionRecheckContains(node LogicalNode) bool {
 	switch n := node.(type) {
-	case *stringTableNode:
+	case *functionFromNode:
 		return true
 	case *derivedNode, *sourceNode, *setProjectNode, *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *setNode:
 		return false
@@ -55,12 +55,12 @@ func stringRecheckContains(node LogicalNode) bool {
 		}
 	}
 	left, right := queryInputs(node)
-	return left != nil && stringRecheckContains(left) || right != nil && stringRecheckContains(right)
+	return left != nil && functionRecheckContains(left) || right != nil && functionRecheckContains(right)
 }
-func (t *stringRecheckTopology) capture(node LogicalNode, frozen []sqltype.Value) error {
+func (t *functionRecheckTopology) capture(node LogicalNode, frozen []sqltype.Value) error {
 	entry, known := t.entries[node]
 	if !known {
-		entry.expanding = stringRecheckContains(node)
+		entry.expanding = functionRecheckContains(node)
 	}
 	entry.frozen = frozen
 	t.entries[node] = entry
@@ -88,18 +88,18 @@ func (t *stringRecheckTopology) capture(node LogicalNode, frozen []sqltype.Value
 	}
 	return nil
 }
-func recheckStringQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) (result []sqltype.Value, present bool, err error) {
-	cache := evaluation.stringRecheckCache
+func recheckFunctionQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) (result []sqltype.Value, present bool, err error) {
+	cache := evaluation.functionRecheckCache
 	if cache == nil {
-		cache = &stringRecheckCache{}
+		cache = &functionRecheckCache{}
 		defer cache.close()
 	}
 	if cache.topologies == nil {
-		cache.topologies = make(map[LogicalNode]*stringRecheckTopology)
+		cache.topologies = make(map[LogicalNode]*functionRecheckTopology)
 	}
 	topology := cache.topologies[node]
 	if topology == nil {
-		topology = &stringRecheckTopology{entries: make(map[LogicalNode]stringRecheckEntry)}
+		topology = &functionRecheckTopology{entries: make(map[LogicalNode]functionRecheckEntry)}
 		cache.topologies[node] = topology
 	}
 	if err := topology.capture(node, frozen); err != nil {
@@ -115,7 +115,7 @@ func recheckStringQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	state.source = &source
 	state.locking = false
 	state.inherited = queryRowMark{}
-	state.stringRecheck = &stringQueryRecheck{topology: topology, cache: cache, inputs: inputs, rows: rows, evaluation: *evaluation}
+	state.functionRecheck = &functionQueryRecheck{topology: topology, cache: cache, inputs: inputs, rows: rows, evaluation: *evaluation}
 	stage, err := openQueryNode(evaluation.Context, &state, node)
 	if err != nil {
 		return nil, false, err
@@ -136,8 +136,8 @@ func recheckStringQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	copy(evaluation.orderValues, stage.orderRow(index))
 	return result, true, nil
 }
-func openStringRecheckPoint(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
-	recheck := state.stringRecheck
+func openFunctionRecheckPoint(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
+	recheck := state.functionRecheck
 	entry, ok := recheck.topology.entries[node]
 	if !ok {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing function recheck subtree")
@@ -157,38 +157,36 @@ func openStringRecheckPoint(ctx context.Context, state *queryState, node Logical
 	}
 	return indexedStage{source: source, schema: node.Schema()}, nil
 }
-func (c *stringRecheckCache) open(evaluation *EvalContext, node *stringTableNode) (stringSetInvocation, error) {
+func (c *functionRecheckCache) open(evaluation *EvalContext, node *functionFromNode) (functionSetInvocation, error) {
 	if c.functions == nil {
-		c.functions = make(map[*stringTableNode][]stringRecheckCall)
+		c.functions = make(map[*functionFromNode][]functionRecheckCall)
 	}
 	cached := c.functions[node]
 	if cached == nil {
-		cached = make([]stringRecheckCall, len(node.calls))
+		cached = make([]functionRecheckCall, len(node.calls))
 		for i, call := range node.calls {
-			for _, arg := range call.args {
-				cached[i].dependent = cached[i].dependent || stringFrameReference(arg, node.frame)
+			for _, arg := range functionCallArguments(call) {
+				cached[i].dependent = cached[i].dependent || functionFrameReference(arg, node.frame)
 			}
 		}
 		c.functions[node] = cached
 	}
-	invocation := stringSetInvocation{cursors: make([]stringSetCursor, len(node.calls))}
+	invocation := functionSetInvocation{cursors: make([]functionSetCursor, len(node.calls))}
 	for i, call := range node.calls {
 		if !cached[i].dependent && cached[i].ready {
-			invocation.cursors[i].cursor = cached[i].cursor
-			invocation.cursors[i].initialized = true
+			invocation.cursors[i] = cached[i].cursor
 			continue
 		}
-		cursor, err := openStringCall(evaluation, call)
+		cursor, err := openFunctionCall(evaluation, call)
 		if err != nil {
 			invocation.close()
-			return stringSetInvocation{}, err
+			return functionSetInvocation{}, err
 		}
 		if !cached[i].dependent {
 			cached[i].cursor = cursor
 			cached[i].ready = true
 		}
-		invocation.cursors[i].cursor = cursor
-		invocation.cursors[i].initialized = true
+		invocation.cursors[i] = cursor
 	}
 	return invocation, nil
 }

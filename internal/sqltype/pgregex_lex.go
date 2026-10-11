@@ -66,21 +66,26 @@ type pgRegexScanner struct {
 
 func regexASCIIAlpha(c byte) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
 func (s *pgRegexScanner) prefix() error {
+	if s.mode == pgRegexQuote {
+		return nil
+	}
 	if strings.HasPrefix(s.text, "***") && len(s.text) >= 4 {
 		switch s.text[3] {
 		case '?':
 			return pgRegexCompileError("invalid regexp (reg version 0.8)")
 		case '=':
 			s.mode = pgRegexQuote
+			s.expanded, s.newlineStop, s.newlineAnchor = false, false, false
 			s.pos = 4
 			return nil
 		case ':':
 			s.pos = 4
+			s.mode = pgRegexARE
 		default:
 			return pgRegexCompileError("quantifier operand invalid")
 		}
 	}
-	if strings.HasPrefix(s.text[s.pos:], "(?") && len(s.text)-s.pos >= 3 && regexASCIIAlpha(s.text[s.pos+2]) {
+	if s.mode == pgRegexARE && strings.HasPrefix(s.text[s.pos:], "(?") && len(s.text)-s.pos >= 3 && regexASCIIAlpha(s.text[s.pos+2]) {
 		s.pos += 2
 		for s.pos < len(s.text) && regexASCIIAlpha(s.text[s.pos]) {
 			if err := s.ctx.Err(); err != nil {

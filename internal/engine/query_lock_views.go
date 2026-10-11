@@ -227,7 +227,7 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 			}
 		}
 	}
-	if suffix == "" && project.hasTargetStringSet && stringInheritedRowMark(viewFromRoot(project)) {
+	if suffix == "" && project.hasTargetSet && stringInheritedRowMark(viewFromRoot(project)) {
 		suffix = "set-returning functions in the target list"
 	}
 	if suffix != "" {
@@ -394,7 +394,7 @@ func querySourceAt(bundle *querySource, occurrence int) *querySource {
 }
 func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	switch n := node.(type) {
-	case *stringTableNode:
+	case *functionFromNode:
 		return len(n.Schema())
 	case *setProjectNode:
 		return 0 // Legal nonphysical inherited paths need no substitution scratch.
@@ -484,8 +484,8 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	if absentLockedQuery(node, inputs, evaluation.liveScope().queryLocks) {
 		return nil, true, nil
 	}
-	if stringRecheckContains(node) {
-		return recheckStringQuery(node, inputs, rows, evaluation, scratch, offset, frozen)
+	if functionRecheckContains(node) {
+		return recheckFunctionQuery(node, inputs, rows, evaluation, scratch, offset, frozen)
 	}
 	switch n := node.(type) {
 	case *derivedNode:
@@ -626,8 +626,8 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	currentRows := make([][]sqltype.Value, len(locks.leaves))
 	scratch := make([]sqltype.Value, queryLockRecheckWidth(node, state.source))
 	evaluation := state.evaluation(nil)
-	var stringCache stringRecheckCache
-	evaluation.stringRecheckCache = &stringCache
+	var stringCache functionRecheckCache
+	evaluation.functionRecheckCache = &stringCache
 	joined := child.source.materialized
 	source := child.source
 	if !joined {

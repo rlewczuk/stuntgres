@@ -185,6 +185,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
+	case regexpExpression:
+		n.args = args(n.args)
+		next = n
+	case regexpSetExpression:
+		n.args = args(n.args)
+		next = n
 	case likeExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
@@ -455,14 +461,14 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	}
 	var next LogicalNode
 	switch n := node.(type) {
-	case *stringTableNode:
+	case *functionFromNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.calls = append([]stringExpression(nil), n.calls...)
+		copy.calls = append([]BoundExpr(nil), n.calls...)
 		for i, call := range copy.calls {
 			next := expression(call)
 			if err == nil {
-				copy.calls[i] = next.(stringExpression)
+				copy.calls[i] = next
 			}
 		}
 		next = &copy
@@ -476,11 +482,11 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			template.expressions, template.origins, template.scalars = expressions(n.template.expressions), expressions(n.template.origins), expressions(n.template.scalars)
 			copy.template = &template
 		}
-		copy.calls = append([]stringExpression(nil), n.calls...)
+		copy.calls = append([]BoundExpr(nil), n.calls...)
 		for i, call := range copy.calls {
 			next := expression(call)
 			if err == nil {
-				copy.calls[i] = next.(stringExpression)
+				copy.calls[i] = next
 			}
 		}
 		next = &copy
@@ -503,7 +509,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	case *sourceNode:
 		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence}
 	case *joinNode:
-		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal, correlatedRight: n.correlatedRight}
+		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal, correlatedRight: n.correlatedRight, frame: n.frame, correlationPrefix: n.correlationPrefix, captures: n.captures}
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
 	case *derivedNode:
@@ -531,7 +537,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		next = &copy
 	case *projectNode:
-		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax, cteOwner: n.cteOwner, hasTargetStringSet: n.hasTargetStringSet}
+		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax, cteOwner: n.cteOwner, hasTargetSet: n.hasTargetSet}
 	case *setNode:
 		copy := *n
 		copy.querySchema = schema

@@ -63,6 +63,24 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	if stringVariadicFunctionName(name) {
 		return b.bindStringVariadic(raw)
 	}
+	if sqltype.RegexpFunctionKind(name) != 0 {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		call, err := b.bindRegexpCall(raw, visible)
+		if err != nil {
+			return nil, err
+		}
+		if call.plan.ReturnsSet() {
+			switch b.aggregateClause {
+			case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
+				b.queryHasTargetSet = true
+			}
+			return newRegexpSetExpression(call), nil
+		}
+		return regexpExpression{call}, nil
+	}
 	// Shared syntax must never silently discard labels in adjacent providers.
 	if len(raw.ArgNames) != 0 && !parser.AdvisorySessionFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
@@ -129,7 +147,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		}
 		switch b.aggregateClause {
 		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-			b.queryHasTargetStringSet = true
+			b.queryHasTargetSet = true
 		}
 		return expr, nil
 	case "split_part", "string_to_array":

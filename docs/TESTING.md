@@ -7340,3 +7340,150 @@ Whole-project Docker-free verification remains `make quickcheck`; post-merge
 proof is `make finalcheck` with its external1800-second deadline. Neither
 finalcheck nor parity alone replaces both selected public modes.
 
+## Regular-expression function oracle and feature checks
+
+The unfiltered `TestReferenceRegexp` definitions retain independent expected
+values, diagnostics/stages/character positions, typed metadata and direct/
+semantic-prepared execution for the exact eight selected functions. The initial
+pinned18.0 observations authorize these expectations; production success still
+requires fresh selected native and real runs after the edits. External `e` and
+`qe` are BRE on the pinned release, whereas embedded `(?e)` is ERE. The public
+assertion union must not be reduced or replaced by native-generated expectations.
+
+Array ordering/index opclasses and constrained-domain DDL are existing adjacent
+capability limits, not regexp prerequisites supplied by this change. Shared
+scenarios assert PostgreSQL success and exact native boundaries: array ORDER BY
+42883 plus its ordering hint, array btree opclass42704 plus its opclass hint,
+and domain CHECK0A000. Array wrapper results are also compared as complete bags;
+all scalar overloads retain real DEFAULT/generated/table CHECK outcomes, with
+array calls in supported scalar-key index predicates and plain-domain coercion.
+No supported array grouping/equality or selected regex result assertion is
+removed. Direct COUNT/ROW_NUMBER metadata requires native known NOT NULL and
+pq unknown, without changing the unknown metadata of computed regex calls.
+
+Outer-join null extensions and nullable base-table fields retain native known
+nullable metadata versus pq unknown; window-key ORDER BY alone does not order
+the result, so that witness compares a complete bag. Stored-expression inquiry
+uses independently specified `pg_attrdef.adnum` ordinals and the admitted explicit
+`regclass::oid` cast instead of the absent
+`pg_attribute` prerequisite. View inquiry selects its complete independently
+expected SQL definition, retaining function/ordinality/renamed-source assertions
+without extending inquiry-LIKE grammar. Supported INSERT/UPDATE RETURNING and
+COUNT window routes prove SRF prohibitions using the same shared expectations;
+SUM-window and first_value retain exact native capability errors versus
+PostgreSQL's selected SRF errors. Missing no-argument parameter admission remains
+native42P08 versus pq42P02, while provided-argument conflict42P08 is shared.
+FILTER owns its SRF error before the enclosing aggregate argument owner, without
+the aggregate/window LATERAL Hint.
+
+`TestReferenceRegexpQueryBoundaryScalars`, `FilterValues` and `Restrictions`
+exercise query-local placement contexts: selected target SRFs inside child SELECTs
+remain legal beneath CASE, COALESCE, aggregate FILTER and multirow INSERT VALUES.
+Independent witnesses cover correlated/nested children, zero-row scalar NULL and
+fallback, scalar cardinality 21000, EXISTS counts, exact inserted counts and late
+failure atomicity. A later direct parent SRF remains prohibited with its original
+context, Hint, stage and UTF8 Position; a preceding legal child cannot erase that
+restriction. The same definitions run unchanged in both modes.
+
+`TestReferenceRegexpJoinDependencyRightFull`, `Prefixes`, `Diagnostics` and
+`Views` pin the boundary-relative distinction between local-left and inherited
+prefix captures. Their complete direct/prepared witnesses retain internally
+dependent RHS joins, empty-left RIGHT/FULL preservation, genuine inherited
+offsets, exact mixed-prefix forbidden-reference diagnostics, independently
+specified compact view SQL, replay, renames and real stored dependencies.
+These definitions must remain unchanged across native and pinned selections:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRegexpJoinDependency'
+make check RUN='^TestReferenceRegexpJoinDependency'
+make check RUN='^TestRegexpCorrelationFrameRebase$'
+make check RACE=1 RUN='^TestRegexpCorrelationFrameRebase$'
+```
+
+The private component proof executes actual invocation stages with divergent
+lexical and private virtual-owner frames before/after prefix normalization;
+it verifies retained argument ownership and prevents rebasing already-local
+right invocations twice. It is not a public-SQL replacement or an allocation/
+identity-wiring assertion. Root owns fresh verification; these commands are
+required proof selections, not claims that this remedy has passed.
+
+Root generates parser code and formats once after all edits land, then runs
+selected proof under external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceRegexp(Signatures|NamedArguments|Inference|Metadata)$'
+make check RUN='^TestReferenceRegexp(CountInstrLike|CaptureArrays|NullDemand)$'
+make check RUN='^TestReferenceRegexp(Flags|Diagnostics|Collation)$'
+make check RUN='^TestReferenceRegexp(Replacement|Splits|GlobalBoundaries)$'
+make check RUN='^TestReferenceRegexp(SetProjection|SetFrom|SetCorrelation)$'
+make check RUN='^TestReferenceRegexp(SetComposition|SetPlacement|SetViews)$'
+make check RUN='^TestReferenceRegexp(Consumers|StoredDefinitions|Controls|Atomicity)$'
+make check RUN='^TestReferenceRegexp(ActualCancellation|StatementTimeout|HeldParameters)$'
+make check RUN='^TestReferenceRegexpQueryBoundary(Scalars|FilterValues|Restrictions)$'
+make check RUN='^TestRegexpFunctions(Flags|OriginalStart|Iteration|Captures)$'
+make check RUN='^TestRegexpFunctions(Replacement|Split|Ownership|Budget|LoopCancellation)$'
+make check RUN='^TestRegexpSet(Projection|Nested|Correlation|Ownership|Walks)$'
+make check RUN='^TestRegexp(ScalarBinding|ScalarStrictChildren|ScalarPreflight|ScalarGroupingAlias|ScalarOuterFromFrame|ScalarFilterPlacement|ScalarViewPrefix|FunctionSyntax|FromSyntax)$'
+make check RACE=1 RUN='^(TestRegexpFunctions(Ownership|Budget|LoopCancellation)|TestRegexpSet(Ownership|Correlation)|TestReferenceRegexp(ActualCancellation|HeldParameters|Controls))$'
+make check RUN='^TestReferenceRegexpFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRegexpFeatureSmoke$'
+```
+Each public definition group above also requires its identical selected command
+with `REFERENCE=1`. Shared-provider regression seeds, also in both modes, are
+`^TestReferencePosix(SearchCase|OptionsNewlines|TypeCollationDemand|HeldParameters|TitlecaseConstructors|NestedAssertions)$`,
+`^TestReferenceSimilar(FeatureSmoke|ReviewTaggedIterator|ReviewGroupIdentity)$`,
+`^TestReferenceBinarySliceCapabilityBoundaries$` and
+`^TestReferenceJSONPath(Regex|ReviewRegex)$`. Native provider demand regression:
+`make check RUN='^(TestPGRegexBoolResultDemand|TestPGRegexCaptureVectors|TestSimilarSubstringCaptureFreeBudgetAndScratchReuse)$'`.
+
+
+`TestRegexpFunctionsFlags`, `OriginalStart`, `Iteration`, `Captures`,
+`Replacement`, `Split`, `Ownership`, `Budget` and `LoopCancellation` are genuine
+sqltype units. They inspect actual demand/spans, owned typed capture payloads,
+configuration-preserving resource invalidation and active consumer cancellation,
+not SQL through an internal engine. `TestRegexpScalarBinding`,
+`TestRegexpScalarStrictChildren` and `TestRegexpScalarPreflight` exercise real
+bound plans and all-child strictness/invariant versus row-dependent demand.
+`TestRegexpScalarGroupingAlias` inspects actual alias keys and ambiguity, and
+`TestRegexpScalarOuterFromFrame` inspects the nested bound query graph to require
+a distinct inner function frame retaining its captured lexical outer column frame1.
+`TestRegexpScalarFilterPlacement` invokes the real FILTER binder with an active
+aggregate argument owner, asserting exact message/no Hint and restored scopes.
+`TestRegexpScalarViewPrefix` inspects actual analyzed stored-view rendering,
+including a nested RHS prefix inherited from its enclosing dependent join,
+without executing SQL through an internal-engine mock or deriving a golden.
+Its public inquiry branch separately rejects Dump-style quoted bridge aliases
+while retaining the same actual captured lexical references. The public SetViews
+definition remains a complete independently pinned SQL golden, not a substring
+or native-generated parity expectation.
+`TestRegexpFunctionSyntax` and `TestRegexpFromSyntax` inspect actual parser ASTs,
+including selected source positions, labels, ordinality and ROWS FROM structure.
+The set units `TestRegexpSetProjection`, `Nested`, `Correlation`, `Ownership` and
+`Walks` now exercise the shared project-set/FROM/join owners, rewrites, fixed
+templates, frame prefixes, padding, ordinality and owner reuse directly.
+`TestRegexpCorrelationFrameRebase` preserves caller-owned arguments, distinct
+lexical frames and private virtual-owner windows through normalization.
+`TestFunctionSourceMixedRows` exercises mixed typed padding, scalar strict NULL
+and ordinality; `TestQuerySetMixedAttemptOwnership` checks bare terminal draws
+against emitted-only upper wrappers. `TestFunctionRecheckOwnedRegexpCursor`
+checks immutable constant-vector reuse, refreshed dependent arguments and held
+values after cache closure. Existing string component units retain their
+assertions while using the same closed call storage and invocation context.
+
+The independent shared definitions `TestReferenceRegexpMixedProjection` and
+`TestReferenceRegexpMixedFrom` cover mixed targets, nesting, wrappers, hidden
+keys, held plans, terminal sequence counts, ROWS FROM and exact P/L boundaries.
+Root runs both `make check RUN='^TestReferenceRegexpMixed(Projection|From)$'`
+and the same definitions with `REFERENCE=1`, then the full affected selected and
+incumbent string groups, race proof and standalone smoke. Their SQL/row/error/
+sequence-count goldens are not generated from native output.
+
+The standalone session-only regexp smoke exercises the public driver, held
+plans/cursors, actual correlated sets, typed metadata, stored consumers,
+Dump/Reset/Restore and atomic error recovery. It must print `regexp smoke: ok`
+only after all assertions pass; it is not a repository deliverable. Native and
+pinned feature-smoke definitions must both pass before review. No readiness
+claim, generated artifact or unexercised cancellation replaces observed proof.
+Whole-project Docker-free verification is reserved for root `make quickcheck`;
+post-merge finalcheck uses a separate external1800-second deadline.
+

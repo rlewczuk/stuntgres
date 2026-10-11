@@ -86,6 +86,12 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case regexpExpression:
+		n.regexpCall, err = n.regexpCall.mapChildren(view, info, child)
+		rebound = n
+	case regexpSetExpression:
+		n.regexpCall, err = n.regexpCall.mapChildren(view, info, child)
+		rebound = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
 		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)

@@ -843,6 +843,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
+	if token.code == IDENT && RegexpFunctionName(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
 	// Preserve bare identifiers and output labels.
 	if token.lexeme.keyword != nil && (token.lexeme.text == "replace" || token.lexeme.text == "format") {
@@ -939,6 +942,18 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
+	case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
+		if token.code == IDENT {
+			token.code = SELECTED_FUNC
+		}
+	case "lateral":
+		if token.lexeme.keyword != nil {
+			token.code = LATERAL
+		}
+	case "ordinality":
+		if token.lexeme.keyword != nil {
+			token.code = ORDINALITY
+		}
 	case "variadic":
 		if token.lexeme.keyword != nil {
 			token.code = VARIADIC
@@ -988,7 +1003,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.policyExpression || l.indexExpression || l.generationDepth > 0 || strings.EqualFold(token.lexeme.text, "unaccent") || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_get_serial_sequence") || token.lexeme.text == "current_schemas" || token.lexeme.text == "gen_random_uuid" || token.lexeme.text == "uuidv4" || token.lexeme.text == "uuidv7") {
+	if token.code == SELECTED_FUNC && (RegexpFunctionName(token.lexeme.text) || l.checkDepth > 0 || l.policyExpression || l.indexExpression || l.generationDepth > 0 || strings.EqualFold(token.lexeme.text, "unaccent") || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_get_serial_sequence") || token.lexeme.text == "current_schemas" || token.lexeme.text == "gen_random_uuid" || token.lexeme.text == "uuidv4" || token.lexeme.text == "uuidv7") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
@@ -1555,4 +1570,12 @@ func TransactionTimeFunctionName(name string) bool {
 
 func enumFunctionName(name string) bool {
 	return strings.EqualFold(name, "enum_first") || strings.EqualFold(name, "enum_last") || strings.EqualFold(name, "enum_range")
+}
+
+func RegexpFunctionName(name string) bool {
+	switch strings.ToLower(name) {
+	case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
+		return true
+	}
+	return false
 }

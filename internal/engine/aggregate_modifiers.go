@@ -12,9 +12,9 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (BoundE
 	if raw.Filter == nil {
 		return nil, nil
 	}
-	clause := b.aggregateClause
-	b.aggregateClause = "FILTER"
-	defer func() { b.aggregateClause = clause }()
+	clause, regexpClause := b.aggregateClause, b.regexpClause
+	b.aggregateClause, b.regexpClause = "FILTER", "FILTER"
+	defer func() { b.aggregateClause, b.regexpClause = clause, regexpClause }()
 	return b.bindBoolean(raw.Filter, projectionContext, "FILTER")
 }
 
