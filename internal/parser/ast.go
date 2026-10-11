@@ -746,6 +746,8 @@ const (
 	ForceRowSecurity
 	NoForceRowSecurity
 	AddUsingIndex
+	SetExpression
+	DropExpression
 )
 
 type AlterTableAction struct {
@@ -763,6 +765,7 @@ type AlterTableAction struct {
 	Using       Expr
 	Exclusion   *ExclusionConstraint
 	UsingIndex  *UsingIndexConstraint
+	Generation  *GenerationDefinition
 }
 
 type AlterTable struct {

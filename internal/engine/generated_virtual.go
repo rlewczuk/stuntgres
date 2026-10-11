@@ -110,6 +110,32 @@ func logicalColumnValue(d *relationDescriptor, slot int, row []sqltype.Value, c 
 	return column.Eval(&local)
 }
 
+// Frozen projections do not freeze the queried logical relation's recipe.
+// Physical child identity belongs to tableoid/provenance, not recipe selection.
+// Rechecks borrow the complete latest logical tuple without rereading a source
+// whose inheritance mapping scratch may still hold that same tuple.
+func (e columnExpression) capturedGeneration(source *querySource, index int, current []sqltype.Value) (BoundExpr, []sqltype.Value, error) {
+	data := source.view.data.Load()
+	if data == nil {
+		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")
+	}
+	logical, ok := data.catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+	if !ok {
+		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
+	}
+	definition, ok := logical.generations[e.origin.Address.SubID]
+	if !ok || definition.kind != generationVirtual || definition.planned == nil {
+		return nil, nil, fmt.Errorf("stuntgres: missing captured virtual generation")
+	}
+	if current != nil {
+		if len(current) != len(logical.columns) {
+			return nil, nil, fmt.Errorf("stuntgres: invalid virtual recheck tuple")
+		}
+		return definition.planned, current, nil
+	}
+	return definition.planned, source.row(index), nil
+}
+
 func generationInheritanceError(column string, parent, child generationKind) error {
 	err := sqlError("42611", fmt.Sprintf(`column "%s" inherits from generated column of different kind`, column)).(*sqlstate.Error)
 	err.Detail = fmt.Sprintf("Parent column is %s, child column is %s.", parent.sql(), child.sql())

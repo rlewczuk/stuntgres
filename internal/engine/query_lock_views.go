@@ -707,7 +707,10 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 			if changed {
 				evaluation.orderValues = child.orderRow(i)
 				offset := 0
+				previousRows := evaluation.queryCurrentRows
+				evaluation.queryCurrentRows = currentRows
 				replacement, ok, err := recheckLockedQuery(node, state.source, currentRows, &evaluation, scratch, &offset, row)
+				evaluation.queryCurrentRows = previousRows
 				if err != nil {
 					return false, err
 				}

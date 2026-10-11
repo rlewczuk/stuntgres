@@ -172,7 +172,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 	}
 	if rewrite {
-		replacement, _, _, err = rewriteTypeRows(scope, scope.op, old, next, store, frontier, mutation.transforms, mutation.additions, validator)
+		replacement, _, _, err = rewriteTypeRows(scope, scope.op, old, next, store, frontier, mutation.transforms, mutation.additions, nil, validator)
 	} else if !slices.Equal(old.attributes, next.attributes) {
 		projection, projectionErr := newColumnProjection(old, next, fills)
 		if projectionErr != nil {
@@ -220,7 +220,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		return err
 	}
 	if len(mutation.transforms) != 0 {
-		if _, err := validateAlterUniques(scope.op.Context(), auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms); err != nil {
+		if _, err := validateAlterUniques(scope.op.Context(), auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil); err != nil {
 			return err
 		}
 	}

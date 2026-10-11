@@ -2264,8 +2264,20 @@ the stored value; other explicit generated-column writes fail428C9. See
 and omitted-kind generation compute lazily when read, using the same typed binder.
 Virtual definitions admit built-in types/providers only, preserve independent
 column SELECT grants and are evaluated on writes only when constraints demand them.
-Generated-expression ALTER lifecycle remains excluded.
-Feature proof: `make check RUN='^TestReferenceGeneratedVirtual'`, also with `REFERENCE=1`.
+Change note: `ALTER TABLE ... ALTER [COLUMN] b SET EXPRESSION AS (expression)`
+replaces the existing recipe without changing column kind, shape or declared type.
+STORED values are recomputed atomically for effective live rows, including the
+transaction's own writes; virtual replacement stays lazy except for NOT NULL.
+`DROP EXPRESSION [IF EXISTS]` makes a STORED destination ordinary and retains its
+cells. VIRTUAL DROP and PostgreSQL18.0 virtual SET on tables with CHECK remain
+explicit boundaries. Prepared statements and preexisting virtual views use the
+queried logical recipe captured for their admitted source, including inputs added after
+view creation; already returned rows retain their original cells and metadata.
+Native ordinary UPDATE DEFAULT and unique expression indexes retain their existing
+capability boundaries. ADD generated and generated-column
+or generation-dependency TYPE changes remain excluded.
+Feature proof: `make check RUN='^TestReferenceAlterGeneratedExpression'`,
+also with `REFERENCE=1`; see [bounded proofs](docs/TESTING.md).
 Feature smokes: `make check RUN='^TestIdentity(Smoke|ControlsSmoke|CheckControlsSmoke)$'`.
 The ALTER lifecycle is shared reference coverage:
 `make check RUN='^TestReferenceAlterIdentity'`;

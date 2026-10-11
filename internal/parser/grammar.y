@@ -561,7 +561,7 @@ package parser
 %type <identity> identity_definition identity_alter_options
 %type <identityMode> identity_mode
 %type <generation> generation_definition
-%type <tok> generation_kind
+%type <tok> generation_kind generation_expression_word
 %type <sequenceOptions> identity_options identity_option_list
 %type <sequenceOption> identity_option identity_set_option
 %type <override> insert_override
@@ -781,6 +781,7 @@ identity_mode: ALWAYS { $$=IdentityAlways } | BY DEFAULT { $$=IdentityByDefault 
 identity_definition: GENERATED identity_mode AS IDENTITY identity_options { $$=&IdentityDefinition{Mode:$2,Options:$5,Pos:$1.pos} } ;
 generation_definition: GENERATED identity_mode AS '(' scalar_projection ')' generation_kind { expression:=$5;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&GenerationDefinition{Expression:expression,Mode:$2,Kind:$7.text,Pos:$1.pos,ModePos:sqllex.(*lexer).generationModePos} } ;
 generation_kind: /* empty */ { $$=lexeme{} } | KW_U { if $1.text!="stored" && $1.text!="virtual" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+generation_expression_word: KW_U { if $1.text!="expression" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 identity_options: /* empty */ { $$=nil } | '(' identity_option_list ')' { $$=$2 } ;
 identity_option_list: /* empty */ { $$=nil } | identity_option_list identity_option { $$=append($1,$2) } ;
 identity_option: sequence_option { $$=$1 } | SEQUENCE name relation_name { if $2.text!="name" {sqllex.(*lexer).syntax($2);return 1}; $$=SequenceOption{Name:"name",Owned:$3,Pos:$1.pos} }
@@ -1347,7 +1348,7 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_rename_single { $$=$1 }
@@ -1368,6 +1369,9 @@ alter_actions: alter_selected_action { $$=[]AlterTableAction{*$1} }
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
  | ALTER optional_column name SET NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
  | ALTER optional_column name DROP NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
+ | ALTER optional_column name SET generation_expression_word AS '(' scalar_projection ')' { expression:=$8;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetExpression,Generation:&GenerationDefinition{Expression:expression,Pos:$5.pos},Pos:$1.pos} }
+ | ALTER optional_column name DROP generation_expression_word { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,Pos:$1.pos} }
+ | ALTER optional_column name DROP generation_expression_word IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,IfExists:true,Pos:$1.pos} }
  | ADD table_not_null { $$=&AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos} }
  | DROP CONSTRAINT drop_target drop_mode { $$=&AlterTableAction{Constraint:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropConstraint,Pos:$1.pos} }
  | ALTER optional_column name ADD identity_definition { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AddIdentity,Identity:$5,Pos:$1.pos} }

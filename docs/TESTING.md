@@ -1667,6 +1667,78 @@ temporary source directory. Its shared SQL counterpart is selected with
 command with `REFERENCE=1`. No discovery-only backend filter remains in the
 completed shared family; discovery results do not replace dual-mode proof.
 
+Generated-expression ALTER uses independently expected dual-mode definitions in
+`reference/sequences/alter_generated_expression*_test.go`, reusing the generated
+fixture and full logical diagnostics. Run each bounded group under an external
+900-second deadline, both natively and against real pinned PostgreSQL:
+
+```sh
+make check RUN='^TestReferenceAlterGeneratedExpression(Stored|Drop|Virtual)$'
+make check REFERENCE=1 RUN='^TestReferenceAlterGeneratedExpression(Stored|Drop|Virtual)$'
+make check RUN='^TestReferenceAlterGeneratedExpression(Diagnostics|Atomicity|Catalog)$'
+make check REFERENCE=1 RUN='^TestReferenceAlterGeneratedExpression(Diagnostics|Atomicity|Catalog)$'
+make check RUN='^TestReferenceAlterGeneratedExpression(Transactions|Prepared|Authorization)$'
+make check REFERENCE=1 RUN='^TestReferenceAlterGeneratedExpression(Transactions|Prepared|Authorization)$'
+make check RUN='^TestReferenceAlterGeneratedExpression(Locking|Controls|Boundaries|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceAlterGeneratedExpression(Locking|Controls|Boundaries|FeatureSmoke)$'
+make check RUN='^TestAlterGeneratedExpression'
+make check RACE=1 RUN='^TestAlterGeneratedExpression(Cancellation|ProviderFences|Publication|ParserIsolation|AuthorizationAfterWait)$'
+make check RACE=1 RUN='^TestReferenceAlterGeneratedExpression(Locking|Transactions|Controls)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceAlterGeneratedExpression(Locking|Transactions|Controls)$'
+```
+
+The groups exercise stored/drop/virtual values; full ALTER-stage diagnostics and
+late atomic constraints; current/new/unchanged pg_attrdef ownership, deparse and
+dependency replacement; transaction/savepoint recovery and independently expected
+direct/prepared metadata; ownership and read-only admission; real exclusive-lock
+waits and cancellation; final-state native controls and explicit hierarchy, typed,
+publication and user-function boundaries. Fresh peer reads wait while ALTER's AX
+lock is held; transaction peer observations occur only after COMMIT/ROLLBACK.
+INT4 native ScanType is int64 and pinned pq's is int32; scanned generic integer
+cells remain int64 in both. Controls call the actual native Dump/Reset/Restore
+twice, and PostgreSQL replays the generated SQL stream without inventing native APIs.
+Package units call the actual parser, binder, row rewrite, catalog-stage/provider
+and Finish paths, inspecting retained roots, immutable sources, revision/OID
+behavior, effective own heads and late authority/cancellation vetoes.
+Prepared proof includes preexisting direct and retained prepared virtual views
+after replacement and ADD c DEFAULT5 plus SET b=a+c, beyond the frozen projection.
+Native held old-view rows keep the original values/types. CapturedVirtual package
+mechanics uses actual data-view capture, complete source tuples, a frozen two-slot
+bridge, correlated frames and retained source snapshots across Reset; recipe
+resolution is checked for zero allocation.
+It also supplies a complete latest recheck tuple beyond that frozen projection and
+checks that a correlated outer frame does not borrow unrelated inner recheck rows.
+Existing inheritance assertions remain unchanged: the queried parent's virtual
+recipe uses mapped child inputs and actual child tableoid/lock/provenance. The
+execution-only borrowed occurrence-indexed current tuple is saved/restored around
+recheck evaluation and never overwrites active inheritance mapping scratch.
+Focused existing regression proof, each also required against real pinned PostgreSQL:
+`make check RUN='^TestReferenceInheritanceQuery(Generated|LockRecheck)$'` and
+`make check REFERENCE=1 RUN='^TestReferenceInheritanceQuery(Generated|LockRecheck)$'`.
+PG original unique-expression collision cases remain independently expected23505;
+native CREATE asserts its existing0A000 boundary and absent index. Portable
+companions exercise nonunique b/(b-5) root22012 and column-key partial UNIQUE(k)
+WHERE b<3 membership23505, preserving recipes, rows and roots. FK-parent uses
+distinct replacement keys so incoming-FK23503 is not masked by a unique collision.
+After stored DROP, direct/retained prepared PostgreSQL UPDATE DEFAULT yields NULL;
+native asserts existing0A000 and unchanged cells. Common omitted and explicit
+NULL/value writes and single SET DEFAULT7/omitted7 still run in both modes.
+
+
+Run the affected complete stored/virtual families above after changing their
+shared binder/rewrite consumers. The standalone public executable smoke is
+root-owned OMP-session source, not a repository test or fixture. Run its exact
+session path under a 900-second external deadline, asserting quiet success from
+retained prepared reads/writes, native metadata, virtual diagnostics, late action
+atomicity and two actual native Dump/Reset/Restore cycles plus failed/canceled
+Restore preservation.
+The smoke additionally retains a prepared preexisting virtual view through SET and
+ADD-input replacement, checking its values/metadata again after both real control
+cycles and failed Restore.
+Readiness is not proof: record actual argv, exits and expected-versus-observed
+results. No temporary PostgreSQL-only filter is present.
+
+
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control

@@ -38,21 +38,23 @@ type BoundExpr interface {
 	Eval(*EvalContext) (sqltype.Value, error)
 }
 type EvalContext struct {
-	Context            context.Context
-	Scope, Frame       uint32
-	Row                []sqltype.Value
-	OldRow             []sqltype.Value
-	Parameters         []sqltype.Value
-	orderValues        []sqltype.Value
-	statementScope     *StatementScope
-	Input              sqltype.InputEnvironment
-	Output             sqltype.OutputEnvironment
-	Outer              *EvalContext
-	query              *queryState
-	catalog            CatalogRead // Current imported request/view authority for local lowering.
-	queryOccurrences   []int
-	queryProvenance    []int
-	queryRowSource     *querySource
+	Context          context.Context
+	Scope, Frame     uint32
+	Row              []sqltype.Value
+	OldRow           []sqltype.Value
+	Parameters       []sqltype.Value
+	orderValues      []sqltype.Value
+	statementScope   *StatementScope
+	Input            sqltype.InputEnvironment
+	Output           sqltype.OutputEnvironment
+	Outer            *EvalContext
+	query            *queryState
+	catalog          CatalogRead // Current imported request/view authority for local lowering.
+	queryOccurrences []int
+	queryProvenance  []int
+	queryRowSource   *querySource
+	// Borrowed full logical tuples only while rechecking locked occurrences.
+	queryCurrentRows   [][]sqltype.Value
 	physicalTable      ObjectRef // Existing generated recipe's containing physical row.
 	stringRecheckCache *stringRecheckCache
 	// Stored CHECK syntax stays immutable; detached executable expressions
@@ -166,14 +168,28 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	local.Context = c.Context
 	local.Scope, local.Frame = 1, 1
 	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
+	recipe := e.virtual
 	if e.queryOccurrence != 0 {
-		ref, err := row.queryOperandPhysicalRef(e.queryOccurrence - 1)
+		source, index, err := row.queryOperandSource(e.queryOccurrence - 1)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		local.physicalTable = ref
+		local.physicalTable = source.physicalRef(index)
+		if source.view != nil && e.origin.Address.SubID != 0 {
+			var current []sqltype.Value
+			if row.queryCurrentRows != nil {
+				if source.occurrence < 0 || source.occurrence >= len(row.queryCurrentRows) || row.queryCurrentRows[source.occurrence] == nil {
+					return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual recheck occurrence")
+				}
+				current = row.queryCurrentRows[source.occurrence]
+			}
+			recipe, local.Row, err = e.capturedGeneration(source, index, current)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		}
 	}
-	return e.virtual.Eval(&local)
+	return recipe.Eval(&local)
 }
 
 type parameterExpression struct {

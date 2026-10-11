@@ -78,89 +78,100 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 	if len(d.generations) == 0 {
 		return nil
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
-	columns := make([]queryColumn, len(d.columns))
-	for i, c := range d.columns {
-		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
-	}
-	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}
-	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}
+	ns := e.generationNamespace(auth, d)
 	for slot, declaration := range declarations {
 		if declaration.generation == nil {
 			continue
 		}
-		b := newExpressionBinder(op.Context(), e, input, op, nil)
-		b.generatedOwner = d
-		b.noParameters = true
-		b.queryAuth = &auth
-		b.queryNamespace = &ns
-		b.querySources = []queryLeaf{{ref: ref, relation: d}}
-		column := d.columns[slot]
-		kind := d.generations[d.attributes[slot]].kind
-		if kind == generationVirtual {
-			if err := virtualDestination(column); err != nil {
-				return err
-			}
-		}
-		node, err := b.bind(declaration.generation.Expression, expressionPolicy{context: projectionContext, expected: column.Usage.Type.Usage()})
-		if err != nil {
-			return err
-		}
-		analyzed := node
-		if kind == generationVirtual {
-			if err := virtualGenerationSecurity(analyzed); err != nil {
-				return err
-			}
-		}
-		node, _, err = simplifyConditional(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}, node, true)
-		if err != nil {
-			return err
-		}
-		if !generationImmutable(node) {
-			return sqlError("42P17", "generation expression is not immutable")
-		}
-		if node.ResultUsage() != column.Usage {
-			input, annotations := domainCoercionInput(node, column.Usage)
-			info, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
-			if failure != nil {
-				return failure
-			}
-			plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
-			if failure != nil {
-				diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
-				diagnostic.Hint = "You will need to rewrite or cast the expression."
-				return diagnostic
-			}
-			info.properties = coercionProperties(input, plan)
-			node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
-			analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
-			analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
-			if failure != nil {
-				return failure
-			}
-			analyzedPlan, failure := sqltype.PlanCoercion(analyzedInput.ResultUsage(), analyzedInfo.usage, sqltype.Assignment)
-			if failure != nil {
-				return failure
-			}
-			analyzedInfo.properties = coercionProperties(analyzedInput, analyzedPlan)
-			analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment})
-		}
-		node, err = storageDestination(node, column.Usage, parser.Position{})
-		if err != nil {
-			return err
-		}
-		analyzed, err = storageDestination(analyzed, column.Usage, parser.Position{})
-		if err != nil {
-			return err
-		}
-		definition := columnGeneration{kind: kind, expression: analyzed, planned: node}
-		_, err = (scalarRenderer{owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
+		definition, err := e.bindGeneration(op, auth, d, slot, declaration.generation.Expression, input, &ns)
 		if err != nil {
 			return err
 		}
 		d.generations[d.attributes[slot]] = definition
 	}
 	return nil
+}
+
+func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescriptor) queryNamespace {
+	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
+	columns := make([]queryColumn, len(d.columns))
+	for i, c := range d.columns {
+		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
+	}
+	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}
+	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}
+}
+
+// CREATE and ALTER share binding, security, coercion and provider capture.
+func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relationDescriptor, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *queryNamespace) (columnGeneration, error) {
+	b := newExpressionBinder(op.Context(), e, input, op, nil)
+	b.generatedOwner = d
+	b.noParameters = true
+	b.queryAuth = &auth
+	b.queryNamespace = ns
+	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
+	b.querySources = []queryLeaf{{ref: ref, relation: d}}
+	column := d.columns[slot]
+	kind := d.generations[d.attributes[slot]].kind
+	if kind == generationVirtual {
+		if err := virtualDestination(column); err != nil {
+			return columnGeneration{}, err
+		}
+	}
+	node, err := b.bind(expression, expressionPolicy{context: projectionContext, expected: column.Usage.Type.Usage()})
+	if err != nil {
+		return columnGeneration{}, err
+	}
+	analyzed := node
+	if kind == generationVirtual {
+		if err := virtualGenerationSecurity(analyzed); err != nil {
+			return columnGeneration{}, err
+		}
+	}
+	node, _, err = simplifyConditional(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}, node, true)
+	if err != nil {
+		return columnGeneration{}, err
+	}
+	if !generationImmutable(node) {
+		return columnGeneration{}, sqlError("42P17", "generation expression is not immutable")
+	}
+	if node.ResultUsage() != column.Usage {
+		input, annotations := domainCoercionInput(node, column.Usage)
+		info, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+		if failure != nil {
+			return columnGeneration{}, failure
+		}
+		plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
+		if failure != nil {
+			diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
+			diagnostic.Hint = "You will need to rewrite or cast the expression."
+			return columnGeneration{}, diagnostic
+		}
+		info.properties = coercionProperties(input, plan)
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
+		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
+		if failure != nil {
+			return columnGeneration{}, failure
+		}
+		analyzedPlan, failure := sqltype.PlanCoercion(analyzedInput.ResultUsage(), analyzedInfo.usage, sqltype.Assignment)
+		if failure != nil {
+			return columnGeneration{}, failure
+		}
+		analyzedInfo.properties = coercionProperties(analyzedInput, analyzedPlan)
+		analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment})
+	}
+	node, err = storageDestination(node, column.Usage, parser.Position{})
+	if err != nil {
+		return columnGeneration{}, err
+	}
+	analyzed, err = storageDestination(analyzed, column.Usage, parser.Position{})
+	if err != nil {
+		return columnGeneration{}, err
+	}
+	definition := columnGeneration{kind: kind, expression: analyzed, planned: node}
+	_, err = (scalarRenderer{owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
+	return definition, err
 }
 
 // Walk surviving providers, not conservative properties retained on CASE wrappers.

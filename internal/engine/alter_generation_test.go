@@ -1,0 +1,202 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"maps"
+	"reflect"
+	"slices"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func alterGenerationAction(expr parser.Expr) parser.AlterTableAction {
+	return parser.AlterTableAction{Action: parser.SetExpression, Column: parser.Identifier{Text: "b"}, Generation: &parser.GenerationDefinition{Expression: expr}}
+}
+
+func alterGenerationLiteral(n int64) parser.Expr {
+	return parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}}
+}
+
+func alterGenerationStatement(action parser.AlterTableAction) *parser.AlterTable {
+	return &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "g"}}}, Actions: []parser.AlterTableAction{action}}
+}
+
+func TestAlterGeneratedExpressionCandidate(t *testing.T) {
+	e, admin, _, ref := generatedAuthorizationFixture(t)
+	elements := []parser.TableElement{{Column: &parser.Column{Name: "a", TypeName: parser.TypeName{Name: "int4"}}}}
+	for i, name := range []string{"b", "c"} {
+		expr := alterGenerationOperator("+", alterGenerationColumn("a"), alterGenerationLiteral(int64(i+1)))
+		if name == "c" {
+			expr = alterGenerationLiteral(17)
+		}
+		elements = append(elements, parser.TableElement{Column: &parser.Column{Name: name, TypeName: parser.TypeName{Name: "int4"}, Constraints: []parser.ColumnConstraint{{Generation: &parser.GenerationDefinition{Mode: parser.IdentityAlways, Kind: "stored", Expression: expr}}}}})
+	}
+	if _, err := e.Execute(admin, &parser.CreateTable{Name: alterGenerationName("g2"), Elements: elements}, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	ref = catalogRef(t, e, e.CatalogRead(), "g2")
+	auth, err := admin.Authorization()
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := e.StartStatement(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(errors.New("candidate-only unit"))
+	old := e.state.descriptors[ref.Address].(*relationDescriptor)
+	original := old.generations[2]
+	retained := auth.catalog
+	unaffected := old.generations[3]
+	next, attribute, err := e.generationCandidate(scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
+	if err != nil || attribute != 2 || next == old || next.generations[2].OID != 0 || next.generations[2].kind != generationStored {
+		t.Fatal(next, attribute, err)
+	}
+	e.mu.Lock()
+	err = e.assignDefinitionOIDsLocked(next)
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.generations[2].OID == 0 || next.generations[2].OID == original.OID || !reflect.DeepEqual(old.generations[2], original) || retained.state.descriptors[ref.Address] != old || !slices.Equal(old.attributes, next.attributes) || &old.columns[0] != &next.columns[0] {
+		t.Fatal("source/shape identity changed")
+	}
+	if next.generations[3].OID != unaffected.OID || !reflect.DeepEqual(next.generations[3], unaffected) || !reflect.DeepEqual(old.generations[3], unaffected) {
+		t.Fatal("unaffected definition reminted/mutated")
+	}
+	drop := parser.AlterTableAction{Action: parser.DropExpression, Column: parser.Identifier{Text: "b"}}
+	dropped, changed, err := e.generationCandidate(scope, admin, auth, next, drop)
+	if err != nil || changed != 0 || len(dropped.generations) != 1 || len(next.generations) != 2 || dropped.columns[1] != old.columns[1] || dropped.generations[3].OID != unaffected.OID {
+		t.Fatal(dropped, changed, err)
+	}
+	target := ref.Address
+	target.SubID = 1
+	originalDrop, _, err := e.generationCandidate(scope, admin, auth, old, drop)
+	if err != nil || !generationDepends(old, target) || generationDepends(next, target) || generationDepends(originalDrop, target) || originalDrop.generations[3].OID != unaffected.OID {
+		t.Fatal("SET/DROP dependency edges or unaffected definition wrong", err)
+	}
+	drop.IfExists = true
+	same, _, err := e.generationCandidate(scope, admin, auth, dropped, drop)
+	if err != nil || same != dropped || same.revision != dropped.revision {
+		t.Fatal("no-op changed descriptor", err)
+	}
+	if e.state.descriptors[ref.Address] != old {
+		t.Fatal("candidate published early")
+	}
+}
+
+func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
+	_, scope, _, base := alterAddUnitScope(t)
+	u := base.columns[0].Usage
+	integer := func(n int64) sqltype.Value {
+		t.Helper()
+		v, err := sqltype.Integer(u.Type, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	old := *base
+	old.columns = []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true}, {Name: "b", Usage: u, Nullable: true}, {Name: "untouched", Usage: u, Nullable: true}}
+	old.attributes = []int32{1, 2, 3}
+	old.index = map[string]int{"a": 0, "b": 1, "untouched": 2}
+	next := old
+	next.columns = slices.Clone(old.columns)
+	next.columns = append(next.columns, ColumnDescriptor{Name: "c", Usage: u, Nullable: true})
+	next.attributes = []int32{1, 2, 3, 4}
+	next.attributeHighWater = 4
+	next.index = maps.Clone(old.index)
+	next.index["c"] = 3
+	calls := 0
+	generated := queryProbeExpression{expressionInfo: expressionInfo{usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+		calls++
+		if len(ec.Row) != 4 || ec.Row[0] != integer(31) || ec.Row[3] != integer(5) {
+			t.Fatal("generation evaluated before completed tuple", ec.Row)
+		}
+		return integer(36), nil
+	}}
+	untouched := queryProbeExpression{expressionInfo: expressionInfo{usage: u}, eval: func(*EvalContext) (sqltype.Value, error) {
+		t.Fatal("unaffected stored generation demanded")
+		return sqltype.Value{}, errors.New("unexpected evaluation")
+	}}
+	old.generations = map[int32]columnGeneration{2: {kind: generationStored, planned: untouched}, 3: {kind: generationStored, planned: untouched}}
+	next.generations = map[int32]columnGeneration{2: {kind: generationStored, planned: generated}, 3: {kind: generationStored, planned: untouched}}
+	row := func(id RowID, version uint64) rowVersion {
+		return rowVersion{row: id, version: VersionID(version), born: 1, values: []sqltype.Value{integer(1), integer(2), integer(99)}}
+	}
+	store := &relationStorage{generation: 1, versions: []rowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, ends: &deletionRoot{rows: map[RowID]rowEnd{2: {version: 2, end: 2}}}}
+	own := row(3, 5)
+	own.base = 3
+	own.born = 0
+	insert := row(5, 6)
+	insert.born = 0
+	scope.ownWrites = map[ObjectAddress][]rowVersion{old.address: {own, insert}}
+	scope.ownDeletes = map[ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
+	transform := queryProbeExpression{expressionInfo: expressionInfo{usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
+			t.Fatal("TYPE lost old row", ec.Row)
+		}
+		return integer(31), nil
+	}}
+	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "c"}, value: integer(5)}}
+	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}, additions, []int32{2}, alterRowValidator{relation: &next})
+	if err != nil || calls != 3 || len(replacement.versions) != 1 || len(writes) != 2 || deletes != nil || replacement.generation != 2 {
+		t.Fatal(replacement, writes, calls, err)
+	}
+	if replacement.versions[0].row != 1 || writes[0].row != 3 || writes[0].base != 0 || writes[1].row != 5 {
+		t.Fatal("ended/deleted/predecessor resurrected", replacement, writes)
+	}
+	for _, r := range append(slices.Clone(replacement.versions), writes...) {
+		if !slices.Equal(r.values, []sqltype.Value{integer(31), integer(36), integer(99), integer(5)}) {
+			t.Fatal(r.values)
+		}
+	}
+	for _, r := range store.versions {
+		if len(r.values) != 3 || r.values[0] != integer(1) || r.values[1] != integer(2) || r.values[2] != integer(99) {
+			t.Fatal("source changed", r)
+		}
+	}
+	if scope.ownWrites[old.address][0].base != 3 || scope.ownWrites[old.address][0].values[1] != integer(2) {
+		t.Fatal("own source changed")
+	}
+}
+
+func TestAlterGeneratedExpressionCancellation(t *testing.T) {
+	e, scope, _, base := alterAddUnitScope(t)
+	u := base.columns[0].Usage
+	value, err := sqltype.Integer(u.Type, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := *base
+	old.columns = append(slices.Clone(base.columns), ColumnDescriptor{Name: "b", Usage: u, Nullable: true})
+	old.attributes = []int32{1, 2}
+	old.index = map[string]int{"a": 0, "b": 1}
+	old.generations = map[int32]columnGeneration{2: {kind: generationStored}}
+	next := old
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	calls := 0
+	expression := queryProbeExpression{expressionInfo: expressionInfo{usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+		calls++
+		if !e.mu.TryLock() {
+			t.Fatal("generation evaluation held Engine.mu")
+		}
+		e.mu.Unlock()
+		cancel()
+		return value, nil
+	}}
+	next.generations = map[int32]columnGeneration{2: {kind: generationStored, planned: expression}}
+	store := &relationStorage{generation: 7, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, value}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value, value}}}}
+	op, cleanup, err := testOperation(e, ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, alterRowValidator{relation: &next})
+	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.generation != 7 || len(store.versions[0].values) != 2 || store.versions[0].values[1] != value {
+		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
+	}
+}

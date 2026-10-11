@@ -1079,6 +1079,11 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	} else if l.generationPending {
+		// SET expression may instead name an ordinary UPDATE destination. Only
+		// the immediately following AS belongs to the generation ALTER marker.
+		if l.generationPrevious.text == "expression" && token.code != AS {
+			l.generationPending = false
+		}
 		if token.code == ALWAYS || token.code == BY {
 			l.generationModePos = token.lexeme.pos
 		}
@@ -1091,7 +1096,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.generationPending = false
 		}
 	}
-	if token.code == GENERATED {
+	if token.code == GENERATED || token.lexeme.keyword != nil && token.lexeme.text == "expression" && l.generationPrevious.text == "set" {
 		l.generationPending = true
 	}
 	l.generationPrevious = token.lexeme

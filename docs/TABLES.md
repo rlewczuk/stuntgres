@@ -2219,7 +2219,65 @@ copies either kind with destination row/tableoid remapping.
 Copied CHECKs resolve against the completed destination: excluding generation
 checks the supplied ordinary value, while including it uses the destination's
 recipe and complete row layout, including extra columns and multiple LIKE inputs.
-ADD generated and SET/DROP EXPRESSION remain outside scope.
+ADD generated remains outside scope.
+
+### Replace or drop generated expressions — change note
+
+`ALTER TABLE target ALTER [COLUMN] b SET EXPRESSION AS (expression)` replaces an
+existing generated definition, preserving STORED/VIRTUAL kind, declared type,
+ordinal, stable attribute identity and column constraints. A successful SET gets
+a fresh pg_attrdef OID and records only its new dependencies; unrelated definitions
+retain their OIDs. pg_get_expr describes the current cooked recipe.
+
+STORED replacement evaluates each effective live committed or transaction-owned
+row once, skipping ended/deleted rows and replaced predecessors. In mixed action
+lists, TYPE USING reads the original tuple, then ADD fills and the replacement
+generation read the completed tuple. Unchanged stored generations are copied.
+NOT NULL, CHECK, admitted unique/partial/exclusion indexes, nonunique expression
+indexes and incoming/outgoing foreign keys validate the resulting values before
+publication. Native unique expression indexes remain unsupported. Arithmetic errors,
+late action failures, cancellation and catalog/authorization conflicts retain the
+old recipe, values and installed roots. Transactions/savepoints retain existing
+commit, rollback and aborted-state behavior; ALTER retains its exclusive table
+lock until the owning transaction ends.
+
+`ALTER ... DROP EXPRESSION [IF EXISTS]` removes a STORED recipe and dependencies
+without rewriting cells or changing type/nullability. Future omitted/DEFAULT
+writes use ordinary-column semantics, and explicit writes become legal. DROP
+IF EXISTS on an ordinary column is a NOTICE/no-op, not a missing-column waiver.
+SET on an ordinary column is55000. VIRTUAL DROP is0A000 even with IF EXISTS.
+The pinned PostgreSQL18.0 virtual SET boundary is0A000 on tables with any CHECK;
+otherwise replacement remains lazy except that existing NOT NULL validates live
+logical values. Virtual builtin-type/provider security checks the unsimplified
+expression, while immutability checks the surviving plan.
+
+Native ordinary UPDATE DEFAULT remains unsupported after DROP; omission, explicit
+NULL/value writes and the existing single SET DEFAULT followed by omitted INSERT
+use their ordinary supported paths. PostgreSQL UPDATE DEFAULT uses ordinary defaults.
+
+Direct and retained prepared reads/writes use the current recipe. Preexisting
+virtual views resolve the queried logical relation's recipe from their captured
+catalog snapshot by stable attribute identity and evaluate its complete source tuple,
+not the old view projection. Thus ADD c DEFAULT5 plus SET b=a+c can read the new
+input through an old two-column view. Absent operands still return typed NULL;
+correlation, tableoid and held-source recipes retain their captured authority.
+Inheritance retains the parent's recipe and maps physical child inputs to the
+parent layout; actual child identity remains tableoid/lock/provenance authority.
+During row-lock rechecks the matching frame/occurrence borrows its complete latest
+logical tuple, rather than rereading a source and overwriting mapping scratch.
+No live Engine/name lookup, view reparse or new provider is involved. Empty and
+populated results keep the original declared metadata; already returned eager rows
+keep their old values and metadata. Native INT4 ScanType is int64, pinned pq's is
+int32, while scanned generic integer cells are int64 in either backend. Native
+Dump/Reset/Restore persist the final recipe or ordinary column, never ALTER history.
+Existing inheritance/partition hierarchy exclusions, typed-table shape guards,
+SQL user-function/publication boundaries and generated-column/dependency TYPE
+restrictions are unchanged; no propagation, publication or function providers
+are added.
+
+Bounded dual-mode proof: `^TestReferenceAlterGeneratedExpression` families listed
+in docs/TESTING.md. Feature smoke:
+`make check RUN='^TestReferenceAlterGeneratedExpressionFeatureSmoke$'`, also with `REFERENCE=1`.
 
 Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
 `make check RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$'`.
@@ -2253,9 +2311,9 @@ Ordinary-column `ALTER COLUMN c TYPE BIGINT USING b` can read virtual b from the
 original physical owner row, including table- and schema-qualified references.
 A real all-NULL owner row still evaluates non-strict recipes such as COALESCE;
 demanded generation errors leave the original column type, rows and definitions
-unchanged. This does not alter b's generation definition or kind: generated-column
-or generation-dependency TYPE changes and generation ADD/SET/DROP EXPRESSION
-remain excluded.
+unchanged. This ordinary TYPE consumer does not alter b's generation definition or
+kind; generated-column or generation-dependency TYPE changes and generation ADD
+remain excluded. Kind-preserving SET EXPRESSION is documented above.
 
 Virtual destinations and unsimplified expressions cannot use user-defined types,
 including domains, enum/composite values and containing arrays, even in dead arms
@@ -2270,7 +2328,8 @@ DEFAULT-only write guards and atomic publication remain common to both kinds.
 Simple-view UPDATE of generated b, including DEFAULT, retains the release428C9
 guard; this does not expand view rewriting.
 Virtual UNIQUE/PRIMARY KEY/index keys, expression/predicate indexes and INCLUDE
-uses are rejected0A000. Existing generated partition/lifecycle boundaries remain.
+uses are rejected0A000. Generated partition CREATE and hierarchy ALTER boundaries
+remain; virtual DROP and PostgreSQL18.0 SET-on-CHECK restrictions are described above.
 
 Actual ColumnTypes and pg_attrdef/pg_get_expr expose declared types and definitions;
 pg_attribute/information_schema.columns are not newly implemented native catalogs.

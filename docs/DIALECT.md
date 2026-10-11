@@ -7010,7 +7010,7 @@ replacement remaps owner-dependent stored cells without changing held snapshots.
 Existing ALTER DEFAULT/TYPE and dependent DROP paths guard definition integrity.
 LIKE INCLUDING GENERATED copies admitted STORED/VIRTUAL definitions and their kind,
 remapping owner-row references without redirecting explicit external literals.
-ADD generated and expression ALTER lifecycle remain unsupported;
+ADD generated remains unsupported;
 generated destination TYPE without USING remains an explicit native boundary.
 Shared scenarios: `make check RUN='^TestReferenceGeneratedStored'`,
 and the same command with `REFERENCE=1`.
@@ -7032,8 +7032,8 @@ Virtual index/UNIQUE/PK/INCLUDE uses are forbidden; kind-preserving LIKE/inherit
 declared metadata, pg_attrdef/deparse and actual native two-cycle Dump/Restore use
 the existing owning authorities. Error row disclosure prints `virtual` only for
 visible generated columns. View UPDATE b=DEFAULT retains release428C9 rather than
-introducing a view rewrite bypass. No adjacent catalogs, partition routing,
-generation-expression ALTER or physical durability APIs are added.
+introducing a view rewrite bypass. No adjacent catalogs, partition routing or
+physical durability APIs are added.
 Absent outer-join operands return typed NULL without demanding generation;
 real all-NULL rows still generate normally, including non-strict expressions.
 Saved operand identity also follows scheduled compound LIMIT projections and
@@ -7045,10 +7045,54 @@ semantics and its full row width, not a source recipe or source-map cardinality.
 Ordinary-column TYPE USING reads virtual values from the original physical owner
 row, preserving qualified names and non-strict generation even on all-NULL rows.
 Demanded errors publish no row, type or definition changes. Generated-column and
-generation-dependency TYPE changes, and generation ADD/SET/DROP EXPRESSION,
-remain excluded; this is an existing ordinary ALTER consumer, not a new lifecycle.
+generation-dependency TYPE changes and generation ADD remain excluded; this is
+an ordinary ALTER consumer, separate from the kind-preserving lifecycle below.
 Shared complete family: `make check RUN='^TestReferenceGeneratedVirtual'`,
 and the same command with `REFERENCE=1`.
+
+### Generated-expression ALTER — change note (changelog)
+
+`ALTER [COLUMN] c SET EXPRESSION AS (expression)` replaces an existing recipe
+without changing generation kind, column identity or declared metadata. It uses
+the CREATE binder's type/security/immutability rules, with ALTER-stage diagnostics.
+ALTER semantic cooking omits diagnostic Position, including unsimplified virtual
+user-type/function restrictions. CREATE and lexer syntax positions remain unchanged.
+STORED values rewrite effective live rows atomically; TYPE USING retains its old
+tuple frame and replacement recipes read the completed TYPE/ADD tuple. All
+surviving constraints and affected index/FK roots validate before publication.
+VIRTUAL replacement is lazy except for logical NOT NULL scans. PostgreSQL18.0's
+virtual SET-on-CHECK-table prohibition and virtual DROP prohibition remain0A000.
+
+`DROP EXPRESSION [IF EXISTS]` makes a stored destination ordinary without changing
+existing cells, nullability or attribute identity. IF EXISTS on an ordinary target
+emits NOTICE and preserves revision; it does not ignore a missing column. Successful
+SET remints only the selected pg_attrdef definition, and DROP removes its dependency
+edges. Held eager rows keep their old cells/metadata; direct and retained prepared
+execution use the current recipe.
+Preexisting virtual views select recipes by stable attribute identity from the
+captured logical source catalog and evaluate full mapped source inputs, including
+columns added after view creation. Frozen projection layouts do not freeze a live
+recipe; held snapshots retain their old recipe, data, physical tableoid and types.
+Inherited reads keep the parent's recipe with physical child tableoid/provenance;
+row-lock rechecks borrow the authoritative complete latest logical tuple for the
+matching frame/occurrence, preserving existing query recheck semantics.
+Native ordinary UPDATE DEFAULT and unique expression index CREATE remain explicit
+existing boundaries. Supported nonunique expression-root errors and column-key
+partial UNIQUE predicate-membership collisions still veto replacement atomically.
+Native controls persist final definitions and ordinary dropped destinations,
+including two-cycle Restore/recompute behavior.
+Late errors, cancellation, provider replacement and authorization conflicts leave
+the installed recipe and rows unchanged. Inheritance/partition hierarchy, ADD
+generated, generated-column/dependency TYPE and external publication/function
+boundaries remain unchanged.
+
+Shared bounded proof groups, run also with `REFERENCE=1`:
+`^TestReferenceAlterGeneratedExpression(Stored|Drop|Virtual)$`,
+`^TestReferenceAlterGeneratedExpression(Diagnostics|Atomicity|Catalog)$`,
+`^TestReferenceAlterGeneratedExpression(Transactions|Prepared|Authorization)$`,
+`^TestReferenceAlterGeneratedExpression(Locking|Controls|Boundaries|FeatureSmoke)$`.
+Private mechanics: `make check RUN='^TestAlterGeneratedExpression'`.
+
 
 
 ## Enum declaration and ordered values — change note
