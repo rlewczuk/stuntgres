@@ -197,7 +197,9 @@ func exclusionDiagnostic(ctx context.Context, parent, index *relationDescriptor,
 			return err
 		}
 		if node != nil {
-			labels[i], err = (pgRenderer{view: catalog, relation: parent, pretty: true, output: output}).sql(ctx, node, pgRenderParent{})
+			// Index-key syntax groups a top-level operator without imposing the
+			// fully parenthesized catalog renderer on casts inside functions.
+			labels[i], err = (pgRenderer{view: catalog, relation: parent, pretty: true, output: output}).sql(ctx, node, pgRenderParent{precedence: 6})
 		} else {
 			labels[i], err = deparseAttribute(parent, attribute)
 		}

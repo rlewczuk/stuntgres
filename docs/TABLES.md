@@ -931,7 +931,7 @@ Restore rebuilds and enforces populated persistent groups in isolated staging.
 Failed duplicate/NULL replay leaves the destination and held rows unchanged;
 existing TEMP exclusion and retained TEMP groups remain intact.
 
-ALTER ADD PRIMARY KEY, ADD USING INDEX, ADD COLUMN PRIMARY KEY, RENAME CONSTRAINT,
+ALTER ADD PRIMARY KEY, ADD USING INDEX and ADD COLUMN PRIMARY KEY,
 deferrability (including NOT DEFERRABLE/INITIALLY), WITHOUT OVERLAPS and primary
 index parameter tails are explicitly unsupported. Malformed full input still
 fails42601 before deferred capability diagnostics or prefix effects.
@@ -986,7 +986,9 @@ retires its owned index; direct DROP INDEX retains the existing dependency error
 Supported standalone constraint/backing-index renames preserve identity and update
 both names. Table/column rename and schema move retain the closure; affected TYPE
 remints and validates it, while key/include/predicate column removal retires it.
-Existing transactional CREATE/rename boundaries are not widened.
+Standalone constraint rename supports writable explicit transactions; existing
+CREATE, table/column-rename and ordinary index-utility transaction boundaries
+remain unchanged.
 Native Dump emits the constraint once, Restore validates isolated staging, and
 Reset/foreign/same-owner replacement reowns typed providers and remints actual roots
 without changing retained TEMP objects. Transient modes/events are not serialized.
@@ -1390,7 +1392,9 @@ renames. B-tree/hash keys also retain stable attribute identities, and Dump
 renders current parent/key names without renaming the index itself. User table/view
 row codecs retain stable identities through supported renames and moves.
 Foreign keys and broader transactional DDL remain excluded; graph column RENAME is protected.
-Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
+Native explicit-transaction table/column RENAME remains unsupported. Standalone
+RENAME CONSTRAINT supports represented n/c/u/p/x constraints in writable
+transactions; see [constraint rename](design/PG18-DDL-ALTER-CONSTRAINT-RENAME.md).
 
 ```sh
 make check RUN='^TestAlterRenameSmoke$'

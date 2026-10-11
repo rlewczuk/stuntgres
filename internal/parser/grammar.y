@@ -1091,7 +1091,14 @@ alter_drop_column: ALTER TABLE alter_target alter_actions { $$=&AlterTable{Name:
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_rename_single { $$=$1 }
  | alter_schema_single { $$=$1 }
- | alter_rename_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
+ | alter_rename_single ',' {
+     if _,ok:=$1.(*AlterTableRenameConstraint);ok {
+       sqllex.(*lexer).failAt("42601","syntax error at or near \",\"",$2.pos.Offset)
+     } else {
+       sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset)
+     }
+     return 1
+   }
  | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
 alter_actions: alter_selected_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' alter_selected_action { $$=append($1,*$3) }

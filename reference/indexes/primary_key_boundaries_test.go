@@ -15,7 +15,6 @@ func TestReferencePrimaryKeyBoundaries(t *testing.T) {
 		{"add_column", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD COLUMN b INT PRIMARY KEY", "ALTER TABLE action is unsupported", "ADD", "t_pkey", "INSERT INTO t VALUES(1,1)"},
 		{"add_column_if_not_exists", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD COLUMN IF NOT EXISTS b INT PRIMARY KEY", "ALTER TABLE action is unsupported", "ADD", "t_pkey", "INSERT INTO t VALUES(1,1)"},
 		{"using_index", "CREATE TABLE t(a INT); CREATE UNIQUE INDEX prebuilt ON t(a)", "ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY USING INDEX prebuilt", "ALTER TABLE action is unsupported", "ADD", "pk", "INSERT INTO t VALUES(1)"},
-		{"rename_constraint", "CREATE TABLE t(a INT CONSTRAINT pk PRIMARY KEY)", "ALTER TABLE t RENAME CONSTRAINT pk TO renamed_pk", "RENAME CONSTRAINT is unsupported", "CONSTRAINT", "renamed_pk", "INSERT INTO t VALUES(1)"},
 		{"include", "", "CREATE TABLE t(a INT,b TEXT,PRIMARY KEY(a) INCLUDE(b))", "PRIMARY KEY index parameters are unsupported", "INCLUDE", "t_pkey", "INSERT INTO t VALUES(1,'x')"},
 		{"reloptions", "", "CREATE TABLE t(a INT,PRIMARY KEY(a) WITH(fillfactor=70))", "PRIMARY KEY index parameters are unsupported", "WITH", "t_pkey", "INSERT INTO t VALUES(1)"},
 		{"tablespace", "", "CREATE TABLE t(a INT,PRIMARY KEY(a) USING INDEX TABLESPACE pg_default)", "PRIMARY KEY index parameters are unsupported", "USING", "t_pkey", "INSERT INTO t VALUES(1)"},
@@ -46,9 +45,6 @@ func TestReferencePrimaryKeyBoundaries(t *testing.T) {
 					}
 					if c.name == "using_index" {
 						want = [][]any{{"prebuilt", "i"}, {"t", "r"}}
-					}
-					if c.name == "rename_constraint" {
-						want = [][]any{{"pk", "i"}, {"t", "r"}}
 					}
 					run(fixture.Select("SELECT relname,relkind FROM pg_class WHERE relnamespace=$1 ORDER BY relname", []string{"relname", "relkind"}, []string{"NAME", "CHAR"}, want, namespace))
 					if c.setup != "" {

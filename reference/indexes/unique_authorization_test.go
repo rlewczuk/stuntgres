@@ -72,7 +72,6 @@ func TestReferenceUniqueExcludedControls(t *testing.T) {
 	for _, c := range []struct{ name, setup, query, message, token string }{
 		{"deferrable", "", "CREATE TABLE t(a INT UNIQUE DEFERRABLE INITIALLY DEFERRED)", "UNIQUE deferrability is unsupported", "DEFERRABLE"},
 		{"alter_add", "CREATE TABLE t(a INT)", "ALTER TABLE t ADD CONSTRAINT u UNIQUE(a)", "ALTER TABLE action is unsupported", "ADD"},
-		{"rename_constraint", "CREATE TABLE t(a INT CONSTRAINT u UNIQUE)", "ALTER TABLE t RENAME CONSTRAINT u TO renamed_u", "RENAME CONSTRAINT is unsupported", "CONSTRAINT"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			p := fixture.NewScenario(t)
@@ -90,9 +89,6 @@ func TestReferenceUniqueExcludedControls(t *testing.T) {
 						want := [][]any{{"t", "r"}}
 						if c.name == "deferrable" {
 							want = nil
-						}
-						if c.name == "rename_constraint" {
-							want = [][]any{{"t", "r"}, {"u", "i"}}
 						}
 						run(fixture.Select("SELECT relname,relkind FROM pg_class WHERE relnamespace=$1 ORDER BY relname", []string{"relname", "relkind"}, []string{"NAME", "CHAR"}, want, namespace))
 					}

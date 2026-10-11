@@ -1003,7 +1003,7 @@ use the same group. Dropping the primary key leaves NOT NULL; dropping a live
 key's NOT NULL fails42P16 (identity-column ALTER COLUMN retains earlier42601).
 Named NOT NULL DROP reaches the primary-key guard first even on an identity key.
 Actual key TYPE remints affected p/index/n identities.
-ALTER ADD PK (including ADD COLUMN/USING INDEX), RENAME CONSTRAINT, deferrability,
+ALTER ADD PK (including ADD COLUMN/USING INDEX), deferrability,
 WITHOUT OVERLAPS and primary index parameters remain explicit capabilities
 outside the native surface. Full-input syntax errors precede those exclusions.
 Foreign keys remain external. See
@@ -4546,9 +4546,15 @@ original relation-name occurrence. Cached-plan logical Context is empty on both
 backends; C Routine is not a logical diagnostic field.
 Canonical Dump emits current names/labels/comments/constraints, not ALTER history.
 Stored views preserve stable sources and render current renamed identifiers.
-RENAME CONSTRAINT remains unsupported. UNIQUE/PRIMARY KEY backing-index rename
-preserves reciprocal identity; FK, hierarchy and transactional rename effects
-remain PostgreSQL-only witnesses.
+Standalone RENAME CONSTRAINT supports represented NOT NULL/CHECK/UNIQUE/PRIMARY
+KEY/EXCLUDE constraints, including writable explicit transactions and savepoints.
+It requires table ownership, not namespace CREATE. Parent/constraint/backing-index
+identities and definitions remain unchanged; current names drive violations and
+prepared execution. CHECK names are enforced lexically after rename. Failed
+renames and failing later transaction statements publish no partial group.
+Graph-shape CHECK/NOT NULL ALTER remains0A000; admitted local UNIQUE/PRIMARY
+KEY/EXCLUDE graph participants retain their existing allowance. Domain
+constraints, foreign keys and constraint triggers have no native providers.
 User row codecs retain their identity; simple B-tree index names remain unchanged while their stable parent/key identities survive renames.
 Physical pg_dump/server disk/network mechanisms are outside native Reset/Dump/Restore. Smoke:
 `make check RUN='^TestAlterRenameSmoke$'`.

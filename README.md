@@ -601,6 +601,24 @@ Feature smokes:
 `make check RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)'`;
 `make check REFERENCE=1 RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)'`.
 
+Change note: standalone `ALTER TABLE [IF EXISTS] [ONLY] target [*] RENAME
+CONSTRAINT old TO new` supports represented NOT NULL, CHECK, UNIQUE, PRIMARY KEY
+and EXCLUDE definitions. Owner-only metadata rename needs no namespace CREATE,
+preserves table/constraint/backing-index identity and storage, and reports the
+current constraint name on violations. Prepared handles rebind current names
+without changing unchanged result labels/types. Writable transactions,
+savepoints, rollback and failing-later-statement atomicity use the existing
+catalog overlay. Canonical native Dump/Restore retains current definitions,
+rows and representable table/column comments, not rename history.
+Graph CHECK/NOT NULL ALTER remains an explicit boundary; admitted local
+UNIQUE/PRIMARY KEY/EXCLUDE graph definitions retain their existing allowance.
+Domain constraints, FK/constraint triggers and PostgreSQL physical storage,
+WAL, wire protocol and external pg_dump mechanisms are not implemented.
+Selected proof: `make check RUN='^TestReferenceConstraintRename'`;
+repeat with `REFERENCE=1` for the pinned oracle.
+See [the rename design](docs/design/PG18-DDL-ALTER-CONSTRAINT-RENAME.md).
+
+
 Change note: floating `+`, unary `+`, `-`, unary `-`, `*`, `/` and `^`
 use PostgreSQL operand resolution and fixed REAL/DOUBLE PRECISION widths.
 Known integer/NUMERIC operands mixed with REAL widen to DOUBLE; unknown

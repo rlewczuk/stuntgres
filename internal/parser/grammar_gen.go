@@ -10847,7 +10847,11 @@ sqldefault:
 	case 651:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).failAt("0A000", "ALTER TABLE action lists are unsupported", sqlDollar[2].tok.pos.Offset)
+			if _, ok := sqlDollar[1].stmt.(*AlterTableRenameConstraint); ok {
+				sqllex.(*lexer).failAt("42601", "syntax error at or near \",\"", sqlDollar[2].tok.pos.Offset)
+			} else {
+				sqllex.(*lexer).failAt("0A000", "ALTER TABLE action lists are unsupported", sqlDollar[2].tok.pos.Offset)
+			}
 			return 1
 		}
 	case 652:
