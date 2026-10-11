@@ -64,7 +64,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
-func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, current *catalogState) error {
+func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, current *catalogState, authority *catalogAuthority) error {
 	if r := s.materializedReplacement; r != nil {
 		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.original.address)); err != nil {
 			return err
@@ -117,7 +117,14 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			}
 		}
 	}
-	for _, sources := range [][]Descriptor{s.querySources, s.likeSources, s.domainBases} {
+	domainBases := s.domainBases
+	if authority != nil && authority.session == s.authSession && authority.authorization == s.authRevision && authority.roles == s.roleRevision &&
+		len(domainBases) != 0 && len(authority.observations) == len(domainBases) && &authority.observations[0] == &domainBases[0] {
+		// These exact validated providers belong to this statement's Finish
+		// authority, not to the outer transaction's predecessor fences.
+		domainBases = nil
+	}
+	for _, sources := range [][]Descriptor{s.querySources, s.likeSources, domainBases} {
 		for _, d := range sources {
 			observed := s.base.state.descriptors[d.Address()]
 			if observed != nil {

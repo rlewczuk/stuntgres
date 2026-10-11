@@ -91,6 +91,17 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err = partition.finish(scope); err != nil {
 		return Result{}, err
 	}
+	// Only the source helper's newly acquired reservation is incidental.
+	// Preserve entry admission and acquire genuine definition-provider holds
+	// afterward, under their existing publication/cancellation policy.
+	replacementRead := scope.replacementRead
+	if err = scope.acquireTypedSources(stage, false); err != nil {
+		return Result{}, err
+	}
+	if !replacementRead && scope.replacementRead {
+		e.replacementMu.RUnlock()
+		scope.replacementRead = false
+	}
 	if err = scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
@@ -101,6 +112,14 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	created := ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: stage.names[key]}
 	if temporary {
 		scope.owner.accessedTemporary = true
+		if len(stage.domainBases) != 0 {
+			// The validated stage no longer mutates these observations. Retain
+			// them through Finish without copying them into the outer transaction.
+			scope.catalogAuthority = &catalogAuthority{
+				session: stage.authSession, authorization: stage.authRevision,
+				roles: stage.roleRevision, observations: stage.domainBases,
+			}
+		}
 		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {
 			return Result{}, err
 		}
@@ -164,7 +183,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).state)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).state, scope.catalogAuthority)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}

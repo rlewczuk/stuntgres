@@ -175,6 +175,37 @@ type CreateComposite struct {
 
 func (*CreateComposite) statement() {}
 
+// Composite attribute actions reuse the positioned table shape actions, but
+// have no physical default/constraint/USING syntax or storage authority.
+type AlterComposite struct {
+	Name    ObjectName
+	Actions []AlterTableAction
+	Rename  *Identifier
+	Column  Identifier
+	Mode    DropMode
+	Pos     Position
+}
+
+func (*AlterComposite) statement() {}
+
+type DropComposite struct {
+	Names    []ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropComposite) statement() {}
+
+type AlterTableOf struct {
+	Name ObjectName
+	Type *ObjectName // nil is NOT OF
+	Only bool
+	Pos  Position
+}
+
+func (*AlterTableOf) statement() {}
+
 type CreateDomain struct {
 	Name        ObjectName
 	Base        TypeName
@@ -321,6 +352,7 @@ type onCommitClause struct {
 type CreateTable struct {
 	Name        ObjectName
 	Elements    []TableElement
+	OfType      *ObjectName
 	Parents     []ObjectName
 	Pos         Position
 	IfNotExists bool

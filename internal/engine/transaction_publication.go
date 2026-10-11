@@ -52,7 +52,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if ref.epoch != e.state.epoch {
 			return ErrCatalogReplaced
 		}
-		if err := e.catalogAuthorityPreflightLocked(authority); err != nil {
+		if err := e.catalogAuthorityPreflightLocked(authority, nil); err != nil {
 			return err
 		}
 		if err := e.preparedPublicationPreflightLocked(op, phase); err != nil {
@@ -267,7 +267,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			}
 		}
 		if err == nil {
-			err = e.catalogAuthorityPreflightLocked(authority)
+			err = e.catalogAuthorityPreflightLocked(authority, c)
 		}
 		if err == nil {
 			err = e.preparedPublicationPreflightLocked(op, phase)

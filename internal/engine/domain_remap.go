@@ -330,6 +330,12 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 			next.descriptors[address] = &copy
 			d = &copy
 		}
+		if destination, ok := mapping[d.ofType]; ok {
+			copy := *d
+			copy.ofType = destination
+			next.descriptors[address] = &copy
+			d = &copy
+		}
 		var columns []ColumnDescriptor
 		for i, c := range d.columns {
 			target := typ(c.Usage.Type)

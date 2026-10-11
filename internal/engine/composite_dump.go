@@ -8,6 +8,15 @@ import (
 )
 
 func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, predecessors []OID) ([]OID, error) {
+	if relation.ofType != (ObjectAddress{}) {
+		id, err := dumpPredecessor(view, relation.ofType, relation.address)
+		if err != nil {
+			return nil, err
+		}
+		if id != 0 && !slices.Contains(predecessors, id) {
+			predecessors = append(predecessors, id)
+		}
+	}
 	for _, column := range relation.columns {
 		id, err := dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}, relation.address)
 		if err != nil {

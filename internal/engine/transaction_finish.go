@@ -95,7 +95,7 @@ func (s *StatementScope) Finish(err error) error {
 					err = e.catalogPreflightLocked(catalog)
 				}
 				if err == nil {
-					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority)
+					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority, catalog)
 				}
 				if err == nil {
 					for a, rows := range s.stage.rows {

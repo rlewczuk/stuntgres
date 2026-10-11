@@ -95,6 +95,7 @@ type binding struct {
 	createUniques         []createUniqueConstraint
 	createDeclarations    []createColumnDeclaration
 	createLikes           []createLikeInput
+	createOfType          *typeDescriptor
 	createInheritance     []createInheritanceInput
 	createLocalColumns    map[string]bool
 	defaults              []BoundExpr
@@ -318,7 +319,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
-	case *parser.CreateComposite, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return StatementDescription{}, nil
 	case *parser.CreateExtension:
 		return StatementDescription{}, nil
@@ -454,6 +455,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		declarations := make([]createColumnDeclaration, 0, len(s.Elements))
 		table := s.Name.Parts[len(s.Name.Parts)-1].Text
 		var inherited []createLikeConstraint
+		if s.OfType != nil {
+			var err error
+			columns, declarations, b.createOfType, err = e.bindTypedColumns(auth, s)
+			if err != nil {
+				return b, err
+			}
+		}
 		for elementIndex, element := range s.Elements {
 			kinds := 0
 			if element.Column != nil {
@@ -484,6 +492,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				continue
 			}
 			if c := element.Column; c != nil {
+				if s.OfType != nil {
+					continue
+				}
 				typeName := c.TypeName
 				if lowered := serialTypeName(typeName); lowered != "" {
 					typeName.Name = lowered

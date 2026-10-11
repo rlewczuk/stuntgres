@@ -67,7 +67,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*seq
 // replacement. Imported identity collisions are remapped, never temp identities.
 func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation) error {
 	e.retainDatabaseLocked(next)
-	if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
+	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
 	}
 	temporary := make(map[ObjectAddress]Descriptor)
@@ -521,6 +521,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for _, descriptor := range next.descriptors {
 		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
 			if err := validatePolicies(CatalogRead{owner: e, state: next}, relation); err != nil {
+				return err
+			}
+		}
+		if relation, ok := descriptor.(*relationDescriptor); ok {
+			if err := validateTypedAttachment(CatalogRead{owner: e, state: next}, relation); err != nil {
 				return err
 			}
 		}

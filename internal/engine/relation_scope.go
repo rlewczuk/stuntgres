@@ -199,6 +199,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		mode = accessExclusive
 		ownerOnly = true
 		rename, ifExists = true, v.IfExists
+	case *parser.AlterTableOf:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
 	case *parser.AlterTableDefault:
 		if !execute {
 			return nil
@@ -345,6 +350,22 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 	}
+	var typedSourceRef ObjectRef
+	if attachment, ok := stmt.(*parser.AlterTableOf); ok && attachment.Type != nil && err == nil {
+		var typ *typeDescriptor
+		typ, err = e.namedType(auth, *attachment.Type)
+		if err == nil {
+			var source *relationDescriptor
+			var path []ObjectAddress
+			path, err = e.referencePath(auth)
+			if err == nil {
+				source, err = standaloneComposite(auth.catalog, typ, path)
+			}
+			if err == nil {
+				typedSourceRef = ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: source.address}
+			}
+		}
+	}
 	e.mu.Unlock()
 	// Catalog provider validation may call Reset; ALTER must not retain a
 	// replacement read admission across validation or publication.
@@ -357,6 +378,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	if rename && ref.owner == nil {
 		return nil
+	}
+	if typedSourceRef.owner != nil {
+		if err := s.acquireSequence(typedSourceRef, accessShare, false); err != nil {
+			return err
+		}
 	}
 	if err = s.acquirePartitionAncestors(ref); err != nil {
 		return err

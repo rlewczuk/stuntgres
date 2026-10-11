@@ -4,8 +4,9 @@ import "fmt"
 
 const temporaryInheritanceReplacementError = "stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported"
 
-// Called under the target engine mutex, before any replacement allocation.
-func (e *Engine) checkTemporaryInheritanceReplacementLocked() error {
+// Called under Engine.mu at preallocation and final replacement admission.
+// Retained TEMP relations cannot substitute persistent inheritance or OF sources.
+func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 	for _, descriptor := range e.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
@@ -25,7 +26,7 @@ func (e *Engine) checkTemporaryInheritanceReplacementLocked() error {
 			}
 		}
 	}
-	return nil
+	return e.checkTemporaryTypedReplacementLocked()
 }
 
 // Copy only graph metadata. Stable attributes are relation-local and do not

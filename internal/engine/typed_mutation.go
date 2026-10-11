@@ -1,0 +1,234 @@
+package engine
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type typedColumnAction struct {
+	action parser.AlterTableAction
+	usage  *sqltype.Usage
+}
+
+type typedRelationMutation struct {
+	old, next  *relationDescriptor
+	transforms []columnTransformation
+	additions  []addedColumn
+	checks     []checkConstraint
+}
+
+func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, actions []typedColumnAction) (typedRelationMutation, error) {
+	mutation := typedRelationMutation{old: old, next: old}
+	ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.address}
+	raw := make([]parser.AlterTableAction, len(actions))
+	for i, action := range actions {
+		raw[i] = action.action
+	}
+	for pass := range 2 {
+		for _, planned := range actions {
+			a := planned.action
+			if !(pass == 0 && a.Action == parser.DropColumn || pass == 1 && a.Action == parser.AddColumn) {
+				continue
+			}
+			var err error
+			switch a.Action {
+			case parser.DropColumn:
+				mutation.next, err = scope.dropColumnCandidate(stage, mutation.next, ref, a, nil)
+			case parser.AddColumn:
+				var added addedColumn
+				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.usage)
+				if err == nil && added.column != nil {
+					mutation.additions = append(mutation.additions, added)
+				}
+			}
+			if err != nil {
+				return mutation, err
+			}
+		}
+		if pass == 0 {
+			checks, err := captureAlterTypeChecks(op, auth.catalog, old, mutation.next, raw)
+			if err != nil {
+				return mutation, err
+			}
+			indexes, err := captureAlterTypeIndexes(scope, auth.catalog, old, mutation.next, raw)
+			if err != nil {
+				return mutation, err
+			}
+			// TYPE expressions bind to the original row; the CHECK/index queue
+			// binds only after all TYPE candidates have their final usages.
+			for _, planned := range actions {
+				if planned.action.Action != parser.AlterColumnType {
+					continue
+				}
+				var prepared *alterTypePreparation
+				if planned.usage != nil {
+					e.mu.Lock()
+					node, bindErr := e.bindAlterTypeUsingLocked(scope, auth, old, ref, planned.action, *planned.usage, nil)
+					e.mu.Unlock()
+					if bindErr != nil {
+						return mutation, bindErr
+					}
+					prepared = &alterTypePreparation{*planned.usage, node}
+				}
+				var transform columnTransformation
+				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.action, prepared)
+				if err != nil {
+					return mutation, err
+				}
+				mutation.transforms = append(mutation.transforms, transform)
+			}
+			mutation.next, mutation.checks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, mutation.next, checks)
+			if err == nil {
+				err = e.rebindAlterTypeIndexes(scope, auth, mutation.next, stage, indexes)
+			}
+			if err != nil {
+				return mutation, err
+			}
+		}
+	}
+	if mutation.next == old {
+		return mutation, nil
+	}
+	if old.revision == DefinitionRevision(^uint64(0)) {
+		return mutation, fmt.Errorf("stuntgres: definition revision exhausted")
+	}
+	next := *mutation.next
+	next.revision = old.revision + 1
+	next.defaults = maps.Clone(next.defaults)
+	next.checkConstraints = slices.Clone(next.checkConstraints)
+	next.notNullConstraints = slices.Clone(next.notNullConstraints)
+	e.mu.Lock()
+	err := e.assignDefinitionOIDsLocked(&next)
+	e.mu.Unlock()
+	mutation.next = &next
+	return mutation, err
+}
+
+func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, mutation typedRelationMutation) error {
+	old, next := mutation.old, mutation.next
+	if old.relationKind != tableRelation {
+		return nil
+	}
+	// An explicit TYPE action protects stored own-row consumers even when the
+	// candidate preserves every Usage and descriptor pointer. Keep semantic
+	// admission ahead of the no-physical-change fast path.
+	if len(mutation.transforms) != 0 {
+		if err := rowRewriteError(auth.catalog, old); err != nil {
+			return err
+		}
+	}
+	if old == next {
+		return nil
+	}
+	if len(mutation.transforms) == 0 && slices.Equal(old.attributes, next.attributes) {
+		return nil
+	}
+	e.mu.Lock()
+	store := e.storage[old.address]
+	frontier := e.commitSeq
+	e.mu.Unlock()
+	if store == nil {
+		return fmt.Errorf("stuntgres: relation storage is missing")
+	}
+	fills, _, err := planAddedColumns(scope, mutation.additions)
+	if err != nil {
+		return err
+	}
+	replacement := store
+	rewrite := false
+	for _, transform := range mutation.transforms {
+		rewrite = rewrite || transform.rewrite
+	}
+	if rewrite {
+		scope.owner.mu.Lock()
+		err = scope.acquireSerializableSnapshot()
+		if err == nil {
+			e.mu.Lock()
+			err = e.serializableReadLocked(scope, ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.address})
+			e.mu.Unlock()
+		}
+		scope.owner.mu.Unlock()
+		if err != nil {
+			return err
+		}
+	}
+	schema := auth.catalog.state.descriptors[old.namespace].Name()
+	validator := alterRowValidator{relation: next, schema: schema}
+	if len(mutation.checks) != 0 {
+		checks := *next
+		checks.checkConstraints = mutation.checks
+		validator.checks = &checks
+		e.mu.Lock()
+		err = e.captureCheckCommentSnapshotLocked(scope, &checks)
+		if err == nil {
+			err = e.captureCheckVisibilitySnapshotLocked(scope, &checks)
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+	}
+	if rewrite {
+		replacement, _, _, err = rewriteTypeRows(scope, scope.op, old, next, store, frontier, mutation.transforms, mutation.additions, validator)
+	} else if !slices.Equal(old.attributes, next.attributes) {
+		projection, projectionErr := newColumnProjection(old, next, fills)
+		if projectionErr != nil {
+			return projectionErr
+		}
+		versions, projectionErr := projection.versions(scope.op.Context(), store.versions)
+		if projectionErr != nil {
+			return projectionErr
+		}
+		if store.generation == ^uint64(0) {
+			return fmt.Errorf("stuntgres: storage generation exhausted")
+		}
+		replacement = &relationStorage{versions: versions, ends: store.ends, generation: store.generation + 1}
+	}
+	if err != nil {
+		return err
+	}
+	if !rewrite && len(mutation.checks) != 0 {
+		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
+		for _, row := range replacement.versions {
+			if err := scope.op.Context().Err(); err != nil {
+				return err
+			}
+			if !liveVersion(row, frontier, replacement.ends, nil) {
+				continue
+			}
+			if err := validator.validate(row.values, &evaluation); err != nil {
+				return err
+			}
+		}
+	}
+	e.mu.Lock()
+	next, err = e.rebuildAlterUniquesLocked(stage, next, mutation.transforms)
+	if err == nil {
+		next, err = e.rebuildAlterExclusionsLocked(stage, next, mutation.transforms)
+	}
+	if err == nil {
+		err = e.evolveStageIndexesLocked(stage, old.address, mutation.transforms)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := stage.Replace(next); err != nil {
+		return err
+	}
+	if len(mutation.transforms) != 0 {
+		if _, err := validateAlterUniques(scope.op.Context(), auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms); err != nil {
+			return err
+		}
+	}
+	if replacement != store {
+		if stage.rowShapes == nil {
+			stage.rowShapes = make(map[ObjectAddress]catalogRowShape)
+		}
+		stage.rowShapes[old.address] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}
+	}
+	return nil
+}

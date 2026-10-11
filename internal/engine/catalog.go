@@ -125,6 +125,7 @@ type relationDescriptor struct {
 	partition            *partitionDefinition
 	membership           *partitionMembership
 	rowType              sqltype.ID
+	ofType               ObjectAddress
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -266,6 +267,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return fmt.Errorf("stuntgres: row-security flags require a table")
 	}
 	if err := validatePolicies(v, r); err != nil {
+		return err
+	}
+	if err := validateTypedAttachment(v, r); err != nil {
 		return err
 	}
 	if err := validateInheritance(v, r); err != nil {
@@ -496,6 +500,8 @@ type CatalogStage struct {
 	generators           map[ObjectAddress]*sequenceGenerator
 	identityOriginals    map[ObjectAddress]Descriptor
 	identityDependencies []catalogDependencyObservation
+	typedSource          ObjectAddress
+	typedObserved        map[ObjectAddress]Descriptor
 	lifecycle            catalogLifecycle
 	invalid              error
 	authSession          *Session
@@ -935,6 +941,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
+		if !typedObservationValid(s, CatalogRead{owner: e, state: current}) {
+			e.mu.Unlock()
+			return ChangeSet{}, CatalogConflict{}
+		}
 		for _, base := range s.domainBases {
 			observed := base
 			if s.descriptors[base.Address()] == base {
@@ -1155,6 +1165,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				}
 			}
 			if domainChanged || s.descriptors[descriptor.Address()] != nil {
+				if relation, ok := descriptor.(*relationDescriptor); ok {
+					if err := validateTypedAttachment(CatalogRead{owner: e, state: next}, relation); err != nil {
+						return ChangeSet{}, err
+					}
+				}
 				if err := validateTypeProviders(CatalogRead{owner: e, state: next}, descriptor); err != nil {
 					return ChangeSet{}, err
 				}
@@ -1456,7 +1471,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
+		if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 			return ChangeSet{}, err
 		}
 		if replacement.Epoch() != e.state.epoch {
@@ -1562,7 +1577,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := e.checkTemporaryInheritanceReplacementLocked(); err != nil {
+	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
 	if e.state.epoch == CatalogEpoch(math.MaxUint64) {

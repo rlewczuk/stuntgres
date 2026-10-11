@@ -763,9 +763,22 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			currentOwner = t.owner
 		}
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
+		// Identity and stored generation cannot be declared in CREATE TABLE OF.
+		// Reconstruct their ordinary definitions, then attach through ALTER OF.
+		attachAfterCreate := t.descriptor.ofType != (ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.generations) != 0)
 		var line strings.Builder
 		if t.descriptor.membership == nil {
-			line.WriteString("CREATE TABLE " + qualified + " (")
+			typed := t.descriptor.ofType != (ObjectAddress{}) && !attachAfterCreate
+			hasElements := !typed || len(t.columns) != 0 || len(t.descriptor.checkConstraints) != 0 || len(t.descriptor.uniqueConstraints) != 0 || len(t.descriptor.exclusionConstraints) != 0 || len(t.descriptor.foreignKeys) != 0
+			line.WriteString("CREATE TABLE " + qualified)
+			if typed {
+				source := catalog.state.descriptors[t.descriptor.ofType].(*typeDescriptor)
+				namespace := catalog.state.descriptors[source.namespace].Name()
+				line.WriteString(" OF " + quoteIdentifier(namespace) + "." + quoteIdentifier(source.Name()))
+			}
+			if hasElements {
+				line.WriteString(" (")
+			}
 			localElements := 0
 			for i, c := range t.columns {
 				provenance := inheritedColumn{local: true, explicitDefault: true, explicitGeneration: true}
@@ -779,17 +792,22 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					line.WriteString(", ")
 				}
 				localElements++
-				declaration, err := catalogTypeDeclaration(catalog, c.Usage)
-				if err != nil {
-					return err
-				}
-				line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
-				if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
-					name := collationSQLName(catalog, c.Usage.Collation.ID)
-					if name == "" {
-						return fmt.Errorf("stuntgres: unsupported stored collation")
+				line.WriteString(quoteIdentifier(c.Name))
+				if typed {
+					line.WriteString(" WITH OPTIONS")
+				} else {
+					declaration, err := catalogTypeDeclaration(catalog, c.Usage)
+					if err != nil {
+						return err
 					}
-					line.WriteString(" COLLATE " + name)
+					line.WriteString(" " + declaration)
+					if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
+						name := collationSQLName(catalog, c.Usage.Collation.ID)
+						if name == "" {
+							return fmt.Errorf("stuntgres: unsupported stored collation")
+						}
+						line.WriteString(" COLLATE " + name)
+					}
 				}
 				if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.explicitDefault && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
 					text, err := defaultSQL(ctx, catalog, definition.expression)
@@ -905,7 +923,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				localElements++
 				line.WriteString("CONSTRAINT " + quoteIdentifier(f.Name) + " " + text)
 			}
-			line.WriteString(")")
+			if hasElements {
+				line.WriteString(")")
+			}
 			if graph := t.descriptor.inheritance; graph != nil {
 				line.WriteString(" INHERITS (")
 				for i, address := range graph.parents {
@@ -936,6 +956,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		line.WriteString(key + ";\n")
 		if err := emit(line.String()); err != nil {
 			return err
+		}
+		if attachAfterCreate {
+			source := catalog.state.descriptors[t.descriptor.ofType].(*typeDescriptor)
+			namespace := catalog.state.descriptors[source.namespace].Name()
+			if err := emit("ALTER TABLE " + qualified + " OF " + quoteIdentifier(namespace) + "." + quoteIdentifier(source.Name()) + ";\n"); err != nil {
+				return err
+			}
 		}
 		if t.comment != "" {
 			if err := emit("COMMENT ON TABLE " + qualified + " IS " + commentLiteral(t.comment) + ";\n"); err != nil {
@@ -1159,6 +1186,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				if action.Action != parser.AddUsingIndex {
 					return sqlError("0A000", "restore accepts only existing-index constraint attachments")
 				}
+			}
+		case *parser.AlterTableOf:
+			if s.Type == nil {
+				return sqlError("0A000", "restore accepts only typed-table attachments")
 			}
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {

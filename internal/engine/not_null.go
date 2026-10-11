@@ -45,6 +45,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if len(s.Actions) == 0 {
 		return fail(fmt.Errorf("stuntgres: empty ALTER TABLE"))
 	}
+	if err := typedDirectActionsGuard(old, s.Actions); err != nil {
+		return fail(err)
+	}
 	for _, action := range s.Actions {
 		label := "ALTER COLUMN ... SET NOT NULL"
 		switch action.Action {
@@ -146,7 +149,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				next, err = scope.dropColumnCandidate(stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
 				var added addedColumn
-				next, added, err = e.addColumnCandidate(scope, op, auth, next, action)
+				next, added, err = e.addColumnCandidate(scope, op, auth, next, action, nil)
 				if err == nil && added.column != nil {
 					additions = append(additions, added)
 				}

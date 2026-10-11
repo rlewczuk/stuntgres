@@ -30,7 +30,7 @@ func alterCookingError(err error) error {
 	return err
 }
 
-func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, action parser.AlterTableAction) (*relationDescriptor, addedColumn, error) {
+func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, action parser.AlterTableAction, captured *sqltype.Usage) (*relationDescriptor, addedColumn, error) {
 	fail := func(err error) (*relationDescriptor, addedColumn, error) { return nil, addedColumn{}, err }
 	column := action.Definition
 	if column == nil {
@@ -41,7 +41,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(insertError("0A000", "ALTER TABLE action is unsupported", action.Pos))
 		}
 	}
-	if isSystemColumn(column.Name) {
+	if old.relationKind != compositeRelation && isSystemColumn(column.Name) {
 		return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name)))
 	}
 	if _, exists := old.index[column.Name]; exists {
@@ -63,13 +63,18 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if auth.catalog.Epoch() != e.state.epoch {
 		return fail(ErrCatalogReplaced)
 	}
-	usage, err := e.resolveType(column.TypeName, op)
-	if err != nil {
-		return fail(err)
-	}
-	usage, err = e.resolveColumnCollation(usage, column.Collation, op)
-	if err != nil {
-		return fail(err)
+	var usage sqltype.Usage
+	var err error
+	if captured != nil {
+		usage = *captured
+	} else {
+		usage, err = e.resolveType(column.TypeName, op)
+		if err == nil {
+			usage, err = e.resolveColumnCollation(usage, column.Collation, op)
+		}
+		if err != nil {
+			return fail(err)
+		}
 	}
 	declaration, err := bindCreateColumnDeclaration(column, old.name)
 	if err != nil {

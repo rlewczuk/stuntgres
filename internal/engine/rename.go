@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -47,8 +49,11 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	if columnRename && old.relationKind == indexRelation {
 		return fail(tableKind(old, "rename"))
 	}
-	slot := -1
+	var renamed *relationDescriptor
 	if columnRename {
+		if old.ofType != (ObjectAddress{}) {
+			return fail(sqlError("42809", "cannot rename column of typed table"))
+		}
 		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
@@ -62,19 +67,9 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 				Detail:  "This operation is not supported for sequences.",
 			})
 		}
-		if isSystemColumn(column) {
-			return fail(sqlError("0A000", fmt.Sprintf(`cannot rename system column "%s"`, column)))
-		}
-		var exists bool
-		slot, exists = old.index[column]
-		if !exists {
-			return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, column)))
-		}
-		if isSystemColumn(destination) {
-			return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, destination)))
-		}
-		if _, exists = old.index[destination]; exists {
-			return fail(sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, destination, old.name)))
+		renamed, err = renameColumnCandidate(old, column, destination)
+		if err != nil {
+			return fail(err)
 		}
 	} else {
 		if err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
@@ -90,14 +85,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	next := *old
 	next.revision++
 	if columnRename {
-		next.columns = append([]ColumnDescriptor(nil), old.columns...)
-		next.columns[slot].Name = destination
-		next.index = make(map[string]int, len(old.index))
-		for key, value := range old.index {
-			next.index[key] = value
-		}
-		delete(next.index, column)
-		next.index[destination] = slot
+		next.columns, next.index = renamed.columns, renamed.index
 	} else {
 		next.name = destination
 		if old.relationKind == sequenceRelation {
@@ -146,4 +134,26 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	scope.completed = true
 	return Result{}, nil
+}
+func renameColumnCandidate(old *relationDescriptor, name, destination string) (*relationDescriptor, error) {
+	if old.relationKind != compositeRelation && isSystemColumn(name) {
+		return nil, sqlError("0A000", fmt.Sprintf(`cannot rename system column "%s"`, name))
+	}
+	slot, exists := old.index[name]
+	if !exists {
+		return nil, sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, name))
+	}
+	if old.relationKind != compositeRelation && isSystemColumn(destination) {
+		return nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, destination))
+	}
+	if _, exists := old.index[destination]; exists {
+		return nil, sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, destination, old.name))
+	}
+	next := *old
+	next.columns = slices.Clone(old.columns)
+	next.columns[slot].Name = destination
+	next.index = maps.Clone(old.index)
+	delete(next.index, name)
+	next.index[destination] = slot
+	return &next, nil
 }

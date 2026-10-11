@@ -101,7 +101,7 @@ func (e *Engine) initializeCatalogSources() error {
 		{1259, "pg_class", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}, {"relispopulated", sqltype.Bool}}},
+		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}, {"relispopulated", sqltype.Bool}, {"reloftype", sqltype.Oid}}},
 		{2618, "pg_rewrite", []struct {
 			name string
 			typ  sqltype.ID
@@ -294,7 +294,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			} else if relation.relationKind == partitionedRelation {
 				kind = "p"
 			}
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated)})
+			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated), oid(8, uint32(relation.ofType.ObjectID))})
 		case 2618:
 			if relation.view == nil {
 				continue

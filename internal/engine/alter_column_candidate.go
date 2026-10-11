@@ -17,7 +17,7 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
-	if isSystemColumn(a.Column.Text) {
+	if old.relationKind != compositeRelation && isSystemColumn(a.Column.Text) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot drop system column "%s"`, a.Column.Text))
 	}
 	slot, exists := old.index[a.Column.Text]

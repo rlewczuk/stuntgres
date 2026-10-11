@@ -813,8 +813,13 @@ members, nested values and catalog-valued children without mutating old cursors.
 Failed/canceled restore remains atomic; old prepared identities cannot retarget
 by name after lifetime replacement.
 
+Standalone composites additionally support [typed-table attachment and attribute
+lifecycle](TABLES.md#typed-tables--change-note), including grouped DROP TYPE.
 ROW constructors, field extraction/expansion/assignment, comparisons/hashing/key
-operations, ALTER/DROP TYPE and other new composite DDL are not added.
+operations, enum/base-type DROP and other unsupported type lifecycle remain excluded.
+Recognized `DROP TYPE` targeting an enum or base type retains native0A000
+`statement is unsupported` at the statement's character position; accepting the
+bounded composite DROP syntax does not enable enum/base-type DROP.
 Verification selectors (900 seconds per invocation):
 `make check RUN='^TestReferenceComposite'`
 and `make check REFERENCE=1 RUN='^TestReferenceComposite'`.

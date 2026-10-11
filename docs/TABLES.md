@@ -129,6 +129,143 @@ wire protocol or disk durability is implied.
 Feature smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`;
 the same RUN with REFERENCE=1 exercises pinned PostgreSQL18.
 
+## Typed tables — change note
+
+```sql
+CREATE TYPE pair AS (id integer, note varchar(5));
+CREATE TABLE t OF pair
+  (id WITH OPTIONS DEFAULT 7 NOT NULL,
+   note DEFAULT 'ok', CONSTRAINT positive CHECK (id > 0));
+ALTER TABLE compatible OF pair;
+ALTER TABLE compatible NOT OF;
+ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE;
+ALTER TYPE pair RENAME ATTRIBUTE flag TO enabled CASCADE;
+ALTER TYPE pair ALTER ATTRIBUTE id TYPE bigint CASCADE;
+ALTER TYPE pair DROP ATTRIBUTE note CASCADE;
+DROP TYPE pair CASCADE;
+```
+
+The source must be a standalone named composite, not an ordinary table's row
+type, domain, enum or scalar. Quoted/qualified names, zero-member sources,
+ordinary IF NOT EXISTS precedence and existing TEMP/ON COMMIT controls apply.
+Options may omit WITH OPTIONS, but cannot declare another column type or an
+empty parentheses list. They reuse the existing DEFAULT, NOT NULL, CHECK,
+unique/primary, exclusion and bounded foreign-key binders; identity/generated
+options fail0A000.
+Only live ordered names and concrete type/typmod/collation are copied. Each table
+has independent stable attributes, owner, storage and a distinct own row codec;
+table constraints never constrain the source's composite values.
+Actual persistent and TEMP CREATE retain an AccessShare source-backing grant;
+Prepare does not acquire it. A source mutation serializes concurrent attachment
+creation, and a waited statement cannot adopt a changed captured source generation.
+
+Attachment requires the table owner and an exact live ordered shape. Different
+dropped-attribute histories or local defaults/constraints are immaterial.
+PostgreSQL18 requires source USAGE for CREATE OF, **not** ALTER TABLE OF;
+NOT OF needs only table ownership. Reattachment replaces the old source edge.
+After a target-lock wait, direct and prepared attachment resolve the execution-time
+source, including a newly created earlier-path shadow, and retain AccessShare on
+that actual source backing. Source exclusion honors lock timeout and cancellation
+without publishing an attachment or changing rows/metadata. A waited source grant
+still cannot adopt a different captured source generation.
+Detach preserves rows, defaults, constraints, stable attributes and own row type.
+`pg_class.reloftype` is the source OID, or zero when unattached. The attachment is
+one NORMAL whole-table dependency in pg_depend; LIKE does not copy it.
+Existing exclusion and foreign-key constraints survive attachment with their
+data, definitions and dependencies. Native Dump/Restore preserves their enforcement.
+
+Ordinary identity and stored-generated columns also survive attachment, including
+owned sequence options/counter, generated expressions and subsequent writes.
+Direct CREATE OF identity/generated options remain unsupported, matching
+PostgreSQL18; attachment does not introduce those creation options.
+
+Direct typed-table ADD/DROP/RENAME/ALTER COLUMN TYPE fail42809. Missing columns
+in direct ALTER COLUMN TYPE fail42703 before the typed-table guard. Existing
+admitted default/constraint/nullability changes stay table-local; NOT OF restores
+ordinary alteration capability. A typed root may have children but cannot inherit.
+
+Standalone ALTER TYPE supports ADD/DROP/ALTER ATTRIBUTE lists with per-action
+RESTRICT/default or CASCADE, and separate RENAME ATTRIBUTE with either mode.
+Typed dependents require CASCADE (otherwise2BP01 with the ALTER Hint).
+Propagation maps source attributes to each target's independent attributes and
+then follows actual inheritance origins, including diamonds and local/other-parent
+retention. Source ownership authorizes this propagation, without invented target
+owner checks. Existing leaf INSERT and SELECT remain admitted; recursive parent
+query/DML and general inherited ALTER restrictions stay unchanged.
+Native parent SELECT remains0A000 even with LIMIT0; PostgreSQL ONLY queries are
+supplemental observations, not a new native scan route. Shared leaf values and
+metadata, public pg_class/depend/regtype identities and exact package descriptor
+assertions cover the actual source/root/descendant publication.
+ADD supplies typed NULL; DROP projects stored values; rename preserves data.
+TYPE reuses assignment coercion, default/CHECK/index reconstruction and row
+validation. Stored direct/domain/array/nested-composite consumers block TYPE with
+the actual source-type or table-row0A000 primary, even when empty. Retained
+DEFAULT40000 does not eagerly reject integer-to-smallint ALTER: a later default
+INSERT overflows22003 without adding a row.
+Composite-array SQL column storage remains an existing0A000 capability boundary.
+The array consumer guard is exercised with actual associated-array providers in
+package tests and a PostgreSQL SQL supplement; this does not enable array transport.
+An explicit TYPE action retains semantic admission even for identical concrete
+Usage: a stored consumer of a typed table's distinct own-row codec still blocks
+the propagated action. No-op descriptor/rewrite fast paths do not bypass that guard.
+Final publication observes stored consumers of every propagated root and descendant
+own-row provider, so a late consumer cannot evade an identical-Usage TYPE guard.
+Shared NORMAL-edge inquiries use the fixed pg_type class OID1247, not a missing
+native pg_type relation lookup; reciprocal catalog bags remain PG supplements.
+When a child column survives source DROP through local or other-parent origin,
+its inherited CHECK, NOT NULL and DEFAULT remain effective. Dead authority edges
+are pruned; definitions without a remaining provider become independently
+replayable local declarations. Dump/Restore preserves enforcement and DEFAULT7,
+not merely the surviving name and type.
+
+Grouped standalone DROP TYPE preflights every target before removal, supports
+IF EXISTS and follows RESTRICT/CASCADE dependencies. CASCADE removes entire typed
+tables and their owned row types/indexes/storage, not LIKE or detached copies.
+Typed lifecycle validation releases incidental source/target replacement-read
+admission outside the engine mutex. CREATE releases only newly acquired source
+admission, before acquiring genuine stored-definition providers; pre-existing
+admission and ordinary CREATE/LIKE/sequence-provider reservation policy remain
+unchanged. A genuine DEFAULT provider retains its unpublished-definition hold
+until publication or cancellation. Without that independent hold, callback
+replacement wins and rejects the captured epoch without resurrecting staged
+definitions. Successful user-defined member USAGE checks retain the exact type
+ACL descriptor through final publication.
+Typed CREATE retains its exact consulted source and copied-member descriptors
+through publication, including TEMP's implicit publication or explicit statement
+Finish. Installed providers retain an exact global descriptor fence; an exact
+provider owned by the transaction's existing private catalog instead retains its
+validated installed predecessor. Thus successive TEMP statements can use a
+previously created ordinary or typed table's own row type through `pg_temp`,
+including literal composite values and SQL NULLs, before a successful COMMIT.
+This statement fence does not reauthorize a successful TEMP CREATE at a later
+outer COMMIT; subsequent CREATE still checks the current source USAGE.
+Lifecycle preparation is private and one publication installs the complete
+source/table/inheritance/codec/storage closure; failures and cancellation preserve
+all previous state. Read-only admission precedes name/owner resolution. Native
+type lifecycle and attachment utilities retain the explicit-transaction0A000
+execution boundary. Their Prepare is effect-free; execution rejects read-only
+transactions with25006 before the RW unsupported-utility boundary or lookup.
+Typed CREATE follows ordinary permanent/TEMP CREATE admission.
+
+Native Dump emits qualified CREATE TABLE OF with local WITH OPTIONS declarations,
+ordered after its actual source even for empty/builtin-only composites. Attached
+tables with retained identity/generated definitions instead emit the full ordinary
+CREATE followed by a real qualified ALTER TABLE OF. Restore runs this attachment
+through the normal isolated executor and remaps source identities and reciprocal
+own-row/member/storage generations into the target owner atomically, preserving
+sequence state and generated behavior. Fresh results expose current metadata;
+held eager rows retain old shapes and prepared result-shape changes report0A000.
+Live TEMP typed tables attached to persistent standalone types prevent native
+Reset/Restore with `stuntgres: catalog replacement with live temporary typed tables
+of persistent types is unsupported`. Both preallocation and final installation
+admission reject without changing persistent or TEMP state, including attachment
+created during Restore reader I/O. Replacement never retargets by name or OID.
+Standalone type creation in TEMP schemas remains unsupported; this does not add
+a TEMP-type DDL path.
+Selected proofs (external900s each):
+`make check RUN='^(TestReferenceTypedTable|TestTyped)'` and
+`make check REFERENCE=1 RUN='^TestReferenceTypedTable'`.
+
 ## Materialized views — change note
 
 `CREATE MATERIALIZED VIEW saved AS SELECT i,label FROM source` creates an owned,

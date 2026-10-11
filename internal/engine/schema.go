@@ -84,8 +84,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	for _, column := range b.createColumns {
 		if typ := column.Usage.Type; typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
 			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}}
-			if err := auth.CanUse(ref); err != nil {
-				return err
+			if b.createOfType == nil {
+				if err := auth.CanUse(ref); err != nil {
+					return err
+				}
 			}
 			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		}
@@ -93,6 +95,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, b.createColumnIndex)
 	if err != nil {
 		return err
+	}
+	if b.createOfType != nil {
+		d.ofType = b.createOfType.Address()
+		stage.domainBases = append(stage.domainBases, b.createOfType)
 	}
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
@@ -243,9 +249,15 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		return Result{}, err
 	}
 	defer e.DiscardCatalogStage(stage)
+	_, droppingTypedSource := stmt.(*parser.DropComposite)
+	if err := scope.acquireTypedSources(stage, droppingTypedSource); err != nil {
+		return Result{}, err
+	}
 	domainMode := parser.DropCascade
 	cascade := false
 	switch s := stmt.(type) {
+	case *parser.DropComposite:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropDomain:
 		domainMode = s.Mode
 		cascade = s.Mode == parser.DropCascade
@@ -282,6 +294,10 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		if err := scope.acquireDefinitionProviders(stage); err != nil {
 			return Result{}, err
 		}
+	}
+	if scope.replacementRead {
+		e.replacementMu.RUnlock()
+		scope.replacementRead = false
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
@@ -369,6 +385,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 	case *parser.DropDomain:
 		if err = e.stageDropDomainLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropComposite:
+		if err = e.stageDropCompositeLocked(op, auth, stage, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateSchema:

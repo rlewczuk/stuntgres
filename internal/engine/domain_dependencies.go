@@ -111,6 +111,10 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				if replacement, ok := stage.descriptors[a].(*relationDescriptor); ok {
 					d = replacement
 				}
+				if d.relationKind == compositeRelation && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}) {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
+					continue
+				}
 				if d.membership != nil && d.membership.parent == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
 				}
@@ -150,6 +154,10 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					continue
 				}
 				name := dependencyRelationName(stage.base, d, stage.dependencyPath)
+				if d.ofType == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "table " + name, relation: d})
+					continue
+				}
 				if d.inheritance != nil {
 					for _, parent := range d.inheritance.parents {
 						if parent == target {

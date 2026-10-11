@@ -31,15 +31,34 @@ type catalogAuthority struct {
 	authorization, roles uint64
 	ref                  ObjectRef
 	descriptor           Descriptor
+	// Immutable consulted providers captured by the statement's catalog stage.
+	observations []Descriptor
 }
 
 // Statement authority expires at successful Finish, never at outer Commit.
-// Caller holds Engine.mu and the authority session's mutex.
-func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority) error {
+// Caller holds Engine.mu and the authority session's mutex. Catalog changes
+// retain the owning transaction's validated installed predecessors.
+func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalogChanges) error {
 	if a == nil {
 		return nil
 	}
 	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.state.descriptors[a.ref.Address] != a.descriptor {
+		return CatalogConflict{}
+	}
+	for _, observed := range a.observations {
+		address := observed.Address()
+		installed := e.state.descriptors[address]
+		if installed == observed {
+			continue
+		}
+		if c != nil {
+			original, owned := c.originals[address]
+			// Only an exact owner-private provider may use its predecessor.
+			// An installed observation must never be rescued by the overlay.
+			if owned && original != observed && installed == original && c.descriptors[address] == observed {
+				continue
+			}
+		}
 		return CatalogConflict{}
 	}
 	return nil

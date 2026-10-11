@@ -1054,8 +1054,16 @@ plain-domain/composite/scalar-array children, stable source shape generations,
 dependency cascades and mixed native Dump/Restore are supported.
 Table CHECK/NOT NULL constraints remain physical-source-only. Constrained domains,
 composite arrays, builtin/catalog row execution, ROW constructors, field operations,
-comparison/hash/key operations and new ALTER/DROP TYPE forms remain excluded.
+comparison/hash/key operations and enum/base-type DROP remain excluded.
 See [complete type/transport/shape contract](TYPES.md#composites--change-note).
+Standalone [typed tables and attribute lifecycle](TABLES.md#typed-tables--change-note)
+add CREATE TABLE OF, ALTER TABLE OF/NOT OF, per-action ALTER TYPE attributes and
+grouped DROP TYPE. CREATE requires source USAGE; pinned PostgreSQL18 attachment
+is table-owner-authorized without it. General inheritance execution boundaries
+and the native explicit-transaction utility restriction remain unchanged.
+Ordinary identity and stored-generated columns retain their behavior on attachment;
+native export uses full ordinary CREATE plus real ALTER TABLE OF for these tables.
+Direct CREATE OF identity/generated options still fail0A000.
 
 ### Array expressions and partial assignments
 

@@ -105,6 +105,20 @@ new shadow changes original-name resolution during an admission wait.
 See [prepared invalidation](docs/DRIVER.md#prepared-catalog-and-path-invalidation)
 and [selected proof](docs/TESTING.md#prepared-rebind-selected-proof).
 
+Change note: `CREATE TABLE ... OF standalone_composite` copies live column names
+and concrete types while keeping local defaults/constraints and a distinct row
+type. `ALTER TABLE ... OF/NOT OF` changes only the source attachment. Standalone
+`ALTER TYPE` attribute changes propagate atomically through typed tables and their
+existing inheritance descendants with CASCADE; DROP TYPE follows real dependency
+edges. Native Dump/Restore retains true attachment, including ordinary identity
+and generated definitions exported before a real ALTER TABLE OF. CREATE requires
+source USAGE; PostgreSQL18 attachment does not. A target-lock wait can select a
+new earlier-path source; attachment retains that actual source's grant and fails
+atomically on source timeout/cancellation.
+See [typed tables](docs/TABLES.md#typed-tables--change-note).
+Selected native and pinned proofs: `make check RUN='^TestReferenceTypedTable'`
+and `make check REFERENCE=1 RUN='^TestReferenceTypedTable'`.
+
 Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
 and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
 for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.

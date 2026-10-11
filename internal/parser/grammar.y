@@ -253,6 +253,9 @@ package parser
 %nonassoc SIMILAR
 /* Frame units/edges terminate postfix type annotations in window keys/bounds. */
 %nonassoc FRAME_UNIT FRAME_EDGE FRAME_START
+/* Attribute dependency modes terminate a complete type, including generic
+ * names such as smallint, rather than extending a two-word type spelling. */
+%nonassoc CASCADE RESTRICT
 %nonassoc TYPE_NAME
 /* Retain contextual type-tail shifts instead of relying on yacc defaults. */
 %nonassoc INDEX CONCURRENTLY
@@ -264,7 +267,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -328,6 +331,12 @@ package parser
 %type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
 %type <stmt> create_domain drop_domain create_enum create_composite alter_enum
+%type <stmt> alter_composite drop_composite alter_table_of
+%type <alterActions> composite_actions
+%type <alterAction> composite_action
+%type <tok> attribute_word options_word
+%type <elements> typed_options typed_elements
+%type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <createCollation> collation_create_head
 %type <alterCollation> collation_alter_head
@@ -599,6 +608,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | alter_collation | drop_collation | alter_enum
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
+ | alter_composite | drop_composite | alter_table_of
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -915,6 +925,10 @@ create_table: CREATE TABLE relation_name '(' optional_elements ')' table_parents
  | CREATE TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$3,Elements:$7,Pos:$1.pos,Persistence:"logged",PartitionOf:&PartitionParent{Name:$6,Bound:$8,Pos:$4.pos},PartitionBy:$9,OnCommit:$10.action,OnCommitPos:$10.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$6,Elements:$10,Pos:$1.pos,IfNotExists:true,Persistence:"logged",PartitionOf:&PartitionParent{Name:$9,Bound:$11,Pos:$7.pos},PartitionBy:$12,OnCommit:$13.action,OnCommitPos:$13.pos} }
  | CREATE TEMP TABLE relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$4,Elements:$8,Pos:$1.pos,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$7,Bound:$9,Pos:$5.pos},PartitionBy:$10,OnCommit:$11.action,OnCommitPos:$11.pos} }
+ | CREATE TABLE relation_name OF relation_name typed_options table_on_commit {source:=$5;$$=&CreateTable{Name:$3,OfType:&source,Elements:$6,Pos:$1.pos,Persistence:"logged",OnCommit:$7.action,OnCommitPos:$7.pos}}
+ | CREATE TABLE IF NOT EXISTS relation_name OF relation_name typed_options table_on_commit {source:=$8;$$=&CreateTable{Name:$6,OfType:&source,Elements:$9,Pos:$1.pos,IfNotExists:true,Persistence:"logged",OnCommit:$10.action,OnCommitPos:$10.pos}}
+ | CREATE TEMP TABLE relation_name OF relation_name typed_options table_on_commit {source:=$6;$$=&CreateTable{Name:$4,OfType:&source,Elements:$7,Pos:$1.pos,Persistence:"temporary",OnCommit:$8.action,OnCommitPos:$8.pos}}
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name OF relation_name typed_options table_on_commit {source:=$9;$$=&CreateTable{Name:$7,OfType:&source,Elements:$10,Pos:$1.pos,IfNotExists:true,Persistence:"temporary",OnCommit:$11.action,OnCommitPos:$11.pos}}
  | CREATE TEMP TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound partition_by table_on_commit { $$=&CreateTable{Name:$7,Elements:$11,Pos:$1.pos,IfNotExists:true,Persistence:"temporary",PartitionOf:&PartitionParent{Name:$10,Bound:$12,Pos:$8.pos},PartitionBy:$13,OnCommit:$14.action,OnCommitPos:$14.pos} } ;
 table_parents: /* empty */ { $$=nil } | INHERITS '(' relation_names ')' { $$=$3 } ;
 table_on_commit: /* empty */ { $$=onCommitClause{} }
@@ -954,6 +968,19 @@ partition_element: name column_constraints {c:=Column{Name:$1.text,Constraints:$
  | check_constraint {$$=TableElement{Check:$1,Pos:$1.Pos}}
  | unique_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
  | exclusion_constraint {$$=TableElement{Exclusion:$1,Pos:$1.Pos}} ;
+typed_options: /* empty */ {$$=nil} | '(' typed_elements ')' {$$=$2} ;
+typed_elements: typed_element {$$=[]TableElement{$1}}
+ | typed_elements ',' typed_element {$$=append($1,$3)} ;
+typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=TableElement{Column:&c,Pos:$1.pos}}
+ | name column_constraints {c:=Column{Name:$1.text,Pos:$1.pos,Constraints:$2};$$=TableElement{Column:&c,Pos:$1.pos}}
+ | name WITH options_word nullability {c:=Column{Name:$1.text,Pos:$1.pos,Constraints:$4};$$=TableElement{Column:&c,Pos:$1.pos}}
+ | check_constraint {$$=TableElement{Check:$1,Pos:$1.Pos}}
+ | unique_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
+ | primary_constraint {$$=TableElement{Unique:$1,Pos:$1.Pos}}
+ | foreign_key {$$=TableElement{ForeignKey:$1,Pos:$1.Pos}}
+ | exclusion_constraint {$$=TableElement{Exclusion:$1,Pos:$1.Pos}}
+ | table_not_null {$$=TableElement{NotNull:$1,Pos:$1.Pos}} ;
+options_word: KW_U {if $1.text!="options" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
  | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
@@ -1064,6 +1091,18 @@ domain_constraints: /* empty */ {$$=nil}
  | column_suffix {sqllex.(*lexer).capability($1,unsupportedSuffixes,"domain constraints are unsupported");return 1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
+drop_composite: DROP TYPE relation_names drop_mode {$$=&DropComposite{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP TYPE IF EXISTS relation_names drop_mode {$$=&DropComposite{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+alter_composite: ALTER TYPE relation_name composite_actions {$$=&AlterComposite{Name:$3,Actions:$4,Pos:$1.pos}}
+ | ALTER TYPE relation_name RENAME attribute_word name TO name drop_mode {target:=Identifier{Text:$8.text,Pos:$8.pos};$$=&AlterComposite{Name:$3,Column:Identifier{Text:$6.text,Pos:$6.pos},Rename:&target,Mode:$9,Pos:$1.pos}} ;
+attribute_word: KW_U {if $1.text!="attribute" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+composite_actions: composite_action {$$=[]AlterTableAction{*$1}}
+ | composite_actions ',' composite_action {$$=append($1,*$3)} ;
+composite_action: ADD attribute_word composite_member drop_mode {c:=$3;$$=&AlterTableAction{Action:AddColumn,Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Mode:$4,Pos:$1.pos}}
+ | DROP attribute_word drop_target drop_mode {$$=&AlterTableAction{Action:DropColumn,Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Pos:$1.pos}}
+ | ALTER attribute_word name TYPE type column_collation drop_mode {$$=&AlterTableAction{Action:AlterColumnType,Column:Identifier{Text:$3.text,Pos:$3.pos},TypeName:$5,Collation:$6,Mode:$7,Pos:$1.pos}} ;
+alter_table_of: ALTER TABLE alter_target OF relation_name {source:=$5;$$=&AlterTableOf{Name:$3.Name,Only:$3.Only,Type:&source,Pos:$1.pos}}
+ | ALTER TABLE alter_target NOT OF {$$=&AlterTableOf{Name:$3.Name,Only:$3.Only,Pos:$1.pos}} ;
 collation_create_head: CREATE COLLATION relation_name {$$=&CreateCollation{Name:$3,Pos:$1.pos}}
  | CREATE COLLATION IF NOT EXISTS relation_name {$$=&CreateCollation{Name:$6,IfNotExists:true,Pos:$1.pos}} ;
 create_collation: collation_create_head FROM relation_name {source:=$3;$1.From=&source;$$=$1}

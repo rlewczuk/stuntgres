@@ -58,7 +58,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	candidate := cloneCatalogChanges(changes)
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).state)
+	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).state, nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, candidate)
 	}
@@ -97,7 +97,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -135,7 +135,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err = e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state)
+	err = e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -158,7 +158,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	e, _, changes, table, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT v FROM pg_temp.candidate WHERE v>0")
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -203,7 +203,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	e, _, changes, _, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT 11 AS v FROM pg_catalog.pg_class WHERE relname='candidate_view'")
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}

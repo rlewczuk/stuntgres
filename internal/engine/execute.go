@@ -53,6 +53,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeSequenceDDL(scope, stmt, count)
 	case *parser.CreateEnum, *parser.AlterEnum:
 		return e.executeEnumDDL(scope, stmt, count)
+	case *parser.AlterComposite:
+		return e.executeAlterComposite(scope, op, stmt.(*parser.AlterComposite), count)
 	case *parser.Comment:
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
 			return e.executeSequenceComment(scope, c, count)
@@ -62,7 +64,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.DropComposite, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
@@ -137,6 +139,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	switch s := stmt.(type) {
 	case *parser.RefreshMaterializedView:
 		return e.refreshMaterializedLocked(scope, auth, s, count)
+	case *parser.AlterTableOf:
+		return e.alterTableOfLocked(scope, op, auth, s, count)
 	case *parser.AlterTableRenameConstraint:
 		return e.renameConstraintLocked(scope, op, auth, s, count)
 	case *parser.AlterTableSetSchema:

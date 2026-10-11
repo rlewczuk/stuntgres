@@ -122,6 +122,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					}
 				}
 			}
+			add(d.address, d.ofType, 'n')
 			if d.sqlIndex != nil {
 				definition := d.sqlIndex
 				if definition.constraint != nil {

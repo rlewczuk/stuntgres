@@ -135,5 +135,8 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	if consumer == nil {
 		return nil
 	}
+	if source.relationKind == compositeRelation {
+		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.name, consumer.name, column))
+	}
 	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.name, consumer.name, column))
 }

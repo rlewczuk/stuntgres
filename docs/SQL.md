@@ -16,6 +16,17 @@ has no cleanup effect; execution returns affected0 and no columns. See the
 [category matrix](DIALECT.md#discard--change-note) and
 [transaction distinctions](TRANSACTIONS.md#discard-transaction-boundaries).
 
+## Typed tables and standalone composite lifecycle
+
+`CREATE TABLE name OF composite [(column [WITH OPTIONS] constraints, ...)]`
+uses the live source shape and existing table-local defaults/constraints.
+`ALTER TABLE name OF composite` attaches an exactly compatible live ordered shape;
+`ALTER TABLE name NOT OF` removes only that attachment. `pg_class.reloftype OID`
+projects the same identity used by the real NORMAL whole-table dependency.
+Standalone `ALTER TYPE` accepts ADD/DROP/ALTER ATTRIBUTE actions with individual
+RESTRICT/default or CASCADE and separate RENAME ATTRIBUTE; grouped DROP TYPE
+supports IF EXISTS and modes. See [full contract and boundaries](TABLES.md#typed-tables--change-note).
+
 Detailed contracts are grouped by topic:
 
 - [Queries and data manipulation](QUERIES.md): INSERT, MERGE insertion/matched and BY SOURCE UPDATE/DELETE, DELETE, UPDATE, SELECT, expressions and casts.
@@ -1584,6 +1595,7 @@ Generated OIDs are backend-local identities, never allocator-parity promises.
 | Represented construction | Exact edge flavors |
 |---|---|
 | Table/view/sequence | Whole relation to actual namespace `n`; declared user column type `n` |
+| Typed table | Whole table to standalone source type `n`; own row type remains independently owned `i` |
 | Enum/domain | Declaration to namespace `n`; domain to immediate unpinned base `n` |
 | Domain array | Actual array to element domain `i`, no independent namespace edge |
 | NOT NULL | Real constraint to owner column `a` |

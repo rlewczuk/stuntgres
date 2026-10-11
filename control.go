@@ -87,6 +87,8 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // epoch authority does not make ordinary stale ObjectRefs valid.
 // Destination current-database ownership/CREATE ACLs are attachment authority
 // and survive Reset/Restore; they are not imported from a portable snapshot.
+// Live temporary typed tables attached to persistent standalone types likewise
+// prevent replacement rather than retargeting their source by name or numeric OID.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -118,6 +120,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // "stuntgres: temporary extension installation is not portable" before writer I/O;
 // it is not silently omitted alongside persistent consumers. Private installations
 // remain excluded from the committed snapshot.
+// Typed tables retain qualified OF sources and local WITH OPTIONS definitions;
+// each standalone source precedes its dependent table, even with no members.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")

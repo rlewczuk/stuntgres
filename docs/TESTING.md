@@ -657,6 +657,161 @@ Each check invocation has an external 900-second deadline; targets own no deadli
 for selected real PostgreSQL evidence. Finalcheck's external deadline is 1800
 seconds and likewise does not replace either selected mode.
 
+## Typed-table selected proofs
+
+Shared-body `TestReferenceTypedTable` covers creation/options, exact metadata and
+diagnostics, attachment/dependencies, source/inherited lifecycle, authorization,
+prepared signatures, failure/cancellation and independently specified native
+Dump/Restore with actual emitted SQL replay on pinned PostgreSQL. Stage A's
+temporary oracle-discovery filter was removed before production implementation.
+Package-function `TestTyped` supplements identity mappings, provider validation,
+source topology, target remapping and final publication/dependency/storage fences.
+`TestTypedSameUsageStoredOwnRowPublicationGuard` executes actual same-usage source
+TYPE against empty/populated own-row consumers and rejects before publication.
+Public `TestReferenceTypedTableOwnRowStoredTypeGuard` keeps the identical-Usage
+and widening cases on every route. Shared dependency proofs retain NORMAL edges
+and distinct regtype identities; PG reciprocal metadata supplements package
+provider authority without adding native pg_type/pg_class.reltype surfaces.
+`TestReferenceTypedTableConstraintRetention` asserts surviving child CHECK/NOT NULL/
+DEFAULT enforcement and native round trips. `TestReferenceTypedTableTemporary`
+shares TEMP creation/attachment and literal state assertions with PostgreSQL;
+native branches exercise rejected Reset/Restore, held results/prepares and the
+attachment-during-reader-I/O final fence. Package TEMP-provider identity tests do
+not introduce a TEMP standalone-type SQL feature.
+The inherited propagation witness shares populated diamond leaf rows/metadata,
+retains native recursive-parent0A000 observations and PG ONLY supplements.
+`TestTypedInheritedParentAttributePublication` executes the real source lifecycle
+and checks source/root/child names, concrete types and independent stable attributes.
+`TestTypedStoredAssociatedCompositeArrayGuard` uses the actual associated provider;
+public composite-array column creation retains its known native capability error.
+`TestTypedAttributeDependencyModeTerminators` checks generic type names and grouped
+CASCADE/RESTRICT grammar without consuming dependency modes as a second type word.
+
+Review-regression definitions exercise actual CREATE source grants (persistent
+and TEMP), callback replacement during CREATE/ALTER/DROP in a bounded child test process,
+late root/descendant own-row consumers, and immutable member/source type ACLs.
+`TestTypedAuthorizationProviderACL` supplies actual native revoked-source CREATE,
+attach-without-USAGE, foreign-owner CASCADE, member denial/grant and grouped owner
+preflight scenarios; session/role revision tests alone are not their substitute.
+`TestTypedAdmissionCreateSourceRevisionConflict` rejects a coherent source generation
+change published while actual persistent/TEMP CREATE waits, then proves fresh
+execution can use the new shape. Shared
+`TestReferenceTypedTableAtomicityCreateSourceAdmission` runs without discovery
+filters. Its retained reader and bounded AccessShare probe establish a queued writer,
+then CREATE must time out without publishing an attachment. Cleanup cancels,
+rolls back and joins the worker; recovery CREATE observes the completed source shape.
+`TestReferenceTypedTableAttachmentSourceAdmission` independently pins ALTER OF's
+execution-time source selection when an earlier-path shadow appears during a
+target-lock wait. Shared direct/prepared selection, timeout and cancellation
+phases prove the actual shadow's source exclusion, exact NORMAL attachment edge,
+retained provider identities, unchanged rows/metadata after failure, and healthy
+qualified retry followed by CASCADE and detach. Its public fairness probes use
+retained readers rather than sleeps or an unsupported lock catalog.
+`TestTypedPublicationCallbackReplacement/attachment` supplements that public
+witness with real provider replacement during attachment validation in the
+existing bounded child process, proving the incidental source reservation does
+not strand callbacks or survive rejected publication.
+Root-selected proof (external900-second deadlines):
+`make check RUN='^TestReferenceTypedTableAttachmentSourceAdmission$'`,
+the same command with `REFERENCE=1`, and
+`make check RUN='^TestTypedPublicationCallbackReplacement$'`.
+`TestTypedPublicationDefinitionProviderReservation` separately exercises persistent
+and TEMP typed CREATE with a real incumbent sequence DEFAULT. Replacement must
+queue behind its genuine unpublished-definition hold, then complete after canceled
+publication drains the reservation. This existing provider policy is distinct from
+the simple typed-source-only callback replacement cases; ordinary CREATE/LIKE/
+serial reservation authority is not globally released.
+`TestTypedPublicationCreateACLConflict` exercises descriptor-only source/member
+ACL replacement in actual provider validation, with persistent CREATE as a control
+and implicit/explicit TEMP statement Finish as distinct publication boundaries.
+Its expected result retains the winning ACL and unchanged codec/backing/epoch/
+role/session authority, with no candidate relation, attachment or store.
+Fresh source OF and ordinary member declarations independently assert complete
+42501 diagnostics; copied members do not acquire a new CREATE OF USAGE gate.
+`TestTypedPublicationTemporaryAuthorityExpiresAtFinish` requires a successful
+TEMP statement to survive later source revocation at outer COMMIT.
+Root-observed regression-only proof reproduced TEMP publication after revocation;
+historical H4 passing-after evidence does not replace fresh proof after changes.
+`TestReferenceTypedTableTemporaryPrivateProviderComposition` covers ordinary and
+typed TEMP roots created earlier in one explicit transaction, followed by direct
+or prepared CREATE of a consumer of `pg_temp.root`. Exact root rows and literal
+composite values `(7,x)`, SQL NULL and the non-NULL all-NULL-fields value `(,)`,
+populated/empty metadata, own-row ownership, column-provider dependencies and
+typed attachment identities must survive successful COMMIT unchanged.
+Pinned PostgreSQL18.0 verified these expectations before the correction; the same
+native body then failed all four root/route combinations with catalog publication
+conflict. The correction uses the existing validated owner-private candidate and
+its recorded installed predecessors without relaxing installed source/member ACL
+identity fences or extending statement authority through outer COMMIT.
+
+`TestReferenceTypedTableExclusionAttachmentControls` and
+`TestReferenceTypedTableForeignKeyControls` cover retained local constraints on
+attached tables, exact rows/metadata/definitions/identities/dependencies and full
+23P01/23503 diagnostics. The matching `ExclusionCreate` and `ForeignKeyCreate`
+definitions cover direct/prepared OF syntax and effect-free Prepare. The control
+scenarios replay actual unmodified native OF dumps against PostgreSQL and assert
+fresh native Restore, Reset/Restore and failed-Restore atomicity. PostgreSQL18.0
+passed before the correction; the identical native bodies failed at EXCLUDE or
+FOREIGN before reusing those existing table-element productions.
+
+`TestReferenceTypedTableIdentityAttachmentControls` and
+`TestReferenceTypedTableGeneratedAttachmentControls` independently verify retained
+ordinary definitions through direct/prepared attachment, including sequence
+options/counter/ownership, generated expressions, metadata and source/own-row
+identities. Actual unmodified native dumps replay on PostgreSQL as ordinary CREATE
+plus real ALTER TABLE OF; native fresh Restore and Reset/Restore retain future
+default16 and generated9→18 behavior. Late failed imports assert full23502/428C9,
+sentinel91, captured identities and unchanged state. Identity import uses the
+existing required OVERRIDING SYSTEM VALUE, not a relaxed reconstruction guard.
+Direct typed identity/generated creation retains its independent0A000 boundary.
+
+```sh
+make check RUN='^(TestReferenceTypedTable|TestTyped)'
+make check REFERENCE=1 RUN='^TestReferenceTypedTable'
+make check RACE=1 RUN='^(TestReferenceTypedTable(Atomicity|Temporary|Exclusion|ForeignKey|Identity|Generated)|TestTyped.*(Publication|Admission|Authorization|Remap|Retention))'
+make check RUN='^(TestReferenceComposite(Declarations|DeclarationDiagnostics|TableShape|HeldShape|TypmodShape|Dependencies|CatalogRelationships|MixedControls|ControlLifetime|Authority)|TestReferenceTableLikeComposite(SourceACL|Sources)|TestTableLikeCompositeSourceACL|TestAlterDropColumnProviderCancellationAndReset|TestAlterNullabilityReviewOwnedSequenceReplacement)$'
+make check REFERENCE=1 RUN='^(TestReferenceComposite(Declarations|DeclarationDiagnostics|TableShape|HeldShape|TypmodShape|Dependencies|CatalogRelationships|MixedControls|ControlLifetime|Authority)|TestReferenceTableLikeComposite(SourceACL|Sources))$'
+make check RUN='^(TestSerialDefaultPublicationReplacementCancellation|TestSerialDefaultUnpublishedProviderHold|TestTypedPublication(DefinitionProviderReservation|CallbackReplacement)|TestTypedAdmissionCreateSourceRevisionConflict)$'
+make check RUN='^TestTypedPublication(CreateACLConflict|TemporaryAuthorityExpiresAtFinish)$'
+make check RACE=1 RUN='^TestTypedPublication(CreateACLConflict|TemporaryAuthorityExpiresAtFinish)$'
+make check RUN='^TestReferenceTypedTableTemporaryPrivateProviderComposition$'
+make check REFERENCE=1 RUN='^TestReferenceTypedTableTemporaryPrivateProviderComposition$'
+make check RUN='^TestReferenceTypedTable(Exclusion(AttachmentControls|Create)|ForeignKey(Controls|Create))$'
+make check REFERENCE=1 RUN='^TestReferenceTypedTable(Exclusion(AttachmentControls|Create)|ForeignKey(Controls|Create))$'
+make check RUN='^TestReferenceTypedTable(Identity|Generated)AttachmentControls$'
+make check REFERENCE=1 RUN='^TestReferenceTypedTable(Identity|Generated)AttachmentControls$'
+```
+
+Use external900s per command. Whole-project Docker-free proof is `make quickcheck`;
+selected native/real modes remain mandatory. The root runs the temporary standalone
+public Go typed-table smoke from its OMP session file using `go run <absolute-file>`
+(external120s). Expected final line: `typed table lifecycle and native round-trip OK`.
+The smoke independently asserts rows/metadata/source-versus-own-row identity,
+detach, guarded direct changes, source propagation, native fresh+Reset/Restore,
+failed Restore atomicity and real source DROP dependencies. It also composes a
+prepared consumer of a transaction-private TEMP typed own-row provider and checks
+literal composite/NULL values, rows, metadata and identities before/after COMMIT.
+It is not a test wrapper or committed scaffold, and never substitutes for these
+selected proofs.
+
+Separate session-only public smokes exercise retained exclusion and bounded
+foreign-key attachments, real OF dumps, fresh/ResetRestore, direct/prepared
+CREATE OF and 23P01/23503 enforcement. Their expected final lines are
+`retained typed exclusion and native round-trip OK` and
+`retained typed foreign key and native round-trip OK`.
+
+The fourth session-only public smoke independently completes both retained identity
+and stored-generation native round-trips and subsequent writes. Expected final line:
+`retained typed identity and generation round-trip OK`.
+
+The fifth session-only public smoke, `local://typed-attachment-source-smoke.go`,
+independently creates a shadow during a demonstrated target-lock wait. Qualified
+CREATE OF probes the shadow's source exclusion before attachment timeout and
+cancellation; ordinary rows/metadata/attachment survive, workers drain, and fresh
+direct/prepared attachment, subsequent rows and detach succeed. Run its absolute
+session path with `go run` from the worktree, external120s. Expected final line:
+`typed attachment actual shadow source exclusion cancellation and fresh execution OK`.
+
 ## Mandatory policy
 
 Agents MUST read and follow this guide before adding, modifying or migrating tests.

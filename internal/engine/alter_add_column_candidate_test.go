@@ -41,7 +41,7 @@ func alterAddUnitAction(t *testing.T, query string) parser.AlterTableAction {
 func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	action := alterAddUnitAction(t, "ALTER TABLE t ADD b INT DEFAULT 7 NOT NULL CHECK(b>a)")
-	next, added, err := e.addColumnCandidate(scope, scope.op, auth, old, action)
+	next, added, err := e.addColumnCandidate(scope, scope.op, auth, old, action, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +66,13 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	}
 	// A syntactically valid skipped declaration never resolves its unknown type.
 	skip := alterAddUnitAction(t, "ALTER TABLE t ADD IF NOT EXISTS a nonexistent_type DEFAULT 'oops'")
-	same, ignored, err := e.addColumnCandidate(scope, scope.op, auth, old, skip)
+	same, ignored, err := e.addColumnCandidate(scope, scope.op, auth, old, skip, nil)
 	if err != nil || same != old || ignored.column != nil || old.attributeHighWater != 3 {
 		t.Fatal(same, ignored, err)
 	}
 	limit := *old
 	limit.attributeHighWater = 1600
-	_, _, err = e.addColumnCandidate(scope, scope.op, auth, &limit, action)
+	_, _, err = e.addColumnCandidate(scope, scope.op, auth, &limit, action, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "54011" || limit.attributeHighWater != 1600 {
 		t.Fatal(err)
