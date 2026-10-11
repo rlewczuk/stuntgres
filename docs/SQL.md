@@ -900,7 +900,7 @@ boundaries without metadata changes; PostgreSQL supports them. Failed ordinary e
 index builds before publication leave it unchanged; failed concurrent work after
 initial invalid-index publication retains true. This adds no VACUUM/ANALYZE.
 
-The represented builtin table inventory is `pg_cast`, `pg_sequence`, `pg_depend`,
+The represented builtin table inventory is `pg_cast`, `pg_extension`, `pg_sequence`, `pg_depend`,
 `pg_description`, `pg_shdescription`, `pg_constraint`, `pg_attrdef`, `pg_class`,
 `pg_rewrite`. Their released compatibility metadata has hasindexes=true and
 hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
@@ -1332,6 +1332,76 @@ No `pg_sequences` view or `pg_attribute`/`pg_depend` expansion is implied.
 
 Feature smoke: `make check RUN='^TestReferencePGSequenceFeatureSmoke$'`,
 and the identical command with `REFERENCE=1` for pinned PostgreSQL.
+
+## pg_extension catalog — change note
+
+`pg_catalog.pg_extension` is readonly relation3079 in namespace `pg_catalog`11,
+owned by bootstrap role10, with PUBLIC SELECT. Ordinary direct/prepared queries,
+views, joins, filters and aggregates use the normal catalog source pipeline.
+Its eight ordered columns have typmod-1 and origins relation3079/attributes1–8:
+
+| Column | Type (OID) | Native nullable | Collation |
+|---|---|---|---|
+| oid | OID (26) | no | 0 |
+| extname | NAME (19) | no | C950 |
+| extowner | OID (26) | no | 0 |
+| extnamespace | OID (26) | no | 0 |
+| extrelocatable | BOOL (16) | no | 0 |
+| extversion | TEXT (25) | no | C950 |
+| extconfig | OID[] (1028; `_OID` metadata) | yes | 0 |
+| extcondition | TEXT[] (1009; `_TEXT` metadata) | yes | C950 |
+
+Nullability is known natively even for empty results. `extconfig` is OID[],
+not REGCLASS[]. NULL configuration arrays mean no configuration entries, not
+empty arrays. Versions are arbitrary text, not parsed semantic versions.
+Extension names identify database-wide extension objects; `extnamespace` denotes
+their exported objects' schema, not placement of the extension object itself.
+
+**Native installed state is truthfully empty.** There is no installed-extension
+provider or PL/pgSQL interpreter; available files and existing catalog type
+identities do not install extensions. PostgreSQL18.0's default database instead
+contains installed `plpgsql`: generated positive row OID, owner10, schema11,
+nonrelocatable, version `1.0`, NULL extconfig/extcondition. Native deliberately
+does not fabricate this tuple. `pg_available_extensions`, installation/version
+discovery, module loading and CREATE/ALTER/DROP EXTENSION remain outside support.
+See [the PostgreSQL18 catalog contract](https://www.postgresql.org/docs/18/catalog-pg-extension.html).
+
+Normal relation resolution, REGCLASS and explicit search_path shadowing apply;
+qualification remains stable when a user table is named `pg_extension`.
+Relation3079 and namespace11 are fixed PostgreSQL identities. Existing native
+rowtype10074/array10073 are reused with reciprocal ownership; those type numbers
+are allocated pristine-initdb inventory identities, not release-fixed OIDs or
+cross-server allocator promises. No physical catalog indexes, TOAST or storage
+are introduced.
+
+Native writes fail with0A000 / `catalog source mutation is unsupported`, even
+for zero-match UPDATE/DELETE; row locks fail with0A000 /
+`row locking is not supported for virtual catalog relations`.
+These are not PostgreSQL superuser physical-catalog write/lock semantics.
+Existing external-command diagnostics are preserved, with ERROR/ERROR and
+all optional fields absent except the stated Position:
+
+| Native command | SQLSTATE / primary | Position |
+|---|---|---|
+| CREATE EXTENSION pgext_missing_control | 42601 / syntax error at or near "EXTENSION" | 8 |
+| ALTER EXTENSION pgext_missing_control UPDATE | 0A000 / statement is unsupported | 1 |
+| DROP EXTENSION pgext_missing_control | 0A000 / statement is unsupported | 1 |
+| LOAD 'pgext_missing_library' | 42601 / syntax error at or near "LOAD" | 1 |
+
+Direct execution fails at execute, prepared execution at prepare for those
+unsupported commands. The pinned PostgreSQL missing-control CREATE instead
+fails0A000 / `extension "pgext_missing_control" is not available`, with Hint
+`The extension must first be installed on the system where PostgreSQL is running.`
+and no Detail or Position; it is not a native installation implementation.
+Shared semantic errors still bind despite the empty source: missing columns
+give42703; invalid/range-exceeding OID literals give22P02/22003.
+
+Dump serializes actual user state, never extension/catalog tuples or installation
+commands. Reset/Restore reconstruct the empty catalog and generation-owned
+descriptors; held prepared statements reanalyze while retained empty cursors and
+captured metadata remain stable. Failed staged Restore publishes nothing.
+Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
 
 ## pg_depend catalog — change note
 

@@ -1774,6 +1774,22 @@ See [bounded owner metadata and omissions](docs/design/PG18-CAT-PG-CAST.md).
 Feature smoke: `make check RUN='^TestReferencePGCastFeatureSmoke$'`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 
+**Installed-extension catalog change note:** `pg_catalog.pg_extension` is readonly
+relation3079 with eight exact OID/NAME/BOOL/TEXT/OID[]/TEXT[] fields, known native
+nullability and C950 collations on collatable columns. Native installed state is
+truthfully empty: no PL/pgSQL provider or extension installation is invented.
+PostgreSQL18.0's default database independently has installed `plpgsql`1.0;
+available-but-uninstalled control files never become catalog rows.
+Normal REGCLASS/search_path/prepared queries and native Dump/Reset/Restore use
+the existing relation authority. Fixed relation3079 differs from the reused
+allocated native rowtype10074/array10073; no cross-server type allocator promise,
+physical system index or TOAST implementation is implied.
+Extension DDL, availability discovery and module loading remain unsupported with
+their existing SQL-visible diagnostics, not successful no-ops.
+See [exact shape, installed authority and errors](docs/SQL.md#pg_extension-catalog--change-note).
+Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
+
 
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,
 keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards

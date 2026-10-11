@@ -46,6 +46,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"castsource", sqltype.Oid}, {"casttarget", sqltype.Oid}, {"castfunc", sqltype.Oid}, {"castcontext", sqltype.Char}, {"castmethod", sqltype.Char}}},
+		{3079, "pg_extension", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"extname", sqltype.Name}, {"extowner", sqltype.Oid}, {"extnamespace", sqltype.Oid}, {"extrelocatable", sqltype.Bool}, {"extversion", sqltype.Text}, {"extconfig", sqltype.ID(1028)}, {"extcondition", sqltype.ID(1009)}}},
 		{2224, "pg_sequence", []struct {
 			name string
 			typ  sqltype.ID
@@ -121,6 +125,12 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
+			if spec.oid == 3079 {
+				d.columns[i].Nullable = i >= 6
+				if column.typ == sqltype.Text || column.typ == sqltype.ID(1009) {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			if spec.oid == 12014 && column.name == "useconfig" || spec.oid == 12007 && column.name == "rolconfig" {
 				d.columns[i].Usage.Collation.ID = 950
 			}
@@ -148,6 +158,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 3079 {
+		return capturePGExtension(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2224 {
 		return capturePGSequence(ctx, catalog.state, nil, ref, source)

@@ -2109,6 +2109,22 @@ controls rebuild fixed metadata and retain old captured values/descriptors.
 No CREATE/DROP CAST or pg_type/pg_proc inventory is implied.
 See [exact boundary, lifetime and smoke](design/PG18-CAT-PG-CAST.md).
 
+`pg_catalog.pg_extension` is readonly relation3079 in namespace11, PUBLIC SELECT,
+with eight ordered fields: `oid OID`, `extname NAME`, `extowner OID`,
+`extnamespace OID`, `extrelocatable BOOL`, `extversion TEXT`, `extconfig OID[]`,
+`extcondition TEXT[]`. First six are known NOT NULL; the arrays are nullable.
+NAME/TEXT/TEXT[] use catalog C950. Extconfig is not REGCLASS[].
+Native installed-extension state is empty, not PostgreSQL's installed
+`plpgsql`1.0 bootstrap tuple and not a list of available files/versions.
+No procedural provider, availability view, extension DDL or module loader is
+added. Existing native CREATE EXTENSION/LOAD errors are42601; ALTER/DROP EXTENSION
+are0A000 / `statement is unsupported`, never successful no-ops.
+Normal REGCLASS/path/prepared resolution and native controls retain the exact
+relation shape and empty authority. Reused rowtype10074/array10073 are allocated
+inventory identities, unlike fixed relation3079. Native catalog mutation and row
+locking remain0A000 virtual-source boundaries; no physical indexes/TOAST exist.
+See [full catalog contract, command diagnostics and smoke](SQL.md#pg_extension-catalog--change-note).
+
 
 CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
 comments and dependents while replacing the definition and outgoing dependencies.
