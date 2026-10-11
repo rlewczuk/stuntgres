@@ -866,13 +866,38 @@ pg_shadow with complete PostgreSQL Detail/Hint. pg_shadow is diagnostic/summary
 text only, not an executable catalog. No role settings, locking or utility
 grammar expansion is implied. See [the exact contract](SQL.md#pg_user-safe-user-view--change-note).
 
+### Safe role view — change note
+
+`pg_roles` is the public thirteen-column role summary, including unrelated,
+NOLOGIN, privileged, expired and zero-limit roles. Flags and limits are direct
+stored attributes, not membership-derived privileges. PUBLIC is not a role row.
+The password is always TEXT `********`, never a credential-dependent value;
+reachable configuration is typed NULL TEXT[], not empty or session-derived.
+Role settings/ALTER ROLE SET/RESET and pg_authid/pg_shadow remain excluded.
+
+Typed TIMESTAMPTZ expiry uses execution-captured timezone. One immutable saved
+role root serves repeated and nested source openings; held Prepare refreshes on
+each execution while old native Rows/metadata survive mutation and Reset/Restore.
+Native controls preserve role identities and membership, omitting role DDL,
+credentials and virtual rows from Dump. Generated view relation identities need
+not match an independent server's allocator; existing row/array types link to
+the actual view. NAME and rolconfig use exact C950 collation, mask TEXT default100.
+
+Valid writes fail55000 naming pg_roles, including rolpassword/WHERE FALSE, with
+the join-view Detail and operation-specific INSTEAD OF Hint; earlier ordinary
+semantic diagnostics retain precedence. Native catalog row locking remains0A000.
+`pg_views` includes the release reconstruction; `pg_tables` excludes the view.
+See [the exact schema/contract](SQL.md#pg_roles-safe-role-view--change-note).
+Feature smoke: `make check RUN='^TestReferencePGRolesFeatureSmoke$'` in both
+native and `REFERENCE=1` modes, each with an external900-second deadline.
+
 ### Table and view summaries — change note
 
 Readonly `pg_tables`/`pg_views` use their documented PostgreSQL18 eight/four
 fields and exact unfiltered underlying-object disclosure, independent of actor
 and search_path. They summarize supported ordinary tables and stored views plus
-the explicitly represented nine system tables/six system views, including
-pg_matviews and pg_user; this does not
+the explicitly represented nine system tables/seven system views, including
+pg_matviews, pg_user and pg_roles; this does not
 promise a full PostgreSQL catalog inventory or change `pg_class` kinds.
 Tables retain sticky index-publication history after DROP. Native admitted user
 tables have default NULL tablespace and false rule/trigger/RLS states; no success
@@ -931,7 +956,7 @@ ordinary pg_tables/pg_views rows. No full catalogs, physical statistics, public
 MV indexes, ALTER or REFRESH are added. Native persistence preserves exact stale
 rows privately; PostgreSQL dump-script replay deliberately restores only
 unpopulated definitions. See [native controls](TABLES.md#materialized-views--change-note).
-The bounded surface does not add pg_namespace, pg_roles or pg_attribute query
+The bounded surface does not add pg_namespace or pg_attribute query
 providers: exact schema/owner names come from pg_matviews, while existing
 pg_class/pg_rewrite identities expose namespace/owner relationships and rule
 links without promising allocator-specific OIDs. Frozen REGTYPE constants use
@@ -5423,7 +5448,7 @@ The contextual attribute words remain ordinary unquoted names in membership list
 Physical limits count original authenticators, including idle pools; -1 is
 unlimited, 0 denies ordinary admission, close releases and reuse adds no slot.
 Superusers bypass limits but not NOLOGIN; new NOLOGIN admission fails FATAL28000.
-Role rename, ALTER ROLE SET/RESET, password handshake/settings and pg_roles/pg_authid
+Role rename, ALTER ROLE SET/RESET, password handshake/settings and pg_authid
 remain excluded; no database, replication or RLS executor is added. DROP/COMMENT
 retain existing superuser gates. CREATE/ALTER role utilities remain native
 explicit-transaction0A000 boundaries, with read-only25006 before lookup.

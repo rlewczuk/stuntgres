@@ -71,7 +71,7 @@ physical-close release, superuser limit exemption and NOLOGIN FATAL28000.
 See [physical admission](DRIVER.md#trusted-role-admission-and-physical-limits).
 Native explicit-transaction role utilities remain0A000, and read-only Execute
 uses25006 before lookup. DROP/COMMENT keep existing superuser gates. Rename,
-ALTER ROLE SET/RESET, password handshake/settings, pg_roles/pg_authid and SQL
+ALTER ROLE SET/RESET, password handshake/settings, pg_authid and SQL
 object grants remain excluded; integrated role GRANT/REVOKE is unchanged.
 
 ## Period overlap
@@ -636,6 +636,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
 | `pg_catalog.pg_user` | `usename NAME`, `usesysid OID`, `usecreatedb BOOL`, `usesuper BOOL`, `userepl BOOL`, `usebypassrls BOOL`, `passwd TEXT`, `valuntil TIMESTAMPTZ`, `useconfig TEXT[]` |
+| `pg_catalog.pg_roles` | `rolname NAME`, `rolsuper BOOL`, `rolinherit BOOL`, `rolcreaterole BOOL`, `rolcreatedb BOOL`, `rolcanlogin BOOL`, `rolreplication BOOL`, `rolconnlimit INT4`, `rolpassword TEXT`, `rolvaliduntil TIMESTAMPTZ`, `rolbypassrls BOOL`, `rolconfig TEXT[]`, `oid OID` |
 
 Each user view has one `_RETURN` rule (`ev_type='1'`, `ev_enabled='O'`,
 `is_instead=true`) tied to its real relation OID. OIDs are engine-local, not
@@ -685,6 +686,48 @@ is added. Independent public coverage and feature smoke use
 `make check RUN='^TestReferencePGUser'`
 and the same command with `REFERENCE=1`; each invocation has a900-second deadline.
 
+### pg_roles safe role view — change note
+
+`pg_catalog.pg_roles`, also available by ordinary unqualified catalog lookup,
+exposes exactly the thirteen ordered columns above. PUBLIC SELECT includes every
+represented role, including unrelated, NOLOGIN, privileged, expired and zero-limit
+roles. PUBLIC itself is an ACL grantee, not a role row. Flags, including rolinherit,
+are direct stored attributes: membership ADMIN/INHERIT/SET grants and revokes
+never synthesize effective privilege flags. CREATE and ALTER are reflected on
+the next execution of the same held prepared statement.
+
+`rolpassword` is always non-NULL TEXT `********`, independent of credential absence,
+format or replacement, for administrators and ordinary readers. The provider
+never consults credential material. `rolvaliduntil` is typed NULL when absent,
+otherwise the stored finite/infinite TIMESTAMPTZ instant; rendering uses execution
+timezone rather than preparation timezone. Expiry does not hide roles.
+`rolconfig` is typed NULL TEXT[] for currently reachable roles, not an empty array
+or session-derived settings. Role settings and ALTER ROLE SET/RESET remain excluded.
+
+Native database type names are NAME/BOOL/BOOL/BOOL/BOOL/BOOL/BOOL/INT4/TEXT/
+TIMESTAMPTZ/BOOL/_TEXT/OID. All view columns have declared nullable metadata and
+typmod−1. NAME and rolconfig use C collation950, rolpassword default collation100;
+other columns are noncollatable. OID is the actual represented role identity.
+Generated view relation identities are engine-local; existing row/array type
+identities are linked to the real view, not pinned to another server's allocator.
+
+Each statement uses one saved immutable role root across repeated and nested
+source openings. Held prepared reads refresh; already-open native rows and
+metadata remain detached across ALTER, DROP/recreation and Reset/Restore.
+Native controls preserve cluster roles and membership while Dump emits actual
+local stored-view SQL, not role DDL, credentials or virtual catalog rows.
+`pg_views` includes pg_roles with the pinned PostgreSQL18.0 reconstruction;
+`pg_tables` excludes it. Metadata references to pg_authid/pg_db_role_setting
+do not make those catalogs executable.
+
+Normal target/assignment/WHERE/RETURNING/parameter analysis precedes readonly
+rejection. Valid INSERT/UPDATE/DELETE fail55000 naming pg_roles, including password
+assignments and WHERE FALSE, with PostgreSQL's non-single-table/view Detail and
+operation-specific INSTEAD OF trigger/rule Hint. Native virtual-catalog row locking
+retains its explicit0A000 boundary. No new role utilities, settings or locks.
+Feature smoke: `make check RUN='^TestReferencePGRolesFeatureSmoke$'`, then the same
+command with `REFERENCE=1`; each invocation has an external900-second deadline.
+
 ### Table and view summaries — change note
 
 `pg_tables` and `pg_views` expose current real names, schemas and owners without
@@ -711,7 +754,7 @@ The represented builtin table inventory is `pg_cast`, `pg_sequence`, `pg_depend`
 hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
 `pg_shdescription`'s `pg_global`. These flags do not invent native system backing
 indexes or physical storage. The represented builtin views are `pg_views`,
-`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_user`. Classification is local to these
+`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_matviews`, `pg_user` and `pg_roles`. Classification is local to these
 summaries, not a broader `pg_class` schema/kind expansion or full catalog inventory.
 
 User `pg_views.definition` reconstructs the actual immutable stored SELECT using

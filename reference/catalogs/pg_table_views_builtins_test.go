@@ -7,7 +7,7 @@ import (
 )
 
 var pgTableBuiltinNames = []string{"pg_attrdef", "pg_cast", "pg_class", "pg_constraint", "pg_depend", "pg_description", "pg_rewrite", "pg_sequence", "pg_shdescription"}
-var pgViewBuiltinNames = []string{"pg_indexes", "pg_prepared_xacts", "pg_tables", "pg_views"}
+var pgViewBuiltinNames = []string{"pg_indexes", "pg_prepared_xacts", "pg_roles", "pg_tables", "pg_views"}
 
 func pgTableViewsNames(column string, names []string) string {
 	terms := make([]string, len(names))
@@ -33,7 +33,7 @@ func TestReferencePGTableViewsBuiltins(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pg_catalog' AND "+pgTableViewsNames("tablename", pgViewBuiltinNames), pgTableColumns, pgTableTypes, nil))
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND "+pgTableViewsNames("viewname", pgTableBuiltinNames), pgViewColumns, pgViewTypes, nil))
 			var views [][]any
-			for _, name := range []string{"pg_indexes", "pg_prepared_xacts", "pg_tables", "pg_views"} {
+			for _, name := range []string{"pg_indexes", "pg_prepared_xacts", "pg_roles", "pg_tables", "pg_views"} {
 				views = append(views, []any{"pg_catalog", name, pgTableViewsOwner(b), pgTableViewsBuiltinDefinitions[name]})
 			}
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND "+pgTableViewsNames("viewname", pgViewBuiltinNames)+" ORDER BY viewname", pgViewColumns, pgViewTypes, views))
@@ -45,6 +45,7 @@ func TestReferencePGTableViewsBuiltins(t *testing.T) {
 // CREATE VIEW sections; pinned18.0 reconstruction observed in part tests-2.
 // These describe PostgreSQL, not native-executable definitions.
 var pgTableViewsBuiltinDefinitions = map[string]string{
+	"pg_roles": pgRolesViewDefinition,
 	"pg_indexes": ` SELECT n.nspname AS schemaname,
     c.relname AS tablename,
     i.relname AS indexname,

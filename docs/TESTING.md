@@ -1686,9 +1686,9 @@ The format fixture uses the canonical attribute executor with a real captured
 StatementScope. Trusted connector NOLOGIN specifically asserts FATAL28000 with
 complete diagnostics; missing/miscased native names remain ordinary host errors.
 All other opaque-key, Driver isolation, authenticator and replacement witnesses
-remain selected by the broader role family above. Privileged pg_roles/pg_authid
-observations remain PostgreSQL-only; membership GRANT/REVOKE authority witnesses
-run on native too. Native controls and explicit-transaction exclusions are
+remain selected by the broader role family above. Public pg_roles observations
+now have independent dual-mode coverage; protected pg_authid probes remain
+PostgreSQL-only. Membership authority witnesses run on native too. Native controls and explicit-transaction exclusions are
 independent capability phases, never discovery filters.
 
 Each invocation has a900-second deadline. Existing Array/Domain/Enum,
@@ -2257,8 +2257,8 @@ Discovery uses admitted equality/OR predicates and explicit OID coercion, not
 adjacent IN/operator capabilities. Inherited domain authority uses a plain domain;
 its fresh USAGE and stored namespace identity are independent of domain constraints.
 Schema and owner discovery uses the existing `pg_tables` provider (including
-virtual roots/intermediates) with `pg_class`, not unavailable native
-`pg_roles`/`pg_namespace` catalogs. Manual ownership combines
+virtual roots/intermediates) with `pg_class`, without requiring the public
+`pg_roles` view or the still-unavailable native `pg_namespace` catalog. Manual ownership combines
 `pg_get_serial_sequence(...,'payload')` with exact `pg_depend.refobjsubid = 2`,
 plus a separate manually owned root key sequence with stable subID1 and matching
 column inquiry. This avoids ambiguous multiple sequences on the same column
@@ -3314,9 +3314,10 @@ password verifier mathematics/SASLprep and expiry metadata, omission/control
 retention and a composed feature smoke. Shared public membership actions show
 special attributes are not inherited, transitive ADMIN works independently of
 INHERIT/SET, and changing member INHERIT only changes future default edges.
-Privileged PostgreSQL pg_authid/pg_roles/pg_auth_members queries supplement these
-witnesses without adding native catalog projections. Internal units independently
-check complete descriptors, immutable snapshots, verifier keys and lifecycle races.
+Public pg_roles scenarios supplement shared native/reference coverage; privileged
+PostgreSQL pg_authid/pg_auth_members probes remain oracle-only without adding
+those native providers. Internal units independently check complete descriptors,
+immutable snapshots, verifier keys and lifecycle races.
 `TestReferenceRoleAttributesContextualMembershipNames` additionally covers all
 five contextual payload words in initial and ALTER GROUP comma-list positions.
 `TestReferenceRoleAttributesSelfPasswordCancellation` exercises ordinary effective

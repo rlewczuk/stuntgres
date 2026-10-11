@@ -16,6 +16,10 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{12007, "pg_roles", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"rolname", sqltype.Name}, {"rolsuper", sqltype.Bool}, {"rolinherit", sqltype.Bool}, {"rolcreaterole", sqltype.Bool}, {"rolcreatedb", sqltype.Bool}, {"rolcanlogin", sqltype.Bool}, {"rolreplication", sqltype.Bool}, {"rolconnlimit", sqltype.Int4}, {"rolpassword", sqltype.Text}, {"rolvaliduntil", sqltype.Timestamptz}, {"rolbypassrls", sqltype.Bool}, {"rolconfig", sqltype.ID(1009)}, {"oid", sqltype.Oid}}},
 		{12014, "pg_user", []struct {
 			name string
 			typ  sqltype.ID
@@ -93,7 +97,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
-		d.virtualView = spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014
+		d.virtualView = spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007
 		d.attributeHighWater = int32(len(d.attributes))
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
@@ -113,7 +117,7 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
-			if spec.oid == 12014 && column.name == "useconfig" {
+			if spec.oid == 12014 && column.name == "useconfig" || spec.oid == 12007 && column.name == "rolconfig" {
 				d.columns[i].Usage.Collation.ID = 950
 			}
 			d.attributes[i] = int32(i + 1)

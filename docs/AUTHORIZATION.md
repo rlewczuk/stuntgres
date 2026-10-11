@@ -82,8 +82,12 @@ direct attribute. There is no blanket replication-target restriction.
 DROP and COMMENT ON ROLE retain their existing superuser gates. `pg_user` grants
 PUBLIC SELECT on every LOGIN role's direct summary, including unrelated users;
 membership does not synthesize its flags. Its password is always `********`.
-`pg_roles`/`pg_authid`/`pg_shadow`, role rename and ALTER ROLE SET/RESET remain
-excluded. Table/column object grants are supported separately from membership.
+`pg_roles` grants PUBLIC SELECT on every role, including unrelated NOLOGIN,
+privileged, expired and zero-limit roles. All flags are direct stored attributes;
+membership never synthesizes them. The password is always `********` and reachable
+configuration is typed NULL TEXT[]. `pg_authid`/`pg_shadow`, role rename and
+ALTER ROLE SET/RESET remain excluded. Table/column object grants are supported
+separately from membership.
 Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority, with separate
 checks for SUPERUSER targets and explicit grantor provenance.
 Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:
@@ -115,7 +119,7 @@ NULL/empty passwords clear metadata, with corresponding notices/warnings.
 VALID UNTIL uses captured timestamptz input settings and preserves finite/infinite
 values separately from absence. It is password expiry, not role expiry: trusted
 native admission ignores passwords and expiry. No password-verification handshake,
-password_encryption/scram_iterations setting or pg_roles/pg_authid projection is
+password_encryption/scram_iterations setting or pg_authid projection is
 introduced. LOGIN and CONNECTION LIMIT still govern new physical admission; see
 [driver admission](DRIVER.md#trusted-role-admission-and-physical-limits).
 CREATE/ALTER and other cluster-role utilities remain native explicit-transaction

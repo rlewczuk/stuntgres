@@ -800,10 +800,12 @@ Physical connections count against their original authenticator's limit, includi
 idle pool entries; reuse adds no slot and physical close releases one. Superusers
 bypass limits, not NOLOGIN (FATAL28000). Role utilities remain autocommit-only
 natively; Reset/Restore preserve roles and membership while Dump omits cluster-role
-DDL. Public-safe `pg_user` exposes the nine-column LOGIN-role summary with a
-constant eight-star password mask. Rename, role settings, object-GRANT SQL and
-`pg_roles`/`pg_authid`/`pg_shadow` remain excluded; existing DROP/COMMENT superuser
-gates are unchanged. See [the exact pg_user contract](docs/SQL.md#pg_user-safe-user-view--change-note).
+DDL. Public-safe `pg_user` exposes the nine-column LOGIN-role summary; `pg_roles`
+exposes a thirteen-column summary of all roles' direct attributes, with PUBLIC SELECT,
+a constant eight-star password mask and typed NULL role configuration. Membership
+never synthesizes summary flags. Rename, role settings, object-GRANT SQL and
+`pg_authid`/`pg_shadow` remain excluded; existing DROP/COMMENT superuser gates are
+unchanged. See [the exact pg_roles contract](docs/SQL.md#pg_roles-safe-role-view--change-note).
 Observed public smoke exercised creator ADMIN, ALTER USER omission, expired trusted
 admission, limit release, NOLOGIN and held authority refresh. Repeatable smoke:
 `make check RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$'`;
