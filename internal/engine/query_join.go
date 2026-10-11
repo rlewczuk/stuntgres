@@ -107,12 +107,12 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	frame := make([]sqltype.Value, width)
 	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
-	locking := state.locking || state.source.locks != nil
+	locking := state.locking || state.source.locks.rowMarked()
 	if locking {
 		source.occurrences = appendQueryOccurrences(source.occurrences, left.source)
 		source.occurrences = appendQueryOccurrences(source.occurrences, right.source)
 	}
-	if state.source.locks != nil {
+	if locking && state.source.locks != nil {
 		source.joinLeft, source.joinRight = left.source, right.source
 	}
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}

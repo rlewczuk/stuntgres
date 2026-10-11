@@ -33,6 +33,8 @@ type sqlCursor struct {
 	stage                                       *indexedStage
 	authority                                   *queryAuthority
 	position                                    cursorPosition
+	currentSource                               *querySource
+	currentIndex                                int
 	leaves                                      []queryLeaf
 	locks                                       *queryLockContext
 	catalog                                     CatalogRead
@@ -44,6 +46,7 @@ type sqlCursor struct {
 }
 
 func (c *sqlCursor) dispose() {
+	c.currentSource, c.currentIndex = nil, 0
 	if c.stage != nil {
 		_ = c.stage.Close()
 		c.stage = nil
@@ -92,7 +95,7 @@ func (r *cursorRegistry) EndSession(token SessionToken, _ EndReason) error {
 	return nil
 }
 func missingSQLCursor(name string) error {
-	return sqlError("34000", fmt.Sprintf("cursor %q does not exist", name))
+	return sqlError("34000", fmt.Sprintf("cursor \"%s\" does not exist", name))
 }
 func forwardSQLCursorError() error {
 	err := sqlError("55000", "cursor can only scan forward")
@@ -120,7 +123,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, visibilityCatalog: s.visibilityCatalog,
 		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
-	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
+	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.output.Regclass, c.state.output.Regtype = nil, nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
@@ -254,10 +257,13 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 		if !present {
 			rows.values = rows.values[:start]
 			c.position = cursorAfter
+			c.currentSource, c.currentIndex = nil, 0
 			break
 		}
 		rows.count++
 		c.position = cursorOn
+		c.currentSource = c.stage.source
+		c.currentIndex = c.stage.index(c.stage.position - 1)
 	}
 	// Finalized OID rendering is detached as well. Catalog data remains DECLARE's;
 	// the current search path controls the normal public rendering boundary.

@@ -663,6 +663,25 @@ excluded. See [driver ownership and transport distinctions](DRIVER.md#forward-on
 Dual-mode family: `RUN='^TestReferenceSQLCursor'`; feature smoke:
 `RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
 
+### Positioned DELETE — change note
+
+`DELETE FROM target WHERE CURRENT OF cursor_name` is a dedicated alternative to
+a Boolean WHERE. It resolves the live cursor at execution, not Prepare, and
+deletes the most recently fetched physical occurrence without moving the cursor.
+Unlocked simple physical scans/transparent derived or view projections are
+eligible; actual sort/group/distinct/set/join frontiers are not simply updatable.
+A unique locking reference to the target permits supported sorting and joins;
+all four existing locking variants participate. Missing names give34000;
+ineligible or unpositioned execution gives24000 with PostgreSQL English diagnostics.
+Rollback-to restores deletions without restoring older cursor motion; repeat
+deletion after rollback can delete the same physical occurrence again. Dump
+serializes only committed survivors, never cursor state, and replacement fences
+old execution rather than retargeting equal restored values.
+Raw parameter cursor syntax, UPDATE CURRENT OF and excluded cursor movement/hold
+capabilities remain excluded. Feature smoke:
+`RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'` in both check modes.
+
+
 ### Prepared transaction SQL — change note
 
 `PREPARE TRANSACTION STRING`, `COMMIT PREPARED STRING` and
@@ -2482,8 +2501,10 @@ replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
 a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
-PostgreSQL-only witness. Native FKs, triggers, DELETE CURRENT OF,
-CTE and recursive inheritance targets remain excluded; leaf child DELETE works.
+PostgreSQL-only witness. Native FKs, triggers, CTE and recursive inheritance
+targets remain excluded; leaf child DELETE works. Positioned
+`DELETE WHERE CURRENT OF cursor_name` uses the current physical cursor occurrence
+with normal USING/RETURNING and transaction semantics, not value matching.
 Smoke: `make check RUN='^TestReferenceDeleteUsingSmoke'`;
 reference: `make check REFERENCE=1 RUN='^TestReferenceDeleteUsing'`.
 Migrated baseline expressions: `make check RUN='^TestReferenceDeleteUsingMigratedExpressions'`.
@@ -4950,7 +4971,8 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions,
-UPDATE FROM/row-subqueries/CURRENT OF and DELETE CURRENT OF.
+UPDATE FROM/row-subqueries/CURRENT OF. DELETE CURRENT OF is admitted for the
+bounded forward-only named-cursor surface described above.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ/SERIALIZABLE, READ ONLY/READ WRITE
 and [NOT] DEFERRABLE modes. SET TRANSACTION changes current owner modes;

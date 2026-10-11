@@ -13,7 +13,7 @@ type deleteUsingCandidate struct {
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext) (Result, error) {
+func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned RowID) (Result, error) {
 	ctx := evaluation.Context
 	stage, err := openQueryNode(ctx, evaluation.query, b.deleteUsing)
 	if err != nil {
@@ -38,6 +38,9 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	for i := range targetCount {
 		ordinal := source.rawIndex(i)
 		version := source.versionAt(ordinal)
+		if b.currentOf != "" && version.row != positioned {
+			continue
+		}
 		candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.row, version: version.version, ordinal: ordinal}
 		if ordinal >= len(source.committed) {
 			candidate.own = true

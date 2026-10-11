@@ -98,7 +98,10 @@ func TestBetweenGrammarBoundaries(t *testing.T) {
 }
 
 func TestBetweenDeleteCursorBoundary(t *testing.T) {
-	keywordDiagnostic(t, "DELETE FROM t WHERE CURRENT OF c", "0A000", "DELETE CURRENT OF is unsupported", "21")
+	statements, err := Parse("DELETE FROM t WHERE CURRENT OF c")
+	if err != nil || len(statements) != 1 || statements[0].(*Delete).CurrentOf.Text != "c" || statements[0].(*Delete).Where != nil {
+		t.Fatal("positioned DELETE qualifier rejected", statements, err)
+	}
 	for _, q := range []string{`DELETE FROM t WHERE "current" OF c`, `DELETE FROM t WHERE CURRENT "of" c`} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal("quoted cursor words accepted", q, statements, err)

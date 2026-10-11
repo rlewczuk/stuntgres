@@ -66,7 +66,6 @@ func TestDeleteCoreGrammar(t *testing.T) {
 
 func TestDeleteCoreParserBoundaries(t *testing.T) {
 	for _, tc := range []struct{ query, code, message, position string }{
-		{"DELETE FROM t WHERE CURRENT OF c", "0A000", "DELETE CURRENT OF is unsupported", "21"},
 		{"DELETE FROM t WHERE", "42601", "syntax error at end of input", "20"},
 		{"CREATE TABLE t(v int4 delete)", "42601", `syntax error at or near "delete"`, "23"},
 		{"SELECT v::int4 delete FROM t", "42601", `syntax error at or near "delete"`, "16"},
@@ -91,6 +90,33 @@ func TestDeleteCoreParserBoundaries(t *testing.T) {
 	for _, query := range []string{"CREATE TABLE delete(delete INT)", "INSERT INTO delete(delete) VALUES(1)", "SELECT delete FROM delete WHERE delete=1"} {
 		if _, err := Parse(query); err != nil {
 			t.Fatal("unreserved DELETE category changed", query, err)
+		}
+	}
+}
+
+func TestDeleteCurrentOfGrammar(t *testing.T) {
+	for _, query := range []string{
+		`DELETE FROM t WHERE CURRENT OF "MiX"`,
+		`DELETE FROM t AS d USING s WHERE CURRENT OF "MiX" RETURNING d.id,s.id`,
+	} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+		stmt := statements[0].(*Delete)
+		if stmt.CurrentOf == nil || stmt.CurrentOf.Text != "MiX" || stmt.CurrentOf.Pos.Character <= stmt.Pos.Character || stmt.Where != nil {
+			t.Fatal("positioned qualifier lost identity or became a predicate", stmt)
+		}
+	}
+	for _, query := range []string{
+		"DELETE FROM t WHERE CURRENT OF c AND TRUE",
+		"DELETE FROM t WHERE CURRENT OF c OR FALSE",
+		"DELETE FROM t WHERE CURRENT OF c WHERE TRUE",
+		"DELETE FROM t WHERE CURRENT OF c; nonsense",
+		"DELETE FROM t WHERE CURRENT OF $1",
+	} {
+		if statements, err := Parse(query); err == nil || statements != nil {
+			t.Fatal("invalid qualifier escaped", query, statements, err)
 		}
 	}
 }

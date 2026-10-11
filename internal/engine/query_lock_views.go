@@ -11,7 +11,16 @@ import (
 // filtering. The admitted top-level StatementScope.querySources stays unchanged.
 type queryLockContext struct {
 	leaves []queryLockLeaf
+	// DECLARE-only physical manifests retain transparent lineage without
+	// requesting the effective-version/provenance caches needed by rowmarks.
+	// Ordinary initialized contexts remain semantic (the zero value).
+	identityOnly bool
 }
+
+func (c *queryLockContext) rowMarked() bool {
+	return c != nil && !c.identityOnly
+}
+
 type queryLockLeaf struct {
 	leaf    queryLeaf
 	source  *querySource

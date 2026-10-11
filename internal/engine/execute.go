@@ -765,6 +765,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.CreateQueryTable:
 		return e.executeQueryTableLocked(scope, s, b, queryRoot, canonical, creationStage, creationDescriptor)
 	case *parser.DeclareCursor:
+		// Even an unlocked cursor retains physical lineage through derived/view
+		// projections. Zero-mode entries capture identity, never row grants.
+		if scope.queryLocks == nil {
+			scope.queryLocks = &queryLockContext{identityOnly: true}
+		}
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
 		e.mu.Unlock()
 		if sourceErr != nil {

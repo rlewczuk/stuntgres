@@ -212,6 +212,17 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 		return Result{}, ErrCatalogReplaced
 	}
+	var positioned RowID
+	if b.currentOf != "" {
+		var err error
+		positioned, err = s.positionedDeleteRow(b)
+		if err != nil {
+			if inputs != nil {
+				inputs.close()
+			}
+			return Result{}, err
+		}
+	}
 	ctx := s.op.Context()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
 	if inputs != nil {
@@ -227,7 +238,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		evaluation.query = state
 	}
 	if b.deleteUsing != nil {
-		return s.deleteUsingSource(b, source, &evaluation)
+		return s.deleteUsingSource(b, source, &evaluation, positioned)
 	}
 	var count int64
 	var rows *finalRows
@@ -247,6 +258,9 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 		ordinal := source.rawIndex(i)
 		version := source.versionAt(ordinal)
+		if b.currentOf != "" && version.row != positioned {
+			continue
+		}
 		evaluation.Row = version.values
 		if b.predicate != nil {
 			value, err := b.predicate.Eval(&evaluation)

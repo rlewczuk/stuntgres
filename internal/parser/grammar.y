@@ -41,6 +41,7 @@ package parser
  row []Expr
  value Value
  expr Expr
+ deleteQualifier deleteQualifier
  call FunctionExpr
  predicate PredicateKind
  selectStmt *Select
@@ -353,7 +354,7 @@ package parser
 %type <viewOptions> view_options view_option_list
 %type <viewOption> view_option
 %type <tok> view_option_value
-%type <expr> delete_where
+%type <deleteQualifier> delete_where
 %type <expr> scalar_projection
 %type <fromItem> optional_from
 %type <row> row_fields
@@ -1348,7 +1349,7 @@ merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPo
  | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
  | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
-delete: DELETE FROM relation_name delete_alias delete_using delete_where returning { if $5==nil {if token:=deleteQualification($6,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6,Returning:$7,Pos:$1.pos} }
+delete: DELETE FROM relation_name delete_alias delete_using delete_where returning { if $5==nil {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_using delete_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
@@ -1362,10 +1363,10 @@ returning_option: name AS name {
    if $1.keyword==nil || ($1.text!="old" && $1.text!="new") { sqllex.(*lexer).syntax($1);return 1 }
    $$=ReturningAlias{New:$1.text=="new",Alias:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}
  } ;
-delete_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 }
+delete_where: /* empty */ { $$=deleteQualifier{} } | WHERE target_or { $$=deleteQualifier{Where:$2} }
  | WHERE KW_U OF name {
    if $2.keyword==nil || $2.text!="current" { sqllex.(*lexer).syntax($3); return 1 }
-   sqllex.(*lexer).deferUnsupported($2,"DELETE CURRENT OF is unsupported"); $$=nil
+   $$=deleteQualifier{CurrentOf:&Identifier{Text:$4.text,Pos:$4.pos}}
  } ;
 like_operator: LIKE | ILIKE ;
 target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;

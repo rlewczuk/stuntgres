@@ -753,8 +753,15 @@ type Delete struct {
 	Alias     Identifier
 	Using     FromItem
 	Where     Expr
+	CurrentOf *Identifier
 	Returning *Returning
 	Pos       Position
+}
+
+// DELETE owns exactly one qualifier; CURRENT OF is not a Boolean expression.
+type deleteQualifier struct {
+	Where     Expr
+	CurrentOf *Identifier
 }
 
 func (*Delete) statement() {}

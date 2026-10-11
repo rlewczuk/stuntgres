@@ -102,6 +102,22 @@ full abort, PREPARE TRANSACTION detach and physical session end dispose nonholda
 cursors. ROLLBACK TO removes declarations after its mark but does not rewind
 older cursor motion, undo CLOSE or heal an executing cursor failure. Recovered
 failed cursors report55000 `portal "name" cannot be run`; missing names give34000.
+
+`DELETE WHERE CURRENT OF name` borrows the most recently delivered physical
+occurrence of the live eligible cursor, not its projected values or a Prepare-time
+incarnation. FETCH FORWARD 2 positions on its second returned row, and an exact
+bounded last row stays positioned until an actual EOF probe. Positioned DELETE
+uses ordinary DML publication, never the stage-free cursor completion exception;
+cancellation/output failure exposes no partial deletion or RETURNING batch.
+DELETE does not move/fail a healthy cursor, and a successful repeat counts zero.
+RETURNING metadata comes from target/source analysis independently of FETCH schema.
+After a failed FETCH and savepoint recovery, CURRENT OF uses the executor-lifetime
+24000 diagnostic (`cursor "name" is held from a previous transaction`), distinct
+from FETCH's55000 portal diagnostic. Missing names continue to give34000.
+The native current occurrence retains no operation, context or projected-value
+copy. Reset/Restore fences old identities rather than refreshing them from equal
+restored tuples; detached FETCH/RETURNING results retain their own values/schema.
+
 Backward/negative and on-row zero FETCH give55000 `cursor can only scan forward`
 with the SCROLL hint. SCROLL, WITH HOLD and ABSOLUTE/RELATIVE movement remain
 independent unsupported capabilities.

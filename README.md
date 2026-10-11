@@ -445,6 +445,19 @@ excluded. See [SQL cursor ownership](docs/DRIVER.md#forward-only-sql-cursors--ch
 Feature smoke: `make check RUN='^TestReferenceSQLCursorFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorFeatureSmoke$'`.
 
+Change note: `DELETE FROM target WHERE CURRENT OF cursor_name` deletes only the
+physical occurrence most recently delivered by a live updatable SQL cursor.
+Bounded FETCH positions on its last returned row; duplicate values and omitted
+projected keys do not change identity. DELETE does not move the cursor; repeating
+it after successful deletion reports zero. Prepare is quiet and each execution
+resolves the current named incarnation. USING/RETURNING retain their normal
+scopes, metadata and atomic publication. Savepoint rollback restores data without
+rewinding older FETCH movement; full transaction end closes the name.
+See [positioned DELETE](docs/QUERIES.md#positioned-delete--change-note).
+Feature smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
+
+
 Change note: `PREPARE TRANSACTION 'gid'`, `COMMIT PREPARED 'gid'` and
 `ROLLBACK PREPARED 'gid'` support process-local two-phase transaction state.
 Preparation detaches private writes and transaction-owned locks from the session; physical

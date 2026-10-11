@@ -470,6 +470,21 @@ fails that portal; recovery never rewinds it. Runtime notices/warnings use each
 FETCH's current operation and notice policy, independently of DECLARE's snapshot
 and first-demand identity/time data.
 
+Positioned `DELETE WHERE CURRENT OF name` is ordinary DML, not a stage-free
+cursor utility. Its captured physical RowID is remapped into the current command
+view and goes through the existing row grants, latest-predecessor arbitration,
+constraint/index/SSI effects and private-stage Finish. A prepublication failure
+or cancellation installs neither deletion nor partial RETURNING result.
+Savepoint rollback restores deletion/data and prior private writes while older
+cursor motion/current identity remains unchanged; repeating the deletion can
+remove that restored row. A mutation failure does not itself fail a healthy
+cursor. Later declarations close on rollback-to, CLOSE is not resurrected, and
+full SQL/driver transaction end, PREPARE detach or physical session end closes
+nonholdable names. Committed Dump contains survivors, never cursor state or
+private deletions. Failed Restore preserves current identity; successful catalog
+replacement fences it through the existing epoch/storage authority.
+
+
 Feature smoke: `make check RUN='^TestSavepointsSmoke$'`.
 
 

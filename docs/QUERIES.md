@@ -1570,6 +1570,48 @@ make check REFERENCE=1 RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$'
 make check RUN='^TestInsertSelectSmoke$'
 ```
 
+## Positioned DELETE — change note
+
+`DELETE FROM target [AS alias] [USING sources] WHERE CURRENT OF cursor_name
+[RETURNING outputs]` deletes only the physical occurrence most recently returned
+by that named cursor. It is not a Boolean expression and cannot be combined with
+AND/OR. Names use ordinary identifier folding/quoted decoding. Raw `$1` cursor
+syntax remains syntax42601; RETURNING parameters retain their normal type binding.
+Prepare validates target/source/output analysis without demanding a cursor;
+each Execute resolves the current name, eligibility and position anew.
+
+One bounded FETCH positions on its **last** returned row, including zero-width
+and duplicate-valued occurrences. Exactly consuming the last row is positioned
+until a real EOF probe; FETCH ALL ends after-last. DELETE neither advances nor
+clears the cursor: the first deletion counts one and repetition counts zero.
+Equal-valued replacement tuples are not substitutes. Existing row arbitration
+selects the actual current predecessor for RETURNING and preserves RC/RR failures.
+
+Unlocked physical scans beneath transparent projection/filter/limit/derived/view
+wrappers are eligible. An actual sort/aggregate/distinct/set/join frontier is not
+a simply updatable scan. PostgreSQL eligibility depends on its chosen plan:
+reference tests explicitly force Sort versus useful Index paths, while native
+tests use its actual pipeline. One target FOR UPDATE/NO KEY UPDATE/SHARE/KEY SHARE
+reference admits supported sorting/joins; zero or multiple target references have
+their distinct24000 diagnostics. Eligibility precedes position; missing, closed
+or ended names give34000, and before-first/after-last gives24000.
+
+USING still drains and captures its normal source frames. Empty input deletes
+zero after cursor validation; repeated source matches delete/count/return the
+target once. RETURNING retains actual OLD values, typed NULL NEW values, source
+scope and owned schema. Mutation or output failure/cancellation uses ordinary
+DELETE staging and publishes no partial data/result. It does not fail a healthy
+cursor; recovery restores data but never rewinds older FETCH movement.
+Full transaction/PREPARE/session end closes nonholdable names.
+
+Native Dump excludes private deletion and all execution state; committed dumps
+restore only survivors and persistent metadata. Failed Restore preserves current
+identity, successful replacement fences it, and detached FETCH/RETURNING rows
+remain immutable. UPDATE CURRENT OF, backward/scroll/hold cursor capabilities
+and refcursor parser hooks are not added.
+Smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
+
 ## DELETE rows
 
 `DELETE FROM target` removes every live occurrence while keeping the table and
@@ -1577,7 +1619,8 @@ its schema. Optional WHERE uses the same typed comparison and three-valued
 Boolean evaluator as SELECT: only TRUE selects, never FALSE or NULL. AS and bare
 target aliases are supported; an alias hides the original target name. Predicate
 columns may be unqualified or qualified by the visible target/alias. USING adds
-query sources as described below; CURRENT OF, foreign keys and triggers remain excluded.
+query sources as described below; foreign keys and triggers remain excluded.
+The dedicated `WHERE CURRENT OF cursor_name` alternative is described above.
 DELETE RETURNING is described below; UPDATE has its own bounded contract.
 DELETE also reuses SELECT's nullness, Boolean truth and DISTINCT predicates,
 including alias-qualified operands. Without USING, existing baseline explicit scalar casts work

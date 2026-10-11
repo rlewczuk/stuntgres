@@ -78,6 +78,7 @@ type binding struct {
 	merge                 *boundMerge
 	deleteUsing           LogicalNode
 	deleteSourceWidth     int
+	currentOf             string
 	returning             *boundReturning
 	dependencies          []expressionDependency
 	parameters            ParameterInfo
@@ -627,6 +628,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 		}
 		binder.relation, binder.ref = b.relation, b.ref
+		if s.CurrentOf != nil {
+			b.currentOf = s.CurrentOf.Text
+		}
 		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
 		binder.queryAuth = &auth
 		if s.Using != nil {

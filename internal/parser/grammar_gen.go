@@ -44,6 +44,7 @@ type sqlSymType struct {
 	row                []Expr
 	value              Value
 	expr               Expr
+	deleteQualifier    deleteQualifier
 	call               FunctionExpr
 	predicate          PredicateKind
 	selectStmt         *Select
@@ -12470,12 +12471,12 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
 			if sqlDollar[5].fromItem == nil {
-				if token := deleteQualification(sqlDollar[6].expr, false); token != nil {
+				if token := deleteQualification(sqlDollar[6].deleteQualifier.Where, false); token != nil {
 					sqllex.(*lexer).syntax(*token)
 					return 1
 				}
 			}
-			sqlVAL.stmt = &Delete{Name: sqlDollar[3].objectName, Alias: Identifier{Text: sqlDollar[4].tok.text, Pos: sqlDollar[4].tok.pos}, Using: sqlDollar[5].fromItem, Where: sqlDollar[6].expr, Returning: sqlDollar[7].returning, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.stmt = &Delete{Name: sqlDollar[3].objectName, Alias: Identifier{Text: sqlDollar[4].tok.text, Pos: sqlDollar[4].tok.pos}, Using: sqlDollar[5].fromItem, Where: sqlDollar[6].deleteQualifier.Where, CurrentOf: sqlDollar[6].deleteQualifier.CurrentOf, Returning: sqlDollar[7].returning, Pos: sqlDollar[1].tok.pos}
 		}
 	case 906:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
@@ -12554,12 +12555,12 @@ sqldefault:
 	case 919:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.expr = nil
+			sqlVAL.deleteQualifier = deleteQualifier{}
 		}
 	case 920:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.expr = sqlDollar[2].expr
+			sqlVAL.deleteQualifier = deleteQualifier{Where: sqlDollar[2].expr}
 		}
 	case 921:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
@@ -12568,8 +12569,7 @@ sqldefault:
 				sqllex.(*lexer).syntax(sqlDollar[3].tok)
 				return 1
 			}
-			sqllex.(*lexer).deferUnsupported(sqlDollar[2].tok, "DELETE CURRENT OF is unsupported")
-			sqlVAL.expr = nil
+			sqlVAL.deleteQualifier = deleteQualifier{CurrentOf: &Identifier{Text: sqlDollar[4].tok.text, Pos: sqlDollar[4].tok.pos}}
 		}
 	case 924:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

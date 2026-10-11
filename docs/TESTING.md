@@ -925,6 +925,72 @@ remove the temporary source; it is not a committed test or production dependency
 Whole-project Docker-free verification remains `make quickcheck`; selected
 dual-mode proof and the smoke are not replaced by quickcheck or finalcheck.
 
+### Positioned DELETE verification
+
+The `TestReferenceDeleteCurrentOf` family in `reference/dml/` exercises the
+selected `DELETE WHERE CURRENT OF cursor_name` contract. Independent expectations
+come from pinned oracle discovery and PostgreSQL REL_18_0
+[`execCurrent.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/executor/execCurrent.c),
+[`nodeTidscan.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/executor/nodeTidscan.c),
+and the PostgreSQL 18 DELETE, FETCH and ROLLBACK TO contracts.
+
+The oracle-discovery backend filter has been removed. Every shared scenario now
+runs natively as well as against PostgreSQL when reference mode is enabled.
+Native-only Dump/Reset/Restore, detached-result and context-cancellation phases
+remain explicitly asserted; they were not removed during the oracle cutover.
+The old `TestReferenceDeleteCoreExcludedForms` definition is migrated into
+`PositionedRow/migrated_survivor`; its obsolete native unsupported assertion is
+removed, not retained as a second contract.
+
+Selected dual-mode batches (each under an external 900-second deadline):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOf(PositionedRow|PreparationAndMetadata|DuplicateIdentityAndLastFetch|EligibilityAndDiagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOf(RollbackAndRepeat|VersionsAndArbitration|Lifetime|UsingReturningAndConstraints)$'
+make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOf(NativeControls|CancellationAndFailure|FeatureSmoke)$'
+```
+
+Run the same selectors without `REFERENCE=1` for native proof. After implementation,
+test changes or remedies, repeat **both modes** with the completed definitions.
+`make quickcheck` remains the whole-project Docker-free proof, not a substitute
+for selected pinned-reference evidence. Supplementary package-seam proof:
+
+```sh
+make check RUN='^(TestDeleteCurrentOf|TestBetweenDeleteCursorBoundary|TestDeleteCoreParserBoundaries|TestSQLCursorCompletedPublicationBoundary|TestSQLCursorCancellationClearsAuthority)'
+make check RACE=1 RUN='^TestDeleteCurrentOf(Identity|Arbitration|Publication|Lifetime|JoinIdentityRetention)$'
+```
+
+These private units inspect actual occurrence/lineage/effective versions,
+zero-mode authority, original-row wait journals, post-Execute/pre-Finish staging
+and cancellation, EOF/disposal and stale name incarnations.
+`TestDeleteCurrentOfJoinIdentityRetention` also checks that unmarked ineligible
+joins (including derived/view wrappers) allocate no occurrence/provenance/version
+or recheck-pair caches, while actual marked descendants retain those caches and
+eligible unlocked derived/view scans retain physical current identity. These units
+supplement the public definitions, never replace them.
+
+The family checks physical duplicate identity and last successful FETCH, quiet
+Prepare/live quoted names, eligibility-before-position and complete diagnostics,
+savepoint data rollback without motion rewind, row-version arbitration, cursor
+and session lifetime, USING multiplicity/RETURNING metadata/constraint preservation,
+committed-only persistence, replacement fences and no partial cancellation result.
+Version traversal, empty-USING lookup and failed-executor diagnostics have explicit
+independent expectations; fresh completed dual-mode runs remain required.
+Plan-dependent unlocked ORDER BY has explicit PostgreSQL EXPLAIN/plan controls and
+an independently stated native sort-versus-simple-scan contract; it does not
+require reproducing PostgreSQL's optimizer. Raw `CURRENT OF $1` is independently
+asserted as syntax42601 at character32 in direct/prepared SQL; executor refcursor
+parameter hooks do not imply that raw SQL grammar admits this form. Genuine
+foreign-key effects have a named PostgreSQL capability witness, not native no-ops.
+
+Standalone feature proof selects `^TestReferenceDeleteCurrentOfFeatureSmoke$` in
+both modes: prepare before DECLARE, FETCH id1, delete/rollback/repeat id1,
+FETCH ids2,3/delete id3, commit survivor2 and post-transaction missing-cursor34000;
+an independent duplicate phase removes exactly one occurrence. The root also runs
+its OMP-session public-API smoke source; no repository smoke harness is added.
+All new cursor fixtures use the prerequisite's admitted `FETCH FORWARD 1 FROM`
+constant-count form, not adjacent FETCH NEXT syntax.
+
 ### Forward-only SQL cursor verification
 
 Run the entire cursor family after changing an oracle expectation: a driver panic
