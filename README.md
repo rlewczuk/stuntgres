@@ -33,6 +33,19 @@ Public test smokes:
 add `REFERENCE=1` for the same pinned PostgreSQL definitions. Executable smoke
 evidence remains a separately run public Go program, not a test exit.
 
+Change note: `DISCARD ALL|PLANS|SEQUENCES|TEMP|TEMPORARY` explicitly cleans
+implemented physical-session resources without replacing the connection or
+resetting durable data. PLANS preserves prepared definitions and invalidates
+retained analysis; SEQUENCES forgets only owner memories/cache tails; TEMP uses
+rollbackable dependency cleanup. ALL resets settings/authorization, SQL names,
+cursors, TEMP, sequence memories and session advisory holds, and is prohibited
+inside transaction blocks. Healthy automatic pool reuse is unchanged: issue
+`DISCARD ALL` before returning a borrower when explicit cleanup is required.
+See [cleanup categories](docs/DIALECT.md#discard--change-note) and
+[physical ownership](docs/DRIVER.md#explicit-discard-and-pool-reuse).
+Feature smoke: `make check RUN='^TestReferenceDiscardFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDiscardFeatureSmoke$'`.
+
 Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
 and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
 for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.

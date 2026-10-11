@@ -79,32 +79,33 @@ type Session struct {
 	cond  *sync.Cond
 	token SessionToken
 	// Written before registry publication, never changed by identity switches.
-	countedAuthenticated PrincipalRef
-	state                sessionState
-	completed            chan struct{}
-	leases               int
-	operations           map[*Operation]struct{}
-	detaching            bool
-	serial               uint64
-	resources            [resourceKinds]*resourceEntry
-	removed              map[ResourceHandle]bool
-	reason               EndReason
-	cleanupErrors        []error
-	result               error
-	settings             *sessionSettings
-	transactions         *transactionOwner
-	advisory             sessionAdvisory
-	cursors              *cursorRegistry
-	preparedSQL          *sqlPreparedRegistry
-	authorization        *sessionAuthorization
-	sequences            map[ObjectAddress]*sequenceMemory
-	lastSequence         ObjectAddress
-	temporaryNamespace   ObjectAddress
-	sequencePath         sequencePathCache
-	random               randomState
-	uuid                 uuidClock
-	databaseName         string
-	timeouts             sessionTimeouts
+	countedAuthenticated   PrincipalRef
+	state                  sessionState
+	completed              chan struct{}
+	leases                 int
+	operations             map[*Operation]struct{}
+	detaching              bool
+	serial                 uint64
+	resources              [resourceKinds]*resourceEntry
+	removed                map[ResourceHandle]bool
+	reason                 EndReason
+	cleanupErrors          []error
+	result                 error
+	settings               *sessionSettings
+	transactions           *transactionOwner
+	advisory               sessionAdvisory
+	cursors                *cursorRegistry
+	preparedSQL            *sqlPreparedRegistry
+	authorization          *sessionAuthorization
+	sequences              map[ObjectAddress]*sequenceMemory
+	lastSequence           ObjectAddress
+	discardPlansGeneration uint64 // serialized by physical-owner statement admission
+	temporaryNamespace     ObjectAddress
+	sequencePath           sequencePathCache
+	random                 randomState
+	uuid                   uuidClock
+	databaseName           string
+	timeouts               sessionTimeouts
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -134,6 +135,7 @@ type Operation struct {
 	restoreCommentAuthority bool
 	materializedPopulation  bool // Operation-local execution path, never session settings.
 	restoreDefaultReplay    bool
+	discardRoleReset        RoleState // nonzero Authenticated only during DISCARD ALL publication
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {

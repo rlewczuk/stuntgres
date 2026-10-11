@@ -2,6 +2,20 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## DISCARD
+
+```sql
+DISCARD ALL;
+DISCARD PLANS;
+DISCARD SEQUENCES;
+DISCARD TEMP;       -- TEMPORARY is an alias
+```
+
+No target names, IF EXISTS, category lists or combinations are accepted. Prepare
+has no cleanup effect; execution returns affected0 and no columns. See the
+[category matrix](DIALECT.md#discard--change-note) and
+[transaction distinctions](TRANSACTIONS.md#discard-transaction-boundaries).
+
 Detailed contracts are grouped by topic:
 
 - [Queries and data manipulation](QUERIES.md): INSERT, MERGE insertion/matched UPDATE, DELETE, UPDATE, SELECT, expressions and casts.

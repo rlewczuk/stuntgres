@@ -25,11 +25,13 @@ type StatementDescription struct {
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
 	catalogOwner *Engine
 	catalogEpoch CatalogEpoch
-	// Temporal captures and public signatures are immutable. The private sequence
-	// cell publishes complete analyzed literal groups under Engine.mu.
-	temporals []temporalConstant
-	sequences *sequenceAnalysis
-	regtypes  *regtypeAnalysis
+	// Public signatures stay immutable. Explicit DISCARD invalidates complete
+	// private literal groups, published together under Engine.mu on next bind.
+	temporals      []temporalConstant
+	sequences      *sequenceAnalysis
+	regtypes       *regtypeAnalysis
+	planOwner      SessionToken
+	planGeneration uint64
 }
 
 type temporalConstant struct {

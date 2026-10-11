@@ -1,5 +1,41 @@
 # Adding and maintaining tests
 
+## DISCARD selected proof
+
+The untagged shared `reference/sessions/discard_*_test.go` definitions assert
+independent resource/category outcomes, full diagnostics and public physical
+identity. Initial pinned PG-only discovery is removed before native red and
+final proof. Production follows the pinned oracle/native-red checkpoint.
+Select both bounded groups, each with an external900s deadline:
+
+```sh
+make check RUN='^TestReferenceDiscard(GrammarAndUtilityPhases|CategoryPrecision|PlansRetainedCaptures|PlansSignatureFence|SequenceMemoryAndCache|TemporaryClosureAndTransactions|TemporaryCollationProjection)$'
+make check REFERENCE=1 RUN='^TestReferenceDiscard(GrammarAndUtilityPhases|CategoryPrecision|PlansRetainedCaptures|PlansSignatureFence|SequenceMemoryAndCache|TemporaryClosureAndTransactions|TemporaryCollationProjection)$'
+make check RUN='^TestReferenceDiscard(AllSettingsAuthorizationAndLocks|TransactionGates|PoolExplicitCleanup|HealthyReuse|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceDiscard(AllSettingsAuthorizationAndLocks|TransactionGates|PoolExplicitCleanup|HealthyReuse|FeatureSmoke)$'
+make check RUN='^TestDiscard(Grammar|OwnerPrecision|CaptureGeneration|TemporaryOverlay|ConfiguredReset|PublicationBoundary)$'
+make check RACE=1 RUN='^TestReferenceDiscard(TemporaryClosureAndTransactions|PoolExplicitCleanup|HealthyReuse|AllSettingsAuthorizationAndLocks)$'
+```
+
+The TEMP collation reference covers durable column/index projection, owner-provider
+absence, peer isolation and outer/savepoint rollback as well as committed cleanup.
+PLANS signature coverage retains both an SQL definition and a Go handle through
+result-shape rejection and restoration; private units additionally replace the
+actual catalog lifetime and require that stale sequence authority never publishes
+new captures or a generation stamp. Cursor rejection recovery checks the next
+row (not a rewind), EOF with the original schema, and before-first-FETCH admission.
+Use top-level selectors for these subcases, not slash-qualified selectors.
+
+The configured-startup role/default supplement is a genuine PG options connection;
+native configured defaults have separate private-owner units, not a new connector
+API. Retained SQL errors use the original PREPARE source position (33 in temp_p),
+not direct SELECT's15. Feature smoke selects `^TestReferenceDiscardFeatureSmoke$`
+in both modes. The standalone public smoke is a root-materialized ephemeral
+`.discard-feature-smoke/main.go` from the session artifact; run
+`timeout 900s go run ./.discard-feature-smoke` and remove only that root-created
+scaffold. It must exercise category cleanup, healthy retention, exact same-owner
+cleaned reuse and unchanged peers/durable9, not merely Ping.
+
 ## Mandatory policy
 
 Agents MUST read and follow this guide before adding, modifying or migrating tests.

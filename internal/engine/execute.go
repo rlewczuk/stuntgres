@@ -16,6 +16,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.Discard:
+		return scope.executeDiscard(stmt.(*parser.Discard), count)
 	case *parser.PrepareSQL:
 		return scope.executePrepareSQL(stmt.(*parser.PrepareSQL), count)
 	case *parser.DeallocateSQL:
@@ -137,6 +139,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expected := scope.Expected
 	var candidate StatementDescription
 	valid := true
+	replan := expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
 	if expected != nil {
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
 		if err != nil {
@@ -154,6 +157,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if !regtypeValid {
 			candidate.regtypes = nil
+		}
+		if replan {
+			candidate.temporals, candidate.sequences, candidate.regtypes = nil, nil, nil
+			valid = false
 		}
 		expected = &candidate
 	}
@@ -224,21 +231,31 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if !valid {
-			analysis, err := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-			*scope.Expected.sequences = analysis
-		}
-		if scope.Expected.regtypes != nil && candidate.regtypes == nil {
-			analysis, er := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
+		if !valid || scope.Expected.regtypes != nil && candidate.regtypes == nil {
+			analysis, er := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
 			if er != nil {
 				e.mu.Unlock()
 				return Result{}, er
 			}
-			*scope.Expected.regtypes = *analysis
+			regtypes, er := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
+			if er != nil {
+				e.mu.Unlock()
+				return Result{}, er
+			}
+			if scope.Expected.sequences != nil {
+				*scope.Expected.sequences = analysis
+			} else if len(analysis.constants) != 0 {
+				scope.Expected.sequences = &analysis
+			}
+			if scope.Expected.regtypes != nil && regtypes != nil {
+				*scope.Expected.regtypes = *regtypes
+			} else {
+				scope.Expected.regtypes = regtypes
+			}
+			if replan {
+				scope.Expected.temporals = b.temporals
+				scope.Expected.planGeneration = op.session.discardPlansGeneration
+			}
 		}
 	}
 	if count != b.parameters.Count {

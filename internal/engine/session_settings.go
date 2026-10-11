@@ -410,24 +410,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 			if err := op.ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			timeoutChanged, transactionAssignment := false, false
-			for key := range owner.values {
-				if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
-					continue
-				}
-				owner.touch(key, false)
-				delete(owner.values, key)
-				delete(owner.typed, key)
-				switch key {
-				case "transaction_timeout":
-					timeoutChanged, transactionAssignment = true, true
-				case "idle_in_transaction_session_timeout", "idle_session_timeout":
-					timeoutChanged = true
-				}
-			}
-			if timeoutChanged {
-				op.session.publishTimeoutSettingsLocked(owner, transactionAssignment, time.Now())
-			}
+			e.resetAllSettingsLocked(op.session)
 			return Result{}, nil
 		}
 		rows := make([][]sqltype.Value, 0, len(e.settingsOrder))

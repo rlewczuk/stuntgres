@@ -2,6 +2,22 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Explicit DISCARD and pool reuse
+
+Pin `*sql.Conn` for owner cleanup. Execute standalone `DISCARD ALL` **before**
+`Conn.Close` returns it to the pool. Reborrowing that same physical connection
+then sees captured setting defaults, no SQL prepared names/TEMP objects/sequence
+memories and released session advisory holds. Peers and durable data are unchanged.
+Without explicit cleanup, healthy reuse intentionally preserves these resources:
+`ResetSession` is still a health check, never automatic DISCARD or rollback.
+
+SQL PREPARE names and ordinary Go statements have distinct lifetimes. PLANS retains
+both and lazily reanalyzes private literal captures without changing fixed
+parameter/result signatures or catalog fences. ALL removes SQL names (subsequent
+EXECUTE gives26000); native Go AST handles remain callable for valid persistent
+sources. lib/pq server-backed handles may instead fail26000 after server ALL.
+Retained anonymous Rows and executing subset cursors are not rewound or disposed.
+
 ## Database names and lifetime
 
 The DSN is an **exact opaque string**, not a libpq connection string or network address. Identical strings (including the empty string) within the same Driver share an engine; different strings or Driver instances are isolated. The registered `stuntgres` driver uses one default Driver. Engines live as long as their Driver, even after every connection or pool closes. Use `NewDriver().OpenConnector(name)` with `sql.OpenDB` for independently owned fixtures. Nothing is shared between processes or persisted across process exit.

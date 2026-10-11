@@ -1,0 +1,277 @@
+package engine
+
+import (
+	"fmt"
+	"sort"
+	"stuntgres/internal/parser"
+	"time"
+)
+
+// DISCARD retains physical attachments. Only TEMP uses the rollbackable catalog
+// overlay; the other subsets are irreversible owner-local session effects.
+func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result, error) {
+	if count != 0 {
+		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	if raw.Category > parser.DiscardTemp {
+		return Result{}, fmt.Errorf("stuntgres: invalid DISCARD category")
+	}
+	if raw.Category == parser.DiscardAll && !s.implicit {
+		return Result{}, sqlError("25001", "DISCARD ALL cannot run inside a transaction block")
+	}
+	session := s.op.session
+	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
+		if session.discardPlansGeneration == ^uint64(0) {
+			return Result{}, fmt.Errorf("stuntgres: discard plan generation exhausted")
+		}
+	}
+	var reset RoleState
+	if raw.Category == parser.DiscardAll {
+		var err error
+		reset, err = s.discardAllPreflight()
+		if err != nil {
+			return Result{}, err
+		}
+	}
+	if raw.Category == parser.DiscardTemp || raw.Category == parser.DiscardAll {
+		if err := s.stageDiscardTemporary(raw.Category == parser.DiscardAll); err != nil {
+			return Result{}, err
+		}
+		if raw.Category == parser.DiscardTemp {
+			return Result{}, nil
+		}
+	}
+	if err := s.sessionPublicationPreflight(); err != nil {
+		return Result{}, err
+	}
+	if raw.Category == parser.DiscardAll {
+		e := session.Engine()
+		s.op.discardRoleReset = reset
+		defer func() { s.op.discardRoleReset = RoleState{} }()
+		// Commit the validated TEMP closure with the normal combined publisher.
+		// Admission and replacement authority stay held until Finish. After this
+		// succeeds, no fallible owner operation or context check remains.
+		if err := e.publishRows(s.op, s.txRef, s.stage.rows, s.stage.deletes, s.catalog, s.catalogAuthority); err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+		session.settings.mu.Lock()
+		session.mu.Lock()
+		e.resetAllSettingsLocked(session)
+		session.mu.Unlock()
+		session.settings.mu.Unlock()
+		e.mu.Unlock()
+		session.cursors.clear()
+		clear(session.preparedSQL.entries)
+		// The persistent ticket was validated before publication and cannot end
+		// while this operation lease is live. Manager callbacks run unlocked.
+		e.locks.discardAdvisoryHolds(session.advisory.ticket)
+	}
+	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
+		session.discardPlansGeneration++
+	}
+	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
+		clear(session.sequences)
+		session.lastSequence = ObjectAddress{}
+	}
+	s.completed, s.sessionCompleted = true, true
+	return Result{}, nil
+}
+
+func (s *StatementScope) discardAllPreflight() (RoleState, error) {
+	session, e := s.op.session, s.op.session.Engine()
+	ticket := session.advisory.ticket
+	e.locks.mu.Lock()
+	valid := ticket != nil && ticket.session == session.token && ticket.persistent && e.locks.valid(ticket)
+	e.locks.mu.Unlock()
+	if !valid {
+		return RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	session.settings.mu.Lock()
+	defer session.settings.mu.Unlock()
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if err := publicationOperationLocked(e, s.op); err != nil {
+		return RoleState{}, err
+	}
+	if session.settings.ended {
+		return RoleState{}, fmt.Errorf("stuntgres: settings attachment ended")
+	}
+	if err := roleRevisionHeadroom(session.authorization, 3); err != nil {
+		return RoleState{}, err
+	}
+	reset := session.authorization.state
+	reset.SessionUser, reset.CurrentUser = reset.Authenticated, reset.Authenticated
+	if reset.ResetRole != (PrincipalRef{}) {
+		reset.CurrentUser = reset.ResetRole
+	}
+	roles := RoleRead{e, e.roles}
+	for _, principal := range []PrincipalRef{reset.Authenticated, reset.CurrentUser} {
+		if _, err := roles.Descriptor(principal); err != nil {
+			return RoleState{}, err
+		}
+	}
+	return reset, nil
+}
+
+// The combined publisher calls these under Engine -> session locks, closing the
+// gap between role-identity validation and irreversible TEMP publication.
+func (e *Engine) discardResetPreflightLocked(op *Operation) error {
+	if op.discardRoleReset.Authenticated == (PrincipalRef{}) {
+		return nil
+	}
+	if err := roleRevisionHeadroom(op.session.authorization, 3); err != nil {
+		return err
+	}
+	roles := RoleRead{e, e.roles}
+	for _, principal := range []PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
+		if _, err := roles.Descriptor(principal); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Engine) finishDiscardRoleResetLocked(op *Operation) {
+	if op.discardRoleReset.Authenticated != (PrincipalRef{}) {
+		op.session.authorization.state = op.discardRoleReset
+		op.session.authorization.revision++
+	}
+}
+
+// Caller holds Engine -> settings -> session locks. Defaults and placeholder
+// recognition remain intact; the default provider is never invoked again.
+func (e *Engine) resetAllSettingsLocked(session *Session) {
+	owner := session.settings
+	timeoutChanged, transactionAssignment := false, false
+	for key := range owner.values {
+		if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
+			continue
+		}
+		owner.touch(key, false)
+		delete(owner.values, key)
+		delete(owner.typed, key)
+		switch key {
+		case "transaction_timeout":
+			timeoutChanged, transactionAssignment = true, true
+		case "idle_in_transaction_session_timeout", "idle_session_timeout":
+			timeoutChanged = true
+		}
+	}
+	if timeoutChanged {
+		session.publishTimeoutSettingsLocked(owner, transactionAssignment, time.Now())
+	}
+}
+
+func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
+	e, session := s.op.session.Engine(), s.op.session
+	e.mu.Lock()
+	base := e.privateCatalogLocked(s.owner.catalog)
+	owned := make(map[ObjectAddress]bool)
+	for address, d := range base.state.descriptors {
+		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
+			owned[address] = true
+		}
+	}
+	var children []ObjectAddress
+	for address, d := range base.state.descriptors {
+		if owned[d.Namespace()] {
+			children = append(children, address)
+		}
+	}
+	if len(children) == 0 {
+		e.mu.Unlock()
+		return nil
+	}
+	changes := cloneCatalogChanges(s.owner.catalog)
+	stage := e.BeginCatalogStage(base)
+	for address := range owned {
+		stage.domainBases = append(stage.domainBases, base.state.descriptors[address].(*namespaceDescriptor))
+	}
+	// Exclude every owned target before projecting surviving dependents, exactly
+	// as physical collation cleanup does, but retain the namespace descriptor.
+	var err error
+	for _, address := range children {
+		if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: address}, false); err != nil {
+			break
+		}
+	}
+	e.mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	if err != nil {
+		return err
+	}
+	if err = s.stageExpressionDependents(stage, children, parser.DropCascade, changes); err != nil {
+		return err
+	}
+	if err = s.stageOwnedSequences(stage, children, parser.DropCascade, changes); err != nil {
+		return err
+	}
+	var relations []ObjectAddress
+	for address := range stage.removals {
+		if address.ClassID == RelationClassID {
+			relations = append(relations, address)
+		}
+	}
+	for _, address := range children {
+		if address.ClassID == RelationClassID {
+			relations = append(relations, address)
+		}
+	}
+	sort.Slice(relations, func(i, j int) bool { return relations[i].ObjectID < relations[j].ObjectID })
+	if !closeCursors {
+		for i, address := range relations {
+			if i != 0 && address == relations[i-1] {
+				continue
+			}
+			if _, removed := stage.removals[address]; !removed {
+				continue
+			}
+			if err := s.discardTemporaryCursorPreflight(stage, address); err != nil {
+				return err
+			}
+		}
+	}
+	for i, address := range relations {
+		if i != 0 && address == relations[i-1] {
+			continue
+		}
+		if err = s.acquireSequence(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: address}, accessExclusive, true); err != nil {
+			return err
+		}
+	}
+	if _, err = e.ValidateCatalogStage(s.op.Context(), stage); err != nil {
+		return err
+	}
+	if err = e.stageTemporaryCatalog(s, stage, changes); err != nil {
+		return err
+	}
+	s.discardRemovedTemporaryWrites(stage)
+	s.owner.accessedTemporary = true
+	return nil
+}
+
+// DISCARD-only relation-use check over the already expanded actual removal
+// closure. Exhausted portals still own their source until CLOSE. ALL is exempt
+// only because it closes its registries at the successful publication frontier.
+func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, address ObjectAddress) error {
+	session := s.op.session
+	for _, cursor := range session.cursors.entries {
+		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {
+			continue
+		}
+		for _, leaf := range cursor.leaves {
+			if leaf.ref.owner != stage.owner.owner || leaf.ref.Epoch != stage.base.Epoch() || leaf.ref.Address != address {
+				continue
+			}
+			relation, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+			if !ok || leaf.relation == nil {
+				continue
+			}
+			return sqlError("55006", fmt.Sprintf("cannot DROP TABLE \"%s\" because it is being used by active queries in this session", relation.name))
+		}
+	}
+	return nil
+}

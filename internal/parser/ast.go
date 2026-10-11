@@ -32,6 +32,22 @@ type DeallocateSQL struct {
 
 func (*DeallocateSQL) statement() {}
 
+type DiscardCategory uint8
+
+const (
+	DiscardAll DiscardCategory = iota
+	DiscardPlans
+	DiscardSequences
+	DiscardTemp
+)
+
+type Discard struct {
+	Category DiscardCategory
+	Pos      Position
+}
+
+func (*Discard) statement() {}
+
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name        string

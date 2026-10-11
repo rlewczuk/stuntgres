@@ -2,6 +2,17 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## DISCARD ALL reset defaults
+
+Explicit standalone ALL shares RESET ALL's resettable-setting predicate and
+journal, restoring captured connection/registered defaults rather than boot
+constants. It retains immutable settings and custom-placeholder recognition,
+refreshes timeout policy through the existing hook and never calls a default
+provider again. Session authorization returns to the authenticated principal;
+current role returns to the configured ResetRole when present, otherwise the
+authenticated principal. Authentication/accounting and configured reset ownership
+remain unchanged. This is explicit cleanup, not a healthy pool-reuse policy.
+
 Each physical connection has independent typed session-setting state. Hold
 `*sql.Conn` to target that session; a `*sql.DB` may dispatch to any physical
 connection. Borrower Close returns it to the pool: healthy pool reuse preserves
@@ -375,8 +386,9 @@ For DATE `1997-12-17`, Postgres style emits `12-17-1997` with MDY and
 `17-12-1997` with DMY (not ISO date output).
 
 Execution captures one immutable temporal environment. Held rows keep that
-presentation even after SET. Prepared typed temporal constants freeze at analysis;
-parameter input, column casts/comparisons and AT LOCAL use execution settings.
+presentation even after SET. Prepared typed temporal constants freeze at analysis
+until explicit DISCARD PLANS/ALL invalidates their complete private capture group
+for next use; parameter input, column casts/comparisons and AT LOCAL use execution settings.
 TIME/TIMETZ clock output is independent of DateStyle. For finite TIMESTAMP Go
 time.Time exports, use an explicit SQL TEXT cast to observe DateStyle formatting.
 

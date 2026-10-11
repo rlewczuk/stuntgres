@@ -1755,7 +1755,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if err != nil {
 			return nil, inputErrorAt(err, r.Pos)
 		}
-		if b.expected == nil {
+		if b.collectTemporalConstants() {
 			for i := range b.temporals {
 				if b.temporals[i].offset == r.Pos.Offset && b.temporals[i].typeID == u.Type.ID() {
 					b.temporals[i].typed = true
@@ -2147,6 +2147,12 @@ func literalInputError(err error, raw parser.LiteralExpr) error {
 	return inputErrorAt(err, raw.Value.Pos)
 }
 
+// A stale owner-qualified DISCARD stamp requests full temporal recollection
+// even though the expected description still carries fixed signature fences.
+func (b *expressionBinder) collectTemporalConstants() bool {
+	return b.expected == nil || b.op != nil && b.expected.planOwner == b.op.session.token && b.expected.planGeneration != b.op.session.discardPlansGeneration
+}
+
 // Explicit typed literals use this only to discover their frozen modifier
 // before resolving the raw declaration again. Scalar reconstruction must use
 // captured with the complete contextual usage.
@@ -2223,7 +2229,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			}
 			return sqltype.Value{}, err
 		}
-		if b.expected == nil {
+		if b.collectTemporalConstants() {
 			i := sort.Search(len(b.temporals), func(i int) bool { return b.temporals[i].offset >= pos.Offset })
 			b.temporals = append(b.temporals, temporalConstant{})
 			copy(b.temporals[i+1:], b.temporals[i:])
@@ -2268,7 +2274,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if b.expected == nil {
+	if b.collectTemporalConstants() {
 		var n int64
 		var months, days int32
 		var err error

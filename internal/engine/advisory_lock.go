@@ -159,12 +159,28 @@ func (m *relationLockManager) removeAdvisoryHold(t *relationTicket, ref lockReso
 }
 
 func (m *relationLockManager) unlockAdvisoryAll(t *relationTicket) error {
-	var notify *relationRequest
 	m.mu.Lock()
 	if !m.valid(t) || !t.persistent {
 		m.mu.Unlock()
 		return errors.New("stuntgres: invalid advisory session")
 	}
+	notify := m.unlockAdvisoryHoldsLocked(t)
+	m.mu.Unlock()
+	notifyRequests(notify)
+	return nil
+}
+
+// DISCARD's preflight validates this persistent ticket before publishing any
+// catalog effects. A live operation lease prevents terminal ticket removal.
+func (m *relationLockManager) discardAdvisoryHolds(t *relationTicket) {
+	m.mu.Lock()
+	notify := m.unlockAdvisoryHoldsLocked(t)
+	m.mu.Unlock()
+	notifyRequests(notify)
+}
+
+func (m *relationLockManager) unlockAdvisoryHoldsLocked(t *relationTicket) *relationRequest {
+	var notify *relationRequest
 	for ref := range t.resources {
 		if e := m.entries[ref]; e != nil {
 			m.removeAdvisoryHold(t, ref, e)
@@ -172,9 +188,7 @@ func (m *relationLockManager) unlockAdvisoryAll(t *relationTicket) error {
 			m.retire(ref, e)
 		}
 	}
-	m.mu.Unlock()
-	notifyRequests(notify)
-	return nil
+	return notify
 }
 
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, try bool) (bool, error) {

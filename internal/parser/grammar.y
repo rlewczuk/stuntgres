@@ -200,7 +200,7 @@ package parser
 %token <tok> OVERLAPS
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
-%token <tok> EXECUTE DEALLOCATE
+%token <tok> EXECUTE DEALLOCATE DISCARD
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
@@ -246,7 +246,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -524,7 +524,7 @@ package parser
 %type <desc> grant_option
 %type <objectNames> grant_relations
 %type <typ> standalone_type
-%type <stmt> prepare_sql execute_sql deallocate_sql preparable
+%type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
 %%
@@ -547,7 +547,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | drop_domain
  | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
- | prepare_sql | execute_sql | deallocate_sql
+ | prepare_sql | execute_sql | deallocate_sql | discard
  | alter_collation | drop_collation
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -564,6 +564,14 @@ deallocate_sql: DEALLOCATE name { $$=&DeallocateSQL{Name:Identifier{Text:$2.text
  | DEALLOCATE ALL { $$=&DeallocateSQL{All:true,Pos:$1.pos} }
  | DEALLOCATE PREPARE name { $$=&DeallocateSQL{Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | DEALLOCATE PREPARE ALL { $$=&DeallocateSQL{All:true,Pos:$1.pos} } ;
+discard: DISCARD ALL { $$=&Discard{Category:DiscardAll,Pos:$1.pos} }
+ | DISCARD TEMP { $$=&Discard{Category:DiscardTemp,Pos:$1.pos} }
+ | DISCARD KW_U {
+   category:=DiscardPlans
+   if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1}
+   switch $2.text {case "plans":case "sequences":category=DiscardSequences;default:sqllex.(*lexer).syntax($2);return 1}
+   $$=&Discard{Category:category,Pos:$1.pos}
+ } ;
 declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Query:$7,Pos:$1.pos} } ;
 cursor_scroll: /* empty */ { $$=false }
  | NO SCROLL { $$=false }
@@ -1844,7 +1852,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
-transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
+transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT

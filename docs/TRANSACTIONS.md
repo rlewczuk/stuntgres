@@ -2,6 +2,22 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## DISCARD transaction boundaries
+
+`DISCARD ALL` fails25001 `DISCARD ALL cannot run inside a transaction block` in
+SQL BEGIN and driver `sql.Tx`, including read-only blocks. The check is execution
+time, not Prepare time, and precedes cleanup. In an already-aborted block every
+category fails25P02 `current transaction is aborted, commands ignored until end
+of transaction block`; recovery ROLLBACK and subsequent standalone ALL are
+separate executions. Standalone ALL is allowed with default read-only enabled.
+
+PLANS and SEQUENCES are irreversible physical-owner effects: ROLLBACK and
+ROLLBACK TO do not restore discarded analysis or unused sequence reservation
+tails. TEMP uses the normal catalog/storage/index overlay: existing objects and
+rows return on outer/savepoint rollback, newly private objects keep honest
+original-absence fences, and COMMIT publishes the removal once. Subsets preserve
+the transaction's other writes, savepoints and ordinary relation locks.
+
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support
 READ COMMITTED, READ UNCOMMITTED, REPEATABLE READ and SERIALIZABLE, with read-only or read-write
 access. READ UNCOMMITTED has READ COMMITTED visibility but retains its requested

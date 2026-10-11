@@ -417,7 +417,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Unlock()
 	if idle {
 		switch stmt.(type) {
-		case *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge:
+		case *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		case *parser.Comment:
@@ -612,7 +612,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
-	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL:
+	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)

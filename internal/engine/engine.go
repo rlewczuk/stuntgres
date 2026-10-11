@@ -276,7 +276,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.PrepareSQL, *parser.DeallocateSQL:
+	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:
 		if entry := op.session.preparedSQL.entries[s.Name.Text]; entry != nil {
@@ -373,7 +373,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, sequences: cell, regtypes: regtypes}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, sequences: cell, regtypes: regtypes, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))

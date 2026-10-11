@@ -2,6 +2,25 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## DISCARD TEMP
+
+`DISCARD TEMP` / `TEMPORARY` quietly removes the physical owner's temporary
+namespace contents with supported dependency CASCADE, including tables, row/array
+types, indexes, serial/identity/owned sequences, standalone TEMP sequences and
+TEMP collations. Actual surviving dependent projections follow their existing
+provider rules; unrelated durable objects and peer TEMP namespaces remain intact.
+The namespace descriptor is retained, and an unused session does not allocate one.
+New TEMP definitions can be created immediately afterward.
+
+Deletion is transactional and restored by rollback/savepoint. It does not clear
+SQL prepared names or persistent currval/lastval. A retained SQL definition over
+a removed relation fails42P01 rather than26000 and retains original PREPARE source
+positions. TEMP fails55006 before cleanup when a live owner cursor references an
+actual relation in its complete removal closure; exhaustion is not CLOSE. Recover
+with ROLLBACK/ROLLBACK TO as needed, CLOSE the cursor and retry. This guard belongs
+only to DISCARD, not generic DROP or query lifetime rules. ALL also removes TEMP
+contents but cannot execute in an explicit transaction.
+
 ## Materialized views — change note
 
 `CREATE MATERIALIZED VIEW saved AS SELECT i,label FROM source` creates an owned,

@@ -58,6 +58,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if err := e.preparedPublicationPreflightLocked(op, phase); err != nil {
 			return err
 		}
+		if err := e.discardResetPreflightLocked(op); err != nil {
+			return err
+		}
 		if err := e.serializablePrecommitLocked(ref); err != nil {
 			return err
 		}
@@ -67,6 +70,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		}
 		e.serializableCommittedLocked(ref, e.commitSeq)
 		e.finishPreparedLocked(phase)
+		e.finishDiscardRoleResetLocked(op)
 		return nil
 	}
 	_, output := sessionPresentation(op.session)
@@ -261,6 +265,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if err == nil {
 			err = e.preparedPublicationPreflightLocked(op, phase)
 		}
+		if err == nil {
+			err = e.discardResetPreflightLocked(op)
+		}
 		if err != nil {
 			session.mu.Unlock()
 			e.mu.Unlock()
@@ -338,6 +345,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		e.commitSeq++
 		e.serializableCommittedLocked(ref, e.commitSeq)
 		e.finishPreparedLocked(phase)
+		e.finishDiscardRoleResetLocked(op)
 		session.mu.Unlock()
 		e.mu.Unlock()
 		return nil

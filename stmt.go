@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 )
 
-// Retains raw syntax and immutable description/scalar captures, not a bound
-// execution plan. Ordinary queries rebind on use; FETCH resolves the live named
+// Retains raw syntax, fixed signatures and private scalar captures, not a bound
+// execution plan. Explicit DISCARD invalidates captures; ordinary queries rebind on use. FETCH resolves the live named
 // cursor and publishes its actual schema, independently of the prepared hint.
 type stmt struct {
 	conn        *conn

@@ -48,6 +48,27 @@ edges; local public ownership/ACL references remap by validated identity.
 See [the exact role table and boundaries](AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
 and [selected proofs](TESTING.md#predefined-role-oracle-first-contracts).
 
+### DISCARD — change note
+
+| Command | Implemented owner-local effect |
+|---|---|
+| `DISCARD PLANS` | Invalidates retained temporal/sequence/regtype analysis on next use; preserves SQL names, Go AST handles and executing cursor position |
+| `DISCARD SEQUENCES` | Forgets currval/lastval and unused reservation tails; retains definitions, shared high-water and peer caches |
+| `DISCARD TEMP` / `TEMPORARY` | Quiet CASCADE removes owner TEMP contents/dependents, retaining its namespace and rollback semantics |
+| `DISCARD ALL` | Combines these with SQL DEALLOCATE/CLOSE ALL, resettable settings, authenticated/configured reset-role identity and session advisory unlock-all |
+
+Every spelling is a zero-parameter, zero-column utility with affected count0;
+Prepare is effect-free. ALL fails25001 in healthy transaction blocks; aborted
+admission takes precedence with25P02. Subsets work in healthy read-only blocks.
+PLANS/SEQUENCES survive rollback; TEMP deletion is restored by rollback/savepoint.
+No automatic pool cleanup, notifications, holdable cursor emulation, generic
+optimizer cache, persistent Engine/data/roles reset or prepared-transaction reset
+is claimed. Anonymous retained rows remain independent. TEMP preflights its
+complete removal closure against live owner cursor source identities and fails
+55006 before deletion, including exhausted-but-not-closed sources. Native Go AST handles remain usable after ALL when lifetime/signature
+fences permit, unlike pq's deallocated server statement names.
+See [PostgreSQL18 DISCARD](https://www.postgresql.org/docs/18/sql-discard.html).
+
 ### Table and column grants — change note
 
 Autocommit GRANT and REVOKE support SELECT, INSERT, UPDATE, DELETE,

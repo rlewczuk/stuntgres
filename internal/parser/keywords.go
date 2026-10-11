@@ -202,7 +202,7 @@ var keywords = [...]keyword{
 	{"detach", Unreserved, true, 0},
 	{"dictionary", Unreserved, true, 0},
 	{"disable", Unreserved, true, 0},
-	{"discard", Unreserved, true, 0},
+	{"discard", Unreserved, true, DISCARD},
 	{"distinct", Reserved, true, DISTINCT},
 	{"do", Reserved, true, DO},
 	{"document", Unreserved, true, 0},
