@@ -1155,6 +1155,8 @@ func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, erro
 		unit := "RANGE"
 		if spec.Frame.Unit == parser.FrameGroups {
 			unit = "GROUPS"
+		} else if spec.Frame.Unit == parser.FrameRows {
+			unit = "ROWS"
 		}
 		parts = append(parts, unit+" BETWEEN "+start+" AND "+end)
 	}

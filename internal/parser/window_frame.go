@@ -9,7 +9,7 @@ func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lex
 		pos = start.Pos
 	case end.Kind == FrameUnboundedPreceding:
 		message = "frame end cannot be UNBOUNDED PRECEDING"
-	case unit.text == "groups" && !between && start.Kind == FrameOffsetFollowing:
+	case (unit.text == "groups" || unit.text == "rows") && !between && start.Kind == FrameOffsetFollowing:
 		message = "frame starting from following row cannot end with current row"
 		pos = start.Pos
 	case start.Kind == FrameCurrentRow && end.Kind == FrameOffsetPreceding:
@@ -21,7 +21,7 @@ func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lex
 		l.failAt("42P20", message, pos.Offset)
 		return nil, false
 	}
-	if unit.text != "range" && unit.text != "groups" {
+	if unit.text != "range" && unit.text != "groups" && unit.text != "rows" {
 		l.failAt("0A000", "explicit window frames are unsupported", unit.pos.Offset)
 		return nil, false
 	}
@@ -32,6 +32,8 @@ func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lex
 	frameUnit := FrameRange
 	if unit.text == "groups" {
 		frameUnit = FrameGroups
+	} else if unit.text == "rows" {
+		frameUnit = FrameRows
 	}
 	return &WindowFrame{Unit: frameUnit, Start: start, End: end, Pos: unit.pos}, true
 }

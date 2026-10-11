@@ -2083,7 +2083,7 @@ independent oracle: `make check REFERENCE=1 RUN='^TestReferenceArrayAgg'`.
 
 Grouping uses the ordinary no-FROM local input. It does not add
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max,
-other window providers or ROWS frames/exclusions. GROUPING SETS, ROLLUP, CUBE, explicit
+other window providers or frame exclusions. GROUPING SETS, ROLLUP, CUBE, explicit
 empty groups and ALL/DISTINCT grouping clauses are admitted. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
@@ -6056,13 +6056,25 @@ volatile frames remain distinct through captured views and native Dump/Restore.
 Feature smoke: `make check RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`
 and `make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`.
 
+Explicit ROWS selects physical positions in each partition. No window ORDER is
+required; CURRENT ROW selects only the current occurrence, not all peers.
+Three ordered rows with `BETWEEN 1 PRECEDING AND CURRENT ROW` count1,2,2.
+Bounds are inclusive/clipped; opposite numeric sizes within a bound category may
+produce empty frames/count0. Offset typing and demand follow GROUPS bigint
+assignment rules, including numeric rounding and start-before-end validation,
+but ROWS never needs peer boundaries or arithmetic support for order-key types.
+Prepared arguments, named volatile identity, result metadata, authority and
+native Dump/Restore use the existing window pipeline.
+Feature smoke: `make check RUN='^TestReferenceQueryWindowRowsFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferenceQueryWindowRowsFeatureSmoke$'`.
+
 Only SELECT and outer ORDER allow calls. Nested windows, windows inside ordinary
 aggregates, illegal clauses and undefined/duplicate names retain PostgreSQL
 SQLSTATE/English/character positions. Active windows reject FOR UPDATE; unused
 WINDOW syntax alone does not. Referenced key columns require SELECT authority,
 including hidden keys, unused definitions and empty inputs.
 
-ROWS frames, exclusions, other providers, count(expr) window execution and
+Frame exclusions, other providers, count(expr) window execution and
 window aggregate FILTER remain native0A000 capability boundaries. Ordinary aggregate
 modifiers are unchanged. See [query semantics](QUERIES.md#selected-windows--change-note-changelog).
 

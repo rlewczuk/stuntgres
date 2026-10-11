@@ -83,7 +83,7 @@ func (b *expressionBinder) windowAllowed(pos parser.Position) error {
 	} else if b.defaultConsumer {
 		clause = "DEFAULT expressions"
 	}
-	if clause == "window definitions" || clause == "window RANGE" || clause == "window GROUPS" {
+	if clause == "window definitions" || clause == "window RANGE" || clause == "window GROUPS" || clause == "window ROWS" {
 		return expressionError("42P20", "window functions are not allowed in window definitions", pos)
 	}
 	if clause != "SELECT" && clause != "ORDER BY" && clause != "DISTINCT ON" {

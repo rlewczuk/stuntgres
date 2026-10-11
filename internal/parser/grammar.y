@@ -1554,7 +1554,7 @@ window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeWin
  | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion {var ok bool;$$,ok=makeWindowFrame(sqllex.(*lexer),$1,$3,$5,$6,true);if !ok{return 1}} ;
 frame_bound: FRAME_START FRAME_EDGE {kind:=FrameUnboundedPreceding;if $2.text=="following"{kind=FrameUnboundedFollowing};$$=FrameBound{Kind:kind,Pos:$1.pos}}
  | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=FrameBound{Kind:FrameCurrentRow,Pos:$1.pos}}
- | scalar_projection FRAME_EDGE {kind:=FrameOffsetPreceding;if $2.text=="following"{kind=FrameOffsetFollowing};$$=FrameBound{Kind:kind,Offset:$1,Pos:ExpressionStart($1)}} ;
+ | scalar_projection FRAME_EDGE {kind:=FrameOffsetPreceding;if $2.text=="following"{kind=FrameOffsetFollowing};$$=FrameBound{Kind:kind,Offset:$1,Pos:$<tok>1.pos}} ;
 window_exclusion: /* empty */ {$$=lexeme{}}
  | EXCLUDE KW_U {if $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
  | EXCLUDE GROUP {$$=$1}

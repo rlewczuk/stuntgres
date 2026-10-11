@@ -16,10 +16,14 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 	aggregates, windows := b.aggregates, b.windowCalls
 	b.aggregateClause = "window RANGE"
 	defer func() { b.aggregateClause = old; b.aggregates = aggregates; b.windowCalls = windows }()
-	if unit == parser.FrameGroups {
-		b.aggregateClause = "window GROUPS"
+	if unit == parser.FrameGroups || unit == parser.FrameRows {
+		label := "GROUPS"
+		if unit == parser.FrameRows {
+			label = "ROWS"
+		}
+		b.aggregateClause = "window " + label
 		var err error
-		bound.offset, err = b.bindQueryBound(raw.Offset, "GROUPS", viewWindowLiteral, false)
+		bound.offset, err = b.bindQueryBound(raw.Offset, label, viewWindowLiteral, false)
 		return bound, err
 	}
 	operand, err := b.comparisonOperand(raw.Offset)

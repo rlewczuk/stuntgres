@@ -89,9 +89,7 @@ func TestReferenceQueryWindowRangeExecution(t *testing.T) {
 		queryWindowRun(t, p, b, fixture.Exec("CREATE TABLE gaps(id INT,k INT)", 0))
 		queryWindowRun(t, p, b, fixture.Exec("INSERT INTO gaps VALUES(1,1),(2,3),(3,5)", 3))
 		queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k RANGE 1 PRECEDING) AS n FROM gaps ORDER BY id", 1, 1, 1))
-		if b.PG {
-			queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k ROWS 1 PRECEDING) AS n FROM gaps ORDER BY id", 1, 2, 2))
-		}
+		queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k ROWS 1 PRECEDING) AS n FROM gaps ORDER BY id", 1, 2, 2))
 		queryWindowRoutes(t, p, b, fixture.Select("SELECT id,count(*) OVER(ORDER BY k RANGE 1 PRECEDING) AS a,count(*) OVER(ORDER BY k RANGE 3 PRECEDING) AS b,count(*) OVER(ORDER BY k RANGE 1 PRECEDING) AS c FROM range_t ORDER BY id", []string{"id", "a", "b", "c"}, []string{"INT4", "INT8", "INT8", "INT8"}, [][]any{{int64(1), int64(1), int64(1), int64(1)}, {int64(2), int64(3), int64(3), int64(3)}, {int64(3), int64(3), int64(3), int64(3)}, {int64(4), int64(1), int64(4), int64(1)}, {int64(5), int64(2), int64(4), int64(2)}, {int64(6), int64(2), int64(2), int64(2)}, {int64(7), int64(2), int64(2), int64(2)}}))
 		s := fixture.Select("SELECT row_number() OVER(ORDER BY k RANGE 1 PRECEDING) AS a,row_number() OVER(ORDER BY k RANGE 3 PRECEDING) AS b FROM range_t", []string{"a", "b"}, []string{"INT8", "INT8"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}, {int64(3), int64(3)}, {int64(4), int64(4)}, {int64(5), int64(5)}, {int64(6), int64(6)}, {int64(7), int64(7)}})
 		s.Bag = true

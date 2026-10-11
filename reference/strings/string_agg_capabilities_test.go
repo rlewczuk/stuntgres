@@ -30,7 +30,7 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 						t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 							s := fixture.Select(tc.q, []string{tc.label}, []string{tc.typ}, tc.rows)
 							if !backend.PG && tc.name == "over" {
-								s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "explicit window frames are unsupported", Position: fixture.StringAggPosition(tc.q, "ROWS", false)})
+								s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "window function provider is unsupported", Position: "8"})
 								s.SelectRows = true
 							}
 							s.Prepared = prepared

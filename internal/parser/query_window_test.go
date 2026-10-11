@@ -44,12 +44,6 @@ func TestQueryWindowWholeInputAndFrameBoundary(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 	}
-	q := "SELECT count(*) OVER(ORDER BY id ROWS UNBOUNDED PRECEDING) FROM t"
-	statements, err := Parse("INSERT INTO t VALUES(1);" + q)
-	var d *sqlstate.Error
-	if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" || d.Message != "explicit window frames are unsupported" {
-		t.Fatal(statements, err)
-	}
 }
 func TestQueryWindowSourcesVisitKeysAndDefinitions(t *testing.T) {
 	statements, err := Parse("SELECT row_number() OVER(ORDER BY (SELECT id FROM inline_key)) FROM base WINDOW unused AS(PARTITION BY (SELECT id FROM named_key))")

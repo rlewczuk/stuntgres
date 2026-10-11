@@ -897,6 +897,7 @@ type FrameUnit uint8
 const (
 	FrameRange FrameUnit = iota
 	FrameGroups
+	FrameRows
 )
 
 type FrameBoundKind uint8

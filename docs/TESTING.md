@@ -552,6 +552,20 @@ immutable graph remap/identity, exact descriptors and INSERT Finish veto.
 Because the shared representation also carries RANGE, final selected proof includes
 `^TestReferenceQueryWindow` in both modes and `^TestQueryWindow` native units.
 
+ROWS coverage selects `^TestReferenceQueryWindowRows` in both native and real
+pinned modes, with `^TestReferenceQueryWindowRowsFeatureSmoke$` for focused smoke.
+Independent constants cover physical endpoints/empty frames, no-order bags,
+shared tie order, bigint assignment typing, exact diagnostic fields/carets,
+demand on empty/all-NULL/EXISTS, named volatile identity, metadata, ACLs and write
+atomicity. Actual native controls reuse pristine Dump/Restore and retained-cursor
+assertions. Internal `^TestQueryWindowRows` units (also `RACE=1`) cover MaxInt64
+safe physical endpoint clamping, graph/domain remap, source authority, actual
+offset/validation/sort/physical-frame/count/output/prepublication cancellation,
+descriptor lifetime/release and Finish veto. Do not issue overflow-inducing
+MaxInt64 FOLLOWING endpoints to PostgreSQL; moderate100 endpoints are portable.
+Because sorting/offset storage is shared, final selected proof includes
+`^TestReferenceQueryWindow` in both modes and `^TestQueryWindow` native units.
+
 Parser scratch reuse is an internal allocation change, not a parsed-result cache.
 Each SQL parse, restricted INSERT replay and standalone type-input parse borrows
 an exclusive generated receiver. The whole receiver is cleared before return,

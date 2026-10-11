@@ -13669,7 +13669,7 @@ sqldefault:
 			if sqlDollar[2].tok.text == "following" {
 				kind = FrameOffsetFollowing
 			}
-			sqlVAL.frameBound = FrameBound{Kind: kind, Offset: sqlDollar[1].expr, Pos: ExpressionStart(sqlDollar[1].expr)}
+			sqlVAL.frameBound = FrameBound{Kind: kind, Offset: sqlDollar[1].expr, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1133:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

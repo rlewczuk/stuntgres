@@ -1375,7 +1375,7 @@ use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
 
 This does not admit
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
-other window providers or ROWS frames/exclusions,
+other window providers or frame exclusions,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
 aggregate projections and selected sequence/REGCLASS siblings. Function-provider
@@ -3292,6 +3292,47 @@ Typed partition equality groups NULLs together and uses existing numeric,
 character/domain/enum/structural key contracts. ASC defaults NULLS LAST; DESC
 defaults NULLS FIRST. NULL peer keys compare equal.
 
+### ROWS offsets — change note
+
+Explicit ROWS measures physical positions in each partition, not peer groups or
+key distances. Window ORDER BY is optional; without a unique order, assignment
+of counts to tied rows is unspecified. Equivalent window sorts retain the same
+tie order, and only outer ORDER guarantees presentation.
+`ROWS BETWEEN 1 PRECEDING AND CURRENT ROW` counts1,2,2 on three ordered rows;
+the shorthand `ROWS 1 PRECEDING` is identical. CURRENT ROW, zero PRECEDING and
+zero FOLLOWING select only the current physical row, including NULL/tied keys.
+UNBOUNDED endpoints cover partition limits; finite endpoints are inclusive and
+clip safely without overflow. `BETWEEN 1 PRECEDING AND 2 PRECEDING` and
+`BETWEEN 2 FOLLOWING AND 1 FOLLOWING` are legal empty frames/count0.
+Impossible bound-kind ordering retains42P20 with PostgreSQL English and carets.
+
+Offsets use bigint assignment coercion: numeric1.5 rounds to2, unknown `'1'`
+parses as bigint, but unknown `'1.5'` raises22P02 and typed text/bool raises42804.
+Current-query variables raise42P10 after type coercion; aggregates/GROUPING and
+nested windows remain forbidden. Independent scalar subqueries and outer-query
+variables in inner frames use the established lexical scopes.
+Start then end are evaluated once per demanded specification/scan, not per
+row/partition. NULL raises22004 and negative raises22013 with starting/ending
+English diagnostics, even for empty/all-NULL demanded input. LIMIT0,
+row_number-only and unused frames remove runtime offset demand, not binding or
+authority checks; count inside EXISTS remains demanded. Prepared arguments are
+fresh on each execution, including recovery after failed bounds.
+
+The established stage runs after WHERE/group/HAVING and before DISTINCT/outer
+ORDER/LIMIT. ROWS coexists with RANGE/GROUPS while sharing equivalent sort work.
+Counts are nonnull INT8 even for empty frames; empty input retains the full
+cursor schema with zero rows. Source-column origins survive the overlay; computed
+columns have typmod-1/no origin. Hidden keys, offset sources and unused definitions
+require their real source privileges, including WHERE FALSE and LIMIT0.
+Named frames retain volatile identity, and stored inline/named/domain/subquery
+offsets survive rename, export/replay and actual pristine native Dump/Restore.
+Failed/canceled writes or Restore publish no partial state; retained cursors keep
+their values/metadata across Reset/Restore. No mutable offsets enter prepared plans.
+
+Independent contract: `make check RUN='^TestReferenceQueryWindowRows'` and
+`make check REFERENCE=1 RUN='^TestReferenceQueryWindowRows'`.
+Focused smoke uses `RUN='^TestReferenceQueryWindowRowsFeatureSmoke$'` in both.
+
 ### GROUPS offsets — change note
 
 Explicit GROUPS measures PRECEDING/FOLLOWING offsets in peer groups, not rows
@@ -3326,7 +3367,7 @@ preserves the old catalog/cursors. Prepared executions import fresh offset argum
 late errors/cancellation publish neither partial cursors nor INSERT prefixes.
 `OVER(w)` cannot copy an explicitly framed parent. The omit-parentheses Hint
 belongs only to that OVER clause, not to inheritance in a named WINDOW definition.
-GROUPS does not admit ROWS, exclusions or additional window providers.
+GROUPS does not admit exclusions or additional window providers.
 Independent contract and smoke: `make check RUN='^TestReferenceQueryWindowGroups'`
 and `make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroups'`;
 use `RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'` in both for focused smoke.
@@ -3454,7 +3495,7 @@ preserves ordinary context errors. Finalized cursors and metadata survive later
 append/Reset/Restore. Stored view capture/export/remap and pristine Dump/Restore
 persist input/key identities and definitions, never mutable window state.
 
-Explicit ROWS frames and exclusions, other window providers, count(expr)
+Frame exclusions, other window providers, count(expr)
 windows and window aggregate FILTER remain excluded. Native errors distinguish valid excluded
 capabilities (0A000) from malformed syntax (42601). Ordinary aggregate modifiers
 remain unchanged; this does not add public GRANT, types, joins or persistence formats.

@@ -349,7 +349,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 	}
 	switch clause {
 	case "SELECT", "HAVING", "ORDER BY", "window definitions":
-	case "window RANGE", "window GROUPS":
+	case "window RANGE", "window GROUPS", "window ROWS":
 		return nil, expressionError("42803", "grouping operations are not allowed in "+clause, raw.Pos)
 	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER", "UPDATE":
 		return nil, expressionError("42803", "grouping operations are not allowed in "+clause, raw.Pos)

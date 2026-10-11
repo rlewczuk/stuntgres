@@ -48,11 +48,7 @@ func queryWindowRangeSmokeContracts(t *testing.T, p *fixture.Pair, b fixture.Bac
 		queryWindowRun(t, p, b, s)
 	}
 	queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k RANGE 1 PRECEDING) AS n FROM smoke_gaps ORDER BY id", 1, 1, 1))
-	if b.PG {
-		queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k ROWS 1 PRECEDING) AS n FROM smoke_gaps ORDER BY id", 1, 2, 2))
-	} else {
-		queryWindowRangeAnalysis(t, p, b, "SELECT count(*) OVER(ORDER BY k ROWS 1 PRECEDING) FROM smoke_gaps", "0A000", "explicit window frames are unsupported", "ROWS", "")
-	}
+	queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k ROWS 1 PRECEDING) AS n FROM smoke_gaps ORDER BY id", 1, 2, 2))
 	queryWindowRoutes(t, p, b, queryWindowRangeResult("SELECT id,count(*) OVER(ORDER BY k RANGE INTERVAL '1 hour' PRECEDING) AS n FROM smoke_clock ORDER BY id", 1, 1))
 	view := queryWindowRangeResult("SELECT id,n FROM smoke_range_view ORDER BY id", 1, 3, 3, 1, 2, 2, 2)
 	queryWindowRoutes(t, p, b, view)

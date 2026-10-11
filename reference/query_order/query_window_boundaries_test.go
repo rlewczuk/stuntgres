@@ -15,7 +15,6 @@ func TestReferenceQueryWindowCapabilityBoundaries(t *testing.T) {
 		}{
 			{"SELECT count(id) OVER() AS n FROM t ORDER BY id", "n", "INT8", "window function provider is unsupported", "count", []int64{7, 7, 7, 7, 7, 7, 7}},
 			{"SELECT count(*) FILTER(WHERE id>2) OVER() AS n FROM t ORDER BY id", "n", "INT8", "window aggregate FILTER is unsupported", "FILTER", []int64{5, 5, 5, 5, 5, 5, 5}},
-			{"SELECT count(*) OVER(ORDER BY id ROWS UNBOUNDED PRECEDING) AS n FROM t ORDER BY id", "n", "INT8", "explicit window frames are unsupported", "ROWS", []int64{1, 2, 3, 4, 5, 6, 7}},
 			{"SELECT sum(id) OVER() AS n FROM t ORDER BY id", "n", "INT8", "window function provider is unsupported", "sum", []int64{28, 28, 28, 28, 28, 28, 28}},
 		} {
 			rows := make([][]any, len(tc.v))
@@ -29,6 +28,7 @@ func TestReferenceQueryWindowCapabilityBoundaries(t *testing.T) {
 			}
 			queryWindowRoutes(t, p, b, s)
 		}
+		queryWindowRoutes(t, p, b, fixture.Select("SELECT count(*) OVER(ORDER BY id ROWS UNBOUNDED PRECEDING) AS n FROM t ORDER BY id", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {int64(4)}, {int64(5)}, {int64(6)}, {int64(7)}}))
 		// Malformed window syntax must reject the entire input before any prefix writes.
 		for _, prepared := range []bool{false, true} {
 			q := "INSERT INTO empty_t VALUES(9,'x',1);SELECT count(*) OVER(ORDER BY) FROM t"
