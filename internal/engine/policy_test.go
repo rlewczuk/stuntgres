@@ -285,7 +285,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if strings.Join(labels, "\n") != want {
 				t.Fatal("incomplete or unordered closure", labels)
 			}
-			if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{target}, parser.DropCascade, nil, nil, nil); err != nil {
+			if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			survivor, ok := stage.descriptors[owner.address].(*relationDescriptor)

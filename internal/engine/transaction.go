@@ -344,6 +344,7 @@ type StatementScope struct {
 	catalogAuthority            *catalogAuthority
 	projectedRoots              bool
 	foreignKeyTargets           []ObjectRef
+	alterForeignKeys            []alterForeignKeyAdmission
 	foreignActionAdmissions     map[ObjectAddress]*foreignActionAdmission
 	foreignActionTransitions    []foreignActionTransition
 	foreignActionsSettling      bool

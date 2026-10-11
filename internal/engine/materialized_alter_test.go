@@ -155,7 +155,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, nil); err != nil {
+			if err := stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, nil, ObjectAddress{}); err != nil {
 				t.Fatal("genuine provider retirement", err)
 			}
 			queryCreatePublish(t, e, stage)
@@ -176,7 +176,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil); err != nil {
+		if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err != nil {
 			t.Fatal(err)
 		}
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -265,7 +265,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 		if automatic != 1 || ordinary != 1 {
 			t.Fatal("incomplete merged closure", automatic, ordinary)
 		}
-		if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil); err == nil {
+		if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err == nil {
 			t.Fatal("ordinary dependent lost RESTRICT authority")
 		}
 		e.DiscardCatalogStage(stage)
@@ -280,7 +280,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, providerRoots, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, providerRoots, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -427,7 +427,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, target, stage)

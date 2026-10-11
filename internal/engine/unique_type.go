@@ -10,7 +10,7 @@ import (
 // A TYPE action rebuilds each affected constraint/backing relation as one
 // removal-and-create candidate, retaining the parent and stable attribute keys.
 func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
-	if len(parent.uniqueConstraints) == 0 || len(transformations) == 0 {
+	if len(transformations) == 0 {
 		return parent, nil
 	}
 	var next *relationDescriptor
@@ -98,42 +98,12 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		}
 	}
 	if next == nil {
-		return parent, nil
-	}
-	// PostgreSQL18 rebuilds the affected primary key's NN identity after the
-	// index constraint. Clone only on change: source/savepoint descriptors keep
-	// their old identities, and unrelated NN identities remain untouched.
-	copiedNotNull := false
-	for i, n := range parent.notNullConstraints {
-		changed := false
-		for _, transformation := range transformations {
-			if transformation.attribute != n.Attribute {
-				continue
-			}
-			for _, constraint := range parent.uniqueConstraints {
-				if constraint.Primary && slices.Contains(constraint.Attributes, n.Attribute) {
-					changed = true
-					break
-				}
-			}
-		}
-		if !changed {
-			continue
-		}
-		if !copiedNotNull {
-			next.notNullConstraints = slices.Clone(parent.notNullConstraints)
-			copiedNotNull = true
-		}
-		id, err := e.allocateOIDLocked()
-		if err != nil {
-			return nil, err
-		}
-		next.notNullConstraints[i].OID = id
+		return e.rebuildAlterNotNullsLocked(stage, parent, transformations)
 	}
 	if err := stage.Replace(next); err != nil {
 		return nil, err
 	}
-	return next, nil
+	return e.rebuildAlterNotNullsLocked(stage, next, transformations)
 }
 
 // TYPE reconstruction and changed-value validation share stable dependency keys.
@@ -190,16 +160,23 @@ func indexAttributeAffected(definition *indexDefinition, attribute int32) bool {
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32) (map[string]*logicalIndexRoot, error) {
-	indexes := enforcingIndexes(candidate, parent.address)
-	affected := false
-	for _, index := range indexes {
-		if uniqueIndexValuesAffected(index.sqlIndex, transformations, generations) {
-			affected = true
-			break
+func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ObjectAddress) (map[string]*logicalIndexRoot, error) {
+	var indexes []*relationDescriptor
+	if len(transformations) != 0 || len(generations) != 0 {
+		for _, index := range enforcingIndexes(candidate, parent.address) {
+			if !slices.Contains(added, index.address) && uniqueIndexValuesAffected(index.sqlIndex, transformations, generations) {
+				indexes = append(indexes, index)
+			}
 		}
 	}
-	if !affected {
+	for _, address := range added {
+		index, ok := candidate.state.descriptors[address].(*relationDescriptor)
+		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address {
+			return nil, ErrCatalogReplaced
+		}
+		indexes = append(indexes, index)
+	}
+	if len(indexes) == 0 {
 		return nil, nil
 	}
 	var baselines map[string]*logicalIndexRoot
@@ -227,10 +204,8 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate
 		}
 		validationStore = &relationStorage{versions: live}
 	}
+	auth.catalog = candidate
 	for _, index := range indexes {
-		if !uniqueIndexValuesAffected(index.sqlIndex, transformations, generations) {
-			continue
-		}
 		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, validationStore)
 		if err != nil {
 			return nil, err

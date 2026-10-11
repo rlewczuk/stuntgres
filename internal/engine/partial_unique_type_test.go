@@ -36,7 +36,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []rowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterUniques(context.Background(), f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.attributes[3], rewrite: true}}, nil)
+			roots, err := validateAlterUniques(context.Background(), f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.attributes[3], rewrite: true}}, nil, nil)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")

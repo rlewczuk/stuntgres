@@ -108,10 +108,10 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if stage.base.state == base.state || len(inheritanceChildren(stage.base, firstChild.address)) != 1 {
 					t.Fatal("late child omitted")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{parent.address}, parser.DropRestrict, nil, nil, nil); err == nil {
+				if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{parent.address}, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err == nil {
 					t.Fatal("late child did not block RESTRICT")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{parent.address}, parser.DropCascade, nil, nil, nil); err != nil {
+				if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{parent.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 					t.Fatal(err)
 				}
 				if len(stage.removals) != 3 {

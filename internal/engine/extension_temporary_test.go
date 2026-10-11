@@ -89,7 +89,7 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) 
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil); err != nil {

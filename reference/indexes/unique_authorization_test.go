@@ -82,8 +82,13 @@ func TestReferenceUniqueExcludedControls(t *testing.T) {
 					if c.setup != "" {
 						run(fixture.Exec(c.setup, 0))
 					}
-					if backend.PG {
+					if backend.PG || c.name == "alter_add" {
 						run(fixture.Exec(c.query, 0))
+						if c.name == "alter_add" {
+							run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
+							run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(1)", fixture.UniqueReferenceDuplicate("t", "u", "Key (a)=(1) already exists.")))
+							run(fixture.Select("SELECT conname,contype FROM pg_constraint WHERE conrelid='t'::regclass::oid", []string{"conname", "contype"}, []string{"NAME", "CHAR"}, [][]any{{"u", "u"}}))
+						}
 					} else {
 						run(fixture.ImplicitError(c.query, fixture.Diagnostic{Code: "0A000", Message: c.message, Position: fixture.Position(strings.Index(c.query, c.token) + 1)}))
 						want := [][]any{{"t", "r"}}

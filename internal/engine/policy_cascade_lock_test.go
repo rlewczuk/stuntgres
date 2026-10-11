@@ -63,7 +63,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						}
 						return nil
 					}
-					if err := stageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project); err != nil {
+					if err := stageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					wantProjected := 0

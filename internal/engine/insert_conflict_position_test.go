@@ -213,7 +213,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	validated, err := validateAlterUniques(context.Background(), auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil)
+	validated, err := validateAlterUniques(context.Background(), auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil)
 	if err != nil || validated[f.index.name] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}

@@ -5518,8 +5518,8 @@ Dump captures and emits quoted named NOT NULL declarations, generated names
 included. Restore uses common isolated CREATE/INSERT binding and atomic target
 replacement. Scalar UPDATE uses existing expressions, destination coercions and
 NOT NULL and CHECK enforcement (see below). CREATE inheritance merges both;
-NOT NULL's NOT VALID/VALIDATE/NO INHERIT remain explicit native0A000 boundaries
-with real PostgreSQL-only witnesses.
+ALTER NOT NULL accepts NOT VALID; public VALIDATE and native NN NO INHERIT remain
+explicit boundaries with real PostgreSQL-only witnesses where appropriate.
 Selected nullability/named-NOT-NULL actions and existing DROP COLUMN compose
 comma-separated atomic lists, including explicit transactions and savepoints.
 Same-session metadata and DML see successful private definitions; rollback
@@ -5542,12 +5542,12 @@ Successful statement authorization is retained through Commit despite later
 role-catalog revisions or internal actor changes, without reauthorizing table
 ownership. SET/RESET ROLE and LOCAL role lifetime are supported in transactions
 and savepoints; transactional SESSION AUTHORIZATION remains excluded.
-PK and unrelated ALTER actions/transactional DDL remain excluded,
+Unrelated ALTER actions/transactional DDL remain excluded,
 never successful no-ops. CHECK CREATE/enforcement and DROP CONSTRAINT are
-supported; ALTER ADD CHECK/VALIDATE remains excluded.
+supported; ALTER ADD CHECK is supported and public VALIDATE remains excluded.
 Post-drop Dump/Restore captures nullable declarations, remaining NOT NULL
 identities, rows, defaults/comments and owned-sequence state/associations; it
-does not replay ALTER history or add ALTER to the Restore whitelist. Physical
+replays eligible invalid definitions through bounded post-data ALTER. Physical
 server/WAL/crash durability, a wire/server process and external pg_dump/archive
 mechanics remain outside the embedded engine.
 
@@ -5649,7 +5649,7 @@ providers. Parameters, aggregates and outside-row references are forbidden.
 ctid/xmin/cmin/xmax/cmax report CHECK-specific42P10; tableoid is PostgreSQL's
 exception but remains undefined in the native ordinary system-column surface.
 Subqueries retain the CHECK-specific semantic exclusion; window calls report
-42P20. SRFs, other CHECK modifiers and ALTER ADD CHECK/VALIDATE are not added.
+42P20. SRFs and other CHECK modifiers remain bounded; eligible ALTER ADD CHECK/NOT VALID are supported.
 
 After defaults/coercions and NOT NULL, the shared completed-row validator admits
 TRUE/NULL and rejects FALSE with23514, actual Schema/Table/Constraint and

@@ -1770,8 +1770,8 @@ a real immutable logical B-tree; INSERT and UPDATE enforce typed equality
 immediately, with atomic failures and transaction-owned key claims. Constraint
 and backing-index identities survive renames and schema moves, rebuild on key
 TYPE, and disappear on DROP CONSTRAINT/key column/table. Dump/Restore emits the
-constraint once and reconstructs its backing index. Deferrability and ALTER ADD
-UNIQUE remain excluded.
+constraint once and reconstructs its backing index. CREATE deferrability remains
+excluded; ALTER ADD UNIQUE follows the existing-data contract below.
 See [UNIQUE constraints](docs/TABLES.md#unique-constraints--change-note) and
 [the design](docs/design/PG18-DDL-UNIQUE.md).
 Feature smoke: `make check RUN='^TestReferenceUniqueFeatureSmoke$'`.
@@ -1784,9 +1784,9 @@ kind `p` and canonical PRIMARY KEY deparsing. Existing renames, schema moves,
 REINDEX, LIKE INCLUDING INDEXES/ALL and native Dump/Restore preserve the attachment.
 Dropping the primary key leaves its NOT NULL identities; live key columns cannot
 drop NOT NULL. Key TYPE changes rebuild affected constraint/index/NOT NULL identities.
-ALTER ADD PRIMARY KEY key lists (including ADD COLUMN), CREATE deferrability,
-WITHOUT OVERLAPS and index parameters remain excluded. Foreign keys follow their
-bounded CREATE contract above.
+ADD COLUMN PRIMARY KEY, CREATE deferrability, WITHOUT OVERLAPS and index
+parameters remain excluded. ALTER ADD key lists and foreign keys follow the
+existing-data constraint contract below.
 See [primary-key constraints](docs/TABLES.md#primary-key-constraints--change-note).
 Feature smoke: `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePrimaryKeyFeatureSmoke$'`.
@@ -1803,6 +1803,22 @@ partial/expression indexes and nondefault key behavior are not eligible.
 See [existing-index attachments](docs/TABLES.md#existing-index-uniqueprimary-key-constraints--change-note).
 Feature smoke: `make check RUN='TestReferenceUsingIndexFeatureSmoke'`;
 pinned counterpart: `make check RUN='TestReferenceUsingIndexFeatureSmoke' REFERENCE=1`.
+
+Change note: `ALTER TABLE ... ADD [CONSTRAINT name]` supports CHECK, NOT NULL,
+UNIQUE, PRIMARY KEY, FOREIGN KEY and the bounded EXCLUDE forms. Each valid
+attachment validates the effective existing committed/private rows atomically.
+CHECK/NOT NULL/FOREIGN KEY accept NOT VALID: old violations remain, but real
+subsequent writes are enforced. Other kinds reject NOT VALID with0A000. Index
+attachments/builds precede historical CHECK validation; competing index builds
+retain their declaration order. Fresh primary keys and USING INDEX reject an
+existing invalid NOT NULL definition through their distinct55000 diagnostics.
+Native Dump emits invalid definitions after ordinary data and Restore replays
+them as real eligible ADD statements; it never bypasses INSERT validation.
+Historical catalog projections are not fresh DML. FK equality suppression uses
+the actual committed predecessor; a prior own version must still be checked.
+See [existing-data ADD constraints](docs/TABLES.md#alter-add-constraints--change-note).
+Feature smoke: `make check RUN='^TestReferenceAlterAddConstraintFeatureSmoke$'`;
+use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL18.0 oracle.
 
 Change note: CREATE TABLE and existing ALTER TABLE ADD CONSTRAINT support
 `EXCLUDE [USING btree|hash] (... WITH =)` over owned scalar operator-family

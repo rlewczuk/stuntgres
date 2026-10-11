@@ -281,43 +281,45 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 	return result, nil
 }
 
-func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency, originalRootCount int) error {
+func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency, originalRootCount int, subject ObjectAddress) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
-	var primary ObjectAddress
-	for i, target := range targets {
-		var owner ObjectAddress
-		switch descriptor := stage.base.state.descriptors[target].(type) {
-		case *typeDescriptor:
-			owner = descriptor.owningRelation
-		case *relationDescriptor:
-			if descriptor.sequence != nil {
-				owner = descriptor.sequence.owned
-				owner.SubID = 0
-			}
-		}
-		if _, removed := stage.removals[owner]; owner != (ObjectAddress{}) && removed {
-			target = owner
-		}
-		// Explicit roots remain distinct; only automatically retired members
-		// share the subject of their removed partition ancestry.
-		if i >= originalRootCount {
-			for {
-				relation, ok := stage.base.state.descriptors[target].(*relationDescriptor)
-				if !ok || relation.membership == nil {
-					break
+	primary := subject
+	if primary == (ObjectAddress{}) {
+		for i, target := range targets {
+			var owner ObjectAddress
+			switch descriptor := stage.base.state.descriptors[target].(type) {
+			case *typeDescriptor:
+				owner = descriptor.owningRelation
+			case *relationDescriptor:
+				if descriptor.sequence != nil {
+					owner = descriptor.sequence.owned
+					owner.SubID = 0
 				}
-				parent := relation.membership.parent
-				if _, removed := stage.removals[parent]; !removed {
-					break
-				}
-				target = parent
 			}
-		}
-		if primary == (ObjectAddress{}) {
-			primary = target
-		} else if primary != target {
-			primary = ObjectAddress{}
-			break
+			if _, removed := stage.removals[owner]; owner != (ObjectAddress{}) && removed {
+				target = owner
+			}
+			// Explicit roots remain distinct; only automatically retired members
+			// share the subject of their removed partition ancestry.
+			if i >= originalRootCount {
+				for {
+					relation, ok := stage.base.state.descriptors[target].(*relationDescriptor)
+					if !ok || relation.membership == nil {
+						break
+					}
+					parent := relation.membership.parent
+					if _, removed := stage.removals[parent]; !removed {
+						break
+					}
+					target = parent
+				}
+			}
+			if primary == (ObjectAddress{}) {
+				primary = target
+			} else if primary != target {
+				primary = ObjectAddress{}
+				break
+			}
 		}
 	}
 	if primary != (ObjectAddress{}) {
@@ -335,7 +337,11 @@ func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []d
 					}
 				}
 			}
-			details = append(details, edge.label+" depends on "+dependencyObject(stage.base, target, stage.dependencyPath))
+			provider := dependencyObject(stage.base, target, stage.dependencyPath)
+			if index, ok := stage.base.state.descriptors[target].(*relationDescriptor); ok && index.sqlIndex != nil {
+				provider = "index " + dependencyRelationName(stage.base, index, stage.dependencyPath)
+			}
+			details = append(details, edge.label+" depends on "+provider)
 		}
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
@@ -354,13 +360,15 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 // All stored-expression owners use the same immutable authority traversal.
 // Generated owners are removed through the existing column/storage projection.
 func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
-	return stageExpressionDependencies(scope.op.Context(), stage, roots, mode, scope, changes, nil)
+	return stageExpressionDependencies(scope.op.Context(), stage, roots, mode, scope, changes, nil, ObjectAddress{})
 }
 
 // The same ordered discovery/descriptor core serves SQL, outer Commit and
 // drained physical retirement. Only real SQL scopes perform grant acquisition;
 // Commit supplies its actual private-root projector without inventing a scope.
-func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
+// A nonzero subject attributes only the RESTRICT message to one SQL DROP;
+// retirement roots, dependency discovery, locks and mutations stay unchanged.
+func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error, subject ObjectAddress) error {
 	if len(roots) == 0 {
 		return nil
 	}
@@ -398,7 +406,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		visible = visible || !edge.automatic
 	}
 	if mode == parser.DropRestrict && visible {
-		return domainRestrictError(stage, roots, edges, originalRootCount)
+		return domainRestrictError(stage, roots, edges, originalRootCount, subject)
 	}
 	targets := append([]ObjectAddress(nil), roots...)
 	var relations []*relationDescriptor

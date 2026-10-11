@@ -167,14 +167,14 @@ but registers pending attachments only for the creator's actual newly minted
 table reference. CREATE IF NOT EXISTS no-ops ignore their FK clauses completely,
 including absent target schemas/relations. Captured namespace/principal authority
 survives later owner directives and trusted replay permission elevation.
-Restore resolves supporting keys and validates every final row before installation;
+Restore resolves supporting keys and validates every final row under valid definitions before installation;
 it preserves actions/list metadata but never executes cascades to repair import data.
 Forward references and cycles work; invalid empty/populated groups leave the target
 and retained snapshots unchanged. Retained same-owner TEMP FK graphs keep their
 exact identities/data through Reset/Restore and are omitted from Dump;
 permanent/TEMP cross-references are rejected.
 
-Public ALTER ADD FOREIGN KEY and ADD COLUMN REFERENCES remain unsupported.
+Public ALTER ADD FOREIGN KEY is supported; ADD COLUMN REFERENCES remains unsupported.
 MATCH PARTIAL retains PostgreSQL's 0A000 boundary. DEFERRABLE/INITIALLY DEFERRED,
 temporal PERIOD and partition hierarchy FKs are explicit native 0A000 boundaries.
 NOT DEFERRABLE and
@@ -329,6 +329,80 @@ a TEMP-type DDL path.
 Selected proofs (external900s each):
 `make check RUN='^(TestReferenceTypedTable|TestTyped)'` and
 `make check REFERENCE=1 RUN='^TestReferenceTypedTable'`.
+
+## ALTER ADD constraints — change note
+
+The sole ALTER owner admits named or generated CHECK, NOT NULL, UNIQUE, PRIMARY
+KEY, FOREIGN KEY and the existing equality EXCLUDE definitions. Completed-shape
+binding uses stable attribute identities, real providers/REFERENCES rights and
+normal reciprocal index ownership. Index attachments are staged first; their
+physical builds retain index-declaration order and precede historical row scans.
+CHECK historical jobs retain declaration order; ordinary DML retains its
+alphabetical CHECK order. FK can precede or follow a newly added self key.
+
+DROP retires the original UNIQUE/PRIMARY KEY/EXCLUDE backing generation in the
+private catalog before indexed ADD selects names, regardless of textual order.
+Explicit replacement can reuse its vacated name; anonymous replacement reuses
+the available canonical spelling rather than adding a stale-name suffix.
+Unrelated live relations still collide. Replacement gets new constraint/index
+identities; dependency rules and original name/reference publication fences
+remain active. A later failure preserves the old definitions, backing roots,
+rows and held consumers, rather than publishing an intermediate DROP.
+Each indexed DROP retires its backing and classifies its own RESTRICT/CASCADE
+dependencies before retiring the next selected backing. A later CASCADE cannot
+make an earlier independent RESTRICT fail, and an earlier CASCADE cannot authorize
+a later RESTRICT's FK removal. All successful DROP actions still precede indexed
+ADD naming. RESTRICT diagnostics identify the current constraint even when prior
+retirements remain in the shared closure; ordinary dependency consumers retain
+their existing whole-root subject selection, locks and closure rules.
+
+Valid attachments reject old violations without publishing names, indexes,
+flags or rewritten rows. CHECK/NN/FK NOT VALID omit only their historical scan;
+they still check definition/type/key/provider/ACL eligibility, and all genuine
+subsequent write owners enforce them. Repeated eligible validity attributes
+normalize to the same flags. Invalid NN advertises enforced Nullable=false even
+when historical NULL remains. Compatible same-attribute NN ADD preserves its
+original identity/name/validity; it never promotes or downgrades validity.
+Valid ADD over invalid NN fails55000 even after repair. SET NOT NULL performs
+its distinct real scan and can promote the existing identity after success.
+Fresh primary-key and USING INDEX compatibility retain distinct55000 records.
+Fresh PRIMARY KEY preliminary admission reads the original statement's NN
+validity before candidate DROP/SET/TYPE effects. Therefore SET NOT NULL or
+DROP of an invalid NN in the same fresh-PK statement cannot cure its55000
+prerequisite, in either textual order, even with clean data. Repair data and
+perform a separate successful SET NOT NULL first; it validates the original
+NN identity, and a subsequent PK ADD can succeed. This admission does not
+prematurely bind newly added keys or change USING INDEX's distinct route.
+
+Pure ADD FK takes SHARE ROW EXCLUSIVE on the child and distinct parents; mixed
+ALTER takes the strictest child ACCESS EXCLUSIVE grant. Exact external parent,
+supporting key and physical storage are captured before waiting and reopened
+without name retargeting. Prepare creates no definitions or held DDL grants.
+TYPE preserves invalid flags/old violations, binds compatible new operators
+and recreates affected identities; unrelated definitions retain identity.
+Historical catalog/enum/TEMP projections preserve prior own rows rather than
+creating DML. Actual new writes remain checked, including transaction-born FK
+predecessors. A committed orphan's unchanged nonnull FK key can skip a child
+check; a subsequent own update of that version cannot. MATCH FULL partial NULL
+and parent NO ACTION checks remain active. Savepoints restore flags, shapes,
+rows, roots, event state and lock contributions together.
+
+Dump omits invalid local definitions inline and emits qualified, named eligible
+ADD NOT VALID statements after all ordinary rows/supporting keys, under captured
+table owners. Restore uses the ordinary isolated ALTER loop and a narrow
+whitelist: no arbitrary ALTER/VALIDATE, trusted INSERT bypass or automatic flag
+promotion. Cyclic valid CREATE references keep their existing delayed captured
+authority; final historical FK validation skips installed invalid definitions.
+Existing-definition remaps preserve flags; fresh empty LIKE definitions remain
+valid according to CREATE semantics. Successful restore remints permanent
+relationships; failed definition/data/context/I/O work preserves the target.
+Physical pages/WAL, server RI trigger objects, recursive hierarchy ALTER and
+arbitrary PostgreSQL dump archive/wire compatibility are not promised.
+
+Smoke: `make check RUN='^TestReferenceAlterAddConstraintFeatureSmoke$'`;
+use the same RUN with `REFERENCE=1` for the independently specified pinned oracle.
+
+
 
 ## Materialized views — change note
 
@@ -1405,9 +1479,9 @@ exclusions and general ADD key-list/ADD COLUMN producers are not expanded.
 
 Native Dump preserves the existing definition graph: a represented INCLUDE group
 emits CREATE UNIQUE INDEX and its ADD CONSTRAINT USING INDEX at the index node
-after the owner table definition. Deferred defaults retain their position and
-populated data remains the final phase. Restore admits only these ALTER attachment
-forms and reconstructs the reciprocal constraint/index group privately in a new
+after the owner table definition. Deferred defaults retain their position;
+ordinary data precedes eligible post-data NOT VALID attachments. Restore admits
+these bounded ALTER forms and reconstructs the ownership/constraint graph privately in a new
 catalog generation. A same-name parent may retain its numeric OID; isolated
 Restore allocation and candidate-collision remapping can also reuse an old
 definition number. Fresh owner/epoch/address identity, reconstructed enforcement
@@ -1688,8 +1762,8 @@ on every key column. The same rule applies to TYPE-build failures even for the
 table owner: unreadable build keys yield `Duplicate keys exist.`, whereas unreadable
 runtime duplicates omit Detail. Ownership does not replace revoked SELECT rights.
 
-ALTER ADD UNIQUE key lists and CREATE deferrability (including explicit NOT
-DEFERRABLE) remain unsupported. Foreign-key declarations and constraint renaming
+ALTER ADD UNIQUE key lists validate existing data. CREATE deferrability (including
+explicit NOT DEFERRABLE) remains unsupported. Foreign-key declarations and constraint renaming
 follow their contracts above. Existing-index attachments and reciprocal RENAME
 CONSTRAINT use the existing ownership group. Standalone CREATE UNIQUE INDEX
 reuses the same enforcing B-tree authority without creating a constraint attachment.
@@ -1792,8 +1866,8 @@ INSERT binder, preserving names/data/nullability/ownership/comments; failed
 declarations or NULL insertion preserve the target. Explicit-ACL Dump rejection
 and ordinary context/I/O errors are unchanged.
 
-CREATE inheritance merges inheritable NOT NULL by column (see above). NOT NULL's
-NOT VALID, VALIDATE and NO INHERIT remain explicit boundaries, not successful no-ops.
+CREATE inheritance merges inheritable NOT NULL by column (see above).
+ALTER NOT NULL accepts NOT VALID; public VALIDATE and native NN NO INHERIT remain explicit boundaries, not successful no-ops.
 Scalar UPDATE enforces NOT NULL and CHECK after destination coercion.
 Valid INHERITS lists create the graph above; malformed/repeated clauses and extra
 tails remain42601 complete-input rejections, with no earlier script prefix effects.
@@ -2080,9 +2154,9 @@ destination; no CHECK bypass or fake sequence identity is used.
 Parameters/aggregate/outside-row references fail before table publication.
 ctid/xmin/cmin/xmax/cmax are forbidden CHECK system references; PostgreSQL permits
 tableoid but native system-column projection remains outside this surface.
-Subqueries/windows/SRFs, other CHECK modifiers, ALTER ADD CHECK
-and VALIDATE are not supported. The shared row validator is available to later
-existing-data validation work; this change does not implement that traversal.
+Subqueries/windows/SRFs and other CHECK modifiers remain bounded. ALTER ADD CHECK
+validates existing rows unless NOT VALID is requested; public VALIDATE remains
+unsupported. Subsequent full-successor writes enforce both valid and invalid definitions.
 
 Public feature smoke: `make check RUN='^TestCheckSmoke$'`.
 The 31 root CHECK interaction tests now live as 38 merged/split dual-mode

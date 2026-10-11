@@ -153,16 +153,21 @@ func TestUniqueWholeInputValidation(t *testing.T) {
 	}
 }
 
-func TestUniqueAlterAddCapabilityBoundary(t *testing.T) {
+func TestUniqueAlterAddAttachments(t *testing.T) {
 	for _, query := range []string{
 		"ALTER TABLE t ADD UNIQUE(a)",
 		"ALTER TABLE t ADD CONSTRAINT u UNIQUE NULLS NOT DISTINCT(a,b)",
 	} {
-		_, err := Parse(query)
-		var got *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "ALTER TABLE action is unsupported", Position: "15"}
-		if !errors.As(err, &got) || !reflect.DeepEqual(*got, want) {
-			t.Fatalf("%s: got %#v want %#v: %v", query, got, want, err)
+		statements, err := Parse(query)
+		if err != nil {
+			t.Fatal(query, err)
+		}
+		action := statements[0].(*AlterTable).Actions[0]
+		if action.Action != AddUnique || action.Unique == nil || action.Unique.Primary || len(action.Unique.Columns) == 0 {
+			t.Fatal(query, action)
+		}
+		if action.Unique.NullsNotDistinct != strings.Contains(query, "NOT DISTINCT") {
+			t.Fatal(query, action.Unique)
 		}
 	}
 }

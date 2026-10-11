@@ -1810,8 +1810,8 @@ boundary remains explicit while generated-column expressions retain supported
 system-attribute references. Query frame coverage uses supported `MAX`,
 correlation, joins, grouping, derived frames and supported UNION ALL arms,
 including their analyzed coercion expressions. Expression
-owners are declared in supported complete CREATE TABLE statements, not
-unsupported ALTER ADD CHECK/generated-column routes.
+owners are declared in supported CREATE TABLE or eligible ALTER ADD CHECK
+statements; generated-column routes retain their existing boundaries.
 
 Existing feature owners remain authoritative for RESTRICT/CASCADE. External
 default removal preserves the column/table; CHECK removal preserves its table;
@@ -2132,8 +2132,8 @@ See [UPDATE RETURNING](QUERIES.md#update-returning--change-note).
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
 LATERAL joins, CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
-constraints beyond nullability/defaults/CHECK/identity/UNIQUE, ALTER ADD CHECK/VALIDATE,
-non-column serial type uses, default-containing ALTER lists, primary keys,
+constraints beyond the bounded CHECK/NN/UNIQUE/PRIMARY KEY/FK/EXCLUDE contracts,
+public VALIDATE, non-column serial type uses and default-containing ALTER lists,
 UPDATE row assignments (named-cursor UPDATE/DELETE CURRENT OF is supported),
 whole-row UPDATE/DELETE records and generic ROW/field operators,
 general COLLATE, two-phase commit, transactional table DDL outside selected

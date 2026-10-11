@@ -18,6 +18,7 @@ type checkConstraint struct {
 	OID       OID
 	Name      string
 	NoInherit bool
+	NotValid  bool
 	// Declaration order is independent of alphabetical enforcement order.
 	ordinal            int
 	expression         BoundExpr
@@ -67,6 +68,15 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 	}
 	for _, c := range d.notNullConstraints {
+		installed[c.Name] = true
+	}
+	for _, c := range d.uniqueConstraints {
+		installed[c.Name] = true
+	}
+	for _, c := range d.exclusionConstraints {
+		installed[c.Name] = true
+	}
+	for _, c := range d.foreignKeys {
 		installed[c.Name] = true
 	}
 	current := make(map[string]bool, len(raw))
@@ -147,7 +157,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return diagnostic
 		}
 		current[name], used[name] = true, true
-		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, ordinal: ordinal, expression: node}
+		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, ordinal: ordinal, expression: node}
 		var dependencies []ObjectRef
 		if _, err := (scalarRenderer{owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err

@@ -273,6 +273,9 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 				text = "NOT NULL " + name
+				if def.NotValid {
+					text += " NOT VALID"
+				}
 			}
 			for _, def := range relation.checkConstraints {
 				if def.OID != OID(id) {
@@ -287,6 +290,9 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				text = "CHECK (" + rendered + ")"
 				if def.NoInherit {
 					text += " NO INHERIT"
+				}
+				if def.NotValid {
+					text += " NOT VALID"
 				}
 			}
 			for _, def := range relation.uniqueConstraints {

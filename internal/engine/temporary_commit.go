@@ -86,7 +86,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 				return nil, nil, nil, err
 			}
 		}
-		if err := stageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project); err != nil {
+		if err := stageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project, ObjectAddress{}); err != nil {
 			return nil, nil, nil, err
 		}
 		if err := stageOwnedExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project); err != nil {

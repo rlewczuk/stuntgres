@@ -17,6 +17,7 @@ type IndexForeignKeyComparison struct {
 	parentConvert, childConvert   bool
 	cross                         bool
 	comparison                    Comparison
+	childComparison               Comparison
 	index                         IndexComparison
 }
 
@@ -82,6 +83,9 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 	plan.parentConvert, plan.childConvert = parent.Type != parentInput.Type, child.Type != childInput.Type
 	if plan.cross {
 		plan.comparison, err = BindComparison(parentInput.Type, childInput.Type, parent.Collation, false)
+		if err == nil {
+			plan.childComparison, err = BindComparison(childInput.Type, childInput.Type, parent.Collation, false)
+		}
 	} else {
 		plan.index, err = BindIndexOrdering(parentInput, class)
 	}
@@ -158,4 +162,27 @@ func (p IndexForeignKeyComparison) ComparePrepared(ctx context.Context, parent, 
 		return p.comparison.Compare(ctx, parent, child, input)
 	}
 	return p.index.Compare(ctx, parent, child, input)
+}
+
+// EqualChildren uses the admitted family's same-child equality, including
+// cross-width members. It never narrows a child into the parent's storage type.
+func (p IndexForeignKeyComparison) EqualChildren(ctx context.Context, before, after Value, input InputEnvironment) (bool, error) {
+	if before.IsNull() || after.IsNull() {
+		return false, nil
+	}
+	left, err := p.PrepareChild(ctx, before, input)
+	if err != nil {
+		return false, err
+	}
+	right, err := p.PrepareChild(ctx, after, input)
+	if err != nil {
+		return false, err
+	}
+	var comparison int
+	if p.cross {
+		comparison, err = p.childComparison.Compare(ctx, left, right, input)
+	} else {
+		comparison, err = p.index.Compare(ctx, left, right, input)
+	}
+	return comparison == 0, err
 }

@@ -49,12 +49,6 @@ func TestReferenceCompositeTableShape(t *testing.T) {
 					if tc.guarded {
 						want := fixture.CompositeReferenceDiagnostic("0A000", `cannot alter table "source" because column "holder.v" uses its row type`)
 						fixture.CompositeReferenceError(t, p, c, tc.ddl, "execute", want)
-					} else if tc.name == "check" && !b.PG {
-						// ADD CHECK is an existing native DDL boundary, not a
-						// prerequisite for executable composite values.
-						want := fixture.CompositeReferenceDiagnostic("42601", `syntax error at or near "CHECK"`)
-						want.Position = "44"
-						fixture.CompositeReferenceError(t, p, c, tc.ddl, "prepare", want)
 					} else {
 						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(tc.ddl, 0))
 					}

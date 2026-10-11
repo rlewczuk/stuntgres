@@ -187,7 +187,7 @@ SELECT, DELETE, settings and the single-target AX utility are supported, includi
 prepared execution. CREATE permanent tables before a block; owner-TEMP CREATE/
 DROP, sequence DDL, COMMENT ON
 SEQUENCE and selected ALTER TABLE ADD COLUMN/TYPE/nullability/named-NOT-NULL/
-DROP COLUMN/identity/exclusion ADD/DROP action lists are bounded transactional DDL exceptions. Successful private ALTER
+DROP COLUMN/identity and selected six-kind constraint ADD/DROP lists are bounded transactional DDL exceptions. Successful private ALTER
 definitions govern subsequent metadata and writes; savepoints restore catalog,
 projected row shapes and own writes together. Commit installs these and sequence
 changes atomically with DML. Successful statement authorization is retained
@@ -198,6 +198,17 @@ unchanged. SESSION persists on commit, LOCAL expires, and rollback restores entr
 identity; mixed SESSION/LOCAL retains the SESSION candidate. Cached restoration
 does not recheck subsequently revoked membership. Transactional SESSION
 AUTHORIZATION remains excluded.
+Valid ADD checks effective committed/private data before publication; eligible
+CHECK/NN/FK NOT VALID skips only historical traversal and still enforces real
+following writes. Historical catalog/enum/TEMP shape projections retain prior
+own rows, not new DML. FK uses the actual immediate predecessor: committed
+unchanged nonnull keys can skip RI, but prior own updates/inserts must check.
+Rollback/savepoint recovery restores that provenance with definitions and rows.
+Pure ADD FK holds child/distinct-parent SHARE ROW EXCLUSIVE; mixed ALTER retains
+the strongest child mode. Read-only rejection precedes lookup/admission and
+Prepare is effect-free. New index builds precede historical CHECK scans in
+index-declaration order. See [ALTER ADD constraints](TABLES.md#alter-add-constraints--change-note).
+
 Other transactional DDL remains unsupported.
 ADD COLUMN jointly restores schema, high-water identities, captured nonvolatile
 old-row fills and own writes on rollback/savepoint recovery. Supported nextval

@@ -367,7 +367,7 @@ package parser
 %type <tok> check_function_head
 %type <tok> extract_field
 %type <alterActions> alter_actions
-%type <alterAction> alter_selected_action
+%type <alterAction> alter_selected_action alter_constraint
 %type <tok> alter_type_keyword
 %type <collation> column_collation
 %type <expr> alter_using
@@ -454,7 +454,7 @@ package parser
 %type <typ> interval_type interval_fields interval_second_fields interval_type_qualifier
 %type <constraints> nullability column_constraints domain_constraints
 %type <constraint> column_constraint
-%type <notNull> table_not_null
+%type <notNull> table_not_null create_not_null
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
@@ -1257,16 +1257,17 @@ optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
 element: column { $$=TableElement{Column:$1,Pos:$1.Pos} }
  | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
- | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
+ | create_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
  | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} }
  | unique_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
  | primary_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
  | foreign_key { $$=TableElement{ForeignKey:$1,Pos:$1.Pos} }
  | exclusion_constraint { $$=TableElement{Exclusion:$1,Pos:$1.Pos} } ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
- | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
- | table_not_null NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
- | table_not_null NO nn_inherit { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
+ | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} } ;
+create_not_null: table_not_null {$$=$1}
+ | create_not_null NOT nn_modifier {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1}
+ | create_not_null NO nn_inherit {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported");$$=$1} ;
 /* NO belongs to the CHECK before the generic column-modifier path can reduce.
  * The closing ')' otherwise has higher precedence than NO. */
 check_constraint: CHECK '(' scalar_projection ')' %prec NAME_LIST { $$=&CheckConstraint{Expression:$3,Pos:$1.pos} }
@@ -1390,7 +1391,7 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ALTER optional_column name SET generation_expression_word AS '(' scalar_projection ')' { expression:=$8;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetExpression,Generation:&GenerationDefinition{Expression:expression,Pos:$5.pos},Pos:$1.pos} }
  | ALTER optional_column name DROP generation_expression_word { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,Pos:$1.pos} }
  | ALTER optional_column name DROP generation_expression_word IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropExpression,IfExists:true,Pos:$1.pos} }
- | ADD table_not_null { $$=&AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos} }
+ | alter_constraint {$$=$1}
  | DROP CONSTRAINT drop_target drop_mode { $$=&AlterTableAction{Constraint:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropConstraint,Pos:$1.pos} }
  | ALTER optional_column name ADD identity_definition { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AddIdentity,Identity:$5,Pos:$1.pos} }
  | ALTER optional_column name DROP IDENTITY { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
@@ -1399,14 +1400,18 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ADD optional_column column { c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos} }
  | ADD optional_column IF NOT EXISTS column { c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos} }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
- | ADD unique_constraint { sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=&AlterTableAction{} }
- | ADD primary_constraint {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
- | ADD using_index_constraint {$$=&AlterTableAction{Action:AddUsingIndex,UsingIndex:$2,Constraint:$2.Name,Pos:$1.pos}}
- | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
- | ADD foreign_key {sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=&AlterTableAction{}}
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} }
  | KW_U ROW LEVEL KW_U { if $4.text!="security" {sqllex.(*lexer).syntax($4);return 1};kind:=EnableRowSecurity;switch $1.text {case "enable":case "disable":kind=DisableRowSecurity;case "force":kind=ForceRowSecurity;default:sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos} }
  | NO KW_U ROW LEVEL KW_U {if $2.text!="force" {sqllex.(*lexer).syntax($2);return 1};if $5.text!="security" {sqllex.(*lexer).syntax($5);return 1};$$=&AlterTableAction{Action:NoForceRowSecurity,Pos:$1.pos}} ;
+alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos}}
+ | ADD check_constraint {$$=&AlterTableAction{Action:AddCheck,Check:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | ADD unique_constraint {$$=&AlterTableAction{Action:AddUnique,Unique:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | ADD primary_constraint {$$=&AlterTableAction{Action:AddUnique,Unique:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | ADD using_index_constraint {$$=&AlterTableAction{Action:AddUsingIndex,UsingIndex:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | ADD foreign_key {$$=&AlterTableAction{Action:AddForeignKey,ForeignKey:$2,Constraint:$2.Name,Pos:$1.pos}}
+ | alter_constraint NOT nn_modifier {if !sqllex.(*lexer).alterConstraintValidity($1,$2,$3){return 1};$$=$1}
+ | alter_constraint NO nn_inherit {if !sqllex.(*lexer).alterConstraintNoInherit($1,$2){return 1};$$=$1} ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET KW_U TYPE { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
 column_collation: /* empty */ {$$=nil}

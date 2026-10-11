@@ -53,6 +53,11 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 			return err
 		}
 	}
+	if alteration, ok := stmt.(*parser.AlterTable); ok && execute {
+		if err := s.acquireAlterForeignKeys(alteration); err != nil {
+			return err
+		}
+	}
 	if view, ok := stmt.(*parser.CreateView); ok {
 		if !execute {
 			return nil
@@ -201,7 +206,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return nil
 		}
 		name = v.Name
-		mode = accessExclusive
+		mode = alterTableLockMode(v)
 		ownerOnly = true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableOf:

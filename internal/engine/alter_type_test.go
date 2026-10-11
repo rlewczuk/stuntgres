@@ -19,8 +19,12 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a TYPE BIGINT USING a+1")
 	next := e.state.descriptors[ref.Address].(*relationDescriptor)
-	if next == old || next.address != old.address || next.owner != old.owner || !reflect.DeepEqual(next.attributes, old.attributes) || !reflect.DeepEqual(next.columnComments, old.columnComments) || !reflect.DeepEqual(next.notNullConstraints, old.notNullConstraints) {
+	if next == old || next.address != old.address || next.owner != old.owner || !reflect.DeepEqual(next.attributes, old.attributes) || !reflect.DeepEqual(next.columnComments, old.columnComments) || len(next.notNullConstraints) != len(old.notNullConstraints) {
 		t.Fatal(old, next)
+	}
+	beforeNN, afterNN := old.notNullConstraints[0], next.notNullConstraints[0]
+	if afterNN.OID == 0 || afterNN.OID == beforeNN.OID || afterNN.Name != beforeNN.Name || afterNN.Attribute != beforeNN.Attribute || afterNN.NotValid != beforeNN.NotValid || beforeNN.Name != "nn" || beforeNN.NotValid {
+		t.Fatal("TYPE failed to rebuild the same valid logical NN definition", beforeNN, afterNN)
 	}
 	schema := run(t, e, "SELECT * FROM t").Rows.Schema()
 	if schema[0].Usage.Type.ID() != 20 || schema[0].Usage.Typmod != -1 || schema[0].OriginAttribute != 1 || schema[0].OriginTable != uint32(ref.Address.ObjectID) || schema[0].Nullable {

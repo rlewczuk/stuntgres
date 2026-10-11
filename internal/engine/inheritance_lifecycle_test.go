@@ -55,7 +55,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if !reflect.DeepEqual(addresses, []ObjectAddress{left.address, leaf.address, right.address}) {
 		t.Fatal(addresses)
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address}, parser.DropRestrict, nil, nil, nil); err == nil {
+	if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address}, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err == nil {
 		t.Fatal("RESTRICT accepted descendants")
 	} else {
 		var d *sqlstate.Error
@@ -66,7 +66,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if len(stage.removals) != 1 || e.state != base.state {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*relationDescriptor{p, left, right, leaf} {
@@ -97,7 +97,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address, c.address}, parser.DropRestrict, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address, c.address}, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

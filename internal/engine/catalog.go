@@ -151,6 +151,7 @@ type notNullConstraint struct {
 	OID            OID
 	Name           string
 	Attribute      int32
+	NotValid       bool
 	partitionLocal bool // Explicit NN declaration merged with an inherited definition.
 }
 

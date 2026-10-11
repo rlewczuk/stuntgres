@@ -1,0 +1,52 @@
+package engine
+
+import "slices"
+
+// TYPE recreates affected NN identities without changing names or validity.
+// New attachments already describe the completed shape and are not recreated.
+func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relationDescriptor, changes []columnTransformation) (*relationDescriptor, error) {
+	original, ok := stage.base.state.descriptors[parent.address].(*relationDescriptor)
+	if !ok {
+		return nil, ErrCatalogReplaced
+	}
+	var next *relationDescriptor
+	for i, n := range parent.notNullConstraints {
+		incumbent := false
+		for _, old := range original.notNullConstraints {
+			if old.OID == n.OID {
+				incumbent = true
+				break
+			}
+		}
+		if !incumbent {
+			continue
+		}
+		affected := false
+		for _, change := range changes {
+			if change.attribute == n.Attribute {
+				affected = true
+				break
+			}
+		}
+		if !affected {
+			continue
+		}
+		if next == nil {
+			copy := *parent
+			copy.notNullConstraints = slices.Clone(parent.notNullConstraints)
+			next = &copy
+		}
+		oid, err := e.allocateOIDLocked()
+		if err != nil {
+			return nil, err
+		}
+		next.notNullConstraints[i].OID = oid
+	}
+	if next == nil {
+		return parent, nil
+	}
+	if err := stage.Replace(next); err != nil {
+		return nil, err
+	}
+	return next, nil
+}

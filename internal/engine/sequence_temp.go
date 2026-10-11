@@ -156,7 +156,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 			}
 		}
 		if err == nil {
-			err = stageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil)
+			err = stageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ObjectAddress{})
 		}
 		if err == nil {
 			err = stageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil)

@@ -64,6 +64,9 @@ func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreign
 			text += " (" + strings.Join(labels, ", ") + ")"
 		}
 	}
+	if f.NotValid {
+		text += " NOT VALID"
+	}
 	return text, nil
 }
 
@@ -312,7 +315,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address Obje
 			continue
 		}
 		for _, f := range child.foreignKeys {
-			if child.address != address && f.Target != address {
+			if f.NotValid || child.address != address && f.Target != address {
 				continue
 			}
 			parent := view.state.descriptors[f.Target].(*relationDescriptor)
@@ -342,14 +345,17 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address Obje
 func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStage) error {
 	var refs []ObjectRef
 	for address, descriptor := range stage.descriptors {
-		if _, existing := stage.base.state.descriptors[address]; existing {
-			continue
-		}
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
 		}
 		for _, f := range child.foreignKeys {
+			if installedForeignKey(stage, address, f) {
+				continue
+			}
+			if f.Target == address {
+				continue
+			}
 			if _, external := stage.base.state.descriptors[f.Target]; !external {
 				continue
 			}
@@ -385,14 +391,17 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
 	e.mu.Unlock()
 	for address, descriptor := range stage.descriptors {
-		if _, existing := stage.base.state.descriptors[address]; existing {
-			continue
-		}
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
 		}
 		for _, f := range child.foreignKeys {
+			if installedForeignKey(stage, address, f) {
+				continue
+			}
+			if f.Target == address {
+				continue
+			}
 			if _, external := stage.base.state.descriptors[f.Target]; !external {
 				continue
 			}

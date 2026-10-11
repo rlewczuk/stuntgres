@@ -38,7 +38,7 @@ func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, 
 			copy(closure, targets)
 		}
 		closure[len(targets)] = ref.Address
-		if err := stageExpressionDependencies(ctx, stage, closure, mode, scope, changes, project); err != nil {
+		if err := stageExpressionDependencies(ctx, stage, closure, mode, scope, changes, project, ObjectAddress{}); err != nil {
 			return err
 		}
 		if scope != nil {

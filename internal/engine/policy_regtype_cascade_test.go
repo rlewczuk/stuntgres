@@ -37,7 +37,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err := stage.Remove(providerRef); err != nil {
 						t.Fatal(err)
 					}
-					if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil); err != nil {
+					if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					next, ok := stage.descriptors[old.address].(*relationDescriptor)

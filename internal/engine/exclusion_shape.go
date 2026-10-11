@@ -1,73 +1,11 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"stuntgres/internal/sqltype"
 )
 
-func validateAddedExclusions(ctx context.Context, auth AuthorizationView, catalog CatalogRead, original, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment) (map[string]*logicalIndexRoot, error) {
-	var added []*relationDescriptor
-	for _, c := range parent.exclusionConstraints {
-		old := false
-		for _, prior := range original.exclusionConstraints {
-			if prior.OID == c.OID && prior.Index == c.Index {
-				old = true
-				break
-			}
-		}
-		if old {
-			continue
-		}
-		index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing exclusion build index")
-		}
-		added = append(added, index)
-	}
-	if len(added) == 0 {
-		return nil, nil
-	}
-	validation := store
-	overlay := len(writes) != 0 || deletes != nil && len(deletes.rows) != 0
-	if overlay {
-		replaced := make(map[RowID]bool, len(writes))
-		for _, row := range writes {
-			replaced[row.row] = true
-		}
-		rows := make([]rowVersion, 0, len(store.versions)+len(writes))
-		for _, row := range store.versions {
-			if !replaced[row.row] && liveVersion(row, CommitSeq(^uint64(0)), store.ends, deletes) {
-				rows = append(rows, row)
-			}
-		}
-		for _, row := range writes {
-			if !uniqueRowDeleted(row.row, deletes) {
-				rows = append(rows, row)
-			}
-		}
-		validation = &relationStorage{versions: rows}
-	}
-	var roots map[string]*logicalIndexRoot
-	if !overlay {
-		roots = make(map[string]*logicalIndexRoot, len(added))
-	}
-	auth.catalog = catalog
-	for _, index := range added {
-		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, validation)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateExclusionRoot(ctx, parent, index, root, schema, output, &auth, true); err != nil {
-			return nil, err
-		}
-		if roots != nil {
-			roots[index.name] = root
-		}
-	}
-	return roots, nil
-}
 func (s *StatementScope) prepareExclusionShape(original, parent *relationDescriptor, catalog CatalogRead, writes []rowVersion, deletes *privateDeletionRoot) error {
 	if len(original.exclusionConstraints)+len(parent.exclusionConstraints) == 0 {
 		return nil

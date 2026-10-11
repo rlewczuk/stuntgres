@@ -95,7 +95,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						return nil
 					}
 					if definition == "column" || authority == "whole" {
-						err = stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project)
+						err = stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project, ObjectAddress{})
 					} else if definition == "default" {
 						var edges []defaultDependencyEdge
 						edges, err = stageDefaultDependents(stage, roots, mode)
@@ -191,7 +191,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if err := stage.Remove(ref); err != nil {
 				t.Fatal(err)
 			}
-			if err := stageExpressionDependencies(op.Context(), stage, []ObjectAddress{q.address}, parser.DropCascade, scope, nil, nil); err != nil {
+			if err := stageExpressionDependencies(op.Context(), stage, []ObjectAddress{q.address}, parser.DropCascade, scope, nil, nil, ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			if stage.removals[q.address].descriptor != q || stage.removals[c.address].descriptor != c {

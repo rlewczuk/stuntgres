@@ -319,6 +319,7 @@ type CheckConstraint struct {
 	Name       Identifier
 	Expression Expr
 	NoInherit  bool
+	NotValid   bool
 	Pos        Position
 }
 
@@ -339,6 +340,7 @@ type ForeignKeyConstraint struct {
 	Target        ObjectName
 	Referenced    []Identifier
 	Full          bool
+	NotValid      bool
 	Pos           Position
 	UpdateAction  ForeignKeyAction
 	DeleteAction  ForeignKeyAction
@@ -749,6 +751,9 @@ const (
 	AddUsingIndex
 	SetExpression
 	DropExpression
+	AddCheck
+	AddUnique
+	AddForeignKey
 )
 
 type AlterTableAction struct {
@@ -767,6 +772,12 @@ type AlterTableAction struct {
 	Exclusion   *ExclusionConstraint
 	UsingIndex  *UsingIndexConstraint
 	Generation  *GenerationDefinition
+	Check       *CheckConstraint
+	Unique      *UniqueConstraint
+	ForeignKey  *ForeignKeyConstraint
+	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
+	NotValid    bool
+	ValidityPos Position
 }
 
 type AlterTable struct {

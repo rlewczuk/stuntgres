@@ -110,6 +110,16 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		}
 		name = generatedConstraintName(parent.name, strings.Join(labels, "_"), "excl", used)
 	} else {
+		if _, altering := stage.base.state.descriptors[parent.address]; altering {
+			if auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}] != (ObjectAddress{}) {
+				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+			}
+		}
+		for _, c := range parent.foreignKeys {
+			if c.Name == name {
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+			}
+		}
 		for _, c := range parent.uniqueConstraints {
 			if c.Name == name {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))

@@ -110,8 +110,11 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Persistent policies referencing TEMP objects are rejected before writer I/O.
 // Protected raw rows are exported before independent enabled/forced flag ALTERs;
 // policy-expression enforcement remains unsupported.
-// FK declarations are ordinary CREATE syntax; native Restore handles their
-// forward references/cycles independently of table definition output order.
+// Valid FK declarations use ordinary CREATE syntax; invalid NOT NULL, CHECK and
+// FK definitions follow ordinary data in eligible ALTER TABLE ADD statements.
+// Native Restore handles valid FK forward references/cycles independently of
+// table definition output order and preserves invalid definitions without
+// disabling enforcement for newly inserted or updated rows.
 // All admitted ON DELETE/UPDATE actions and DELETE SET subsets are serialized
 // canonically using current stable-attribute names, without evaluating defaults.
 // Registered extension installations precede their CHECK/view consumers. Native
@@ -152,9 +155,10 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Its initialized private catalog preserves legacy streams and reconstructs
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
 // FK owner/schema authority is captured at declaration. Attachments and final
-// rows are validated after isolated table/index/data staging, before installation;
-// actions/lists survive import, but Restore never cascades to repair invalid data.
-// This does not admit public ALTER ADD FOREIGN KEY or defer ordinary SQL checks.
+// valid relationships are validated after isolated table/index/data staging,
+// before installation. Eligible NOT VALID ADD declarations retain historical
+// rows; arbitrary ALTER and VALIDATE CONSTRAINT remain excluded from Restore.
+// Actions/lists survive import; Restore never cascades to repair invalid data.
 // Named owners must already exist. Private Restore-stage CREATE TABLE/COLLATION
 // destination authority preserves independent schema/object owners without ACL grants.
 // Private stage INSERT and database-local COMMENT use validated captured bootstrap

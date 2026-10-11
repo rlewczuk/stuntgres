@@ -65,8 +65,9 @@ func TestReferenceNotNullPublicExcludedSyntaxAndQuotedDiagnostics(t *testing.T) 
 	p.Step(t, fixture.ImplicitError(`ALTER TABLE "t""é" ALTER "a""b\\tail" SET NOT NULL`, fixture.Diagnostic{Code: "23502", Message: `column "a"b\\tail" of relation "t"é" contains null values`, Schema: "public", Table: `t"é`, Column: `a"b\\tail`}))
 	p.Step(t, fixture.Exec("CREATE TABLE t(a INT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO t VALUES(7)", 1))
+	p.Step(t, fixture.Prepared(fixture.Exec("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a NOT VALID", 0)))
+	p.Step(t, fixture.ImplicitError("INSERT INTO t VALUES(NULL)", fixture.Diagnostic{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "a"}))
 	for _, tc := range []struct{ q, token, message string }{
-		{"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported"},
 		{"ALTER TABLE t VALIDATE CONSTRAINT nn", "VALIDATE", "ALTER TABLE action is unsupported"},
 		{"CREATE TABLE noinherit(a INT NOT NULL NO INHERIT)", "NO INHERIT", "NOT NULL modifiers are unsupported"},
 	} {
@@ -83,7 +84,6 @@ func TestReferenceNotNullPublicExcludedSyntaxAndQuotedDiagnostics(t *testing.T) 
 	}
 	if p.Postgres != nil {
 		pg := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
-		pg(fixture.Exec("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a NOT VALID", 0))
 		pg(fixture.Exec("ALTER TABLE t VALIDATE CONSTRAINT nn", 0))
 		pg(fixture.Exec("CREATE TABLE noinherit(a INT NOT NULL NO INHERIT)", 0))
 	}

@@ -480,12 +480,14 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 			return fmt.Errorf("stuntgres: missing generated replacement storage")
 		}
 		schema := next.descriptors[descriptor.namespace].Name()
+		historical := validCheckTraversal(descriptor)
+		requiredNotNull := newAlterRowValidator(descriptor, schema).notNull
 		if eval.statementScope != nil {
 			stage := eval.statementScope.op.session.Engine()
 			stage.mu.Lock()
-			err := stage.captureCheckCommentSnapshotLocked(eval.statementScope, descriptor)
+			err := stage.captureCheckCommentSnapshotLocked(eval.statementScope, historical)
 			if err == nil {
-				err = stage.captureCheckVisibilitySnapshotLocked(eval.statementScope, descriptor)
+				err = stage.captureCheckVisibilitySnapshotLocked(eval.statementScope, historical)
 			}
 			stage.mu.Unlock()
 			if err != nil {
@@ -500,10 +502,8 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 			if err := evaluateGenerations(ctx, &filtered, row, &eval); err != nil {
 				return err
 			}
-			for slot, column := range descriptor.columns {
-				if column.Nullable {
-					continue
-				}
+			for _, slot := range requiredNotNull {
+				column := descriptor.columns[slot]
 				value, err := logicalColumnValue(descriptor, slot, row, &eval)
 				if err != nil {
 					return err
@@ -516,7 +516,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 					return notNullDetailError(schema, descriptor.name, column.Name, detail)
 				}
 			}
-			constraint, err := validateCheckRow(descriptor, row, &eval)
+			constraint, err := validateCheckRow(historical, row, &eval)
 			if err != nil {
 				return err
 			}

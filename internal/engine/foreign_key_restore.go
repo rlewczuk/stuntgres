@@ -118,7 +118,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 				e.mu.Unlock()
 				return ErrCatalogReplaced
 			}
-			if err := e.stageForeignKey(declaration.auth, stage, child, definition.raw, target); err != nil {
+			if err := e.stageForeignKey(declaration.auth, stage, child, definition.raw, target, ObjectAddress{}); err != nil {
 				e.mu.Unlock()
 				return err
 			}
@@ -131,6 +131,9 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		auth := declaration.auth
 		auth.catalog = view
 		for _, f := range child.foreignKeys {
+			if f.NotValid {
+				continue
+			}
 			parent := view.state.descriptors[f.Target].(*relationDescriptor)
 			index := view.state.descriptors[f.Index].(*relationDescriptor)
 			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)

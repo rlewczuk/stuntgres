@@ -71,7 +71,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	}
 	qualifier := queryQualifier{name: next.name, original: next.name, schema: auth.catalog.state.descriptors[next.namespace].Name(), ref: ref, columns: columns}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.columns}
-	ordered := make([]checkConstraint, 0, len(queue))
+	var ordered []checkConstraint
 	for _, pending := range queue {
 		// Parse in CHECK context so selected calls remain functions, rather than
 		// the general scalar grammar's function-style casts. Only the extracted
@@ -96,6 +96,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			return nil, nil, alterTypeCheckReparseError(err)
 		}
 		definition := replacement.checkConstraints[pending.index]
+		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.expression, definition.dependencies, definition.commentSnapshot, definition.visibilitySnapshot = node, nil, false, false
 		var dependencies []ObjectRef
 		if _, err := (scalarRenderer{owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
@@ -111,13 +112,15 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: dependency, revision: revision})
 		}
 		replacement.checkConstraints[pending.index] = definition
-		ordered = append(ordered, definition)
 	}
 	if err := refreshGenerationChecks(&replacement, auth.catalog); err != nil {
 		return nil, nil, err
 	}
-	for i, pending := range queue {
-		ordered[i] = replacement.checkConstraints[pending.index]
+	for _, pending := range queue {
+		definition := replacement.checkConstraints[pending.index]
+		if !definition.NotValid {
+			ordered = append(ordered, definition)
+		}
 	}
 	return &replacement, ordered, nil
 }
@@ -137,13 +140,12 @@ type alterRowValidator struct {
 	relation *relationDescriptor
 	checks   *relationDescriptor
 	schema   string
+	notNull  []int
 }
 
 func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext) error {
-	for slot, column := range v.relation.columns {
-		if column.Nullable {
-			continue
-		}
+	for _, slot := range v.notNull {
+		column := v.relation.columns[slot]
 		value, err := logicalColumnValue(v.relation, slot, row, evaluation)
 		if err != nil {
 			return err
@@ -164,4 +166,43 @@ func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext
 	diagnostic := sqlError("23514", fmt.Sprintf(`check constraint "%s" of relation "%s" is violated by some row`, failed.Name, v.relation.name)).(*sqlstate.Error)
 	diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = v.schema, v.relation.name, failed.Name
 	return diagnostic
+}
+
+func newAlterRowValidator(relation *relationDescriptor, schema string) alterRowValidator {
+	v := alterRowValidator{relation: relation, schema: schema}
+	for slot, column := range relation.columns {
+		if column.Nullable {
+			continue
+		}
+		invalid := false
+		for _, n := range relation.notNullConstraints {
+			if n.Attribute == relation.attributes[slot] {
+				invalid = n.NotValid
+				break
+			}
+		}
+		if !invalid {
+			v.notNull = append(v.notNull, slot)
+		}
+	}
+	return v
+}
+
+func needsNotNullScan(original, next *relationDescriptor) bool {
+	for _, n := range next.notNullConstraints {
+		if n.NotValid {
+			continue
+		}
+		valid := false
+		for _, old := range original.notNullConstraints {
+			if old.Attribute == n.Attribute {
+				valid = !old.NotValid
+				break
+			}
+		}
+		if !valid {
+			return true
+		}
+	}
+	return false
 }

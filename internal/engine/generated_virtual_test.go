@@ -138,7 +138,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	d.columns[1].Nullable = false
-	validator := alterRowValidator{relation: d, schema: "public"}
+	validator := newAlterRowValidator(d, "public")
 	if err := validator.validate(row, &eval); err != nil {
 		t.Fatal("physical NULL rejected logical nine", err)
 	}

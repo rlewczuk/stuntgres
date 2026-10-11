@@ -187,6 +187,11 @@ func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *rel
 		if index.sqlIndex.nullsNotDistinct {
 			return nil, sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
 		}
+		for _, n := range parent.notNullConstraints {
+			if n.NotValid && slices.Contains(captured.attributes, n.Attribute) {
+				return nil, incompatibleNotValid(n.Name, parent.name)
+			}
+		}
 	}
 	// Renaming an index attached earlier in this same action list also renames
 	// that constraint; inserting another identity then collides under the new name.

@@ -76,12 +76,20 @@ func TestForeignKeyGrammarBoundaries(t *testing.T) {
 			t.Fatal(q, statements, diagnostic, err)
 		}
 	}
-	for _, q := range []string{`ALTER TABLE c ADD FOREIGN KEY(a) REFERENCES p`, `ALTER TABLE c ADD a INT REFERENCES p`} {
+	for _, q := range []string{`ALTER TABLE c ADD a INT REFERENCES p`} {
 		statements, err := Parse(q)
 		var d *sqlstate.Error
 		if statements != nil || !errors.As(err, &d) || d.Code != "0A000" || d.Message != "ALTER TABLE action is unsupported" {
 			t.Fatal(q, statements, err)
 		}
+	}
+	statements, err := Parse(`ALTER TABLE c ADD FOREIGN KEY(a) REFERENCES p`)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	action := statements[0].(*AlterTable).Actions[0]
+	if action.Action != AddForeignKey || action.ForeignKey == nil || len(action.ForeignKey.Columns) != 1 || action.ForeignKey.Columns[0].Text != "a" || action.ForeignKey.Target.Parts[0].Text != "p" || action.ForeignKey.NotValid {
+		t.Fatal(action)
 	}
 }
 

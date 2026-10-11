@@ -48,7 +48,6 @@ func TestNotNullDropIfIdentifierAndModifierContexts(t *testing.T) {
 func TestNotNullParserBoundaries(t *testing.T) {
 	for _, tc := range []struct{ q, token, message, code string }{
 		{"CREATE TABLE t(a INT,NOT NULL (a))", "(", `syntax error at or near "("`, "42601"},
-		{"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported", "0A000"},
 		{"CREATE TABLE t(a INT NOT NULL NO INHERIT)", "NO INHERIT", "NOT NULL modifiers are unsupported", "0A000"},
 		{"ALTER TABLE t VALIDATE CONSTRAINT nn", "VALIDATE", "ALTER TABLE action is unsupported", "0A000"},
 	} {

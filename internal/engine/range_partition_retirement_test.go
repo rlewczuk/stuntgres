@@ -86,7 +86,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: provider.address}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
@@ -220,7 +220,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	provider, _ := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {

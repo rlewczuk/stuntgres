@@ -27,6 +27,11 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 	var next *relationDescriptor
 	for i, old := range parent.exclusionConstraints {
 		index, ok := stage.base.state.descriptors[old.Index].(*relationDescriptor)
+		if !ok {
+			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
+				continue // New definitions already bind the completed TYPE shape.
+			}
+		}
 		if !ok || index.sqlIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE exclusion index")
 		}

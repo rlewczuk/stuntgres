@@ -887,7 +887,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				if !c.Nullable && (t.descriptor.inheritance == nil || t.descriptor.inheritance.notNull[t.attributes[i]].local) {
 					for _, constraint := range t.notNullConstraints {
-						if constraint.Attribute == t.attributes[i] {
+						if constraint.Attribute == t.attributes[i] && !constraint.NotValid {
 							line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
 							break
 						}
@@ -896,6 +896,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if graph := t.descriptor.inheritance; graph != nil {
 				for _, constraint := range t.notNullConstraints {
+					if constraint.NotValid {
+						continue
+					}
 					if graph.columns[constraint.Attribute].local || !graph.notNull[constraint.Attribute].local {
 						continue
 					}
@@ -908,6 +911,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, c := range orderedChecks(t.descriptor) {
+				if c.NotValid {
+					continue
+				}
 				if t.descriptor.inheritance != nil && !t.descriptor.inheritance.checks[c.Name].local {
 					continue
 				}
@@ -958,6 +964,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 			}
 			for _, f := range t.descriptor.foreignKeys {
+				if f.NotValid {
+					continue
+				}
 				text, err := (pgRenderer{view: catalog}).foreignKeyConstraintSQL(t.descriptor, f)
 				if err != nil {
 					return err
@@ -1082,6 +1091,25 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			currentOwner = t.owner
 		}
 		if err := t.emitRows(ctx, originalCatalog, emit); err != nil {
+			return err
+		}
+	}
+	for _, oid := range viewOrder {
+		index, isTable := tableIndices[oid]
+		if !isTable {
+			continue
+		}
+		t := tables[index]
+		if !t.hasInvalidConstraints() {
+			continue
+		}
+		if t.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = t.owner
+		}
+		if err := t.emitInvalidConstraints(ctx, catalog, emit); err != nil {
 			return err
 		}
 	}
@@ -1266,13 +1294,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if rowSecurityActions(s.Actions) {
 				break
 			}
-			if len(s.Actions) == 0 {
-				return sqlError("0A000", "restore accepts only existing-index constraint attachments")
-			}
-			for _, action := range s.Actions {
-				if action.Action != parser.AddUsingIndex {
-					return sqlError("0A000", "restore accepts only existing-index constraint attachments")
-				}
+			if err := restoreAlterConstraints(s); err != nil {
+				return err
 			}
 		case *parser.AlterTableOf:
 			if s.Type == nil {
@@ -1336,7 +1359,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, materialized extension dependency ALTER, row-security flag ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {

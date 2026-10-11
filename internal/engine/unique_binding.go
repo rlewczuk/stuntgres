@@ -23,35 +23,11 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 		if raw.Primary && primary >= 0 {
 			return insertError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, table), raw.Pos)
 		}
-		width := len(raw.Columns)
-		if column != nil {
-			width = 1
+		definition, err := bindUniqueAttributes(raw, column, index, nil)
+		if err != nil {
+			return err
 		}
-		if width == 0 || width > 32 {
-			return sqlError("54011", "cannot use more than 32 columns in an index")
-		}
-		c := createUniqueConstraint{uniqueConstraint: uniqueConstraint{Name: raw.Name.Text, Primary: raw.Primary, NullsNotDistinct: raw.NullsNotDistinct, Attributes: make([]int32, width)}}
-		for i := range c.Attributes {
-			name := ""
-			if column != nil {
-				name = column.Name
-			} else {
-				name = raw.Columns[i].Text
-			}
-			slot, ok := index[name]
-			if !ok {
-				return insertError("42703", fmt.Sprintf(`column "%s" named in key does not exist`, name), raw.Pos)
-			}
-			attribute := int32(slot + 1)
-			if slices.Contains(c.Attributes[:i], attribute) {
-				kind := "unique"
-				if raw.Primary {
-					kind = "primary key"
-				}
-				return insertError("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, name, kind), raw.Pos)
-			}
-			c.Attributes[i] = attribute
-		}
+		c := createUniqueConstraint{uniqueConstraint: definition}
 		if raw.Primary {
 			primary = len(declarations)
 		}
@@ -129,4 +105,42 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 		}
 	}
 	return retained, nil
+}
+
+// CREATE's sequential attributes and ALTER's sparse stable attributes use the
+// same key-list rules, without synthesizing a CREATE statement or slot identity.
+func bindUniqueAttributes(raw *parser.UniqueConstraint, column *parser.Column, index map[string]int, attributes []int32) (uniqueConstraint, error) {
+	width := len(raw.Columns)
+	if column != nil {
+		width = 1
+	}
+	if width == 0 || width > 32 {
+		return uniqueConstraint{}, sqlError("54011", "cannot use more than 32 columns in an index")
+	}
+	c := uniqueConstraint{Name: raw.Name.Text, Primary: raw.Primary, NullsNotDistinct: raw.NullsNotDistinct, Attributes: make([]int32, width)}
+	for i := range c.Attributes {
+		name := ""
+		if column != nil {
+			name = column.Name
+		} else {
+			name = raw.Columns[i].Text
+		}
+		slot, ok := index[name]
+		if !ok {
+			return uniqueConstraint{}, insertError("42703", fmt.Sprintf(`column "%s" named in key does not exist`, name), raw.Pos)
+		}
+		attribute := int32(slot + 1)
+		if attributes != nil {
+			attribute = attributes[slot]
+		}
+		if slices.Contains(c.Attributes[:i], attribute) {
+			kind := "unique"
+			if raw.Primary {
+				kind = "primary key"
+			}
+			return uniqueConstraint{}, insertError("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, name, kind), raw.Pos)
+		}
+		c.Attributes[i] = attribute
+	}
+	return c, nil
 }

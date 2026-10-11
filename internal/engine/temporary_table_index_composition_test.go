@@ -66,7 +66,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err := stage.Remove(providerRef); err != nil {
 				t.Fatal(err)
 			}
-			if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project); err != nil {
+			if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project, ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			intermediate := stage.descriptors[index.address].(*relationDescriptor)

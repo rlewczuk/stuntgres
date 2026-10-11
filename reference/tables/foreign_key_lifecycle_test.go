@@ -73,17 +73,16 @@ func foreignKeyRoundtrip(t *testing.T, p *fixture.Pair) {
 
 func TestReferenceForeignKeyNativeControls(t *testing.T) {
 	foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
-		// PostgreSQL establishes the same cyclic graph through its real ALTER.
-		// Native uses only the documented isolated pending-CREATE replay path.
-		if b.PG {
-			for _, q := range []string{"CREATE TABLE a(id INT PRIMARY KEY,bid INT)", "CREATE TABLE b(id INT PRIMARY KEY,aid INT)", "INSERT INTO a VALUES(1,2)", "INSERT INTO b VALUES(2,1)", "ALTER TABLE a ADD CONSTRAINT a_fk FOREIGN KEY(bid) REFERENCES b(id)", "ALTER TABLE b ADD CONSTRAINT b_fk FOREIGN KEY(aid) REFERENCES a(id)"} {
-				n := int64(0)
-				if strings.HasPrefix(q, "INSERT") {
-					n = 1
-				}
-				run(fixture.Exec(q, n))
+		// Both engines establish the ordinary cyclic graph through real ADD.
+		for _, q := range []string{"CREATE TABLE a(id INT PRIMARY KEY,bid INT)", "CREATE TABLE b(id INT PRIMARY KEY,aid INT)", "INSERT INTO a VALUES(1,2)", "INSERT INTO b VALUES(2,1)", "ALTER TABLE a ADD CONSTRAINT a_fk FOREIGN KEY(bid) REFERENCES b(id)", "ALTER TABLE b ADD CONSTRAINT b_fk FOREIGN KEY(aid) REFERENCES a(id)"} {
+			n := int64(0)
+			if strings.HasPrefix(q, "INSERT") {
+				n = 1
 			}
-		} else {
+			run(fixture.Exec(q, n))
+		}
+		if !b.PG {
+			// Also retain the independent isolated pending-CREATE replay witness.
 			script := "CREATE TABLE a(id INT PRIMARY KEY,bid INT CONSTRAINT a_fk REFERENCES b(id)); CREATE TABLE b(id INT PRIMARY KEY,aid INT CONSTRAINT b_fk REFERENCES a(id)); INSERT INTO a VALUES(1,2); INSERT INTO b VALUES(2,1);"
 			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(script)); err != nil {
 				t.Fatal(err)

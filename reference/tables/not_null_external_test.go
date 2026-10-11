@@ -98,12 +98,12 @@ func TestReferenceNotNullExternalDeferredValidation(t *testing.T) {
 	p := fixture.NewScenario(t)
 	p.Step(t, fixture.Exec("CREATE TABLE nn_valid(a INT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO nn_valid VALUES(NULL)", 1))
+	p.Step(t, fixture.Prepared(fixture.Exec("ALTER TABLE nn_valid ADD CONSTRAINT nn NOT NULL a NOT VALID", 0)))
+	p.Step(t, fixture.ImplicitError("INSERT INTO nn_valid VALUES(NULL)", fixture.Diagnostic{Code: "23502", Message: `null value in column "a" of relation "nn_valid" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "nn_valid", Column: "a"}))
+	p.Step(t, fixture.Exec("INSERT INTO nn_valid VALUES(7)", 1))
 	if p.Postgres != nil {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
-		run(fixture.Exec("ALTER TABLE nn_valid ADD CONSTRAINT nn NOT NULL a NOT VALID", 0))
 		run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{false}}))
-		run(fixture.ImplicitError("INSERT INTO nn_valid VALUES(NULL)", fixture.Diagnostic{Code: "23502", Message: `null value in column "a" of relation "nn_valid" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "nn_valid", Column: "a"}))
-		run(fixture.Exec("INSERT INTO nn_valid VALUES(7)", 1))
 		run(fixture.ImplicitError("ALTER TABLE nn_valid VALIDATE CONSTRAINT nn", fixture.Diagnostic{Code: "23502", Message: `column "a" of relation "nn_valid" contains null values`, Schema: "public", Table: "nn_valid", Column: "a"}))
 		run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{false}}))
 		run(fixture.Exec("UPDATE nn_valid SET a=8 WHERE a IS NULL", 1))
@@ -111,11 +111,8 @@ func TestReferenceNotNullExternalDeferredValidation(t *testing.T) {
 		run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='nn_valid'::regclass AND contype='n'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}))
 		run(fixture.Select("SELECT * FROM nn_valid ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(8)}}))
 	}
-	for _, q := range []string{"ALTER TABLE nn_valid ADD CONSTRAINT nn NOT NULL a NOT VALID", "ALTER TABLE nn_valid VALIDATE CONSTRAINT nn"} {
-		token, message := "NOT VALID", "NOT NULL modifiers are unsupported"
-		if strings.Contains(q, "VALIDATE") {
-			token, message = "VALIDATE", "ALTER TABLE action is unsupported"
-		}
+	for _, q := range []string{"ALTER TABLE nn_valid VALIDATE CONSTRAINT nn"} {
+		token, message := "VALIDATE", "ALTER TABLE action is unsupported"
 		for _, prepared := range []bool{false, true} {
 			step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: message, Position: strconv.Itoa(strings.Index(q, token) + 1)})
 			step.Prepared = prepared
@@ -125,5 +122,5 @@ func TestReferenceNotNullExternalDeferredValidation(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, step)
 		}
 	}
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT * FROM nn_valid", []string{"a"}, []string{"INT4"}, [][]any{{nil}}))
+	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT * FROM nn_valid ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {nil}}))
 }

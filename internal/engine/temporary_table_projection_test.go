@@ -46,7 +46,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	indexes, err := e.prepareTemporarySessionIndexes(stage)
@@ -273,7 +273,7 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 				}
 			})
 			stage := e.BeginCatalogStage(e.CatalogRead())
-			err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil)
+			err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{})
 			if err == nil {
 				e.mu.Lock()
 				err = e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil)

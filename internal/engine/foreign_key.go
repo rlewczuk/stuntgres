@@ -24,6 +24,7 @@ type foreignKeyConstraint struct {
 	UpdateAction     parser.ForeignKeyAction
 	DeleteAction     parser.ForeignKeyAction
 	DeleteAttributes []int32
+	NotValid         bool
 }
 
 type foreignKeyComparison struct {
@@ -168,7 +169,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescrip
 	return nil
 }
 
-func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, raw parser.ForeignKeyConstraint, target ObjectAddress) error {
+func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, raw parser.ForeignKeyConstraint, target, supporting ObjectAddress) error {
 	view := e.stageRead(stage)
 	auth.catalog = view
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: target}
@@ -254,7 +255,21 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 			return sqlError("42830", "foreign key referenced-columns list must not contain duplicates")
 		}
 	}
-	index, err := foreignKeyIndex(view, parent, referenced)
+	var index *relationDescriptor
+	if supporting == (ObjectAddress{}) {
+		index, err = foreignKeyIndex(view, parent, referenced)
+	} else {
+		var ok bool
+		index, ok = view.state.descriptors[supporting].(*relationDescriptor)
+		if !ok {
+			return ErrCatalogReplaced
+		}
+		var eligible bool
+		eligible, err = foreignKeyIndexEligible(parent, index, referenced)
+		if err == nil && !eligible {
+			return ErrCatalogReplaced
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -273,7 +288,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if relationConstraintNameExists(child, name) {
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.name))
 	}
-	f := foreignKeyConstraint{Name: name, Attributes: local, Target: parent.address, Referenced: referenced, Index: index.address, Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes}
+	f := foreignKeyConstraint{Name: name, Attributes: local, Target: parent.address, Referenced: referenced, Index: index.address, Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
 	if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
@@ -309,7 +324,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 			}
 			target = current.Address
 		}
-		if err := e.stageForeignKey(auth, stage, child, raw, target); err != nil {
+		if err := e.stageForeignKey(auth, stage, child, raw, target, ObjectAddress{}); err != nil {
 			return err
 		}
 	}

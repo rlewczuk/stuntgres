@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// AX protects the captured incarnation; candidates remain private until Finish.
+// The strictest captured ALTER grant protects the incarnation until Finish.
 // The caller holds Engine.mu. Every return releases it before callbacks/scanning.
 func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTable, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
@@ -56,7 +56,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		switch action.Action {
 		case parser.DropNotNull:
 			label = "ALTER COLUMN ... DROP NOT NULL"
-		case parser.AddNotNull, parser.AddExclusion, parser.AddUsingIndex:
+		case parser.AddNotNull, parser.AddCheck, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AddUsingIndex:
 			label = "ADD CONSTRAINT"
 		case parser.DropConstraint:
 			label = "DROP CONSTRAINT"
@@ -84,6 +84,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	if err := inheritanceAlterActionsGuard(auth.catalog, old, s.Actions); err != nil {
+		return fail(err)
+	}
+	if err := verifyAlterPrimaryPrerequisites(old, s.Actions); err != nil {
 		return fail(err)
 	}
 	if rowSecurityActions(s.Actions) {
@@ -121,20 +124,24 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var pendingChecks []alterTypeCheck
 	var pendingIndexes []alterTypeIndex
 	var typeChecks []checkConstraint
+	var addedChecks []checkConstraint
+	var addedIndexes []ObjectAddress
+	var addedForeignKeys []OID
 	var additions []addedColumn
 	var replacements []int32
 	var attachments []usingIndexAttachment
 	hasAttachments := false
+	hasForeignKeys := len(scope.alterForeignKeys) != 0
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
-	// PostgreSQL orders DROP, TYPE, ADD columns, generated SET, nullability,
-	// constraints, then identity ADD/SET. Each pass retains source list order.
-	for pass := range 8 {
+	// Keep shape/generated/identity phases. Index metadata precedes other
+	// constraint bindings; historical row checks run only after index builds.
+	for pass := range 9 {
 		typeIndex := 0
 		attachmentIndex := 0
 		for _, action := range s.Actions {
-			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn || action.Action == parser.DropExpression) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetExpression || pass == 4 && action.Action == parser.SetNotNull || pass == 5 && (action.Action == parser.AddNotNull || action.Action == parser.AddExclusion || action.Action == parser.AddUsingIndex) || pass == 6 && action.Action == parser.AddIdentity || pass == 7 && action.Action == parser.SetIdentity
+			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn || action.Action == parser.DropExpression) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetExpression || pass == 4 && action.Action == parser.SetNotNull || pass == 5 && (action.Action == parser.AddUnique || action.Action == parser.AddExclusion || action.Action == parser.AddUsingIndex) || pass == 6 && action.Action == parser.AddNotNull || pass == 7 && action.Action == parser.AddIdentity || pass == 8 && action.Action == parser.SetIdentity
 			if !selected {
 				continue
 			}
@@ -179,6 +186,15 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			} else if action.Action == parser.AddUsingIndex {
 				next, err = e.stageUsingIndex(op, stage, next, attachments[attachmentIndex])
 				attachmentIndex++
+			} else if action.Action == parser.AddUnique {
+				if stage == nil {
+					stage = e.BeginCatalogStage(auth.catalog)
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+				}
+				next, err = e.stageAddedUnique(op, auth, stage, next, action.Unique)
+				if err == nil {
+					addedIndexes = append(addedIndexes, next.uniqueConstraints[len(next.uniqueConstraints)-1].Index)
+				}
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
@@ -190,6 +206,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				e.mu.Lock()
 				err = e.stageExclusion(op, scope.input, auth, stage, next, action.Exclusion)
 				e.mu.Unlock()
+				if err == nil {
+					addedIndexes = append(addedIndexes, next.exclusionConstraints[len(next.exclusionConstraints)-1].Index)
+				}
 			} else {
 				next, err = notNullCandidate(op, auth.catalog, next, action)
 			}
@@ -198,7 +217,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 		if pass == 0 {
-			pendingChecks, err = captureAlterTypeChecks(op, auth.catalog, old, next, s.Actions)
+			next, stage, err = e.stageDroppedConstraintIndexes(scope, auth, stage, old, next, s.Actions, changes)
+			if err == nil {
+				pendingChecks, err = captureAlterTypeChecks(op, auth.catalog, old, next, s.Actions)
+			}
 			if err == nil {
 				pendingIndexes, err = captureAlterTypeIndexes(scope, auth.catalog, old, next, s.Actions)
 			}
@@ -236,8 +258,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 			}
 		}
-		if err == nil && pass == 5 {
+		if err == nil && pass == 6 {
 			var raw []*parser.CheckConstraint
+			for _, action := range s.Actions {
+				if action.Action == parser.AddCheck {
+					raw = append(raw, action.Check)
+				}
+			}
 			for _, added := range additions {
 				for _, constraint := range added.column.Constraints {
 					if constraint.Check != nil {
@@ -245,18 +272,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					}
 				}
 			}
-			before := make(map[int]bool, len(next.checkConstraints))
-			for _, check := range next.checkConstraints {
-				before[check.ordinal] = true
+			if len(raw) > 1 {
+				slices.SortFunc(raw, func(a, b *parser.CheckConstraint) int { return a.Pos.Offset - b.Pos.Offset })
 			}
-			err = e.bindColumnChecks(op, auth, raw, next, scope.input, true, nil)
-			if err == nil {
-				for _, check := range orderedChecks(next) {
-					if !before[check.ordinal] {
-						typeChecks = append(typeChecks, check)
-					}
-				}
+			if len(raw) != 0 && stage == nil {
+				stage = e.BeginCatalogStage(auth.catalog)
+				stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 			}
+			next, err = e.stageAddedChecks(scope, op, auth, stage, next, raw, &addedChecks)
 		}
 		if err != nil {
 			return Result{}, err
@@ -270,7 +293,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	changedValues := len(transformations) != 0 || len(storedReplacements) != 0
 	next = rowSecurityFlags(next, s.Actions)
-	if len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
+	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
 		return Result{}, nil
 	}
 	if next != old {
@@ -344,6 +367,49 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err
+	}
+	// Complete TYPE provider rebinding before adding queued FK definitions.
+	// Their selected supporting keys now have the final private key shape.
+	e.mu.Lock()
+	if ref.Epoch != e.state.epoch {
+		e.mu.Unlock()
+		return Result{}, ErrCatalogReplaced
+	}
+	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
+	if err == nil {
+		next, err = e.rebuildAlterExclusionsLocked(stage, next, transformations)
+	}
+	if err == nil {
+		err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
+	}
+	if err == nil {
+		next, err = e.rebuildAlterForeignKeysLocked(stage, next, transformations)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return Result{}, err
+	}
+	fkIndex := 0
+	for _, action := range s.Actions {
+		if action.Action != parser.AddForeignKey {
+			continue
+		}
+		if fkIndex >= len(scope.alterForeignKeys) {
+			return Result{}, ErrCatalogReplaced
+		}
+		capture := scope.alterForeignKeys[fkIndex]
+		next, err = e.stageAddedForeignKey(auth, stage, next, action.ForeignKey, capture.target.Address, capture.index)
+		if err != nil {
+			return Result{}, err
+		}
+		addedForeignKeys = append(addedForeignKeys, next.foreignKeys[len(next.foreignKeys)-1].OID)
+		fkIndex++
+	}
+	if hasForeignKeys && next.revision == old.revision {
+		if old.revision == DefinitionRevision(^uint64(0)) {
+			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+		}
+		next.revision = old.revision + 1
 	}
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
@@ -425,9 +491,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	replacement := store
 	projectedWrites, projectedDeletes := scope.columnProjectionRoots(ref.Address)
-	validator := alterRowValidator{relation: next, schema: schema}
+	validator := newAlterRowValidator(next, schema)
 	if len(storedReplacements) != 0 {
-		typeChecks = next.checkConstraints
+		typeChecks = validCheckTraversal(next).checkConstraints
 	}
 	if len(typeChecks) != 0 {
 		traversal := *next
@@ -459,81 +525,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		replacement = shape.replacement
 		versions, ends = replacement.versions, replacement.ends
 	}
-	needsScan := !rewrite && len(typeChecks) != 0
-	if !rewrite {
-		for slot, column := range next.columns {
-			oldSlot := slices.Index(old.attributes, next.attributes[slot])
-			if !column.Nullable && (oldSlot < 0 || old.columns[oldSlot].Nullable) {
-				needsScan = true
-				break
-			}
-		}
-	}
-	if !rewrite {
-		for _, attribute := range replacements {
-			slot := next.indexForAttribute(attribute)
-			if next.generations[attribute].kind == generationVirtual && !next.columns[slot].Nullable {
-				needsScan = true
-				break
-			}
-		}
-	}
-	// Ignore committed predecessors replaced by own writes, and all ended rows.
-	var replaced map[RowID]bool
-	if needsScan {
-		for _, row := range projectedWrites {
-			if row.base != 0 {
-				if replaced == nil {
-					replaced = make(map[RowID]bool)
-				}
-				replaced[row.row] = true
-			}
-		}
-	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
-	scan := func(rows []rowVersion, committed bool) error {
-		for _, row := range rows {
-			if err := op.Context().Err(); err != nil {
-				return err
-			}
-			if committed && replaced[row.row] || !liveVersion(row, frontier, ends, projectedDeletes) {
-				continue
-			}
-			if err := validator.validate(row.values, &evaluation); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if needsScan {
-		if err := scan(versions, true); err != nil {
-			return Result{}, err
-		}
-		if err := scan(projectedWrites, false); err != nil {
-			return Result{}, err
-		}
-	}
-	// Final rebound predicates and reconstructed attachments must exist before
-	// TYPE validates the effective committed/private row image.
-	e.mu.Lock()
-	if ref.Epoch != e.state.epoch {
-		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
-	}
-	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
-	if err == nil {
-		next, err = e.rebuildAlterExclusionsLocked(stage, next, transformations)
-	}
-	if err == nil {
-		err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
-	}
-	if err == nil {
-		next, err = e.rebuildAlterForeignKeysLocked(stage, next, transformations)
-	}
-	e.mu.Unlock()
-	if err != nil {
-		return Result{}, err
-	}
 	for _, action := range s.Actions {
 		if action.Action != parser.DropConstraint {
 			continue
@@ -543,44 +534,58 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
 					return Result{}, err
 				}
-				if _, removed := stage.removals[c.Index]; removed {
-					if err := scope.stageExpressionDependents(stage, []ObjectAddress{c.Index}, action.Mode, changes); err != nil {
-						return Result{}, err
-					}
-				}
 			}
 		}
 	}
-	var uniqueBaselines map[string]*logicalIndexRoot
-	if changedValues {
-		// Recapture effective authority after provider waits and row rewriting.
-		// The immutable snapshot is used outside metadata locks for disclosure.
-		e.mu.Lock()
-		err = scope.validateLockedRelation(e)
-		var disclosure AuthorizationView
-		if err == nil {
-			disclosure, err = e.authorizationLocked(op)
-			disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
-		}
-		e.mu.Unlock()
-		if err != nil {
-			return Result{}, err
-		}
-		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements)
-		if err != nil {
-			return Result{}, err
-		}
+	e.mu.Lock()
+	err = scope.validateLockedRelation(e)
+	var disclosure AuthorizationView
+	if err == nil {
+		disclosure, err = e.authorizationLocked(op)
+		disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	}
-	addedBaselines, err := validateAddedExclusions(op.Context(), auth, e.stageRead(stage), old, next, replacement, projectedWrites, projectedDeletes, schema, scope.output)
+	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if addedBaselines != nil {
-		if uniqueBaselines == nil {
-			uniqueBaselines = make(map[string]*logicalIndexRoot)
+	uniqueBaselines, err := validateAlterUniques(op.Context(), disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes)
+	if err != nil {
+		return Result{}, err
+	}
+	scanChecks := addedChecks
+	if !rewrite {
+		scanChecks = append(typeChecks, addedChecks...)
+	}
+	virtualNotNullScan := false
+	if !rewrite {
+		for _, attribute := range replacements {
+			if next.generations[attribute].kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
+				virtualNotNullScan = true
+				break
+			}
 		}
-		for name, root := range addedBaselines {
-			uniqueBaselines[name] = root
+	}
+	if len(scanChecks) != 0 || !rewrite && (needsNotNullScan(old, next) || virtualNotNullScan) {
+		scanValidator := newAlterRowValidator(next, schema)
+		if rewrite {
+			scanValidator.notNull = nil
+		}
+		if len(scanChecks) != 0 {
+			traversal := *next
+			traversal.checkConstraints = scanChecks
+			scanValidator.checks = &traversal
+			e.mu.Lock()
+			err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
+			if err == nil {
+				err = e.captureCheckVisibilitySnapshotLocked(scope, &traversal)
+			}
+			e.mu.Unlock()
+			if err != nil {
+				return Result{}, err
+			}
+		}
+		if err := scope.validateAddedConstraintRows(scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
+			return Result{}, err
 		}
 	}
 	var dependencyTargets []ObjectAddress
@@ -626,7 +631,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
-	if hasAttachments {
+	if hasAttachments || len(addedIndexes) != 0 {
 		for name := range stage.touched {
 			if e.state.names[name] != grantCatalog.names[name] {
 				e.mu.Unlock()
@@ -688,6 +693,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
+	if len(transformations) == 0 {
+		if err := scope.validateAddedForeignKeys(e.stageRead(stage), next, addedForeignKeys); err != nil {
+			return Result{}, err
+		}
+	}
 	if len(stage.generators) != 0 {
 		e.mu.Lock()
 		for address, generator := range stage.generators {
@@ -714,141 +724,4 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	scope.catalog = changes
 	emitViewCascade(op, stage.viewCascadeNames)
 	return Result{}, nil
-}
-
-func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescriptor, a parser.AlterTableAction) (*relationDescriptor, error) {
-	slot, index := -1, -1
-	if a.Action == parser.DropConstraint {
-		for i, c := range old.notNullConstraints {
-			if c.Name == a.Constraint.Text {
-				index = i
-				for j, attr := range old.attributes {
-					if attr == c.Attribute {
-						slot = j
-						break
-					}
-				}
-				break
-			}
-		}
-		for _, c := range old.checkConstraints {
-			if c.Name == a.Constraint.Text {
-				next := *old
-				next.checkConstraints = make([]checkConstraint, 0, len(old.checkConstraints)-1)
-				for _, constraint := range old.checkConstraints {
-					if constraint.Name != a.Constraint.Text {
-						next.checkConstraints = append(next.checkConstraints, constraint)
-					}
-				}
-				return &next, nil
-			}
-		}
-		for i, c := range old.uniqueConstraints {
-			if c.Name == a.Constraint.Text {
-				if c.Parent != 0 {
-					return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, old.name))
-				}
-				index, exists := catalog.state.descriptors[c.Index].(*relationDescriptor)
-				if !exists {
-					return nil, ErrCatalogReplaced
-				}
-				if err := partitionIndexDropDependency(catalog, index); err != nil {
-					return nil, err
-				}
-				next := *old
-				next.uniqueConstraints = make([]uniqueConstraint, 0, len(old.uniqueConstraints)-1)
-				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[:i]...)
-				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[i+1:]...)
-				return &next, nil
-			}
-		}
-		for i, c := range old.exclusionConstraints {
-			if c.Name == a.Constraint.Text {
-				next := *old
-				next.exclusionConstraints = make([]exclusionConstraint, 0, len(old.exclusionConstraints)-1)
-				next.exclusionConstraints = append(next.exclusionConstraints, old.exclusionConstraints[:i]...)
-				next.exclusionConstraints = append(next.exclusionConstraints, old.exclusionConstraints[i+1:]...)
-				return &next, nil
-			}
-		}
-		for i, c := range old.foreignKeys {
-			if c.Name == a.Constraint.Text {
-				next := *old
-				next.foreignKeys = make([]foreignKeyConstraint, 0, len(old.foreignKeys)-1)
-				next.foreignKeys = append(next.foreignKeys, old.foreignKeys[:i]...)
-				next.foreignKeys = append(next.foreignKeys, old.foreignKeys[i+1:]...)
-				return &next, nil
-			}
-		}
-		if slot < 0 {
-			if !a.IfExists {
-				return nil, sqlError("42704", fmt.Sprintf(`constraint "%s" of relation "%s" does not exist`, a.Constraint.Text, old.name))
-			}
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`constraint "%s" of relation "%s" does not exist, skipping`, a.Constraint.Text, old.name)})
-			return old, nil
-		}
-	} else {
-		if isSystemColumn(a.Column.Text) {
-			message := "system-column nullability is unsupported"
-			if a.Action == parser.AddNotNull {
-				message = fmt.Sprintf(`cannot add not-null constraint on system column "%s"`, a.Column.Text)
-			} else if a.Action == parser.DropNotNull {
-				message = fmt.Sprintf(`cannot alter system column "%s"`, a.Column.Text)
-			}
-			return nil, sqlError("0A000", message)
-		}
-		var ok bool
-		slot, ok = old.index[a.Column.Text]
-		if !ok {
-			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.name))
-		}
-		for i, c := range old.notNullConstraints {
-			if c.Attribute == old.attributes[slot] {
-				index = i
-				break
-			}
-		}
-	}
-	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
-	if !adding {
-		_, identity := old.identities[old.attributes[slot]]
-		// ALTER COLUMN checks identity before entering constraint removal.
-		// Named DROP reaches the primary-key protection first instead.
-		if identity && a.Action != parser.DropConstraint {
-			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.columns[slot].Name, old.name))
-		}
-		for _, constraint := range old.uniqueConstraints {
-			if constraint.Primary && slices.Contains(constraint.Attributes, old.attributes[slot]) {
-				return nil, sqlError("42P16", fmt.Sprintf(`column "%s" is in a primary key`, old.columns[slot].Name))
-			}
-		}
-		if identity {
-			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.columns[slot].Name, old.name))
-		}
-	}
-	if adding && index >= 0 || !adding && index < 0 {
-		return old, nil
-	}
-	name := a.Constraint.Text
-	if adding {
-		if name == "" {
-			name = generatedConstraintName(old.name, old.columns[slot].Name, "not_null", constraintNames(catalog, old.namespace, old))
-		}
-		if relationConstraintNameExists(old, name) {
-			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
-		}
-	}
-	next := *old
-	next.columns = append([]ColumnDescriptor(nil), old.columns...)
-	next.columns[slot].Nullable = !adding
-	if adding {
-		next.notNullConstraints = make([]notNullConstraint, len(old.notNullConstraints)+1)
-		copy(next.notNullConstraints, old.notNullConstraints)
-		next.notNullConstraints[len(old.notNullConstraints)] = notNullConstraint{Name: name, Attribute: old.attributes[slot]}
-	} else {
-		next.notNullConstraints = make([]notNullConstraint, 0, len(old.notNullConstraints)-1)
-		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[:index]...)
-		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[index+1:]...)
-	}
-	return &next, nil
 }

@@ -71,6 +71,12 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 }
 
 func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint) error {
+	return e.stageUniqueDefinitions(op, stage, d, declarations, false)
+}
+
+// CREATE and ALTER share index/provider/ownership construction. ALTER appends
+// only new groups and replaces the existing parent instead of creating it.
+func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
 			if definition, ok := d.generations[attribute]; ok && definition.kind == generationVirtual {
@@ -82,10 +88,13 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 			}
 		}
 	}
-	d.uniqueConstraints = make([]uniqueConstraint, len(declarations))
+	start := len(d.uniqueConstraints)
+	constraints := make([]uniqueConstraint, start+len(declarations))
+	copy(constraints, d.uniqueConstraints)
+	d.uniqueConstraints = constraints
 	for i := range declarations {
-		d.uniqueConstraints[i] = declarations[i].uniqueConstraint
-		d.uniqueConstraints[i].IsLocal = true
+		d.uniqueConstraints[start+i] = declarations[i].uniqueConstraint
+		d.uniqueConstraints[start+i].IsLocal = true
 		if source := declarations[i].source; source != nil {
 			stage.captureLikeSource(source)
 		}
@@ -97,23 +106,28 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 	for _, c := range d.checkConstraints {
 		local[c.Name] = true
 	}
-	used := constraintNames(e.stageRead(stage), d.namespace, nil)
+	for _, c := range d.uniqueConstraints[:start] {
+		local[c.Name] = true
+	}
+	for _, c := range d.exclusionConstraints {
+		local[c.Name] = true
+	}
+	for _, c := range d.foreignKeys {
+		local[c.Name] = true
+	}
+	view := e.stageRead(stage)
+	used := constraintNames(view, d.namespace, nil)
 	for name := range local {
 		used[name] = true
 	}
-	for key := range stage.base.state.names {
-		if key.ClassID == RelationClassID && key.Namespace == d.namespace {
-			used[key.Name] = true
-		}
-	}
-	for key := range stage.names {
+	for key := range view.state.names {
 		if key.ClassID == RelationClassID && key.Namespace == d.namespace {
 			used[key.Name] = true
 		}
 	}
 	used[d.name] = true
-	indices := make([]*relationDescriptor, 0, len(d.uniqueConstraints))
-	for i := range d.uniqueConstraints {
+	indices := make([]*relationDescriptor, 0, len(declarations))
+	for i := start; i < len(d.uniqueConstraints); i++ {
 		c := &d.uniqueConstraints[i]
 		if c.Name == d.name {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
@@ -131,12 +145,9 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 		}
 		// An existing backing relation wins over a same-named local NN/CHECK
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
-		if c.Primary {
+		if c.Primary || altering {
 			key := NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
-			if _, ok := stage.base.state.names[key]; ok {
-				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
-			}
-			if _, ok := stage.names[key]; ok {
+			if stage.lookupName(key) != (ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
@@ -145,10 +156,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
 		key := NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
-		if _, ok := stage.base.state.names[key]; ok {
-			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
-		}
-		if _, ok := stage.names[key]; ok {
+		if stage.lookupName(key) != (ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		for _, index := range indices {
@@ -173,7 +181,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 		}
 		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: uniqueBacking(c), ready: true, valid: true, live: true}
 		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition}
-		if source := declarations[i].source; source != nil {
+		if source := declarations[i-start].source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.sqlIndex
@@ -186,11 +194,11 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 				if key.derived == nil {
 					key.attribute = c.Attributes[j]
 				} else {
-					node, err := declarations[i].like.remap(key.derived.definition, d, stage.base)
+					node, err := declarations[i-start].like.remap(key.derived.definition, d, stage.base)
 					if err != nil {
 						return err
 					}
-					execution, err := declarations[i].like.remap(key.derived.execution, d, stage.base)
+					execution, err := declarations[i-start].like.remap(key.derived.execution, d, stage.base)
 					if err != nil {
 						return err
 					}
@@ -203,7 +211,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 			}
 			definition.include = make([]int32, len(source.sqlIndex.include))
 			for j, attribute := range source.sqlIndex.include {
-				definition.include[j], err = declarations[i].like.attribute(d, attribute)
+				definition.include[j], err = declarations[i-start].like.attribute(d, attribute)
 				if err != nil {
 					return err
 				}
@@ -211,7 +219,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 			index.columns = slices.Clone(source.columns)
 			index.attributes = slices.Clone(source.attributes)
 			index.attributeHighWater = source.attributeHighWater
-			if declarations[i].copyComments {
+			if declarations[i-start].copyComments {
 				index.comment = source.comment
 			}
 		} else {
@@ -240,7 +248,13 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 		}
 		indices = append(indices, index)
 	}
-	if err := stage.Create(d); err != nil {
+	var err error
+	if altering {
+		err = stage.Replace(d)
+	} else {
+		err = stage.Create(d)
+	}
+	if err != nil {
 		return err
 	}
 	for _, index := range indices {

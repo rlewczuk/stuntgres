@@ -141,7 +141,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		return integer(31), nil
 	}}
 	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "c"}, value: integer(5)}}
-	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}, additions, []int32{2}, alterRowValidator{relation: &next})
+	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}, additions, []int32{2}, newAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.versions) != 1 || len(writes) != 2 || deletes != nil || replacement.generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
@@ -195,7 +195,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, alterRowValidator{relation: &next})
+	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, newAlterRowValidator(&next, ""))
 	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.generation != 7 || len(store.versions[0].values) != 2 || store.versions[0].values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}

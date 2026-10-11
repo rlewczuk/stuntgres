@@ -230,6 +230,11 @@ type foreignKeyJob struct {
 }
 
 func (s *StatementScope) checkForeignKeys() error {
+	// Catalog shape projections replace historical own overlays. They are not
+	// newly issued DML; selected ALTER/catalog validators own their obligations.
+	if s.projectedRoots {
+		return nil
+	}
 	if len(s.stage.rows) == 0 && len(s.stage.deletes) == 0 {
 		return nil
 	}
@@ -279,24 +284,36 @@ func (s *StatementScope) checkForeignKeys() error {
 					continue
 				}
 			}
-			if previous, exists := children.previous(row.row); exists {
-				unchanged := true
-				for _, comparison := range job.comparisons {
-					if !sqltype.SameDatum(previous.values[comparison.child], row.values[comparison.child]) {
-						unchanged = false
-						break
-					}
-				}
-				if unchanged {
-					continue
-				}
-			}
 			any, all := foreignKeyNullState(job.comparisons, row.values)
 			if any {
 				if f.Full && !all {
 					return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.values, false, true, s.output)
 				}
 				continue
+			}
+			// Only an actual committed predecessor can suppress an unchanged-key
+			// check. Prior own updates, as well as own inserts, still require it.
+			if row.base != 0 {
+				previous, ok := children.previous(row.row)
+				if !ok {
+					return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
+				}
+				if previous.born != 0 {
+					unchanged := true
+					for _, comparison := range job.comparisons {
+						equal, err := comparison.comparison.EqualChildren(s.op.Context(), previous.values[comparison.child], row.values[comparison.child], s.input)
+						if err != nil {
+							return err
+						}
+						if !equal {
+							unchanged = false
+							break
+						}
+					}
+					if unchanged {
+						continue
+					}
+				}
 			}
 			found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, row.values, true)
 			if err != nil {

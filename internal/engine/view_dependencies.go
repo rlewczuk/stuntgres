@@ -248,7 +248,13 @@ func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks
 	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path, foreign...)
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
-		details[i] = dependent.label + " depends on " + dependencyObject(catalog, dependent.target, path)
+		provider := dependencyObject(catalog, dependent.target, path)
+		// The dependency targets the physical supporting index. Its owning
+		// constraint identifies the requested DROP in Message, not this edge.
+		if index, ok := catalog.state.descriptors[dependent.target].(*relationDescriptor); ok && index.sqlIndex != nil {
+			provider = "index " + dependencyRelationName(catalog, index, path)
+		}
+		details[i] = dependent.label + " depends on " + provider
 	}
 	// Closure edges are parent-first. Walk backwards to keep the original
 	// requested provider in Message while Detail retains each actual edge.

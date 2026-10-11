@@ -30,7 +30,7 @@ func TestReferencePrimaryKeyBoundaries(t *testing.T) {
 						run(fixture.Exec(q, 0))
 					}
 				}
-				if b.PG {
+				if b.PG || c.name == "alter_add" {
 					run(fixture.Prepared(fixture.Exec(c.query, 0)))
 					run(fixture.Select("SELECT contype FROM pg_constraint WHERE conname=$1", []string{"contype"}, []string{"CHAR"}, [][]any{{"p"}}, c.key))
 					run(fixture.Exec(c.insert, 1))

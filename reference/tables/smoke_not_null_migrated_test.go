@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"reflect"
-	"strconv"
 	"strings"
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -172,12 +171,9 @@ func TestReferenceSmokeNotNullSmoke(t *testing.T) {
 			m.NullDiagnostic(err, stuntgres.Error{Code: "0A000", Message: `cannot add not-null constraint on system column "ctid"`})
 			_, err = db.Query("SELECT * FROM system_target")
 			m.NullDiagnostic(err, stuntgres.Error{Code: "42P01", Message: `relation "system_target" does not exist`, Position: "15"})
-			if !backend.PG {
-				for _, tc := range []struct{ q, token, message string }{{"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported"}} {
-					_, err = db.Exec(tc.q)
-					m.NullDiagnostic(err, stuntgres.Error{Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.q, tc.token) + 1)})
-				}
-			}
+			exec("ALTER TABLE t ADD NOT NULL a NOT VALID", 0)
+			_, err = db.Exec("INSERT INTO t VALUES(NULL,'bad')")
+			m.NullDiagnostic(err, want)
 			exec("ALTER TABLE t DROP CONSTRAINT IF EXISTS absent", 0)
 			wantNotice := []fixture.Diagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `constraint "absent" of relation "t" does not exist, skipping`}}
 			if !reflect.DeepEqual(*notices, wantNotice) {

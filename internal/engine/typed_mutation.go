@@ -156,11 +156,11 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 	}
 	schema := auth.catalog.state.descriptors[old.namespace].Name()
-	validator := alterRowValidator{relation: next, schema: schema}
+	validator := newAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next
 		checks.checkConstraints = mutation.checks
-		validator.checks = &checks
+		validator.checks = validCheckTraversal(&checks)
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &checks)
 		if err == nil {
@@ -220,7 +220,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		return err
 	}
 	if len(mutation.transforms) != 0 {
-		if _, err := validateAlterUniques(scope.op.Context(), auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil); err != nil {
+		if _, err := validateAlterUniques(scope.op.Context(), auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil); err != nil {
 			return err
 		}
 	}
