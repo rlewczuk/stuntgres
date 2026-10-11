@@ -79,6 +79,7 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // replacement rather than adopting new same-name persistent providers.
 // Temporary views retain exact source identities. Invalidated persistent table
 // or view providers prevent replacement; unchanged pinned catalog providers survive.
+// Same-owner temporary FK graphs retain exact definition/parent/key identities.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -99,6 +100,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Persistent policies referencing TEMP objects are rejected before writer I/O.
 // Protected raw rows are exported before independent enabled/forced flag ALTERs;
 // policy-expression enforcement remains unsupported.
+// FK declarations are ordinary CREATE syntax; native Restore handles their
+// forward references/cycles independently of table definition output order.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -124,6 +127,9 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // excluded; stored CHECK replay uses the existing isolated admitted stage session.
 // Its initialized private catalog preserves legacy streams and reconstructs
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
+// FK owner/schema authority is captured at declaration. Attachments and final
+// rows are validated after isolated table/index/data staging, before installation;
+// this does not admit public ALTER ADD FOREIGN KEY or defer ordinary SQL checks.
 // Named owners must already exist. Private Restore-stage CREATE TABLE/COLLATION
 // destination authority preserves independent schema/object owners without ACL grants.
 // Private stage INSERT and database-local COMMENT use validated captured bootstrap

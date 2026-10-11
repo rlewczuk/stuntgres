@@ -52,8 +52,9 @@ type ParameterInfo struct {
 	Types []sqltype.Usage
 }
 type Result struct {
-	Count int64
-	Rows  RowResult
+	Count   int64
+	Rows    RowResult
+	created ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 type binding struct {
 	relation              *relationDescriptor
@@ -445,10 +446,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if element.Exclusion != nil {
 				kinds++
 			}
+			if element.ForeignKey != nil {
+				kinds++
+			}
 			if kinds != 1 {
 				return b, fmt.Errorf("stuntgres: invalid table element")
 			}
-			if element.NotNull != nil || element.Check != nil || element.Unique != nil || element.Exclusion != nil {
+			if element.NotNull != nil || element.Check != nil || element.Unique != nil || element.Exclusion != nil || element.ForeignKey != nil {
 				continue
 			}
 			if c := element.Column; c != nil {

@@ -84,9 +84,6 @@ func TestReferenceDeleteCurrentOfUsingReturningAndConstraints(t *testing.T) {
 	})
 	t.Run("postgres_foreign_key", func(t *testing.T) {
 		currentOfReference(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-			if !b.PG {
-				return
-			} // Genuine adjacent FK mechanism, never a native no-op hook.
 			run := updateFromRun(t, p, b, c)
 			run(fixture.Exec("CREATE TABLE t(id INT PRIMARY KEY)", 0))
 			run(fixture.Exec("CREATE TABLE child(id INT REFERENCES t(id))", 0))

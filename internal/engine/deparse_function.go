@@ -299,6 +299,16 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 			}
+			for _, def := range relation.foreignKeys {
+				if def.OID != OID(id) {
+					continue
+				}
+				found = true
+				text, err = foreignKeyConstraintSQL(view, relation, def, c.liveScope().deparsePath)
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+			}
 			for _, def := range relation.exclusionConstraints {
 				if def.OID != OID(id) {
 					continue

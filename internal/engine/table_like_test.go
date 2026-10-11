@@ -23,7 +23,7 @@ func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*Cata
 	if syntax.Persistence == "temporary" {
 		namespace = op.session.temporaryNamespace
 	}
-	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, sqltype.InputEnvironment{})
+	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *relationDescriptor
 	if err == nil {
 		destination = stage.descriptors[stage.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*relationDescriptor)

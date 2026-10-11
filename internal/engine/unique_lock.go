@@ -45,8 +45,9 @@ func uniqueKeyHash(ctx context.Context, ordering indexOrdering, grouping []sqlty
 		var h uint64
 		class := ordering.keys[i].class
 		defaultClass, _ := sqltype.DefaultIndexClass(value.Type())
-		// Nondefault equality can be coarser than the type's grouping hash.
-		if class.Name == "" || class.Name == defaultClass.Name {
+		// Nondefault equality can be coarser than the type's grouping hash
+		// (TEXT bpchar_ops ignores trailing spaces). Compare within one bucket.
+		if class.Family != "network_ops" && (class.Name == "" || class.Name == defaultClass.Name) {
 			var err error
 			h, err = grouping[i].Hash(ctx, value)
 			if err != nil {

@@ -1132,3 +1132,29 @@ still scan parent snapshots; these utilities add no optimizer index-scan locks o
 historical visibility based on current-only roots.
 See [index maintenance design](design/PG18-INDEX-MAINTENANCE.md).
 
+
+## Immediate foreign-key admission — change note
+
+Immediate NO ACTION constraints validate the final command row image, not each
+producer's intermediate row order and not merely outer Commit. Self references,
+prior own writes, command successors/deletions and replacement keys share the
+normal statement stage; a failure follows existing abort/savepoint recovery.
+Already checked commands are not rechecked under later ACL/COMMENT metadata.
+
+Child insertion acquires canonical KEY SHARE on the actual referenced committed
+RowID. A key-changing parent UPDATE or DELETE uses its existing UPDATE-strength
+row grant, waits for child owners, then inspects the fresh committed/private
+child image. Non-key UPDATE retains NO KEY UPDATE and can coexist with KEY SHARE.
+A child waiting behind parent mutation recaptures the granted row's live key
+before proving membership. Locks belong to the existing transaction ticket and
+are retained/released/restored by normal Finish, Commit, rollback and savepoint
+paths; no FK queue, hidden transaction, SQL replay or fabricated row identity exists.
+Waits release metadata/replacement mutexes and retain the existing cancellation,
+deadline, deadlock and epoch/storage authority fences.
+
+Definition admission retains SHARE ROW EXCLUSIVE on external parent relations;
+TYPE/dependency operations use the existing relation manager. Temporary cleanup
+and replacement do not export private FK graphs or change retained TEMP identities.
+Referential actions and deferrable/temporal/partition FKs remain capability
+boundaries; this is not PostgreSQL physical RI triggers or deferred events.
+

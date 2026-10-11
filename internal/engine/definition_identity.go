@@ -72,6 +72,15 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 			d.uniqueConstraints[i].OID = id
 		}
 	}
+	for i := range d.foreignKeys {
+		if d.foreignKeys[i].OID == 0 {
+			id, err := e.allocateOIDLocked()
+			if err != nil {
+				return err
+			}
+			d.foreignKeys[i].OID = id
+		}
+	}
 	return nil
 }
 
@@ -100,6 +109,11 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 		}
 	}
 	for _, c := range d.exclusionConstraints {
+		if c.OID == id {
+			return true
+		}
+	}
+	for _, c := range d.foreignKeys {
 		if c.OID == id {
 			return true
 		}
@@ -164,6 +178,11 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				return err
 			}
 		}
+		for _, c := range d.foreignKeys {
+			if err := claim(c.OID); err != nil {
+				return err
+			}
+		}
 		for _, c := range d.defaults {
 			if err := claim(c.OID); err != nil {
 				return err
@@ -205,6 +224,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			for _, c := range d.exclusionConstraints {
 				reserved[c.OID] = true
 			}
+			for _, c := range d.foreignKeys {
+				reserved[c.OID] = true
+			}
 			for _, c := range d.defaults {
 				reserved[c.OID] = true
 			}
@@ -238,6 +260,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			for _, definition := range d.exclusionConstraints {
 				claimed[definition.OID] = true
 			}
+			for _, definition := range d.foreignKeys {
+				claimed[definition.OID] = true
+			}
 			for _, definition := range d.defaults {
 				claimed[definition.OID] = true
 			}
@@ -269,7 +294,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
 			continue
 		}
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.defaults)+len(old.generations)+len(old.policies) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies) == 0 {
 			continue
 		}
 		d := *old
@@ -363,6 +388,20 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			definition.constraint = exclusionBacking(&d.exclusionConstraints[i])
 			clone.sqlIndex = &definition
 			next.descriptors[clone.address] = &clone
+			changed = true
+		}
+		for i, def := range old.foreignKeys {
+			id, err := remint(def.OID)
+			if err != nil {
+				return err
+			}
+			if id == def.OID {
+				continue
+			}
+			if &d.foreignKeys[0] == &old.foreignKeys[0] {
+				d.foreignKeys = append([]foreignKeyConstraint(nil), old.foreignKeys...)
+			}
+			d.foreignKeys[i].OID = id
 			changed = true
 		}
 		for attr, def := range old.defaults {

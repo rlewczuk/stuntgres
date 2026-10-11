@@ -24,6 +24,17 @@ type pendingPartitionDefinition struct {
 
 func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ObjectAddress) (*pendingPartitionDefinition, error) {
 	op := scope.op
+	for _, element := range syntax.Elements {
+		foreign := element.ForeignKey != nil
+		if element.Column != nil {
+			for _, constraint := range element.Column.Constraints {
+				foreign = foreign || constraint.ForeignKey != nil
+			}
+		}
+		if foreign {
+			return nil, sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
+		}
+	}
 	for _, observed := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)
 	}
@@ -53,7 +64,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	} else {
-		if err := e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, scope.input); err != nil {
+		if err := e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, scope.input, scope.foreignKeyTargets); err != nil {
 			return nil, err
 		}
 	}

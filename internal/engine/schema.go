@@ -45,7 +45,7 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ObjectAddre
 	return nil
 }
 
-func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment) error {
+func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ObjectRef) error {
 	auth.catalog = stage.base
 	if namespace, ok := auth.catalog.state.descriptors[ns].(*namespaceDescriptor); ok && auth.session != nil && namespace.temporary == auth.session.token {
 		auth.stagedTemporary = ns
@@ -187,7 +187,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageCreateExclusions(op, input, auth, stage, d, s); err != nil {
 		return err
 	}
-	return e.stageLikeIndexes(op, auth, stage, d, b.createLikes)
+	if err := e.stageLikeIndexes(op, auth, stage, d, b.createLikes); err != nil {
+		return err
+	}
+	return e.stageCreateForeignKeys(auth, stage, d, s, foreignTargets)
 }
 
 // The table identity owner is shared by declared and query-derived schemas.
@@ -420,7 +423,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if len(table.Name.Parts) == 2 && table.Name.Parts[0].Text != name {
 				return nil, sqlError("42P15", fmt.Sprintf("CREATE specifies a schema (%s) different from the one being created (%s)", table.Name.Parts[0].Text, name))
 			}
-			if err = e.schemaTableLocked(op, auth, stage, table, ns.address, owner, input); err != nil {
+			if err = e.schemaTableLocked(op, auth, stage, table, ns.address, owner, input, nil); err != nil {
 				return nil, err
 			}
 		}

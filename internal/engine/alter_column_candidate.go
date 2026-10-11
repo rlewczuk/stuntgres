@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -65,7 +66,11 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 	if err := stage.Replace(old); err != nil {
 		return nil, err
 	}
-	if err := stageViewDependents(stage, []ObjectAddress{target}, a.Mode); err != nil {
+	foreign, err := foreignKeyColumnDependencies(ctx, stage, target, a.Mode, scope)
+	if err != nil {
+		return nil, err
+	}
+	if err := stageViewDependents(stage, []ObjectAddress{target}, a.Mode, foreign...); err != nil {
 		return nil, err
 	}
 	// The dependency pass can prune surviving definitions on this same table.
@@ -118,6 +123,12 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 		}
 		if !uniqueIndexTypeAffected(index.sqlIndex, []columnTransformation{{attribute: old.attributes[slot]}}) {
 			next.exclusionConstraints = append(next.exclusionConstraints, constraint)
+		}
+	}
+	next.foreignKeys = nil
+	for _, f := range old.foreignKeys {
+		if !slices.Contains(f.Attributes, old.attributes[slot]) {
+			next.foreignKeys = append(next.foreignKeys, f)
 		}
 	}
 	next.checkConstraints = nil

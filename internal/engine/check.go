@@ -220,6 +220,9 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 // Admission occurs outside Engine.mu; after a wait identities are opened anew,
 // never retargeted by name or evaluated to establish a dependency.
 func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
+	if err := s.acquireForeignKeyDefinitionProviders(stage); err != nil {
+		return err
+	}
 	var refs []ObjectRef
 	var retained map[ObjectAddress]Descriptor
 	add := func(ref ObjectRef, d *relationDescriptor) error {

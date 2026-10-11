@@ -46,6 +46,12 @@ func validateUniqueProviders(parent *relationDescriptor, definition *indexDefini
 			}
 			return insertError("0A000", "unique index operator class is unsupported", position)
 		}
+		if key.class.Family == "network_ops" {
+			if _, err := sqltype.BindIndexOrdering(indexKeyCollation(usage, key), key.class); err != nil {
+				return err
+			}
+			continue
+		}
 		if _, err := sqltype.BindGrouping(indexKeyCollation(usage, key)); err != nil {
 			return err
 		}

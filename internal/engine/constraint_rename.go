@@ -62,6 +62,12 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 			break
 		}
 	}
+	for _, c := range parent.foreignKeys {
+		if c.Name == raw.Constraint.Text {
+			kind = 'f'
+			break
+		}
+	}
 	if kind == 0 {
 		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.name)))
 	}
@@ -163,6 +169,11 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 			return nil, err
 		}
 	}
+	for _, c := range parent.foreignKeys {
+		if err := collision(c.Name); err != nil {
+			return nil, err
+		}
+	}
 	if parent.revision == DefinitionRevision(^uint64(0)) {
 		return nil, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
@@ -173,6 +184,14 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 		for i := range next.notNullConstraints {
 			if next.notNullConstraints[i].Name == old {
 				next.notNullConstraints[i].Name = destination
+				return &next, nil
+			}
+		}
+	} else if kind == 'f' {
+		next.foreignKeys = slices.Clone(parent.foreignKeys)
+		for i := range next.foreignKeys {
+			if next.foreignKeys[i].Name == old {
+				next.foreignKeys[i].Name = destination
 				return &next, nil
 			}
 		}

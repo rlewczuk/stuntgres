@@ -1,9 +1,7 @@
 package parser
 
 import (
-	"errors"
 	"strings"
-	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
@@ -74,15 +72,14 @@ func TestObjectGrantPublicRoleSpecs(t *testing.T) {
 	}
 }
 
-func TestObjectGrantReferencesRetainsConstraintBoundary(t *testing.T) {
+func TestObjectGrantReferencesAndForeignKeyGrammar(t *testing.T) {
 	for _, query := range []string{
 		`CREATE TABLE t(a INT REFERENCES parent(a))`,
 		`CREATE TABLE t(a INT CONSTRAINT fk REFERENCES parent(a))`,
 	} {
 		statements, err := Parse(query)
-		var diagnostic *sqlstate.Error
-		if statements != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
-			t.Fatal("foreign-key boundary changed by grant keyword", query, statements, err)
+		if err != nil || len(statements) != 1 || statements[0].(*CreateTable).Elements[0].Column.Constraints[0].ForeignKey == nil {
+			t.Fatal("foreign-key grammar", query, statements, err)
 		}
 	}
 	statements, err := Parse(`GRANT REFERENCES(a) ON t TO reader`)

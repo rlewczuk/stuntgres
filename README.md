@@ -68,6 +68,17 @@ Feature family (900 seconds per invocation):
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceSQLPrepared'`.
 
+Change note: CREATE TABLE FOREIGN KEY/REFERENCES supports single/composite
+keys, MATCH SIMPLE/FULL and immediate NO ACTION with canonical transaction-owned
+row grants, atomic command-end checks and current authorization-based diagnostics.
+Supporting-index family/input coercions own equality and ordered probes; native
+Restore ignores FK declarations on an actually skipped CREATE IF NOT EXISTS.
+Stable dependencies follow supported rename/move/TYPE/drop operations; native
+Dump/Restore handles forward references/cycles without public ALTER ADD support
+and preserves retained TEMP graphs. See [foreign keys](docs/TABLES.md#foreign-key-constraints--change-note).
+Smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`; pinned oracle:
+`make check REFERENCE=1 RUN='^TestReferenceForeignKeyFeatureSmoke$'`.
+
 Change note: `CREATE TABLE ... INHERITS (parent, ...)` merges compatible parent
 columns, defaults, inheritable CHECK and NOT NULL constraints into a real,
 identity-based graph. UNIQUE/indexes, identity ownership and foreign/primary keys
@@ -1476,7 +1487,7 @@ REINDEX, LIKE INCLUDING INDEXES/ALL and native Dump/Restore preserve the attachm
 Dropping the primary key leaves its NOT NULL identities; live key columns cannot
 drop NOT NULL. Key TYPE changes rebuild affected constraint/index/NOT NULL identities.
 ALTER ADD PRIMARY KEY (including ADD COLUMN), deferrability, WITHOUT OVERLAPS,
-index parameters and foreign keys remain excluded.
+index parameters remain excluded. Foreign keys follow their bounded CREATE contract above.
 See [primary-key constraints](docs/TABLES.md#primary-key-constraints--change-note).
 Feature smoke: `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePrimaryKeyFeatureSmoke$'`.

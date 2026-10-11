@@ -26,7 +26,7 @@ func TestDefaultTemporalConstructorAndRestoreCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	err = e.schemaTableLocked(op, auth, stage, statement(t, `CREATE TABLE captured(ts TIMESTAMP DEFAULT 'now',tm TIME DEFAULT 'now')`).(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, a)
+	err = e.schemaTableLocked(op, auth, stage, statement(t, `CREATE TABLE captured(ts TIMESTAMP DEFAULT 'now',tm TIME DEFAULT 'now')`).(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, a, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

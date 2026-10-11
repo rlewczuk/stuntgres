@@ -100,7 +100,11 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 			continue
 		}
 		if name == "$user" {
-			d, err := auth.roles.Descriptor(auth.state.CurrentUser)
+			principal := auth.state.CurrentUser
+			if auth.namespaceUser != (PrincipalRef{}) {
+				principal = auth.namespaceUser
+			}
+			d, err := auth.roles.Descriptor(principal)
 			if err != nil {
 				return nil, false, err
 			}

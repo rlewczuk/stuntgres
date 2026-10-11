@@ -43,6 +43,92 @@ with ROLLBACK/ROLLBACK TO as needed, CLOSE the cursor and retry. This guard belo
 only to DISCARD, not generic DROP or query lifetime rules. ALL also removes TEMP
 contents but cannot execute in an explicit transaction.
 
+## Foreign-key constraints — change note
+
+CREATE TABLE accepts named or generated-name column REFERENCES and ordered
+single/composite table FOREIGN KEY declarations. An omitted referenced list
+selects the primary key; explicit lists require a ready, valid, live, nonpartial
+unique index with exactly those simple key attributes (INCLUDE columns do not
+participate). Reordered composite references preserve their declared pairing.
+Equality belongs to the selected B-tree class/family, not arbitrary predicate
+comparability. Released cross-input family members preserve genuine mixed-width
+keys; otherwise both inputs must implicitly coerce to the unsized class input.
+NUMERIC children cannot reference integer keys; integer children can reference
+NUMERIC keys. TEXT children of BPCHAR keys use that class's space semantics,
+without truncating to the parent's typmod. Domains unwrap only for comparison;
+enums and scalar providers retain actual catalog generation authority. Missing
+keys, incompatible types and duplicate referenced attributes retain PostgreSQL18
+diagnostics. Explicit names share the relation-local inventory of all admitted
+constraint kinds, including named NOT NULL.
+The existing inet_ops provider also owns INET/CIDR supporting-key comparison
+and unique-claim interning through the shared comparator bucket; FK integration
+does not add network GROUP BY/hash equality. Unconstrained domains are admitted;
+domain CHECK/defaults and stored internal `"char"` retain their separate native
+boundaries rather than introducing new column/type capabilities.
+
+MATCH SIMPLE exempts any NULL key; MATCH FULL permits all-NULL but rejects a
+mixture. Default and explicit NO ACTION are immediate at command completion.
+Multirow INSERT, supported query INSERT/MERGE insertion, UPDATE and DELETE see
+the final committed/prior-own/current-command image, including self references,
+replacement keys and deletions. Failure publishes no rows or RETURNING results.
+Existing transaction/savepoint recovery owns all effects and grants.
+Committed parent lookup borrows the selected logical index's ordered root for
+lower-bound/equal-run probes. Own/current-command overlays and deletion/shadow
+identities preserve the final image; there is no separate FK value index/cache.
+Successful iterator visits stop immediately. After a parent row wait, the exact
+physical-version locator is revalidated against refreshed visibility/root state.
+
+
+FKs own stable constraint identities and stable child/parent attributes, plus
+the actual supporting index identity; they create no child index. Existing
+pg_constraint projects contype f and NULL conbin, and pg_get_constraintdef
+renders current names. Table/column/schema/constraint renames preserve identity.
+Compatible TYPE rebinds and remints affected attachments and validates final
+rows; RESTRICT/CASCADE includes inbound definitions, never deletes the child
+table/data solely because its FK depends on a removed parent/key. Ordinary
+inheritance does not propagate FKs; checks use physical parent rows only.
+Column retirement consumes FK definition edges from the common read-only
+closure at the existing column frontier. Local CHECK/index/FK AUTO ownership
+and staged prior column actions remain intact; external FK/view/default/CHECK
+diagnostics and cascade notices share the incumbent ordered consumer schedule.
+
+Declaration requires REFERENCES on the parent table or every referenced
+column. Later DML requires only its existing command privileges. Constraint
+disclosure uses the current violating-side SELECT/column rights, not creation
+authority. See [authorization](AUTHORIZATION.md#foreign-key-authority).
+
+Native Dump includes ordinary CREATE declarations without requiring FK
+topological order. Restore captures raw declarations and the original authority,
+but registers pending attachments only for the creator's actual newly minted
+table reference. CREATE IF NOT EXISTS no-ops ignore their FK clauses completely,
+including absent target schemas/relations. Captured namespace/principal authority
+survives later owner directives and trusted replay permission elevation.
+Restore resolves supporting keys and validates every final row before installation.
+Forward references and cycles work; invalid empty/populated groups leave the target
+and retained snapshots unchanged. Retained same-owner TEMP FK graphs keep their
+exact identities/data through Reset/Restore and are omitted from Dump;
+permanent/TEMP cross-references are rejected.
+
+Public ALTER ADD FOREIGN KEY and ADD COLUMN REFERENCES remain unsupported.
+MATCH PARTIAL retains PostgreSQL's 0A000 boundary. Referential actions other
+than NO ACTION, DEFERRABLE/INITIALLY DEFERRED, temporal PERIOD and partition
+hierarchy FKs are explicit native 0A000 boundaries. NOT DEFERRABLE and
+INITIALLY IMMEDIATE are accepted; no deferred mode/event mechanism is added.
+Grammar admits one optional MATCH before the action clauses, at most one ON UPDATE
+and one ON DELETE in either order, then constraint attributes. Compatible repeated
+immediate/nondeferrable attributes remain legal. Repeated/out-of-order MATCH or
+actions are positioned 42601 syntax errors, not accepted or delayed exclusions.
+MERGE MATCHED UPDATE and NOT MATCHED INSERT perform immediate FK checks through
+their admitted write owners. MATCHED DELETE/DO NOTHING and INSERT RETURNING
+retain their independent native capability boundaries. INSERT SELECT without
+RETURNING and ON CONFLICT DO NOTHING/target DO UPDATE also perform the real
+immediate FK checks through their existing final-image write owners.
+No trigger/catalog expansion, physical PostgreSQL RI executor, pg_dump process,
+wire protocol or disk durability is implied.
+
+Feature smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`;
+the same RUN with REFERENCE=1 exercises pinned PostgreSQL18.
+
 ## Materialized views — change note
 
 `CREATE MATERIALIZED VIEW saved AS SELECT i,label FROM source` creates an owned,
@@ -123,7 +209,7 @@ generated expressions inherit with row remapping; identity ownership does not,
 but its NOT NULL does. SERIAL inherits the original sequence default without
 child ownership. UNIQUE, ordinary indexes, PK and FK do not inherit. Existing
 native PRIMARY KEY support supplies inherited NOT NULL, not a child key;
-foreign-key and foreign-table provider admission retain their independent boundaries.
+foreign-table provider admission retains its independent boundary.
 Generated/base parent kinds conflict. A local ordinary redeclaration retains an
 inherited generated expression; an explicit local generation expression may
 override it or resolve conflicting parent expressions. A local DEFAULT on an
@@ -899,7 +985,7 @@ statements and held cursors are not persistent dependents; held cursors retain o
 rows/metadata, while prepared executions rebind (absent table `42P01`,
 incompatible recreation `42703`). B-tree/hash indexes and column-owned
 sequences disappear automatically with their parent; views retain their existing
-RESTRICT/CASCADE dependency policy. Foreign keys remain excluded.
+RESTRICT/CASCADE dependency policy, including inbound foreign-key definitions.
 Explicit-transaction CREATE/DROP TABLE remains unsupported.
 
 Dump emits expanded canonical declarations, including `()`, independently of a
@@ -992,7 +1078,7 @@ ALTER ADD PRIMARY KEY, ADD USING INDEX and ADD COLUMN PRIMARY KEY,
 deferrability (including NOT DEFERRABLE/INITIALLY), WITHOUT OVERLAPS and primary
 index parameter tails are explicitly unsupported. Malformed full input still
 fails42601 before deferred capability diagnostics or prefix effects.
-Foreign keys and physical PostgreSQL index/WAL/server mechanisms remain external.
+Physical PostgreSQL index/WAL/server mechanisms remain external.
 
 Feature smoke:
 `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
@@ -1265,8 +1351,9 @@ on every key column. The same rule applies to TYPE-build failures even for the
 table owner: unreadable build keys yield `Duplicate keys exist.`, whereas unreadable
 runtime duplicates omit Detail. Ownership does not replace revoked SELECT rights.
 
-ALTER ADD UNIQUE, deferrability (including explicit NOT DEFERRABLE), RENAME
-CONSTRAINT and FK remain unsupported. Standalone CREATE UNIQUE INDEX reuses
+ALTER ADD UNIQUE and UNIQUE deferrability (including explicit NOT DEFERRABLE)
+remain unsupported. Foreign-key declarations and constraint renaming follow
+their contracts above. Standalone CREATE UNIQUE INDEX reuses
 the same enforcing B-tree authority without creating a constraint attachment.
 It supports simple/composite keys and trailing NULLS DISTINCT/NOT DISTINCT:
 all key components must compare equal, and DISTINCT bypasses conflicts whenever
@@ -1372,7 +1459,7 @@ NOT VALID, VALIDATE and NO INHERIT remain explicit boundaries, not successful no
 Scalar UPDATE enforces NOT NULL and CHECK after destination coercion.
 Valid INHERITS lists create the graph above; malformed/repeated clauses and extra
 tails remain42601 complete-input rejections, with no earlier script prefix effects.
-Foreign keys, foreign-table providers, unowned access methods and unrelated ALTER
+Foreign-table providers, unowned access methods and unrelated ALTER
 actions remain excluded engine capabilities; supported PRIMARY KEY declarations
 do not propagate their uniqueness to inheritance children.
 Concurrent creation inherits the supported B-tree and nonunique hash methods.
@@ -1448,9 +1535,9 @@ views continue to reference stable relation/attribute identities through support
 renames. B-tree/hash keys also retain stable attribute identities, and Dump
 renders current parent/key names without renaming the index itself. User table/view
 row codecs retain stable identities through supported renames and moves.
-Foreign keys and broader transactional DDL remain excluded; graph column RENAME is protected.
+Broader transactional DDL remains excluded; graph column RENAME is protected.
 Native explicit-transaction table/column RENAME remains unsupported. Standalone
-RENAME CONSTRAINT supports represented n/c/u/p/x constraints in writable
+RENAME CONSTRAINT supports represented n/c/u/p/x/f constraints in writable
 transactions; see [constraint rename](design/PG18-DDL-ALTER-CONSTRAINT-RENAME.md).
 
 ```sh
@@ -1504,8 +1591,9 @@ Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
 Canonical Dump renders current names and survivor metadata; Reset/Restore
 preserves definitions/data even though replay allocates fresh attribute IDs.
 B-tree/hash indexes mentioning a dropped attribute, including expression dependencies, are removed automatically,
-even with RESTRICT; unaffected indexes survive dense-slot compaction. FK and
-partition dependencies remain unsupported; graph column removal is protected.
+even with RESTRICT; unaffected indexes survive dense-slot compaction. Inbound FK
+dependencies enforce RESTRICT/CASCADE and remove only the dependent definitions,
+not child rows. Partition graph column removal retains its separate boundary.
 
 Missing columns fail `42703`, `column "missing" of relation "t" does not exist`;
 IF EXISTS emits a `00000` NOTICE ending `, skipping` with no descriptor or row

@@ -347,16 +347,18 @@ type AuthorizationStamp struct {
 	Roles, Session uint64
 }
 type AuthorizationView struct {
-	engine   *Engine
-	catalog  CatalogRead
-	roles    RoleRead
-	state    RoleState
+	engine  *Engine
+	catalog CatalogRead
+	roles   RoleRead
+	state   RoleState
 	// Actual session identities remain distinct from trusted import authority.
 	sessionRoleState RoleState
-	revision uint64
-	settings *sessionSettings
+	revision         uint64
+	settings         *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ObjectAddress
+	// Trusted replay permissions may elevate without changing $user semantics.
+	namespaceUser PrincipalRef
 	// An owned TEMP table builder may see its namespace before session publication.
 	stagedTemporary        ObjectAddress
 	session                *Session
@@ -375,6 +377,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore view authority")
 		}
+		auth.namespaceUser = auth.state.CurrentUser
 		auth.state.CurrentUser = bootstrap.Ref
 	}
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView && op.restoreTableDestination {
@@ -382,6 +385,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore materialized view authority")
 		}
+		auth.namespaceUser = auth.state.CurrentUser
 		auth.state.CurrentUser = bootstrap.Ref
 	}
 	if _, index := stmt.(*parser.CreateIndex); index && op.restoreTableDestination {
@@ -389,6 +393,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore index authority")
 		}
+		auth.namespaceUser = auth.state.CurrentUser
 		auth.state.CurrentUser = bootstrap.Ref
 	}
 	if _, policy := stmt.(*parser.CreatePolicy); policy && op.restoreTableDestination {
@@ -396,6 +401,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore policy authority")
 		}
+		auth.namespaceUser = auth.state.CurrentUser
 		auth.state.CurrentUser = bootstrap.Ref
 	}
 	if _, insert := stmt.(*parser.Insert); insert && op.restoreInsertAuthority {
@@ -403,6 +409,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore insertion authority")
 		}
+		auth.namespaceUser = auth.state.CurrentUser
 		auth.state.CurrentUser = bootstrap.Ref
 	}
 	if op.restoreCommentAuthority {
@@ -414,6 +421,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment authority")
 		}
+		auth.namespaceUser = auth.state.CurrentUser
 		auth.state.CurrentUser = bootstrap.Ref
 	}
 	return auth, nil

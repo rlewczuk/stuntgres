@@ -24,6 +24,7 @@ package parser
  notNull *NotNullConstraint
  check *CheckConstraint
  unique *UniqueConstraint
+ foreignKey *ForeignKeyConstraint
  exclusion *ExclusionConstraint
  exclusionElements []ExclusionElement
  exclusionElement ExclusionElement
@@ -163,6 +164,7 @@ package parser
 %token <tok> FILTER
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
+%token <tok> FOREIGN REFERENCES MATCH PERIOD INITIALLY
 %token <tok> NOT_DEFERRABLE_LA NOT_IN_LA
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
@@ -397,6 +399,9 @@ package parser
 %type <element> element
 %type <check> check_constraint
 %type <unique> unique_constraint column_unique primary_constraint column_primary
+%type <foreignKey> foreign_key foreign_reference foreign_body foreign_definition
+%type <identifiers> foreign_columns foreign_columns_optional
+%type <tok> foreign_match foreign_match_optional foreign_action foreign_actions foreign_update foreign_delete
 %type <tok> primary_head primary_modifier
 %type <identifiers> primary_columns
 %type <exclusion> exclusion_head exclusion_definition exclusion_storage exclusion_tablespace exclusion_predicate exclusion_constraint
@@ -1150,6 +1155,7 @@ element: column { $$=TableElement{Column:$1,Pos:$1.Pos} }
  | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} }
  | unique_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
  | primary_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} }
+ | foreign_key { $$=TableElement{ForeignKey:$1,Pos:$1.Pos} }
  | exclusion_constraint { $$=TableElement{Exclusion:$1,Pos:$1.Pos} } ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
@@ -1168,12 +1174,12 @@ column_unique: UNIQUE unique_nulls { $$=&UniqueConstraint{NullsNotDistinct:$2,Po
  | CONSTRAINT name UNIQUE unique_nulls { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},NullsNotDistinct:$4,Pos:$1.pos} }
  | column_unique DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
  | column_unique NOT_DEFERRABLE_LA DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
- | column_unique KW_R name { if $2.text!="initially" || $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
+ | column_unique INITIALLY name { if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
 unique_constraint: UNIQUE unique_nulls '(' view_names ')' { $$=&UniqueConstraint{Columns:$4,NullsNotDistinct:$2,Pos:$1.pos} }
  | CONSTRAINT name UNIQUE unique_nulls '(' view_names ')' { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$6,NullsNotDistinct:$4,Pos:$1.pos} }
  | unique_constraint DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
  | unique_constraint NOT_DEFERRABLE_LA DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
- | unique_constraint KW_R name { if $2.text!="initially" || $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
+ | unique_constraint INITIALLY name { if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
 primary_head: PRIMARY name { if $2.keyword==nil || $2.text!="key" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
 primary_columns: view_names {$$=$1}
  | view_names WITHOUT OVERLAPS {sqllex.(*lexer).deferUnsupported($2,"PRIMARY KEY WITHOUT OVERLAPS is unsupported");$$=$1} ;
@@ -1185,10 +1191,37 @@ primary_constraint: primary_head '(' primary_columns ')' {$$=&UniqueConstraint{C
  | primary_constraint primary_modifier {$$=$1} ;
 primary_modifier: DEFERRABLE {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
  | NOT_DEFERRABLE_LA DEFERRABLE {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
- | KW_R name {if $1.text!="initially" || $2.keyword==nil || ($2.text!="deferred" && $2.text!="immediate") {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
+ | INITIALLY name {if $2.keyword==nil || ($2.text!="deferred" && $2.text!="immediate") {sqllex.(*lexer).syntax($1);return 1};sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY deferrability is unsupported");$$=$1}
  | INCLUDE '(' view_names ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
  | WITH '(' index_option_list ')' {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1}
  | USING INDEX TABLESPACE name {sqllex.(*lexer).deferUnsupported($1,"PRIMARY KEY index parameters are unsupported");$$=$1} ;
+foreign_columns_optional: /* empty */ {$$=nil} | '(' foreign_columns ')' {$$=$2} ;
+foreign_columns: view_names {$$=$1}
+ | view_names ',' PERIOD name {sqllex.(*lexer).deferUnsupported($3,"temporal foreign keys are unsupported");$$=append($1,Identifier{Text:$4.text,Pos:$4.pos})}
+ | PERIOD name {sqllex.(*lexer).deferUnsupported($1,"temporal foreign keys are unsupported");$$=[]Identifier{{Text:$2.text,Pos:$2.pos}}} ;
+foreign_reference: REFERENCES relation_name foreign_columns_optional {$$=&ForeignKeyConstraint{Target:$2,Referenced:$3,Pos:$1.pos}} ;
+foreign_match_optional: /* empty */ {$$=lexeme{}}
+ | MATCH foreign_match {if $2.text=="partial"{sqllex.(*lexer).deferUnsupported($1,"MATCH PARTIAL not yet implemented")};$$=$2} ;
+foreign_update: ON UPDATE foreign_action {$$=$1} ;
+foreign_delete: ON DELETE foreign_action {$$=$1} ;
+foreign_actions: /* empty */ {$$=lexeme{}}
+ | foreign_update {$$=$1}
+ | foreign_delete {$$=$1}
+ | foreign_update foreign_delete {$$=$1}
+ | foreign_delete foreign_update {$$=$1} ;
+foreign_body: foreign_reference foreign_match_optional foreign_actions {$$=$1;$$.Full=$2.text=="full"} ;
+foreign_definition: foreign_body {$$=$1}
+ | foreign_definition NOT_DEFERRABLE_LA DEFERRABLE {$$=$1}
+ | foreign_definition DEFERRABLE {sqllex.(*lexer).deferUnsupported($2,"foreign key deferrability is unsupported");$$=$1}
+ | foreign_definition INITIALLY name {if $3.keyword==nil||($3.text!="immediate"&&$3.text!="deferred"){sqllex.(*lexer).syntax($3);return 1};if $3.text=="deferred"{sqllex.(*lexer).deferUnsupported($3,"foreign key deferrability is unsupported")};$$=$1} ;
+foreign_match: FULL | name {if $1.keyword==nil||($1.text!="simple"&&$1.text!="partial"){sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).syntax($2);return 1};$$=$1}
+ | RESTRICT {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1}
+ | CASCADE {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1}
+ | SET NULL {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1}
+ | SET DEFAULT {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1} ;
+foreign_key: FOREIGN name '(' foreign_columns ')' foreign_definition {if $2.keyword==nil||$2.text!="key"{sqllex.(*lexer).syntax($2);return 1};$$=$6;$$.Columns=$4;$$.Pos=$1.pos}
+ | CONSTRAINT name FOREIGN name '(' foreign_columns ')' foreign_definition {if $4.keyword==nil||$4.text!="key"{sqllex.(*lexer).syntax($4);return 1};$$=$8;$$.Name=Identifier{Text:$2.text,Pos:$2.pos};$$.Columns=$6;$$.Pos=$3.pos} ;
 exclusion_head: EXCLUDE {$$=&ExclusionConstraint{Pos:$1.pos,Index:CreateIndex{Pos:$1.pos}}}
  | CONSTRAINT name EXCLUDE {$$=&ExclusionConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,Index:CreateIndex{Pos:$3.pos}}} ;
 exclusion_definition: exclusion_head index_method '(' exclusion_elements ')' index_include {
@@ -1208,7 +1241,7 @@ exclusion_predicate: exclusion_tablespace {$$=$1}
 exclusion_constraint: exclusion_predicate {sqllex.(*lexer).indexExpression=false;$$=$1}
  | exclusion_constraint DEFERRABLE {if !exclusionProperty(sqllex.(*lexer),$1,$2,true,true){return 1};$$=$1}
  | exclusion_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !exclusionProperty(sqllex.(*lexer),$1,$2,true,false){return 1};$$=$1}
- | exclusion_constraint KW_R name {if $2.text!="initially" || $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};if !exclusionProperty(sqllex.(*lexer),$1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
+ | exclusion_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};if !exclusionProperty(sqllex.(*lexer),$1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 like_options: /* empty */ { $$=nil } | like_options like_option { $$=append($1,$2) } ;
 like_option: INCLUDING like_option_name { $$=LikeOption{Name:$2.text,Including:true,Pos:$1.pos} }
  | EXCLUDING like_option_name { $$=LikeOption{Name:$2.text,Pos:$1.pos} } ;
@@ -1254,6 +1287,7 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ADD primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
  | ADD CONSTRAINT name primary_head USING INDEX name {sqllex.(*lexer).excludePrimaryAddition($1);$$=&AlterTableAction{}}
  | ADD exclusion_constraint {$$=&AlterTableAction{Action:AddExclusion,Exclusion:$2,Pos:$1.pos}}
+ | ADD foreign_key {sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=&AlterTableAction{}}
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} }
  | KW_U ROW LEVEL KW_U { if $4.text!="security" {sqllex.(*lexer).syntax($4);return 1};kind:=EnableRowSecurity;switch $1.text {case "enable":case "disable":kind=DisableRowSecurity;case "force":kind=ForceRowSecurity;default:sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos} }
  | NO KW_U ROW LEVEL KW_U {if $2.text!="force" {sqllex.(*lexer).syntax($2);return 1};if $5.text!="security" {sqllex.(*lexer).syntax($5);return 1};$$=&AlterTableAction{Action:NoForceRowSecurity,Pos:$1.pos}} ;
@@ -1366,6 +1400,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
  | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | column_primary {$$=ColumnConstraint{Unique:$1,Pos:$1.Pos}}
+ | foreign_definition {$$=ColumnConstraint{ForeignKey:$1,Pos:$1.Pos}}
+ | CONSTRAINT name foreign_definition {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$$=ColumnConstraint{ForeignKey:$3,Pos:$3.Pos}}
  | identity_definition { $$=ColumnConstraint{Identity:$1,Pos:$1.Pos} }
  | CONSTRAINT name identity_definition { $$=ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | generation_definition { $$=ColumnConstraint{Generation:$1,Pos:$1.Pos} }
@@ -1982,7 +2018,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
-non_between_name: window_name | PARTITION | FRAME_UNIT ;
+non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
 window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
@@ -1993,6 +2029,7 @@ transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | COPY
+ | MATCH | PERIOD
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
  | cursor_word
@@ -2016,6 +2053,7 @@ generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH 
  | EXCLUDE
  | NAMES
  | COLLATION
+ | FOREIGN | REFERENCES | MATCH | PERIOD | INITIALLY
  | collation_name_word
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | membership_keyword
@@ -2037,6 +2075,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | UNIQUE { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | PRIMARY {$$=$1}
+ | FOREIGN | REFERENCES | INITIALLY
  | BOTH | LEADING | TRAILING | PLACING
  | ANY | SOME | DO
  | IN { $$=$1 }
@@ -2046,6 +2085,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
  | SIMILAR
+ | FOREIGN | REFERENCES | INITIALLY
  | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO | GRANT | PRIMARY | COLLATION ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;
@@ -2106,7 +2146,7 @@ grant_privilege: name grant_columns { $$=GrantPrivilege{Name:$1.text,Pos:$1.pos,
  | grant_privilege_word grant_columns { $$=GrantPrivilege{Name:$1.text,Pos:$1.pos,Columns:$2} }
  | ALL grant_columns { $$=GrantPrivilege{All:true,Pos:$1.pos,Columns:$2} }
  | ALL name grant_columns { if $2.text!="privileges" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=GrantPrivilege{All:true,Pos:$1.pos,Columns:$3} } ;
-grant_privilege_word: SELECT | CREATE | KW_R | KW_T ;
+grant_privilege_word: SELECT | CREATE | KW_R | KW_T | REFERENCES ;
 grant_columns: /* empty */ { $$=nil }
  | '(' grant_column_list ')' { $$=$2 } ;
 grant_column_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }

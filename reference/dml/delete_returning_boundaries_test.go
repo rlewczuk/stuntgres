@@ -10,7 +10,7 @@ import (
 func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 	p := fixture.NewPair(t)
 	// PostgreSQL-only controls combine records with otherwise shared scalar
-	// subqueries, or require SRFs, triggers, FKs and rewriting.
+	// subqueries, or require SRFs, triggers and rewriting.
 	t.Run("postgres", func(t *testing.T) {
 		db, r := p.Postgres, p.PostgresRecord
 		fixture.LockExec(t, p.Ctx, db, "CREATE TABLE t(id INT PRIMARY KEY)", 0)
@@ -28,12 +28,6 @@ func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, db, r, s)
 		}
 		fixture.LockExec(t, p.Ctx, db, "INSERT INTO t VALUES(1)", 1)
-		fixture.LockExec(t, p.Ctx, db, "CREATE TABLE child(id INT CONSTRAINT child_ref REFERENCES t(id))", 0)
-		fixture.LockExec(t, p.Ctx, db, "INSERT INTO child VALUES(1)", 1)
-		s := fixture.ImplicitError("DELETE FROM t RETURNING id", fixture.Diagnostic{Code: "23503", Message: `update or delete on table "t" violates foreign key constraint "child_ref" on table "child"`, Detail: `Key (id)=(1) is still referenced from table "child".`, Schema: "public", Table: "child", Constraint: "child_ref"})
-		s.SelectRows = true
-		fixture.RunStep(t, p.Ctx, db, r, s)
-		fixture.DeleteReferenceRows(t, p, db, r, 1)
 		fixture.LockExec(t, p.Ctx, db, "CREATE FUNCTION suppress_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$", 0)
 		fixture.LockExec(t, p.Ctx, db, "CREATE TRIGGER suppress BEFORE DELETE ON t FOR EACH ROW EXECUTE FUNCTION suppress_delete()", 0)
 		fixture.RunStep(t, p.Ctx, db, r, fixture.Select("DELETE FROM t RETURNING id", []string{"id"}, []string{"INT4"}, [][]any{}))

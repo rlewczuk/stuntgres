@@ -1395,8 +1395,9 @@ Pinned builtin type/function/operator/collation/opclass/conversion references
 and pg_catalog namespace11 are omitted, not synthetic `p` rows. public is not
 pinned; discover its actual OID because the reference fixture recreates it.
 Automatic rowtypes, enum arrays, pg_shdepend owner/ACL/membership relationships,
-extensions, partitions, foreign keys/triggers and unsupported physical objects
-are not invented. Actual domain arrays and view rules are not exclusions.
+extensions, partitions, triggers and unsupported physical objects are not
+invented. Actual domain arrays, view rules and FK child/parent/key dependencies
+are not exclusions.
 PUBLIC SELECT requires no endpoint SELECT/schema USAGE and applies no per-edge
 privilege filtering. Native mutation reports0A000
 `catalog source mutation is unsupported`; row locking reports0A000

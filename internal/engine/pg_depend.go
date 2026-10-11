@@ -237,6 +237,16 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					add(ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.address, sub), 'a')
 				}
 			}
+			for _, f := range d.foreignKeys {
+				owner := ObjectAddress{ClassID: 2606, ObjectID: f.OID}
+				for _, sub := range f.Attributes {
+					add(owner, attribute(d.address, sub), 'a')
+				}
+				for _, sub := range f.Referenced {
+					add(owner, attribute(f.Target, sub), 'n')
+				}
+				add(owner, f.Index, 'n')
+			}
 			for _, c := range d.exclusionConstraints {
 				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
 				if !ok || index.sqlIndex == nil {

@@ -142,7 +142,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	raw := statement(t, "CREATE TABLE captured_default(v mood DEFAULT 'q')").(*parser.CreateTable)
-	failure := e.schemaTableLocked(op, auth, stage, raw, domainUnitType(t, auth.catalog, "mood").namespace, auth.state.CurrentUser, sqltype.InputEnvironment{})
+	failure := e.schemaTableLocked(op, auth, stage, raw, domainUnitType(t, auth.catalog, "mood").namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "55P04" {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}

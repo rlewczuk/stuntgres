@@ -366,7 +366,7 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 		}
 		if !blocked {
 			for _, earlier := range remaining {
-				if r.ref.completion == nil && !sameLockSession(earlier.ticket, r.ticket) && lockConflict(r.mode, earlier.mode) {
+				if r.ref.completion == nil && (r.ref.row == 0 || r.mode != noKeyUpdate) && !sameLockSession(earlier.ticket, r.ticket) && lockConflict(r.mode, earlier.mode) {
 					blocked = true
 					break
 				}
@@ -476,9 +476,11 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		}
 	}
 	// Self reentry bypasses requests blocked by this owner's existing hold.
+	// A compatible tuple NO KEY UPDATE also need not wait behind a pending
+	// UPDATE blocked by KEY SHARE; actual granted tuple modes still conflict.
 	if eligible && e.holders[t].mode == 0 {
 		for _, earlier := range e.pending {
-			if ref.completion == nil && !earlier.terminal && !sameLockSession(earlier.ticket, t) && lockConflict(mode, earlier.mode) {
+			if ref.completion == nil && (ref.row == 0 || mode != noKeyUpdate) && !earlier.terminal && !sameLockSession(earlier.ticket, t) && lockConflict(mode, earlier.mode) {
 				eligible = false
 				break
 			}

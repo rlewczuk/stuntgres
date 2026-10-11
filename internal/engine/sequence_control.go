@@ -251,6 +251,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			for _, definition := range relation.exclusionConstraints {
 				retainedIDs[definition.OID] = true
 			}
+			for _, definition := range relation.foreignKeys {
+				retainedIDs[definition.OID] = true
+			}
 			for _, definition := range relation.defaults {
 				retainedIDs[definition.OID] = true
 			}
@@ -370,6 +373,17 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					for i := range n.exclusionConstraints {
 						if dest, ok := mapping[n.exclusionConstraints[i].Index]; ok {
 							n.exclusionConstraints[i].Index = dest
+						}
+					}
+				}
+				if len(r.foreignKeys) != 0 {
+					n.foreignKeys = append([]foreignKeyConstraint(nil), r.foreignKeys...)
+					for i := range n.foreignKeys {
+						if dest, ok := mapping[n.foreignKeys[i].Target]; ok {
+							n.foreignKeys[i].Target = dest
+						}
+						if dest, ok := mapping[n.foreignKeys[i].Index]; ok {
+							n.foreignKeys[i].Index = dest
 						}
 					}
 				}

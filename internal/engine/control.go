@@ -839,6 +839,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				localElements++
 				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 			}
+			for _, f := range t.descriptor.foreignKeys {
+				text, err := foreignKeyConstraintSQL(catalog, t.descriptor, f, nil)
+				if err != nil {
+					return err
+				}
+				if localElements > 0 {
+					line.WriteString(", ")
+				}
+				localElements++
+				line.WriteString("CONSTRAINT " + quoteIdentifier(f.Name) + " " + text)
+			}
 			line.WriteString(")")
 			if graph := t.descriptor.inheritance; graph != nil {
 				line.WriteString(" INHERITS (")
@@ -1012,9 +1023,18 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	defer op.Done()
 	defer func() { op.restoreDefaultReplay = false }()
+	var pendingForeignKeys []restoredForeignKeys
 	for _, stmt := range statements {
+		var pending restoredForeignKeys
 		switch s := stmt.(type) {
 		case *parser.CreateTable:
+			if declarations := foreignKeyDeclarations(s); len(declarations) != 0 {
+				pending, err = stage.captureRestoredForeignKeys(op, declarations)
+				if err != nil {
+					return err
+				}
+				stripRestoreForeignKeys(s)
+			}
 			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
 			}
@@ -1170,11 +1190,21 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if err != nil {
 			return err
 		}
+		if result.created != (ObjectRef{}) && len(pending.definitions) != 0 {
+			pending.child = result.created
+			if err := stage.resolveRestoredForeignKeyTargets(&pending); err != nil {
+				return err
+			}
+			pendingForeignKeys = append(pendingForeignKeys, pending)
+		}
 		if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
 			if err := stage.validateRestoredDefault(op, alteration); err != nil {
 				return err
 			}
 		}
+	}
+	if err := stage.bindRestoredForeignKeys(ctx, op, pendingForeignKeys); err != nil {
+		return err
 	}
 	if err := stage.importMaterializedSnapshots(ctx, op, snapshots); err != nil {
 		return err

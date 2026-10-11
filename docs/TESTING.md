@@ -1069,7 +1069,7 @@ an independently stated native sort-versus-simple-scan contract; it does not
 require reproducing PostgreSQL's optimizer. Raw `CURRENT OF $1` is independently
 asserted as syntax42601 at character32 in direct/prepared SQL; executor refcursor
 parameter hooks do not imply that raw SQL grammar admits this form. Genuine
-foreign-key effects have a named PostgreSQL capability witness, not native no-ops.
+foreign-key effects have complete shared native/PostgreSQL witnesses, not native no-ops.
 
 Standalone feature proof selects `^TestReferenceDeleteCurrentOfFeatureSmoke$` in
 both modes: prepare before DECLARE, FETCH id1, delete/rollback/repeat id1,
@@ -4805,3 +4805,163 @@ for all hints while an independently reachable marked aggregate sibling retains
 native's mandatory conflict frontier, then releases grants on transaction end.
 The program is a temporary session artifact, not a committed scaffold. Permanent
 `TestReferenceQueryCTEFeatureSmoke` additionally runs in both selected modes.
+
+## Foreign-key proof selection — change note
+
+Shared independently specified references use the same bodies for native and
+pinned PostgreSQL, including all migrated FK boundary callers. Run each selected
+group with `make check RUN='...'` and again with REFERENCE=1:
+
+* `^TestReferenceForeignKey(Definition|DefinitionNames|DefinitionIneligibleKeys|DefinitionTypes|DefinitionProviders|NetworkSupportingKeys|Diagnostics|Values|Metadata|Boundaries|BoundariesModes|BoundariesPartition|BoundariesTemporal|BoundariesTemporary)$`
+* `^TestReferenceForeignKey(Atomicity|Transactions|Producers|Authorization|Concurrent|ConcurrentCancellation)$`
+* `^TestReferenceForeignKey(Lifecycle|RetainedStatements|NativeControls|NativeControlsTemporary|FeatureSmoke|DeleteReturningCaller|DropColumnCaller|SchemaCaller)$`
+* `^(TestReferenceDeleteCoreForeignKeyBoundary|TestReferenceAlterTypeForeignKeyBoundary|TestReferenceAlterRenameExternal|TestReferenceInheritanceKeyBoundaries|TestReferenceTableCoreExternalDependencyBoundary)$`
+
+The affected tagged remainder definitions are
+TestReferenceDeleteReturningBoundaries,
+TestReferenceAlterDropColumnExternalDependencies and
+TestReferenceAlterSchemaPostgresClosure. Their unrelated PostgreSQL-only
+assertions remain selected with REFERENCE=1; their extracted FK assertions are
+now in the untagged caller definitions above. No discovery filter remains.
+Native controls do not run on PostgreSQL; the permanent shared bodies retain
+complete SQL assertions around their native-only Reset/Dump/Restore phases.
+
+Internal `^TestForeignKey` exercises the real canonical K/U row requests,
+non-key compatibility, queued cancellation/replacement, private row overlays,
+definition/index authority and immutable TYPE identities. Race proof uses
+`make check RACE=1 RUN='^TestForeignKey'`. Keep the shared concurrent references
+selected too: internal manager evidence complements, not substitutes for, the
+real PostgreSQL observed behavior.
+The migrated parser witness is selected by
+`make check RUN='^TestObjectGrantReferencesAndForeignKeyGrammar$'`.
+The comment-only role-grant consumer remains
+`make check RUN='^TestReferenceRoleGrantKinds$'` and its REFERENCE=1 counterpart;
+its delegated privilege assertions are unchanged.
+
+Feature smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`, plus
+the identical selector with REFERENCE=1. Every external check invocation uses
+a 900-second deadline. Quickcheck remains whole-project Docker-free proof.
+
+FK regression remediation keeps incumbent keyword and consumer semantics:
+INITIALLY remains usable by EXCLUDE/PRIMARY KEY/UNIQUE controls, and FOREIGN
+retains its keyword-label behavior. Supporting-index and referenced-column
+RESTRICT retain complete dependency diagnostics; CASCADE prunes definitions,
+not child data. The internal `TestForeignKeyQueuedNonKeyCompatibility` observes
+the actual pending DELETE and compatible non-key grant on the same parent RowID.
+`TestForeignKeyPrivateFinalImage` covers parent keys born in a prior own INSERT,
+not merely replacements with a committed predecessor.
+
+`TestReferenceForeignKeyNetworkSupportingKeys` independently checks primary
+and standalone inet_ops providers, equivalent INET/CIDR spellings, duplicate
+parent rejection, missing child rejection and unchanged typed rows. Its
+supporting-key consumer reuses the existing comparator bucket, not a new
+network grouping/hash provider. Select the following existing consumer
+definitions in both native and real modes as well:
+`make check RUN='^TestReferenceUnique(TypedEquality|IndexTypedEquality|IndexProviderBoundaries|IndexDeclaredTypes|IndexBuild|IndexAtomicity|IndexContention|IndexSupportedControlsPreserveState)$'`
+and the identical command with REFERENCE=1.
+
+Parser/internal regression selection:
+`make check RUN='^(TestMappedKeywordLabels|TestExclusionSyntax|TestPrimaryKeyCapabilityRecords|TestUniqueDeferrabilityCapabilityBoundary|TestObjectGrantReferencesAndForeignKeyGrammar)$'`;
+canonical lock compatibility selection: `make check RUN='^TestRowLock'`.
+Existing reference controls remain selected in both modes with
+`make check RUN='^(TestReferenceExclusion|TestReferencePrimaryKeyBoundaries|TestReferenceUniqueExcludedControls|TestReferenceInsertConflictProviderBoundaries|TestReferenceInsertConflictExcludedActions)'`.
+All changed FK definitions above require fresh native and pinned evidence.
+The expression-index, stored internal `"char"` and INSERT suffix witnesses
+assert existing native capability diagnostics versus real PostgreSQL behavior;
+they do not weaken the admitted FK consumer checks. Schema GRANT is only
+PostgreSQL fixture setup; the table/column REFERENCES and redaction assertions
+remain shared. No discovery filter or executable discovery scaffold is added.
+
+The positioned DELETE FK caller is shared in
+`TestReferenceDeleteCurrentOfUsingReturningAndConstraints`: its FK failure
+preserves the parent row and positioned cursor, and removing the child permits
+deleting that same physical parent occurrence. The unrelated USING/RETURNING,
+constraint and cursor eligibility phases remain intact. Select the complete
+definition with
+`make check RUN='^TestReferenceDeleteCurrentOfUsingReturningAndConstraints$'`
+and the identical command with REFERENCE=1.
+
+DROP COLUMN regression selection preserves incumbent AUTO ownership, immutable
+staged owners and exact default/CHECK/policy notice schedules. The shared
+`TestReferenceForeignKeyDropColumnCaller` additionally observes mixed FK/view
+ordered RESTRICT and CASCADE, child-data survival and local self-FK AUTO
+retirement. `TestReferenceForeignKeyProducers` shares real23503 for the incoming
+admitted MERGE MATCHED UPDATE; it keeps independent INSERT suffix boundaries.
+Required fresh native and pinned selections (not observed passes):
+
+```sh
+make check RUN='^TestReferenceForeignKey(DropColumnCaller|DefinitionTypes|Producers)$'
+make check REFERENCE=1 RUN='^TestReferenceForeignKey(DropColumnCaller|DefinitionTypes|Producers)$'
+make check RUN='^(TestCheckReview2OrderOrdinalInvariants|TestRegclassDropColumnStagedOwnerDefinitions|TestTemporaryTableRetainedLiveRelationProviders)$'
+make check RUN='^TestReference(RegclassDropColumnDependencies|RegclassFeatureSmoke|RLSPolicyDependencies|AlterNullabilityReviewRemainingDependency|AlterTypeCheckDependencies|HashIndexLifecycle|PartialIndexLifecycle|PartialIndexUniqueCurrentNames|PartialIndexUniqueDependencyClosure|ExpressionIndexLifecycle|LikeStoredDependencies|LikeStoredPatternEscapeDependencyRestrictionsSourceConsumerRoutes|CheckAlterOwnedSequenceAutoConstraint|CheckControls|CheckLifecycle|TableLikePartialProviders)'
+make check REFERENCE=1 RUN='^TestReference(RegclassDropColumnDependencies|RegclassFeatureSmoke|RLSPolicyDependencies|AlterNullabilityReviewRemainingDependency|AlterTypeCheckDependencies|HashIndexLifecycle|PartialIndexLifecycle|PartialIndexUniqueCurrentNames|PartialIndexUniqueDependencyClosure|ExpressionIndexLifecycle|LikeStoredDependencies|LikeStoredPatternEscapeDependencyRestrictionsSourceConsumerRoutes|CheckAlterOwnedSequenceAutoConstraint|CheckControls|CheckLifecycle|TableLikePartialProviders)'
+make check RUN='^TestReferenceTemporaryTableExpressionCommitDrop$'
+make check REFERENCE=1 RUN='^TestReferenceTemporaryTableExpressionCommitDrop$'
+```
+
+The session-only public smoke uses finite context, a real prepared composite
+child INSERT, exact nullable INT4/TEXT rows, full23503 fields, atomic parent
+UPDATE/DELETE, savepoint recovery, actual Reset before persistent Restore,
+SIMPLE NULL, cyclic replay/redump, invalid final import preserving sentinel91
+and held Rows, and retained TEMP identity through Reset and Restore. Successful
+stdout is empty; mismatches exit nonzero. It is not a staged deliverable.
+
+Independent FK review remedies require these exact completed selectors in native
+and real pinned PostgreSQL modes (external900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceForeignKeySupportingFamily'
+make check REFERENCE=1 RUN='^TestReferenceForeignKeySupportingFamily'
+make check RUN='^TestReferenceForeignKey(ClauseStructure|NotNullNameCollision|TypeAtomicity)'
+make check REFERENCE=1 RUN='^TestReferenceForeignKey(ClauseStructure|NotNullNameCollision|TypeAtomicity)'
+make check RUN='^TestReferenceForeignKeyRestore(SkippedCreate|CapturedAuthority)'
+make check REFERENCE=1 RUN='^TestReferenceForeignKeyRestore(SkippedCreate|CapturedAuthority)'
+make check RUN='^TestForeignKey'
+make check RACE=1 RUN='^TestForeignKey'
+```
+
+The eight new shared definitions are SupportingFamilyAdmission,
+SupportingFamilyCoercion, SupportingFamilyRestore, ClauseStructure,
+NotNullNameCollision, TypeAtomicity, RestoreSkippedCreate and RestoreCapturedAuthority
+(each prefixed TestReferenceForeignKey). They independently assert full diagnostics,
+metadata, stable/reminted identities, complete typed bags, recovery and failed
+publication. All eight temporary PostgreSQL-only discovery returns are removed
+from the four foreign_key_review_* reference files; native-control-only phases
+remain backend-specific inside otherwise complete shared definitions.
+
+Package seams TestForeignKeyIndexProbeVisitBounds, SelectedFamilyAuthority,
+TypeFailedSnapshotAuthority, TrustedReplayNamespacePrincipal and CreateOutcomeIdentity
+(each prefixed TestForeignKey) complement the shared observations. Count proof wraps
+the actual selected-family ordered comparator and actual entry visitor over a
+4096-entry native logical index; it asserts bounded lower-bound work, first-match
+stop, exact source version locators and unchanged borrowed entries, not wiring counts.
+Snapshot proof retains original metadata/storage/index authority through failed and
+successful TYPE; namespace proof separates transient replay permissions from semantics.
+The name_ops class uses its released text_ops family identity without adding a new
+type/index capability; existing unique-index typed/provider/catalog assertions must
+also run in both modes:
+
+```sh
+make check RUN='^TestReferenceUnique(TypedEquality|IndexTypedEquality|IndexProviderBoundaries|IndexDeclaredTypes|IndexBuild|IndexAtomicity|IndexContention|IndexSupportedControlsPreserveState)'
+make check REFERENCE=1 RUN='^TestReferenceUnique(TypedEquality|IndexTypedEquality|IndexProviderBoundaries|IndexDeclaredTypes|IndexBuild|IndexAtomicity|IndexContention|IndexSupportedControlsPreserveState)'
+```
+
+These are required proof commands, not observed passes. Existing FK families,
+migrated callers, parser controls and standalone session-only public smoke above
+remain selected. Whole-project Docker-free verification remains quickcheck.
+
+Post-rebase FK fixture remedies preserve raw NUMERIC transport and held pid INT4
+metadata/nullability/content after failed Restore. Incoming ON CONFLICT target
+DO UPDATE is admitted: Producers asserts its no-RETURNING23503 and unchanged
+complete bags in both modes; only RETURNING supplies the positioned native suffix
+exclusion for the combined query. Required fresh selections (900 seconds each):
+
+```sh
+make check RUN='^TestReferenceForeignKey(SupportingFamilyAdmission|RestoreSkippedCreate|Producers)$'
+make check REFERENCE=1 RUN='^TestReferenceForeignKey(SupportingFamilyAdmission|RestoreSkippedCreate|Producers)$'
+make check RUN='^TestEnum(GenerationPublicationAtomicity|OperationSafetyCapture)$'
+```
+
+Incoming enum staged-table fixture callers pass the empty FK reference-grant
+inventory explicitly; their original provenance/publication/safety assertions
+are unchanged.

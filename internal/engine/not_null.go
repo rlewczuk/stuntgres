@@ -298,6 +298,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
+	if len(transformations) > 0 {
+		if err := scope.acquireForeignKeyTypeProviders(auth.catalog, old.address); err != nil {
+			return Result{}, err
+		}
+	}
 	for _, added := range additions {
 		if next.defaults[added.attribute].catalogSnapshot {
 			e.mu.Lock()
@@ -449,9 +454,26 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err == nil {
 		err = e.evolveStageIndexesLocked(stage, ref.Address, transformations)
 	}
+	if err == nil {
+		next, err = e.rebuildAlterForeignKeysLocked(stage, next, transformations)
+	}
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
+	}
+	for _, action := range s.Actions {
+		if action.Action != parser.DropConstraint {
+			continue
+		}
+		for _, c := range old.uniqueConstraints {
+			if c.Name == action.Constraint.Text {
+				if _, removed := stage.removals[c.Index]; removed {
+					if err := scope.stageExpressionDependents(stage, []ObjectAddress{c.Index}, action.Mode, changes); err != nil {
+						return Result{}, err
+					}
+				}
+			}
+		}
 	}
 	var uniqueBaselines map[string]*logicalIndexRoot
 	if len(transformations) != 0 {
@@ -564,6 +586,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if replacement != store {
 		scope.stageProjectedColumnRoots(ref.Address, projectedWrites, projectedDeletes)
 	}
+	if len(transformations) > 0 {
+		if err := scope.validateAlterForeignKeys(e.stageRead(stage), ref.Address); err != nil {
+			return Result{}, err
+		}
+	}
 	if len(stage.generators) != 0 {
 		e.mu.Lock()
 		for address, generator := range stage.generators {
@@ -637,6 +664,15 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				return &next, nil
 			}
 		}
+		for i, c := range old.foreignKeys {
+			if c.Name == a.Constraint.Text {
+				next := *old
+				next.foreignKeys = make([]foreignKeyConstraint, 0, len(old.foreignKeys)-1)
+				next.foreignKeys = append(next.foreignKeys, old.foreignKeys[:i]...)
+				next.foreignKeys = append(next.foreignKeys, old.foreignKeys[i+1:]...)
+				return &next, nil
+			}
+		}
 		if slot < 0 {
 			if !a.IfExists {
 				return nil, sqlError("42704", fmt.Sprintf(`constraint "%s" of relation "%s" does not exist`, a.Constraint.Text, old.name))
@@ -691,15 +727,8 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 		if name == "" {
 			name = generatedConstraintName(old.name, old.columns[slot].Name, "not_null", constraintNames(catalog, old.namespace, old))
 		}
-		for _, c := range old.notNullConstraints {
-			if c.Name == name {
-				return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
-			}
-		}
-		for _, c := range old.checkConstraints {
-			if c.Name == name {
-				return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
-			}
+		if relationConstraintNameExists(old, name) {
+			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
 		}
 	}
 	next := *old

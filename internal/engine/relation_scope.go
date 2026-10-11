@@ -33,6 +33,11 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 			err = s.acquireViewSources()
 		}
 	}()
+	if creation, ok := stmt.(*parser.CreateTable); ok && execute {
+		if err := s.acquireForeignKeyCreation(creation); err != nil {
+			return err
+		}
+	}
 	if view, ok := stmt.(*parser.CreateView); ok {
 		if !execute {
 			return nil

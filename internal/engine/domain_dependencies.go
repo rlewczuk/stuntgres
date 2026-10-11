@@ -204,6 +204,16 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: orderOID, ordinal: ordinal, label: "constraint " + dependencyIdentifier(check.Name) + " on table " + name, relation: d})
 					}
 				}
+				for _, f := range d.foreignKeys {
+					depends := target == f.Index || target == f.Target
+					if target.ClassID == f.Target.ClassID && target.ObjectID == f.Target.ObjectID && target.SubID != 0 {
+						depends = slices.Contains(f.Referenced, target.SubID)
+					}
+					automatic := target.ClassID == d.address.ClassID && target.ObjectID == d.address.ObjectID && (target.SubID == 0 || slices.Contains(f.Attributes, target.SubID))
+					if depends || automatic {
+						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2606, ObjectID: f.OID}, target: target, root: root, oid: f.OID, label: "constraint " + dependencyIdentifier(f.Name) + " on table " + name, relation: d, automatic: automatic})
+					}
+				}
 			}
 		}
 		sort.Slice(direct, func(i, j int) bool {
@@ -285,7 +295,16 @@ func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []d
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {
 		if !edge.automatic {
-			details = append(details, edge.label+" depends on "+dependencyObject(stage.base, edge.target, stage.dependencyPath))
+			target := edge.target
+			if edge.address.ClassID == 2606 && edge.relation != nil {
+				for _, f := range edge.relation.foreignKeys {
+					if f.OID == edge.address.ObjectID && edge.root.ClassID == f.Target.ClassID && edge.root.ObjectID == f.Target.ObjectID {
+						target = edge.root
+						break
+					}
+				}
+			}
+			details = append(details, edge.label+" depends on "+dependencyObject(stage.base, target, stage.dependencyPath))
 		}
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
@@ -370,7 +389,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 	}
 	for _, edge := range edges {
-		if edge.column != "" && !seen[edge.relation.address] {
+		if (edge.column != "" || edge.address.ClassID == 2606) && !seen[edge.relation.address] {
 			relations = append(relations, edge.relation)
 			seen[edge.relation.address] = true
 		}
@@ -430,6 +449,9 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	}
 	noticeStart := len(stage.viewCascadeNames)
 	if err = stageViewDependents(stage, targets, parser.DropCascade); err != nil {
+		return err
+	}
+	if err := stageForeignKeyDependents(stage, edges); err != nil {
 		return err
 	}
 	for _, old := range relations {

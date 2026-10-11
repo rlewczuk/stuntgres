@@ -247,6 +247,7 @@ type ColumnConstraint struct {
 	Default    Expr
 	Check      *CheckConstraint
 	Unique     *UniqueConstraint
+	ForeignKey *ForeignKeyConstraint
 	Identity   *IdentityDefinition
 	Generation *GenerationDefinition
 	Name       Identifier
@@ -273,6 +274,17 @@ type UniqueConstraint struct {
 	Primary          bool
 	NullsNotDistinct bool
 	Pos              Position
+}
+
+// ForeignKeyConstraint retains one declaration for column and table syntax.
+// Column REFERENCES receives its local column when the CREATE binder walks it.
+type ForeignKeyConstraint struct {
+	Name       Identifier
+	Columns    []Identifier
+	Target     ObjectName
+	Referenced []Identifier
+	Full       bool
+	Pos        Position
 }
 
 // OnCommitAction is stored with a temporary table's transactional descriptor.
@@ -572,13 +584,14 @@ func (CollateExpr) expression()                {}
 func (e CollateExpr) SourcePosition() Position { return e.Pos }
 
 type TableElement struct {
-	Column    *Column
-	Like      *TableLike
-	NotNull   *NotNullConstraint
-	Check     *CheckConstraint
-	Unique    *UniqueConstraint
-	Exclusion *ExclusionConstraint
-	Pos       Position
+	Column     *Column
+	Like       *TableLike
+	NotNull    *NotNullConstraint
+	Check      *CheckConstraint
+	Unique     *UniqueConstraint
+	ForeignKey *ForeignKeyConstraint
+	Exclusion  *ExclusionConstraint
+	Pos        Position
 }
 
 type TableLike struct {

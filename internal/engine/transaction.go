@@ -316,6 +316,7 @@ type StatementScope struct {
 	catalog                *catalogChanges
 	catalogAuthority       *catalogAuthority
 	projectedRoots         bool
+	foreignKeyTargets      []ObjectRef
 	searchPathResults      [2]sqltype.Value
 	commentCatalog         CatalogRead
 	commentRoles           RoleRead

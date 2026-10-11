@@ -143,7 +143,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	table := e.BeginCatalogStage(auth.catalog)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, table, rawTable, a.Namespace(), auth.state.CurrentUser, sqltype.InputEnvironment{})
+		err = e.schemaTableLocked(op, auth, table, rawTable, a.Namespace(), auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {

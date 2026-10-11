@@ -114,6 +114,11 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 			if usageErr != nil {
 				return nil, usageErr
 			}
+			// network_ops owns typed comparison but not generic grouping. Its
+			// claims use the existing comparator-based shared bucket.
+			if key.class.Family == "network_ops" {
+				continue
+			}
 			bound.grouping[j], err = sqltype.BindGrouping(usage)
 			if err != nil {
 				return nil, err

@@ -81,11 +81,19 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if _, drop := stmt.(*parser.DropIndex); drop {
+	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.indexes {
 			if err := stage.Remove(ref); err != nil {
 				return Result{}, err
 			}
+		}
+		roots := make([]ObjectAddress, len(g.indexes))
+		for i, ref := range g.indexes {
+			roots[i] = ref.Address
+		}
+		stage.dependencyPath, _ = e.referencePath(auth)
+		if err := scope.stageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
+			return Result{}, err
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)

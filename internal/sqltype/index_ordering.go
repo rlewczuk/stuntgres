@@ -43,6 +43,7 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 		c.oid = 10007
 	case "name_ops":
 		c.input = Name
+		c.Family = "text_ops"
 		c.oid = 10028
 	case "int2_ops":
 		c.input = Int2

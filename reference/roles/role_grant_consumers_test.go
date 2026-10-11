@@ -39,8 +39,8 @@ func TestReferenceRoleGrantKinds(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE t(a INT)", 0))
 		run(fixture.Exec("CREATE VIEW v AS SELECT a FROM t", 0))
 		run(fixture.Exec("CREATE MATERIALIZED VIEW m AS SELECT 7 AS a", 1))
-		// REFERENCES/TRIGGER lack native commands, but their real option authority
-		// is observable by delegating each selected bit, not pretending to consume it.
+		// Delegation exercises the selected privilege bits independently of their
+		// command consumers; FK declaration authority has separate shared coverage.
 		run(fixture.Exec("GRANT ALL PRIVILEGES ON TABLE t,v,m TO rg_a WITH GRANT OPTION", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_a", 0))
 		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"} {

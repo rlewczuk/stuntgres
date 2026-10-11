@@ -105,6 +105,7 @@ type relationDescriptor struct {
 	rlsForced            bool
 	uniqueConstraints    []uniqueConstraint
 	exclusionConstraints []exclusionConstraint
+	foreignKeys          []foreignKeyConstraint
 	defaults             map[int32]columnDefault
 	generations          map[int32]columnGeneration
 	identities           map[int32]columnIdentity
@@ -266,7 +267,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return err
 	}
 	if r.relationKind == compositeRelation {
-		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 || len(r.exclusionConstraints) != 0 {
+		if r.rowType == 0 || r.sequence != nil || r.view != nil || r.sqlIndex != nil || len(r.defaults) != 0 || len(r.identities) != 0 || len(r.notNullConstraints) != 0 || len(r.checkConstraints) != 0 || len(r.generations) != 0 || len(r.uniqueConstraints) != 0 || len(r.exclusionConstraints) != 0 || len(r.foreignKeys) != 0 {
 			return fmt.Errorf("stuntgres: composite backing relation has storage behavior")
 		}
 		for _, c := range r.columns {
@@ -339,6 +340,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return err
 	}
 	if err := validateExclusions(v, r, names); err != nil {
+		return err
+	}
+	if err := validateForeignKeys(v, r, names); err != nil {
 		return err
 	}
 	for attribute, identity := range r.identities {

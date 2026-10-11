@@ -28,9 +28,43 @@ func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relat
 			for _, constraint := range relation.exclusionConstraints {
 				names[constraint.Name] = true
 			}
+			for _, constraint := range relation.foreignKeys {
+				names[constraint.Name] = true
+			}
 		}
 	}
 	return names
+}
+
+// Explicit names are relation-local and span every admitted constraint kind.
+// Keep this allocation-free lookup shared by NN additions and FK attachment.
+func relationConstraintNameExists(d *relationDescriptor, name string) bool {
+	for _, c := range d.notNullConstraints {
+		if c.Name == name {
+			return true
+		}
+	}
+	for _, c := range d.checkConstraints {
+		if c.Name == name {
+			return true
+		}
+	}
+	for _, c := range d.uniqueConstraints {
+		if c.Name == name {
+			return true
+		}
+	}
+	for _, c := range d.exclusionConstraints {
+		if c.Name == name {
+			return true
+		}
+	}
+	for _, c := range d.foreignKeys {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func generatedConstraintName(table, column, base string, used map[string]bool) string {
@@ -95,7 +129,7 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	seen := declaration.serial
 	declaration.columnNotNull = declaration.serial
 	for _, constraint := range column.Constraints {
-		if constraint.Check != nil {
+		if constraint.Check != nil || constraint.ForeignKey != nil {
 			continue
 		}
 		if constraint.Unique != nil {

@@ -38,20 +38,4 @@ func TestReferenceAlterDropColumnExternalDependencies(t *testing.T) {
 		t.Fatal(notices, want)
 	}
 	run(fixture.Select("SELECT * FROM independent", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
-	run(fixture.Exec("CREATE TABLE p(a INT,b INT UNIQUE)", 0))
-	run(fixture.Exec("CREATE TABLE child(x INT CONSTRAINT child_b_fk REFERENCES p(b))", 0))
-	run(fixture.Exec("INSERT INTO p VALUES(1,9)", 1))
-	run(fixture.Exec("INSERT INTO child VALUES(9)", 1))
-	failure = fixture.ImplicitError("ALTER TABLE p DROP b RESTRICT", fixture.Diagnostic{Code: "2BP01", Message: "cannot drop column b of table p because other objects depend on it", Detail: "constraint child_b_fk on table child depends on column b of table p", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
-	failure.ErrorStage = "execute"
-	run(failure)
-	run(fixture.Select("SELECT * FROM p", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(9)}}))
-	notices = nil
-	run(fixture.Exec("ALTER TABLE p DROP b CASCADE", 0))
-	want = []fixture.Diagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to constraint child_b_fk on table child"}}
-	if !reflect.DeepEqual(notices, want) {
-		t.Fatal(notices, want)
-	}
-	run(fixture.Select("SELECT * FROM child", []string{"x"}, []string{"INT4"}, [][]any{{int64(9)}}))
-	run(fixture.Select("SELECT conname FROM pg_constraint WHERE conrelid='child'::regclass", []string{"conname"}, []string{"NAME"}, nil))
 }

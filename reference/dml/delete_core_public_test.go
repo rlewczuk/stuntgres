@@ -177,24 +177,6 @@ func TestReferenceDeleteCoreVisibility(t *testing.T) {
 	}
 }
 
-func TestReferenceDeleteCoreForeignKeyBoundary(t *testing.T) {
-	p := fixture.NewPair(t)
-	// PostgreSQL-only executable mechanism: native FK syntax/enforcement is not
-	// implemented. This is not native parity or a native constraint substitute.
-	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
-	run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
-	run(fixture.Exec("CREATE TABLE c(pid INT CONSTRAINT c_pid_fkey REFERENCES p(id))", 0))
-	run(fixture.Exec("INSERT INTO p VALUES(1),(2)", 2))
-	run(fixture.Exec("INSERT INTO c VALUES(2)", 1))
-	step := fixture.ImplicitError("DELETE FROM p", fixture.Diagnostic{Code: "23503", Message: `update or delete on table "p" violates foreign key constraint "c_pid_fkey" on table "c"`, Detail: `Key (id)=(2) is still referenced from table "c".`, Schema: "public", Table: "c", Constraint: "c_pid_fkey"})
-	for _, prepared := range []bool{false, true} {
-		step.Prepared, step.ErrorStage = prepared, "execute"
-		run(step)
-		run(fixture.Select("SELECT id FROM p ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
-		run(fixture.Select("SELECT pid FROM c", []string{"pid"}, []string{"INT4"}, [][]any{{int64(2)}}))
-	}
-}
-
 func TestReferenceDeleteCoreNotNull(t *testing.T) {
 	p := fixture.NewPair(t)
 	p.Step(t, fixture.Exec("CREATE TABLE t(id INT NOT NULL,v INT)", 0))

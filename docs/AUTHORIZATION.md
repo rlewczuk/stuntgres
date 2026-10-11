@@ -416,8 +416,9 @@ sequence authority; SESSION_USER remains caller. Owner/current-schema context
 is operation-local and restored on success/failure before caller publication
 fences. Caller source/sequence rights cannot rescue denied owner rights.
 WITH NO DATA needs no producer/source/sequence rights or draws.
-TRUNCATE supplies an existing LOCK alternative; REFERENCES/TRIGGER are stored
-and delegated without inventing FK/trigger commands. Table INSERT does not
+TRUNCATE supplies an existing LOCK alternative; REFERENCES authorizes real FK
+declarations and TRIGGER is stored/delegated without introducing trigger commands.
+Table INSERT does not
 grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas
 IDENTITY's internal generation remains supported. Direct sequence grants,
 including TABLE syntax resolving a sequence, remain native `0A000`; schema/type/
@@ -668,9 +669,12 @@ semantic INSERT Prepare in this shadow-creation sequence.
 Dump writes every persistent user schema, including empty schemas, before
 owner-grouped qualified tables and rows. Restore preserves independent schema
 and table owners through private stage-only CREATE TABLE destination authority.
-Private Restore INSERT uses captured bootstrap authority without stamping owners
-or changing named owner directives/session identity; ordinary SQL INSERT retains
-normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
+Private Restore INSERT uses validated bootstrap permission authority without
+stamping owners or changing named owner directives/session identity. Trusted
+replay retains a transient pre-elevation namespace principal for `$user`, including
+its existing view/materialized-view/index/policy/comment consumers; ordinary owner
+and nested CREATE SCHEMA path-prefix semantics remain unchanged. Ordinary SQL
+INSERT retains normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
 Unsupported explicit namespace,
 table or column ACLs fail Dump before any output. Invalid Restore leaves the
 target catalog untouched. Bootstrap-only public dump bytes remain unchanged.
@@ -861,3 +865,26 @@ all four flag combinations. Shared roles/membership are not exported; existing
 explicit-ACL export exclusions remain unchanged.
 
 
+## Foreign-key authority
+
+CREATE REFERENCES requires REFERENCES on the parent table or every selected
+parent column, with ordinary schema lookup/USAGE and child CREATE authority.
+Implicit primary-key references use the actual selected attributes; neither
+table SELECT nor UPDATE is a substitute. Later child INSERT/UPDATE and parent
+UPDATE/DELETE do not recheck REFERENCES or require cross-table SELECT rights.
+Revoking REFERENCES therefore prevents new definitions, not enforcement of an
+existing one. Referential checks retain canonical relation/row grants and use
+the statement's current authorization only for disclosure.
+
+23503 fields identify the referencing schema/table/constraint. The key values
+and labels are disclosed only with table SELECT or SELECT on every key column
+of the violating side. Otherwise Detail omits labels/values but retains the
+referenced/referencing table; MATCH FULL's partial-NULL detail contains no values.
+ACL/COMMENT changes after a successful staged command do not retroactively
+invalidate that command's FK proof at Commit.
+
+
+Pending FK import attachments retain their original declaring authority rather
+than the final owner directive or replay permission elevation. The exact creator
+reference, not a post-CREATE lookup under a later/current identity, owns attachment.
+Skipped CREATE IF NOT EXISTS clauses trigger no FK target or schema discovery.

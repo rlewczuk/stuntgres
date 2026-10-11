@@ -11,22 +11,11 @@ func TestReferenceAlterTypeForeignKeyBoundary(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 			run(fixture.Exec("CREATE TABLE parent(c INT PRIMARY KEY)", 0))
-			if b.PG {
-				run(fixture.Exec("CREATE TABLE child(c INT REFERENCES parent(c))", 0))
-			} else {
-				failure := fixture.ImplicitError("CREATE TABLE child(c INT REFERENCES parent(c))", fixture.Diagnostic{Code: "0A000", Message: "column constraints are unsupported", Position: "26"})
-				failure.ErrorStage = "execute"
-				run(failure)
-			}
+			run(fixture.Exec("CREATE TABLE child(c INT REFERENCES parent(c))", 0))
 			run(fixture.Exec("INSERT INTO parent VALUES(1)", 1))
-			if b.PG {
-				run(fixture.Exec("INSERT INTO child VALUES(1)", 1))
-			}
+			run(fixture.Exec("INSERT INTO child VALUES(1)", 1))
 			ids := make(map[string]int64)
-			names := []string{"parent_pkey"}
-			if b.PG {
-				names = append(names, "child_c_fkey")
-			}
+			names := []string{"parent_pkey", "child_c_fkey"}
 			for _, name := range names {
 				var id int64
 				if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_constraint WHERE conname=$1", name).Scan(&id); err != nil || id <= 0 {
@@ -51,14 +40,12 @@ func TestReferenceAlterTypeForeignKeyBoundary(t *testing.T) {
 			}
 			run(fixture.Select("SELECT c FROM parent", []string{"c"}, []string{"INT8"}, [][]any{{int64(1)}}))
 			run(fixture.Select("SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c JOIN pg_class r ON c.conrelid=r.oid WHERE r.relname='parent' AND c.conname='parent_pkey'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"PRIMARY KEY (c)"}}))
-			if b.PG {
-				failure := fixture.ImplicitError("INSERT INTO child VALUES(2)", fixture.Diagnostic{Code: "23503", Message: `insert or update on table "child" violates foreign key constraint "child_c_fkey"`, Detail: `Key (c)=(2) is not present in table "parent".`, Schema: "public", Table: "child", Constraint: "child_c_fkey"})
-				failure.ErrorStage = "execute"
-				run(failure)
-				run(fixture.Select("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='child'::regclass AND conname='child_c_fkey'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"FOREIGN KEY (c) REFERENCES parent(c)"}}))
-				run(fixture.Exec("INSERT INTO child VALUES(1)", 1))
-				run(fixture.Select("SELECT c FROM child ORDER BY c", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}}))
-			}
+			failure := fixture.ImplicitError("INSERT INTO child VALUES(2)", fixture.Diagnostic{Code: "23503", Message: `insert or update on table "child" violates foreign key constraint "child_c_fkey"`, Detail: `Key (c)=(2) is not present in table "parent".`, Schema: "public", Table: "child", Constraint: "child_c_fkey"})
+			failure.ErrorStage = "execute"
+			run(failure)
+			run(fixture.Select("SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c JOIN pg_class r ON c.conrelid=r.oid WHERE r.relname='child' AND c.conname='child_c_fkey'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"FOREIGN KEY (c) REFERENCES parent(c)"}}))
+			run(fixture.Exec("INSERT INTO child VALUES(1)", 1))
+			run(fixture.Select("SELECT c FROM child ORDER BY c", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}}))
 		})
 	}
 }

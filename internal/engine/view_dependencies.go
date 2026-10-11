@@ -109,6 +109,10 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 		return "collation " + name
 	}
 	d := catalog.state.descriptors[base].(*relationDescriptor)
+	if d.sqlIndex != nil && d.sqlIndex.constraint != nil {
+		parent := catalog.state.descriptors[d.sqlIndex.parent].(*relationDescriptor)
+		return "constraint " + dependencyIdentifier(d.sqlIndex.constraint.Name) + " on table " + dependencyRelationName(catalog, parent, path)
+	}
 	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
 	if target.SubID != 0 {
 		for i, attribute := range d.attributes {
@@ -140,8 +144,8 @@ type supportedDependent struct {
 
 // Walk the existing immediate-provider edges depth-first. Genuine identities
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
-func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) []supportedDependent {
-	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults))
+func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, foreign ...domainDependency) []supportedDependent {
+	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(foreign))
 	policyTargets := targets
 	if len(views) != 0 {
 		policyTargets = make([]ObjectAddress, len(targets), len(targets)+len(views))
@@ -161,6 +165,11 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 	}
 	for _, edge := range views {
 		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
+	}
+	for _, edge := range foreign {
+		if !edge.automatic {
+			dependents = append(dependents, supportedDependent{oid: edge.oid, target: edge.target, label: edge.label})
+		}
 	}
 	slices.SortFunc(dependents, func(a, b supportedDependent) int { return cmp.Compare(a.oid, b.oid) })
 	// CHECK OIDs can be assigned in enforcement/name order. Permute only their
@@ -202,8 +211,8 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 	return ordered
 }
 
-func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) error {
-	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path)
+func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, foreign ...domainDependency) error {
+	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path, foreign...)
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
 		details[i] = dependent.label + " depends on " + dependencyObject(catalog, dependent.target, path)
@@ -219,15 +228,15 @@ func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
-func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
 	stage.owner.mu.Lock()
 	defer stage.owner.mu.Unlock()
-	return stageViewDependentsLocked(stage, targets, mode)
+	return stageViewDependentsLocked(stage, targets, mode, foreign...)
 }
 
 // stageViewDependentsLocked requires the owning engine mutex throughout the
 // coherent closure and removals; no provider callbacks or evaluation occur here.
-func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
 	edges := viewDependencyClosure(stage.base, targets, stage)
 	expanded := targets
 	if len(edges) != 0 {
@@ -245,11 +254,15 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 	if err != nil {
 		return err
 	}
-	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policyDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 {
-		return nil
+	visibleForeign := slices.ContainsFunc(foreign, func(edge domainDependency) bool { return !edge.automatic })
+	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policyDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 && !visibleForeign {
+		return stageForeignKeyDependentsLocked(stage, foreign)
 	}
 	if mode == parser.DropRestrict {
-		return supportedRestrictError(stage.base, targets, checks, edges, defaults, stage.dependencyPath)
+		return supportedRestrictError(stage.base, targets, checks, edges, defaults, stage.dependencyPath, foreign...)
+	}
+	if err := stageForeignKeyDependentsLocked(stage, foreign); err != nil {
+		return err
 	}
 	if err := stagePolicyDependents(stage, expanded, mode); err != nil {
 		return err
@@ -265,7 +278,7 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 		}
 		activeEdges = append(activeEdges, edge)
 	}
-	for _, dependent := range supportedDependentLabels(stage.base, targets, checks, activeEdges, defaults, stage.dependencyPath) {
+	for _, dependent := range supportedDependentLabels(stage.base, targets, checks, activeEdges, defaults, stage.dependencyPath, foreign...) {
 		stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+dependent.label)
 	}
 	return nil

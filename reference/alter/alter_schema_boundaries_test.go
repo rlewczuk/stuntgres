@@ -23,7 +23,6 @@ func TestReferenceAlterSchemaPostgresClosure(t *testing.T) {
 		"ALTER TABLE s1.t ADD CONSTRAINT pk PRIMARY KEY(id)",
 		"ALTER TABLE s1.t ADD CONSTRAINT ck CHECK(id>0)",
 		"CREATE INDEX ix ON s1.t(note)",
-		"CREATE TABLE s1.child(id INT REFERENCES s1.t(id))",
 		"CREATE TABLE s2.other(id INT CONSTRAINT ck CHECK(id>0))",
 	} {
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec(q, 0))
@@ -41,7 +40,6 @@ func TestReferenceAlterSchemaPostgresClosure(t *testing.T) {
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE c.conrelid='s2.t'::regclass AND n.nspname='s2' ORDER BY conname", []string{"conname"}, []string{"NAME"}, [][]any{{"ck"}, {"nn_id"}, {"pk"}}))
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT typname FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='s2' AND (t.typrelid='s2.t'::regclass OR t.oid=(SELECT typarray FROM pg_type WHERE typrelid='s2.t'::regclass)) ORDER BY typname", []string{"typname"}, []string{"NAME"}, [][]any{{"_t"}, {"t"}}))
 	fixture.RunStep(t, p.Ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM public.v ORDER BY id"))
-	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO s1.child VALUES(7)", 1))
 }
 
 func TestReferenceAlterSchemaPostgresLaterCollisions(t *testing.T) {

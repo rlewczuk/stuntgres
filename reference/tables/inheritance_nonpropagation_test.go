@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -30,13 +29,6 @@ func TestReferenceInheritanceKeyBoundaries(t *testing.T) {
 		s.exec("INSERT INTO pk_child VALUES(1),(1),(2)", 3)
 		s.fail("INSERT INTO pk_child VALUES(NULL)", inheritanceNullDiagnostic("pk_child", "a", "null"))
 		s.constraints("pk_child", [][]any{{"pk_a_not_null", "n"}})
-		if !s.b.PG {
-			q := "CREATE TABLE fk(a INT REFERENCES pk)"
-			s.fail(q, fixture.Diagnostic{Code: "0A000", Message: "column constraints are unsupported", Position: fixture.Position(strings.Index(q, "REFERENCES") + 1)})
-			s.absent("fk")
-			s.values("SELECT * FROM pk_child ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}, {int64(2)}})
-			return
-		}
 		s.exec("CREATE TABLE fk(a INT REFERENCES pk)", 0)
 		s.exec("CREATE TABLE fk_child() INHERITS(fk)", 0)
 		s.exec("INSERT INTO fk VALUES(1)", 1)

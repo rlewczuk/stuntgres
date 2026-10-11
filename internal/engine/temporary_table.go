@@ -84,7 +84,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if s.PartitionBy != nil || s.PartitionOf != nil {
 		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
 	} else {
-		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.state.CurrentUser, scope.input)
+		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.state.CurrentUser, scope.input, scope.foreignKeyTargets)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -100,12 +100,13 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return Result{}, err
 	}
+	created := ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: stage.names[key]}
 	if temporary {
 		scope.owner.accessedTemporary = true
 		if err := e.stageTemporaryCatalog(scope, stage, changes); err != nil {
 			return Result{}, err
 		}
-		return Result{}, nil
+		return Result{created: created}, nil
 	}
 	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
@@ -147,7 +148,10 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		}
 		return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
-	return Result{}, err
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{created: created}, nil
 }
 
 // Convert an already validated ordinary catalog stage into the transaction's

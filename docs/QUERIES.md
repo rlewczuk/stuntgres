@@ -1658,9 +1658,10 @@ its schema. Optional WHERE uses the same typed comparison and three-valued
 Boolean evaluator as SELECT: only TRUE selects, never FALSE or NULL. AS and bare
 target aliases are supported; an alias hides the original target name. Predicate
 columns may be unqualified or qualified by the visible target/alias. USING adds
-query sources as described below; foreign keys and triggers remain excluded.
+query sources as described below; triggers remain excluded.
 The dedicated `WHERE CURRENT OF cursor_name` alternative is described above.
 DELETE RETURNING is described below; UPDATE has its own bounded contract.
+Immediate NO ACTION FK checks inspect the final command image before row/RETURNING publication.
 DELETE also reuses SELECT's nullness, Boolean truth and DISTINCT predicates,
 including alias-qualified operands. Without USING, existing baseline explicit scalar casts work
 on unqualified operands; qualified columns inside casts remain excluded, and
@@ -1860,9 +1861,10 @@ Dump captures only committed survivors (including duplicate/zero-width rows), no
 private deletion or tombstone history; canonical CREATE/INSERT restores those
 survivors and supported metadata. DELETE scripts remain outside Restore's whitelist.
 Deleted NULL history does not prevent SET NOT NULL, while live NULL and subsequent
-NULL insertion retain genuine 23502 enforcement. DELETE cannot violate the only
-currently supported constraint, NOT NULL. The real PostgreSQL foreign-key rejection
-witness is explicitly oracle-only, not native FK support or a synthetic constraint hook.
+NULL insertion retain genuine 23502 enforcement. DELETE's final command image
+also enforces real immediate NO ACTION foreign keys: a surviving referencing row
+prevents removal of its parent key. The complete FK rejection witness is shared
+by native and pinned PostgreSQL, not an oracle-only or synthetic constraint hook.
 
 Feature commands: `make check RUN='^TestReferenceDeleteUsingMigratedCore'`,
 `make check RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$'`,

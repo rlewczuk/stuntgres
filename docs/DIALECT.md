@@ -191,13 +191,13 @@ are legal; PUBLIC use and implicit owner grant authority survive.
 Prepare is effect/name-resolution free; Execute publishes all reached ACL changes
 atomically or none, retaining reached warnings. Existing consumers enforce exact
 columns, including empty/filtered sources. MAINTAIN authorizes actual REINDEX;
-TRUNCATE has a LOCK consumer. REFERENCES/TRIGGER do not add absent commands.
+TRUNCATE has a LOCK consumer. REFERENCES authorizes FK declarations; TRIGGER has no native command consumer.
 Table grants never confer sequence privileges, including SERIAL defaults.
 Sequence/other-object grants, defaults and native explicit-transaction object
 utilities remain excluded. Native explicit-ACL Dump
 rejects before output; Restore's whitelist is unchanged.
-REFERENCES retains its canonical reserved-word category and existing excluded
-foreign-key constraint path; grant support does not add foreign keys.
+REFERENCES retains its canonical reserved-word category and also introduces
+column/table FK declarations; grant syntax and authority remain independent.
 Excluded object-grant forms return native `0A000` / `statement is not supported`.
 See [authorization](AUTHORIZATION.md#table-and-column-grants--change-note) for
 syntax, owner/PUBLIC/INHERIT behavior, grantor provenance and warning contracts.
@@ -1029,11 +1029,11 @@ column default or typed NULL. Explicit NULL/bound nil remain NULL in both modes.
 The native catalog sources add exactly `pg_catalog.pg_constraint`
 (`oid OID, conname NAME, contype CHAR, conrelid OID, conbin PG_NODE_TREE`) and
 `pg_catalog.pg_attrdef` (`oid OID, adrelid OID, adnum INT2, adbin PG_NODE_TREE`).
-They project existing CHECK (`c`), NOT NULL (`n`), UNIQUE (`u`) and PRIMARY KEY
-(`p`) identities, plus explicit nontrivial defaults from real immutable descriptors.
-NOT NULL and index constraints have NULL conbin. Attribute numbers are stable,
-not dense evaluation slots. These are not general constraint/catalog rollout:
-foreign keys and additional metadata catalogs remain absent. STORED generated
+They project existing CHECK (c), NOT NULL (n), UNIQUE (u), PRIMARY KEY (p),
+EXCLUDE (x) and FOREIGN KEY (f) identities, plus explicit nontrivial defaults
+from immutable descriptors. NOT NULL, index and FK constraints have NULL conbin.
+Attribute numbers are stable, not dense evaluation slots. Additional metadata
+catalogs remain absent. STORED generated
 definitions share existing pg_attrdef/pg_get_expr; no pg_attribute or
 information_schema rollout is implied.
 
@@ -1314,8 +1314,10 @@ Actual key TYPE remints affected p/index/n identities.
 ALTER ADD PK (including ADD COLUMN/USING INDEX), deferrability,
 WITHOUT OVERLAPS and primary index parameters remain explicit capabilities
 outside the native surface. Full-input syntax errors precede those exclusions.
-Foreign keys remain external. See
-[the complete contract](TABLES.md#primary-key-constraints--change-note).
+Foreign keys have their own bounded CREATE contract, with selected supporting
+class/family input authority, atomic TYPE validation and actual-creation-only
+pending import attachments. See [foreign keys](TABLES.md#foreign-key-constraints--change-note)
+and [primary keys](TABLES.md#primary-key-constraints--change-note).
 Smoke: `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 use identical RUN with `REFERENCE=1` for the pinned PostgreSQL18.0 oracle.
 
@@ -2606,11 +2608,12 @@ DELETE/tombstone history. Restore's whitelist stays unchanged. Self/foreign cata
 replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
-a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
-PostgreSQL-only witness. Native FKs, triggers, top-level WITH DELETE and recursive
-inheritance targets remain excluded; leaf child DELETE works. Positioned
-`DELETE WHERE CURRENT OF cursor_name` uses the current physical cursor occurrence
-with normal USING/RETURNING and transaction semantics, not value matching.
+a row cannot violate supported NOT NULL, but parent deletion enforces immediate
+NO ACTION foreign keys against the final command image. Triggers, CTE and
+recursive inheritance targets remain excluded; leaf child DELETE works.
+Positioned `DELETE WHERE CURRENT OF cursor_name` uses the current physical
+cursor occurrence with normal USING/RETURNING and transaction semantics,
+not value matching.
 Smoke: `make check RUN='^TestReferenceDeleteUsingSmoke'`;
 reference: `make check REFERENCE=1 RUN='^TestReferenceDeleteUsing'`.
 Migrated baseline expressions: `make check RUN='^TestReferenceDeleteUsingMigratedExpressions'`.
@@ -4711,8 +4714,9 @@ NOT NULL identity equivalently: supported NOT NULL constraints have no inbound
 constraint dependents and own no SQL index. These modes do not implement a
 general constraint dependency closure. CREATE TABLE UNIQUE and PRIMARY KEY own
 real B-tree relations; DROP CONSTRAINT or an included key column removes that
-backing relation atomically. Foreign keys and referenced-key RESTRICT/CASCADE
-remain unsupported.
+backing relation atomically. CREATE foreign keys participate in referenced-key
+RESTRICT/CASCADE: RESTRICT reports dependent definitions; CASCADE removes those
+definitions without deleting their surviving child tables or rows.
 Unrelated NOT NULL identities and sequences owned by the
 still-live table attribute survive even CASCADE.
 Stable attribute IDs, ACL/comments and original storage/backing survive ALTER;
@@ -5019,7 +5023,7 @@ prepared execution. CHECK names are enforced lexically after rename. Failed
 renames and failing later transaction statements publish no partial group.
 Graph-shape CHECK/NOT NULL ALTER remains0A000; admitted local UNIQUE/PRIMARY
 KEY/EXCLUDE graph participants retain their existing allowance. Domain
-constraints, foreign keys and constraint triggers have no native providers.
+constraints and constraint triggers have no native providers; local FK names use the same immutable rename path.
 User row codecs retain their identity; simple B-tree index names remain unchanged while their stable parent/key identities survive renames.
 Physical pg_dump/server disk/network mechanisms are outside native Reset/Dump/Restore. Smoke:
 `make check RUN='^TestAlterRenameSmoke$'`.
@@ -5077,7 +5081,7 @@ do not collide. Smoke: `make check RUN='^TestAlterSchemaSmoke$'`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
-ALTER TABLE supports DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] alone or in selected TYPE/nullability lists, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact. Native dependencies include named NOT NULL/ACL/comments, stored views and AUTO-dependent sequences keyed by stable attribute SubID. The existing transaction descriptor overlay carries projected committed/own rows and dependent view/owned-sequence removals through successful Finish, savepoint recovery and combined Commit. Final installation checks original storage pointer/root/independent length/generation/deletion roots. Index/FK/hierarchy mechanisms remain excluded; unrelated table DDL stays unsupported in explicit transactions. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
+ALTER TABLE supports DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] alone or in selected TYPE/nullability lists, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact. Native dependencies include named NOT NULL/ACL/comments, stored views, inbound/local FKs and AUTO-dependent sequences keyed by stable attribute SubID. The existing transaction descriptor overlay carries projected committed/own rows and dependent definition/view/owned-sequence removals through successful Finish, savepoint recovery and combined Commit. Final installation checks original storage pointer/root/independent length/generation/deletion roots. Graph-shape hierarchy actions remain excluded; unrelated table DDL stays unsupported in explicit transactions. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make check RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
