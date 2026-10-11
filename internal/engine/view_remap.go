@@ -634,6 +634,16 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				provider.argument = typ(p.argument)
 				provider.usage = usage(p.usage)
 				copy.calls[i].provider = &provider
+			case rangeAggregateProvider:
+				p.input = usage(p.input)
+				p.usage = usage(p.usage)
+				if err == nil {
+					p.bound, err = sqltype.BindRangeAggregate(p.input.Type, p.operation)
+				}
+				if err == nil && p.bound.ResultUsage() != p.usage {
+					err = fmt.Errorf("stuntgres: inconsistent remapped range aggregate result")
+				}
+				copy.calls[i].provider = p
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}

@@ -1,5 +1,48 @@
 # Adding and maintaining tests
 
+## Range aggregate selected proof
+
+Permanent untagged `reference/aggregates/range_aggregate_*_test.go` definitions
+independently assert both operations/four overloads across int4/int8/numeric,
+NULL versus empty, disconnected sets, exact numeric boundary/scale selection,
+raw metadata/base-domain result identity, complete diagnostics, live table-column
+authority, grouped/held/write consumers and actual native replacement/remapping.
+The root observed the initial pinned oracle before removing discovery filters
+and recording native missing-function red. Those observations are not final
+production verification. New modifier boundary definitions separately assert
+native absent comparison/group/order/window providers and real PostgreSQL success.
+
+Root runs each bounded group in native mode and again with `REFERENCE=1`,
+under an external900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceRangeAggregate(Values|MultirangeValues|NumericBoundaries|DiscreteBoundaries|Metadata)$'
+make check RUN='^TestReferenceRangeAggregate(Diagnostics|DiagnosticPrecedence|SourceACL|ModifierBoundaries)$'
+make check RUN='^TestReferenceRangeAggregate(Callers|Controls|FeatureSmoke)$'
+make check RUN='^TestRange(SetUnion|SetIntersection|AggregateProvider|AggregateRemap)$'
+make check RACE=1 RUN='^TestReferenceRangeAggregate(Controls|Callers)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceRangeAggregate(Controls|Callers)$'
+make check RUN='^TestMultirange'
+make check RUN='^TestReferenceMultirange'
+make check REFERENCE=1 RUN='^TestReferenceMultirange'
+```
+
+The first three public groups require both selected modes after final edits;
+quickcheck/finalcheck do not replace them. Typed private units exercise owned
+normalization/intersection scratch, operation/generation fences, sealed outputs,
+actual-loop cancellation and eager later-operand error/no-publication behavior.
+Native Controls replays its actual emitted SQL on pinned PostgreSQL, never an
+invented server Dump/Reset/Restore API.
+
+The separate public source `local://range-agg-feature-smoke.go` stays in the OMP
+session. Root materializes `.range-agg-feature-smoke/main.go`, runs
+`timeout 60s go run ./.range-agg-feature-smoke` from this checkout and removes
+only that materialization before review. Quiet exit0 requires independent
+values/types/NULL/empty/numeric/group/write/diagnostic/authority and native
+held-reader/view-replacement assertions. Root records actual argv/cwd/exit/output.
+Whole-project Docker-free proof remains `make quickcheck`; post-merge finalcheck
+uses its external1800-second deadline. Never use `make refcheck`.
+
 ## Prepared rebind selected proof
 
 The shared untagged `reference/sessions/prepared_rebind_*_test.go` scenarios use

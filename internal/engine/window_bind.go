@@ -224,7 +224,7 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 			} else if typ := operand.descriptor(); typ != nil {
 				types[i] = typ.DiagnosticName()
 			}
-			if raw.Name == "min" || raw.Name == "max" {
+			if raw.Name == "min" || raw.Name == "max" || raw.Name == "range_agg" || raw.Name == "range_intersect_agg" {
 				types[i], err = b.extremaArgumentTypeName(operand)
 				if err != nil {
 					return sqltype.Usage{}, err
@@ -283,6 +283,19 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		}
 	case "array_agg":
 		arg, usage, _, err = b.resolveArrayAggregateSignature(raw, name, operand, types)
+	case "range_agg", "range_intersect_agg":
+		arg, err = b.resolveRangeAggregateSignature(raw, name, operand, types)
+		if err == nil {
+			operation := sqltype.RangeAggregateUnion
+			if raw.Name == "range_intersect_agg" {
+				operation = sqltype.RangeAggregateIntersection
+			}
+			var bound sqltype.RangeAggregate
+			bound, err = sqltype.BindRangeAggregate(arg.ResultUsage().Type, operation)
+			if err == nil {
+				usage = bound.ResultUsage()
+			}
+		}
 	case "sum":
 		arg, err = b.resolveSumSignature(raw, name, operand, types)
 		if err == nil {

@@ -1403,9 +1403,10 @@ raw []byte and any ScanType; both lack Length/DecimalSize. Native declared
 nullability is known, pq's unavailable. Native controls replay actual canonical
 SQL, preserve held readers and atomically reject failed replacement.
 Existing plain/nested domains and column NOT NULL compose without domain casts.
-Temporal companions and all multirange arrays remain lookup-only. No constructors,
-operators/functions, SQL comparison/order/group/hash/index providers, casts,
-typed-literal introducers or user-defined range creation are added.
+Temporal companions and all multirange arrays remain lookup-only. Apart from the
+range-set aggregates below, no constructors, operators/functions, SQL comparison/
+order/group/hash/index providers, casts, typed-literal introducers or user-defined
+range creation are added.
 All six scalar comparisons reject during native query binding with42883
 `operator does not exist: TYPE OP TYPE`, the ordinary explicit-casts Hint and
 source Position. Plain/nested domains retain their logical diagnostic names and
@@ -2580,6 +2581,35 @@ No public cast, array ordering or tree textual ordering is added.
 Public smoke: `make check RUN='^TestReferenceExtremaSmoke$'`;
 independent oracle: `make check REFERENCE=1 RUN='^TestReferenceExtrema'`.
 
+`range_agg(anyrange)` returns the corresponding `anymultirange`;
+`range_agg(anymultirange)` returns that same multirange base type.
+`range_intersect_agg(anyrange)` returns the same range base type;
+`range_intersect_agg(anymultirange)` returns the same multirange base type.
+All four overloads support the existing int4/int8/numeric families and plain/nested
+domains, selecting their ultimate base overload. Results are nullable, noncollatable,
+typmod−1 and without physical source origin. Native names/raw values/ScanType are
+the concrete uppercase family/string/string; lib/pq uses named range types or blank
+multirange names with raw []byte/any ScanType.
+NULL operands are ignored; zero/all-NULL global input returns one typed NULL, while
+empty keyed input has no rows. Nonnull `empty`/`{}` is a real set operand:
+all-empty union is `{}`, range intersection is `empty`, multirange intersection `{}`.
+Union preserves gaps, merging overlap/adjacency rather than computing a hull.
+Intersection preserves disconnected components and disjoint range inputs yield
+`empty`, not an exception. An empty intersection still evaluates later operands.
+Continuous closed shared points survive; both-exclusive singleton gaps remain.
+Exact NUMERIC boundaries retain released bound-selection scale rules, with no
+stable-sort promise for fully comparator-equal differently scaled union inputs.
+Unresolved NULL/string/parameter calls are ambiguous42725 with the explicit-casts
+Hint and call Position; scalar/missing signatures give42883. Child/FILTER errors,
+namespace visibility, the100-argument guard and nesting retain ordinary precedence.
+FILTER and admitted integer-key local ORDER compose through the existing pipeline;
+range-valued local ORDER, DISTINCT and OVER retain explicit native capability
+boundaries rather than acquiring scalar comparison/group/order/window providers.
+Direct/prepared SELECT, integer grouping/HAVING, INSERT SELECT and stored-view
+Dump/Reset/Restore use the same immutable typed provider and eager finalization.
+Public smoke: `make check RUN='^TestReferenceRangeAggregateFeatureSmoke$'`;
+independent oracle: add `REFERENCE=1` to the identical selector.
+
 `string_agg(TEXT,TEXT)` and `string_agg(BYTEA,BYTEA)` return the corresponding
 nullable base type with unrestricted typmod and no physical origin. BYTEA retains
 raw octets, not encoded text. NULL values are ignored; NULL delimiters add no
@@ -2627,7 +2657,7 @@ independent oracle: `make check REFERENCE=1 RUN='^TestReferenceArrayAgg'`.
 
 
 Grouping uses the ordinary no-FROM local input. It does not add
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max/range_agg/range_intersect_agg,
 other window providers or frame exclusions. GROUPING SETS, ROLLUP, CUBE, explicit
 empty groups and ALL/DISTINCT grouping clauses are admitted. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately

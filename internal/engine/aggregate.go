@@ -34,6 +34,8 @@ const (
 	aggregateFloatSum
 	aggregateArrayScalar
 	aggregateArrayArray
+	aggregateRangeUnion
+	aggregateRangeIntersection
 )
 
 type aggregateCall struct {

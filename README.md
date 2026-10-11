@@ -757,6 +757,20 @@ See [multirange columns](docs/TYPES.md#multirange-columns--change-note).
 Feature smoke: `make check RUN='^TestReferenceMultirangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
+Change note: `range_agg` unions and `range_intersect_agg` intersects non-NULL
+range or multirange inputs in every existing int4/int8/numeric family.
+Range union returns its multirange companion; range intersection returns a range;
+multirange input returns the same base multirange for either operation.
+Disconnected union/intersection components are preserved, not replaced by a hull.
+Empty/all-NULL input gives typed NULL; nonnull empty input gives an empty set.
+Direct/prepared groups, FILTER, admitted integer-key local ORDER, INSERT SELECT
+and stored-view native controls share the typed eager aggregate pipeline.
+No scalar range comparison/order/group provider, DISTINCT support, window provider,
+temporal family, constructor, operator or cast is added.
+See [range aggregates](docs/QUERIES.md#range-set-aggregates--change-note).
+Feature smoke: `make check RUN='^TestReferenceRangeAggregateFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
 Change note: int4range/int8range columns now use typed integer endpoints and
 bound flags with discrete canonical text: `[1,4]` becomes `[1,5)`.
 Empty, unbounded and SQL NULL remain distinct; malformed bounds, endpoint/
@@ -2530,7 +2544,7 @@ Smoke: `make check RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmo
 oracle: `make check REFERENCE=1 RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'`.
 
 Change note: aggregate modifiers share one input pipeline across COUNT, Boolean,
-AVG, any_value, min/max, string_agg and array_agg providers. FILTER admits only TRUE and runs
+AVG, any_value, min/max, string_agg, array_agg and range-set providers. FILTER admits only TRUE and runs
 before arguments and local keys. DISTINCT compares the complete typed argument
 tuple (including string_agg's delimiter), with NULL-equal keys. Strict providers
 skip NULL values; scalar array_agg includes them and array-input array_agg rejects

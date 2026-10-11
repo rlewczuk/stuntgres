@@ -125,15 +125,39 @@ func (d *Descriptor) multirangeInput(ctx context.Context, input string) (Value, 
 	if at != len(input) {
 		return Value{}, malformedMultirange(input, "Junk after closing right brace.")
 	}
-	if err := ctx.Err(); err != nil {
+	members, err := r.normalizeRangeMembers(ctx, members)
+	if err != nil {
 		return Value{}, err
 	}
-	slices.SortFunc(members, r.compareRanges)
+	return Value{typ: d, multirange: &multirangePayload{members}}, nil
+}
+
+// normalizeRangeMembers consumes writable owned storage. Codecs and aggregate
+// finals share the released strict-sort/right-bound tie rules.
+func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeDatum) ([]rangeDatum, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	comparisons := 0
+	var failure error
+	slices.SortFunc(members, func(a, b rangeDatum) int {
+		if comparisons&255 == 0 {
+			failure = ctx.Err()
+		}
+		comparisons++
+		if failure != nil {
+			return 0
+		}
+		return r.compareRanges(a, b)
+	})
+	if failure != nil {
+		return nil, failure
+	}
 	used := 0
 	for i, member := range members {
 		if i&255 == 0 {
 			if err := ctx.Err(); err != nil {
-				return Value{}, err
+				return nil, err
 			}
 		}
 		if used == 0 || r.rangesSeparated(members[used-1], member) {
@@ -154,7 +178,7 @@ func (d *Descriptor) multirangeInput(ctx context.Context, input string) (Value, 
 	}
 	// Clear discarded bound strings without copying or shrinking owned storage.
 	clear(members[used:])
-	return Value{typ: d, multirange: &multirangePayload{members[:used]}}, nil
+	return members[:used], ctx.Err()
 }
 
 // Endpoint order includes infinity direction, inclusivity and lower/upper side.

@@ -1261,6 +1261,63 @@ Feature smoke: `make check RUN='^TestReferenceExtremaSmoke$'`.
 Complete dual-mode contracts: `make check RUN='^TestReferenceExtrema'`
 and `make check REFERENCE=1 RUN='^TestReferenceExtrema'`.
 
+### Range set aggregates — change note
+
+Four signatures cover every implemented int4/int8/numeric family:
+
+| Function | Range input result | Multirange input result |
+|---|---|---|
+| `range_agg(value)` | corresponding multirange | same multirange |
+| `range_intersect_agg(value)` | same range | same multirange |
+
+Plain and nested domains resolve to these physical base results. Both functions
+ignore SQL NULL. Empty/all-NULL global input returns one typed NULL pair; empty
+keyed input returns no rows with complete schema. Nonnull `empty`/`{}` differs
+from NULL: union of only empty sets is `{}`, and intersection with an empty set
+remains `empty` (range) or `{}` (multirange), without suppressing later evaluation.
+
+```sql
+CREATE TABLE ranges(k INTEGER,v INT4RANGE);
+INSERT INTO ranges VALUES(1,'[1,4)'),(1,'[7,9)'),(2,NULL);
+SELECT range_agg(v),range_intersect_agg(v) FROM ranges;
+-- {[1,4),[7,9)} | empty
+SELECT k,range_agg(v) FROM ranges GROUP BY k;
+SELECT range_intersect_agg(v ORDER BY k) FILTER(WHERE k=1) FROM ranges;
+```
+
+Union merges overlapping/adjacent members but preserves gaps; it is not a hull.
+Multirange intersection preserves disconnected components. NUMRANGE is continuous:
+`(1,2)` and `(2,3)` retain a union gap; `[1,2]` and `[2,3]` intersect at `[2,2]`.
+Endpoints use exact numeric magnitude, not float64. Ordered intersection retains
+the accumulated representation on equal bounds; union uses released strict-sort
+bound selection. Fully comparator-equal differently scaled union members have no
+stable display-scale winner promise.
+
+Native results have known nullable metadata, typmod−1, no physical origin,
+uppercase concrete family names and string raw/ScanType. Pinned lib/pq exposes
+range names, blank multirange names, raw []byte and any ScanType; length/decimal
+metadata and pq nullability are unavailable. Zero-row metadata retains exact types.
+Unknown unary NULL/string/parameter operands are ambiguous42725. Native successful
+binds use destination-context input (for example `INSERT INTO ranges(v) VALUES($1)`)
+and aggregate the typed column; this feature does not add explicit range casts.
+Wrong scalar signatures give full42883/English/Hint/character Position.
+Source authority is checked even for empty/WHERE FALSE/FILTER FALSE input.
+
+Direct/held statements execute afresh; integer grouping/HAVING, derived/stored
+views and INSERT SELECT use the existing eager pipeline. INSERT counts output
+groups (global1, empty keyed0); later errors publish no partial rows/writes.
+Native control replacement remaps both input and result type authority while held
+owned rows retain their values/schema. Public Next performs no aggregate work.
+FILTER/ALL and integer-key local ORDER are admitted. DISTINCT, range-valued ORDER
+and OVER retain independent native capability diagnostics versus PostgreSQL
+success; this adds no general range/multirange comparison/order/group provider,
+temporal family, array, constructor, operator or cast.
+
+Feature smoke: `make check RUN='^TestReferenceRangeAggregateFeatureSmoke$'`.
+Complete public contracts: `make check RUN='^TestReferenceRangeAggregate'`
+and the identical selector with `REFERENCE=1`; see TESTING.md for bounded groups
+and the separate root-owned standalone public smoke.
+
 ### Text and binary concatenation — change note
 
 `string_agg(value,delimiter)` has exactly two overloads: TEXT→TEXT and
@@ -1498,7 +1555,7 @@ use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
 
 
 This does not admit
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max/range_agg/range_intersect_agg,
 other window providers or frame exclusions,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including

@@ -1020,7 +1020,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.generationDepth > 0 && !extractFieldIdentifier {
 		forbiddenCall := false
 		switch token.lexeme.text {
-		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
+		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			forbiddenCall = next.code == int('(')
@@ -1029,7 +1029,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 			code, message := "", ""
 			switch token.lexeme.text {
-			case "sum", "avg", "count", "min", "max", "array_agg", "string_agg":
+			case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg":
 				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
 			case "grouping":
 				code, message = "42803", "grouping operations are not allowed in column generation expressions"
