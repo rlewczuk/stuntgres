@@ -59,6 +59,19 @@ func SameDatum(a, b Value) bool {
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
 	case Int4Range, Int8Range, NumRange:
 		return a.validRange() && b.validRange() && a.rangeDatum == b.rangeDatum
+	case Int4Multirange, Int8Multirange, NumMultirange:
+		if !a.validMultirange() || !b.validMultirange() || len(a.multirange.members) != len(b.multirange.members) {
+			return false
+		}
+		if a.multirange == b.multirange {
+			return true
+		}
+		for i, member := range a.multirange.members {
+			if member != b.multirange.members[i] {
+				return false
+			}
+		}
+		return true
 	case JSONPath:
 		return a.jsonpath != nil && b.jsonpath != nil && a.text == b.text
 	case JSONB:

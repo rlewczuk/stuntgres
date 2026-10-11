@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, inet, cidr, bytea, json, bit, varbit, int4range, int8range and numrange. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID/INET/CIDR, exact JSON source, canonical BIT/VARBIT digits and canonical ranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, inet, cidr, bytea, json, bit, varbit, int4range, int8range, numrange, int4multirange, int8multirange and nummultirange. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID/INET/CIDR, exact JSON source, canonical BIT/VARBIT digits and canonical ranges/multiranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, CIDR650, FLOAT4 700, FLOAT8 701, INET869, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950, INT4RANGE3904, NUMRANGE3906, INT8RANGE3926; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, CIDR650, FLOAT4 700, FLOAT8 701, INET869, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950, INT4RANGE3904, NUMRANGE3906, INT8RANGE3926, INT4MULTIRANGE4451, NUMMULTIRANGE4532, INT8MULTIRANGE4536; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -299,7 +299,7 @@ Reset/Restore and independent Driver restoration preserve values and metadata;
 retained readers preserve their original data and column types through replacement.
 Failed or canceled Restore does not publish staged data/schema.
 No new explicit casts, typed-range-literal syntax, arrays, constructors,
-operators/functions, comparison/order/group/hash/index providers or multiranges
+operators/functions or comparison/order/group/hash/index providers
 are admitted. Array identities3905/3927 remain lookup-only.
 Semantics follow PostgreSQL18; the real oracle remains pinned18.0 UTF8/C.
 
@@ -350,11 +350,82 @@ does not publish, and held cursors retain their original shape and rows.
 
 This feature adds no range constructors/operators/functions, explicit casts,
 typed literals, comparisons/order/group/hash/index providers, arrays,
-multiranges or temporal ranges. NUMRANGE[]3907 remains lookup-only.
+or temporal ranges. NUMRANGE[]3907 remains lookup-only.
 The release oracle remains PostgreSQL18.0 UTF8/C.
 Use `make check RUN='^TestReferenceNumericRange'` and the same command with
 `REFERENCE=1`; feature smoke uses `RUN='^TestReferenceNumericRangeFeatureSmoke$'`.
 Common representation/adapter units use `RUN='^Test(NumericRange|IntegerRange)'`.
+
+## Multirange columns — change note
+
+`int4multirange`4451/array6150, `int8multirange`4536/array6157 and
+`nummultirange`4532/array6151 are generated companions of every currently
+implemented range family. Each descriptor points to its own generation's range
+and subtype authority. Future owning range tasks supply and exercise their
+companion in that same generation path; temporal companions and all multirange
+arrays remain lookup-only. Immutable typed storage owns canonical member datums,
+not original text. Generation-only Retag retains the immutable payload.
+
+Input uses braces around zero or more comma-separated range members, with C
+whitespace, member bound quoting/backslashes and case-insensitive `empty`.
+Whole-member array-style quoting and NULL members are invalid. Each completed
+member is decoded immediately; malformed unfinished members fail outer parsing
+without subtype decoding. Nonempty members sort lower-then-upper, empty members
+vanish, and overlap/adjacency merge:
+`{[1,3),[2,4),empty,[8,9)}` becomes `{[1,4),[8,9)}`.
+Output has no separator spaces. `{}` is a nonnull empty union; `{(,)}` is a
+nonnull universal member; SQL NULL exports nil.
+
+Integer members canonicalize to `[)` before merging, with checked successor
+overflow. NUMERIC remains continuous: `{(4,5)}` stays nonempty, while integer
+companions remove it. Equal touching numeric boundaries merge if either includes
+the shared point; `{[1,2),(2,3]}` retains two members. Exact numeric comparison
+preserves large fractions, special values and selected endpoint scales.
+Released union chooses the current sorted member's boundary on equality, even
+under containment; it does not strip scales or promise stable ordering for fully
+comparator-equal different-scale duplicates.
+
+Outer syntax errors are22P02 `malformed multirange literal: "INPUT"` with
+`Missing left brace.`, `Unexpected end of input.`, `Expected range start.`,
+`Expected comma or end of multirange.` or `Junk after closing right brace.`
+Completed malformed members retain range primary/member Detail; invalid endpoints
+retain integer/bigint/numeric input diagnostics. Completed-member failures precede
+later suffix errors. Reversal is22000 `range lower bound must be less than or
+equal to range upper bound`; canonical overflow22003 `integer out of range`/
+`bigint out of range`, numeric format overflow22003 `value overflows numeric format`.
+Direct/Query literal errors point to the SQL opening quote in characters;
+prepared literal INSERT fails during Prepare. Bound errors occur at execution,
+have no Position and retain redacted `unnamed portal parameter $N = '...'`
+Context (empty input uses `''`). Modifiers reject42601 at CREATE execution.
+
+Direct/prepared strings and owned bytes use the destination codec with fresh
+parameter frames. Nil/typed-nil bytes are SQL NULL; nonnil empty bytes are malformed
+input. Native raw output/ScanType is string/string and DatabaseTypeName is
+INT4MULTIRANGE/INT8MULTIRANGE/NUMMULTIRANGE. Pinned lib/pq exposes blank type names,
+raw nonnil []byte and any ScanType for these OIDs; public PostgreSQL catalog
+identity witnesses independently verify the release OIDs/companion links.
+Length/DecimalSize are unavailable; native declared nullability is known and
+pq nullability is unavailable, including empty/all-NULL/zero-row cursors.
+
+Actual native Dump/Reset/Restore and fresh Driver replay preserve canonical
+values/metadata, empty tables and plain/nested domain declarations. Domain rows
+use canonical destination-context text/NULL without explicit casts. Existing
+column NOT NULL enforcement23502 remains supported; domain CHECK/NOT NULL/default
+definitions remain native0A000 `domain constraints and defaults are unsupported`.
+Held populated readers retain original shape/rows through reset and replacement;
+failed/canceled staging preserves live declarations/data and deterministic redump.
+No constructors/operators/functions, SQL equality/order/group/hash/index
+providers, general casts, typed-literal introducers, arrays or user-defined
+range creation are added. PostgreSQL18.0 UTF8/C remains the release oracle.
+Native scalar comparisons (`=`, `<>`, `<`, `<=`, `>`, `>=`) reject at admission
+with42883 `operator does not exist: TYPE OP TYPE`, the ordinary explicit-casts
+Hint and source Position, including plain/nested domains with logical type names.
+Direct Query returns no cursor; prepared SELECT fails at Prepare, not evaluation.
+Representation identity and private normalization comparators do not grant SQL
+comparison. The permanent public boundary independently asserts PostgreSQL's
+supported unequal/equal/NULL comparison rows and native's excluded-provider error.
+Selected dual-mode proof and standalone smoke: [testing](TESTING.md#multirange-selected-proof).
+
 
 
 ## JSONPath typed input — change note

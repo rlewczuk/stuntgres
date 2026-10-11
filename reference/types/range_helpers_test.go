@@ -15,8 +15,19 @@ func rangeLiteral(input string) string {
 // Check both the public any-scan and middleware-owned stream before normalization.
 func rangeSelect(backend fixture.Backend, query string, columns, types []string, values [][]any, nullable []bool) fixture.Step {
 	s := fixture.Select(query, columns, types, values)
+	// pq's pinned OID inventory predates multiranges: their actual transport
+	// type names are empty, while the native descriptor names remain concrete.
+	// Retain logical names separately for raw transport and metadata assertions.
+	if backend.PG {
+		s.Types = append([]string(nil), types...)
+		for i, name := range types {
+			if strings.HasSuffix(name, "MULTIRANGE") {
+				s.Types[i] = ""
+			}
+		}
+	}
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if types[column] != "INT4RANGE" && types[column] != "INT8RANGE" && types[column] != "NUMRANGE" {
+		if !rangeTransportType(types[column]) {
 			return false
 		}
 		if value != nil {
@@ -39,7 +50,7 @@ func rangeSelect(backend fixture.Backend, query string, columns, types []string,
 			t.Fatal(err)
 		}
 		for i, typ := range metadata {
-			if types[i] != "INT4RANGE" && types[i] != "INT8RANGE" && types[i] != "NUMRANGE" {
+			if !rangeTransportType(types[i]) {
 				continue
 			}
 			want := reflect.TypeFor[string]()
@@ -102,4 +113,12 @@ func rangeConsumeHeld(t *testing.T, rows *sql.Rows, check fixture.Step) {
 	if rows.Err() != nil || !reflect.DeepEqual(got, check.Rows) {
 		t.Fatalf("held rows=%#v want=%#v err=%v", got, check.Rows, rows.Err())
 	}
+}
+
+func rangeTransportType(name string) bool {
+	switch name {
+	case "INT4RANGE", "INT8RANGE", "NUMRANGE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE":
+		return true
+	}
+	return false
 }

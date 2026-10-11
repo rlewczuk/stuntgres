@@ -1328,6 +1328,37 @@ pinned counterpart:
 
 
 
+### Multirange columns — change note
+
+CREATE TABLE admits `int4multirange`, `int8multirange` and `nummultirange`,
+including `pg_catalog` names and NULL/NOT NULL. Destination text/byte input
+delegates each completed member to its existing range codec, removes empties,
+sorts and merges overlaps/adjacency into a canonical disjoint union.
+`{[1,3),[2,4),empty,[8,9)}` outputs `{[1,4),[8,9)}`.
+Nonnull `{}` and universal `{(,)}` differ from SQL NULL/nil.
+Continuous NUMERIC touching boundaries merge when either includes the point;
+both-exclusive boundaries retain a gap. Exact endpoints/display scales never
+pass through float64. Outer/member/subtype diagnostics retain released English,
+SQLSTATE, literal Position and redacted parameter Context; modifiers fail42601.
+Native metadata names are INT4MULTIRANGE/INT8MULTIRANGE/NUMMULTIRANGE, raw
+output and ScanType string. Pinned lib/pq names are blank for these OIDs, with
+raw []byte and any ScanType; both lack Length/DecimalSize. Native declared
+nullability is known, pq's unavailable. Native controls replay actual canonical
+SQL, preserve held readers and atomically reject failed replacement.
+Existing plain/nested domains and column NOT NULL compose without domain casts.
+Temporal companions and all multirange arrays remain lookup-only. No constructors,
+operators/functions, SQL comparison/order/group/hash/index providers, casts,
+typed-literal introducers or user-defined range creation are added.
+All six scalar comparisons reject during native query binding with42883
+`operator does not exist: TYPE OP TYPE`, the ordinary explicit-casts Hint and
+source Position. Plain/nested domains retain their logical diagnostic names and
+do not acquire a comparison provider. Direct Query exposes no cursor; prepared
+SELECT fails at Prepare. PostgreSQL supports these comparisons, independently
+asserted by the shared comparison-boundary scenario rather than native parity.
+See [multirange types](TYPES.md#multirange-columns--change-note).
+Feature smoke: `make check RUN='^TestReferenceMultirangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1`.
+
 ### Continuous numeric range columns — change note
 
 CREATE TABLE additionally admits `numrange`/`pg_catalog.numrange`, including
@@ -1345,7 +1376,7 @@ Range modifiers reject42601; prepared CREATE rejects at execution.
 Native controls and already-admitted simple/nested domains preserve exact
 values, metadata, retained readers and atomic replacement.
 No constructors/operators/functions, range SQL comparison/order/group/index
-providers, casts, typed literals, arrays, multiranges or temporal ranges are added.
+providers, casts, typed literals, arrays or temporal ranges are added.
 See [continuous numeric ranges](TYPES.md#continuous-numeric-range-columns--change-note).
 Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1`.
@@ -1365,7 +1396,7 @@ Already-admitted range-backed domain columns replay canonical base text and NULL
 through their declared destinations, without adding explicit range/domain casts
 or changing stored-expression identity serialization.
 This admission does not add range constructors/operators/functions, comparisons,
-ordering/index providers, casts, typed range literals, arrays or multiranges.
+ordering/index providers, casts, typed range literals or arrays.
 See [integer range types](TYPES.md#integer-range-columns--change-note).
 Feature smoke: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$'`;
 pinned counterpart:

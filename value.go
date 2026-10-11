@@ -76,7 +76,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if v != nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
 		}
-		if sqltype.IsNetwork(target.Type.ID()) || target.Type.ID() == sqltype.Int4Range || target.Type.ID() == sqltype.Int8Range || target.Type.ID() == sqltype.NumRange || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
+		if sqltype.IsNetwork(target.Type.ID()) || target.Type.ID() == sqltype.Int4Multirange || target.Type.ID() == sqltype.Int8Multirange || target.Type.ID() == sqltype.NumMultirange || target.Type.ID() == sqltype.Int4Range || target.Type.ID() == sqltype.Int8Range || target.Type.ID() == sqltype.NumRange || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
 			return sqltype.Null(target.Type), nil
 		}
 	case time.Time:
@@ -217,6 +217,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 		return []byte(raw), nil
+	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Char:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Timestamp, sqltype.Timestamptz:
@@ -257,6 +259,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	}
 	switch d.BaseType().ID() {
 	case sqltype.Inet, sqltype.Cidr:
+		return reflect.TypeFor[string]()
+	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
 		return reflect.TypeFor[string]()
 	case sqltype.Bytea, sqltype.Xid:
 		return reflect.TypeFor[[]byte]()

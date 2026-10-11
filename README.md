@@ -715,6 +715,19 @@ See [continuous numeric ranges](docs/TYPES.md#continuous-numeric-range-columns--
 Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
+Change note: int4multirange/int8multirange/nummultirange columns now store typed
+canonical unions through existing range codecs. Members sort, empty ranges vanish,
+and overlaps/adjacency merge: `{[1,3),[2,4),empty,[8,9)}` becomes
+`{[1,4),[8,9)}`. Nonnull `{}`, universal `{(,)}` and SQL NULL remain distinct.
+Exact NUMERIC boundaries retain continuous inclusivity and selected display scale.
+Direct/prepared text/byte binds, metadata, nested domains and atomic native
+Dump/Reset/Restore reuse existing ownership; no operators, casts, arrays or SQL
+comparison/index providers are added. Scalar comparisons reject at admission
+with42883, including plain/nested domains; they never treat unequal unions as equal.
+See [multirange columns](docs/TYPES.md#multirange-columns--change-note).
+Feature smoke: `make check RUN='^TestReferenceMultirangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
 Change note: int4range/int8range columns now use typed integer endpoints and
 bound flags with discrete canonical text: `[1,4]` becomes `[1,5)`.
 Empty, unbounded and SQL NULL remain distinct; malformed bounds, endpoint/
@@ -723,7 +736,7 @@ Direct/prepared text and byte binds, exact INT4RANGE/INT8RANGE metadata and
 native Dump/Reset/Restore use existing codec/catalog ownership, preserving
 retained readers and atomic failed replacement. Already-admitted range-backed
 domains replay canonical row text and NULL through their declared destinations.
-No constructors/operators, multiranges, new casts, range arrays or
+No constructors/operators, new casts, range arrays or
 comparison/index providers are added.
 See [integer range columns](docs/TYPES.md#integer-range-columns--change-note).
 Feature smoke: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$'`;

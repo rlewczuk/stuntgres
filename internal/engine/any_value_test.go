@@ -31,12 +31,15 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.JSONB:    {"null", ` {"a":1,"a":2} `},
 		sqltype.JSONPath: {"$", `strict $.a ? (@ > 1)`},
 		sqltype.Bit:      {"", "0010"}, sqltype.VarBit: {"", "00001111"},
-		sqltype.Int4Range: {"[1,4]", "empty", "[,]", "[-2147483648,2147483647)"},
-		sqltype.Int8Range: {"(1,4]", "empty", "[,]", "[-9223372036854775808,9223372036854775807)"},
-		sqltype.NumRange:  {"(4,5)", "[1.0,1.00]", "empty", "[,]", "[-Infinity,Infinity]", "[Infinity,NaN]", "[NaN,NaN]", "[9007199254740992.0000000000000001,9007199254740992.0000000000000002]"},
-		13254:             {"2004-10-19 10:23:54.126+02", "2004-10-19 23:59:59.999+00", "infinity", "-infinity"},
-		sqltype.Inet:      {"10.255.255.255/8", "::ffff:1.2.3.4", "::1"},
-		sqltype.Cidr:      {"10", "192.168/25", "2001:db8::/113"},
+		sqltype.Int4Range:      {"[1,4]", "empty", "[,]", "[-2147483648,2147483647)"},
+		sqltype.Int8Range:      {"(1,4]", "empty", "[,]", "[-9223372036854775808,9223372036854775807)"},
+		sqltype.NumRange:       {"(4,5)", "[1.0,1.00]", "empty", "[,]", "[-Infinity,Infinity]", "[Infinity,NaN]", "[NaN,NaN]", "[9007199254740992.0000000000000001,9007199254740992.0000000000000002]"},
+		sqltype.Int4Multirange: {"{}", "{(,)}", "{[1,3),[2,4),[8,9)}"},
+		sqltype.Int8Multirange: {"{}", "{(,)}", "{[-9223372036854775808,9223372036854775807)}"},
+		sqltype.NumMultirange:  {"{}", "{(4,5)}", "{[1.0,1.00]}", "{[-Infinity,Infinity],[Infinity,NaN]}"},
+		13254:                  {"2004-10-19 10:23:54.126+02", "2004-10-19 23:59:59.999+00", "infinity", "-infinity"},
+		sqltype.Inet:           {"10.255.255.255/8", "::ffff:1.2.3.4", "::1"},
+		sqltype.Cidr:           {"10", "192.168/25", "2001:db8::/113"},
 	}
 	for _, d := range sqltype.Builtins() {
 		if !d.Concrete() {

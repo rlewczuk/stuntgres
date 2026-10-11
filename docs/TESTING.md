@@ -55,6 +55,64 @@ held statements, direct shadow9/held7, late-only INSERT, dependency rebind9, sha
 `timeout 60s go run "$S"` from the worktree, recording actual output and exit;
 remove only a root-created throwaway materialization afterward.
 
+## Multirange selected proof
+
+Permanent untagged `reference/types/multirange_*_test.go` scenarios cover all
+three concrete companions through shared direct/prepared SQL, raw transports,
+metadata, full diagnostics, ACLs and nested domains/column NOT NULL.
+Oracle discovery filters are removed before native-red; they are not a final
+capability distinction. Native process-local control subphases additionally
+execute the actual emitted SQL on pinned PostgreSQL18.0.
+Pinned lib/pq exposes blank multirange type names (not uppercase range names);
+the helper retains logical family identity for raw/metadata checks, and public
+pg_type/pg_range witnesses independently verify released OIDs/companion links.
+Scale-boundary unions follow released strict selection rather than a containment
+shortcut; fully comparator-equal different-scale duplicates have no stable tie
+ordering promise.
+The permanent `TestReferenceMultirangeComparisonBoundary` uses all three
+companions and plain/nested domains with unequal ascending/reverse, equal and
+NULL operands through direct/prepared SELECT. PostgreSQL's six supported scalar
+comparison result matrices are independently specified; native must reject with
+full42883/logical operand names/Hint/Position, at direct execution or Prepare.
+No discovery filter survives native-red or final selected evidence.
+
+Run each bounded group in both modes, pinned first for new expectations, under
+an external900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceMultirange(Values|Binds|Metadata)$'
+make check RUN='^TestReferenceMultirange(Values|Binds|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceMultirange(Diagnostics|Modifiers|InvalidSQL|Authorization)$'
+make check RUN='^TestReferenceMultirange(Diagnostics|Modifiers|InvalidSQL|Authorization)$'
+make check REFERENCE=1 RUN='^TestReferenceMultirange(Domains|FeatureSmoke)$'
+make check RUN='^TestReferenceMultirange(Domains|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceMultirange(Controls|DomainControls)$'
+make check RUN='^TestReferenceMultirange(Controls|DomainControls)$'
+make check REFERENCE=1 RUN='^TestReferenceMultirangeComparisonBoundary$'
+make check RUN='^TestReferenceMultirangeComparisonBoundary$'
+make check RUN='^TestMultirange'
+make check RUN='^TestComparison'
+make check RUN='^TestAnyValueProviderDatums$'
+make check RACE=1 RUN='^TestReferenceMultirange(Binds|Controls|DomainControls|ComparisonBoundary)$'
+make check REFERENCE=1 RUN='^TestReferenceIntegerRange'
+make check RUN='^TestReferenceIntegerRange'
+make check REFERENCE=1 RUN='^TestReferenceNumericRange'
+make check RUN='^TestReferenceNumericRange'
+make check RUN='^Test(IntegerRange|NumericRange)'
+```
+
+The public standalone source `local://PG18-TYPE-MULTIRANGE-smoke.go` is an OMP
+session artifact, not a committed executable. Root materializes
+`.multirange-feature-smoke/main.go`, runs
+`timeout 60s go run ./.multirange-feature-smoke`, records argv/cwd/exit and exact
+observations, then removes the temporary materialization. It asserts three-family
+canonical unions, gaps/NULL/empty/universal, binds/raw metadata/diagnostics/
+atomicity, real same/fresh Driver controls and nested-domain constrained replay
+with held-reader shape retention and direct/prepared scalar-comparison admission
+rejection for builtin/plain/nested-domain operands. Success is quiet exit0, not a printed label or
+test-shelling. Root runs whole-project Docker-free quickcheck after edits and
+post-integration finalcheck; those do not replace selected dual-mode evidence.
+
 ## COPY text selected proof
 
 Shared untagged `reference/dml/copy_text_*_test.go` definitions run on the native

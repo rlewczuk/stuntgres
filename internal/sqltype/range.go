@@ -22,14 +22,14 @@ const (
 // SQL NULL belongs to Value.null, not the flags or an endpoint sentinel.
 type rangeDatum struct {
 	lower, upper rangeBound
-	flags uint8
+	flags        uint8
 }
 
 type rangeBound struct {
-	coefficient string
+	coefficient      string
 	magnitude, scale int64
-	negative bool
-	special uint8
+	negative         bool
+	special          uint8
 }
 
 func isRange(id ID) bool { return id == Int4Range || id == Int8Range || id == NumRange }
@@ -52,9 +52,15 @@ func (b rangeBound) numericView() numericView {
 }
 
 func (d *Descriptor) compareRangeBounds(a, b rangeBound) int {
-	if d.rangeSubtype.id == Numeric { return compareNumericViews(a.numericView(), b.numericView()) }
-	if a.magnitude < b.magnitude { return -1 }
-	if a.magnitude > b.magnitude { return 1 }
+	if d.rangeSubtype.id == Numeric {
+		return compareNumericViews(a.numericView(), b.numericView())
+	}
+	if a.magnitude < b.magnitude {
+		return -1
+	}
+	if a.magnitude > b.magnitude {
+		return 1
+	}
 	return 0
 }
 
@@ -173,14 +179,18 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 		datum.flags = datum.flags&^rangeLowerInclusive | rangeLowerUnbounded
 	} else {
 		bound, err := d.rangeBoundInput(lower)
-		if err != nil { return Value{}, err }
+		if err != nil {
+			return Value{}, err
+		}
 		datum.lower = bound
 	}
 	if upperAbsent {
 		datum.flags = datum.flags&^rangeUpperInclusive | rangeUpperUnbounded
 	} else {
 		bound, err := d.rangeBoundInput(upper)
-		if err != nil { return Value{}, err }
+		if err != nil {
+			return Value{}, err
+		}
 		datum.upper = bound
 	}
 	if !lowerAbsent && !upperAbsent {
@@ -192,7 +202,9 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 			return Value{typ: d, rangeDatum: rangeDatum{flags: rangeEmpty}}, nil
 		}
 	}
-	if d.id == NumRange { return Value{typ: d, rangeDatum: datum}, nil }
+	if d.id == NumRange {
+		return Value{typ: d, rangeDatum: datum}, nil
+	}
 	maximum, name := int64(math.MaxInt32), "integer"
 	if d.id == Int8Range {
 		maximum, name = math.MaxInt64, "bigint"
@@ -218,7 +230,9 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 }
 
 func (b rangeBound) validNumeric(d *Descriptor) bool {
-	if b.special > numericNaN || b.scale < 0 || b.scale > 16383 { return false }
+	if b.special > numericNaN || b.scale < 0 || b.scale > 16383 {
+		return false
+	}
 	if b.special != numericFinite {
 		return b.coefficient == "" && b.magnitude == 0 && b.scale == 0 && !b.negative
 	}
@@ -229,61 +243,114 @@ func (b rangeBound) validNumeric(d *Descriptor) bool {
 		return false
 	}
 	for i := range b.coefficient {
-		if b.coefficient[i] < '0' || b.coefficient[i] > '9' { return false }
+		if b.coefficient[i] < '0' || b.coefficient[i] > '9' {
+			return false
+		}
 	}
 	// Bound the exponent before arithmetic in the existing numeric validator.
-	if b.magnitude > 131072 { return false }
+	if b.magnitude > 131072 {
+		return false
+	}
 	return validateNumericFormat(b.numericValue(d)) == nil
 }
 
 func (v Value) validRange() bool {
-	if v.typ == nil || v.null { return false }
+	if v.typ == nil || v.null {
+		return false
+	}
 	d := v.typ.BaseType()
-	if !isRange(d.id) || d.rangeSubtype == nil { return false }
-	r := v.rangeDatum
-	if r.flags&rangeEmpty != 0 { return r == (rangeDatum{flags: rangeEmpty}) }
-	if r.flags&^(rangeLowerInclusive|rangeUpperInclusive|rangeLowerUnbounded|rangeUpperUnbounded) != 0 { return false }
+	if !isRange(d.id) || d.rangeSubtype == nil {
+		return false
+	}
+	return d.validRangeDatum(v.rangeDatum)
+}
+
+func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
+	if !isRange(d.id) || d.rangeSubtype == nil {
+		return false
+	}
+	if r.flags&rangeEmpty != 0 {
+		return r == (rangeDatum{flags: rangeEmpty})
+	}
+	if r.flags&^(rangeLowerInclusive|rangeUpperInclusive|rangeLowerUnbounded|rangeUpperUnbounded) != 0 {
+		return false
+	}
 	lowerAbsent, upperAbsent := r.flags&rangeLowerUnbounded != 0, r.flags&rangeUpperUnbounded != 0
-	if lowerAbsent && (r.lower != (rangeBound{}) || r.flags&rangeLowerInclusive != 0) { return false }
-	if upperAbsent && (r.upper != (rangeBound{}) || r.flags&rangeUpperInclusive != 0) { return false }
+	if lowerAbsent && (r.lower != (rangeBound{}) || r.flags&rangeLowerInclusive != 0) {
+		return false
+	}
+	if upperAbsent && (r.upper != (rangeBound{}) || r.flags&rangeUpperInclusive != 0) {
+		return false
+	}
 	if d.id == NumRange {
-		if !lowerAbsent && !r.lower.validNumeric(d.rangeSubtype) || !upperAbsent && !r.upper.validNumeric(d.rangeSubtype) { return false }
-		if lowerAbsent || upperAbsent { return true }
+		if !lowerAbsent && !r.lower.validNumeric(d.rangeSubtype) || !upperAbsent && !r.upper.validNumeric(d.rangeSubtype) {
+			return false
+		}
+		if lowerAbsent || upperAbsent {
+			return true
+		}
 		cmp := d.compareRangeBounds(r.lower, r.upper)
 		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
 	}
-	if r.flags&rangeUpperInclusive != 0 || !lowerAbsent && r.flags&rangeLowerInclusive == 0 { return false }
-	if r.lower != (rangeBound{magnitude: r.lower.magnitude}) || r.upper != (rangeBound{magnitude: r.upper.magnitude}) { return false }
-	if d.id == Int4Range && (r.lower.magnitude < math.MinInt32 || r.lower.magnitude > math.MaxInt32 || r.upper.magnitude < math.MinInt32 || r.upper.magnitude > math.MaxInt32) { return false }
+	if r.flags&rangeUpperInclusive != 0 || !lowerAbsent && r.flags&rangeLowerInclusive == 0 {
+		return false
+	}
+	if r.lower != (rangeBound{magnitude: r.lower.magnitude}) || r.upper != (rangeBound{magnitude: r.upper.magnitude}) {
+		return false
+	}
+	if d.id == Int4Range && (r.lower.magnitude < math.MinInt32 || r.lower.magnitude > math.MaxInt32 || r.upper.magnitude < math.MinInt32 || r.upper.magnitude > math.MaxInt32) {
+		return false
+	}
 	return lowerAbsent || upperAbsent || r.lower.magnitude < r.upper.magnitude
 }
 
 func (v Value) rangeOutput() (string, error) {
-	if !v.validRange() { return "", fmt.Errorf("invalid range datum") }
+	if !v.validRange() {
+		return "", fmt.Errorf("invalid range datum")
+	}
 	r := v.rangeDatum
-	if r.flags == rangeEmpty { return "empty", nil }
+	if r.flags == rangeEmpty {
+		return "empty", nil
+	}
+	var out strings.Builder
+	v.typ.BaseType().writeRangeDatum(&out, r)
+	return out.String(), nil
+}
+
+// Write directly into the caller's builder, avoiding a string per integer member.
+func (d *Descriptor) writeRangeDatum(out *strings.Builder, r rangeDatum) {
 	left, right := byte('('), byte(')')
-	if r.flags&rangeLowerInclusive != 0 { left = '[' }
-	if r.flags&rangeUpperInclusive != 0 { right = ']' }
-	if v.typ.BaseType().id == NumRange {
-		subtype := v.typ.BaseType().rangeSubtype
+	if r.flags&rangeLowerInclusive != 0 {
+		left = '['
+	}
+	if r.flags&rangeUpperInclusive != 0 {
+		right = ']'
+	}
+	if d.id == NumRange {
 		lower, upper := "", ""
-		if r.flags&rangeLowerUnbounded == 0 { lower = numericOutput(r.lower.numericValue(subtype)) }
-		if r.flags&rangeUpperUnbounded == 0 { upper = numericOutput(r.upper.numericValue(subtype)) }
-		var out strings.Builder
+		if r.flags&rangeLowerUnbounded == 0 {
+			lower = numericOutput(r.lower.numericValue(d.rangeSubtype))
+		}
+		if r.flags&rangeUpperUnbounded == 0 {
+			upper = numericOutput(r.upper.numericValue(d.rangeSubtype))
+		}
 		out.Grow(len(lower) + len(upper) + 3)
 		out.WriteByte(left)
 		out.WriteString(lower)
 		out.WriteByte(',')
 		out.WriteString(upper)
 		out.WriteByte(right)
-		return out.String(), nil
+		return
 	}
 	var buffer [44]byte
-	out := append(buffer[:0], left)
-	if r.flags&rangeLowerUnbounded == 0 { out = strconv.AppendInt(out, r.lower.magnitude, 10) }
-	out = append(out, ',')
-	if r.flags&rangeUpperUnbounded == 0 { out = strconv.AppendInt(out, r.upper.magnitude, 10) }
-	out = append(out, right)
-	return string(out), nil
+	bytes := append(buffer[:0], left)
+	if r.flags&rangeLowerUnbounded == 0 {
+		bytes = strconv.AppendInt(bytes, r.lower.magnitude, 10)
+	}
+	bytes = append(bytes, ',')
+	if r.flags&rangeUpperUnbounded == 0 {
+		bytes = strconv.AppendInt(bytes, r.upper.magnitude, 10)
+	}
+	bytes = append(bytes, right)
+	out.Write(bytes)
 }

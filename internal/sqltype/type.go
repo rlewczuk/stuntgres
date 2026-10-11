@@ -16,45 +16,48 @@ import (
 type ID uint32
 
 const (
-	Bool        ID = 16
-	Bytea       ID = 17
-	Char        ID = 18
-	Name        ID = 19
-	Int8        ID = 20
-	Int2        ID = 21
-	Int4        ID = 23
-	Text        ID = 25
-	Oid         ID = 26
-	Xid         ID = 28
-	JSON        ID = 114
-	PgNodeTree  ID = 194
-	Cidr        ID = 650
-	Float4      ID = 700
-	Float8      ID = 701
-	Unknown     ID = 705
-	Money       ID = 790
-	Inet        ID = 869
-	NameArray   ID = 1003
-	BPChar      ID = 1042
-	VarChar     ID = 1043
-	Date        ID = 1082
-	Time        ID = 1083
-	Timestamp   ID = 1114
-	Timestamptz ID = 1184
-	Interval    ID = 1186
-	Timetz      ID = 1266
-	Bit         ID = 1560
-	VarBit      ID = 1562
-	Numeric     ID = 1700
-	Regclass    ID = 2205
-	Regtype     ID = 2206
-	Void        ID = 2278
-	UUID        ID = 2950
-	JSONB       ID = 3802
-	Int4Range   ID = 3904
-	NumRange    ID = 3906
-	Int8Range   ID = 3926
-	JSONPath    ID = 4072
+	Bool           ID = 16
+	Bytea          ID = 17
+	Char           ID = 18
+	Name           ID = 19
+	Int8           ID = 20
+	Int2           ID = 21
+	Int4           ID = 23
+	Text           ID = 25
+	Oid            ID = 26
+	Xid            ID = 28
+	JSON           ID = 114
+	PgNodeTree     ID = 194
+	Cidr           ID = 650
+	Float4         ID = 700
+	Float8         ID = 701
+	Unknown        ID = 705
+	Money          ID = 790
+	Inet           ID = 869
+	NameArray      ID = 1003
+	BPChar         ID = 1042
+	VarChar        ID = 1043
+	Date           ID = 1082
+	Time           ID = 1083
+	Timestamp      ID = 1114
+	Timestamptz    ID = 1184
+	Interval       ID = 1186
+	Timetz         ID = 1266
+	Bit            ID = 1560
+	VarBit         ID = 1562
+	Numeric        ID = 1700
+	Regclass       ID = 2205
+	Regtype        ID = 2206
+	Void           ID = 2278
+	UUID           ID = 2950
+	JSONB          ID = 3802
+	Int4Range      ID = 3904
+	NumRange       ID = 3906
+	Int8Range      ID = 3926
+	JSONPath       ID = 4072
+	Int4Multirange ID = 4451
+	NumMultirange  ID = 4532
+	Int8Multirange ID = 4536
 )
 
 type CollationDerivation uint8
@@ -95,6 +98,8 @@ type Descriptor struct {
 	enum                *enumDefinition
 	composite           *compositeDefinition
 	rangeSubtype        *Descriptor
+	multirangeRange     *Descriptor
+	multirangeCompanion *Descriptor
 	lookupOnly          bool
 	namespace           string
 }
@@ -190,28 +195,29 @@ func Builtins() []*Descriptor {
 		{id: Regclass, name: "regclass", sql: "REGCLASS", database: "REGCLASS", associatedArray: 2210},
 		{id: Regtype, name: "regtype", sql: "REGTYPE", database: "REGTYPE", associatedArray: 2211},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
-		{id: Int4Range, name: "int4range", sql: "INT4RANGE", database: "INT4RANGE", associatedArray: 3905},
-		{id: NumRange, name: "numrange", sql: "NUMRANGE", database: "NUMRANGE", associatedArray: 3907},
-		{id: Int8Range, name: "int8range", sql: "INT8RANGE", database: "INT8RANGE", associatedArray: 3927},
 		{id: Unknown, name: "unknown"},
 	}
-	for _, d := range types {
-		if !isRange(d.id) {
-			continue
-		}
-		subtype := Int4
-		if d.id == Int8Range {
-			subtype = Int8
-		}
-		if d.id == NumRange {
-			subtype = Numeric
-		}
-		for _, candidate := range types {
-			if candidate.id == subtype {
-				d.rangeSubtype = candidate
+	for _, family := range []struct {
+		rangeID, subtypeID, companionID ID
+		name                            string
+	}{
+		{Int4Range, Int4, Int4Multirange, "int4range"},
+		{NumRange, Numeric, NumMultirange, "numrange"},
+		{Int8Range, Int8, Int8Multirange, "int8range"},
+	} {
+		name := strings.ToUpper(family.name)
+		r := &Descriptor{id: family.rangeID, name: family.name, sql: name, database: name}
+		for _, subtype := range types {
+			if subtype.id == family.subtypeID {
+				r.rangeSubtype = subtype
 				break
 			}
 		}
+		companion := strings.TrimSuffix(family.name, "range") + "multirange"
+		name = strings.ToUpper(companion)
+		m := &Descriptor{id: family.companionID, name: companion, sql: name, database: name, multirangeRange: r}
+		r.multirangeCompanion = m
+		types = append(types, r, m)
 	}
 	return completeBuiltinIdentities(types)
 }
@@ -239,6 +245,7 @@ type Value struct {
 	jsonb           *jsonbPayload
 	jsonpath        *jsonpathPayload
 	rangeDatum      rangeDatum
+	multirange      *multirangePayload
 	network         networkDatum
 }
 
@@ -277,6 +284,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && isRange(d.BaseType().id) && !v.validRange() {
 		return Value{}, fmt.Errorf("invalid range datum")
+	}
+	if !v.null && isMultirange(d.BaseType().id) && (!v.validMultirange() || !d.BaseType().validMultirangeAuthority() || d.BaseType().multirangeRange.id != v.typ.BaseType().multirangeRange.id || d.BaseType().multirangeRange.rangeSubtype.id != v.typ.BaseType().multirangeRange.rangeSubtype.id) {
+		return Value{}, fmt.Errorf("invalid multirange datum")
 	}
 	if !v.null && IsNetwork(d.BaseType().id) && !v.network.valid(d.BaseType().id == Cidr) {
 		return Value{}, fmt.Errorf("invalid network datum")
@@ -504,6 +514,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.networkInput(text)
 	case Int4Range, Int8Range, NumRange:
 		return d.rangeInput(ctx, text)
+	case Int4Multirange, Int8Multirange, NumMultirange:
+		return d.multirangeInput(ctx, text)
 	case Money:
 		return d.moneyInput(text, env.MonetaryLocale)
 	case Bit, VarBit:
@@ -730,6 +742,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return v.network.output(d.id == Cidr), nil
 	case Int4Range, Int8Range, NumRange:
 		return v.rangeOutput()
+	case Int4Multirange, Int8Multirange, NumMultirange:
+		return v.multirangeOutput(ctx)
 	case Money:
 		return moneyOutput(v.integer, env.MonetaryLocale), nil
 	case Bit, VarBit:
@@ -860,6 +874,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return d.sql + " '" + text + "'", nil
 	case Int4Range, Int8Range, NumRange:
 		text, err := v.rangeOutput()
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
+	case Int4Multirange, Int8Multirange, NumMultirange:
+		text, err := v.multirangeOutput(ctx)
 		if err != nil {
 			return "", err
 		}
@@ -1547,7 +1567,7 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 		_, err := BindComparison(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == Xid || right.id == Xid {
+	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == Xid || right.id == Xid || isMultirange(left.id) || isMultirange(right.id) {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if IsNetwork(left.id) && IsNetwork(right.id) {
