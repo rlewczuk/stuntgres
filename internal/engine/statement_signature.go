@@ -13,7 +13,7 @@ func statementCatalogType(t *sqltype.Descriptor) bool {
 	if t == nil {
 		return false
 	}
-	if t.IsUserDefined() {
+	if t.IsUserDefined() || t.IsDomain() {
 		return true
 	}
 	return t.IsArray() && statementCatalogType(t.Element())

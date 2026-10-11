@@ -171,6 +171,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray()}
+		if typ.IsDomain() && typ.Concrete() {
+			d.revision = 1
+		}
 		if typ.NamespaceName() == "information_schema" {
 			d.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
 		}

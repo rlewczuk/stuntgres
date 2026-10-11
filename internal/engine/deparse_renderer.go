@@ -55,7 +55,7 @@ func pgType(u sqltype.Usage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if u.Type.IsUserDefined() {
+	if u.Type.IsUserDefined() || u.Type.IsDomain() {
 		return declaration, nil
 	}
 	switch u.Type.ID() {
@@ -87,7 +87,7 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return typ + "[]", nil
 	}
-	if !u.Type.IsUserDefined() {
+	if !u.Type.IsUserDefined() && !u.Type.IsDomain() {
 		return pgType(u)
 	}
 	d, ok := r.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}].(*typeDescriptor)
@@ -112,7 +112,7 @@ func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string
 // Numeric's emitted annotation is authoritative: integer-spelled, sized and
 // special values are annotated, while genuinely bare decimal literals are not.
 func pgLiteralSimple(n literalExpression, rendered string) bool {
-	if n.value.IsNull() || n.usage.Type.IsUserDefined() {
+	if n.value.IsNull() || n.usage.Type.IsUserDefined() || n.usage.Type.IsDomain() {
 		return false
 	}
 	switch n.usage.Type.ID() {
@@ -167,7 +167,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if u.Type.IsArray() {
 		return quote(text) + "::" + typ, nil
 	}
-	if u.Type.IsUserDefined() {
+	if u.Type.IsUserDefined() || u.Type.IsDomain() {
 		if u.Type.BaseType().ID() == sqltype.Regclass {
 			id, err := strconv.ParseUint(text, 10, 32)
 			if err != nil {

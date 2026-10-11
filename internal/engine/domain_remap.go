@@ -218,6 +218,11 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 				}
 			} else if !d.typ.Concrete() {
 				typ = sqltype.LookupDomain(sqltype.ID(target.ObjectID), d.Name(), declaration, base)
+			} else if d.typ.IsBuiltin() {
+				if target != address || associated != d.array {
+					return fmt.Errorf("stuntgres: builtin domain identity cannot be remapped")
+				}
+				typ, err = d.typ.RebindDomain(base, declaration)
 			} else {
 				typ, err = sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base)
 			}

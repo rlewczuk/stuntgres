@@ -1,0 +1,111 @@
+package engine
+
+import (
+	"context"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func infoTimeStampCatalogType(t *testing.T, view CatalogRead) *typeDescriptor {
+	t.Helper()
+	key := NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}, Name: "time_stamp"}
+	addresses := view.Lookup(key)
+	if len(addresses) != 1 {
+		t.Fatal("selected domain identity", addresses)
+	}
+	return view.state.descriptors[addresses[0]].(*typeDescriptor)
+}
+
+func TestInfoTimeStampCatalogIdentity(t *testing.T) {
+	e := New()
+	view := e.CatalogRead()
+	d := infoTimeStampCatalogType(t, view)
+	base, ok := view.LookupType(sqltype.Timestamptz)
+	if !ok || d.typ.DomainBase().Type != base || d.typ.DomainBase().Typmod != 2 || d.typ.ID() == base.ID() || d.revision != 1 || d.owner != (PrincipalRef{}) || !d.typ.IsBuiltin() || d.typ.IsUserDefined() {
+		t.Fatal("builtin catalog authority", d)
+	}
+	array, ok := view.LookupType(d.array)
+	if !ok || array.Element() != d.typ || array.Concrete() || array.ID() != d.typ.AssociatedArray() {
+		t.Fatal("array identity", array)
+	}
+	if err := (typeProvider{}).Validate(view, d); err != nil {
+		t.Fatal(err)
+	}
+	if err := (typeProvider{}).Validate(view, view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(array.ID())}]); err != nil {
+		t.Fatal(err)
+	}
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	relation := domainUnitTable(t, e, op, "CREATE TABLE public.info_time_stamp_unit(v information_schema.time_stamp)")
+	current := e.CatalogRead()
+	usage := relation.columns[0].Usage
+	if usage.Type != d.typ || usage.Typmod != -1 || usage.BaseUsage().Type != base || usage.BaseUsage().Typmod != 2 {
+		t.Fatal("logical column usage", usage)
+	}
+	value, err := usage.Type.Input(context.Background(), "2004-10-19 10:23:54.126+02", -1)
+	if err != nil || value.Type() != d.typ || sqltype.Null(usage.Type).Type() != d.typ {
+		t.Fatal("logical value generation", value, err)
+	}
+	declaration, err := catalogTypeDeclaration(current, usage)
+	if err != nil || declaration != `"information_schema"."time_stamp"` {
+		t.Fatal(declaration, err)
+	}
+	remove := e.BeginCatalogStage(current)
+	if err := remove.removeObject(ObjectRef{owner: e.owner, Epoch: current.Epoch(), Address: d.Address()}, false); err == nil {
+		t.Fatal("builtin removal admitted")
+	}
+	if !statementCatalogType(d.typ) {
+		t.Fatal("domain parameter generation fence missing")
+	}
+}
+
+func TestInfoTimeStampCatalogRemap(t *testing.T) {
+	source, target := New(), New()
+	original := source.CatalogRead()
+	d := infoTimeStampCatalogType(t, original)
+	next := cloneCatalog(original.state)
+	baseAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Timestamptz)}
+	next.descriptors[baseAddress] = target.CatalogRead().state.descriptors[baseAddress]
+	// Rendering must use the current captured namespace, not inventory spelling.
+	namespace := *next.descriptors[d.Namespace()].(*namespaceDescriptor)
+	delete(next.names, NameKey{ClassID: NamespaceClassID, Name: namespace.name})
+	namespace.name = "renamed_info"
+	next.names[NameKey{ClassID: NamespaceClassID, Name: namespace.name}] = namespace.address
+	next.descriptors[namespace.address] = &namespace
+	changed, err := reownDomainTypes(next, nil)
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	view := CatalogRead{owner: source, state: next}
+	rebound := infoTimeStampCatalogType(t, view)
+	base, _ := view.LookupType(sqltype.Timestamptz)
+	if rebound.typ == d.typ || rebound.typ.DomainBase().Type != base || base == d.typ.DomainBase().Type || rebound.typ.DomainBase().Typmod != 2 || !rebound.typ.IsBuiltin() || rebound.typ.IsUserDefined() || rebound.owner != (PrincipalRef{}) || rebound.revision != 1 || rebound.typ.AssociatedArray() != d.array || rebound.typ.NamespaceName() != "information_schema" {
+		t.Fatal("reowned builtin provenance", rebound)
+	}
+	declaration, err := catalogTypeDeclaration(view, rebound.typ.Usage())
+	if err != nil || declaration != `"renamed_info"."time_stamp"` || rebound.typ.SQLName() != "renamed_info.time_stamp" {
+		t.Fatal(declaration, err)
+	}
+	for _, descriptor := range next.descriptors {
+		if typ, ok := descriptor.(*typeDescriptor); ok {
+			if err := (typeProvider{}).Validate(view, typ); err != nil {
+				t.Fatal(typ.Name(), err)
+			}
+		}
+	}
+	if d.typ.SQLName() != "information_schema.time_stamp" || original.state.descriptors[d.Namespace()].Name() != "information_schema" {
+		t.Fatal("source generation mutated")
+	}
+	remapped, err := target.remapPreparedCatalog(cloneCatalog(source.state), source.Roles(), target.Roles(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained := remapped.descriptors[d.Address()].(*typeDescriptor)
+	if retained.owner != (PrincipalRef{}) || !retained.typ.IsBuiltin() || retained.typ.IsUserDefined() {
+		t.Fatal("principal remap lost builtin exemption")
+	}
+	invalid := cloneCatalog(original.state)
+	if _, err := reownDomainTypes(invalid, map[ObjectAddress]ObjectAddress{d.Address(): {ClassID: TypeClassID, ObjectID: 60000}}); err == nil {
+		t.Fatal("builtin domain reminted")
+	}
+}

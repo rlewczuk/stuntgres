@@ -330,7 +330,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		u.Typmod = 1
 	}
 	if len(raw.Modifiers) > 0 {
-		if d.IsUserDefined() {
+		if d.IsUserDefined() || d.IsDomain() {
 			return sqltype.Usage{}, typeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
 		}
 		if err := d.CheckModifierSupport(); err != nil {

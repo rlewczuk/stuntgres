@@ -14,6 +14,21 @@ func Domain(id ID, name, declaration string, base Usage) (*Descriptor, error) {
 	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base}, nil
 }
 
+// RebindDomain reowns a concrete domain's base without losing its immutable
+// identity, inventory provenance or associated-array relationship.
+func (d *Descriptor) RebindDomain(base Usage, declaration string) (*Descriptor, error) {
+	if !d.IsDomain() || !d.Concrete() {
+		return nil, fmt.Errorf("invalid domain rebind")
+	}
+	validated, err := Domain(d.id, d.name, declaration, base)
+	if err != nil {
+		return nil, err
+	}
+	*validated = *d
+	validated.base, validated.database, validated.sql = base, base.Type.BaseType().database, declaration
+	return validated, nil
+}
+
 // LookupDomain preserves catalog base identity without admitting stored values.
 // The caller supplies an already validated catalog base generation.
 func LookupDomain(id ID, name, declaration string, base Usage) *Descriptor {

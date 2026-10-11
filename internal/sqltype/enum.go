@@ -33,7 +33,7 @@ func Enum(id ID, name, declaration string, labels []string) (*Descriptor, error)
 }
 func (d *Descriptor) IsEnum() bool { return d != nil && d.enum != nil }
 func (d *Descriptor) IsUserDefined() bool {
-	return d != nil && !d.lookupOnly && (d.IsDomain() || d.IsEnum() || d.IsComposite())
+	return d != nil && !d.lookupOnly && !d.IsBuiltin() && (d.IsDomain() || d.IsEnum() || d.IsComposite())
 }
 func (d *Descriptor) EnumLabels() []string {
 	if !d.IsEnum() {

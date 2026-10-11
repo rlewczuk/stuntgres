@@ -1935,7 +1935,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if target.Type.ID() == sqltype.Regclass {
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
-	unsupportedTarget := !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
+	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
 	if unsupportedTarget && !b.datetimeZoneOperands {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}

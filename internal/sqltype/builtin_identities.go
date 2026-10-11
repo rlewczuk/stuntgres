@@ -646,7 +646,18 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 	for _, fact := range builtinIdentities {
 		d := byID[fact.id]
 		if d == nil {
-			d = &Descriptor{id: fact.id, name: fact.name, sql: fact.name, database: strings.ToUpper(fact.name), lookupOnly: true}
+			if fact.namespace == "information_schema" && fact.name == "time_stamp" {
+				// Construct the selected domain before arrays capture element authority.
+				base := byID[fact.base].Usage()
+				base.Typmod = fact.typmod
+				var err error
+				d, err = Domain(fact.id, fact.name, "information_schema.time_stamp", base)
+				if err != nil {
+					panic(err) // Fixed inventory and supported base must be coherent.
+				}
+			} else {
+				d = &Descriptor{id: fact.id, name: fact.name, sql: fact.name, database: strings.ToUpper(fact.name), lookupOnly: true}
+			}
 			byID[fact.id] = d
 		}
 		d.associatedArray, d.namespace = fact.array, fact.namespace
@@ -665,7 +676,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			d.element = byID[fact.element]
 			d.delimiter = d.element.Delimiter()
 			d.sql = d.element.SQLName() + "[]"
-			d.lookupOnly = d.element.ID() == Money || !d.element.Concrete() || !d.element.IsDomain() && !StoredScalarCastType(d.element.ID()) && d.element.ID() != Regclass
+			d.lookupOnly = d.element.ID() == Money || !d.element.Concrete() || d.element.IsDomain() && d.element.IsBuiltin() || !d.element.IsDomain() && !StoredScalarCastType(d.element.ID()) && d.element.ID() != Regclass
 		}
 	}
 	return result
@@ -673,6 +684,9 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 
 // NamespaceName is initialization provenance; catalog wrappers own namespace IDs.
 func (d *Descriptor) NamespaceName() string { return d.namespace }
+
+// IsBuiltin reports immutable inventory provenance, not codec executability.
+func (d *Descriptor) IsBuiltin() bool { return d != nil && d.namespace != "" }
 
 // LookupOnly creates a real identity without granting NULL, codec or storage authority.
 func LookupOnly(id ID, name string, array ID) *Descriptor {

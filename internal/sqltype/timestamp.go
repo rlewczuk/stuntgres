@@ -92,7 +92,7 @@ func (d *Descriptor) CheckModifierSupport() error {
 	if d.IsArray() {
 		return d.element.CheckModifierSupport()
 	}
-	if d.IsUserDefined() {
+	if d.IsUserDefined() || d.IsDomain() {
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	}
 	switch d.id {

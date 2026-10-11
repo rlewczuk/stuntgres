@@ -422,7 +422,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		}
 		if source.typ.IsDomain() {
 			base, ok := current.LookupType(source.typ.DomainBase().Type.ID())
-			if !ok || actual.typ.DomainBase().Type != base || actual.typ.Concrete() || actual.typ.IsUserDefined() {
+			if !ok || actual.typ.DomainBase().Type != base || actual.typ.Concrete() != source.typ.Concrete() || actual.typ.IsUserDefined() {
 				t.Fatal("seeded domain closure/admission changed", address)
 			}
 		}

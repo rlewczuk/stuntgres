@@ -752,6 +752,26 @@ Fresh prepared reads rebind restored authority; old prepared logical parameter o
 result signatures are immutable and may reject reminted identities with0A000.
 Retained eager rows keep their owned values and analyzed metadata. This does not
 remap stale parameter IDs by name or promise PostgreSQL's old-OID cache diagnostics.
+
+The predefined `information_schema.time_stamp` domain is executable over
+`pg_catalog.timestamptz` with effective fractional precision **2**. Its logical
+catalog identity remains distinct from the base; finite supplied values round
+to hundredths of a second and retain their instant, not their original zone.
+Direct/prepared string and `time.Time` input, explicit SQL NULL and bound nil use
+the existing domain/base paths. Result metadata is `TIMESTAMPTZ`, ScanType
+`time.Time`, with no Length or numeric DecimalSize; temporal precision is not a
+numeric scale. Native nullable metadata is known true; pinned pq reports it unknown.
+Qualified native Dump/Restore preserves this builtin without emitting CREATE DOMAIN.
+Its associated `_time_stamp` array and the other information-schema domains
+remain lookup-only; this does not add general information-schema catalog views.
+
+PostgreSQL defines this domain with `DEFAULT current_timestamp(2)`. Native domain
+defaults are deliberately not implemented: an omitted/DEFAULT column uses its
+explicit column default, or typed NULL if none exists. Explicit NULL/bound nil
+stay NULL in both backends. Supplied-value support is not inherited-default parity.
+Shared REGTYPE witnesses cover domain/base names; PostgreSQL-only catalog controls
+cover the official domain definition, precision and default deparse.
+
 For BYTEA domains, shared binary-buffer binds use `$1::bytea` before assignment:
 pq's inferred domain parameter can reject embedded NUL with22021, while native
 inferred BYTEA-domain []byte input follows its owned binary adapter.

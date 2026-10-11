@@ -742,6 +742,18 @@ Feature smokes:
 `make check RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$'`,
 and pinned `make check REFERENCE=1 RUN='^TestReferenceDomain'`.
 
+Change note: the predefined `information_schema.time_stamp` domain accepts
+supplied timestamptz values and explicit/bound NULL through the authoritative
+catalog/domain path. It retains distinct qualified identity, rounds to precision2,
+exports TIMESTAMPTZ metadata and survives native Dump/Reset/Restore.
+PostgreSQL's inherited `DEFAULT current_timestamp(2)` remains outside native
+support: omitted values use a column default or typed NULL. No sibling-domain,
+implicit `_time_stamp` array storage or general information-schema view support
+is implied. See [domain contracts](docs/TYPES.md#domains--change-note).
+Feature smoke: `make check RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`.
+
+
 Session identity uses typed scalar expressions: `current_catalog`,
 `current_database()`, `current_role`, `current_user`, `session_user`, `user`
 return NAME; embedded trust-style `system_user` returns TEXT SQL NULL. Initially

@@ -112,7 +112,7 @@ func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
 		}
 		return declaration + "[]", nil
 	}
-	if !u.Type.IsUserDefined() {
+	if !u.Type.IsUserDefined() && !(u.Type.IsDomain() && u.Type.Concrete()) {
 		return u.Declaration()
 	}
 	descriptor, ok := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())})

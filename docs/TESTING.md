@@ -376,6 +376,29 @@ replace these consumer outcomes with dump-string or canonical-byte assertions.
    `make quickcheck`; final `make finalcheck` runs after integration under the
    catalog-part workflow. Selected tests do not replace full verification.
 
+The shared predefined-domain witnesses select
+`RUN='^TestReferenceInfoTimeStamp(Values|Metadata|Diagnostics|Identity|NativeControls|FeatureSmoke)$'`
+with both `make check` and `make check REFERENCE=1` (900 seconds each).
+Private descriptor/catalog/remap units select
+`RUN='^TestInfoTimeStamp(BuiltinDescriptor|CatalogIdentity|CatalogRemap)$'`.
+Consumer carrier coverage also selects `RUN='^TestAnyValueProviderDatums$'`:
+the newly concrete builtin domain supplies finite p2/carry and nonfinite datums,
+checks its domain/base tags and retains the exact chosen datum through aggregation.
+Feature smoke selects `RUN='^TestReferenceInfoTimeStampFeatureSmoke$'` in both modes.
+Pinned PostgreSQL18.0 supplies independent p2 values, TIMESTAMPTZ transport and
+metadata, complete base diagnostics and catalog/default controls. Native APIs
+add actual qualified Dump/Reset/Restore, retained cursors and failed replacement
+atomicity; PostgreSQL has no corresponding process-local Restore API.
+Cache ColumnTypes while a cursor is open to check retained descriptors after
+EOF/Close. Pre-canceled pq reads can race database/sql's watcher: validate available
+metadata/emitted ordered prefixes, permit ordinary cancellation/ErrBadConn, and
+require full rows on clean EOF. Native pre-cancellation requires context.Canceled
+without a cursor. Separate cancellation handles preserve an untouched write
+atomicity observer. This adapter distinction never weakens domain SQL diagnostics.
+Native inherited-domain defaults, sibling-domain/implicit-array executability
+and general information-schema/pg_type views are explicit exclusions.
+
+
 RANGE window coverage selects the complete `^TestReferenceQueryWindow` family
 in both `make check RUN='^TestReferenceQueryWindow'`
 and `make check REFERENCE=1 RUN='^TestReferenceQueryWindow'`

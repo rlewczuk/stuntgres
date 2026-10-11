@@ -794,6 +794,18 @@ projections, pg_typeof and general array operators are not added.
 See [type/driver contracts](TYPES.md#domains--change-note) and the domain feature
 smokes in [README](../README.md).
 
+`information_schema.time_stamp` is the selected executable predefined domain:
+its base is `timestamp(2) with time zone`, preserving supplied instants and
+rounding fractions to hundredths through existing domain/base coercion.
+Database/sql results expose TIMESTAMPTZ base metadata while the declared column
+keeps the qualified domain identity. Native Dump/Reset/Restore retains it without
+recreating a user domain. Sibling information-schema domains and `_time_stamp`
+array storage remain unsupported, as do general information_schema/pg_type views.
+PostgreSQL's predefined `DEFAULT current_timestamp(2)` is an explicit boundary:
+native does not inherit type defaults; omitted/DEFAULT values use an explicit
+column default or typed NULL. Explicit NULL/bound nil remain NULL in both modes.
+
+
 
 ### Constraint/expression introspection — change note
 
