@@ -40,7 +40,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		viewCollations: b.viewCollations, viewColumns: b.viewColumns, viewStars: b.viewStars,
 		viewNamespaces: b.viewNamespaces, sequenceConstants: b.sequenceConstants, regtypeConstants: b.regtypeConstants,
 	}
-	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "")
+	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}

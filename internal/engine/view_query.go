@@ -29,10 +29,16 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 		return nil, nil, err
 	}
 	catalog = e.privateCatalogLocked(scope.owner.catalog)
+	consumer := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	leaves := make([]queryLeaf, len(definition.sources))
 	for i, leaf := range definition.sources {
 		relation := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		leaves[i] = queryLeaf{ref: leaf.ref, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark)}
+		use, err := storedViewUseReference(catalog, consumer, leaf.ref)
+		if err != nil {
+			e.mu.Unlock()
+			return nil, nil, err
+		}
+		leaves[i] = queryLeaf{ref: use, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark)}
 	}
 	if scope.materializedRefresh && ref == scope.lockedRef {
 		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {
@@ -80,8 +86,11 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 					}
 				}
 			}
-			child = &querySource{ref: leaf.ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: child.locks, occurrence: child.occurrence}
+			child = &querySource{ref: leaves[i].ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: child.locks, occurrence: child.occurrence}
 			child.borrowAuthority(scope)
+		}
+		if leaf.ref != leaves[i].ref {
+			child.storedRef = leaf.ref
 		}
 		if sources != nil {
 			sources[i] = child

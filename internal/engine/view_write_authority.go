@@ -49,8 +49,12 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 				continue
 			}
 			relation, ok := v.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			if !ok || leaf.ref.owner != v.catalog.owner.owner || leaf.ref.Epoch != v.catalog.Epoch() {
+			if !ok {
 				return ErrCatalogReplaced
+			}
+			use, err := storedViewUseReference(v.catalog, current, leaf.ref)
+			if err != nil {
+				return err
 			}
 			indices := make([]int, 0, len(leaf.reads))
 			for _, attr := range leaf.reads {
@@ -66,7 +70,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 					return ErrCatalogReplaced
 				}
 			}
-			sourceBinding := binding{ref: leaf.ref, relation: relation}
+			sourceBinding := binding{ref: use, relation: relation}
 			if err := authority.checkColumns(sourceBinding, SelectPrivilege, indices); err != nil {
 				return err
 			}

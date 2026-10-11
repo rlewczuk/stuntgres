@@ -359,12 +359,13 @@ type ViewOption struct {
 	HasValue bool
 }
 type CreateView struct {
-	Name    ObjectName
-	Columns []Identifier
-	Options []ViewOption
-	Query   *Select
-	Pos     Position
-	Replace bool
+	Name        ObjectName
+	Columns     []Identifier
+	Options     []ViewOption
+	Query       *Select
+	Pos         Position
+	Replace     bool
+	Persistence string
 }
 
 func (*CreateView) statement() {}

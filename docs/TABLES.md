@@ -281,8 +281,10 @@ Explicit identity LOGGED/UNLOGGED options on TEMP fail42P16
 `cannot set logged status of a temporary sequence` at the option.
 TEMP source SET SCHEMA is excluded with0A000
 `cannot move objects into or out of temporary schemas`.
-TEMP views (including a TEMP-source view), GLOBAL/LOCAL spellings, nested TEMP
-CREATE SCHEMA elements and permanent transactional CREATE/DROP remain excluded.
+Views over TEMP relation sources automatically become temporary and participate
+in the real dependency/physical-close closure; see [temporary views](SQL.md#temporary-views--change-note).
+GLOBAL/LOCAL spellings, nested TEMP CREATE SCHEMA elements and permanent
+transactional CREATE/DROP remain excluded.
 CREATE/DROP TABLE driver Prepare is metadata-only, including inside a transaction:
 it creates/resolves no table or TEMP namespace and performs no read-only or
 destination rejection. Execute applies those checks and still excludes permanent

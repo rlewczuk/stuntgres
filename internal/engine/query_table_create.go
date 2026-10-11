@@ -125,7 +125,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		return nil, nil, false, err
 	}
 	if s.Form == parser.CreateMaterializedView {
-		definition, err := e.freezeViewDefinitionLocked(auth, s.Query, b, false, false, 0, materializedViewRelation)
+		definition, err := e.freezeViewDefinitionLocked(auth, s.Query, b, false, false, 0, materializedViewRelation, false)
 		if err != nil {
 			return nil, nil, false, err
 		}

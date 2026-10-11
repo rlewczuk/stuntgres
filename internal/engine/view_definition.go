@@ -5,11 +5,12 @@ import "stuntgres/internal/parser"
 // Engine.mu is held. Both ordinary and materialized views freeze the same bound
 // identities and renderer metadata; only ordinary views execute this definition
 // when read. A zero rule requests a new identity for a newly created relation.
-func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, kind relationKind) (*viewDefinition, error) {
+func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, kind relationKind, temporary bool) (*viewDefinition, error) {
 	temporaryMessage := "temporary views are unsupported"
 	if kind == materializedViewRelation {
 		temporaryMessage = "materialized views must not use temporary tables or views"
 	}
+	temporaryConsumer := kind == viewRelation && temporary
 	if rule == 0 {
 		var err error
 		rule, err = e.allocateOIDLocked()
@@ -17,12 +18,12 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 			return nil, err
 		}
 	}
-	return e.freezeQueryPresentationLocked(auth, syntax, b, barrier, invoker, rule, temporaryMessage)
+	return e.freezeQueryPresentationLocked(auth, syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
 }
 
 // Policies share analyzed expression/query presentation without inheriting a
 // view's temporary-source restriction. An empty message permits those sources.
-func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, temporaryMessage string) (*viewDefinition, error) {
+func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
 	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
 	definition.similarSubstrings = b.viewSimilarSubstrings
@@ -32,7 +33,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.namespaces = b.viewNamespaces
 	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))
 	for _, constant := range b.sequenceConstants {
-		if constant.temporary != (SessionToken{}) && temporaryMessage != "" {
+		if constant.temporary != (SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 		definition.sequenceRefs[constant.offset] = constant.ref
@@ -63,8 +64,23 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
 		}
-		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) && temporaryMessage != "" {
+		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
+		}
+	}
+	if temporaryConsumer {
+		definition.temporary = auth.session.token
+		definition.references = make(map[ObjectRef]Descriptor, len(definition.sources)+len(definition.dependencies))
+		capture := func(ref ObjectRef) {
+			address := ref.Address
+			address.SubID = 0
+			definition.references[ref] = auth.catalog.state.descriptors[address]
+		}
+		for _, leaf := range definition.sources {
+			capture(leaf.ref)
+		}
+		for _, dependency := range definition.dependencies {
+			capture(dependency.ref)
 		}
 	}
 	return definition, nil

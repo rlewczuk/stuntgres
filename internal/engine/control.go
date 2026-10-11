@@ -1039,6 +1039,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation:
 		case *parser.CreateView:
+			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
+				return sqlError("0A000", "restore cannot stage non-retractable effects")
+			}
 		case *parser.CreateQueryTable:
 			if s.Form != parser.CreateMaterializedView || !s.NoData {
 				return sqlError("0A000", "restore accepts only unpopulated materialized view definitions")

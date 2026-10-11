@@ -215,7 +215,7 @@ CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]
 DROP DOMAIN [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
   [ON COMMIT PRESERVE ROWS | ON COMMIT DELETE ROWS | ON COMMIT DROP]
-CREATE VIEW [schema.]name [(column [, ...])]
+CREATE [OR REPLACE] [TEMP | TEMPORARY] VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
 CREATE INDEX [name] ON [schema.]table [USING btree]
   (key [COLLATE [schema.]collation] [[schema.]opclass]
@@ -501,7 +501,7 @@ crash durability and pg_dump remain external PostgreSQL mechanisms.
 
 ## Views
 
-`CREATE [OR REPLACE] VIEW` stores an immutable, identity-bound definition analyzed by the
+`CREATE [OR REPLACE] [TEMP | TEMPORARY] VIEW` stores an immutable, identity-bound definition analyzed by the
 ordinary SELECT binder. The body admits the current scalar/filter/group/HAVING/
 expression and multi-key ordering repertoire and table, sequence, view and
 bounded catalog sources. It is not executed by CREATE or Prepare; subsequent reads evaluate it
@@ -510,6 +510,62 @@ names than outputs are legal, more fail42601, and duplicate final names fail4270
 Unknown-only outputs become TEXT. Creation-time `*` expansion and output types
 are fixed; zero-column views retain real source occurrences and count semantics.
 CREATE has affected count zero and no result columns or runtime parameters.
+
+### Temporary views — change note
+
+Explicit TEMP/TEMPORARY views live in the existing physical-session temporary
+namespace. An ordinary view referencing a temporary relation anywhere in its
+bound query becomes temporary automatically, even for unused or empty sources,
+nested views, joins, derived queries, expression subqueries or set operands.
+Conversion emits exactly one NOTICE00000 `view "<name>" will be a temporary view`
+with no Detail/Hint/Position, before destination/collision rejection. Explicit
+TEMP and ordinary creation in own pg_temp over persistent-only sources are quiet.
+SELECT analysis and excessive output aliases fail before conversion. After the
+inference notice, output-collation validation precedes destination resolution.
+Once the destination/target is resolved, fresh CREATE validates options before
+duplicate output names; an existing replacement checks output names/prefix
+before options. These checks share one execution binding and never mutate raw SQL.
+Expression-only TEMP regclass/nextval dependencies do not infer TEMP in PostgreSQL18.
+Native continues to reject nonportable persistent TEMP-sequence dependencies with
+0A000 `temporary views are unsupported`; explicit/inferred TEMP definitions admit
+same-physical-owner sequence dependencies without evaluating them at CREATE.
+
+Owner TEMP lookup shadows permanent names, subject to explicit search_path
+positioning. Own pg_temp/actual TEMP destinations are allowed; a non-TEMP
+destination fails42P16 `cannot create temporary relation in non-temporary schema`.
+Unqualified peer access fails42P01 and genuinely unauthorized foreign schema access
+fails42501. Native qualified peer-TEMP lookup retains its42501 boundary; PostgreSQL
+superuser catalog/qualified view access is not a promise of hidden catalog facts.
+Two sessions may independently define the same TEMP view name.
+
+The ordinary dynamic evaluator and logical metadata/ACL/dependency rules apply.
+Views have no physical row storage or ON COMMIT action. DELETE/PRESERVE base actions
+leave their definitions dynamic; real base DROP/CASCADE removes the transitive
+view/rule/rowtype closure. Physical close removes owner TEMP, pooled return does not.
+CREATE/replace/ALTER/DROP VIEW inside an explicit native transaction remain0A000;
+read-only CREATE retains25006 before source/destination analysis.
+These execution exclusions do not reject CREATE VIEW at Prepare: utility Describe
+has no source analysis or result signature, including inside read-only/explicit blocks.
+
+Native persistent Dump excludes all TEMP definitions and associated artifacts.
+Reset/Restore retains exact live TEMP-only chains and builtin generations used
+throughout their query trees, not just output columns. Unchanged pinned catalog
+providers retain exact predecessor authority; invalidated persistent table/view
+providers reject replacement atomically with ordinary native control errors.
+Retained catalog providers include every column's builtin generation, even unused
+columns, so repeated replacement keeps the certified immutable provider itself.
+Same-name imports never repair a lost provider. Explicit TEMP/own-TEMP Restore
+definitions fail0A000 `restore cannot stage non-retractable effects` before target
+publication. Held prepared reads and already-returned eager rows retain their
+normal logical metadata/snapshot contracts. No general old-epoch reference waiver
+is introduced.
+Existing automatically-updatable TEMP views retain their supported INSERT/UPDATE/
+DELETE mappings across lawful replacement, including independent stored subquery
+sources. Their writes still use current ACLs and the exact retained base identities.
+
+Smoke: `make check RUN='^TestReferenceTemporaryViewFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryViewFeatureSmoke$'`.
+
 
 ### Replacement and alteration — change note
 
@@ -567,7 +623,9 @@ Native Dump rejects self-referential and mutually recursive view graphs with
 `stuntgres: cyclic view dump dependencies` before emitting any dump bytes.
 
 Protocol-prepared DDL uses current authority and state at Execute; utility
-Prepare has no publication effects. Prepared reads rebind their original SQL.
+Prepare has zero utility metadata and no body binding, source locks, namespace
+allocation, publication or notices. Semantic CREATE VIEW checks occur at Execute.
+Prepared reads rebind their original SQL.
 A same-shape replacement is visible on the next execution; appended outputs
 make a held SELECT * fail0A000 `cached plan must not change result type`.
 Already-returned eager rows retain their prior values and metadata.
@@ -987,7 +1045,7 @@ serializes current definitions and committed base rows, rebuilding mappings
 for subsequent writes; it does not serialize output/history or PostgreSQL
 physical tuple metadata. INSERT RETURNING remains the existing suffix boundary.
 
-CREATE RECURSIVE/TEMP syntax, check options, ALTER VIEW column
+CREATE RECURSIVE syntax, check options, ALTER VIEW column
 defaults, type-changing ALTER actions, RLS, UDFs and
 optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
@@ -1557,7 +1615,8 @@ Fresh copied identity sequences follow destination namespace and persistence,
 not the source token or consumed state. Acquisition may use a current-epoch lock
 reference only after existing bounded retained TEMP authority proves the original
 reference; stored expression/manifests and generic ObjectRef validity are unchanged.
-Permanent transactional CREATE/DROP, GLOBAL/LOCAL and TEMP views remain excluded.
+Permanent transactional CREATE/DROP and GLOBAL/LOCAL remain excluded; TEMP-source
+view inference follows [temporary views](#temporary-views--change-note).
 Smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
 
 

@@ -67,7 +67,7 @@ func TestReferenceQueryTableCreateIntoFrontiers(t *testing.T) {
 						step := fixture.ErrorDiagnostic(tc.query, want)
 						step.Prepared = prepared
 						step.ErrorStage = "execute"
-						if prepared && (!tc.view || !b.PG) {
+						if prepared && !tc.view {
 							step.ErrorStage = "prepare"
 						}
 						run(step)

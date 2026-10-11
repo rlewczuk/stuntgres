@@ -162,7 +162,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 	auth.state.CurrentUser = principal
 	for _, leaf := range definition.sources {
 		source, ok := auth.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		if !ok || leaf.ref.owner != e.owner || leaf.ref.Epoch != auth.catalog.Epoch() {
+		if !ok || !storedViewReferenceValid(auth.catalog, d, leaf.ref) {
 			return ErrCatalogReplaced
 		}
 		indices := make([]int, 0, len(leaf.reads))
@@ -179,7 +179,11 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		if err := auth.checkColumns(binding{ref: leaf.ref, relation: source}, SelectPrivilege, indices); err != nil {
+		use, err := storedViewUseReference(auth.catalog, d, leaf.ref)
+		if err != nil {
+			return err
+		}
+		if err := auth.checkColumns(binding{ref: use, relation: source}, SelectPrivilege, indices); err != nil {
 			return err
 		}
 	}

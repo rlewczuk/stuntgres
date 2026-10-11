@@ -901,7 +901,9 @@ query_table_options: /* empty */
  | query_table_options ON COMMIT DELETE FRAME_UNIT {if $5.text!="rows" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
  | query_table_options ON COMMIT DROP {sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")} ;
 create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} }
- | CREATE OR replace_word VIEW relation_name view_columns view_options AS select { query,ok:=$9.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$5,Columns:$6,Options:$7,Query:query,Replace:true,Pos:$1.pos} } ;
+ | CREATE OR replace_word VIEW relation_name view_columns view_options AS select { query,ok:=$9.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$5,Columns:$6,Options:$7,Query:query,Replace:true,Pos:$1.pos} }
+ | CREATE TEMP VIEW relation_name view_columns view_options AS select { query,ok:=$8.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$4,Columns:$5,Options:$6,Query:query,Persistence:"temporary",Pos:$1.pos} }
+ | CREATE OR replace_word TEMP VIEW relation_name view_columns view_options AS select { query,ok:=$10.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$6,Columns:$7,Options:$8,Query:query,Replace:true,Persistence:"temporary",Pos:$1.pos} } ;
 replace_word: name { if $1.text!="replace" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 view_alter_head: ALTER VIEW relation_name {$$=&AlterView{Name:$3,Pos:$1.pos}}
  | ALTER VIEW IF EXISTS relation_name {$$=&AlterView{Name:$5,IfExists:true,Pos:$1.pos}} ;

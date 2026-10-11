@@ -29,9 +29,9 @@ func TestReferenceQueryTiesOracleQuestions(t *testing.T) {
 						s.SelectRows = !view
 						s.ErrorStage = "execute"
 						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-						// Native utility Prepare eagerly analyzes CREATE VIEW;
-						// PostgreSQL defers this utility analysis to Execute.
-						if !view || !b.PG {
+						// SELECT analysis occurs at Prepare; view utility body
+						// semantics are checked only when the command executes.
+						if !view {
 							s.ErrorStage = "prepare"
 						}
 						fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(s))

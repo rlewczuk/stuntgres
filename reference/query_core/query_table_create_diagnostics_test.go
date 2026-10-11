@@ -54,11 +54,6 @@ func TestReferenceQueryTableCreateDiagnostics(t *testing.T) {
 						if prepared && tc.prepare {
 							s.ErrorStage = "prepare"
 						}
-						// Native CREATE VIEW keeps eager Describe; PG analyzes its
-						// utility-owned body only when the held command executes.
-						if prepared && !b.PG && tc.name == "view" {
-							s.ErrorStage = "prepare"
-						}
 						run(s)
 						fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_bad")
 						fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_inner")

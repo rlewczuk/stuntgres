@@ -69,7 +69,7 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 }
 
 // Reset atomically clears persistent objects, retaining database identity,
-// roles, session settings, live session-private temporary sequences and held
+// roles, session settings, live session-private temporary relations and held
 // physical-session advisory counts. Old pending lock requests remain epoch-fenced.
 // Prepared transactions prevent replacement without consuming their state.
 // Live temporary tables inheriting persistent parents prevent Reset/Restore
@@ -77,6 +77,8 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Persistent policies disappear with their tables; live TEMP table policies
 // retain their identities. Incompatible live TEMP policy dependencies prevent
 // replacement rather than adopting new same-name persistent providers.
+// Temporary views retain exact source identities. Invalidated persistent table
+// or view providers prevent replacement; unchanged pinned catalog providers survive.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
@@ -112,7 +114,10 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // ROLE comments are shared authority metadata: Reset and Restore preserve them,
 // and Dump excludes them. Query INSERT sources are deliberately not Restore
 // syntax; Dump emits canonical literal VALUES.
-// Caller-owned temporary sequences remain live and are excluded by Dump.
+// Caller-owned temporary tables, sequences and views remain live and are excluded
+// by Dump. Invalidated persistent providers of live temporary views prevent final
+// replacement; temporary-only chains and unchanged pinned catalog providers survive.
+// Restore input cannot create temporary views.
 // Held physical-session advisory counts survive successful installation; old
 // pending requests remain epoch-fenced. Direct advisory INSERT scalars remain
 // excluded; stored CHECK replay uses the existing isolated admitted stage session.

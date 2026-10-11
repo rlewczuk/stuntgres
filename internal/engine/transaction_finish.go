@@ -167,6 +167,9 @@ func (s *StatementScope) Finish(err error) error {
 	s.viewWrite = nil
 	s.indexMaintenance = nil
 	s.viewCreationNamespace = ObjectRef{}
+	s.viewPersistence = ""
+	s.viewBinding = binding{}
+	s.viewChanges = nil
 	s.lockedStorage = nil
 	s.querySources = nil
 	s.queryLockAdmission = queryLockAdmission{}

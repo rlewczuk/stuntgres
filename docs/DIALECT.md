@@ -1913,7 +1913,7 @@ ORDER identities, not textual list order; partial prefixes and duplicates are le
 All four row-lock modes still reject DISTINCT queries. See
 [distinct on groups](QUERIES.md#distinct-on-groups--change-note-changelog).
 
-Persistent CREATE VIEW supports the current SELECT body, optional prefix output
+CREATE [OR REPLACE] [TEMP | TEMPORARY] VIEW supports the current SELECT body, optional prefix output
 names, security_barrier/security_invoker Boolean options, nested ordinary reads
 and INSERT SELECT. Bound relation/attribute identities survive base renames and
 unrelated column compaction; dependency-aware RESTRICT/CASCADE integrates with
@@ -5406,7 +5406,7 @@ retain `3F000`/`42501` precedence, including IF NOT EXISTS; failures publish no
 private namespace or sequence state.
 Smoke: `make check RUN='^TestSequenceTempCreationSmoke$'`.
 
-Temporary tables and sequences share session-owned namespaces. CREATE TEMP/
+Temporary tables, sequences and views share session-owned namespaces. CREATE TEMP/
 TEMPORARY TABLE and ordinary CREATE TABLE in own pg_temp/actual TEMP or a leading
 explicit pg_temp path stage private descriptors/storage with ordinary types,
 defaults, CHECK, generation, serial/identity, UNIQUE, PRIMARY KEY and indexes.
@@ -5422,11 +5422,31 @@ seeds only, never a general stale-reference waiver. Ordinary subsequent DDL and
 mutations still validate those manifests. Stored expression metadata does not
 retain historical catalog roots for diagnostic name lookup.
 Foreign TEMP creation fails42P16; native qualified peer lookup retains42501.
-Permanent transactional CREATE/DROP, TEMP views and GLOBAL/LOCAL remain excluded.
+Permanent transactional CREATE/DROP and GLOBAL/LOCAL remain excluded.
 TEMP-source SET SCHEMA fails0A000 `cannot move objects into or out of temporary schemas`.
 See [temporary table contract](TABLES.md#temporary-tables--change-note).
 Smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
+
+Temporary views use ordinary nonmaterialized view identities, row types and
+`_RETURN` rules, not separate row storage. Any bound relation occurrence in the
+query (including nested/unused/subquery/set-arm sources) causes implicit TEMP
+conversion and one `view "<name>" will be a temporary view` NOTICE00000 with no
+Detail. Expression-only TEMP sequence/regclass dependencies do not infer TEMP;
+native keeps its nonportable persistent TEMP-sequence dependency exclusion.
+Explicit TEMP and own pg_temp creation without a TEMP relation source are quiet.
+Two physical owners may use the same name independently. Physical end and real
+DROP/CASCADE remove the owner dependency closure; DELETE/PRESERVE table actions
+leave the view definition dynamic. VIEW utilities still reject explicit blocks.
+Native Dump excludes TEMP views and all associated artifacts. Reset/Restore
+preserves exact TEMP-only chains, builtin types used anywhere in stored queries,
+and unchanged pinned catalog providers with exact retained authority. Invalidated
+persistent table/view providers reject replacement atomically; names are never
+silently rebound. Driver Prepare for CREATE VIEW is utility-only zero metadata:
+no body binding, source locks, namespace allocation, publication or notices.
+Semantic checks occur at Execute. See [temporary views](SQL.md#temporary-views--change-note).
+Smoke: `make check RUN='^TestReferenceTemporaryViewFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryViewFeatureSmoke$'`.
 
 The four selected sequence functions and minimal regclass casts reuse the common typed scalar binder/eager evaluator. Literal regclass lookup happens at Prepare with character positions. Nonnull regclass parameters become canonical OIDs during coherent Execute parameter import, before zero-row evaluation, runtime NULL checks or nested function effects; input errors retain portal Context without a literal Position. Numeric/dash inputs require no existing relation. NULL arguments are strict and do not open a sequence. Exact session-before-use, missing/wrong-kind, option, bound, ACL and NOTICE diagnostics have independent pinned-release fixtures. This does not admit arbitrary relationless SELECT, user-defined functions or general casts.
 

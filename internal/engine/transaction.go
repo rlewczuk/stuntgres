@@ -263,6 +263,9 @@ type StatementScope struct {
 	ticket                *relationTicket
 	lockedRef             ObjectRef
 	viewCreationNamespace ObjectRef
+	viewPersistence       string
+	viewBinding           binding
+	viewChanges           *catalogChanges
 	lockedDescriptor      Descriptor
 	viewWrite             *viewWrite
 	indexMaintenance      *indexMaintenanceGrant
@@ -629,7 +632,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, err
 	}
 	switch stmt.(type) {
-	case *parser.CreateTable, *parser.DropTable, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
+	case *parser.CreateTable, *parser.DropTable, *parser.CreateView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		// Definition utilities have no result signature. Resolve ownership, read-only
 		// precedence and persistent-DDL exclusions only when actually executing.
 		return s.op.session.Engine().describeOperation(s, stmt)

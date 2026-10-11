@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"stuntgres/internal/parser"
@@ -177,7 +178,57 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					retainExpression(predicate.execution)
 				}
 			}
+			if definition := relation.view; definition != nil {
+				var retainQuery func(LogicalNode)
+				retainQuery = func(node LogicalNode) {
+					if node == nil {
+						return
+					}
+					for _, column := range node.Schema() {
+						retainBuiltin(column.Usage.Type)
+					}
+					queryExpressions(node, func(expression BoundExpr) {
+						walkBoundExpression(expression, func(expression BoundExpr) {
+							retainBuiltin(expression.ResultUsage().Type)
+							if child, ok := expression.(subqueryExpression); ok {
+								retainQuery(child.queryPlan.Root)
+							}
+						})
+					})
+					left, right := queryInputs(node)
+					retainQuery(left)
+					retainQuery(right)
+				}
+				retainQuery(definition.query.Root)
+				for _, literal := range definition.literals {
+					retainBuiltin(literal.ResultUsage().Type)
+				}
+				for _, usage := range definition.castUsages {
+					retainBuiltin(usage.Type)
+				}
+				for ref, captured := range definition.references {
+					address := ref.Address
+					address.SubID = 0
+					switch provider := e.state.descriptors[address].(type) {
+					case *typeDescriptor:
+						retainBuiltin(provider.typ)
+					case *relationDescriptor:
+						if ref.Address.SubID != 0 || provider != captured || provider.relationKind != catalogRelation || !pgDependPinned(CatalogRead{e, e.state}, address) {
+							continue
+						}
+						// The exact immutable catalog provider includes unused columns.
+						// Retain their generations too, so imported scalar retagging
+						// cannot clone the certified provider on a later replacement.
+						for _, column := range provider.columns {
+							retainBuiltin(column.Usage.Type)
+						}
+					}
+				}
+			}
 		}
+	}
+	if err := e.retainTemporaryViewProvidersLocked(next, temporary); err != nil {
+		return err
 	}
 	// OIDs share one identity space even when their catalog classes differ.
 	// Retained TEMP definitions cannot be reminted to make room for imports.
@@ -258,6 +309,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			switch r := d.(type) {
 			case *namespaceDescriptor:
+				if target == a && d == e.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.state}, a) {
+					// Preflight retained this exact immutable namespace authority.
+					break
+				}
 				n := *r
 				n.address = target
 				d = &n
@@ -269,6 +324,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				}
 				d = &n
 			case *relationDescriptor:
+				if target == a && r.relationKind == catalogRelation && d == e.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.state}, a) {
+					if _, moved := mapping[r.namespace]; !moved {
+						// Remapping unrelated imported identities must not copy
+						// the exact provider certified for retained TEMP consumers.
+						break
+					}
+				}
 				n := *r
 				n.address = target
 				if r.inheritance != nil {
@@ -562,4 +624,61 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 		return retainedArrayDependencies(source, target, typ.Element())
 	}
 	return true
+}
+
+// Only immutable bootstrap catalog sources have a persistent survivor route.
+// Retain the predecessor itself, after checking the candidate's full provider
+// shape and namespace/ACL authority; a compatible-looking user table is not it.
+func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ObjectAddress]Descriptor) error {
+	catalog := CatalogRead{e, e.state}
+	for _, descriptor := range temporary {
+		consumer, ok := descriptor.(*relationDescriptor)
+		if !ok || consumer.view == nil {
+			continue
+		}
+		for ref, captured := range consumer.view.references {
+			address := ref.Address
+			address.SubID = 0
+			old, ok := e.state.descriptors[address].(*relationDescriptor)
+			if !ok {
+				continue
+			}
+			if temporary[old.namespace] != nil {
+				if !storedViewReferenceValid(catalog, consumer, ref) {
+					return ErrCatalogReplaced
+				}
+				continue
+			}
+			fail := func() error {
+				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
+			}
+			if old != captured || old.relationKind != catalogRelation || !pgDependPinned(catalog, address) {
+				return fail()
+			}
+			candidate, ok := next.descriptors[address].(*relationDescriptor)
+			if !ok || candidate.relationKind != old.relationKind || candidate.namespace != old.namespace || candidate.name != old.name || candidate.owner != old.owner || candidate.virtualView != old.virtualView || candidate.attributeHighWater != old.attributeHighWater || !slices.Equal(candidate.attributes, old.attributes) || len(candidate.columns) != len(old.columns) || candidate.acl.Explicit != old.acl.Explicit || !slices.Equal(candidate.acl.Entries, old.acl.Entries) || len(candidate.columnACL) != len(old.columnACL) {
+				return fail()
+			}
+			for attribute, acl := range old.columnACL {
+				other, ok := candidate.columnACL[attribute]
+				if !ok || other.Explicit != acl.Explicit || !slices.Equal(other.Entries, acl.Entries) {
+					return fail()
+				}
+			}
+			for i, column := range old.columns {
+				other := candidate.columns[i]
+				if column.Name != other.Name || column.Usage.Type.ID() != other.Usage.Type.ID() || column.Usage.Typmod != other.Usage.Typmod || column.Usage.Collation.ID != other.Usage.Collation.ID || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
+					return fail()
+				}
+			}
+			namespace, ok := e.state.descriptors[old.namespace].(*namespaceDescriptor)
+			other, candidateOK := next.descriptors[old.namespace].(*namespaceDescriptor)
+			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.owner != other.owner || namespace.temporary != other.temporary || namespace.acl.Explicit != other.acl.Explicit || !slices.Equal(namespace.acl.Entries, other.acl.Entries) {
+				return fail()
+			}
+			next.descriptors[address] = old
+			next.descriptors[old.namespace] = namespace
+		}
+	}
+	return nil
 }

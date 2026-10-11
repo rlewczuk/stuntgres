@@ -21,6 +21,7 @@ func (s *StatementScope) acquireViewSources() error {
 	}
 	seen := make(map[ObjectRef]relationLockMode)
 	var refs []ObjectRef
+	var retainedViews []*relationDescriptor
 	var visit func(ObjectRef, relationLockMode) error
 	visit = func(ref ObjectRef, mode relationLockMode) error {
 		prior, visited := seen[ref]
@@ -47,14 +48,29 @@ func (s *StatementScope) acquireViewSources() error {
 			refs = append(refs, ref)
 		}
 		if d.relationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.relationKind == materializedViewRelation {
+			if d.view.temporary != (SessionToken{}) {
+				for old := range d.view.references {
+					if old.Epoch != e.state.epoch {
+						retainedViews = append(retainedViews, d)
+						break
+					}
+				}
+			}
 			for i, leaf := range d.view.sources {
-				if err := visit(leaf.ref, viewLeafRowMark(d.view, i, queryRowMark{mode: mode}).mode); err != nil {
+				use, err := storedViewUseReference(CatalogRead{e, e.state}, d, leaf.ref)
+				if err != nil {
+					return err
+				}
+				if err := visit(use, viewLeafRowMark(d.view, i, queryRowMark{mode: mode}).mode); err != nil {
 					return err
 				}
 			}
 			for _, dependency := range d.view.dependencies {
 				if dependency.ref.Address.ClassID == RelationClassID {
-					child := dependency.ref
+					child, err := storedViewUseReference(CatalogRead{e, e.state}, d, dependency.ref)
+					if err != nil {
+						return err
+					}
 					child.Address.SubID = 0
 					if err := visit(child, 0); err != nil {
 						return err
@@ -78,11 +94,19 @@ func (s *StatementScope) acquireViewSources() error {
 	if err := s.acquireBoundViewRelationModes(refs, seen); err != nil {
 		return err
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if s.materializedRefresh {
-		e.mu.Lock()
-		defer e.mu.Unlock()
 		for _, observed := range s.materializedSources {
 			if e.state.descriptors[observed.Address()] != observed {
+				return ErrCatalogReplaced
+			}
+		}
+	}
+	catalog := e.privateCatalogLocked(s.owner.catalog)
+	for _, view := range retainedViews {
+		for ref := range view.view.references {
+			if !storedViewReferenceValid(catalog, view, ref) {
 				return ErrCatalogReplaced
 			}
 		}

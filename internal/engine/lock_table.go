@@ -153,8 +153,10 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 	ancestors = append(ancestors, ref)
 	for _, source := range d.view.sources {
 		e.mu.Lock()
-		child, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[source.ref.Address].(*relationDescriptor)
-		valid := source.ref.owner == e.owner && source.ref.Epoch == e.state.epoch && ok
+		catalog := e.privateCatalogLocked(s.owner.catalog)
+		child, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+		use, useErr := storedViewUseReference(catalog, d, source.ref)
+		valid := ok && useErr == nil
 		e.mu.Unlock()
 		if !valid {
 			return ErrCatalogReplaced
@@ -165,7 +167,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 		if child.relationKind != tableRelation && child.relationKind != partitionedRelation && child.relationKind != viewRelation {
 			continue
 		}
-		if err := s.acquireExplicitRelation(stmt, source.ref, child.Name(), mode, policy, principal, invoker, ancestors, false); err != nil {
+		if err := s.acquireExplicitRelation(stmt, use, child.Name(), mode, policy, principal, invoker, ancestors, false); err != nil {
 			return err
 		}
 	}

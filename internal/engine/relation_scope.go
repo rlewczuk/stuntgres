@@ -34,12 +34,19 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 	}()
 	if view, ok := stmt.(*parser.CreateView); ok {
-		if execute && view.Replace {
-			if err := s.acquireRelationTarget(view, stmt, execute, false); err != nil {
-				return err
-			}
+		if !execute {
+			return nil
 		}
-		return s.acquireQueryRelations(view.Query, stmt, execute)
+		if err := s.acquireQueryRelations(view.Query, stmt, execute); err != nil {
+			return err
+		}
+		if err := s.prepareViewCreation(view); err != nil {
+			return err
+		}
+		if view.Replace {
+			return s.acquireRelationTarget(view, stmt, execute, false)
+		}
+		return nil
 	}
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
 		return s.acquireQueryRelations(creation.Query, stmt, execute)
@@ -223,17 +230,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			// CREATE targets only its creation namespace, not a same-named
 			// relation later in the lookup path. Qualified creation needs
 			// CREATE, not USAGE; body lookup retains its independent authority.
-			var ns ObjectRef
-			ns, err = e.creationNamespace(auth, name)
-			if err == nil {
-				err = checkPersistentCreationNamespace(auth.catalog, ns.Address)
+			ns := s.viewCreationNamespace
+			if s.viewChanges != nil {
+				auth.catalog = e.privateCatalogLocked(s.viewChanges)
 			}
+			err = auth.CheckCreate(ns)
 			if err == nil {
-				err = auth.CheckCreate(ns)
-			}
-			if err != nil {
-				err = creationError(err, name)
-			} else {
 				s.viewCreationNamespace = ns
 				address := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
 				if address != (ObjectAddress{}) {
@@ -398,15 +400,15 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return err
 	}
 	if viewReplacement {
-		ns, err := e.creationNamespace(auth, name)
-		if err != nil {
-			return creationError(err, name)
+		ns := s.viewCreationNamespace
+		if s.viewChanges != nil {
+			auth.catalog = e.privateCatalogLocked(s.viewChanges)
 		}
-		if ns != s.viewCreationNamespace || auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
+		if auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
 			return ErrCatalogReplaced
 		}
 		if err := auth.CheckCreate(ns); err != nil {
-			return creationError(err, name)
+			return err
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err

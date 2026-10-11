@@ -395,8 +395,11 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 // the occurrence bundle. Joined stages instead own flat admitted frames.
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
-	view                 *VisibilityView
-	ref                  ObjectRef
+	view *VisibilityView
+	ref  ObjectRef
+	// A frozen-view occurrence may carry an older immutable manifest ref.
+	// Set only after contextual owner/provider proof at source capture.
+	storedRef            ObjectRef
 	committed, own       []rowVersion
 	partialMask          *logicalIndexRoot
 	singleton            bool
@@ -835,7 +838,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			}
 			source = source.sources[n.occurrence]
 		}
-		if source == nil || source.ref != n.ref {
+		if source == nil || source.ref != n.ref && (source.storedRef == (ObjectRef{}) || source.storedRef != n.ref) {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
 		if source.final != nil || source.input != nil || source.nestedRoot != nil {
@@ -846,7 +849,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 				return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
 			}
 			data := source.view.read()
-			if n.ref.owner != data.catalog.owner.owner || n.ref.Epoch != data.catalog.Epoch() {
+			if source.ref.owner != data.catalog.owner.owner || source.ref.Epoch != data.catalog.Epoch() {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 			}
 		}

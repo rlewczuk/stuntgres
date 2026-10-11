@@ -311,8 +311,8 @@ owned sequences, and `ON COMMIT DROP` removes the dependency closure.
 Creation/drop and actions compose with rollback/savepoints; physical close
 removes TEMP, while returning a connection to its pool does not.
 Native Dump excludes TEMP; Reset/Restore preserves the exact live owner objects.
-Permanent transactional CREATE/DROP, TEMP views and GLOBAL/LOCAL spellings
-remain excluded. See [temporary tables](docs/TABLES.md#temporary-tables--change-note).
+Permanent transactional CREATE/DROP and GLOBAL/LOCAL spellings remain excluded.
+See [temporary tables](docs/TABLES.md#temporary-tables--change-note).
 Feature smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
 
@@ -1495,7 +1495,7 @@ PostgreSQL tuple storage. Feature smoke:
 `make check RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$'`.
 
 
-Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,
+`CREATE [OR REPLACE] [TEMP | TEMPORARY] VIEW` definitions use the ordinary typed SELECT pipeline,
 including admitted joins, repeated self-join occurrences, nested views, explicit
 output names and `security_invoker` / `security_barrier` options. Every source
 occurrence retains its frozen attribute layout and read-attribute identities across table,
@@ -1529,6 +1529,20 @@ Native Dump/Restore retains definitions and committed base rows, with future
 view writes remapped after Restore. INSERT RETURNING and trigger/rule-based
 writes remain excluded. View-write smoke:
 `make check RUN='^TestReferenceViewUpdatableSmoke$'` (also with `REFERENCE=1`).
+
+Change note: explicit temporary views and views whose bound query references a
+temporary relation use the physical owner's existing TEMP namespace. Implicit
+conversion emits `view "<name>" will be a temporary view`; expression-only
+TEMP sequence/regclass dependencies do not cause PostgreSQL18 inference.
+Same-name views in two sessions have independent definitions, shadow persistent
+relations, and disappear at physical session end, not pooled return. Queries
+remain dynamic with frozen logical result metadata; CREATE never evaluates rows.
+Native Dump excludes TEMP. Reset/Restore retains exact TEMP-only view chains and
+lawful unchanged pinned catalog providers, but atomically rejects invalidated
+persistent providers rather than rebinding names. VIEW utilities remain excluded
+inside explicit transactions. See [temporary views](docs/SQL.md#temporary-views--change-note).
+Feature smoke: `make check RUN='^TestReferenceTemporaryViewFeatureSmoke$'`;
+pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryViewFeatureSmoke$'`.
 
 Change note: scalar/EXISTS, IN/NOT IN, ANY/SOME/ALL and row comparison
 subqueries now use the shared typed query pipeline, with legal lexical

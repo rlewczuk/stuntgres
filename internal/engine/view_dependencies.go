@@ -311,11 +311,12 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 	}
 	for _, leaf := range definition.sources {
 		source, ok := v.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		if !ok || leaf.ref.owner != v.owner.owner || leaf.ref.Epoch != v.Epoch() || leaf.ref.Address.SubID != 0 {
+		if !ok || !storedViewReferenceValid(v, d, leaf.ref) || leaf.ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid view source identity")
 		}
 		namespace, ok := v.state.descriptors[source.namespace].(*namespaceDescriptor)
-		if !ok || namespace.temporary != (SessionToken{}) {
+		consumerNamespace, consumerOK := v.state.descriptors[d.namespace].(*namespaceDescriptor)
+		if !ok || namespace.temporary != (SessionToken{}) && (!consumerOK || consumerNamespace.temporary != namespace.temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
 		for _, attribute := range leaf.reads {
@@ -335,7 +336,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 		ref := dependency.ref
 		address := ref.Address
 		address.SubID = 0
-		if ref.owner != v.owner.owner || ref.Epoch != v.Epoch() {
+		if !storedViewReferenceValid(v, d, ref) {
 			return fmt.Errorf("stuntgres: invalid view dependency identity")
 		}
 		object, ok := v.state.descriptors[address]

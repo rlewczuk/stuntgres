@@ -2293,6 +2293,56 @@ make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'
 Both selected modes use the same completed definitions under900-second deadlines;
 ordinary quickcheck and the post-merge1800-second finalcheck remain required.
 
+Temporary-view definitions share physical-owner, notice and direct/prepared
+fixtures. They independently assert explicit TEMP/TEMPORARY metadata and dynamic
+duplicate/NULL/zero-width rows, relation-only inference throughout admitted query
+frames, namespace/shadowing and same-name session isolation, exact complete
+diagnostics/notices, real `_RETURN` identity/drop cleanup, dependency closure,
+physical exit, and blocked-source cancellation followed by same-handle recovery.
+`TestReferenceTemporaryTableCapabilityBoundaries` now asserts shared TEMP-source
+view success and its exact inference notice, retaining the SET SCHEMA boundary.
+The native control phases independently replay the actual persistent dump into
+a fresh engine and prove TEMP-only/unchanged pinned-catalog retention with exact
+identities, held reads and intermediate builtin usages. Invalidated persistent
+providers, TEMP restore scripts and invalid/canceled imports must leave both
+persistent and TEMP projections unchanged. Package-function stages supplement
+associated rowtype/array private publication/removal, ON COMMIT DROP closure,
+canceled commit, utility-only Describe and bounded retained-provider provenance.
+They do not replace public SQL evidence or add pg_type/pg_class.reltype providers.
+`TestReferenceTemporaryViewInferencePrecedence` independently combines TEMP
+inference with duplicate outputs, forbidden/missing destinations, replacement
+targets, options and indeterminate collation. Early SELECT/excess-alias errors
+must remain notice-free. Fresh options-before-duplicates and existing-replacement
+duplicates-before-options are distinct contracts. Isolation and FeatureSmoke
+also perform an actual prepared peer lookup requiring complete42P01/Position15
+at Prepare, separately from their retained direct Execute witness.
+`TestTemporaryViewRetainedSourceFrontier` exercises genuine session publication,
+native replacement and recursive source-frontier capture, while refusing a bare
+old-epoch table reference. `TestReferenceTemporaryViewRetainedWrites` independently
+asserts existing INSERT/UPDATE/DELETE counts, reordered nested-view rows and
+peer isolation in both backends, with native Reset/Restore repetition. Stored
+subquery sources retain their defining-layer ACL and frozen-layout obligations.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceTemporaryView'
+make check RUN='^TestReferenceTemporaryView'
+make check REFERENCE=1 RUN='^TestReferenceTemporaryTableCapabilityBoundaries$'
+make check RUN='^TestReferenceTemporaryTableCapabilityBoundaries$'
+make check RUN='^Test(CreateTemporaryView|TemporaryView)'
+make check REFERENCE=1 RUN='^TestReferenceTemporaryViewFeatureSmoke$'
+make check RUN='^TestReferenceTemporaryViewFeatureSmoke$'
+make check RACE=1 RUN='^TestReferenceTemporaryView(Cancellation|Lifetime)$'
+make check REFERENCE=1 RUN='^TestReferenceViewUpdatable'
+make check RUN='^TestReferenceViewUpdatable'
+```
+
+Use external900-second deadlines, and selected existing VIEW/replacement/join/
+control regressions for every shared seam touched. Both completed modes are
+required before review; neither quickcheck nor finalcheck replaces selected
+pinned proof. A standalone public Go smoke may additionally use NewDriver,
+physical sql.Conn owners and native Dump/Reset/Restore; test selectors alone
+are not standalone runtime smoke evidence.
+
 The datetime-constructor smoke directly asserts all five exact result types and
 values, BC, TIME24:00/TIMESTAMP carry, sparse `=>`/`:=` interval defaults/NULL,
 held prepared session-zone changes, full calendar/seconds/zone/signature errors,

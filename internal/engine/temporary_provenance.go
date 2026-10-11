@@ -53,6 +53,65 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 	return false
 }
 
+// Old epochs belong only to the immutable manifest of this exact retained view.
+// The ordinary ObjectRef validator and every unrelated statement stay strict.
+func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor, ref ObjectRef) bool {
+	if catalog.owner == nil || ref.owner != catalog.owner.owner || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
+		return false
+	}
+	address := ref.Address
+	address.SubID = 0
+	target := catalog.state.descriptors[address]
+	if target == nil {
+		return false
+	}
+	if ref.Epoch == catalog.Epoch() {
+		return true
+	}
+	if consumer == nil || consumer.view == nil || consumer.view.consumer != consumer.address || catalog.state.descriptors[consumer.address] != consumer {
+		return false
+	}
+	namespace, ok := catalog.state.descriptors[consumer.namespace].(*namespaceDescriptor)
+	if !ok || namespace.temporary == (SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.owner != catalog.owner {
+		return false
+	}
+	captured, exists := consumer.view.references[ref]
+	if !exists || captured == nil {
+		return false
+	}
+	if relation, ok := target.(*relationDescriptor); ok && relation.relationKind == catalogRelation {
+		return target == captured && pgDependPinned(catalog, address) && (ref.Address.SubID == 0 || relation.hasAttribute(ref.Address.SubID))
+	}
+	if !storedReferenceEpochValid(catalog, consumer, ref) {
+		return false
+	}
+	switch actual := target.(type) {
+	case *relationDescriptor:
+		old, ok := captured.(*relationDescriptor)
+		return ok && actual.namespace == old.namespace && actual.relationKind == old.relationKind
+	case *typeDescriptor:
+		old, ok := captured.(*typeDescriptor)
+		return ok && actual.typ == old.typ
+	case *collationDescriptor:
+		old, ok := captured.(*collationDescriptor)
+		if !ok {
+			return false
+		}
+		before, beforeErr := old.usage()
+		after, afterErr := actual.usage()
+		return beforeErr == nil && afterErr == nil && before == after
+	}
+	return false
+}
+
+func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, ref ObjectRef) (ObjectRef, error) {
+	if !storedViewReferenceValid(catalog, consumer, ref) {
+		return ObjectRef{}, ErrCatalogReplaced
+	}
+	ref.Epoch = catalog.Epoch()
+	return ref, nil
+}
+
 func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ObjectRef, token SessionToken) bool {
 	if ref.Epoch == view.Epoch() {
 		return ref.owner == view.owner.owner

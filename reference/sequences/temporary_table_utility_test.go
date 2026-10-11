@@ -30,17 +30,24 @@ func TestReferenceTemporaryTableUtilityCommit(t *testing.T) {
 }
 
 func TestReferenceTemporaryTableCapabilityBoundaries(t *testing.T) {
-	fixture.TemporaryTableScenario(t, func(s *fixture.TempReferenceSession) {
-		s.Utility("CREATE TEMP TABLE boundary_source(v INT)", nil)
-		s.Exec(s.C, "INSERT INTO boundary_source VALUES(11)", 1)
-		d := fixture.TempReferenceDiagnostic("0A000", "cannot move objects into or out of temporary schemas", "", "")
-		s.Utility("ALTER TABLE boundary_source SET SCHEMA public", d)
-		fixture.TemporaryTableRows(s, s.C, "boundary_source", 11)
-		if s.Postgres {
-			s.Utility("CREATE VIEW boundary_view AS SELECT v FROM boundary_source", nil)
-			fixture.TemporaryTableRows(s, s.C, "pg_temp.boundary_view", 11)
-		} else {
-			s.Utility("CREATE VIEW boundary_view AS SELECT v FROM boundary_source", fixture.TempReferenceDiagnostic("0A000", "temporary views are unsupported", "", ""))
-		}
-	})
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared], func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, b := range p.Backends() {
+				t.Run(b.Name, func(t *testing.T) {
+					var notices []fixture.Diagnostic
+					db, c, record := fixture.NoticeReferencePool(t, p, b.PG, &notices)
+					s := &fixture.TempReferenceSession{T: t, P: p, DB: db, C: c, Record: record, Prepared: prepared, Postgres: b.PG}
+					s.Utility("CREATE TEMP TABLE boundary_source(v INT)", nil)
+					s.Exec(s.C, "INSERT INTO boundary_source VALUES(11)", 1)
+					d := fixture.TempReferenceDiagnostic("0A000", "cannot move objects into or out of temporary schemas", "", "")
+					s.Utility("ALTER TABLE boundary_source SET SCHEMA public", d)
+					fixture.TemporaryTableRows(s, s.C, "boundary_source", 11)
+					s.Utility("CREATE VIEW boundary_view AS SELECT v FROM boundary_source", nil)
+					fixture.DomainReferenceNotice(t, &notices, `view "boundary_view" will be a temporary view`, "")
+					fixture.TemporaryTableRows(s, s.C, "pg_temp.boundary_view", 11)
+				})
+			}
+		})
+	}
 }

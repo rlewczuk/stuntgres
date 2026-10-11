@@ -31,7 +31,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		visibilityDemand = visibilityDemand || d.view.query.visibilitySnapshot
 		for _, leaf := range d.view.sources {
 			child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			if !ok || leaf.ref.owner != catalog.owner.owner || leaf.ref.Epoch != catalog.Epoch() {
+			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
 				return ErrCatalogReplaced
 			}
 			if err := visit(child); err != nil {

@@ -236,7 +236,17 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			}
 			return nil
 		}
-		if !storedReferenceEpochValid(stage.base, d, ref) {
+		valid := storedReferenceEpochValid(stage.base, d, ref)
+		if d != nil && d.view != nil {
+			// The stage's evolved consumer retains the incumbent definition's
+			// immutable provenance; old epochs never become generic stage refs.
+			incumbent, _ := stage.base.state.descriptors[d.address].(*relationDescriptor)
+			valid = incumbent != nil && incumbent.view == d.view && storedViewReferenceValid(stage.base, incumbent, ref)
+			if ref.Epoch == stage.base.Epoch() {
+				valid = storedViewReferenceValid(stage.base, d, ref)
+			}
+		}
+		if !valid {
 			return fmt.Errorf("stuntgres: invalid retained definition provider")
 		}
 		// Prove the original attribute reference before using a whole-object lock.

@@ -8,30 +8,32 @@ import (
 )
 
 func TestViewRecursiveLockCancellation(t *testing.T) {
-	for _, query := range []string{"SELECT id FROM w", "CREATE VIEW pending AS SELECT id FROM w"} {
-		for _, prepare := range []bool{false, true} {
-			t.Run(query+map[bool]string{false: "/execute", true: "/describe"}[prepare], func(t *testing.T) {
-				e := New()
-				holder := sessionStart(t, e, nil)
-				reader := sessionStart(t, e, nil)
-				for _, q := range []string{"CREATE TABLE t(id INT)", "CREATE VIEW v AS SELECT id FROM t", "CREATE VIEW w AS SELECT id FROM v"} {
-					sessionSQL(t, holder, q)
-				}
-				tx := transactionBegin(t, holder)
-				sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-				ctx, cancel := context.WithCancel(context.Background())
-				done := lockAsync(e, reader, ctx, query, prepare)
-				lockPending(t, e, 1)
-				cancel()
-				lockAwait(t, done, context.Canceled)
-				lockPending(t, e, 0)
-				transactionEnd(t, holder, tx, false)
-				if _, exists := e.CatalogRead().state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "pending"}]; exists {
-					t.Fatal("canceled view published")
-				}
-				lockEmpty(t, e)
-			})
-		}
+	for _, route := range []struct {
+		query   string
+		prepare bool
+	}{{"SELECT id FROM w", false}, {"SELECT id FROM w", true}, {"CREATE VIEW pending AS SELECT id FROM w", false}} {
+		query, prepare := route.query, route.prepare
+		t.Run(query+map[bool]string{false: "/execute", true: "/describe"}[prepare], func(t *testing.T) {
+			e := New()
+			holder := sessionStart(t, e, nil)
+			reader := sessionStart(t, e, nil)
+			for _, q := range []string{"CREATE TABLE t(id INT)", "CREATE VIEW v AS SELECT id FROM t", "CREATE VIEW w AS SELECT id FROM v"} {
+				sessionSQL(t, holder, q)
+			}
+			tx := transactionBegin(t, holder)
+			sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+			ctx, cancel := context.WithCancel(context.Background())
+			done := lockAsync(e, reader, ctx, query, prepare)
+			lockPending(t, e, 1)
+			cancel()
+			lockAwait(t, done, context.Canceled)
+			lockPending(t, e, 0)
+			transactionEnd(t, holder, tx, false)
+			if _, exists := e.CatalogRead().state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "pending"}]; exists {
+				t.Fatal("canceled view published")
+			}
+			lockEmpty(t, e)
+		})
 	}
 }
 
@@ -84,31 +86,23 @@ func TestViewValidationCancellationAtomicity(t *testing.T) {
 }
 
 func TestViewCreateSequenceDependencyCancellation(t *testing.T) {
-	for _, prepare := range []bool{false, true} {
-		name := "execute"
-		if prepare {
-			name = "describe"
-		}
-		t.Run(name, func(t *testing.T) {
-			e := New()
-			holder := sessionStart(t, e, nil)
-			reader := sessionStart(t, e, nil)
-			for _, query := range []string{"CREATE SEQUENCE s", "CREATE TABLE t(id INT)"} {
-				sessionSQL(t, holder, query)
-			}
-			tx := transactionBegin(t, holder)
-			sessionSQL(t, holder, "ALTER SEQUENCE s RENAME TO held")
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			done := lockAsync(e, reader, ctx, "CREATE VIEW pending AS SELECT nextval('s') FROM t", prepare)
-			lockPending(t, e, 1)
-			cancel()
-			lockAwait(t, done, context.Canceled)
-			lockPending(t, e, 0)
-			transactionEnd(t, holder, tx, false)
-			lockEmpty(t, e)
-		})
+	e := New()
+	holder := sessionStart(t, e, nil)
+	reader := sessionStart(t, e, nil)
+	for _, query := range []string{"CREATE SEQUENCE s", "CREATE TABLE t(id INT)"} {
+		sessionSQL(t, holder, query)
 	}
+	tx := transactionBegin(t, holder)
+	sessionSQL(t, holder, "ALTER SEQUENCE s RENAME TO held")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := lockAsync(e, reader, ctx, "CREATE VIEW pending AS SELECT nextval('s') FROM t", false)
+	lockPending(t, e, 1)
+	cancel()
+	lockAwait(t, done, context.Canceled)
+	lockPending(t, e, 0)
+	transactionEnd(t, holder, tx, false)
+	lockEmpty(t, e)
 }
 
 func TestViewSequenceCatalogPrivateVisibility(t *testing.T) {

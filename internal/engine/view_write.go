@@ -175,8 +175,12 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		}
 		leaf := d.view.sources[sourceNode.occurrence]
 		source, ok := auth.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		if !ok || leaf.ref.owner != e.owner || leaf.ref.Epoch != auth.catalog.Epoch() {
+		if !ok {
 			return ErrCatalogReplaced
+		}
+		use, err := storedViewUseReference(auth.catalog, d, leaf.ref)
+		if err != nil {
+			return err
 		}
 		if source.relationKind != tableRelation && source.relationKind != viewRelation {
 			return viewWriteError(d, operation, "Views that do not select from a single table or view are not automatically updatable.")
@@ -223,7 +227,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				}
 			}
 		}
-		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: leaf.ref, mainOccurrence: sourceNode.occurrence})
+		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.occurrence})
 		lowerStored := func(expr BoundExpr) (BoundExpr, bool, error) {
 			return rewriteViewExpression(auth.catalog, expr, func(n BoundExpr) (BoundExpr, bool, error) {
 				c, ok := n.(columnExpression)
@@ -235,6 +239,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 					return nil, false, err
 				}
 				c.slot = slot
+				c.origin = use
 				c.scope = 1
 				c.frame = 1
 				return c, true, nil
@@ -282,7 +287,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		}
 		targets = mapped
 		d = source
-		ref = leaf.ref
+		ref = use
 	}
 	w.base, w.ref, w.outputs = d, ref, outputs
 	b.viewWrite = w

@@ -187,8 +187,8 @@ zero columns and EOF, including zero-column tables with a nonzero stored count.
 Only an enclosing top-level SELECT promotes INTO, including its leftmost set
 arm. Right-arm INTO reports42601 with the first-SELECT diagnostic; ordinary nested
 and CTAS-body INTO report42601 `SELECT ... INTO is not allowed here`. Views retain
-their own0A000 `views must not contain SELECT INTO` boundary (native eager Prepare,
-PostgreSQL utility Execute). Set producers use the existing set owner, including
+their own0A000 `views must not contain SELECT INTO` boundary at utility Execute
+in both backends. Set producers use the existing set owner, including
 pairwise common types, leftmost output labels and DISTINCT/ALL tuple multiplicities;
 CTAS validates its final output collation even with WITH NO DATA.
 
@@ -319,9 +319,9 @@ gives42601 at WITH; SKIP LOCKED is incompatible, while FOR UPDATE/NOWAIT is lega
 Keys1,2,2,3 with count2 return1,2,2. OFFSET2/count1 returns one2, not the skipped peer.
 Raw NULL (including grouped NULL) count gives2201W under ties; parenthesized
 expressions/casts and parameter counts evaluating NULL remain unlimited.
-Raw-NULL SELECT analysis occurs at Prepare; native CREATE VIEW also analyzes eagerly
-at Prepare, while PostgreSQL defers that utility analysis to Execute. Both reject
-the same raw-NULL count with the complete2201W diagnostic.
+Raw-NULL SELECT analysis occurs at Prepare; CREATE VIEW is utility-only at Prepare
+and checks its body at Execute in both backends. Both reject the same raw-NULL
+count with the complete2201W diagnostic.
 
 Eligible presence-only EXISTS queries with a proven positive literal count retain
 the analyzed bounds/ORDER dependency graph but bypass its bounds and peer/cache

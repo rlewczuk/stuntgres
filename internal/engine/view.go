@@ -27,10 +27,13 @@ type viewDefinition struct {
 	namespaces        []viewNamespace
 	barrier, invoker  bool
 	rule              OID
+	consumer          ObjectAddress
+	temporary         SessionToken
+	references        map[ObjectRef]Descriptor
 	collations        map[viewLiteralPath]uint32
 }
 
-// Persistent leaves contain identities and frozen layout, never live storage or
+// Stored leaves contain identities and frozen layout, never live storage or
 // descriptors. Ordinals are SQL occurrences, including repeated self-joins.
 type viewLeaf struct {
 	ref        ObjectRef
@@ -76,31 +79,36 @@ func (b *expressionBinder) freezeViewColumns(columns []queryColumn) []viewNamesp
 	return out
 }
 
-func (e *Engine) bindViewOutput(query *BoundQuery, view *parser.CreateView, auth AuthorizationView) error {
+func bindViewOutput(query *BoundQuery, view *parser.CreateView) error {
 	columns := query.Root.Schema()
 	if len(view.Columns) > len(columns) {
 		return sqlError("42601", "CREATE VIEW specifies more column names than columns")
 	}
-	seen := make(map[string]bool, len(columns))
 	for i := range columns {
 		if i < len(view.Columns) {
 			columns[i].Name = view.Columns[i].Text
 		}
-		if seen[columns[i].Name] {
-			if view.Replace {
-				// OR REPLACE of an absent target uses ordinary CREATE diagnostics.
-				ns, err := e.creationNamespace(auth, view.Name)
-				if err == nil {
-					name := view.Name.Parts[len(view.Name.Parts)-1].Text
-					if _, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}]; exists {
-						return sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, columns[i].Name, name))
-					}
-				}
-			}
-			return sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, columns[i].Name))
-		}
-		seen[columns[i].Name] = true
 		columns[i].Nullable, columns[i].NullabilityKnown = true, true
+	}
+	return nil
+}
+
+// Output names are downstream definition checks, not SELECT/alias analysis.
+// Existing replacements check their descriptor before options; fresh CREATE
+// checks options first. The caller has already resolved the real destination.
+func checkViewOutputNames(columns []ColumnDescriptor, old *relationDescriptor) error {
+	if len(columns) < 2 {
+		return nil
+	}
+	seen := make(map[string]bool, len(columns))
+	for _, column := range columns {
+		if seen[column.Name] {
+			if old != nil {
+				return sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.name))
+			}
+			return sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, column.Name))
+		}
+		seen[column.Name] = true
 	}
 	return nil
 }
@@ -153,6 +161,70 @@ func viewSecurity(options []parser.ViewOption) (barrier, invoker bool, err error
 	return
 }
 
+// Relation occurrences, including unused/join/subquery leaves, determine PG18
+// inference. Expression-only regclass/sequence dependencies deliberately do not.
+func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sources []queryLeaf) string {
+	if view.Persistence == "temporary" {
+		return "temporary"
+	}
+	for _, source := range sources {
+		if namespace, ok := catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+			return "temporary"
+		}
+	}
+	return "logged"
+}
+
+// Analyze once after admitting all body sources, before selecting the CREATE
+// destination. Keep inferred persistence and private namespace off the held AST.
+func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
+	e := s.op.session.Engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	auth, err := e.statementAuthorizationLocked(s.op, view)
+	if err != nil {
+		return err
+	}
+	b, err := e.describe(s.op.Context(), view, auth, ObjectRef{}, s.input, s.op, nil, &s.queryLockAdmission)
+	if err != nil {
+		return err
+	}
+	if err := s.validateQuerySources(b.querySources); err != nil {
+		return err
+	}
+	persistence := requestedViewPersistence(auth.catalog, view, b.querySources)
+	if persistence == "temporary" && view.Persistence != "temporary" {
+		s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
+	}
+	projection, ok := b.query.Root.(*projectNode)
+	if !ok {
+		return fmt.Errorf("stuntgres: view lacks final projection")
+	}
+	for i, expression := range projection.expressions {
+		if expression.CollationIndeterminate() {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
+		}
+	}
+	changes := cloneCatalogChanges(s.owner.catalog)
+	ns, err := e.relationCreationNamespaceLocked(auth, view.Name, persistence, changes)
+	if err != nil {
+		return err
+	}
+	auth.catalog = e.privateCatalogLocked(changes)
+	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
+		return err
+	}
+	persistence, err = adjustRelationCreationPersistence(auth, ns, persistence)
+	if err != nil {
+		return err
+	}
+	s.viewCreationNamespace, s.viewPersistence, s.viewBinding = ns, persistence, b
+	if persistence == "temporary" {
+		s.viewChanges = changes
+	}
+	return nil
+}
+
 func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateView, count int) (Result, error) {
 	op := scope.op
 	e.mu.Lock()
@@ -165,13 +237,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	ns, err := e.creationNamespace(auth, view.Name)
-	if err == nil && view.Replace && ns != scope.viewCreationNamespace {
-		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
-	}
-	if err == nil {
-		err = checkPersistentCreationNamespace(auth.catalog, ns.Address)
+	ns := scope.viewCreationNamespace
+	if scope.viewChanges != nil {
+		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)
@@ -188,16 +256,16 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	if err != nil {
 		e.mu.Unlock()
-		return Result{}, creationError(err, view.Name)
+		return Result{}, err
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
 	var old *relationDescriptor
-	if address, exists := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}]; exists {
+	if address, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}]; exists {
 		if !view.Replace {
 			e.mu.Unlock()
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
-		old = e.state.descriptors[address].(*relationDescriptor)
+		old = auth.catalog.state.descriptors[address].(*relationDescriptor)
 		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}
 		if ref != scope.lockedRef {
 			e.mu.Unlock()
@@ -215,6 +283,36 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
+	b := scope.viewBinding
+	if err := scope.validateQuerySources(b.querySources); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	if count != 0 {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	if old != nil {
+		if err := checkViewOutputNames(b.query.Root.Schema(), old); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err := checkViewPrefix(auth.catalog, old.columns, b.query.Root.Schema()); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	barrier, invoker, err := viewSecurity(view.Options)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	if old == nil {
+		if err := checkViewOutputNames(b.query.Root.Schema(), nil); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
 	base := auth.catalog
 	stage := e.BeginCatalogStage(base)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
@@ -230,42 +328,8 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 		}
 	}
-	lookupAuth, err := e.statementAuthorizationLocked(op, view)
-	if err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	b, err := e.describe(op.Context(), view, lookupAuth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
-	if err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	if count != 0 {
-		e.mu.Unlock()
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
-	}
-	barrier, invoker, err := viewSecurity(view.Options)
-	if err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	projection, ok := b.query.Root.(*projectNode)
-	if !ok {
-		e.mu.Unlock()
-		return Result{}, fmt.Errorf("stuntgres: view lacks final projection")
-	}
-	for i, expression := range projection.expressions {
-		if expression.CollationIndeterminate() {
-			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
-		}
-	}
 	var oid, rule OID
 	if old != nil {
-		if err := checkViewPrefix(auth.catalog, old.columns, b.query.Root.Schema()); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
 		oid, rule = old.address.ObjectID, old.view.rule
 	} else {
 		oid, err = e.allocateOIDLocked()
@@ -282,7 +346,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, viewRelation)
+	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, viewRelation, scope.viewPersistence == "temporary")
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -295,6 +359,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.attributes = make([]int32, len(d.columns))
 		copy(d.attributes, old.attributes)
 		d.index = make(map[string]int, len(d.columns))
+	}
+	if scope.viewPersistence == "temporary" {
+		definition.consumer = d.address
 	}
 	attribute := d.attributeHighWater
 	for _, id := range d.attributes {
@@ -339,6 +406,13 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
+	}
+	if scope.viewChanges != nil {
+		scope.owner.accessedTemporary = true
+		if err := e.stageTemporaryCatalog(scope, stage, scope.viewChanges); err != nil {
+			return Result{}, err
+		}
+		return Result{}, nil
 	}
 	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {

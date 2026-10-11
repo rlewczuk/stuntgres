@@ -106,7 +106,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 		}
 		for i, leaf := range d.view.sources {
 			child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			if !ok || leaf.ref.owner != e.owner || leaf.ref.Epoch != e.state.epoch {
+			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
 				return 0, ErrCatalogReplaced
 			}
 			first, err := visit(child, viewLeafRowMark(d.view, i, inherited), diagnostic)
@@ -267,7 +267,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 			}
 			for i, leaf := range d.view.sources {
 				child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-				if !ok || leaf.ref.owner != e.owner || leaf.ref.Epoch != e.state.epoch {
+				if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
 					return ErrCatalogReplaced
 				}
 				if err := visit(child, viewLeafRowMark(d.view, i, inherited), referenceMarked); err != nil {
@@ -326,7 +326,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 	for i, leaf := range d.view.sources {
 		mark := viewLeafRowMark(d.view, i, inherited)
 		child, ok := v.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		if !ok || leaf.ref.owner != v.catalog.owner.owner || leaf.ref.Epoch != v.catalog.Epoch() {
+		if !ok || !storedViewReferenceValid(v.catalog, d, leaf.ref) {
 			return ErrCatalogReplaced
 		}
 		indices := make([]int, 0, len(leaf.reads))
@@ -343,11 +343,15 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		if err := v.checkColumns(binding{ref: leaf.ref, relation: child}, SelectPrivilege, indices); err != nil {
+		use, err := storedViewUseReference(v.catalog, d, leaf.ref)
+		if err != nil {
+			return err
+		}
+		if err := v.checkColumns(binding{ref: use, relation: child}, SelectPrivilege, indices); err != nil {
 			return err
 		}
 		if mark.mode != 0 {
-			if err := v.checkColumns(binding{ref: leaf.ref, relation: child}, UpdatePrivilege, nil); err != nil {
+			if err := v.checkColumns(binding{ref: use, relation: child}, UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}

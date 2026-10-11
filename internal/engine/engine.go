@@ -293,7 +293,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CloseCursor:
 		return StatementDescription{}, nil
-	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
+	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
 	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return StatementDescription{}, nil
@@ -363,14 +363,6 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	var cell *sequenceAnalysis
 	if len(analysis.constants) != 0 {
 		cell = &analysis
-	}
-	if _, view := stmt.(*parser.CreateView); view {
-		e.mu.Unlock()
-		err = scope.acquireViewDefinitionReferences(b)
-		e.mu.Lock()
-		if err != nil {
-			return StatementDescription{}, err
-		}
 	}
 	regtypes, err := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
 	if err != nil {
@@ -713,7 +705,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 		b.querySources = binder.querySources
 		if view != nil {
-			if err := e.bindViewOutput(b.query, view, auth); err != nil {
+			if err := bindViewOutput(b.query, view); err != nil {
 				return b, err
 			}
 		}
@@ -804,7 +796,7 @@ func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
 
 func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
 	ref, err := e.resolveRelationReference(auth, name, false)
-	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42P01" && len(name.Parts) > 0 {
+	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "42501") && len(name.Parts) > 0 {
 		// Analyzed relation names retain their raw identifier occurrence.
 		// Utility lookup owns its separate, intentionally unpositioned record.
 		if position := name.Parts[0].Pos.Character; position > 0 {

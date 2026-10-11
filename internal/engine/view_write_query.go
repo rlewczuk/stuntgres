@@ -15,9 +15,11 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 		return rewriteQueryExpressions(root, rewrite)
 	}
 	var definition *viewDefinition
+	var consumer *relationDescriptor
 	for _, layer := range w.layers {
 		if _, found := layer.relation.view.queries[project.syntax]; found {
 			definition = layer.relation.view
+			consumer = layer.relation
 			break
 		}
 	}
@@ -25,7 +27,28 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 	if definition == nil {
 		return rewriteQueryExpressions(root, rewrite)
 	}
-	return rewriteQueryExpressions(root, rewrite, func(node LogicalNode) (LogicalNode, error) {
+	return rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+		next, changed, err := rewrite(n)
+		if err != nil {
+			return nil, false, err
+		}
+		if !changed {
+			next = n
+		}
+		column, ok := next.(columnExpression)
+		if !ok || column.origin == (ObjectRef{}) {
+			return next, changed, nil
+		}
+		use, err := storedViewUseReference(view, consumer, column.origin)
+		if err != nil {
+			return nil, false, err
+		}
+		if column.origin != use {
+			column.origin = use
+			return column, true, nil
+		}
+		return next, changed, nil
+	}, func(node LogicalNode) (LogicalNode, error) {
 		source, ok := node.(*sourceNode)
 		if !ok {
 			return node, nil
@@ -46,11 +69,16 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 				w.queryOccurrences = make(map[viewWriteOccurrence]int)
 			}
 			w.queryOccurrences[key] = slot
-			b.querySources = append(b.querySources, queryLeaf{ref: leaf.ref, relation: relation, frozenAttributes: leaf.attributes, mark: leaf.mark})
+			use, err := storedViewUseReference(view, consumer, leaf.ref)
+			if err != nil {
+				return nil, err
+			}
+			b.querySources = append(b.querySources, queryLeaf{ref: use, relation: relation, frozenAttributes: leaf.attributes, mark: leaf.mark})
 			b.subqueryDemand = true
 		}
 		copy := *source
 		copy.occurrence = slot
+		copy.ref = b.querySources[slot].ref
 		return &copy, nil
 	})
 }

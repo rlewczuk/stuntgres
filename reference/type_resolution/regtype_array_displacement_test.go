@@ -331,13 +331,9 @@ func TestReferenceRegtypeArrayDisplacementAtomicity(t *testing.T) {
 						if err == nil {
 							t.Fatal("invalid later declaration succeeded")
 						}
-						// tests-17 observed PostgreSQL utility Execute. Native view
-						// source analysis retains its established eager Prepare
-						// contract (docs/QUERIES.md); all other creators execute.
+						// CREATE VIEW body semantics, like the other utility
+						// creators here, are checked when the command executes.
 						wantStage := "execute"
-						if prepared && !backend.PG && f.code == "42703" {
-							wantStage = "prepare"
-						}
 						if stage != wantStage {
 							t.Errorf("failure stage got %q want %q", stage, wantStage)
 						}
