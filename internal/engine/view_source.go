@@ -28,6 +28,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	switch d.relationKind {
 	case catalogRelation:
 		switch d.address.ObjectID {
+		case 12048:
+			source, err := e.capturePGSequencesLocked(scope, ref, d)
+			e.mu.Unlock()
+			return source, err
 		case 12004, 12005:
 			input := scope.input
 			e.mu.Unlock()

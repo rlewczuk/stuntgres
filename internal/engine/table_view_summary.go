@@ -155,6 +155,22 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 // In particular native pg_indexes retains its separately documented ACL policy.
 func representedSummaryViewDefinition(oid OID) string {
 	switch oid {
+	case 12048:
+		return ` SELECT n.nspname AS schemaname,
+    c.relname AS sequencename,
+    pg_get_userbyid(c.relowner) AS sequenceowner,
+    (s.seqtypid)::regtype AS data_type,
+    s.seqstart AS start_value,
+    s.seqmin AS min_value,
+    s.seqmax AS max_value,
+    s.seqincrement AS increment_by,
+    s.seqcycle AS cycle,
+    s.seqcache AS cache_size,
+    pg_sequence_last_value((c.oid)::regclass) AS last_value
+   FROM ((pg_sequence s
+     JOIN pg_class c ON ((c.oid = s.seqrelid)))
+     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+  WHERE ((NOT pg_is_other_temp_schema(n.oid)) AND (c.relkind = 'S'::"char"));`
 	case 12008:
 		return ` SELECT rolname AS groname,
     oid AS grosysid,

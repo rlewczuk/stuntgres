@@ -409,6 +409,7 @@ type querySource struct {
 	singleton            bool
 	rlsDenied            bool
 	anonymous            [][]sqltype.Value
+	pgSequences          *pgSequencesSource
 	visible              []int
 	hashIndexes          []capturedHashIndex
 	scope                *StatementScope
@@ -560,6 +561,7 @@ func (s *querySource) versionAt(i int) rowVersion {
 	return s.own[i-len(s.committed)]
 }
 func (s *querySource) close() {
+	s.pgSequences = nil
 	sources := s.sources
 	s.sources = nil
 	s.hashIndexes = nil
@@ -845,6 +847,9 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if source == nil || source.ref != n.ref && (source.storedRef == (ObjectRef{}) || source.storedRef != n.ref) {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
+		if source.pgSequences != nil {
+			return openPGSequencesStage(state, source, n.Schema()), nil
+		}
 		if source.final != nil || source.input != nil || source.nestedRoot != nil {
 			return openSourceStage(ctx, state, source, n.Schema())
 		}
@@ -871,6 +876,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
+		admitPGSequencesPredicate(n.child, state.source, n.predicate, 0, evaluation.Frame)
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
 			return indexedStage{}, err

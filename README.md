@@ -10,6 +10,14 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: readonly `pg_catalog.pg_sequences` exposes all eleven typed sequence
+definition/value fields. `last_value` is logical reserved high-water (including
+cache tails), NULL when uncalled or lacking SELECT/USAGE. Definitions remain
+visible without schema/sequence privileges; own physical TEMP is included, peer
+TEMP excluded. Every qualifier-admitted row takes transaction-owned sequence RX,
+even definition/count/stored/join reads; FALSE/name-rejected rows do not.
+See [sequence view contract](docs/SQL.md#pg_sequences-view--change-note).
+
 Change note: native `CopyFrom` and `CopyTo` on a pinned `*sql.Conn` stream
 PostgreSQL text COPY through real type codecs and atomic DML staging.
 Table FROM STDIN, table/query TO STDOUT, column lists, delimiter/NULL/default
@@ -1849,7 +1857,8 @@ always have INT8 output metadata. START/options are distinct from current value,
 RESTART and cache reservations. PUBLIC catalog reads include private/peer TEMP
 definitions without generator access. RC held prepared scans refresh; RR uses
 the existing transaction snapshot plus own DDL overlay, and old cursors remain
-stable through DDL/native controls. No `pg_sequences` view is implied.
+stable through DDL/native controls. The separate `pg_sequences` view adds current
+readable high-water state with different TEMP and lock semantics.
 See [catalog contract](docs/SQL.md#pg_sequence-catalog--change-note).
 Feature smoke: `make check RUN='^TestReferencePGSequenceFeatureSmoke$'`,
 and the same command with `REFERENCE=1`.

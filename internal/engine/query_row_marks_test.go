@@ -130,6 +130,10 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 
 func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
+	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
+		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
+	}}
 	marks := []queryRowMark{{mode: rowUpdate, wait: parser.RowLockSkip}, {mode: rowShare, wait: parser.RowLockNowait}}
 	pending := appendPendingRowMarks(nil, marks, inputs)
 	if len(pending) != 2 || !reflect.DeepEqual(pending[0].occurrences, []int{0}) || !reflect.DeepEqual(pending[1].occurrences, []int{1}) || pending[0].mark != marks[0] || pending[1].mark != marks[1] {
@@ -138,5 +142,31 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 	pending[0].occurrences[0] = 99
 	if inputs.sources[0].occurrence != 0 || marks[0].mode != rowUpdate {
 		t.Fatal("execution pending state mutated bound/source identity")
+	}
+}
+
+func TestPGSequencesEffectiveRowMarks(t *testing.T) {
+	e := New()
+	view := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}].(*relationDescriptor)
+	table := &relationDescriptor{relationKind: tableRelation}
+	requested := queryRowMark{mode: rowUpdate, wait: parser.RowLockNowait, diagnosticMode: rowUpdate, order: 1}
+	locks := &queryLockContext{leaves: []queryLockLeaf{
+		{leaf: queryLeaf{relation: view, mark: requested}, mark: effectiveQueryRowMark(view, requested)},
+		{leaf: queryLeaf{relation: table, mark: requested}, mark: effectiveQueryRowMark(table, requested)},
+	}}
+	// A transparent stored/derived expansion may contain both the SQL-only
+	// catalog occurrence and a genuinely marked table. Preserve its identities.
+	expanded := &querySource{materialized: true, occurrences: []int{0, 1}}
+	inputs := &querySource{sources: []*querySource{expanded}, locks: locks}
+	pending := appendPendingRowMarks(nil, []queryRowMark{requested}, inputs)
+	if len(pending) != 1 || !reflect.DeepEqual(pending[0].occurrences, []int{1}) || pending[0].mark != requested {
+		t.Fatal("effective expansion changed ordinary physical mark", pending)
+	}
+	if !reflect.DeepEqual(expanded.occurrences, []int{0, 1}) || locks.leaves[0].leaf.mark != requested || locks.leaves[0].mark != (queryRowMark{}) {
+		t.Fatal("effective decision mutated SQL marks or source identities")
+	}
+	inputs.sources[0] = &querySource{occurrence: 0}
+	if pending := appendPendingRowMarks(nil, []queryRowMark{requested}, inputs); len(pending) != 0 {
+		t.Fatal("SQL-only catalog mark reached physical arbitration", pending)
 	}
 }

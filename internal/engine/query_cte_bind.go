@@ -56,7 +56,11 @@ func (b *expressionBinder) bindCTEDefinitions(s *parser.Select) ([]*cteDefinitio
 		if len(raw.Columns) > len(query.Root.Schema()) {
 			return nil, expressionError("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(query.Root.Schema()), len(raw.Columns)), raw.Name.Pos)
 		}
-		definition := &cteDefinition{query: query, owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, volatile: cteVolatile(query.Root)}
+		viewVolatile, err := cteStoredViewVolatile(b.queryAuth.catalog, query.Root)
+		if err != nil {
+			return nil, err
+		}
+		definition := &cteDefinition{query: query, owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, volatile: cteVolatile(query.Root) || viewVolatile}
 		// Prefix aliases belong to the virtual output schema, not a catalog row.
 		if len(raw.Columns) != 0 {
 			project := *query.Root.(*projectNode)
@@ -120,6 +124,9 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(Bo
 func cteVolatile(root LogicalNode) bool {
 	volatile := false
 	visitCTEQuery(root, func(n LogicalNode) {
+		if source, ok := n.(*sourceNode); ok && source.ref.Address.ClassID == RelationClassID && source.ref.Address.ObjectID == 12048 {
+			volatile = true
+		}
 		for _, mark := range queryRootRowMarks(n) {
 			if mark.mode != 0 {
 				volatile = true
@@ -131,6 +138,61 @@ func cteVolatile(root LogicalNode) bool {
 		}
 	}, true)
 	return volatile
+}
+
+// Stored views are source leaves, not logical inputs. Inspect their immutable
+// definitions using the same identity-bound graph authority as view expansion;
+// no source is opened and no expression is evaluated during this analysis.
+func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) {
+	var leaves []queryLeaf
+	var sourceErr error
+	visitCTEQuery(root, func(node LogicalNode) {
+		if source, ok := node.(*sourceNode); ok {
+			relation, _ := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			if relation == nil {
+				sourceErr = ErrCatalogReplaced
+			} else if relation.relationKind == viewRelation {
+				leaves = append(leaves, queryLeaf{relation: relation})
+			}
+		}
+	}, func(BoundExpr) {}, true)
+	if sourceErr != nil {
+		return false, sourceErr
+	}
+	if len(leaves) == 0 {
+		return false, nil
+	}
+	if _, err := validateViewReadGraph(catalog, leaves); err != nil {
+		return false, err
+	}
+	// Validation above owns cycle and stored-reference errors. Memoization here
+	// only avoids re-inspecting a shared acyclic definition in this analysis.
+	memo := make(map[ObjectAddress]bool)
+	var visit func(*relationDescriptor) bool
+	visit = func(relation *relationDescriptor) bool {
+		if relation.relationKind != viewRelation {
+			return relation.relationKind == catalogRelation && relation.address.ClassID == RelationClassID && relation.address.ObjectID == 12048
+		}
+		if volatile, ok := memo[relation.address]; ok {
+			return volatile
+		}
+		volatile := cteVolatile(relation.view.query.Root)
+		for _, source := range relation.view.sources {
+			if volatile {
+				break
+			}
+			child := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			volatile = visit(child) || volatile
+		}
+		memo[relation.address] = volatile
+		return volatile
+	}
+	for _, leaf := range leaves {
+		if visit(leaf.relation) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func activateCTESources(root LogicalNode, leaves []queryLeaf) {

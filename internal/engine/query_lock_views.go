@@ -279,6 +279,9 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 			}
 			return nil
 		}
+		if isPGSequencesRelation(d) {
+			return nil // Expanded catalog view: no represented physical tuple input.
+		}
 		if (referenceMarked || inherited.mode != 0) && d.relationKind == materializedViewRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.name))
 		}
@@ -353,7 +356,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 		if err := v.checkColumns(binding{ref: use, relation: child}, SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if mark.mode != 0 {
+		if effectiveQueryRowMark(child, mark).mode != 0 {
 			if err := v.checkColumns(binding{ref: use, relation: child}, UpdatePrivilege, nil); err != nil {
 				return err
 			}

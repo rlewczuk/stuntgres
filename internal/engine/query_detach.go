@@ -33,6 +33,7 @@ func detachQuerySource(source *querySource) {
 		source.nestedInputs = nil
 	}
 	source.scope, source.locks = nil, nil
+	source.pgSequences = nil
 	source.authority = nil
 	source.versions = nil
 	source.joinLeft, source.joinRight, source.joinPairs = nil, nil, nil

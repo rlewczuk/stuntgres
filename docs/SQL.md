@@ -734,6 +734,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_tables` | `schemaname NAME`, `tablename NAME`, `tableowner NAME`, `tablespace NAME`, `hasindexes BOOL`, `hasrules BOOL`, `hastriggers BOOL`, `rowsecurity BOOL` |
 | `pg_catalog.pg_indexes` | `schemaname NAME`, `tablename NAME`, `indexname NAME`, `tablespace NAME`, `indexdef TEXT` |
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
+| `pg_catalog.pg_sequences` | `schemaname NAME`, `sequencename NAME`, `sequenceowner NAME`, `data_type REGTYPE`, `start_value INT8`, `min_value INT8`, `max_value INT8`, `increment_by INT8`, `cycle BOOL`, `cache_size INT8`, `last_value INT8` |
 | `pg_catalog.pg_user` | `usename NAME`, `usesysid OID`, `usecreatedb BOOL`, `usesuper BOOL`, `userepl BOOL`, `usebypassrls BOOL`, `passwd TEXT`, `valuntil TIMESTAMPTZ`, `useconfig TEXT[]` |
 | `pg_catalog.pg_roles` | `rolname NAME`, `rolsuper BOOL`, `rolinherit BOOL`, `rolcreaterole BOOL`, `rolcreatedb BOOL`, `rolcanlogin BOOL`, `rolreplication BOOL`, `rolconnlimit INT4`, `rolpassword TEXT`, `rolvaliduntil TIMESTAMPTZ`, `rolbypassrls BOOL`, `rolconfig TEXT[]`, `oid OID` |
 | `pg_catalog.pg_group` | `groname NAME`, `grosysid OID`, `grolist OID[]` |
@@ -1319,8 +1320,8 @@ overlay without discarding the transaction snapshot. The pinned oracle observes
 Prepare inside BEGIN acquiring this snapshot (start15/cache9 retained after a
 peer ALTER), whereas Prepare before BEGIN leaves the first execution to capture
 start21/cache4. Serializable uses its existing snapshot/candidate lifecycle.
-Only this catalog consumes the retained catalog pointer; other catalog and
-Describe/Execute timing policies are unchanged.
+The sequence catalog and sequence view consume the retained catalog pointer;
+other catalog and Describe/Execute timing policies are unchanged.
 
 Already-returned cursors keep their captured row and fixed schema after
 ALTER/DROP/native replacement. Native Dump emits actual sequence definitions,
@@ -1328,10 +1329,57 @@ not virtual catalog INSERTs; Reset empties their rows and Restore remints
 relational identities while reproducing definition properties. Failed/canceled
 operations retain existing atomicity. Native catalog writes and row locking
 remain0A000 virtual-source boundaries, not PostgreSQL physical catalog mutation.
-No `pg_sequences` view or `pg_attribute`/`pg_depend` expansion is implied.
+No additional `pg_attribute`/`pg_depend` expansion is implied.
 
 Feature smoke: `make check RUN='^TestReferencePGSequenceFeatureSmoke$'`,
 and the identical command with `REFERENCE=1` for pinned PostgreSQL.
+
+### pg_sequences view — change note
+
+Readonly relation12048 has row type12050/array12049 and the eleven ordered fields
+listed above. NAME carries C collation; data_type is genuine REGTYPE, presented
+as bigint/integer/smallint. View columns have native known nullable metadata,
+typmod-1 and stable origins. There is no public oid/log_cnt/is_called.
+
+Definitions match CREATE/ALTER and use the existing sequence snapshot plus own
+DDL/savepoint overlay. Private schemas and unreadable sequences retain rows;
+own physical TEMP appears, peer TEMP does not, independent of schema spelling
+or superuser. Persistent same-name sequences are not shadowed in this view.
+The current exact-identity helper exposes logical reserved high-water, not
+currval or durable disk/WAL state. CACHE10 A.next1 exposes10, B.next11 exposes20,
+A.cached2 still exposes20. Fresh, setval(false) and RESTART are NULL until called;
+setval(true) exposes its value without nextval. ALTER START affects definition
+only. SELECT or USAGE permits last_value; UPDATE alone leaves it NULL.
+
+Every admitted provider row takes transaction-owned RowExclusive on its sequence
+before readability/called checks, including definition/count, stored-view and
+join consumers. Safe definition qualifiers precede completion, including through
+ordinary non-CTE derived direct-column projections; FALSE and rejected names take
+none. Admission does not cross LIMIT, aggregate, DISTINCT, set-operation or CTE
+boundaries, computed projections, or unknown/volatile expressions; last_value
+predicates remain after completion. Reads are allowed in read-only transactions
+and never allocate, consume cached numbers or define currval/lastval. Prepare and
+Rows.Next do not invoke the helper. Returned rows/types remain frozen through
+nextval, DDL and native controls; Rows/Stmt.Close does not end explicit transaction
+locks.
+RR retains joined definitions but reads live generator/ACL state. A peer-dropped
+original identity yields XX000 `could not open relation with OID <original>`;
+the next command sees ordinary25P02, never a recreated-name substitution.
+
+INSERT/UPDATE/DELETE fail55000 during Prepare with readonly-view diagnostics.
+FOR UPDATE succeeds through represented expanded-view semantics without
+inventing physical catalog tuple locks. SQL marks remain available for binding,
+admission and clause validation; effective physical marks exclude only the
+pg_sequences occurrence, including through stored/derived views and joins.
+Ordinary table occurrences in the same query retain their actual row locks and
+UPDATE authorization checks. Admitted helper RX remains independent; FALSE
+does not invoke it.
+Dump serializes canonical persistent definitions/setval, not view rows; Reset/
+Restore preserve destination exact TEMP identity/state. Invalid or canceled
+Restore remains atomic. No disk/WAL/standby emulation is provided.
+
+Feature proof: `make check RUN='^TestReferencePGSequences'` and the identical
+selector with `REFERENCE=1`; see [test contract](TESTING.md#sequence-value-view).
 
 ## pg_extension catalog — change note
 

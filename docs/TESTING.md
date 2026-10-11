@@ -2756,6 +2756,30 @@ These selective checks do not replace ordinary quickcheck or the single
 results `(true,false,true,true,NULL)`, held reuse, Denver day/hour differences,
 diagnostic recovery and native stored-clock-duration replay.
 
+### Sequence value view
+
+`TestReferencePGSequencesShape`, `Definitions`, `Values`, `Privileges`, `Temp`,
+`Demand`, `Transactions`, `Diagnostics`, `CTE` and `Controls` prescribe independent
+pinned PostgreSQL18.0 outcomes, including exact cache high-water/NULL masks,
+all eleven descriptors, full English diagnostic records, physical TEMP exit,
+actual emitted Dump replay and cancellation cleanup. PostgreSQL-only pg_type
+identity links supplement native actual descriptor/type-link units; native TEMP
+namespace is obtained from the actual public pg_sequences row, not an unsupported
+pg_my_temp_schema function. Shared direct/prepared behavior is not skipped.
+
+```sh
+make check RUN='^TestReferencePGSequences'
+make check RUN='^TestReferencePGSequences' REFERENCE=1
+make check RUN='^TestPGSequences(Descriptors|Provider|ACL|Demand|Concurrency|Cancellation|CTE)'
+make check RUN='^(TestPGSequences(Concurrency|Cancellation|CTE)|TestReferencePGSequences(Demand|Transactions|Temp|CTE))' RACE=1
+```
+
+Use external900s deadlines. Changed reference definitions require both native
+and real pinned modes before review. Whole-project Docker-free `make quickcheck`
+and post-merge `make finalcheck` do not replace selected proof or the standalone
+public smoke. Demand units inspect real manager holders/queues, including
+definition/count/stored/join RX, rejected-name/FALSE no RX and terminal release.
+
 ### Sequence definition catalog discovery
 
 The shared `TestReferencePGSequence` family covers the eight-column
@@ -2801,6 +2825,84 @@ make check RUN='^TestPGSequence'
 Each selected check invocation has a 900-second deadline. The finalcheck runs
 after merge under its single 1800-second deadline; neither gate replaces the
 selective dual-mode runs.
+
+### Sequence metadata view oracle
+
+The `TestReferencePGSequences` family defines the eleven-column `pg_sequences`
+oracle independently of backend comparison. `Shape`, `Demand`, `Transactions`,
+`Diagnostics`, `Frames` and `CTE` cover exact types and fixed catalog identities,
+admitted-row volatile helper locks, retained RR definitions with live
+generator/ACL state, complete diagnostics, lexical-frame-safe correlated
+projections and volatile CTE producer frontiers.
+`Definitions`, `Values`, `Privileges`, `Temp` and
+`Controls` cover options, cache high-water values, unreadable/uncalled NULL,
+physical TEMP visibility and actual native control replay. These are test
+expectations, not a claim that the native view implementation has passed.
+
+RR drop/recreate diagnostics interpolate the original sequence OID captured
+before peer DDL, never a hard-coded allocated OID or the replacement identity.
+Even a definition-only admitted read expects `XX000`; the subsequent query
+expects `25P02`. Namespace and sequence definitions, including the owner identity,
+remain from the RR definition snapshot. The owner name is presented from the
+current statement role root rather than a retained role-name snapshot. Current
+role membership produces NULL/value/NULL, and current generator state is read
+independently.
+
+The Recreate witness issues DROP and CREATE as separate commands on the same
+peer connection; it tests real identity replacement, not multi-statement SQL.
+Full, definition-only and FALSE `FOR UPDATE` queries must succeed directly and
+through retained prepared execution. Their SQL rowmark admission still matches
+the bound manifest; the represented view has no physical tuple marks, while
+admitted rows retain the normal per-sequence helper locks.
+
+Ordinary derived sources capture the caller's lexical frame after nested binding
+restores that scope. `TestPGSequencesAdmissionDerivedRowLockFrame` binds the actual
+derived `FOR UPDATE` shape and proves that its local residual predicate crosses
+the row-lock boundary into direct child projection columns in the child's exact
+frame. The filter uses one captured evaluation frame for both admission and
+residual evaluation. Foreign, zero or mixed frames remain whole-expression
+barriers; CTE boundaries remain distinct and are not admitted by this mapping.
+The existing Demand witness still requires a-only helper RX, with no b helper RX.
+
+`TestPGSequencesConcurrency` observes the actual manager request on the exact
+sequence identity: RESTART queues ShareRowExclusive behind the view helper's
+transaction-owned RowExclusive. Closing Rows does not release that lock;
+rollback admits RESTART, whose fresh last_value is NULL and nextval is 19.
+Cancellation/join cleanup runs even when the queue assertion fails.
+
+`TestReferencePGSequencesCTE` and `TestPGSequencesCTE` exercise direct,
+ordinary-derived, stored-view and nested stored-view sources with default,
+`MATERIALIZED` and `NOT MATERIALIZED` hints. A consumed volatile CTE completes
+both sequence rows behind one producer even when an outer restriction returns
+only one name; shared references retain that producer rather than independently
+folding its restrictions. The tests observe helper RX holders and a real blocked
+helper queue on the sequence absent from the final rows, cancellation and terminal
+cleanup/recovery. Prepare opens no helper, and unused CTE bodies acquire no helper
+locks. `TestPGSequencesCTEStoredGraph` and `TestPGSequencesCTEStoredGraphAuthority`
+inspect real immutable stored definitions without opening providers; shared
+acyclic sources are allowed, while invalid references and active-path cycles use
+the existing catalog/view graph errors.
+
+Malformed inferred REGTYPE input is an explicit PostgreSQL wire-only control:
+OID-input `22P02` includes `unnamed portal parameter $1 = '...'`. The native
+driver has no PostgreSQL parameter input codec and must not fabricate that
+context. Shared direct and retained prepared routes still assert numeric
+inferred REGTYPE inputs 20/23/21 and bigint/integer/smallint outputs. Explicit
+symbolic input through `text::regtype` independently expects full `42704`
+diagnostics and recovery using the same retained statement.
+
+```sh
+make check RUN='^TestReferencePGSequences(Shape|Demand|Transactions|Diagnostics|Frames|CTE)$'
+make check REFERENCE=1 RUN='^TestReferencePGSequences(Shape|Demand|Transactions|Diagnostics|Frames|CTE)$'
+make check RUN='^TestReferencePGSequences(Definitions|Values|Privileges|Temp|Controls)$'
+make check REFERENCE=1 RUN='^TestReferencePGSequences(Definitions|Values|Privileges|Temp|Controls)$'
+```
+
+Each command requires an external 900-second deadline. Before production
+authorization, use the same reference selector with `/postgres$` appended to
+exercise only the pinned oracle; unqualified definitions include native mode
+and supply its missing-view behavioral red. No discovery backend filter or
+deliberately failing observation helper remains.
 
 The extraction family uses the same shared fixtures and public APIs in both
 modes, with explicit independent values, diagnostics and metadata. Its smoke

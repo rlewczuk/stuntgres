@@ -34,10 +34,14 @@ func PgDescriptionExecutorRows(t *testing.T, p *Pair, backend Backend, executor 
 			t.Fatal(err)
 		}
 		for i, v := range cells {
-			OidReferenceValue(t, backend.PG, s.Types[i], v)
+			if s.Types[i] == "REGTYPE" || s.Types[i] == "_REGTYPE" {
+				RegtypeRaw(t, backend.PG, v)
+			} else {
+				OidReferenceValue(t, backend.PG, s.Types[i], v)
+			}
 		}
 	}
-	observed := RunStep(t, p.Ctx, executor, backend.Recorder, s)
+	observed := RegtypeRunStep(t, p.Ctx, executor, backend.Recorder, s)
 	for _, row := range observed.Rows {
 		for i, v := range row {
 			if backend.PG && s.Types[i] == "OID" && v != nil {

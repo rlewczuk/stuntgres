@@ -108,6 +108,8 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 			return futureCTEError(err, admission.futureCTE[table])
 		}
 		leaf := &s.querySources[len(s.querySources)-1]
+		// Keep SQL marks in the admission manifest for exact binder validation.
+		// pg_sequences drops only effective physical marks during source capture.
 		leaf.mark, leaf.query, leaf.table = mark, queries[i], table
 		entry := s.queryLockAdmission.tableQueries[table]
 		entry.query, entry.ref = queries[i], leaf.ref
@@ -289,7 +291,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			}
 			continue
 		}
-		mark := mergeQueryRowMark(inherited, leaf.mark)
+		mark := effectiveQueryRowMark(leaf.relation, mergeQueryRowMark(inherited, leaf.mark))
 		var source *querySource
 		command := policySelect
 		if mark.mode != 0 {

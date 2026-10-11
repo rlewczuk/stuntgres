@@ -2204,8 +2204,18 @@ transaction snapshot with current own DDL overlays. Prepare inside BEGIN
 acquires that snapshot, unlike a statement prepared before BEGIN. Savepoint
 rollback restores overlays, not the committed snapshot. Old cursors survive
 ALTER/DROP/native controls; Restore reproduces definitions with reminted OIDs.
-No `pg_sequences`, extra catalog inventories or physical counters are added.
+The separate `pg_sequences` view adds readable current high-water state; no
+extra physical counters or general catalog inventories are added.
 See [schema, lifetime and feature smoke](SQL.md#pg_sequence-catalog--change-note).
+
+`pg_catalog.pg_sequences` is a readonly eleven-column NAME/REGTYPE/INT8/BOOL
+view. Definition rows are not ACL/schema filtered; only peer physical TEMP is
+excluded. SELECT or USAGE permits called last-value visibility; UPDATE alone
+does not. All admitted rows acquire sequence RX, including count/definition
+consumers; FALSE and safe definition-qualifier rejections acquire none.
+The generator is neither allocated nor session currval/lastval defined by reads.
+See [value, lifetime and locking contract](SQL.md#pg_sequences-view--change-note).
+
 
 `pg_catalog.pg_depend` is readonly relation2608 with exactly `classid OID`,
 `objid OID`, `objsubid INT4`, `refclassid OID`, `refobjid OID`,

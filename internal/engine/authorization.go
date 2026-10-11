@@ -914,7 +914,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 		}
 	}
 	for _, source := range sources {
-		if source.mark.mode != 0 {
+		if effectiveQueryRowMark(source.relation, source.mark).mode != 0 {
 			if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, UpdatePrivilege, nil); err != nil {
 				return err
 			}

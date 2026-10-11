@@ -62,6 +62,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"extname", sqltype.Name}, {"extowner", sqltype.Oid}, {"extnamespace", sqltype.Oid}, {"extrelocatable", sqltype.Bool}, {"extversion", sqltype.Text}, {"extconfig", sqltype.ID(1028)}, {"extcondition", sqltype.ID(1009)}}},
+		{12048, "pg_sequences", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"schemaname", sqltype.Name}, {"sequencename", sqltype.Name}, {"sequenceowner", sqltype.Name}, {"data_type", sqltype.Regtype}, {"start_value", sqltype.Int8}, {"min_value", sqltype.Int8}, {"max_value", sqltype.Int8}, {"increment_by", sqltype.Int8}, {"cycle", sqltype.Bool}, {"cache_size", sqltype.Int8}, {"last_value", sqltype.Int8}}},
 		{2224, "pg_sequence", []struct {
 			name string
 			typ  sqltype.ID
@@ -117,7 +121,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		owner := e.roles.names["postgres"]
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: spec.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, name: spec.name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int), attributes: make([]int32, len(spec.columns)), columns: make([]ColumnDescriptor, len(spec.columns)), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
-		d.virtualView = spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
+		d.virtualView = spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		d.attributeHighWater = int32(len(d.attributes))
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)

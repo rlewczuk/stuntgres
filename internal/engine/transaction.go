@@ -93,7 +93,7 @@ type transactionOwner struct {
 	snapshotSet     bool
 	frontier        CommitSeq
 	roots           map[ObjectAddress]transactionRoot
-	// Retained with the existing snapshot; consumed only by pg_sequence.
+	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
 	sequenceCatalog   *catalogState
 	catalog           *catalogChanges
 	savepoints        []savepointMark

@@ -290,7 +290,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1}
 		}
 		b.queryHidden = append(b.queryHidden, queryQualifier{name: "unnamed_subquery", columns: columns})
-		return &derivedNode{querySchema: schema, query: query}, queryNamespace{columns: columns, frame: schema}, nil
+		return &derivedNode{querySchema: schema, query: query, scanFrame: b.frameID()}, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.ValuesQuery:
 		query, err := b.bindValues(n, false)
 		if err != nil {

@@ -15,6 +15,20 @@ type queryRowMark struct {
 	order int
 }
 
+func isPGSequencesRelation(relation *relationDescriptor) bool {
+	return relation.relationKind == catalogRelation && relation.address.ObjectID == 12048
+}
+
+// SQL marks remain intact for binding, admission and clause diagnostics.
+// The expanded pg_sequences view has no represented physical tuple to mark;
+// its admitted-row sequence helper locks are a separate execution obligation.
+func effectiveQueryRowMark(relation *relationDescriptor, mark queryRowMark) queryRowMark {
+	if isPGSequencesRelation(relation) {
+		return queryRowMark{}
+	}
+	return mark
+}
+
 // Admission is execution-owned and keyed by the actual query syntax, never a
 // prepared description or session. Its semantic error waits for normal analysis.
 type queryLockAdmission struct {
@@ -206,7 +220,17 @@ func appendPendingRowMarks(dst []queryPendingMark, marks []queryRowMark, inputs 
 		if mark.mode == 0 {
 			continue
 		}
-		occurrences := appendQueryOccurrences(nil, querySourceAt(inputs, i))
+		source := querySourceAt(inputs, i)
+		occurrences := appendQueryOccurrences(nil, source)
+		// Expansion must apply the same effective decision as source capture:
+		// a stored/derived/join boundary must not resurrect an SQL-only mark.
+		physical := occurrences[:0]
+		for _, occurrence := range occurrences {
+			if effectiveQueryRowMark(inputs.locks.leaves[occurrence].leaf.relation, mark).mode != 0 {
+				physical = append(physical, occurrence)
+			}
+		}
+		occurrences = physical
 		if len(occurrences) != 0 {
 			dst = append(dst, queryPendingMark{occurrences: occurrences, mark: mark})
 		}
