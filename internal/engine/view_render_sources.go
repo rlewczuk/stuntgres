@@ -15,6 +15,8 @@ func viewSourceAlias(occurrence int) string {
 func viewFromRoot(node LogicalNode) LogicalNode {
 	for {
 		switch n := node.(type) {
+		case *setProjectNode:
+			node = n.child
 		case *limitNode:
 			node = n.child
 		case *evaluationNode:
@@ -59,6 +61,23 @@ func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
 	return visit(root)
 }
 
+func viewJoinOffset(root LogicalNode, target *joinNode) (int, bool) {
+	if root == target {
+		return 0, true
+	}
+	join, ok := root.(*joinNode)
+	if !ok {
+		return 0, false
+	}
+	if offset, found := viewJoinOffset(join.left, target); found {
+		return offset, true
+	}
+	if offset, found := viewJoinOffset(join.right, target); found {
+		return join.leftWidth + offset, true
+	}
+	return 0, false
+}
+
 // Rendering state is private to one definition request. Frozen slots index the
 // bound tree, while columns below follow the current emitted positional order.
 // No SQL is rebound and no persistent execution layout is changed.
@@ -81,8 +100,8 @@ type viewRenderer struct {
 
 type viewRenderFrame struct {
 	namespace int
-	base      [viewDerivedNamespace + 1]int
-	seen      [viewDerivedNamespace + 1]bool
+	base      [viewFunctionNamespace + 1]int
+	seen      [viewFunctionNamespace + 1]bool
 }
 type viewRenderAlias struct {
 	depth, ordinal  int
@@ -173,6 +192,8 @@ func (v *viewRenderer) namespaceAlias(ns viewNamespace) string {
 		base = "__view_values_" + strconv.Itoa(key.ordinal)
 	case viewDerivedNamespace:
 		base = "__view_derived_" + strconv.Itoa(key.ordinal)
+	case viewFunctionNamespace:
+		base = "__view_function_" + strconv.Itoa(key.ordinal)
 	}
 	if key.depth > 1 {
 		base += "_query_" + strconv.Itoa(key.depth-1)
@@ -266,6 +287,8 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 	ns := v.namespaces[v.namespace]
 	v.namespace++
 	switch n := item.(type) {
+	case *parser.FunctionTable:
+		return v.renderStringTableSQL(ctx, catalog, n, ns)
 	case *parser.DerivedQuery:
 		root := viewDerivedAt(viewFromRoot(v.query.Root), n.Query)
 		if root == nil {
@@ -410,6 +433,19 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		left, err := v.fromSQL(ctx, catalog, n.Left)
 		if err != nil {
 			return viewRenderFrom{}, err
+		}
+		// Function arguments reference the owner's full FROM frame before the
+		// right source exists. Publish only finalized legal predecessor slots.
+		owner := viewFromRoot(v.query.Root)
+		offset, found := viewJoinOffset(owner, bound)
+		if !found {
+			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join predecessor frame")
+		}
+		if v.slots[owner] == nil {
+			v.slots[owner] = make(map[int]string, len(owner.Schema()))
+		}
+		for slot, text := range left.slots {
+			v.slots[owner][offset+slot] = text
 		}
 		right, err := v.fromSQL(ctx, catalog, n.Right)
 		if err != nil {

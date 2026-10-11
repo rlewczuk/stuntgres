@@ -38,21 +38,23 @@ type BoundExpr interface {
 	Eval(*EvalContext) (sqltype.Value, error)
 }
 type EvalContext struct {
-	Context          context.Context
-	Scope, Frame     uint32
-	Row              []sqltype.Value
-	OldRow           []sqltype.Value
-	Parameters       []sqltype.Value
-	orderValues      []sqltype.Value
-	statementScope   *StatementScope
-	Input            sqltype.InputEnvironment
-	Output           sqltype.OutputEnvironment
-	Outer            *EvalContext
-	query            *queryState
-	queryOccurrences []int
-	queryProvenance  []int
-	queryRowSource   *querySource
-	physicalTable    ObjectRef // Existing generated recipe's containing physical row.
+	Context            context.Context
+	Scope, Frame       uint32
+	Row                []sqltype.Value
+	OldRow             []sqltype.Value
+	Parameters         []sqltype.Value
+	orderValues        []sqltype.Value
+	statementScope     *StatementScope
+	Input              sqltype.InputEnvironment
+	Output             sqltype.OutputEnvironment
+	Outer              *EvalContext
+	query              *queryState
+	catalog            CatalogRead // Current imported request/view authority for local lowering.
+	queryOccurrences   []int
+	queryProvenance    []int
+	queryRowSource     *querySource
+	physicalTable      ObjectRef // Existing generated recipe's containing physical row.
+	stringRecheckCache *stringRecheckCache
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
@@ -1263,6 +1265,11 @@ type expressionBinder struct {
 	regtypeConstants           []regtypeConstant
 	regclassConcat             bool
 	aggregateClause            string
+	stringSetGuard             string
+	stringFromNamespace        *queryNamespace
+	stringFromForbidden        bool
+	stringSingleInsert         bool
+	queryHasTargetStringSet    bool
 	aggregates                 []aggregateCall
 	groupingActive             bool
 	groupSets                  [][]int
@@ -1301,6 +1308,7 @@ type expressionBinder struct {
 	viewColumns           map[viewLiteralPath]viewColumn
 	viewStars             map[viewLiteralPath][]viewColumn
 	viewJoinCount         int
+	viewFunctionCount     int
 	viewNamespaces        []viewNamespace
 	viewCollations        map[viewLiteralPath]uint32
 }

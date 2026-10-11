@@ -34,6 +34,15 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 			return next, changed, err
 		}
 	}
+	if unresolved, ok := node.(unknownOutput); ok {
+		// Retained contextual literal analysis owns no descriptor or value.
+		// Executable query validation still rejects unresolved output nodes.
+		literal, ok := unresolved.raw.(parser.LiteralExpr)
+		if !ok || unresolved.ResultUsage() != (sqltype.Usage{}) || literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue {
+			return nil, false, fmt.Errorf("stuntgres: invalid contextual view output")
+		}
+		return node, false, nil
+	}
 	info := boundExpressionInfo(node)
 	typ := retainedType(info.usage.Type)
 	changed := typ != info.usage.Type

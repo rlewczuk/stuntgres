@@ -50,6 +50,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		return binder.captureRetainedWriteInput(b.defaults, nil, nil)
 	}
 	binder.aggregateClause = "INSERT VALUES"
+	binder.stringSingleInsert = len(s.Rows) == 1 && !binder.mergeInput
 	b.expressions = make([][]BoundExpr, len(s.Rows))
 	for rowIndex, row := range s.Rows {
 		if rowIndex > 0 && len(row) != len(s.Rows[0]) {
@@ -178,6 +179,11 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 		if remaining == 0 {
 			b.defaults = nil
+		}
+	}
+	if binder.stringSingleInsert {
+		if err := binder.lowerStringInsert(b); err != nil {
+			return err
 		}
 	}
 	if len(b.relation.identities) != 0 {

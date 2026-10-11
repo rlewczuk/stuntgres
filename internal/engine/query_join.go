@@ -15,6 +15,7 @@ type joinNode struct {
 	predicate             BoundExpr
 	leftWidth, rightWidth int
 	merges                []BoundExpr
+	correlatedRight       bool
 }
 
 func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
@@ -81,10 +82,13 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	if err != nil {
 		return indexedStage{}, err
 	}
-	right, err := openQueryNode(ctx, state, n.right)
-	if err != nil {
-		left.Close()
-		return indexedStage{}, err
+	right := indexedStage{source: &querySource{flatWidth: n.rightWidth, materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.right.Schema(), selection: []int{}}
+	if !n.correlatedRight {
+		right, err = openQueryNode(ctx, state, n.right)
+		if err != nil {
+			left.Close()
+			return indexedStage{}, err
+		}
 	}
 	width := len(n.Schema())
 	if n.leftWidth < 0 || n.rightWidth < 0 || n.leftWidth > width || n.rightWidth > width-n.leftWidth || len(n.merges) != width-n.leftWidth-n.rightWidth {
@@ -208,6 +212,28 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 						return false, fmt.Errorf("stuntgres: invalid left join frame")
 					}
 					copy(frame, row)
+					if n.correlatedRight {
+						if err := right.Close(); err != nil {
+							return false, err
+						}
+						invocation := *state
+						invocation.stringRow = row
+						if len(state.stringRow) != 0 {
+							invocation.stringRow = make([]sqltype.Value, len(state.stringRow)+len(row))
+							copy(invocation.stringRow, state.stringRow)
+							copy(invocation.stringRow[len(state.stringRow):], row)
+						}
+						right, err = openQueryNode(ctx, &invocation, n.right)
+						if err != nil {
+							return false, err
+						}
+						if n.kind != parser.JoinInner {
+							right, err = settlePendingQueryMarks(ctx, &invocation, n.right, right)
+							if err != nil {
+								return false, err
+							}
+						}
+					}
 				}
 			}
 			present, err := right.ensure(ctx, rightOccurrence)

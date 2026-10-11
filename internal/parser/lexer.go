@@ -834,6 +834,12 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && enumFunctionName(token.lexeme.text) {
 		token.code = SELECTED_FUNC
 	}
+	if token.lexeme.text == "lateral" && token.lexeme.keyword != nil {
+		token.code = LATERAL
+	}
+	if token.code == IDENT && stringSplitFunction(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
@@ -969,6 +975,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	if token.code == SELECTED_FUNC && enumFunctionName(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = CHECK_FUNC
+		}
+	}
+	if token.code == SELECTED_FUNC && stringSplitFunction(token.lexeme.text) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {

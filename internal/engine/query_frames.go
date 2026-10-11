@@ -8,22 +8,23 @@ import (
 // Lexical scopes share statement authority and parameter/dependency ownership.
 // Only query-local namespace and aggregate state is saved at a query boundary.
 type queryBindingScope struct {
-	relation          *relationDescriptor
-	namespace         *queryNamespace
-	hidden            []queryQualifier
-	frame             uint32
-	allowed           bool
-	clause            string
-	aggregates        []aggregateCall
-	groupingActive    bool
-	groupSets         [][]int
-	returning         *returningAliases
-	nonLateral        bool
-	rowDiagnosticMode relationLockMode
-	windowRaw         []parser.WindowDefinition
-	windowDefinitions map[string]boundWindowSpec
-	windowCalls       []windowCall
-	argumentOwner     argumentWindowOwner
+	relation            *relationDescriptor
+	namespace           *queryNamespace
+	hidden              []queryQualifier
+	frame               uint32
+	allowed             bool
+	clause              string
+	aggregates          []aggregateCall
+	groupingActive      bool
+	groupSets           [][]int
+	returning           *returningAliases
+	nonLateral          bool
+	rowDiagnosticMode   relationLockMode
+	windowRaw           []parser.WindowDefinition
+	windowDefinitions   map[string]boundWindowSpec
+	windowCalls         []windowCall
+	argumentOwner       argumentWindowOwner
+	stringFromForbidden bool
 }
 
 func (b *expressionBinder) frameID() uint32 {
@@ -34,8 +35,13 @@ func (b *expressionBinder) frameID() uint32 {
 }
 
 func (b *expressionBinder) enterQuery(disallowParent bool) func() {
+	oldSetGuard, oldFrom, oldForbidden := b.stringSetGuard, b.stringFromNamespace, b.stringFromForbidden
+	oldTargetSet := b.queryHasTargetStringSet
+	b.queryHasTargetStringSet = false
+	b.stringSetGuard, b.stringFromNamespace, b.stringFromForbidden = "", nil, false
 	oldNamespace := b.queryNamespace
 	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.aggregateClause, aggregates: b.aggregates, returning: b.returningAliases, nonLateral: b.queryNonLateral}
+	parent.stringFromForbidden = oldForbidden
 	parent.relation = b.relation
 	parent.groupingActive, parent.groupSets = b.groupingActive, b.groupSets
 	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
@@ -66,6 +72,8 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.queryNonLateral = disallowParent
 	b.queryRowDiagnosticMode = 0
 	return func() {
+		b.stringSetGuard, b.stringFromNamespace, b.stringFromForbidden = oldSetGuard, oldFrom, oldForbidden
+		b.queryHasTargetStringSet = oldTargetSet
 		parent := b.queryScopes[index]
 		b.queryScopes = b.queryScopes[:index]
 		b.queryNamespace, b.queryHidden = oldNamespace, parent.hidden
@@ -85,6 +93,12 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 		frame = 1
 	}
 	evaluation := EvalContext{Scope: 1, Frame: frame, Parameters: s.parameters, Input: s.input, Output: s.output, Outer: s.outer, query: s}
+	if s.outer != nil {
+		evaluation.catalog = s.outer.catalog
+	}
+	if s.source != nil && s.source.view != nil {
+		evaluation.catalog = s.source.view.Catalog()
+	}
 	evaluation.setContext(ctx)
 	return evaluation
 }

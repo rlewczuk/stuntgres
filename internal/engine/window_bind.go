@@ -573,7 +573,7 @@ func (b *expressionBinder) sameWindowSort(a, c boundWindowSpec) bool {
 	}
 	return true
 }
-func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, grouped bool) (LogicalNode, error) {
+func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, grouped bool, stringCompanions ...[]BoundExpr) (LogicalNode, error) {
 	if grouped {
 		for _, definition := range b.windowRaw {
 			spec := b.windowDefinitions[definition.Name.Text]
@@ -663,6 +663,18 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 		calls = append(calls, call)
 		indices = append(indices, index)
 		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), NullabilityKnown: true})
+	}
+	originalWidth := len(root.Schema())
+	var err error
+	root, err = b.lowerStringWindowSpecs(root, specs, stringCompanions)
+	if err != nil {
+		return nil, err
+	}
+	if added := len(root.Schema()) - originalWidth; added != 0 {
+		schema = append(append([]ColumnDescriptor(nil), root.Schema()...), schema[originalWidth:]...)
+		for _, call := range b.windowCalls {
+			call.expression.slot += added
+		}
 	}
 	sortIndices := make([]int, len(specs))
 	for i, spec := range specs {

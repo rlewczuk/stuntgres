@@ -158,6 +158,43 @@ There is no arbitrary locale, ICU, nondeterministic equality or fallback provide
 Column/result metadata, dependencies and native Dump/Restore retain identity;
 BOOL output metadata does not expose its hidden input collation.
 
+### String splitting — change note
+
+`split_part(text,text,int4)` is immutable and strict. Indexes are one-based;
+negative indexes count back from the final field, and out-of-range indexes
+return empty TEXT. Zero fails22023 `field position must not be zero`, including
+empty input. NULL in any argument gives whole TEXT NULL instead.
+
+`string_to_array(text,text[,text])` returns actual TEXT[] with the current
+generation's TEXT element descriptor. `string_to_table` has the same two and
+three argument signatures but returns present TEXT occurrences, not an array
+or scalar substitute. Both are immutable and nonstrict: whole NULL source
+gives NULL array/zero table rows; empty source gives rank-zero `{}`/zero rows.
+For nonempty source, empty delimiter means one whole field and NULL delimiter
+means UTF8 codepoints, including separate combining marks. Literal separators
+are nonoverlapping and preserve duplicate, leading, trailing and empty fields.
+The optional nonNULL marker replaces whole matching fields with element/row
+NULL without removing occurrences; omitted/NULL marker leaves fields intact.
+The registered deterministic collation policy does not imply ICU normalization.
+
+Scalar splitting composes through ordinary expressions, DEFAULT/CHECK/generated
+definitions, writes, views and native Dump/Restore. TEXT `split_part` expression
+indexes are supported; native TEXT[] btree expression indexes retain the
+existing `42704` missing-default-opclass capability boundary, unlike PostgreSQL.
+`string_to_table`
+expands SELECT targets and supports bounded FROM calls, positional aliases,
+WITH ORDINALITY, ROWS FROM and optional function-only LATERAL correlation.
+Parallel sets zip with NULL padding; nesting adds levels, and upper scalar
+wrappers consume actual emitted fields. GROUP/ORDER/DISTINCT/window keys and
+LIMIT/OFFSET retain their clause-specific demand order.
+WHERE/HAVING/JOIN conditions, VALUES queries or multirow/decorated INSERT VALUES,
+mutation targets/RETURNING, bounds, utility scalar definitions, aggregate/window
+operands and local CASE/COALESCE operands reject SRFs before dead/NULL folding.
+Ordinary single INSERT VALUES uses real target expansion and atomic publication.
+General table functions and lateral derived SELECT/VALUES are not admitted.
+See [query staging](QUERIES.md#string-set-expansion--change-note) and
+[bounded proof groups](TESTING.md#string-split-selected-proof).
+
 ### INET and CIDR — change note
 
 Typed scalar INET/CIDR declarations, contextual input, direct/prepared textual
@@ -2306,8 +2343,9 @@ coerced preserved operand; FULL uses COALESCE with no physical output origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution retains valid occurrence identities and reanalyzes invalidated
 sources; current data/ACLs stay fresh and eager results survive native Reset/Restore.
-LATERAL joins and function FROM remain excluded; SELECT CTEs, derived SELECT and
-parenthesized VALUES are supported non-lateral FROM operands.
+General lateral derived queries and other function FROM remain excluded;
+`string_to_table` alone admits function-only correlation and LATERAL.
+SELECT CTEs, derived SELECT and parenthesized VALUES remain non-lateral operands.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make check RUN='^TestReferenceQuery(OuterJoins|Joins)'`;
 independent pinned reference: `make check REFERENCE=1 RUN='^TestReferenceQuery(OuterJoins|Joins)'`.
@@ -2886,7 +2924,7 @@ Existing native join/view predicate boundaries also retain operand demand where
 PostgreSQL may avoid an already-rejected operand. Physical row replacement and
 predicate requalification remain supported; this adds no expression replay.
 Stored views deparse and round-trip through native controls with owned metadata
-and results. LATERAL and additional locking syntax remain excluded.
+and results. Lateral VALUES and additional locking syntax remain excluded.
 See [VALUES contracts](QUERIES.md#standalone-and-from-values--change-note-changelog).
 Independent pinned reference: `make check REFERENCE=1 RUN='^TestReferenceQueryFromValues'`.
 

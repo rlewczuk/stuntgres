@@ -134,9 +134,39 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 	}
 	same := func(a, d BoundExpr) bool { return b.sameGroupExpressionIn(a, d, c) }
 	switch n := a.(type) {
+	case *stringTableNode:
+		o, ok := d.(*stringTableNode)
+		if !ok || n.ordinality != o.ordinality || n.correlated != o.correlated || len(n.calls) != len(o.calls) {
+			return false
+		}
+		for i, call := range n.calls {
+			if !same(call, o.calls[i]) {
+				return false
+			}
+		}
+		return true
+	case *setProjectNode:
+		o, ok := d.(*setProjectNode)
+		if !ok || n.baseWidth != o.baseWidth || n.markerWidth != o.markerWidth ||
+			len(n.calls) != len(o.calls) || !slices.Equal(n.callSlots, o.callSlots) || !slices.Equal(n.scalarSlots, o.scalarSlots) || !slices.Equal(n.steps, o.steps) || !c.expressions(b, n.scalars, o.scalars) {
+			return false
+		}
+		if (n.template == nil) != (o.template == nil) {
+			return false
+		}
+		if n.template != nil && (n.template.attempts != o.template.attempts || !slices.Equal(n.template.steps, o.template.steps) || !slices.Equal(n.template.scalarRequests, o.template.scalarRequests) || !c.expressions(b, n.template.expressions, o.template.expressions) ||
+			!c.expressions(b, n.template.origins, o.template.origins) || !c.expressions(b, n.template.scalars, o.template.scalars)) {
+			return false
+		}
+		for i, call := range n.calls {
+			if !same(call, o.calls[i]) {
+				return false
+			}
+		}
+		return true
 	case *projectNode:
 		o, ok := d.(*projectNode)
-		if !ok || n.frozenValues != o.frozenValues {
+		if !ok || n.frozenValues != o.frozenValues || n.hasTargetStringSet != o.hasTargetStringSet {
 			return false
 		}
 		return c.expressions(b, n.expressions, o.expressions) && c.expressions(b, n.analysisExpressions, o.analysisExpressions)
@@ -253,6 +283,9 @@ func sameQuerySourceAliases(a, b parser.FromItem) bool {
 		return a == nil && b == nil
 	}
 	switch n := a.(type) {
+	case *parser.FunctionTable:
+		o, ok := b.(*parser.FunctionTable)
+		return ok && n.RowsFrom == o.RowsFrom
 	case *parser.AliasReference:
 		o, ok := b.(*parser.AliasReference)
 		if !ok || n.Name.Text != o.Name.Text || len(n.Columns) != len(o.Columns) {

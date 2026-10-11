@@ -196,7 +196,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
 	}
 	b.aggregateClause = "GROUP BY"
-	keys, comparisons, sets, err := b.bindGroupClause(s.GroupBy, projection)
+	keys, comparisons, sets, err := b.bindGroupClause(s.GroupBy, projection, targetNames)
 	if err != nil {
 		return nil, err
 	}
@@ -370,6 +370,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	grouped := s.GroupBy != nil || b.groupingActive || len(b.aggregates) > 0 || having != nil
+	var stringAnalysis []BoundExpr
+	if b.noParameters || b.materializedDefinition {
+		stringAnalysis = append(stringAnalysis, projection...)
+		stringAnalysis = append(stringAnalysis, keys...)
+	}
 	if b.queryRowDiagnosticMode != 0 {
 		suffix := ""
 		switch {
@@ -383,6 +388,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			suffix = "aggregate functions"
 		case len(b.windowCalls) != 0:
 			suffix = "window functions"
+		case b.queryHasTargetStringSet:
+			suffix = "set-returning functions in the target list"
 		}
 		if suffix != "" {
 			mode := queryRowClause(b.queryRowDiagnosticMode)
@@ -393,6 +400,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	if grouped {
+		runtimeKeys := append([]BoundExpr(nil), keys...)
+		root, err = b.lowerStringSets(root, runtimeKeys, nil, false)
+		if err != nil {
+			return nil, err
+		}
 		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates)+1)
 		for i, key := range keys {
 			schema[i] = ColumnDescriptor{Usage: key.ResultUsage()}
@@ -401,7 +413,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			schema[len(keys)+i] = ColumnDescriptor{Usage: call.provider.ResultUsage()}
 		}
 		schema[len(schema)-1] = ColumnDescriptor{Usage: b.typ(sqltype.Int4).Usage()}
-		root = &aggregateNode{querySchema: schema, child: root, keys: keys, grouping: comparisons, sets: sets, groupingActive: b.groupingActive, calls: append([]aggregateCall(nil), b.aggregates...)}
+		root = &aggregateNode{querySchema: schema, child: root, keys: runtimeKeys, grouping: comparisons, sets: sets, groupingActive: b.groupingActive, calls: append([]aggregateCall(nil), b.aggregates...)}
 		for i, expr := range projection {
 			var err error
 			projection[i], err = b.rewriteGroup(expr, keys)
@@ -430,11 +442,18 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	root, err = b.finishWindows(root, keys, grouped)
+	windowCompanions := append(stringSortExpressions(order), stringSortExpressions(on)...)
+	root, err = b.finishWindows(root, keys, grouped, projection, windowCompanions)
+	replaceStringSortExpressions(order, windowCompanions[:len(order)])
+	replaceStringSortExpressions(on, windowCompanions[len(order):])
 	if err != nil {
 		return nil, err
 	}
 	if plainDistinct {
+		root, err = b.lowerStringSets(root, projection, nil, true)
+		if err != nil {
+			return nil, err
+		}
 		root = &distinctNode{querySchema: results, child: root, expressions: projection, grouping: distinctFamilies}
 		slots := make([]BoundExpr, len(projection))
 		for i, expression := range projection {
@@ -445,6 +464,15 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		projection = slots
 	}
+	earlySets := append(stringSortExpressions(order), stringSortExpressions(on)...)
+	earlyWidth := len(earlySets)
+	earlySets, earlyTemplates := stringSetPeerClosure(earlySets, [][]BoundExpr{projection})
+	root, err = b.lowerStringSets(root, earlySets, [][]BoundExpr{projection}, false, earlyTemplates)
+	if err != nil {
+		return nil, err
+	}
+	replaceStringSortExpressions(order, earlySets[:len(order)])
+	replaceStringSortExpressions(on, earlySets[len(order):earlyWidth])
 	if len(on) != 0 {
 		root, err = b.finishDistinctOn(root, order, on, onFamilies, projection)
 	} else {
@@ -455,6 +483,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	if bounds != nil {
 		bounds.finishTies(root)
+	}
+	root, err = b.lowerStringSets(root, projection, nil, true)
+	if err != nil {
+		return nil, err
 	}
 	if len(on) == 0 {
 		root = b.scheduleQueryProjection(root, projection, bounds != nil)
@@ -494,7 +526,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		// source-typed descriptors retained by DISTINCT and its ordering/bounds.
 		results = append([]ColumnDescriptor(nil), results...)
 	}
-	var analysis []BoundExpr
+	analysis := stringAnalysis
 	if (b.noParameters || b.materializedDefinition) && len(on) != 0 {
 		// Raw captured occurrences can own independently analyzed subquery
 		// frames even when SQL99 resolution shares their physical datum.
@@ -518,7 +550,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.frame.end.offset)
 		}
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetStringSet: b.queryHasTargetStringSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {

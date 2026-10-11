@@ -515,9 +515,11 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if args != nil {
 			e.args = args
 		}
-		for _, arg := range e.args {
-			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+		if e.plan.Strict() {
+			for _, arg := range e.args {
+				if randomLiteralNull(arg) {
+					return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				}
 			}
 		}
 		expression = e
@@ -910,6 +912,9 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case numericFormattingExpression:
 		return literal(e.args[0]) && literal(e.args[1])
 	case stringExpression:
+		if e.plan.Name() == "string_to_table" {
+			return false
+		}
 		for _, arg := range e.args {
 			if !literal(arg) {
 				return false

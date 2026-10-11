@@ -750,6 +750,99 @@ Fresh handles are prepared after generation-replacing controls. FeatureSmoke
 supplements rather than replaces that source; the component alone forces the
 mid-opening publication boundary.
 
+## String split selected proof
+
+Untagged public `reference/strings/string_split_*_test.go` scenarios use the
+existing fixture in both modes, with independently specified values, complete
+English diagnostics, metadata, duplicate bags and actual Prepare/execute paths.
+Run each bounded selector natively and with pinned PostgreSQL (`REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferenceStringSplit(Scalar|Arrays|FramesAndMetadata|Diagnostics|Authorization)$'
+make check REFERENCE=1 RUN='^TestReferenceStringSplit(Scalar|Arrays|FramesAndMetadata|Diagnostics|Authorization)$'
+make check RUN='^TestReferenceStringSplit(TableSources|TargetExpansion|ClauseComposition|Locking)$'
+make check REFERENCE=1 RUN='^TestReferenceStringSplit(TableSources|TargetExpansion|ClauseComposition|Locking)$'
+make check RUN='^TestReferenceStringSplit(Stored|Lifecycle|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceStringSplit(Stored|Lifecycle|FeatureSmoke)$'
+```
+
+Each external command has a900-second deadline. Oracle-first expectations
+include literal strict NULL wrapper folding to one NULL row, runtime strict
+NULL wrappers preserving two fields, real sequence draws on final exhausted
+attempts, mixed-depth zip/repetition and contextual ROWS identifier regressions.
+Native precancellation supplements the shared SQL contracts; it does not claim
+pq's fast-query precancellation behavior is identical.
+Private native proofs select
+`make check RUN='^TestStringSplit(Part|Array|Table|TableCancellationWork|Syntax|Expansion|Frames|Binding|Lifecycle|Preflight|PreflightSiblingError|CopiedFunction|RowMarks)$'`;
+invocation/frame race proof uses
+`make check RACE=1 RUN='^(TestStringSplit(Lifecycle|Frames|Preflight|CopiedFunction|Expansion)|TestReferenceStringSplit(Lifecycle|FramesAndMetadata|TargetExpansion|Locking))$'`.
+These supplement rather than replace both public modes. Whole-project
+Docker-free verification uses quickcheck.
+Stored/Lifecycle retain scalar expression-index success and array
+DEFAULT/CHECK/generated/view/storage/restore coverage. Real PostgreSQL also
+creates the array expression index; native mode independently asserts the
+existing complete `42704` TEXT[] btree-opclass boundary without aborting setup.
+Catalog publication, dependency retirement and post-Restore absence use the
+existing `pg_catalog.pg_class` relname projection with NAME metadata and an
+independently expected zero-row absent bag; `to_regclass` is not an admitted
+native function. Private Lifecycle distinguishes retained contextual view
+analysis from invalid unresolved executable outputs; existing SetOps stored-view,
+controls and restore proofs remain unchanged and must continue passing.
+TargetExpansion reuses one held prepared plan across changing inputs after
+strict-NULL simplification; ClauseComposition checks ORDER-demanded zip peers.
+Its bounded `mixed_depth_effects`, `erased_wrapper_effects` and
+`decreased_depth_peer_zip` cases assert complete emitted rows and subsequent
+currval in direct and twice-reused held prepared executions. The mixed case
+emits sequence values 1,2,4,5 and leaves currval6; both simplification cases emit
+1,2 and leave currval3. Private Preflight additionally checks surviving local
+topology, fixed slots, scalar ownership and immutable retained plans. Lifecycle
+rejects invalid/foreign executable schemas and semantically invalid collation
+usage while retaining the descriptor-free contextual-analysis success cases.
+The same held-plan harness covers scalar-first and set-first source-argument
+draws: one-field rows are (1,'2') and ('1',2), leaving currval3; two-field rows
+are (1,'2'),(3,'x') and ('1',2),('x',3), leaving currval4. The empty-argument
+control retains INT8/TEXT metadata with no rows and currval2. The upper-wrapper
+control emits (2,'1') and leaves currval2. These are independent shared values,
+not native-generated expectations. Private Expansion asserts scalar/source
+error precedence, multirow/empty terminal attempts, two interleaved scalar/call
+pairs and no argument reopening. Expansion/Lifecycle reject missing, duplicate,
+out-of-range and unknown-kind programs; retained preflight/capture preserve the
+template schedule and reconstruct only the surviving stage's events.
+Preflight's surviving-group cases execute the actual private projection and
+assert complete rows on every reuse. Its decreased-depth probe observes scalar,
+outer-source and peer-source effects in SQL target order, including exhaustion
+and no argument reopening; it does not equate execution order with the local
+call-array or fixed-slot layout.
+The effective-shallow-scalar witness keeps nextval inside a shallow SRF-bearing
+TEXT target beside a deeper bare set: expected TEXT/TEXT rows are
+('1x',a),('2x',b),('4y',c),('5y',d), with currval6. Wrapping the deepest set in
+upper instead expects ('1x',A),('2x',B),('3y',C),('4y',D), with currval4.
+Both definitions use direct and actual twice-reused held execution; their rows,
+metadata and sequence states were captured against pinned PostgreSQL before the
+F4 production remedy. Private Expansion observes the transformed shallow scalar's
+multirow/empty terminal attempts and both scalar-first/set-first failure
+frontiers through actual projection execution, without schedule-array assertions.
+Private Frames executes mixed-depth projections rather than counting scalar
+candidates. Lifecycle rejects invalid explicit scalar maps and wrong candidate
+owners while retaining identity-layout capture/remap. Preflight's owner-boundary
+test supplies typed lowered references directly: inactive/upper owners read
+those expressions, while scheduled owners read their actual reserved results.
+That boundary test does not claim a legal SQL optimizer fold exposes a bare call.
+Stored/Lifecycle/FeatureSmoke also retain a real UNION ALL view with NULL and
+string contextual outputs beside target SRFs, asserting TEXT/TEXT metadata and
+the complete (NULL,a),(NULL,b),(kept,z) rows before and after native Restore.
+Private template-analysis units retain legal NULL/string syntax and reject
+nonliteral, other literal-kind and nonempty-usage contextual placeholders.
+The Locking group uses the existing bounded public contention rendezvous. It
+checks refreshed physical/function payloads, rescan ordinality and ROWS FROM
+padding in direct/prepared commit/rollback reads, including later qualifying
+fields, nested predecessor prefixes, zero-field LEFT JOINs and independent
+volatile argument materialization. It does not assert ORDER sequence call
+counts during replacement rechecks.
+The public-API smoke source is an OMP session artifact, not repository or shared
+infrastructure scaffolding. Root materializes it in an external temporary
+directory and executes it from the worktree; no smoke executable is committed.
+
 ## DISCARD selected proof
 
 The untagged shared `reference/sessions/discard_*_test.go` definitions assert
@@ -1765,9 +1858,9 @@ committed deletion, selects its live rows, then bridges reordered frozen
 attributes and closes the source before checking manager cleanup.
 These mechanics supplement the public Callers/Security/Lifecycle/Smoke/Replay
 regressions; they do not replace their required native and real-mode proof.
-WITH, TABLESAMPLE, function FROM and target set-returning definitions have no
-admitted executable native definition surface in this part; they are not falsely
-reported as automatic-updatability diagnostics by parser-error witnesses.
+WITH, TABLESAMPLE and general function FROM/target SRFs remain outside those
+writable-view witnesses. Selected `string_to_table` read views now have their
+own executable Stored55000 diagnostics, not parser-error substitutes.
 The separate actual-API Go smoke source is an ephemeral OMP session artifact;
 root materializes, runs and removes it rather than committing a smoke executable.
 

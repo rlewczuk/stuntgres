@@ -55,8 +55,55 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		}
 		return next
 	}
+	// Stage-owned set calls cannot be replaced by outer GROUP keys or folded
+	// into scalars. Their lexical arguments still use the ordinary rewrite.
+	stringCalls := func(old []stringExpression) []stringExpression {
+		var next []stringExpression
+		for i, call := range old {
+			arguments := args(call.args)
+			if len(arguments) == 0 || &arguments[0] == &call.args[0] {
+				continue
+			}
+			if next == nil {
+				next = append([]stringExpression(nil), old...)
+			}
+			next[i].args = arguments
+		}
+		if next == nil {
+			return old
+		}
+		return next
+	}
 	var out LogicalNode
 	switch n := node.(type) {
+	case *stringTableNode:
+		calls := stringCalls(n.calls)
+		if changed && err == nil {
+			copy := *n
+			copy.calls = calls
+			out = &copy
+		}
+	case *setProjectNode:
+		input := child(n.child)
+		calls := stringCalls(n.calls)
+		scalars := args(n.scalars)
+		template := n.template
+		if template != nil {
+			expressions, origins, scalars := args(template.expressions), args(template.origins), args(template.scalars)
+			if len(expressions) != 0 && &expressions[0] != &template.expressions[0] ||
+				len(origins) != 0 && &origins[0] != &template.origins[0] ||
+				len(scalars) != 0 && &scalars[0] != &template.scalars[0] {
+				copy := *template
+				copy.expressions, copy.origins, copy.scalars = expressions, origins, scalars
+				template = &copy
+			}
+		}
+		if changed && err == nil {
+			copy := *n
+			copy.child, copy.calls, copy.scalars = input, calls, scalars
+			copy.template = template
+			out = &copy
+		}
 	case *setNode:
 		left, right := child(n.left), child(n.right)
 		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)

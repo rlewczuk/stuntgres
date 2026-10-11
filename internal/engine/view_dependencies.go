@@ -490,6 +490,82 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					}
 				}
 			}
+		case *stringTableNode:
+			width := len(n.calls)
+			if n.ordinality {
+				width++
+			}
+			if len(n.calls) == 0 || len(n.Schema()) != width {
+				return fmt.Errorf("stuntgres: invalid stored string function frame")
+			}
+			for i, call := range n.calls {
+				if call.plan.Name() != "string_to_table" || call.ResultUsage() != n.Schema()[i].Usage {
+					return fmt.Errorf("stuntgres: invalid stored string function usage")
+				}
+			}
+		case *setProjectNode:
+			if n.child == nil || n.template == nil || n.template.group == nil || *n.template.group != n.frame ||
+				len(n.calls) == 0 || n.baseWidth < 0 || n.markerWidth != len(n.template.origins) ||
+				len(n.Schema()) != n.baseWidth+n.markerWidth+len(n.template.scalars) ||
+				(len(n.child.Schema()) != n.baseWidth && len(n.child.Schema()) != len(n.Schema())) ||
+				len(n.callSlots) != len(n.calls) || len(n.template.scalarRequests) != len(n.template.scalars) ||
+				n.scalarSlots != nil && len(n.scalarSlots) != len(n.scalars) {
+				return fmt.Errorf("stuntgres: invalid stored string set frame")
+			}
+			if err := validateStringSetSteps(n.template.steps, len(n.template.origins), len(n.template.scalars)); err != nil {
+				return err
+			}
+			if err := validateStringSetSteps(n.steps, len(n.calls), len(n.scalars)); err != nil {
+				return err
+			}
+			if err := validateStringSetStageOrder(n.template.steps, n.steps, n.callSlots, n.scalarSlots, len(n.scalars)); err != nil {
+				return err
+			}
+			base := n.baseWidth
+			for i, original := range n.template.origins {
+				if !isStringSet(original) || original.ResultUsage() != n.Schema()[base+i].Usage {
+					return fmt.Errorf("stuntgres: invalid stored string marker layout")
+				}
+			}
+			for i, scalar := range n.template.scalars {
+				request := n.template.scalarRequests[i]
+				if request < 0 || request >= len(n.template.expressions) || scalar == nil || isStringSet(scalar) || n.template.expressions[request] == nil || isStringSet(n.template.expressions[request]) || scalar.SourcePosition() != n.template.expressions[request].SourcePosition() || scalar.ResultUsage() != n.template.expressions[request].ResultUsage() {
+					return fmt.Errorf("stuntgres: invalid stored string scalar owner")
+				}
+				if scalar == nil || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+i].Usage {
+					return fmt.Errorf("stuntgres: invalid stored string scalar layout")
+				}
+				for _, previous := range n.template.scalarRequests[:i] {
+					if previous == request {
+						return fmt.Errorf("stuntgres: duplicate stored string scalar owner")
+					}
+				}
+			}
+			for i, call := range n.calls {
+				slot := n.callSlots[i]
+				if slot < 0 || slot >= n.markerWidth {
+					return fmt.Errorf("stuntgres: invalid stored string call slot")
+				}
+				for _, previous := range n.callSlots[:i] {
+					if previous == slot {
+						return fmt.Errorf("stuntgres: duplicate stored string call slot")
+					}
+				}
+				if call.plan.Name() != "string_to_table" || call.ResultUsage() != n.Schema()[base+slot].Usage {
+					return fmt.Errorf("stuntgres: invalid stored string set usage")
+				}
+			}
+			for i, scalar := range n.scalars {
+				slot := stringSetScalarSlot(n.scalarSlots, i)
+				if slot < 0 || slot >= len(n.template.scalars) || scalar == nil || stringSetDepth(scalar) != 0 || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+slot].Usage || scalar.SourcePosition() != n.template.scalars[slot].SourcePosition() {
+					return fmt.Errorf("stuntgres: invalid stored string scalar usage")
+				}
+				for previous := range i {
+					if stringSetScalarSlot(n.scalarSlots, previous) == slot {
+						return fmt.Errorf("stuntgres: duplicate stored string scalar slot")
+					}
+				}
+			}
 		case *sourceNode:
 			if n.occurrence < 0 || n.occurrence >= len(seen) {
 				return fmt.Errorf("stuntgres: invalid view source occurrence")
@@ -544,12 +620,26 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}
 		var expressionError error
-		queryExpressions(node, func(expr BoundExpr) {
+		validateExpression := func(expr BoundExpr, contextual bool) {
 			if expressionError != nil {
 				return
 			}
 			walkBoundExpression(expr, func(expr BoundExpr) {
 				if expressionError != nil {
+					return
+				}
+				if unresolved, ok := expr.(unknownOutput); ok {
+					if !contextual {
+						expressionError = fmt.Errorf("stuntgres: invalid view query usage")
+						return
+					}
+					// Set operands retain their pre-common-type literal analysis,
+					// not an executable value with an invented usage. Only these
+					// explicit contextual occurrences may lack a descriptor.
+					literal, ok := unresolved.raw.(parser.LiteralExpr)
+					if !ok || unresolved.ResultUsage() != (sqltype.Usage{}) || literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue {
+						expressionError = fmt.Errorf("stuntgres: invalid contextual view output")
+					}
 					return
 				}
 				if expressionError = checkUsage(expr.ResultUsage()); expressionError != nil {
@@ -567,7 +657,36 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					expressionError = visit(child.queryPlan.Root, frame)
 				}
 			})
-		})
+		}
+		if project, ok := node.(*projectNode); ok {
+			for _, expr := range project.expressions {
+				validateExpression(expr, false)
+			}
+			for _, expr := range project.analysisExpressions {
+				validateExpression(expr, true)
+			}
+		} else if stage, ok := node.(*setProjectNode); ok {
+			for _, call := range stage.calls {
+				validateExpression(call, false)
+			}
+			for _, scalar := range stage.scalars {
+				validateExpression(scalar, false)
+			}
+			if stage.template != nil {
+				for _, root := range stage.template.expressions {
+					_, contextual := root.(unknownOutput)
+					validateExpression(root, contextual)
+				}
+				for _, origin := range stage.template.origins {
+					validateExpression(origin, false)
+				}
+				for _, scalar := range stage.template.scalars {
+					validateExpression(scalar, false)
+				}
+			}
+		} else {
+			queryExpressions(node, func(expr BoundExpr) { validateExpression(expr, false) })
+		}
 		if expressionError != nil {
 			return expressionError
 		}

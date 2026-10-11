@@ -139,6 +139,9 @@ func preflightDistinct(c *EvalContext, n *distinctNode) (LogicalNode, error) {
 		if err != nil {
 			return nil, err
 		}
+		if owned, did := stringScalarOwner(child, folded); did {
+			folded, changed = owned, true
+		}
 		if changed {
 			if expressions == nil {
 				expressions = append([]BoundExpr(nil), n.expressions...)

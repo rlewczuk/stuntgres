@@ -81,6 +81,7 @@ type projectNode struct {
 	frame               uint32
 	syntax              *parser.Select
 	cteOwner            bool // An invocation boundary, not statement-global producer state.
+	hasTargetStringSet  bool // Analyzed query flag, independent of constant folding.
 }
 
 // Only a physical literal or this execution's imported parameter is row-free.
@@ -113,8 +114,17 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
-	case *windowNode:
+	case *stringTableNode:
 		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) })
+	case *setProjectNode:
+		return preflightStringSet(c, n)
+	case *windowNode:
+		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) }, func(child LogicalNode) (LogicalNode, error) {
+			if child == n {
+				return child, nil
+			}
+			return preflightQuery(c, child)
+		})
 	case *setNode:
 		return preflightSet(c, n)
 	case *distinctNode:
@@ -148,6 +158,9 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			folded, changed, err := preflightCoercions(c, expr)
 			if err != nil {
 				return nil, err
+			}
+			if owned, did := stringScalarOwner(child, folded); did {
+				folded, changed = owned, true
 			}
 			if changed {
 				if expressions == nil {
@@ -380,6 +393,17 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
 			return nil, err
+		}
+		for i, expression := range n.expressions {
+			if expressions != nil {
+				expression = expressions[i]
+			}
+			if owned, changed := stringScalarOwner(child, expression); changed {
+				if expressions == nil {
+					expressions = append([]BoundExpr(nil), n.expressions...)
+				}
+				expressions[i] = owned
+			}
 		}
 		if expressions != nil || child != n.child {
 			copy := *n
@@ -650,7 +674,9 @@ func (s *querySource) close() {
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type queryState struct {
-	source       *querySource
+	source        *querySource
+	stringRow     []sqltype.Value // Function-only predecessor frame for this invocation.
+	stringRecheck *stringQueryRecheck
 	hashFilter   *filterNode
 	parameters   []sqltype.Value
 	input        sqltype.InputEnvironment
@@ -851,7 +877,23 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
+	if state.stringRecheck != nil {
+		entry, ok := state.stringRecheck.topology.entries[node]
+		if !ok {
+			return indexedStage{}, fmt.Errorf("stuntgres: missing function recheck node")
+		}
+		if !entry.expanding {
+			return openStringRecheckPoint(ctx, state, node)
+		}
+		if mark, ok := node.(*rowLockNode); ok {
+			return openQueryNode(ctx, state, mark.child)
+		}
+	}
 	switch n := node.(type) {
+	case *stringTableNode:
+		return openStringTableNode(ctx, state, n)
+	case *setProjectNode:
+		return openSetProjectNode(ctx, state, n)
 	case *windowNode:
 		return openWindowNode(ctx, state, n)
 	case *setNode:

@@ -71,6 +71,18 @@ and [selected proofs](docs/TESTING.md#expression-collation-selected-proof).
 Feature smoke: `make check RUN='^TestReferenceExprCollationFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExprCollationFeatureSmoke$'`.
 
+Change note: PostgreSQL18 `split_part(text,text,int4)` returns a selected field,
+and `string_to_array(text,text[,text])` returns generation-owned TEXT[].
+`string_to_table` supplies real TEXT rows in targets and bounded FROM sources,
+including function-only LATERAL correlation, WITH ORDINALITY and ROWS FROM.
+Empty/NULL inputs, negative indexes, codepoint splitting and null-field markers
+retain distinct scalar, array and set semantics. Target sets zip with NULL
+padding and nest by level; stored read views and native controls retain them.
+General function FROM and lateral derived SELECT/VALUES remain excluded.
+See [string splitting](docs/DIALECT.md#string-splitting--change-note).
+Feature smoke: `make check RUN='^TestReferenceStringSplitFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceStringSplitFeatureSmoke$'`.
+
 Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
 direct/prepared binds, metadata and native Dump/Restore. INET preserves host
 bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical
@@ -1878,7 +1890,9 @@ local one-row input. Full child binding/admission remains independent of
 runtime demand; eligible EXISTS may discard target-only output (see the linked
 eligibility contract). Scalar cardinality,
 NULL/empty reductions, coherent mutation consumers and stored-view dependencies
-retain their PostgreSQL contracts. LATERAL and function FROM remain excluded.
+retain their PostgreSQL contracts. Only the selected `string_to_table` family
+adds function FROM and function-only LATERAL; general lateral derived queries
+and other table functions remain excluded.
 Nonrecursive SELECT CTEs use the same query pipeline.
 Direct/prepared reference cases independently specify scalar NULL-left IN/NOT IN
 on nonempty input and SOME empty/NULL reductions.
@@ -2138,7 +2152,7 @@ supported queries. Optional relation/column aliases expose computed `columnN`
 outputs with independent common typing (unknown-only becomes TEXT). Duplicate
 bags, local ordering/counts, inner/cross joins, INSERT SELECT and stored views
 share existing binding, execution, metadata and native replay paths. VALUES
-cells are non-lateral and reject DEFAULT and aggregates; LATERAL remains
+cells are non-lateral and reject DEFAULT and aggregates; lateral VALUES remains
 excluded. Derived SELECT uses the same source pipeline. Ordinary INSERT VALUES retains destination-context
 typing. See [VALUES contracts and change note](docs/QUERIES.md#standalone-and-from-values--change-note-changelog).
 Independent reference: `make check REFERENCE=1 RUN='^TestReferenceQueryFromValues'`.
@@ -2862,7 +2876,7 @@ independently reachable; dead qualification does not bypass their physical lock
 settlement.
 
 Recursive/SEARCH/CYCLE, modifying CTE bodies, top-level WITH DML, standalone
-VALUES/TABLE bodies and LATERAL remain excluded. See
+VALUES/TABLE bodies and lateral derived queries remain excluded. See
 [WITH query contracts](docs/QUERIES.md#select-ctes--change-note-changelog) and
 [implementation design](docs/design/PG18-QUERY-CTE.md).
 Feature smoke: `make check RUN='^TestReferenceQueryCTEFeatureSmoke$'`;

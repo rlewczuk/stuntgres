@@ -19,7 +19,7 @@ type analyzedGroupItem struct {
 	pos   parser.Position
 }
 
-func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []BoundExpr) ([]BoundExpr, []sqltype.Grouping, [][]int, error) {
+func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []BoundExpr, names []string) ([]BoundExpr, []sqltype.Grouping, [][]int, error) {
 	if raw == nil {
 		return nil, nil, nil, nil
 	}
@@ -50,6 +50,30 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 		ordinal, isOrdinal, err := groupOrdinal(item.Expr, len(projection))
 		if err != nil {
 			return out, err
+		}
+		if !isOrdinal {
+			if column, ok := item.Expr.(parser.ColumnExpr); ok && len(column.Name.Parts) == 1 {
+				name := column.Name.Parts[0].Text
+				input := false
+				for _, candidate := range b.queryNamespace.columns {
+					input = input || candidate.descriptor.Name == name
+				}
+				if !input {
+					output := -1
+					for i, label := range names {
+						if label != name {
+							continue
+						}
+						if output >= 0 && !b.sameQueryTarget(projection[output], projection[i]) {
+							return out, expressionError("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
+						}
+						output = i
+					}
+					if output >= 0 {
+						ordinal, isOrdinal = output, true
+					}
+				}
+			}
 		}
 		var key BoundExpr
 		if isOrdinal {

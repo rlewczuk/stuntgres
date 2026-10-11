@@ -23,6 +23,7 @@ const (
 	viewValuesLimitLiteral
 	viewWindowLiteral
 	viewDistinctOnLiteral
+	viewFunctionLiteral
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
@@ -655,6 +656,17 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		var from func(parser.FromItem, LogicalNode) error
 		from = func(item parser.FromItem, node LogicalNode) error {
 			switch raw := item.(type) {
+			case *parser.FunctionTable:
+				table, ok := viewFromRoot(node).(*stringTableNode)
+				if !ok {
+					return fmt.Errorf("stuntgres: invalid stored string function frame")
+				}
+				for i, call := range raw.Calls {
+					if err := validate(call, viewFunctionLiteral, table.viewOrdinal+i); err != nil {
+						return err
+					}
+				}
+				return nil
 			case *parser.AliasReference:
 				return from(raw.Input, node)
 			case *parser.JoinReference:

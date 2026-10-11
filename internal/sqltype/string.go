@@ -90,6 +90,7 @@ func (p StringPlan) Result() Usage                 { return p.result }
 func (p StringPlan) TextUsage() Usage              { return p.text }
 func (p StringPlan) ArgumentUsage(index int) Usage { return p.formal[index] }
 func (p StringPlan) CollationIndeterminate() bool  { return p.conflict }
+func (p StringPlan) Strict() bool                  { return p.name != "string_to_array" && p.name != "string_to_table" }
 
 // SessionDependent describes the concrete conversions after the release's SQL
 // concatenation wrapper specialization, independently of child dependence.
@@ -114,6 +115,17 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		return p, fmt.Errorf("invalid string signature")
 	}
 	switch name {
+	case "split_part":
+		if len(args) != 3 || result.Type.ID() != Text || !textual[0] || !textual[1] || textual[2] {
+			return p, fmt.Errorf("invalid split_part signature")
+		}
+	case "string_to_array", "string_to_table":
+		if (len(args) != 2 && len(args) != 3) || !textual[0] || !textual[1] || len(args) == 3 && !textual[2] {
+			return p, fmt.Errorf("invalid string split signature")
+		}
+		if name == "string_to_array" && (!result.Type.IsArray() || result.Type.Element() != text.Type || result.Type.ID() != text.Type.AssociatedArray()) || name == "string_to_table" && result.Type != text.Type {
+			return p, fmt.Errorf("foreign string split result owner")
+		}
 	case "to_bin", "to_oct", "to_hex":
 		if len(args) != 1 || result.Type.ID() != Text || result.Typmod != -1 || textual[0] {
 			return p, fmt.Errorf("invalid base conversion signature")
@@ -251,51 +263,41 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
+	if p.name == "string_to_table" {
+		return Value{}, fmt.Errorf("string table plan requires a field cursor")
+	}
 	for i := range int(p.count) {
 		if values[i].Type() != p.args[i].Type {
 			return Value{}, fmt.Errorf("foreign string input value")
 		}
 	}
-	for i := range int(p.count) {
-		if values[i].IsNull() {
-			return Null(p.result.Type), nil
+	if p.Strict() {
+		for i := range int(p.count) {
+			if values[i].IsNull() {
+				return Null(p.result.Type), nil
+			}
 		}
 	}
-	var texts [4]string
-	for i := range int(p.count) {
-		v := values[i]
-		if p.formal[i].Type.ID() == Int4 || p.formal[i].Type.ID() == Int8 {
-			continue
-		}
-		if p.name == "to_ascii" && i == 1 {
-			var err error
-			texts[i], err = v.Text()
-			if err != nil {
-				return Value{}, err
-			}
-			continue
-		}
-		var err error
-		// Selected BPCHAR-to-TEXT conversion uses the same type-owned edge,
-		// but bounds its potentially long ASCII-padding scan before Apply.
-		if v.Type().BaseType().ID() == BPChar && p.formal[i].Type.ID() == Text {
-			v.text, err = trimStringPadding(ctx, v.text)
-			if err != nil {
-				return Value{}, err
-			}
-		}
-		if p.textual[i] && v.Type().ID() != Char {
-			v, err = p.conversions[i].Apply(ctx, v, input, output)
-			if err != nil {
-				return Value{}, err
-			}
-			texts[i], err = v.Text()
-		} else {
-			texts[i], err = v.Type().ConcatOutput(ctx, v, output)
-		}
+	texts, err := p.stringInputs(ctx, values, input, output)
+	if err != nil {
+		return Value{}, err
+	}
+	if p.name == "split_part" {
+		index, err := values[2].Integer()
 		if err != nil {
 			return Value{}, err
 		}
+		if p.conflict && index != 0 && texts[0] != "" && texts[1] != "" {
+			return Value{}, stringComparisonCollationError()
+		}
+		field, err := splitPart(ctx, texts[0], texts[1], index)
+		return String(p.result.Type, field), err
+	}
+	if p.name == "string_to_array" {
+		if values[0].IsNull() {
+			return Null(p.result.Type), nil
+		}
+		return splitArray(ctx, p, texts, values)
 	}
 	if StringBaseConversion(p.name) {
 		return p.evaluateBaseConversion(values[0])

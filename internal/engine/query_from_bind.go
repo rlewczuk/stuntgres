@@ -111,6 +111,9 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		match = q
 	}
 	if match != nil {
+		if b.aggregateClause == "FROM" && b.stringFromForbidden {
+			return nil, stringLateralError(*match, pos, false)
+		}
 		b.resolvedQueryFrame = b.frameID()
 		return match, nil
 	}
@@ -130,6 +133,9 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			match = q
 		}
 		if match != nil {
+			if scope.stringFromForbidden {
+				return nil, stringLateralError(*match, pos, false)
+			}
 			b.resolvedQueryFrame = scope.frame
 			return match, nil
 		}
@@ -141,6 +147,9 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		}
 		if len(name.Parts) == 2 && q.schema != name.Parts[0].Text {
 			continue
+		}
+		if b.stringFromContext() && q.lateralForbidden {
+			return nil, stringLateralError(q, pos, true)
 		}
 		err := expressionError("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
 		visibleAlias := false
@@ -194,6 +203,9 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 			return nil, expressionError("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
 		}
 		match = &columns[i]
+		if b.aggregateClause == "FROM" && b.stringFromForbidden {
+			return nil, stringForbiddenColumn(*b.queryNamespace, match.slot, raw.Pos)
+		}
 	}
 	if match != nil {
 		if demand := b.queryNamespace.identityValuesOrderDemand; len(demand) != 0 {
@@ -228,6 +240,9 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 				match = c
 			}
 			if match != nil {
+				if scope.stringFromForbidden {
+					return nil, stringForbiddenColumn(*scope.namespace, match.slot, raw.Pos)
+				}
 				return b.queryColumnInFrame(*match, raw.Pos, scope.frame), nil
 			}
 		}
@@ -258,6 +273,18 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 		qualifier = parts[len(parts)-2].Text
 	}
 	hidden := append(append([]queryQualifier(nil), b.queryHidden...), b.outerQualifiers()...)
+	if b.stringFromContext() {
+		for _, q := range hidden {
+			if !q.lateralForbidden {
+				continue
+			}
+			for _, column := range q.columns {
+				if column.descriptor.Name == name && (qualifier == "" || qualifier == q.name) {
+					return nil, stringLateralError(q, raw.Pos, true)
+				}
+			}
+		}
+	}
 	detail, hint, err := queryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.queryNonLateral)
 	if err != nil {
 		return nil, err
@@ -297,6 +324,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	switch n := item.(type) {
 	case nil:
 		return &singletonNode{}, queryNamespace{}, nil
+	case *parser.FunctionTable:
+		return b.bindStringTable(n)
 	case *parser.DerivedQuery:
 		query, err := b.bindSelectScoped(n.Query, false, true)
 		if err != nil {
@@ -363,7 +392,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if len(n.Columns) > len(ns.columns) {
 			kind := "join expression"
 			switch n.Input.(type) {
-			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery:
+			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery, *parser.FunctionTable:
 				kind = "table"
 			}
 			return nil, queryNamespace{}, sqlError("42P10", fmt.Sprintf(`%s "%s" has %d columns available but %d columns specified`, kind, n.Name.Text, len(ns.columns), len(n.Columns)))
@@ -372,6 +401,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		for i, name := range n.Columns {
 			ns.columns[i].descriptor.Name = name.Text
 		}
+		if function, ok := n.Input.(*parser.FunctionTable); ok && len(function.Calls) == 1 && len(n.Columns) == 0 {
+			ns.columns[0].descriptor.Name = n.Name.Text
+		}
 		q := queryQualifier{name: n.Name.Text, alias: n.Name.Text, columns: ns.columns}
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.ref, q.schema, q.original = ns.qualifiers[0].ref, ns.qualifiers[0].schema, ns.qualifiers[0].original
@@ -379,6 +411,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		} else if _, values := n.Input.(*parser.ValuesQuery); values {
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else if _, derived := n.Input.(*parser.DerivedQuery); derived {
+			b.queryHidden[len(b.queryHidden)-1] = q
+		} else if _, function := n.Input.(*parser.FunctionTable); function {
+			q.original = ns.qualifiers[0].original
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else {
 			q.excludeColumnDiagnostics = true
@@ -393,7 +428,18 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
+		prior, forbidden := b.stringFromNamespace, b.stringFromForbidden
+		predecessor := lns
+		if prior != nil {
+			predecessor, err = combineQueryNamespace(*prior, rebaseQueryNamespace(lns, len(prior.frame)))
+			if err != nil {
+				return nil, queryNamespace{}, err
+			}
+		}
+		b.stringFromNamespace = &predecessor
+		b.stringFromForbidden = forbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
 		right, rns, err := b.bindFrom(n.Right)
+		b.stringFromNamespace, b.stringFromForbidden = prior, forbidden
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -403,6 +449,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			return nil, queryNamespace{}, err
 		}
 		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame), viewOrdinal: joinOrdinal}
+		join.correlatedRight = functionFromDepends(right)
 		old := b.queryNamespace
 		b.queryNamespace = &ns
 		defer func() { b.queryNamespace = old }()

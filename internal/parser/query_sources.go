@@ -153,6 +153,12 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	}
 	from = func(item FromItem, s *Select) error {
 		switch n := item.(type) {
+		case *FunctionTable:
+			for _, call := range n.Calls {
+				if err := expression(call); err != nil {
+					return err
+				}
+			}
 		case *TableReference:
 			if len(n.Name.Parts) == 1 {
 				name := n.Name.Parts[0].Text

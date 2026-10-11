@@ -533,6 +533,8 @@ func (v *viewDefinition) validateNamespaces() error {
 			root = viewJoinAt(from, ns.ordinal)
 		case viewValuesNamespace:
 			root = viewValuesAt(from, ns.ordinal)
+		case viewFunctionNamespace:
+			root = viewStringTableAt(from, ns.ordinal)
 		case viewDerivedNamespace:
 			if ns.ordinal < 0 {
 				root = viewCTEOrdinal(from, ns.ordinal)
@@ -595,10 +597,13 @@ const (
 	viewJoinNamespace
 	viewValuesNamespace
 	viewDerivedNamespace
+	viewFunctionNamespace
 )
 
 func frozenNamespaceNode(root LogicalNode) (uint8, int) {
 	switch node := viewFromRoot(root).(type) {
+	case *stringTableNode:
+		return viewFunctionNamespace, node.viewOrdinal
 	case *sourceNode:
 		return viewSourceNamespace, node.occurrence
 	case *joinNode:

@@ -111,6 +111,9 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 	}
 	var late []BoundExpr
 	for i, expr := range projection {
+		if hasStringSet(expr) {
+			continue
+		}
 		if expr.ResultUsage().Type == nil {
 			continue
 		}

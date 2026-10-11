@@ -108,6 +108,8 @@ package parser
  caseArms []CaseArm
  caseArm CaseArm
  fromItem FromItem
+ functionTable *FunctionTable
+ functionTables []FunctionExpr
  identifiers []Identifier
  identifier *Identifier
  viewOptions []ViewOption
@@ -200,6 +202,7 @@ package parser
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
 %token <tok> CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
+%token <tok> LATERAL
 %token <tok> LIKE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA
 %token <tok> ILIKE ESCAPE SIMILAR
 %token <tok> COMMENT COLUMN IS
@@ -470,6 +473,9 @@ package parser
 %type <row> array_members array_member_list
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base update_from delete_using
+%type <functionTable> function_table function_table_base
+%type <call> function_table_call
+%type <functionTables> function_table_calls
 %type <identifiers> alias_columns using_columns
 %type <identifier> using_alias
 %type <joinKind> inner_join
@@ -1959,6 +1965,7 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
  | relation_name '*' { $$=&TableReference{Name:$1} }
  | ONLY relation_name { $$=&TableReference{Name:$2,Only:true} }
  | ONLY '(' relation_name ')' { $$=&TableReference{Name:$3,Only:true} }
+ | function_table { $$=$1 }
  | select_with_parens %prec NAME_LIST { if $1.Query.Values!=nil && len($1.Query.Locking)==0 {$$=$1.Query.Values} else {$$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos}} }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {
@@ -1968,7 +1975,19 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
    } ;
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
- | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;
+ | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} }
+ | from_base AS from_alias '(' using_columns type ')' {if _,ok:=$1.(*FunctionTable);!ok {sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1};sqllex.(*lexer).failAt("42601","a column definition list is only allowed for functions returning \"record\"",$5[0].Pos.Offset);return 1} ;
+function_table_call: check_function_head function_args ')' {$$=$2;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
+ | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos} ;
+function_table_calls: function_table_call {$$=[]FunctionExpr{$1}}
+ | function_table_calls ',' function_table_call {$$=append($1,$3)} ;
+function_table_base: function_table_call {$$=&FunctionTable{Calls:[]FunctionExpr{$1},Pos:$1.Pos}}
+ | name FROM '(' function_table_calls ')' {if $1.text!="rows"||$1.keyword==nil{sqllex.(*lexer).syntax($1);return 1};$$=&FunctionTable{Calls:$4,RowsFrom:true,Pos:$1.pos}} ;
+function_table: function_table_base {$$=$1}
+ | function_table_base WITH name {if $3.text!="ordinality" {sqllex.(*lexer).syntax($3);return 1};$$=$1;$$.Ordinality=true}
+ | LATERAL function_table_base {$$=$2;$$.Lateral=true}
+ | LATERAL function_table_base WITH name {if $4.text!="ordinality" {sqllex.(*lexer).syntax($4);return 1};$$=$2;$$.Lateral=true;$$.Ordinality=true} ;
 from_alias: name {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 alias_columns: /* empty */ { $$=nil } | '(' using_columns ')' { $$=$2 } ;
 using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
@@ -2171,6 +2190,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
  | SIMILAR
  | FOREIGN | REFERENCES | INITIALLY
+ | LATERAL
  | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO | GRANT | PRIMARY | COLLATION ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: where_predicate_suffix | IN ;

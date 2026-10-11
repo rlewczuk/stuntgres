@@ -354,9 +354,11 @@ func canSimplifyExists(query *BoundQuery) bool {
 	}
 	for node := project.child; node != nil; {
 		switch n := node.(type) {
+		case *setProjectNode:
+			return false // Target sets, including terminal attempts, own cardinality.
 		case *setNode:
 			return false // Set keys determine presence, not just projected payload.
-		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode:
+		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *joinNode, *stringTableNode:
 			return true // FROM inputs retain their own demand and clause fences.
 		case *windowNode:
 			return false // Keep real window-key demand and eager failure frontiers.

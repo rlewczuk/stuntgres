@@ -396,7 +396,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	expressions := b.expressions
 	expressionsChanged := false
-	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, Input: scope.input, Output: scope.output}
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 	// Native has no cost-based custom/generic planner. Parameterized consumers
 	// fold into a fresh operation-local group, including stored origins.
 	quoteCaptures := quoteCaptureCandidate{}
@@ -770,8 +770,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				}
 			}()
 		}
-		if s.Source != nil {
-			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Source.Select != nil && len(b.querySources) == 0)
+		if b.commandQuery {
+			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, len(b.querySources) == 0)
 			if sourceErr != nil {
 				e.mu.Unlock()
 				return Result{}, sourceErr

@@ -89,6 +89,131 @@ prepared execution sees later admitted descendants while held eager Rows stay fi
 Recursive modifying targets, ordinary LOCK and propagating ALTER remain boundaries.
 Public tableoid exposure and arbitrary native RLS-policy evaluation are not added.
 
+## String set expansion — change note
+
+`string_to_table(source,delimiter[,null_string])` is the selected TEXT set
+provider. It uses the same typed string conversions and field rules as
+`string_to_array`, but genuine NULL fields remain present rows and whole
+NULL/empty input produces zero rows with retained TEXT metadata.
+
+```sql
+SELECT v,n FROM string_to_table('x,,x',',','') WITH ORDINALITY AS t(v,n);
+-- ('x',1), (NULL,2), ('x',3); n is INT8.
+SELECT string_to_table('a,b',',') AS a,string_to_table('x',',') AS b;
+-- ('a','x'), ('b',NULL), not Cartesian.
+SELECT string_to_table(string_to_table('a:b,c:d',','),':') AS v;
+-- a,b,c,d across successive expansion levels.
+```
+
+Functions in FROM may reference preceding FROM columns, implicitly or with
+LATERAL. Each correlated invocation evaluates its arguments once for the actual
+left row; INNER/LEFT JOIN permit correlation, RIGHT/FULL JOIN reject it.
+Independent RIGHT/FULL function operands still work. LEFT JOIN preserves an
+empty invocation with typed NULLs. ROWS FROM zips its calls with NULL padding,
+and WITH ORDINALITY counts the resulting invocation rows from one.
+`AS t(v)` names a column; alias-only scalar `AS t` exposes `t.t`. Aliases hide
+original qualifiers. These computed columns have no physical table origin.
+
+Target expansion happens before LIMIT/OFFSET and after unreferenced source
+sorting, grouping and windows. GROUP/ORDER/DISTINCT/window-key references demand
+their sets earlier, including hidden keys; resolved aliases/ordinals reuse the
+expanded occurrence. Plain DISTINCT sees full expanded rows; unrelated DISTINCT
+ON may choose a source winner before expansion. Shallower sets repeat at upper
+nesting levels, and a NULL lower input may disappear through an empty upper set.
+Bare ProjectSet scalar siblings execute on every attempt, including exhaustion;
+a maximum-depth scalar wrapper instead puts them in an upper scalar-only stage.
+Thus bare nextval plus two fields draws three times without LIMIT, while
+nextval plus upper(string_to_table(...)) draws twice. Literal strict NULL
+wrappers may fold to a single scalar NULL; runtime NULL wrappers retain emitted
+field cardinality.
+Within each expansion level, executable target order interleaves scalar attempts
+and set calls. Set arguments evaluate once, when their call is first reached for
+that input row, not eagerly before earlier scalar targets. Later attempts fetch
+the same cursor; exhausted peers pad typed NULL without reopening arguments.
+The terminal attempt still runs its scalar events. An earlier failure prevents
+later events, and initialized cursors close without replacing that primary error.
+For example, scalar-first nextval beside a one-field set whose input also draws
+nextval emits (1,'2'); reversing the targets emits ('1',2). Both leave currval3.
+Wrapping that set in upper instead leaves the sibling in the upper projection:
+the source draws first, the emitted sibling draws second, and currval remains2.
+Typed local operands and original marker occurrences are retained as immutable
+local-group templates. Every level shares fixed typed marker/scalar slots.
+Execution preflight simplifies original roots once in the imported request/view
+environment, then reconstructs the local level chain from surviving depths.
+Erasing a nested inner call can bring its outer call into the same zip as a
+previously shallower peer, without shifting existing ORDER/window references.
+The maximum surviving depth determines scalar ownership: bare sets own ordinary
+siblings on every attempt including exhaustion; a wrapper at that maximum keeps
+them in the owner scalar projection. A shallower or erased wrapper cannot choose
+that upper stage. With no surviving calls, one ordinary scalar attempt runs per
+input row. Held plans and their analyzed metadata are not mutated.
+Scalar ownership is classified after lower-level set occurrences become typed
+references. A shallow target such as nextval(...)::text || string_to_table(...)
+therefore becomes an ordinary scalar at a deeper bare expansion level, even
+though its original root contained a set. Its wrapper runs at its target event,
+including terminal attempts; its owner reads the reserved typed scalar result.
+A deepest-level wrapper still keeps these roots in the upper, real-row-only
+projection. Current-level bare calls remain calls, and scalar fragments inside
+their arguments remain once-per-invocation arguments, not independent targets.
+Typed non-call owner candidates and their original request identities remain
+immutable across this classification and execution-private reconstruction.
+Fixed slot layout is storage identity, not execution order: reconstruction retains
+the immutable target-event order while filtering events to surviving local calls
+and the current scalar owner. Stored capture validates both closed event indices
+and their agreement with that template.
+Ordinary scalar storage uses an implicit identity layout without a mapping
+allocation; explicit sparse candidate maps preserve the same reserved addresses.
+An ORDER-demanded target set brings its same-level target peers into the same
+zip rather than leaving a late peer to form a Cartesian expansion. Window slot
+ownership remains shared through this local rewrite.
+View deparse and Dump register finalized visible predecessor slots before
+rendering correlated function-source arguments. Nested joins use the existing
+left-width offsets in the full owner FROM frame; future/right slots are not
+published early, and completed join/alias namespaces remain authoritative.
+Stored-query validation distinguishes executable typed expressions from retained
+contextual analysis. Set operands may retain unresolved string/NULL literal
+occurrences in their original analysis after common-type resolution; those
+occurrences are not executable outputs. Runtime expressions still require valid
+provider usages, and retained analysis keeps its shape, owner and dependency
+checks rather than receiving a generic empty-usage exemption.
+Every executable logical-node schema independently validates usage, current
+descriptor identity and stored collation authority, including intermediate
+project/filter/order/group/window/derived frames. Retained contextual analysis
+does not exempt those published or executable schema fields.
+Original local-group template roots may retain the same direct contextual
+string/NULL occurrences after set-operand coercion. They receive no untyped
+reserved scalar slots; actual calls, scalar attempts, marker origins and every
+executable schema remain typed and validated. Dependency/capture walks retain
+the original roots even when execution simplification erases their demand.
+Retagging and capture persistence preserve these descriptor-free literal
+occurrences as immutable analysis syntax, without inventing scalar values or
+object references. Stored executable occurrences remain invalid. Rename/deparse
+proof recreates each view and compares complete results and metadata, rather
+than requiring incidental alias or source-column spelling in generated SQL.
+
+
+Function FROM rows are computed, not physical row-lock identities. Unqualified
+locking ignores a function source while locking contributing table/view leaves;
+explicit `OF` a function alias/name rejects with `0A000`. A local target SRF
+rejects locking even if a strict NULL wrapper later folds it away. Inherited
+view locking rejects target SRFs when relation/subquery rowmarks reach that
+stored query; directly function-only/source-free views acquire no such marks.
+On a peer-updated physical row, replacement rechecks refresh that physical
+input and rescan function sources. Correlated arguments use the refreshed
+predecessor frame; independent calls reuse their recheck-local materialization
+and rewind. Each original candidate contributes at most the first qualifying
+replacement row, not a new top-level expansion; ordinal resets on rescan and
+later fields can qualify after an earlier field fails WHERE/ON. Existing LEFT
+JOIN padding applies when the refreshed function source has zero fields.
+
+Ordinary single INSERT VALUES and INSERT SELECT consume the same target stages
+before assignment and atomic write publication. Multirow/decorated VALUES and
+scalar-only illegal contexts reject SRFs before runtime demand or folding.
+Stored read views retain providers, frames, dependencies and replay metadata;
+target-SRF views are not automatically writable. Public results are finalized
+before publication and retain their schema across native controls.
+General table functions and lateral derived SELECT/VALUES remain excluded.
+
 ## Timezone lookup sources — change note
 
 The [timezone lookup views](DIALECT.md#timezone-lookup-views--change-note)
@@ -892,8 +1017,9 @@ copied outward without mutating source declaration proofs or child frames.
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 ORDER expressions resolve the complete joined namespace.
-LATERAL joins and FROM functions remain excluded; SELECT CTEs, derived SELECT queries and
-parenthesized VALUES are supported non-lateral sources. DELETE USING and UPDATE FROM
+General lateral derived queries and other FROM functions remain excluded.
+`string_to_table` admits only function-specific LATERAL; SELECT CTEs, derived SELECT
+queries and parenthesized VALUES remain non-lateral. DELETE USING and UPDATE FROM
 consume the same bounded join tree and are described below.
 
 An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
@@ -1928,7 +2054,9 @@ table/whole-join/column/merged-key aliases, derived SELECT, VALUES, supported
 views/catalog relations reuse query binding and execution. Immediate sequence
 USING sources fail with 42809 (`cannot lock rows in sequence`); this reference-kind
 check does not acquire source tuple locks or require source UPDATE privileges. Existing
-FULL-path legality restrictions remain; top-level WITH DELETE, LATERAL and function sources remain excluded.
+FULL-path legality restrictions remain; top-level WITH DELETE, general lateral
+derived queries and other function sources remain excluded. `string_to_table`
+USING sources cannot reference the mutation target.
 Internal source ON and derived queries cannot reference the mutation target;
 WHERE and RETURNING resolve the combined namespace. Source aliases hide original
 names, whole-join aliases hide operands, and merged-key aliases expose only keys.
@@ -2354,7 +2482,7 @@ LATERAL qualifier. `UPDATE t x SET v=q.n FROM (VALUES (x.id,7)) q(k,n)` reports
 42P01 with the inaccessible-entry Detail and character Position, without a
 LATERAL Hint (direct and semantic Prepare, including empty targets). Ordinary
 preceding FROM-source table/column references retain their existing LATERAL
-suggestions; no correlation or LATERAL syntax is enabled.
+suggestions; VALUES gains no correlation or LATERAL syntax.
 
 Stored source views use the shared current-identity read-graph validation during
 binding, including recursive rewrite detection. At Execute, UPDATE validates its
@@ -2396,8 +2524,9 @@ Both backends preserve statement mutation atomicity; sequence draws are nonrollb
 Retained native output survives rollback and Reset/Restore. Persistence includes
 committed live heads/catalog/sequence state, never source captures or output history.
 
-LATERAL/function FROM, top-level WITH UPDATE, row assignments and DEFAULT,
-whole-row UPDATE/DELETE records remain excluded; INSERT RETURNING is supported.
+General lateral derived queries/other function FROM, top-level WITH UPDATE,
+row assignments and DEFAULT, and whole-row UPDATE/DELETE records remain excluded;
+INSERT RETURNING is supported.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.
 Quick: `make check RUN='^TestReferenceUpdateFrom'`.
@@ -3414,7 +3543,7 @@ Restore still rejects query INSERT sources before publication, and failed
 Restore leaves the prior engine intact. Eager results own metadata and exported
 cells across subsequent Reset/Restore; public Next does not execute SQL.
 
-LATERAL and FROM functions remain excluded. SELECT CTEs, SELECT and VALUES compose with
+Lateral derived queries and other FROM functions remain excluded. SELECT CTEs, SELECT and VALUES compose with
 UNION/INTERSECT/EXCEPT; derived SELECT and admitted outer joins use the shared FROM
 dispatcher. Destination assignment follows set-source common typing and dedup,
 while ordinary INSERT VALUES/SELECT retain their existing assignment contexts.
@@ -3545,7 +3674,7 @@ cancellation; borrowed statement captures are owned by the enclosing execution.
 
 Names resolve in the nearest visible lexical frame. Local ambiguity or a local
 qualifier with a missing column cannot fall through to a grandparent. A derived
-FROM item cannot see same-level siblings without LATERAL (which remains excluded),
+FROM item cannot see same-level siblings; lateral derived SELECT remains excluded,
 but can see a legal enclosing query frame. Aggregate argument ownership follows
 the nearest visible referenced frame, including references through sublinks;
 child-local aggregates are not incorrectly treated as same-level nested calls.
@@ -4072,7 +4201,7 @@ CTAS, SELECT INTO, cursors and INSERT SELECT use this same graph. Stored WITH
 definitions preserve real-object dependencies and executable replay through
 rename and native Dump/Restore, never persistent CTE objects or cached results.
 Recursive/SEARCH/CYCLE, modifying bodies, top-level WITH DML, standalone
-VALUES/TABLE bodies and LATERAL remain excluded.
+VALUES/TABLE bodies and lateral derived queries remain excluded.
 
 Coverage: `make check RUN='^TestReferenceQueryCTE'` and the same selector with
 `REFERENCE=1`. Feature smoke: `RUN='^TestReferenceQueryCTEFeatureSmoke$'`.

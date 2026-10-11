@@ -1,0 +1,200 @@
+package engine
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func isStringSet(expr BoundExpr) bool {
+	e, ok := expr.(stringExpression)
+	return ok && e.plan.Name() == "string_to_table"
+}
+func hasStringSet(expr BoundExpr) bool {
+	found := false
+	walkBoundExpression(expr, func(e BoundExpr) { found = found || isStringSet(e) })
+	return found
+}
+
+func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
+	kind := b.aggregateClause
+	if b.defaultConsumer {
+		kind = "DEFAULT expressions"
+	}
+	if b.checkConsumer {
+		kind = "check constraints"
+	}
+	if b.generatedOwner != nil {
+		kind = "column generation expressions"
+	}
+	if b.indexConsumer {
+		kind = "index expressions"
+	}
+	if b.indexPredicateConsumer {
+		kind = "index predicates"
+	}
+	hint := ""
+	if b.stringSetGuard != "" {
+		kind = b.stringSetGuard
+		hint = "You might be able to move the set-returning function into a LATERAL FROM item."
+	}
+	message := "set-returning functions are not allowed in " + kind
+	if b.argumentOwner.active && kind != "FILTER" {
+		message = "aggregate function calls cannot contain set-returning function calls"
+		if b.argumentOwner.window {
+			message = "window function calls cannot contain set-returning function calls"
+		}
+		hint = "You might be able to move the set-returning function into a LATERAL FROM item."
+	} else if b.stringSetGuard == "" {
+		switch kind {
+		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions", "FROM":
+			return nil
+		case "window RANGE", "window GROUPS", "window ROWS":
+			message = "set-returning functions are not allowed in window definitions"
+		case "INSERT VALUES":
+			if b.stringSingleInsert {
+				return nil
+			}
+			message = "set-returning functions are not allowed in VALUES"
+		}
+	}
+	err := expressionError("0A000", message, pos).(*sqlstate.Error)
+	err.Hint = hint
+	return err
+}
+func stringLateralError(q queryQualifier, pos parser.Position, target bool) error {
+	err := expressionError("42P10", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, q.name), pos).(*sqlstate.Error)
+	if target {
+		err.Hint = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
+	} else {
+		err.Detail = "The combining JOIN type must be INNER or LEFT for a LATERAL reference."
+	}
+	return err
+}
+func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNode, queryNamespace, error) {
+	old, clause := b.queryNamespace, b.aggregateClause
+	b.queryNamespace = b.stringFromNamespace
+	if b.queryNamespace == nil {
+		b.queryNamespace = &queryNamespace{}
+	}
+	b.aggregateClause = "FROM"
+	defer func() { b.queryNamespace, b.aggregateClause = old, clause }()
+	calls := make([]stringExpression, len(raw.Calls))
+	schema := make(querySchema, len(calls))
+	correlated := false
+	ordinal := b.viewFunctionCount
+	b.viewFunctionCount += len(raw.Calls)
+	for i, call := range raw.Calls {
+		expr, err := b.bindFunction(call)
+		if err != nil {
+			return nil, queryNamespace{}, err
+		}
+		var nested BoundExpr
+		boundExpressionChildren(expr, func(arg BoundExpr) {
+			walkBoundExpression(arg, func(e BoundExpr) {
+				if isStringSet(e) {
+					nested = e
+				}
+			})
+		})
+		if !isStringSet(expr) || nested != nil {
+			if nested != nil {
+				return nil, queryNamespace{}, expressionError("0A000", "set-returning functions must appear at top level of FROM", nested.SourcePosition())
+			}
+			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)
+		}
+		calls[i] = expr.(stringExpression)
+		schema[i] = ColumnDescriptor{Name: "string_to_table", Usage: expr.ResultUsage()}
+		correlated = correlated || stringFrameReference(expr, b.frameID())
+		if b.noParameters || b.materializedDefinition {
+			if err := b.captureViewLiterals(call, expr, viewFunctionLiteral, ordinal+i); err != nil {
+				return nil, queryNamespace{}, err
+			}
+		}
+	}
+	if raw.Ordinality {
+		schema = append(schema, ColumnDescriptor{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+	}
+	columns := make([]queryColumn, len(schema))
+	for i, col := range schema {
+		columns[i] = queryColumn{descriptor: col, slot: i, leaf: -1, physical: -1}
+	}
+	name := raw.Calls[0].Name.Parts[len(raw.Calls[0].Name.Parts)-1].Text
+	qualifier := queryQualifier{name: name, original: name, columns: columns}
+	b.queryHidden = append(b.queryHidden, qualifier)
+	node := &stringTableNode{querySchema: schema, calls: calls, ordinality: raw.Ordinality, correlated: correlated, frame: b.frameID(), viewOrdinal: ordinal}
+	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
+}
+func functionFromDepends(node LogicalNode) bool {
+	switch n := node.(type) {
+	case *stringTableNode:
+		return n.correlated
+	case *joinNode:
+		return functionFromDepends(n.left) || functionFromDepends(n.right)
+	}
+	return false
+}
+
+// Only local expressions are rewritten; expression-owned queries retain their
+// own stage/frame ownership through the existing mapper.
+func (b *expressionBinder) mapStringStage(expr BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
+	mapped, _, err := mapBoundExpression(b.bindingCatalog(), expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, func(e BoundExpr) (BoundExpr, bool, error) {
+		// Window slots are assigned through shared binder-owned pointers. A
+		// local SRF rewrite must not clone them before their final slot shift.
+		if _, ok := e.(*windowExpression); ok {
+			return e, true, nil
+		}
+		return leaf(e)
+	})
+	return mapped, err
+}
+
+func stringFrameReference(expr BoundExpr, frame uint32) bool {
+	found := false
+	var expression func(BoundExpr)
+	var query func(LogicalNode)
+	expression = func(expr BoundExpr) {
+		walkBoundExpression(expr, func(e BoundExpr) {
+			switch n := e.(type) {
+			case columnExpression:
+				found = found || n.frame == frame
+			case subqueryExpression:
+				query(n.queryPlan.Root)
+			}
+		})
+	}
+	query = func(node LogicalNode) {
+		if node == nil {
+			return
+		}
+		queryExpressions(node, expression)
+		left, right := queryInputs(node)
+		query(left)
+		query(right)
+	}
+	expression(expr)
+	return found
+}
+func stringForbiddenColumn(ns queryNamespace, slot int, pos parser.Position) error {
+	for _, qualifier := range ns.qualifiers {
+		for _, column := range qualifier.columns {
+			if column.slot == slot {
+				return stringLateralError(qualifier, pos, false)
+			}
+		}
+	}
+	return fmt.Errorf("stuntgres: missing forbidden function predecessor namespace")
+}
+
+func (b *expressionBinder) stringFromContext() bool {
+	if b.aggregateClause == "FROM" {
+		return true
+	}
+	for _, scope := range b.queryScopes {
+		if scope.clause == "FROM" {
+			return true
+		}
+	}
+	return false
+}

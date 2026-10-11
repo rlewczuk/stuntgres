@@ -201,6 +201,8 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 			switch n := node.(type) {
 			case *projectNode:
 				node = n.child
+			case *setProjectNode:
+				node = n.child
 			case *limitNode:
 				node = n.child
 			case *evaluationNode:
@@ -225,6 +227,9 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 			}
 		}
 	}
+	if suffix == "" && project.hasTargetStringSet && stringInheritedRowMark(viewFromRoot(project)) {
+		suffix = "set-returning functions in the target list"
+	}
 	if suffix != "" {
 		return sqlError("0A000", queryRowClause(mode)+" is not allowed with "+suffix)
 	}
@@ -245,6 +250,19 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 		return nil
 	}
 	return from(viewFromRoot(project))
+}
+
+// View lock pushdown marks relation/subquery RTEs, not computed function rows.
+func stringInheritedRowMark(node LogicalNode) bool {
+	switch n := node.(type) {
+	case *sourceNode:
+		return true
+	case *derivedNode:
+		return n.cte == nil
+	case *joinNode:
+		return stringInheritedRowMark(n.left) || stringInheritedRowMark(n.right)
+	}
+	return false
 }
 
 // Called before any source expression is opened. Inherited rowmark legality,
@@ -376,6 +394,10 @@ func querySourceAt(bundle *querySource, occurrence int) *querySource {
 }
 func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	switch n := node.(type) {
+	case *stringTableNode:
+		return len(n.Schema())
+	case *setProjectNode:
+		return 0 // Legal nonphysical inherited paths need no substitution scratch.
 	case *limitNode:
 		return queryLockRecheckWidth(n.child, inputs)
 	case *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *setNode:
@@ -461,6 +483,9 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
 	if absentLockedQuery(node, inputs, evaluation.liveScope().queryLocks) {
 		return nil, true, nil
+	}
+	if stringRecheckContains(node) {
+		return recheckStringQuery(node, inputs, rows, evaluation, scratch, offset, frozen)
 	}
 	switch n := node.(type) {
 	case *derivedNode:
@@ -601,6 +626,8 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	currentRows := make([][]sqltype.Value, len(locks.leaves))
 	scratch := make([]sqltype.Value, queryLockRecheckWidth(node, state.source))
 	evaluation := state.evaluation(nil)
+	var stringCache stringRecheckCache
+	evaluation.stringRecheckCache = &stringCache
 	joined := child.source.materialized
 	source := child.source
 	if !joined {
@@ -610,6 +637,14 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	out := producingStage(&child, child.schema)
 	out.source, out.expressions, out.evaluation = source, child.expressions, child.evaluation
 	out.pending = nil
+	finish := out.finish
+	out.finish = func() error {
+		stringCache.close()
+		if finish != nil {
+			return finish()
+		}
+		return nil
+	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		scope := state.source.liveScope()
 		if scope == nil {

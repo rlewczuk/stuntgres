@@ -119,6 +119,21 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindDatetimeFormatting(raw, visible)
 	case "to_number":
 		return b.bindNumericFormatting(raw, visible)
+	case "string_to_table":
+		expr, err := b.bindStringFunction(raw, visible)
+		if err != nil {
+			return nil, err
+		}
+		if err := b.stringSetAllowed(raw.Pos); err != nil {
+			return nil, err
+		}
+		switch b.aggregateClause {
+		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
+			b.queryHasTargetStringSet = true
+		}
+		return expr, nil
+	case "split_part", "string_to_array":
+		return b.bindStringFunction(raw, visible)
 	case "to_bin", "to_oct", "to_hex", "md5", "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
 		return b.bindStringFunction(raw, visible && name != "trim")
 	case "col_description", "obj_description", "shobj_description":

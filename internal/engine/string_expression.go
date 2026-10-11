@@ -19,9 +19,14 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	for _, arg := range e.args {
-		if randomLiteralNull(arg) {
-			return sqltype.Null(e.usage.Type), nil
+	if e.plan.Name() == "string_to_table" {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: unlowered string_to_table expression")
+	}
+	if e.plan.Strict() {
+		for _, arg := range e.args {
+			if randomLiteralNull(arg) {
+				return sqltype.Null(e.usage.Type), nil
+			}
 		}
 	}
 	var values [4]sqltype.Value
@@ -40,6 +45,9 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {
 	var usages [4]sqltype.Usage
 	p := ExprProperties{Volatility: Immutable}
+	if name == "string_to_table" {
+		p.StageDependent = true
+	}
 	if name == "||" && (!textual[0] || !textual[1]) {
 		p.Volatility = Stable
 	}
@@ -182,8 +190,13 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			encodingID = sqltype.Int4
 		}
 	}
-	valid := visible && (!raw.Variadic || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse" || name == "md5")
+	split := name == "split_part" || name == "string_to_array" || name == "string_to_table"
+	valid := visible && (!raw.Variadic || split || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse" || name == "md5")
 	switch {
+	case name == "split_part":
+		valid = valid && len(operands) == 3
+	case name == "string_to_array" || name == "string_to_table":
+		valid = valid && (len(operands) == 2 || len(operands) == 3)
 	case name == "ascii" || name == "chr" || name == "unistr" || name == "unicode_assigned":
 		valid = valid && len(operands) == 1
 	case name == "lpad" || name == "rpad":
@@ -255,6 +268,9 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		}
 	}
 	result := b.typ(sqltype.Text).Usage()
+	if name == "string_to_array" {
+		result = b.typ(b.typ(sqltype.Text).AssociatedArray()).Usage()
+	}
 	if name == "is_normalized" || name == "starts_with" || name == "unicode_assigned" {
 		result = b.typ(sqltype.Bool).Usage()
 	}

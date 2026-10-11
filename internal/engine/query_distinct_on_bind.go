@@ -195,6 +195,9 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	} else {
 		early := make([]BoundExpr, 0)
 		for i, e := range projection {
+			if hasStringSet(e) {
+				continue
+			}
 			if e.Properties().Volatility == Volatile || e.ResultUsage().Type == nil {
 				continue
 			}

@@ -100,6 +100,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 		occurrences []int
 		join        bool
 		cte         bool
+		function    bool
 	}
 	indices := make(map[*parser.TableReference]int)
 	_ = parser.VisitQuerySources(&parser.Select{From: from}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
@@ -118,6 +119,13 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 				targets[len(targets)-1].occurrences = nil
 				targets[len(targets)-1].cte = true
 			}
+		case *parser.FunctionTable:
+			name := alias
+			if name == "" {
+				parts := n.Calls[0].Name.Parts
+				name = parts[len(parts)-1].Text
+			}
+			targets = append(targets, target{name: name, function: true})
 		case *parser.ValuesQuery:
 			if alias != "" {
 				targets = append(targets, target{name: alias})
@@ -182,6 +190,9 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 				}
 				if target.join {
 					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a join", name.Parts[0].Pos)
+				}
+				if target.function {
+					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
 				}
 				for _, occurrence := range target.occurrences {
 					if marks[occurrence].mode == 0 {

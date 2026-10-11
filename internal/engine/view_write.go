@@ -81,9 +81,13 @@ func viewWriteShape(d *relationDescriptor) (*projectNode, *sourceNode, []BoundEx
 		return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 	}
 	var predicates []BoundExpr
+	hasTargetStringSet := p.hasTargetStringSet
 	node := p.child
 	for {
 		switch n := node.(type) {
+		case *setProjectNode:
+			hasTargetStringSet = true
+			node = n.child
 		case *aggregateNode:
 			return nil, nil, nil, "Views that return aggregate functions are not automatically updatable."
 		case *windowNode:
@@ -96,6 +100,9 @@ func viewWriteShape(d *relationDescriptor) (*projectNode, *sourceNode, []BoundEx
 			predicates = append(predicates, n.predicate)
 			node = n.child
 		case *sourceNode:
+			if hasTargetStringSet {
+				return nil, nil, nil, "Views that return set-returning functions are not automatically updatable."
+			}
 			// Frozen-layout dump replay wraps ordinary sources in aliases.
 			from := q.From
 			for {
@@ -110,6 +117,9 @@ func viewWriteShape(d *relationDescriptor) (*projectNode, *sourceNode, []BoundEx
 			}
 			return p, n, predicates, ""
 		default:
+			if hasTargetStringSet {
+				return nil, nil, nil, "Views that return set-returning functions are not automatically updatable."
+			}
 			return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 		}
 	}
