@@ -16,7 +16,7 @@ func TestOrderingUsage(t *testing.T) {
 				return
 			}
 			// Concrete means a valid runtime result, not a sortable SQL type.
-			if d.ID() == Void || d.IsArray() || d.ID() == PgNodeTree || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid {
+			if d.ID() == Void || d.IsArray() || d.ID() == PgNodeTree || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Int4Range || d.ID() == Int8Range {
 				if err == nil {
 					t.Fatalf("%s ordering admitted", d.Name())
 				}

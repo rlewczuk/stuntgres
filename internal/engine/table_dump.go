@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Immutable table metadata and row frontier captured by Dump under Engine.mu.
@@ -73,7 +74,18 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 				line.WriteString("DEFAULT")
 				continue
 			}
-			literal, err := catalogLiteralSQL(ctx, catalog, literalExpression{expressionInfo: expressionInfo{usage: t.columns[i].Usage}, value: v})
+			var literal string
+			var err error
+			destination := t.columns[i].Usage.Type
+			base := destination.BaseType().ID()
+			if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range) {
+				// The INSERT destination reconstructs the domain via ordinary
+				// contextual input. Do not introduce an unsupported range cast;
+				// non-contextual stored expressions keep catalogLiteralSQL.
+				literal, err = destination.SQLLiteral(ctx, v)
+			} else {
+				literal, err = catalogLiteralSQL(ctx, catalog, literalExpression{expressionInfo: expressionInfo{usage: t.columns[i].Usage}, value: v})
+			}
 			if err != nil {
 				return err
 			}

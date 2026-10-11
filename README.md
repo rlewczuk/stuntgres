@@ -545,6 +545,20 @@ See [JSONB types](docs/TYPES.md#jsonb-normalized-storage--change-note).
 Feature smoke: `make check RUN='^TestReferenceJSONBFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONBFeatureSmoke$'`.
 
+Change note: int4range/int8range columns now use typed integer endpoints and
+bound flags with discrete canonical text: `[1,4]` becomes `[1,5)`.
+Empty, unbounded and SQL NULL remain distinct; malformed bounds, endpoint/
+successor overflow and reversal retain PostgreSQL English diagnostics.
+Direct/prepared text and byte binds, exact INT4RANGE/INT8RANGE metadata and
+native Dump/Reset/Restore use existing codec/catalog ownership, preserving
+retained readers and atomic failed replacement. Already-admitted range-backed
+domains replay canonical row text and NULL through their declared destinations.
+No constructors/operators, multiranges, new casts, range arrays or
+comparison/index providers are added.
+See [integer range columns](docs/TYPES.md#integer-range-columns--change-note).
+Feature smoke: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$' REFERENCE=1`.
+
 Change note: JSONPath (OID4072, array4073) now has typed literal/bind IO,
 full PostgreSQL18 path grammar and input-time ARE/ERE/BRE regex validation.
 An immutable parsed representation retains mode, expressions and accessors;

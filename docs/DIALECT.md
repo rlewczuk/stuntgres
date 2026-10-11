@@ -967,6 +967,27 @@ pinned counterpart:
 
 
 
+### Integer range columns — change note
+
+CREATE TABLE additionally admits `int4range` and `int8range`, including qualified
+`pg_catalog` names and NULL/NOT NULL. Unknown literal text and text/byte binds
+use the column's codec; `[1,4]` canonicalizes to `[1,5)`. Nonnull `empty`,
+nonnull unbounded `(,)` and SQL NULL remain distinct. Range grammar, endpoint
+overflow, canonical successor overflow and reversed bounds retain PostgreSQL
+SQLSTATE/English diagnostics and literal/parameter provenance.
+Metadata reports INT4RANGE/INT8RANGE without length or precision; native exports
+canonical strings. Ordinary native Dump/Restore replays destination-context
+quoted literals and preserves retained readers and atomic replacement.
+Already-admitted range-backed domain columns replay canonical base text and NULL
+through their declared destinations, without adding explicit range/domain casts
+or changing stored-expression identity serialization.
+This admission does not add range constructors/operators/functions, comparisons,
+ordering/index providers, casts, typed range literals, arrays or multiranges.
+See [integer range types](TYPES.md#integer-range-columns--change-note).
+Feature smoke: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$'`;
+pinned counterpart:
+`make check RUN='^TestReferenceIntegerRangeFeatureSmoke$' REFERENCE=1`.
+
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA, BIT[(n)], BIT VARYING[(n)], VARBIT[(n)] and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, raw B/X bit literals, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
 ### PRIMARY KEY constraints — change note

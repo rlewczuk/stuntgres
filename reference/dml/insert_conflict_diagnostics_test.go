@@ -103,8 +103,7 @@ func TestReferenceInsertConflictProviderBoundaries(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 			q := "CREATE TABLE t(k INT4RANGE,CONSTRAINT ex EXCLUDE USING gist(k WITH &&))"
 			if !b.PG {
-				d := fixture.ControlsReferenceDiagnostic("0A000", "unsupported column type")
-				d.Position = fixture.Position(strings.Index(q, "INT4RANGE") + 1)
+				d := fixture.ControlsReferenceDiagnostic("0A000", "non-btree indexes are unsupported")
 				s := fixture.ErrorDiagnostic(q, d)
 				s.ErrorStage = "execute"
 				run(s)

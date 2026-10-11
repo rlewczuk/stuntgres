@@ -49,6 +49,8 @@ const (
 	Void        ID = 2278
 	UUID        ID = 2950
 	JSONB       ID = 3802
+	Int4Range   ID = 3904
+	Int8Range   ID = 3926
 	JSONPath    ID = 4072
 )
 
@@ -89,6 +91,7 @@ type Descriptor struct {
 	delimiter           byte
 	enum                *enumDefinition
 	composite           *compositeDefinition
+	rangeSubtype        *Descriptor
 	lookupOnly          bool
 	namespace           string
 }
@@ -182,7 +185,24 @@ func Builtins() []*Descriptor {
 		{id: Regclass, name: "regclass", sql: "REGCLASS", database: "REGCLASS", associatedArray: 2210},
 		{id: Regtype, name: "regtype", sql: "REGTYPE", database: "REGTYPE", associatedArray: 2211},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
+		{id: Int4Range, name: "int4range", sql: "INT4RANGE", database: "INT4RANGE", associatedArray: 3905},
+		{id: Int8Range, name: "int8range", sql: "INT8RANGE", database: "INT8RANGE", associatedArray: 3927},
 		{id: Unknown, name: "unknown"},
+	}
+	for _, d := range types {
+		if d.id != Int4Range && d.id != Int8Range {
+			continue
+		}
+		subtype := Int4
+		if d.id == Int8Range {
+			subtype = Int8
+		}
+		for _, candidate := range types {
+			if candidate.id == subtype {
+				d.rangeSubtype = candidate
+				break
+			}
+		}
 	}
 	return completeBuiltinIdentities(types)
 }
@@ -209,6 +229,7 @@ type Value struct {
 	composite       *compositePayload
 	jsonb           *jsonbPayload
 	jsonpath        *jsonpathPayload
+	rangeDatum      integerRangeDatum
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -234,6 +255,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && d.BaseType().id == JSONPath && v.jsonpath == nil {
 		return Value{}, fmt.Errorf("missing JSONPath payload")
+	}
+	if !v.null && (d.BaseType().id == Int4Range || d.BaseType().id == Int8Range) && !v.validIntegerRange() {
+		return Value{}, fmt.Errorf("invalid integer range datum")
 	}
 	if v.typ.BaseType().IsComposite() != d.BaseType().IsComposite() {
 		return Value{}, fmt.Errorf("incompatible composite declaration")
@@ -454,6 +478,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.enumInput(text, env)
 	}
 	switch d.id {
+	case Int4Range, Int8Range:
+		return d.integerRangeInput(ctx, text)
 	case Money:
 		return d.moneyInput(text, env.MonetaryLocale)
 	case Bit, VarBit:
@@ -673,6 +699,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.enumOutput(v)
 	}
 	switch d.id {
+	case Int4Range, Int8Range:
+		return v.integerRangeOutput()
 	case Money:
 		return moneyOutput(v.integer, env.MonetaryLocale), nil
 	case Bit, VarBit:
@@ -792,6 +820,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
 	switch d.id {
+	case Int4Range, Int8Range:
+		text, err := v.integerRangeOutput()
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
 	case Money:
 		return "MONEY '" + moneyOutput(v.integer, Locale{}) + "'", nil
 	case Bit, VarBit:

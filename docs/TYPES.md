@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, bytea, json, bit and varbit. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID, exact JSON source and canonical BIT/VARBIT digits), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, bytea, json, bit, varbit, int4range and int8range. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID, exact JSON source, canonical BIT/VARBIT digits and canonical integer ranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, BIT 1560, VARBIT 1562, NUMERIC 1700, UUID 2950, INT4RANGE3904, INT8RANGE3926; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -181,6 +181,62 @@ Feature smoke (900-second deadline per invocation):
 and `make check REFERENCE=1 RUN='^TestReferenceJSONBFeatureSmoke$'`.
 The same two modes with `RUN='^TestReference(JSON|TypeCore|Numeric|PGDescription)'` cover the
 complete affected reference families and migrated source execution routes.
+
+## Integer range columns — change note
+
+`int4range` (OID3904) and `int8range` (OID3926), including qualified
+`pg_catalog` declarations, store integer range columns using inline canonical
+endpoints and bound flags. Their subtype descriptors belong to the same immutable
+catalog generation. Inclusive/exclusive bounds, unbounded endpoints and empty
+values use the ordinary destination-context text codec, not SQL constructors.
+
+For either width, `[1,4]` outputs `[1,5)`, `(1,4]` outputs `[2,5)`,
+`[4,4]` outputs `[4,5)`, and `(4,5)` outputs `empty`. Infinite bounds lose
+inclusivity: `[,]` outputs `(,)`, `[,4]` outputs `(,5)` and `[1,]` outputs
+`[1,)`. The nonnull strings `empty` and `(,)` are distinct from SQL NULL,
+which exports nil. Finite integer extrema are not infinity; advancing a maximum
+endpoint during discrete canonicalization fails instead of wrapping.
+
+Text input accepts surrounding C whitespace, case-insensitive `empty`, quoted
+bound fragments and backslash escapes. Decoded finite endpoints reuse integer
+input, including signs, radix prefixes and separators. The complete range grammar
+is validated before lower then upper subtype input; reversal/equal-bound
+emptiness precedes successor adjustment. Malformed grammar gives22P02
+`malformed range literal: "..."` with PostgreSQL Detail; malformed/overflowing
+endpoints retain integer/bigint input diagnostics. Canonical overflow gives22003
+`integer out of range` or `bigint out of range`; reversed finite endpoints
+give22000 `range lower bound must be less than or equal to range upper bound`.
+Literal errors point to the original SQL quote in characters; parameter errors
+have no Position and retain the redacted unnamed-portal Context.
+Type modifiers are disallowed with42601, including prepared CREATE execution.
+
+Direct/prepared INSERT binds accept strings and detached nonnil byte slices.
+Nil and typed-nil byte slices bind SQL NULL; nonnil empty bytes are malformed
+range input, not NULL or an unbounded range. Repeated same-width parameters
+share an inferred slot but each execution imports fresh values.
+Native output/ScanType is string; pinned lib/pq returns nonnil bytes and
+interface{} ScanType. Both report `INT4RANGE`/`INT8RANGE`, with no Length or
+DecimalSize; native declared nullability is known, pq nullability is unavailable.
+Empty and NULL-only cursors retain these metadata identities.
+
+Native Dump emits canonical quoted text in destination-context INSERT statements.
+Already-admitted domains over either integer range base use the same contextual
+row replay: the declared destination applies domain input/wrapping to canonical
+quoted base text or NULL. This table-row serialization does not grant explicit
+range/domain casts or change non-contextual stored-expression serialization.
+Reset/Restore and independent Driver restoration preserve values and metadata;
+retained readers preserve their original data and column types through replacement.
+Failed or canceled Restore does not publish staged data/schema.
+No new explicit casts, typed-range-literal syntax, arrays, constructors,
+operators/functions, comparison/order/group/hash/index providers or multiranges
+are admitted. Array identities3905/3927 remain lookup-only.
+Semantics follow PostgreSQL18; the real oracle remains pinned18.0 UTF8/C.
+
+Selected definitions (900 seconds per invocation):
+`make check RUN='^TestReferenceIntegerRange'`
+and `make check RUN='^TestReferenceIntegerRange' REFERENCE=1`.
+Feature smoke uses `RUN='^TestReferenceIntegerRangeFeatureSmoke$'` in both modes.
+Representation/adapter units use `make check RUN='^TestIntegerRange'`.
 
 ## JSONPath typed input — change note
 

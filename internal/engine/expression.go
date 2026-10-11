@@ -2111,7 +2111,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22000" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
