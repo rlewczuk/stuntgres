@@ -236,16 +236,20 @@ Feature smoke: `make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`.
 
 Change note: selected PostgreSQL18 windows support `row_number()` and `count(*)`
-with default or explicit RANGE frames, typed offsets, partition/order keys and
-inherited named `WINDOW` definitions. Bounds are inclusive and preserve NULL peers;
-numbering restarts in each partition and ignores the frame.
+with default or explicit RANGE/GROUPS frames, typed offsets, partition/order keys
+and inherited named `WINDOW` definitions. GROUPS requires window ORDER BY and
+measures bigint offsets in complete peer groups: keys1,1,2,3,3 with1PRECEDING
+give counts2,2,3,3,3. Bounds are inclusive and preserve NULL peers; numbering
+restarts in each partition and ignores the frame.
 Windows run after WHERE/group/HAVING and before DISTINCT, outer
 ORDER and bounds. Only outer ORDER promises presentation order. Prepared queries,
 INSERT SELECT, captured views and pristine native Dump/Restore share this pipeline.
-ROWS/GROUPS frames, exclusions, window FILTER, count(expr) windows and other providers remain excluded.
+ROWS frames, exclusions, window FILTER, count(expr) windows and other providers remain excluded.
 See [window queries](docs/QUERIES.md#selected-windows--change-note-changelog).
 Feature smoke: `make check RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`.
+GROUPS feature smoke: `make check RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`.
 
 Change note: `CREATE TEMP` / `CREATE TEMPORARY TABLE` creates physical-session
 owned tables using the ordinary table/type/default/CHECK/identity/index path.

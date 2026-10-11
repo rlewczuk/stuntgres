@@ -178,7 +178,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 				}
 			}
 			frame := spec.frame
-			for _, bound := range []*boundRangeBound{&frame.start, &frame.end} {
+			for _, bound := range []*boundWindowBound{&frame.start, &frame.end} {
 				if bound.offset == nil || err != nil {
 					continue
 				}

@@ -118,7 +118,7 @@ package parser
  windowOver windowOverClause
  windows []WindowDefinition
  window WindowDefinition
- rangeFrame *RangeFrame
+ windowFrame *WindowFrame
  frameBound FrameBound
  groupClause *GroupClause
  groupItems []GroupItem
@@ -273,7 +273,7 @@ package parser
 %type <row> window_partition
 %type <orderKeys> window_order
 %type <tok> window_name
-%type <rangeFrame> window_frame
+%type <windowFrame> window_frame
 %type <frameBound> frame_bound
 %type <tok> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
@@ -1550,8 +1550,8 @@ over_clause: OVER name { $$=windowOverClause{spec:&WindowSpec{Name:&Identifier{T
  | OVER '(' window_spec ')' { $3.Pos=$2.pos;$$=windowOverClause{spec:$3,token:$1} } ;
 window_spec: window_parent window_partition window_order { $$=&WindowSpec{Name:$1,Partition:$2,Order:$3} }
  | window_parent window_partition window_order window_frame {$$=&WindowSpec{Name:$1,Partition:$2,Order:$3,Frame:$4}} ;
-window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeRangeFrame(sqllex.(*lexer),$1,$2,FrameBound{Kind:FrameCurrentRow,Pos:$2.Pos},$3);if !ok{return 1}}
- | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion {var ok bool;$$,ok=makeRangeFrame(sqllex.(*lexer),$1,$3,$5,$6);if !ok{return 1}} ;
+window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeWindowFrame(sqllex.(*lexer),$1,$2,FrameBound{Kind:FrameCurrentRow,Pos:$2.Pos},$3,false);if !ok{return 1}}
+ | FRAME_UNIT BETWEEN frame_bound AND frame_bound window_exclusion {var ok bool;$$,ok=makeWindowFrame(sqllex.(*lexer),$1,$3,$5,$6,true);if !ok{return 1}} ;
 frame_bound: FRAME_START FRAME_EDGE {kind:=FrameUnboundedPreceding;if $2.text=="following"{kind=FrameUnboundedFollowing};$$=FrameBound{Kind:kind,Pos:$1.pos}}
  | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=FrameBound{Kind:FrameCurrentRow,Pos:$1.pos}}
  | scalar_projection FRAME_EDGE {kind:=FrameOffsetPreceding;if $2.text=="following"{kind=FrameOffsetFollowing};$$=FrameBound{Kind:kind,Offset:$1,Pos:ExpressionStart($1)}} ;

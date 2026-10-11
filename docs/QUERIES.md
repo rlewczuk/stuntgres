@@ -1375,7 +1375,7 @@ use `RUN='^TestReferenceNumericSumSmoke$'` in both for the focused smoke.
 
 This does not admit
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/min/max,
-other window providers or ROWS/GROUPS frames/exclusions,
+other window providers or ROWS frames/exclusions,
 new scalar calls or optimizer/spill/parallel machinery.
 Ordinary no-FROM SELECT uses the shared local-unit query input, including
 aggregate projections and selected sequence/REGCLASS siblings. Function-provider
@@ -3277,6 +3277,45 @@ Typed partition equality groups NULLs together and uses existing numeric,
 character/domain/enum/structural key contracts. ASC defaults NULLS LAST; DESC
 defaults NULLS FIRST. NULL peer keys compare equal.
 
+### GROUPS offsets — change note
+
+Explicit GROUPS measures PRECEDING/FOLLOWING offsets in peer groups, not rows
+or key distances. Every GROUPS clause requires effective window ORDER BY, even
+CURRENT ROW, unbounded or unused named definitions. All ordering keys, directions
+and NULL placement define peers; multiple keys and already-admitted text/bool/enum
+ordering need no arithmetic RANGE support. Outer ORDER does not split window peers.
+For keys1,1,2,3,3, `GROUPS 1 PRECEDING` counts2,2,3,3,3; CURRENT ROW counts2,2,1,2,2.
+`BETWEEN 1 PRECEDING AND 1 PRECEDING` counts0,0,2,1,1, and following-only1
+counts1,1,2,0,0. Partition boundaries clip the complete-group frame; reversed
+same-category offsets can give an empty frame/count0. MaxInt64 offsets clip
+without wrapping. The default remains RANGE, not GROUPS.
+
+Offsets use bigint assignment coercion: unknown literals/parameters infer bigint,
+numeric1.5 rounds to2, and typed text/bool is not a bigint offset. Independent
+scalar subqueries and outer-query variables in inner-query frames are admitted;
+current-query variables, aggregates, GROUPING and nested windows are forbidden.
+Start analysis precedes end analysis, and type coercion precedes the variable
+restriction. Missing ORDER reports42P20 `GROUPS mode requires an ORDER BY clause`.
+Demanded count frames evaluate offsets once per specification/scan across partitions;
+start NULL/negative checks precede end evaluation. NULL raises22004
+`frame starting offset must not be null` (or `ending`); negative raises22013
+`frame starting offset must not be negative` (or `ending`), even for empty/all-NULL
+input. LIMIT0, row_number-only and unused frames eliminate runtime offset demand,
+not analysis/authorization; an active count frame in EXISTS still demands offsets.
+
+Bare OVER w reuses its named frame once. Distinct named definitions retain separate
+volatile offset identity while sharing sorting. Inline/named/inherited/domain and
+offset-subquery definitions survive hidden-key rename, output-alias collisions,
+export/replay and actual pristine native Dump/Restore. Failed/canceled Restore
+preserves the old catalog/cursors. Prepared executions import fresh offset arguments;
+late errors/cancellation publish neither partial cursors nor INSERT prefixes.
+`OVER(w)` cannot copy an explicitly framed parent. The omit-parentheses Hint
+belongs only to that OVER clause, not to inheritance in a named WINDOW definition.
+GROUPS does not admit ROWS, exclusions or additional window providers.
+Independent contract and smoke: `make check RUN='^TestReferenceQueryWindowGroups'`
+and `make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroups'`;
+use `RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'` in both for focused smoke.
+
 ### RANGE offsets — change note
 
 Explicit RANGE admits UNBOUNDED PRECEDING/FOLLOWING, CURRENT ROW and expression
@@ -3400,7 +3439,7 @@ preserves ordinary context errors. Finalized cursors and metadata survive later
 append/Reset/Restore. Stored view capture/export/remap and pristine Dump/Restore
 persist input/key identities and definitions, never mutable window state.
 
-Explicit ROWS/GROUPS frames and exclusions, other window providers, count(expr)
+Explicit ROWS frames and exclusions, other window providers, count(expr)
 windows and window aggregate FILTER remain excluded. Native errors distinguish valid excluded
 capabilities (0A000) from malformed syntax (42601). Ordinary aggregate modifiers
 remain unchanged; this does not add public GRANT, types, joins or persistence formats.

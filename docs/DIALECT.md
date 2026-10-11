@@ -2025,7 +2025,7 @@ independent oracle: `make check REFERENCE=1 RUN='^TestReferenceArrayAgg'`.
 
 Grouping uses the ordinary no-FROM local input. It does not add
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/sum(numeric inputs)/any_value/string_agg/array_agg/min/max,
-other window providers or ROWS/GROUPS frames/exclusions. GROUPING SETS, ROLLUP, CUBE, explicit
+other window providers or ROWS frames/exclusions. GROUPING SETS, ROLLUP, CUBE, explicit
 empty groups and ALL/DISTINCT grouping clauses are admitted. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
@@ -5895,13 +5895,28 @@ frame validation. Missing/distinct extra keys, unsupported carriers and invalid
 offset expressions retain full PostgreSQL English/SQLSTATE/caret diagnostics.
 
 
+Explicit GROUPS requires effective ORDER BY for every clause, including unused
+named definitions. Bigint assignment-coerced offsets select complete peer groups,
+not rows/key distances; all admitted order keys and NULL placements define peers.
+For keys1,1,2,3,3, preceding1 counts2,2,3,3,3 and preceding-only1 counts0,0,2,1,1.
+Partition boundaries and MaxInt64 offsets clip safely; reversed same-category
+bounds may count0. Start NULL/negative checks precede end evaluation. GROUPS
+negative offsets raise22013 `frame starting offset must not be negative` (or
+`ending`) even on empty/all-NULL demanded input, unlike RANGE's support demand.
+Missing ORDER retains42P20 `GROUPS mode requires an ORDER BY clause`; invalid
+types/variables/aggregate/grouping/window offsets retain full English/carets.
+Prepared inputs are fresh; same named frame evaluates once, distinct named
+volatile frames remain distinct through captured views and native Dump/Restore.
+Feature smoke: `make check RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`.
+
 Only SELECT and outer ORDER allow calls. Nested windows, windows inside ordinary
 aggregates, illegal clauses and undefined/duplicate names retain PostgreSQL
 SQLSTATE/English/character positions. Active windows reject FOR UPDATE; unused
 WINDOW syntax alone does not. Referenced key columns require SELECT authority,
 including hidden keys, unused definitions and empty inputs.
 
-ROWS/GROUPS frames, exclusions, other providers, count(expr) window execution and
+ROWS frames, exclusions, other providers, count(expr) window execution and
 window aggregate FILTER remain native0A000 capability boundaries. Ordinary aggregate
 modifiers are unchanged. See [query semantics](QUERIES.md#selected-windows--change-note-changelog).
 

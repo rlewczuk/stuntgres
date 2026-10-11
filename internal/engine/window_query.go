@@ -22,7 +22,10 @@ type windowOrderState struct {
 	values     []sqltype.Value
 	partitions []windowPartition
 }
-type windowFrameOffsets struct{ start, end sqltype.Value }
+type windowFrameOffsets struct {
+	start, end           sqltype.Value
+	groupStart, groupEnd int64
+}
 
 func compareWindowRows(ctx context.Context, keys []sortKey, values []sqltype.Value, a, b int, input sqltype.InputEnvironment) (int, error) {
 	width := len(keys)
@@ -57,7 +60,7 @@ func compareWindowRows(ctx context.Context, keys []sortKey, values []sqltype.Val
 func evaluateWindowOffsets(ctx context.Context, state *queryState, spec boundWindowSpec) (windowFrameOffsets, error) {
 	var values windowFrameOffsets
 	evaluation := state.evaluation(ctx)
-	for i, bound := range [2]boundRangeBound{spec.frame.start, spec.frame.end} {
+	for i, bound := range [2]boundWindowBound{spec.frame.start, spec.frame.end} {
 		if bound.offset == nil {
 			continue
 		}
@@ -74,6 +77,27 @@ func evaluateWindowOffsets(ctx context.Context, state *queryState, spec boundWin
 				word = "ending"
 			}
 			return values, sqlError("22004", "frame "+word+" offset must not be null")
+		}
+		if spec.frame.unit == parser.FrameGroups {
+			size, err := value.Integer()
+			if err != nil {
+				return values, err
+			}
+			if err := ctx.Err(); err != nil {
+				return values, err
+			}
+			if size < 0 {
+				word := "starting"
+				if i == 1 {
+					word = "ending"
+				}
+				return values, sqlError("22013", "frame "+word+" offset must not be negative")
+			}
+			if i == 0 {
+				values.groupStart = size
+			} else {
+				values.groupEnd = size
+			}
 		}
 		if i == 0 {
 			values.start = value
@@ -173,7 +197,7 @@ func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedSt
 
 // A cursor advances monotonically over the half-open frame. NULL membership is
 // ordering membership, not arithmetic: strict support never receives NULL keys.
-func windowFrameEndpoint(ctx context.Context, spec boundWindowSpec, bound boundRangeBound, offset sqltype.Value, ordered windowOrderState, rows []int, peerStart, peerEnd, cursor int, upper bool, input sqltype.InputEnvironment) (int, error) {
+func windowFrameEndpoint(ctx context.Context, spec boundWindowSpec, bound boundWindowBound, offset sqltype.Value, ordered windowOrderState, rows []int, peerStart, peerEnd, cursor int, upper bool, input sqltype.InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -223,6 +247,38 @@ func windowFrameEndpoint(ctx context.Context, spec boundWindowSpec, bound boundR
 		cursor++
 	}
 	return cursor, ctx.Err()
+}
+
+// GROUPS maps a peer ordinal to complete half-open row boundaries. Check the
+// distance before arithmetic/conversion: even MaxInt64 offsets cannot wrap.
+func windowGroupsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offset int64, peerEnds []int, group int, upper bool) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	count := len(peerEnds)
+	switch kind {
+	case parser.FrameUnboundedPreceding:
+		return 0, nil
+	case parser.FrameUnboundedFollowing:
+		return peerEnds[count-1], nil
+	case parser.FrameOffsetPreceding:
+		if offset > int64(group) {
+			return 0, nil
+		}
+		group -= int(offset)
+	case parser.FrameOffsetFollowing:
+		if offset >= int64(count-group) {
+			return peerEnds[count-1], nil
+		}
+		group += int(offset)
+	}
+	if upper {
+		return peerEnds[group], nil
+	}
+	if group == 0 {
+		return 0, nil
+	}
+	return peerEnds[group-1], nil
 }
 
 func windowFrameCount(ctx context.Context, usage sqltype.Usage, head, tail int) (sqltype.Value, error) {
@@ -293,7 +349,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		if len(n.sortIndices) > 0 {
 			sortIndex = n.sortIndices[specIndex]
 		}
-		ordered := orders[sortIndex]
+		ordered := &orders[sortIndex]
 		for partitionIndex := range ordered.partitions {
 			partition := &ordered.partitions[partitionIndex]
 			if demanded[specIndex] && len(spec.order) > 0 && partition.peerEnds == nil {
@@ -319,17 +375,26 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					return indexedStage{}, err
 				}
 				end := len(partition.rows)
+				group := peer
 				if len(partition.peerEnds) > 0 {
 					end = partition.peerEnds[peer]
 					peer++
 				}
 				var counted sqltype.Value
 				if demanded[specIndex] {
-					head, err = windowFrameEndpoint(ctx, spec, spec.frame.start, offsets[specIndex].start, ordered, partition.rows, start, end, head, false, state.input)
+					if spec.frame.unit == parser.FrameGroups {
+						head, err = windowGroupsEndpoint(ctx, spec.frame.start.kind, offsets[specIndex].groupStart, partition.peerEnds, group, false)
+					} else {
+						head, err = windowFrameEndpoint(ctx, spec, spec.frame.start, offsets[specIndex].start, *ordered, partition.rows, start, end, head, false, state.input)
+					}
 					if err != nil {
 						return indexedStage{}, err
 					}
-					tail, err = windowFrameEndpoint(ctx, spec, spec.frame.end, offsets[specIndex].end, ordered, partition.rows, start, end, tail, true, state.input)
+					if spec.frame.unit == parser.FrameGroups {
+						tail, err = windowGroupsEndpoint(ctx, spec.frame.end.kind, offsets[specIndex].groupEnd, partition.peerEnds, group, true)
+					} else {
+						tail, err = windowFrameEndpoint(ctx, spec, spec.frame.end, offsets[specIndex].end, *ordered, partition.rows, start, end, tail, true, state.input)
+					}
 					if err != nil {
 						return indexedStage{}, err
 					}

@@ -7,8 +7,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindRangeBound(raw parser.FrameBound, order []sortKey) (boundRangeBound, error) {
-	bound := boundRangeBound{kind: raw.Kind}
+func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKey, unit parser.FrameUnit) (boundWindowBound, error) {
+	bound := boundWindowBound{kind: raw.Kind}
 	if raw.Offset == nil {
 		return bound, nil
 	}
@@ -16,6 +16,12 @@ func (b *expressionBinder) bindRangeBound(raw parser.FrameBound, order []sortKey
 	aggregates, windows := b.aggregates, b.windowCalls
 	b.aggregateClause = "window RANGE"
 	defer func() { b.aggregateClause = old; b.aggregates = aggregates; b.windowCalls = windows }()
+	if unit == parser.FrameGroups {
+		b.aggregateClause = "window GROUPS"
+		var err error
+		bound.offset, err = b.bindQueryBound(raw.Offset, "GROUPS", viewWindowLiteral, false)
+		return bound, err
+	}
 	operand, err := b.comparisonOperand(raw.Offset)
 	if err != nil {
 		return bound, err

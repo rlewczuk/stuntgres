@@ -27,7 +27,7 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 	}
 	ctx := context.Background()
 	evaluation := EvalContext{Context: ctx}
-	for _, pair := range [][2]boundRangeBound{{before.start, next.specs[0].frame.start}, {before.end, next.specs[0].frame.end}} {
+	for _, pair := range [][2]boundWindowBound{{before.start, next.specs[0].frame.start}, {before.end, next.specs[0].frame.end}} {
 		old, bound := pair[0], pair[1]
 		if bound.kind != old.kind || bound.offset == old.offset || bound.support == old.support || bound.offset.ResultUsage().Type != types[sqltype.Int4] || old.offset.ResultUsage().Type == types[sqltype.Int4] {
 			t.Fatal("support/offset ownership", old, bound)

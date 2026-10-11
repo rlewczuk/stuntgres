@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -502,9 +503,9 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					spec.order[j].comparison, err = sqltype.BindOrdering(spec.order[j].expression.ResultUsage())
 				}
 			}
-			for _, bound := range []*boundRangeBound{&spec.frame.start, &spec.frame.end} {
+			for _, bound := range []*boundWindowBound{&spec.frame.start, &spec.frame.end} {
 				bound.offset = expression(bound.offset)
-				if err == nil {
+				if err == nil && spec.frame.unit == parser.FrameRange {
 					bound.support, err = bound.support.Remap(m.typ)
 				}
 			}

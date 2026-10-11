@@ -1152,7 +1152,11 @@ func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, erro
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, "RANGE BETWEEN "+start+" AND "+end)
+		unit := "RANGE"
+		if spec.Frame.Unit == parser.FrameGroups {
+			unit = "GROUPS"
+		}
+		parts = append(parts, unit+" BETWEEN "+start+" AND "+end)
 	}
 	return strings.Join(parts, " "), nil
 }

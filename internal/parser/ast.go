@@ -881,7 +881,7 @@ type WindowSpec struct {
 	Name      *Identifier
 	Partition []Expr
 	Order     []OrderKey
-	Frame     *RangeFrame
+	Frame     *WindowFrame
 	Pos       Position
 	Bare      bool
 }
@@ -890,6 +890,14 @@ type WindowDefinition struct {
 	Name Identifier
 	Spec WindowSpec
 }
+
+// FrameRange is zero so implicit/default frames retain RANGE semantics.
+type FrameUnit uint8
+
+const (
+	FrameRange FrameUnit = iota
+	FrameGroups
+)
 
 type FrameBoundKind uint8
 
@@ -907,7 +915,8 @@ type FrameBound struct {
 	Pos    Position
 }
 
-type RangeFrame struct {
+type WindowFrame struct {
+	Unit       FrameUnit
 	Start, End FrameBound
 	Pos        Position
 }

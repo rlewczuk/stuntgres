@@ -404,6 +404,21 @@ The public persistent-definition and four-row2/4/3/2 overlay witnesses migrated
 from native window units; actual staged cancellation/descriptor mechanics remain
 package units. Native Dump/Restore phases have no invented PostgreSQL API.
 
+GROUPS coverage uses `make check RUN='^TestReferenceQueryWindowGroups'` and
+`make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroups'` (900 seconds each).
+Focused smoke selects `^TestReferenceQueryWindowGroupsFeatureSmoke$` in both modes.
+Shared scenarios independently specify complete peer rows/types, bigint coercion,
+start/end diagnostics/stages/carets, empty/all-NULL demand, volatile named identity,
+authorization, prepared recovery, atomicity and cancellation. GROUPS negatives
+raise22013 even for empty/all-NULL demanded frames; do not reuse RANGE's relaxed
+support-demand expectations. Native-control phases use actual pristine Dump/Restore
+and retained cursors, not PostgreSQL script replay as a substitute. Native units
+select `^TestQueryWindowGroups` (also `RACE=1`) for safe peer endpoints, actual
+offset/validation/sort/peer/group/count/output/prepublication cancellation,
+immutable graph remap/identity, exact descriptors and INSERT Finish veto.
+Because the shared representation also carries RANGE, final selected proof includes
+`^TestReferenceQueryWindow` in both modes and `^TestQueryWindow` native units.
+
 Parser scratch reuse is an internal allocation change, not a parsed-result cache.
 Each SQL parse, restricted INSERT replay and standalone type-input parse borrows
 an exclusive generated receiver. The whole receiver is cleared before return,

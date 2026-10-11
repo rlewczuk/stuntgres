@@ -121,7 +121,7 @@ type sqlSymType struct {
 	windowOver         windowOverClause
 	windows            []WindowDefinition
 	window             WindowDefinition
-	rangeFrame         *RangeFrame
+	windowFrame        *WindowFrame
 	frameBound         FrameBound
 	groupClause        *GroupClause
 	groupItems         []GroupItem
@@ -13624,13 +13624,13 @@ sqldefault:
 	case 1127:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.windowSpec = &WindowSpec{Name: sqlDollar[1].identifier, Partition: sqlDollar[2].row, Order: sqlDollar[3].orderKeys, Frame: sqlDollar[4].rangeFrame}
+			sqlVAL.windowSpec = &WindowSpec{Name: sqlDollar[1].identifier, Partition: sqlDollar[2].row, Order: sqlDollar[3].orderKeys, Frame: sqlDollar[4].windowFrame}
 		}
 	case 1128:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.rangeFrame, ok = makeRangeFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[2].frameBound, FrameBound{Kind: FrameCurrentRow, Pos: sqlDollar[2].frameBound.Pos}, sqlDollar[3].tok)
+			sqlVAL.windowFrame, ok = makeWindowFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[2].frameBound, FrameBound{Kind: FrameCurrentRow, Pos: sqlDollar[2].frameBound.Pos}, sqlDollar[3].tok, false)
 			if !ok {
 				return 1
 			}
@@ -13639,7 +13639,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.rangeFrame, ok = makeRangeFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[3].frameBound, sqlDollar[5].frameBound, sqlDollar[6].tok)
+			sqlVAL.windowFrame, ok = makeWindowFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[3].frameBound, sqlDollar[5].frameBound, sqlDollar[6].tok, true)
 			if !ok {
 				return 1
 			}

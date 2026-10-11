@@ -30,10 +30,14 @@ func (c *windowCancelContext) Err() error {
 		n := runtime.Callers(2, pcs[:])
 		frames := runtime.CallersFrames(pcs[:n])
 		window, merge, compare, hash, equal, prepare, key, advance, finalize, output, publication := false, false, false, false, false, false, false, false, false, false, false
-		offset, inrange := false, false
+		offset, inrange, groups, offsetEval := false, false, false, false
+		caller := ""
 		for {
 			frame, more := frames.Next()
 			name := frame.Function
+			if caller == "" {
+				caller = name
+			}
 			window = window || strings.HasSuffix(name, ".openWindowNode")
 			merge = merge || strings.Contains(name, ".mergeQueryIndices")
 			compare = compare || strings.HasSuffix(name, ".Comparison.Compare")
@@ -44,6 +48,8 @@ func (c *windowCancelContext) Err() error {
 			advance = advance || strings.HasSuffix(name, ".windowFrameEndpoint")
 			offset = offset || strings.HasSuffix(name, ".evaluateWindowOffsets")
 			inrange = inrange || strings.HasSuffix(name, ".RangeSupport.InRange")
+			groups = groups || strings.HasSuffix(name, ".windowGroupsEndpoint")
+			offsetEval = offsetEval || strings.Contains(name, "literalExpression.Eval")
 			finalize = finalize || strings.HasSuffix(name, ".windowFrameCount")
 			output = output || strings.Contains(name, "windowExpression).Eval")
 			publication = publication || strings.HasSuffix(name, ".finalizeQuery")
@@ -72,6 +78,14 @@ func (c *windowCancelContext) Err() error {
 			hit = window && offset
 		case "inrange":
 			hit = window && inrange
+		case "groups-offset":
+			hit = window && offset && offsetEval
+		case "groups-validation":
+			// Child Eval/coercion may also check context after the literal has
+			// returned. Only the direct offset-validator checkpoint qualifies.
+			hit = window && strings.HasSuffix(caller, ".evaluateWindowOffsets")
+		case "groups-frame":
+			hit = window && groups
 		case "count":
 			hit = window && finalize
 		case "output":

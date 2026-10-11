@@ -31,7 +31,7 @@ type boundWindowSpec struct {
 	grouping   []sqltype.Grouping
 	order      []sortKey
 	orderMap   []int // Raw-to-effective mapping, for literal capture only.
-	frame      boundRangeFrame
+	frame      boundWindowFrame
 	explicit   bool
 	definition int // Query-local named ordinal+1; zero retains inline spec identity.
 }
@@ -42,12 +42,15 @@ type windowCall struct {
 	raw        *parser.WindowSpec
 }
 
-type boundRangeBound struct {
+type boundWindowBound struct {
 	kind    parser.FrameBoundKind
 	offset  BoundExpr
 	support sqltype.RangeSupport
 }
-type boundRangeFrame struct{ start, end boundRangeBound }
+type boundWindowFrame struct {
+	unit       parser.FrameUnit
+	start, end boundWindowBound
+}
 
 // A same-query call owns only its own argument occurrences. Evidence is checked
 // after that call resolves, so an invalid signature is never hidden by nesting.
@@ -80,7 +83,7 @@ func (b *expressionBinder) windowAllowed(pos parser.Position) error {
 	} else if b.defaultConsumer {
 		clause = "DEFAULT expressions"
 	}
-	if clause == "window definitions" || clause == "window RANGE" {
+	if clause == "window definitions" || clause == "window RANGE" || clause == "window GROUPS" {
 		return expressionError("42P20", "window functions are not allowed in window definitions", pos)
 	}
 	if clause != "SELECT" && clause != "ORDER BY" && clause != "DISTINCT ON" {
@@ -301,7 +304,7 @@ func (b *expressionBinder) resolveWindows() error {
 		return err
 	}
 	for i := range b.windowCalls {
-		spec, err := b.bindWindowSpec(*b.windowCalls[i].raw, b.windowDefinitions)
+		spec, err := b.bindWindowSpec(*b.windowCalls[i].raw, b.windowDefinitions, true)
 		if err != nil {
 			return err
 		}
@@ -382,7 +385,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 		if _, ok := b.windowDefinitions[definition.Name.Text]; ok {
 			return expressionError("42P20", fmt.Sprintf(`window "%s" is already defined`, definition.Name.Text), definition.Spec.Pos)
 		}
-		spec, err := b.bindWindowSpec(definition.Spec, b.windowDefinitions)
+		spec, err := b.bindWindowSpec(definition.Spec, b.windowDefinitions, false)
 		if err != nil {
 			return err
 		}
@@ -413,7 +416,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 	}
 	return nil
 }
-func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[string]boundWindowSpec) (boundWindowSpec, error) {
+func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[string]boundWindowSpec, overClause bool) (boundWindowSpec, error) {
 	var parent boundWindowSpec
 	if raw.Name != nil {
 		var ok bool
@@ -489,7 +492,7 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 		}
 		if parent.explicit {
 			d := expressionError("42P20", fmt.Sprintf(`cannot copy window "%s" because it has a frame clause`, raw.Name.Text), raw.Pos).(*sqlstate.Error)
-			if len(raw.Partition) == 0 && len(raw.Order) == 0 && raw.Frame == nil {
+			if overClause && len(raw.Partition) == 0 && len(raw.Order) == 0 && raw.Frame == nil {
 				d.Hint = "Omit the parentheses in this OVER clause."
 			}
 			return spec, d
@@ -500,15 +503,19 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 		}
 	}
 	if raw.Frame != nil {
-		if (raw.Frame.Start.Offset != nil || raw.Frame.End.Offset != nil) && len(spec.order) != 1 {
+		spec.frame.unit = raw.Frame.Unit
+		if raw.Frame.Unit == parser.FrameGroups && len(spec.order) == 0 {
+			return spec, expressionError("42P20", "GROUPS mode requires an ORDER BY clause", raw.Pos)
+		}
+		if raw.Frame.Unit == parser.FrameRange && (raw.Frame.Start.Offset != nil || raw.Frame.End.Offset != nil) && len(spec.order) != 1 {
 			return spec, expressionError("42P20", "RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column", raw.Pos)
 		}
 		var err error
-		spec.frame.start, err = b.bindRangeBound(raw.Frame.Start, spec.order)
+		spec.frame.start, err = b.bindWindowBound(raw.Frame.Start, spec.order, raw.Frame.Unit)
 		if err != nil {
 			return spec, err
 		}
-		spec.frame.end, err = b.bindRangeBound(raw.Frame.End, spec.order)
+		spec.frame.end, err = b.bindWindowBound(raw.Frame.End, spec.order, raw.Frame.Unit)
 		if err != nil {
 			return spec, err
 		}
@@ -516,10 +523,10 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 	return spec, nil
 }
 func (b *expressionBinder) sameWindowSpec(a, c boundWindowSpec) bool {
-	if a.definition != c.definition || !b.sameWindowSort(a, c) || a.explicit != c.explicit {
+	if a.definition != c.definition || a.frame.unit != c.frame.unit || !b.sameWindowSort(a, c) || a.explicit != c.explicit {
 		return false
 	}
-	for _, pair := range [2][2]boundRangeBound{{a.frame.start, c.frame.start}, {a.frame.end, c.frame.end}} {
+	for _, pair := range [2][2]boundWindowBound{{a.frame.start, c.frame.start}, {a.frame.end, c.frame.end}} {
 		if pair[0].kind != pair[1].kind || pair[0].support != pair[1].support {
 			return false
 		}
@@ -564,7 +571,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 					return nil, err
 				}
 			}
-			for _, bound := range [2]boundRangeBound{spec.frame.start, spec.frame.end} {
+			for _, bound := range [2]boundWindowBound{spec.frame.start, spec.frame.end} {
 				if bound.offset != nil {
 					if _, err := b.rewriteGroup(bound.offset, keys); err != nil {
 						return nil, err

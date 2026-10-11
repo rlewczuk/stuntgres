@@ -1,6 +1,6 @@
 package parser
 
-func makeRangeFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lexeme) (*RangeFrame, bool) {
+func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lexeme, between bool) (*WindowFrame, bool) {
 	message := ""
 	pos := end.Pos
 	switch {
@@ -9,6 +9,9 @@ func makeRangeFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lexe
 		pos = start.Pos
 	case end.Kind == FrameUnboundedPreceding:
 		message = "frame end cannot be UNBOUNDED PRECEDING"
+	case unit.text == "groups" && !between && start.Kind == FrameOffsetFollowing:
+		message = "frame starting from following row cannot end with current row"
+		pos = start.Pos
 	case start.Kind == FrameCurrentRow && end.Kind == FrameOffsetPreceding:
 		message = "frame starting from current row cannot have preceding rows"
 	case start.Kind == FrameOffsetFollowing && (end.Kind == FrameCurrentRow || end.Kind == FrameOffsetPreceding):
@@ -18,7 +21,7 @@ func makeRangeFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lexe
 		l.failAt("42P20", message, pos.Offset)
 		return nil, false
 	}
-	if unit.text != "range" {
+	if unit.text != "range" && unit.text != "groups" {
 		l.failAt("0A000", "explicit window frames are unsupported", unit.pos.Offset)
 		return nil, false
 	}
@@ -26,7 +29,11 @@ func makeRangeFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lexe
 		l.failAt("0A000", "explicit window frames are unsupported", unit.pos.Offset)
 		return nil, false
 	}
-	return &RangeFrame{Start: start, End: end, Pos: unit.pos}, true
+	frameUnit := FrameRange
+	if unit.text == "groups" {
+		frameUnit = FrameGroups
+	}
+	return &WindowFrame{Unit: frameUnit, Start: start, End: end, Pos: unit.pos}, true
 }
 
 // Offsets is a fixed-size borrowed expression view for every parser visitor.
