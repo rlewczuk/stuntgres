@@ -74,16 +74,20 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]B
 	if err := validateTargets(b.arrayTargets); err != nil {
 		return err
 	}
-	if b.update != nil {
-		if err := validateTargets(b.update.arrayTargets); err != nil {
+	action := b.update
+	if b.conflict != nil && b.conflict.update != nil {
+		action = b.conflict.update
+	}
+	if action != nil {
+		if err := validateTargets(action.arrayTargets); err != nil {
 			return err
 		}
-		for _, expression := range b.update.assignments {
+		for _, expression := range action.assignments {
 			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
 			}
 		}
-		if err := validateExpressionJoinExecution(&owner, b.update.predicate, catalog); err != nil {
+		if err := validateExpressionJoinExecution(&owner, action.predicate, catalog); err != nil {
 			return err
 		}
 	} else if err := validateExpressionJoinExecution(&owner, b.predicate, catalog); err != nil {

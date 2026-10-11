@@ -85,12 +85,14 @@ type lockResource struct {
 	completion *relationTicket
 }
 type relationTicket struct {
-	manager    *relationLockManager
-	ref        TxRef
-	session    SessionToken
-	persistent bool
-	detached   bool // prepared transaction: independent of its former physical session
-	resources  map[lockResource]struct{}
+	manager           *relationLockManager
+	ref               TxRef
+	session           SessionToken
+	persistent        bool
+	detached          bool // prepared transaction: independent of its former physical session
+	resources         map[lockResource]struct{}
+	uniqueDeltaActive bool
+	uniqueDelta       []lockResource
 }
 type relationRequest struct {
 	ticket       *relationTicket

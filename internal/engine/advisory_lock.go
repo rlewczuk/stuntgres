@@ -95,6 +95,9 @@ func (m *relationLockManager) grant(t *relationTicket, ref lockResource, e *rela
 	} else if held.mode&mode == mode {
 		return nil
 	}
+	if t.uniqueDeltaActive && !t.persistent && ref.kind == ordinaryResource && ref.key != nil && mode&uniqueClaim != 0 && held.mode&uniqueClaim == 0 {
+		t.uniqueDelta = append(t.uniqueDelta, ref)
+	}
 	held.mode |= mode
 	if t.resources == nil {
 		t.resources = make(map[lockResource]struct{})

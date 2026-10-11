@@ -28,6 +28,15 @@ type boundInsertConflict struct {
 	statementKeys relationLockCheckpoint
 	affected      int
 	targets       []int
+	update        *boundUpdate
+	updateTargets []int
+	actionReads   []int
+	sources       []queryLeaf
+	frame         []sqltype.Value
+	width         int
+	affectedRows  map[RowID]int
+	ownRowSlots   map[RowID]int
+	overlays      map[*uniqueBoundKey]*conflictUpdateOverlay
 }
 
 // Analysis resolves names/types/read manifests; selecting installed providers
@@ -35,6 +44,11 @@ type boundInsertConflict struct {
 func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth AuthorizationView, raw *parser.InsertConflict) error {
 	if raw == nil {
 		return nil
+	}
+	if raw.Update && len(raw.Keys) == 0 && raw.Constraint.Text == "" {
+		d := expressionError("42601", "ON CONFLICT DO UPDATE requires inference specification or constraint name", raw.OnPos).(*sqlstate.Error)
+		d.Hint = "For example, ON CONFLICT (column_name)."
+		return d
 	}
 	c := &boundInsertConflict{constraint: raw.Constraint.Text, targets: b.targets}
 	b.conflict = c
@@ -89,6 +103,9 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	binder.parameters = shared.parameters
 	binder.expected = shared.expected
 	binder.noParameters = false
+	if raw.Update {
+		binder.queryHidden = append(binder.queryHidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
+	}
 	c.keys = make([]conflictKey, len(raw.Keys))
 	for i, key := range raw.Keys {
 		if key.DirectionExplicit {
@@ -181,6 +198,9 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 		}
 		if c.constraint != "" {
 			if index.address == c.namedIndex {
+				if c.update != nil && def.isExclusion() {
+					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
+				}
 				c.selected = append(c.selected, index.address)
 			}
 			continue

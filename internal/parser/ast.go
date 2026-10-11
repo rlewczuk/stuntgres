@@ -677,6 +677,7 @@ type dropTarget struct {
 
 type Insert struct {
 	Name          ObjectName
+	Alias         Identifier
 	Targets       []InsertTarget
 	Rows          [][]Expr
 	Source        *InsertSource
@@ -686,13 +687,19 @@ type Insert struct {
 	Conflict      *InsertConflict
 }
 
-// InsertConflict is absent for ordinary insertion. An empty target means all
-// enforcing providers; Keys and Constraint retain distinct inference authority.
+// InsertConflict is absent for ordinary insertion. An empty DO NOTHING target
+// means all enforcing providers; UPDATE requires inference or a constraint.
+// Predicate belongs to inference, Where to the action; Pos and OnPos retain
+// their distinct diagnostic authority.
 type InsertConflict struct {
-	Keys       []IndexKey
-	Predicate  Expr
-	Constraint Identifier
-	Pos        Position
+	Keys        []IndexKey
+	Predicate   Expr
+	Constraint  Identifier
+	Pos         Position
+	OnPos       Position
+	Update      bool
+	Assignments []UpdateAssignment
+	Where       Expr
 }
 
 type InsertTarget struct {

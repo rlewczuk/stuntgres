@@ -37,25 +37,34 @@ func (m *relationLockManager) retireUniqueKey(key *uniqueLockKey) {
 	}
 }
 
-// Providers run outside every manager/engine/session metadata mutex. Pinning
-// reserves the exact interned resource across startAcquire; its normal entry
-// owns checkpoint, queue, timeout, deadlock, outcome and epoch lifetimes.
-func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lockResource, func(), error) {
+// Both lock interning and the conflict command's private overlay use this
+// provider bucket. Ordering comparison, never the hash, decides equality.
+func uniqueKeyHash(ctx context.Context, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (uint64, error) {
 	hash := uint64(14695981039346656037)
 	for i, value := range values {
 		var h uint64
 		class := ordering.keys[i].class
 		defaultClass, _ := sqltype.DefaultIndexClass(value.Type())
-		// Nondefault equality can be coarser than the type's grouping hash
-		// (TEXT bpchar_ops ignores trailing spaces). Compare within one bucket.
+		// Nondefault equality can be coarser than the type's grouping hash.
 		if class.Name == "" || class.Name == defaultClass.Name {
 			var err error
 			h, err = grouping[i].Hash(ctx, value)
 			if err != nil {
-				return lockResource{}, nil, err
+				return 0, err
 			}
 		}
 		hash = (hash ^ h) * 1099511628211
+	}
+	return hash, nil
+}
+
+// Providers run outside every manager/engine/session metadata mutex. Pinning
+// reserves the exact interned resource across startAcquire; its normal entry
+// owns checkpoint, queue, timeout, deadlock, outcome and epoch lifetimes.
+func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lockResource, func(), error) {
+	hash, err := uniqueKeyHash(ctx, ordering, grouping, values)
+	if err != nil {
+		return lockResource{}, nil, err
 	}
 	identity := uniqueLockBucket{ObjectRef: ref, hash: hash}
 	for {

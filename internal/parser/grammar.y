@@ -329,7 +329,7 @@ package parser
 %type <collation> column_collation
 %type <expr> alter_using
 %type <stmt> delete
-%type <tok> delete_alias update_alias from_alias
+%type <tok> delete_alias update_alias from_alias insert_alias
 %type <returning> returning
 %type <returningAliases> returning_aliases returning_options
 %type <returningAlias> returning_option
@@ -1341,14 +1341,15 @@ insert: insert_base insert_conflict { $1.Conflict=$2;$$=$1 }
  | insert_base insert_conflict RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$3.pos.Offset);return 1 }
  | insert_base suffix { sqllex.(*lexer).capability($2,unsupportedSuffixes,"INSERT suffix is unsupported");return 1 } ;
 insert_head: INSERT INTO {sqllex.(*lexer).insertStatement=true;$$=$1} ;
-insert_base: insert_head relation_name insert_input { $$=insertStatement($2,nil,$3,$1.pos) }
- | insert_head relation_name '(' insert_targets ')' insert_input { $$=insertStatement($2,$4,$6,$1.pos) }
- | insert_head relation_name insert_override insert_input { $$=insertStatement($2,nil,$4,$1.pos);$$.Override=$3 }
- | insert_head relation_name '(' insert_targets ')' insert_override insert_input { $$=insertStatement($2,$4,$7,$1.pos);$$.Override=$6 }
- | insert_head relation_name DEFAULT VALUES { $$=&Insert{Name:$2,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
+insert_alias: /* empty */ { $$=lexeme{} } | AS name { $$=$2 } ;
+insert_base: insert_head relation_name insert_alias insert_input { $$=insertStatement($2,nil,$4,$1.pos);$$.Alias=Identifier{Text:$3.text,Pos:$3.pos} }
+ | insert_head relation_name insert_alias '(' insert_targets ')' insert_input { $$=insertStatement($2,$5,$7,$1.pos);$$.Alias=Identifier{Text:$3.text,Pos:$3.pos} }
+ | insert_head relation_name insert_alias insert_override insert_input { $$=insertStatement($2,nil,$5,$1.pos);$$.Override=$4;$$.Alias=Identifier{Text:$3.text,Pos:$3.pos} }
+ | insert_head relation_name insert_alias '(' insert_targets ')' insert_override insert_input { $$=insertStatement($2,$5,$8,$1.pos);$$.Override=$7;$$.Alias=Identifier{Text:$3.text,Pos:$3.pos} }
+ | insert_head relation_name insert_alias DEFAULT VALUES { $$=&Insert{Name:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
 insert_conflict: /* empty */ {$$=nil}
- | ON_CONFLICT_LA CONFLICT conflict_target DO NOTHING {$$=$3}
- | ON_CONFLICT_LA CONFLICT conflict_target DO UPDATE {sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$5.pos.Offset);return 1} ;
+ | ON_CONFLICT_LA CONFLICT conflict_target DO NOTHING {$3.OnPos=$1.pos;$$=$3}
+ | ON_CONFLICT_LA CONFLICT conflict_target DO UPDATE SET update_assignments where {$3.OnPos=$1.pos;$3.Update=true;$3.Assignments=$7;$3.Where=$8;$$=$3} ;
 conflict_target: /* empty */ {$$=&InsertConflict{}}
  | conflict_open index_keys ')' conflict_predicate {sqllex.(*lexer).indexExpression=false;$$=&InsertConflict{Keys:insertConflictKeys($2),Predicate:$4,Pos:$1.pos}}
  | ON CONSTRAINT name {$$=&InsertConflict{Constraint:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}} ;

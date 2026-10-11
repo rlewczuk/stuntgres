@@ -490,6 +490,37 @@ replacement fences it through the existing epoch/storage authority.
 Feature smoke: `make check RUN='^TestSavepointsSmoke$'`.
 
 
+## INSERT conflict update
+
+`ON CONFLICT ... DO UPDATE` shares the statement's atomic write owner. Ordered
+inserts and replacements publish together; a late error, required producer Close
+failure or cancellation publishes no prefix and leaves an explicit transaction
+failed until ordinary rollback/savepoint recovery. Already demanded sequence
+draws remain consumed. Prior transaction writes and grants survive a failed
+statement or recovery according to their existing savepoint lifetime.
+
+The captured source snapshot never expands across conflict waits or sees earlier
+action writes from this command. READ COMMITTED/READ UNCOMMITTED may nevertheless
+act on a newly committed selected row absent from that source. Native row recovery
+checks exact storage/row/version identity and current payload before WHERE/SET.
+Movement/deletion restarts the completed proposal without repeating its source or
+defaults. REPEATABLE READ/SERIALIZABLE selected post-frontier updates/deletions
+fail40001 before FALSE/NULL filtering. A deletion before selection can leave no
+hit and allow a fresh inserted identity; a retained snapshot can then still show
+the old identity alongside that transaction's new row.
+
+Payload SET uses NO KEY UPDATE; assigning an installed simple, nonpartial unique
+key column uses UPDATE even for self-assignment or a false predicate. Partial/
+expression keys and INCLUDE-only payload do not enlarge that key-column bitmap.
+FALSE/NULL retains the acquired row lock until transaction end or recovery.
+Candidate-new unique claims are released before a conflicting logical-row wait,
+without dropping earlier command/transaction claims or unrelated session resources.
+Native rechecks full target/action/source rights after conflict waits: ACL-only
+descriptor changes reach42501, while actual storage/shape/epoch replacement remains
+fenced. PostgreSQL retains its admitted command's startup ACL decision. Successful
+statement authority is still retained through Commit, as for other writes.
+See [action and cardinality rules](QUERIES.md#insert-conflict-update--change-note).
+
 ## Relation locks
 
 Ordinary SELECT acquires transaction-owned ACCESS SHARE; locking SELECT acquires

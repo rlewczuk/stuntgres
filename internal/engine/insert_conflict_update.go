@@ -1,0 +1,204 @@
+package engine
+
+import (
+	"errors"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// Each proposal is already projected and constrained. Only arbitration is
+// restarted after a row wait; defaults, the source and SET are never replayed.
+func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sqltype.Value, proposalEvaluation *EvalContext) error {
+	c := s.insertConflict
+	e := s.op.session.Engine()
+	manager := e.locks
+	manager.beginUniqueDelta(s.ticket)
+	defer manager.endUniqueDelta(s.ticket)
+	// Borrow the producer's one captured query state and canonical parameters.
+	// Action columns are an independent target/excluded frame, not source rows.
+	evaluation := *proposalEvaluation
+	evaluation.Scope, evaluation.Frame = 1, 1
+	evaluation.OldRow = nil
+	for {
+		if err := evaluation.Context.Err(); err != nil {
+			return err
+		}
+		hit, err := s.probeUniqueRow(ref, proposal, nil, nil, c)
+		if err != nil {
+			return err
+		}
+		if hit.index == nil {
+			other, err := s.probeUniqueRow(ref, proposal, nil, nil, nil)
+			if err != nil {
+				return err
+			}
+			if c.catalog != s.uniqueBinding.catalog {
+				manager.restoreUniqueDelta(s.ticket)
+				s.discardExclusionCandidate(ref, proposal)
+				continue
+			}
+			if other.index != nil {
+				return other.diagnostic(s, ref)
+			}
+			if err := s.Writes().applyValidated(ref, [][]sqltype.Value{proposal}); err != nil {
+				return err
+			}
+			staged := s.stage.rows[ref.Address]
+			c.markAffected(staged[len(staged)-1].row, len(staged)-1)
+			return nil
+		}
+		// A speculative key must never be held while queuing for the selected row.
+		// Restore only this candidate's newly granted keys, preserving prior claims.
+		manager.restoreUniqueDelta(s.ticket)
+		s.discardExclusionCandidate(ref, proposal)
+		mode := noKeyUpdate
+		for _, target := range c.updateTargets {
+			for _, key := range s.uniqueBinding.keySlots {
+				if target == key {
+					mode = rowUpdate
+				}
+			}
+		}
+		if err := s.acquireUpdateRowMode(ref, hit.row.row, mode); err != nil {
+			return err
+		}
+		old, parent, schema, live, err := e.latestConflictUpdateRow(s, ref, hit)
+		if err != nil {
+			return err
+		}
+		if !live {
+			continue
+		}
+		// Reacquire row -> key, and demand the same physical identity under both.
+		checked, err := s.probeUniqueRow(ref, proposal, nil, nil, c)
+		if err != nil {
+			return err
+		}
+		if checked.index == nil || checked.row.row != old.row || checked.row.version != old.version {
+			manager.restoreUniqueDelta(s.ticket)
+			s.discardExclusionCandidate(ref, proposal)
+			continue
+		}
+		if _, duplicate := c.affectedRows[old.row]; duplicate {
+			return conflictUpdateCardinalityError()
+		}
+		if c.frame == nil {
+			c.frame = make([]sqltype.Value, 2*c.width)
+		}
+		copy(c.frame, old.values)
+		copy(c.frame[c.width:], proposal)
+		evaluation.Row = c.frame
+		matches, err := updateMatches(&evaluation, c.update.predicate)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			manager.restoreUniqueDelta(s.ticket)
+			s.discardExclusionCandidate(ref, proposal)
+			return nil
+		}
+		row, err := evaluateUpdateAssignments(&evaluation, c.update, c.updateTargets, old.values)
+		if err != nil {
+			return err
+		}
+		b := bindingForConflict(ref, parent, c)
+		// Constraint Detail can disclose SET outputs, not unread carried target data.
+		b.targets = c.updateTargets
+		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
+			return err
+		}
+		keyChanged, err := s.uniqueKeyChanged(ref, old.values, row)
+		if err != nil {
+			return err
+		}
+		if keyChanged && mode != rowUpdate {
+			if err := s.acquireUpdateRowMode(ref, old.row, rowUpdate); err != nil {
+				return err
+			}
+			current, _, _, live, err := e.latestConflictUpdateRow(s, ref, checked)
+			if err != nil {
+				return err
+			}
+			if !live || current.version != old.version {
+				return errors.New("stuntgres: conflict update predecessor changed under row lock")
+			}
+		}
+		if err := s.claimUniqueRow(ref, old.values); err != nil {
+			return err
+		}
+		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		if err := s.checkUniqueRow(ref, row, []rowVersion{old}, nil); err != nil {
+			return err
+		}
+		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, [][]sqltype.Value{row}); err != nil {
+			return err
+		}
+		c.markAffected(old.row, len(s.stage.rows[ref.Address])-1)
+		return nil
+	}
+}
+
+func (c *boundInsertConflict) markAffected(id RowID, slot int) {
+	if c.affectedRows == nil {
+		c.affectedRows = make(map[RowID]int)
+	}
+	c.affectedRows[id] = slot
+	c.affected++
+}
+func conflictUpdateCardinalityError() error {
+	d := sqlError("21000", "ON CONFLICT DO UPDATE command cannot affect row a second time").(*sqlstate.Error)
+	d.Hint = "Ensure that no rows proposed for insertion within the same command have duplicate constrained values."
+	return d
+}
+
+// Committed hits retain their provider's exact physical hint. Private overlays
+// are keyed by RowID, with this command's replacement ahead of prior writes.
+func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ObjectRef, candidate uniqueConflict) (rowVersion, *relationDescriptor, string, bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := s.validateLockedRelation(e); err != nil {
+		return rowVersion{}, nil, "", false, err
+	}
+	if ref.Epoch != e.state.epoch {
+		return rowVersion{}, nil, "", false, ErrCatalogReplaced
+	}
+	catalog := e.privateCatalogLocked(s.owner.catalog)
+	parent, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
+	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
+		return rowVersion{}, nil, "", false, ErrCatalogReplaced
+	}
+	auth, err := e.authorizationLocked(s.op)
+	if err != nil {
+		return rowVersion{}, nil, "", false, err
+	}
+	auth.catalog = catalog
+	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
+		return rowVersion{}, nil, "", false, err
+	}
+	namespace, ok := catalog.state.descriptors[parent.namespace].(*namespaceDescriptor)
+	if !ok {
+		return rowVersion{}, nil, "", false, ErrCatalogReplaced
+	}
+	var row rowVersion
+	var found bool
+	if candidate.committed {
+		row, _, found = rowByID(store.versions, candidate.row.row, candidate.position)
+	} else {
+		if slot, ok := s.insertConflict.affectedRows[candidate.row.row]; ok {
+			row, found = s.stage.rows[ref.Address][slot], true
+		}
+		if !found {
+			row, found = s.conflictUpdateOwnRow(ref, candidate.row.row)
+		}
+	}
+	if !found {
+		return rowVersion{}, nil, "", false, errors.New("stuntgres: invalid conflict update predecessor")
+	}
+	if err := s.repeatableConflict(row, store.ends); err != nil {
+		return rowVersion{}, nil, "", false, err
+	}
+	live := liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.row, s.stage.deletes[ref.Address])
+	return row, parent, namespace.name, live, nil
+}

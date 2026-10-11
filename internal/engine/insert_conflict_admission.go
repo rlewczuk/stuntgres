@@ -3,12 +3,15 @@ package engine
 import "stuntgres/internal/sqltype"
 
 func bindingForConflict(ref ObjectRef, parent *relationDescriptor, action *boundInsertConflict) binding {
-	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action}
+	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action, querySources: action.sources}
 }
-func (s *StatementScope) admitInsertRow(ref ObjectRef, row []sqltype.Value, prefix [][]sqltype.Value) (bool, error) {
+func (s *StatementScope) admitInsertRow(ref ObjectRef, row []sqltype.Value, prefix [][]sqltype.Value, evaluation *EvalContext) (bool, error) {
 	action := s.insertConflict
 	if action == nil {
 		return true, s.checkInsertUniqueRow(ref, row, prefix)
+	}
+	if action.update != nil {
+		return false, s.admitInsertConflictUpdate(ref, row, evaluation)
 	}
 	manager := s.op.session.Engine().locks
 	if action.statementKeys == nil {
@@ -52,6 +55,9 @@ func (s *StatementScope) insertConflictVisible(row rowVersion, committed bool) e
 
 func (w *WriteStage) applyInsertValidated(ref ObjectRef, rows [][]sqltype.Value) (int, error) {
 	count := len(rows)
+	if action := w.scope.insertConflict; action != nil && action.update != nil {
+		return action.affected, nil
+	}
 	if action := w.scope.insertConflict; action != nil {
 		action.affected = count
 	}
@@ -77,7 +83,7 @@ func (s *StatementScope) revalidateConflictRows(ref ObjectRef, rows [][]sqltype.
 	}
 	accepted := rows[:0]
 	for _, row := range rows {
-		admitted, err := s.admitInsertRow(ref, row, accepted)
+		admitted, err := s.admitInsertRow(ref, row, accepted, nil)
 		if err != nil {
 			return nil, err
 		}

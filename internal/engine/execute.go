@@ -291,6 +291,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
+	if b.conflict != nil && b.conflict.update != nil {
+		if boundary := partitionWriteExtensionBoundary(stmt, b.physicalBinding().relation); boundary != nil {
+			// Hierarchies have no conflict-update executor. Complete analysis
+			// and target/source authority before rejecting that capability,
+			// without demanding arbiters, defaults or routed row effects.
+			if err := auth.checkBinding(b, stmt); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+			e.mu.Unlock()
+			return Result{}, boundary
+		}
+	}
 	var creationStage *CatalogStage
 	var creationDescriptor *relationDescriptor
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
@@ -333,6 +346,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 			scope.insertConflict = b.conflict
+			if err := b.conflict.preflightUpdate(&evaluation); err != nil {
+				return Result{}, err
+			}
 		}
 		if inserting {
 			b.arrayTargets, err = preflightArrayTargets(&evaluation, b.arrayTargets)
@@ -681,7 +697,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
-				admitted, admitErr := scope.admitInsertRow(b.ref, row, rows)
+				admitted, admitErr := scope.admitInsertRow(b.ref, row, rows, &evaluation)
 				if admitErr != nil {
 					return Result{}, admitErr
 				}
@@ -729,7 +745,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			admitted, admitErr := scope.admitInsertRow(b.ref, row, rows)
+			admitted, admitErr := scope.admitInsertRow(b.ref, row, rows, &evaluation)
 			if admitErr != nil {
 				return Result{}, admitErr
 			}

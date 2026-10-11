@@ -68,7 +68,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	scope, ref := insertConflictUnitScope(t, f)
 	manager := f.e.locks
 	first := insertConflictUnitRow(t, f, 20)
-	admitted, err := scope.admitInsertRow(ref, first, nil)
+	admitted, err := scope.admitInsertRow(ref, first, nil, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
@@ -77,7 +77,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 		t.Fatal("accepted proposal owns one actual key", baseline)
 	}
 	for _, row := range [][]sqltype.Value{insertConflictUnitRow(t, f, 10), first} {
-		admitted, err = scope.admitInsertRow(ref, row, [][]sqltype.Value{first})
+		admitted, err = scope.admitInsertRow(ref, row, [][]sqltype.Value{first}, nil)
 		if err != nil || admitted {
 			t.Fatal("duplicate was not omitted", admitted, err)
 		}
@@ -91,7 +91,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 			}
 		}
 	}
-	admitted, err = scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 30), [][]sqltype.Value{first})
+	admitted, err = scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 30), [][]sqltype.Value{first}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
@@ -105,7 +105,7 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 		scope, ref := insertConflictUnitScope(t, f)
 		scope.owner.isolation = isolation
 		scope.owner.frontier = 0
-		admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil)
+		admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
 		if isolation == ReadCommitted {
 			if err != nil || admitted {
 				t.Fatal("read committed", admitted, err)
@@ -145,11 +145,11 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	f.e.indexRoots[second.address] = root
 	scope.uniqueBinding = nil
 	scope.insertConflict.catalog = nil
-	admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil)
+	admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
 	if err != nil || admitted {
 		t.Fatal("selected provider must win", admitted, err)
 	}
-	admitted, err = scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil)
+	admitted, err = scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil)
 	var diagnostic *sqlstate.Error
 	if admitted || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("unselected violation", admitted, err)

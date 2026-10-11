@@ -380,10 +380,10 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique, parameters)
+	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique, parameters, state)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value) (rows [][]sqltype.Value, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value, query *queryState) (rows [][]sqltype.Value, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -404,7 +404,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		rows = make([][]sqltype.Value, 0)
 	}
 	scratch := make([]sqltype.Value, len(b.targets))
-	evaluation := EvalContext{Context: ctx, Parameters: parameters, Input: input, Output: output, statementScope: scope}
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, Input: input, Output: output, statementScope: scope, query: query}
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -481,7 +481,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			if scope == nil {
 				return nil, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}
-			admitted, err := scope.admitInsertRow(b.ref, row, rows)
+			admitted, err := scope.admitInsertRow(b.ref, row, rows, &evaluation)
 			if err != nil {
 				return nil, err
 			}

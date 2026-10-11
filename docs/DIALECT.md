@@ -1258,12 +1258,42 @@ conservative proof rules, not every mathematical Boolean implication. For exampl
 Stable-isolation selected collisions use checked immutable storage positions;
 ordinary enforcement and read-committed omissions do not scan for row identity.
 See [INSERT conflict omission](QUERIES.md#insert-conflict-omission--change-note).
-DO UPDATE and INSERT RETURNING retain positioned0A000 suffix boundaries.
+INSERT RETURNING retains its positioned0A000 suffix boundary.
 Native deferrable UNIQUE DDL remains0A000. Supported equality exclusion constraints
 participate through omitted/named targets, but not unique inference. Selected
 deferrable exclusion arbiters fail55000 only for demanded proposals; zero-row
 INSERT succeeds. Conflict-bearing Restore input and generic-plan cache policy
 remain unchanged.
+
+### INSERT conflict update — change note
+
+Existing INSERT producers also admit `ON CONFLICT target DO UPDATE SET ... [WHERE ...]`.
+The target is required: inferred column/expression keys, optional inference
+predicate, or an installed named UNIQUE/PRIMARY KEY constraint. Missing target
+is42601; unmatched inference remains42P10, including zero-row sources. Optional
+`AS alias` hides the target's original name in the action. Action expressions see
+the target and completed `excluded` proposal, not the INSERT source namespace.
+Unqualified common column names are ambiguous; assignment destinations remain
+unqualified. Existing UPDATE DEFAULT, assignment coercions, supported scalar
+subqueries and array element/slice targets compose without widening their grammar.
+
+TRUE action predicates count an update even for unchanged values; FALSE/NULL
+retain the acquired row lock but do not evaluate runtime SET or count an update.
+Immutable SQL constants still plan before filtering. Same-command repeated
+modification of one actual row raises21000; a command-inserted row is already
+affected, while a previously filtered existing row is not. Mixed insert/update
+failure or cancellation publishes no prefix. Command Query has no columns/rows;
+RowsAffected is the actual insert-plus-update count.
+
+Named equality exclusions, including installed B-tree/HASH and deferrable ones,
+are not UPDATE arbiters and report42809 even for an empty source. Native deferrable
+UNIQUE/PRIMARY KEY DDL remains0A000; pinned PostgreSQL's real deferrable unique
+arbiter reports55000 only when a proposal is demanded. Writable target views,
+partition hierarchy targets, INSERT RETURNING and conflict-bearing Restore input
+retain their native boundaries. Native full authorization is refreshed after
+conflict waits; PostgreSQL's statement-start ACL timing remains an explicit
+reference distinction. See [action, snapshot and cardinality semantics](QUERIES.md#insert-conflict-update--change-note).
+
 
 ### Exclusion constraints — change note
 

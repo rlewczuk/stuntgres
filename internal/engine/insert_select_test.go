@@ -227,7 +227,7 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 			cancel()
 			ctx = cancelled
 		}
-		rows, err := assembleInsertRows(ctx, b, cursor, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil)
+		rows, err := assembleInsertRows(ctx, b, cursor, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
 		want := error(closeErr)
 		if primary {
 			want = context.Canceled
@@ -249,7 +249,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	closing := &insertCloseCursor{RowCursor: &stage, cancel: cancel}
-	rows, err := assembleInsertRows(ctx, b, closing, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil)
+	rows, err := assembleInsertRows(ctx, b, closing, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
 	if !errors.Is(err, context.Canceled) || rows != nil || closing.closes != 1 {
 		t.Fatal(rows, err, closing.closes)
 	}

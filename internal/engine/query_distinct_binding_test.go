@@ -135,6 +135,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				source.borrowAuthority(scope)
 				defer source.close()
 				project := b.query.Root.(*projectNode)
 				node := project.child

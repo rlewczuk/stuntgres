@@ -443,6 +443,18 @@ corresponding privilege on **any live column** suffice. Empty/filtered INSERT
 sources still require source SELECT authorization; grants on dropped columns
 never qualify. UPDATE needs SELECT only on actual RHS/WHERE reads, not on
 columns merely retained.
+
+Conflict UPDATE keeps separate supplied INSERT destinations and SET UPDATE
+destinations. SELECT covers actual target/`excluded`/arbiter reads and source
+expressions, not merely retained columns or implicit partial-assignment container
+copies. Analysis and these rights remain mandatory for empty sources and
+FALSE/NULL action predicates. Native rechecks the complete current binding after
+conflict-key and selected-row waits; an ACL-only descriptor replacement is not a
+physical storage replacement. A late revoke yields42501 with no mixed prefix,
+while pinned PostgreSQL's already admitted command uses its startup ACL decision.
+The next command reevaluates rights on both backends. No synthetic schema/table/
+column diagnostic fields are added to ordinary permission errors.
+
 All four SELECT row-locking clauses additionally need UPDATE privilege on at
 least one live column of each OF-selected physical source (all applicable sources
 when OF is absent), including unprojected targets and empty/filtered results.

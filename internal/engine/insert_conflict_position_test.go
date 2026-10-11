@@ -175,7 +175,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			root.entries = slices.Clone(root.entries)
 			root.entries[0].position = -1
 			f.e.indexRoots[f.index.address] = &root
-			admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil)
+			admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
 			if stableIsolation(isolation) {
 				if admitted || !errors.Is(err, ErrCatalogReplaced) {
 					t.Fatal("stable identity fence", admitted, err)
@@ -232,11 +232,11 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	scope.owner.catalog = changes
 	scope.owner.isolation = RepeatableRead
 	scope.owner.frontier = 2
-	if admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil); err != nil || admitted {
+	if admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil); err != nil || admitted {
 		t.Fatal("reused tombstone baseline did not recover actual visible born", admitted, err)
 	}
 	scope.owner.frontier = 1
-	admitted, visibilityErr := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil)
+	admitted, visibilityErr := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil)
 	wantDiagnostic := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update"}
 	var visibilityDiagnostic *sqlstate.Error
 	if admitted || !errors.As(visibilityErr, &visibilityDiagnostic) || !reflect.DeepEqual(*visibilityDiagnostic, wantDiagnostic) {

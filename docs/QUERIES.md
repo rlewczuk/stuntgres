@@ -3741,7 +3741,7 @@ Ready-invalid providers participate in targetless arbitration; explicit
 inference requires a valid provider. Native Dump/Reset/Restore retain supported
 definitions and accepted data, but Restore input rejects conflict-bearing INSERTs.
 
-DO UPDATE and INSERT RETURNING remain positioned0A000 boundaries. Native
+INSERT RETURNING remains a positioned0A000 boundary. Native
 deferrable UNIQUE DDL retains its0A000 boundary. Omitted/named targets can select
 supported nondeferrable equality exclusions, while unique inference cannot.
 Selected deferrable exclusions report55000 with schema/table/constraint only
@@ -3837,3 +3837,84 @@ VALUES/TABLE bodies and LATERAL remain excluded.
 Coverage: `make check RUN='^TestReferenceQueryCTE'` and the same selector with
 `REFERENCE=1`. Feature smoke: `RUN='^TestReferenceQueryCTEFeatureSmoke$'`.
 See [the implementation design](design/PG18-QUERY-CTE.md).
+## INSERT conflict update — change note
+
+```sql
+INSERT INTO destination AS dst VALUES(1,20),(2,30)
+ON CONFLICT(id) DO UPDATE SET value=dst.value+excluded.value
+WHERE dst.value<excluded.value;
+```
+
+The existing VALUES, DEFAULT VALUES and supported query-source producers compose
+with this action, including their existing defaults, identity OVERRIDING,
+generated values and source decorations. An explicit inference specification or
+`ON CONSTRAINT` is required. Unique/PRIMARY KEY arbiter resolution uses the same
+installed providers, partial-predicate proof and typed equality as DO NOTHING;
+inference errors are not suppressed by empty sources or FALSE action predicates.
+Named equality exclusions cannot be UPDATE arbiters, including empty sources and
+deferrable constraints. Other unique/exclusion violations retain23505/23P01.
+
+`excluded` contains the completed proposed row after destination assignments,
+defaults, identity and generated values. Its implicit namespace is available only
+in action RHS/WHERE, not in the INSERT source or arbiter inference. The target
+alias is introduced with `AS` and hides its original qualified name in the action.
+A target actually named `excluded` requires an alias to distinguish it from the
+proposal. Unqualified names shared by both namespaces are ambiguous. SET
+destinations are unqualified columns or existing array element/slice targets;
+field/row assignments and other existing UPDATE exclusions are not widened.
+
+Every RHS and destination bound uses one unchanged target/proposal frame.
+Partial assignments compose into a private replacement without making earlier
+SET results visible to later RHS expressions. DEFAULT, assignment coercions and
+generated-column recomputation reuse UPDATE semantics. Supported scalar subqueries
+retain the original statement source snapshot, including earlier transaction
+writes but excluding this command's earlier inserted/replaced prefix.
+
+Proposal NOT NULL/CHECK and demanded defaults precede arbitration; WHERE FALSE
+does not suppress their failures or undo sequence draws. Once a live selected
+conflict is acquired and rechecked, only TRUE executes runtime SET and counts an
+update. FALSE/NULL keep the row lock and count0. A TRUE self-assignment counts1.
+Planning immutable SQL constants still precedes filtering, so `SET value=1/0
+WHERE FALSE` fails22012; row-dependent runtime expressions remain demand-owned.
+
+Cardinality tracks actual affected row identity, not source ordinals or equal key
+text. For two conflicts on one existing row, FALSE/FALSE counts0, FALSE/TRUE
+counts1, while TRUE/FALSE and TRUE/TRUE fail21000. That check precedes the second
+action's WHERE. A row inserted earlier in this command is already affected,
+including a later hit with WHERE FALSE. Earlier transaction commands do not
+consume this command's cardinality allowance. Key movement can leave the old key
+free for a genuinely different newly inserted row.
+
+Read committed, including READ UNCOMMITTED, can update a committed row invisible
+to its captured source snapshot. Conflict-key waits and logical-row waits do not
+widen or rerun that source. After a selected-row wait, the latest payload governs
+WHERE/SET; moved/deleted rows restart admission of the completed proposal, not its
+defaults or source. Repeatable read/serializable reject selected post-frontier
+updates/deletions with40001 before evaluating a false/null predicate. Deletion
+before any selected hit can instead leave a free key for a new row identity.
+See [transaction and lock lifetime](TRANSACTIONS.md#insert-conflict-update).
+
+INSERT rights on supplied destinations, UPDATE rights on action destinations,
+SELECT on actually read target/proposal/arbiter columns and source SELECT are
+distinct requirements, including empty/filtered commands. Native checks current
+complete rights again after conflict waits. A revoke can therefore yield42501
+and discard the whole mixed prefix, while pinned PostgreSQL's already admitted
+command uses its startup ACL decision; subsequent commands reject on both.
+See [authorization timing](AUTHORIZATION.md#table-and-column-grants--change-note).
+
+One final publication installs ordered mixed inserts/replacements and their real
+index/constraint effects. Late action, constraint, producer, required-Close or
+cancellation failure installs none; explicit failed transactions require normal
+rollback/savepoint recovery. Command Query returns no columns/rows, RowsAffected
+sums inserts and TRUE updates, and LastInsertId remains unsupported. Held
+statements rebind current definitions and rights. Dump persists ordinary objects,
+rows and generator state, not action plans; supported native Reset/Restore retain
+the existing lifecycle and conflict-bearing Restore rejection.
+
+Native writable target views and virtual/physical partition hierarchy targets
+remain unsupported. Hierarchy conflict UPDATE rejects0A000 after analysis and
+rights, before provider/default/routing admission. Native deferrable UNIQUE/PRIMARY
+KEY DDL and INSERT RETURNING remain bounded rather than simulated. The shared
+`TestReferenceInsertConflictUpdate` family has independently specified native and
+pinned PostgreSQL expectations; [testing](TESTING.md#insert-conflict-update-acceptance)
+separates public capture markers from actual native manager-pending proof.

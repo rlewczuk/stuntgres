@@ -4097,6 +4097,85 @@ Passing native alone does not validate the changed reference definitions.
 Ordinary quickcheck precedes review; finalcheck runs after integration under
 one 1800-second deadline.
 
+## INSERT conflict update acceptance
+
+The shared public `TestReferenceInsertConflictUpdate` definitions and migrated
+`TestReferenceInsertConflictExcludedActions` case run in native and pinned real
+PostgreSQL modes, with no discovery filters. They cover producer/alias scopes,
+complete proposal inputs and constraints, typed assignments/parameters, actual
+providers, duplicate identity, command metadata/counts, authorization, snapshots,
+atomicity/cancellation, retained resources and native control/held lifecycle.
+Native deferrable UNIQUE/PRIMARY KEY DDL, hierarchy/view targets and exclusion
+UPDATE arbiters retain independently specified capability boundaries.
+
+Run selected proof under separate 900-second external deadlines:
+
+```sh
+make check RUN='^TestReferenceInsertConflictUpdate'
+make check REFERENCE=1 RUN='^TestReferenceInsertConflictUpdate'
+make check RUN='^TestReferenceInsertConflictExcludedActions$'
+make check REFERENCE=1 RUN='^TestReferenceInsertConflictExcludedActions$'
+make check RUN='^TestInsertConflictUpdate(Parser|Binding|Identity|TargetFence|MixedStage|DuplicateIdentity|DistinctStage|UniqueDelta)$'
+make check RUN='^TestInsertConflictUpdate(RowRecheck|LockOrdering|AuthorizationAfterWait|CursorFailure)$'
+make check RACE=1 RUN='^TestInsertConflictUpdate(TargetFence|RowRecheck|LockOrdering|AuthorizationAfterWait|MixedStage|CursorFailure|DistinctStage|UniqueDelta)$'
+make check RACE=1 RUN='^TestReferenceInsertConflictUpdate(Contention|Visibility|RetainedLocks|LockOrdering|Cancellation)$'
+```
+
+The invisible-source shared witness uses installed advisory CHECK admission,
+not goroutine timing: reset the holder's marker after seed insertion, verify a
+successful initial probe/unlock, then observe worker ownership before COMMIT.
+Every successful observer probe unlocks immediately; cancellation/join and
+unlock-all cleanup release all session counts before retained-connection teardown.
+Do not assume CHECK OR short-circuit or call this a native pending-key observer.
+`RowRecheck/invisible_source` separately inspects the real native UniqueKey request,
+selected provider/key/blocker and immutable source frontier, requiring exact
+affected1/final11. Other native row-wait mechanisms inspect actual pending RowID,
+lock modes, current authority, stage rollback and joined cleanup; PostgreSQL
+public interleavings use its actual blocker observer. A native no-op wait helper
+or successful asynchronous launch supplies no pending-acquisition evidence.
+
+`RowRecheck/latest_payload` supplements the public snapshot cases with an actual
+selected-RowID pending barrier. Holder COMMIT must supply target20 to SET, giving
+21; holder ROLLBACK supplies10, giving11. Both target-dependent predicate
+threshold transitions check the mixed fresh prefix, exact counts and committed
+rows under READ COMMITTED and READ UNCOMMITTED, with joined cleanup.
+
+`DistinctStage` independently checks original committed bases through prior-own
+replacements, immutable committed/prior/current-command prefixes, append slots,
+fresh identity, duplicate21000 without additional effects, rollback and exactly
+one transaction publication. `UniqueDelta` checks candidate-only restoration,
+prior key/stronger mode preservation, non-key grants, retry/accept lifetimes and
+no resurrection after release. Private overlay hash buckets use the installed
+provider's grouping and final ordering equality, not hash-only equality.
+
+Replacement-heavy scaling runs the real executor and Finish; setup, earlier
+commands, exact row/count checks and rollback are outside benchmark timing:
+
+```sh
+timeout 900s go test ./internal/engine -count=1 -timeout=0 -run '^$' -bench '^BenchmarkInsertConflictUpdateDistinctStage$' -benchmem
+```
+
+Compare128,4096,65536 proposal batches for replacement, mixed fresh/replacement
+and prior-own modes, using ns/proposal and bytes/allocations per batch (divide by
+proposals/op for per-proposal cost). No brittle timing threshold or unobserved
+performance claim substitutes for root-recorded scaling evidence. Ordinary
+UPDATE/MERGE/DO NOTHING retain their existing staging and overlay semantics.
+
+An internal fixture that directly captures a query source with a real statement
+scope must attach that scope through the installed `borrowAuthority` owner before
+producer/assembly demand. Threaded queryState resolves live authority through its
+source, not an EvalContext fallback. `TestQueryDistinctInsertSourceDescriptorOwnership`
+checks the integrated caller cutover without weakening its original DISTINCT
+schema, identity-pruning or source-call assertions; it adds no DISTINCT capability.
+
+The root-owned temporary standalone program has also exercised the installed
+public API with exact output
+`mixed=2 filtered=0 held=1 duplicate=21000 atomic=true rows=[(1,20,10,held),(2,30,40,fresh)]`,
+exit0 and empty stderr. It is removed after execution, not a permanent command.
+Selected proof and this smoke do not replace root-owned Docker-free quickcheck,
+regression/race proof, independent review or post-integration finalcheck.
+
+
 ## DISTINCT ON reference contracts and feature smoke
 
 The untagged `reference/query_order/query_distinct_on_*_test.go` family shares fixture/public

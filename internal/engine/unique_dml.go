@@ -46,6 +46,9 @@ func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, er
 	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.state {
 		return b, nil
 	}
+	if s.insertConflict != nil && s.insertConflict.update != nil {
+		s.insertConflict.overlays = nil
+	}
 	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.state}
 	var indexes []*relationDescriptor
 	for _, descriptor := range view.state.descriptors {
@@ -198,8 +201,8 @@ func uniqueRowDeleted(id RowID, roots ...*privateDeletionRoot) bool {
 	return false
 }
 
-// One real provider probe supplies both ordinary violations and omission.
-// Only selected stable-isolation omission needs committed visibility identity.
+// One real provider probe supplies ordinary violations, omission visibility and
+// exact conflict-update identity without scanning committed table payloads.
 type uniqueConflict struct {
 	parent, index *relationDescriptor
 	key           []sqltype.Value
@@ -209,6 +212,7 @@ type uniqueConflict struct {
 	schema        string
 	row           rowVersion
 	committed     bool
+	position      int
 }
 
 func (c *uniqueConflict) diagnostic(s *StatementScope, ref ObjectRef) error {
@@ -309,7 +313,7 @@ retry:
 			}
 		}
 		var versions []rowVersion
-		if action != nil && stableIsolation(s.owner.isolation) {
+		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation)) {
 			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
 				versions = storage.versions
 			}
@@ -356,44 +360,69 @@ retry:
 				continue
 			}
 			replaced := false
-			for _, own := range s.ownWrites[ref.Address] {
-				if own.row == entry.row {
-					replaced = true
-					break
+			if c := s.insertConflict; c != nil && c.update != nil {
+				_, replaced = c.affectedRows[entry.row]
+				if !replaced {
+					_, replaced = s.conflictUpdateOwnRow(ref, entry.row)
 				}
-			}
-			if !replaced {
-				for _, own := range s.stage.rows[ref.Address] {
+			} else {
+				for _, own := range s.ownWrites[ref.Address] {
 					if own.row == entry.row {
 						replaced = true
 						break
 					}
 				}
+				if !replaced {
+					for _, own := range s.stage.rows[ref.Address] {
+						if own.row == entry.row {
+							replaced = true
+							break
+						}
+					}
+				}
 			}
 			if !replaced {
-				if action != nil && stableIsolation(s.owner.isolation) {
+				if action != nil && (action.update != nil || stableIsolation(s.owner.isolation)) {
 					head, err := conflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err
 					}
 					outcome.row = head
+					outcome.position = entry.position
 					outcome.committed = head.born != 0
 				}
 				return outcome, nil
 			}
 		}
-		for _, overlay := range [2][]rowVersion{s.ownWrites[ref.Address], s.stage.rows[ref.Address]} {
-			for _, own := range overlay {
-				if uniqueRowExcluded(own.row, excluded) || uniqueRowDeleted(own.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
-					continue
-				}
-				equal, err := bound.matches(&evaluation, own.values, key)
-				if err != nil {
-					return uniqueConflict{}, err
-				}
-				if equal {
-					outcome.row = own
-					return outcome, nil
+		if c := s.insertConflict; c != nil && c.update != nil {
+			own, found, err := s.probeConflictUpdateOverlay(ref, bound, &evaluation, key, excluded)
+			if err != nil {
+				return uniqueConflict{}, err
+			}
+			if found {
+				outcome.row, outcome.position = own, -1
+				return outcome, nil
+			}
+		} else {
+			for overlayIndex, overlay := range [2][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address]} {
+				for _, own := range overlay {
+					if overlayIndex == 1 {
+						if _, _, replaced := rowByID(s.stage.rows[ref.Address], own.row, -1); replaced {
+							continue
+						}
+					}
+					if uniqueRowExcluded(own.row, excluded) || uniqueRowDeleted(own.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+						continue
+					}
+					equal, err := bound.matches(&evaluation, own.values, key)
+					if err != nil {
+						return uniqueConflict{}, err
+					}
+					if equal {
+						outcome.row = own
+						outcome.position = -1
+						return outcome, nil
+					}
 				}
 			}
 		}

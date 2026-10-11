@@ -164,6 +164,19 @@ expressions. See [timezone lookup views](docs/DIALECT.md#timezone-lookup-views--
 Smoke: `make check RUN='^TestReferenceTimezoneViewsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTimezoneViewsFeatureSmoke$'`.
 
+Change note: PostgreSQL18 `INSERT ... ON CONFLICT ... DO UPDATE SET ... [WHERE ...]`
+supports the existing VALUES, DEFAULT VALUES and query producers, with an explicit
+inferred or named unique arbiter and optional `AS` target alias. `excluded` is the
+completed proposal; SET expressions share the unchanged target/proposal frame.
+Mixed inserts and updates publish atomically, and affected counts include inserts
+and TRUE updates, not FALSE/NULL filtered conflicts. Actual row identity governs
+same-command cardinality, including command-inserted rows. Native hierarchy,
+writable-view, exclusion-arbiter, deferrable UNIQUE DDL and INSERT RETURNING
+boundaries remain explicit. Native rechecks current rights after conflict waits;
+pinned PostgreSQL retains its statement-start ACL decision.
+See [conflict update](docs/QUERIES.md#insert-conflict-update--change-note) and
+[selected proof](docs/TESTING.md#insert-conflict-update-acceptance).
+
 Change note: PostgreSQL18 `MERGE` supports ordered conditional
 `WHEN MATCHED THEN UPDATE SET` and `WHEN NOT MATCHED [BY TARGET] THEN INSERT`.
 All source-target pairs are frozen before row waits; matched SET expressions,

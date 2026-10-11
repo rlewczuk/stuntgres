@@ -3,10 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strconv"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,9 +18,13 @@ type boundUpdate struct {
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
 func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error) {
+	return preflightUpdateWithPlanning(c, original, false)
+}
+
+func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool) (*boundUpdate, error) {
 	result := original
 	var assignments []BoundExpr
-	targets, err := preflightArrayTargets(c, original.arrayTargets)
+	targets, err := preflightArrayTargetsWithPlanning(c, original.arrayTargets, planConstants)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +34,7 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 		result = &private
 	}
 	for i, expression := range original.assignments {
-		folded, changed, err := preflightCoercions(c, expression)
+		folded, changed, err := preflightUpdateExpression(c, expression, planConstants)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +51,7 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 		result = &private
 	}
 	if original.predicate != nil {
-		folded, changed, err := preflightCoercions(c, original.predicate)
+		folded, changed, err := preflightUpdateExpression(c, original.predicate, planConstants)
 		if err != nil {
 			return nil, err
 		}
@@ -76,6 +77,21 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 		}
 	}
 	return result, nil
+}
+
+func preflightUpdateExpression(c *EvalContext, expression BoundExpr, planConstants bool) (BoundExpr, bool, error) {
+	changed := false
+	if planConstants {
+		// Plan SQL constants before importing execution-frame coercions:
+		// imported parameter literals must not become SQL constants.
+		next, did, err := simplifyConditional(c, expression, false)
+		if err != nil {
+			return nil, false, err
+		}
+		expression, changed = next, did
+	}
+	next, did, err := preflightCoercions(c, expression)
+	return next, changed || did, err
 }
 
 // Transform FROM, WHERE, RETURNING (output fallback), then RHS/destinations.
@@ -139,124 +155,6 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	if s.CurrentOf != nil && b.relation.view != nil {
 		return sqlError("0A000", "WHERE CURRENT OF on a view is not implemented")
 	}
-	return nil
-}
-
-// Assignment analysis is shared by UPDATE and MERGE. The caller owns the
-// namespace, including any retained source frame, and statement clauses.
-func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []parser.UpdateAssignment, u *boundUpdate) error {
-	binder.updateParameters = true
-	defer func() {
-		binder.updateParameters = false
-		binder.updateInputParameters = nil
-	}()
-	var err error
-	for i, a := range assignments {
-		if len(a.Subscripts) != 0 {
-			if _, requested := a.Value.(parser.DefaultExpr); requested {
-				return expressionError("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
-			}
-		}
-		if slot, exists := b.relation.index[a.Target.Text]; exists {
-			if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
-				if _, requested := a.Value.(parser.DefaultExpr); !requested {
-					return generationWriteError(a.Target.Text, true)
-				}
-				continue
-			}
-		}
-		if _, requested := a.Value.(parser.DefaultExpr); requested {
-			if b.relation.relationKind == viewRelation {
-				continue // Rewrite diagnoses computed/generated destinations.
-			}
-			return expressionError("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
-		}
-		expected := sqltype.Usage{}
-		if slot, ok := b.relation.index[a.Target.Text]; ok {
-			expected = b.relation.columns[slot].Usage
-			if len(a.Subscripts) != 0 {
-				expected = arrayTargetUsage(expected, a.Subscripts)
-			}
-		}
-		u.assignments[i], err = binder.bind(a.Value, expressionPolicy{context: projectionContext, expected: expected})
-		if err != nil {
-			return err
-		}
-	}
-	seen := make(map[int]bool, len(assignments))
-	for i, a := range assignments {
-		slot, ok := b.relation.index[a.Target.Text]
-		if !ok {
-			switch a.Target.Text {
-			case "ctid", "tableoid", "xmin", "xmax", "cmin", "cmax":
-				return expressionError("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
-			}
-			diagnostic := expressionError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.name), a.Target.Pos).(*sqlstate.Error)
-			visible := binder.targetName
-			if binder.targetAlias != "" {
-				visible = binder.targetAlias
-			}
-			if len(a.Indirection) != 0 && a.Target.Text == visible {
-				diagnostic.Hint = "SET target columns cannot be qualified with the relation name."
-			}
-			return diagnostic
-		}
-		if len(a.Indirection) != 0 {
-			return expressionError("0A000", "field assignments are unsupported", a.Target.Pos)
-		}
-		partial := len(a.Subscripts) != 0
-		if previous, exists := seen[slot]; exists && (!previous || !partial) {
-			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
-		}
-		seen[slot] = partial
-		if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
-			b.targets = append(b.targets, slot)
-			continue
-		}
-		if identity, ok := b.relation.identities[b.relation.attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
-			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
-			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
-			diagnostic.Hint = ""
-			return diagnostic
-		}
-		b.targets = append(b.targets, slot)
-		source := u.assignments[i]
-		dest := b.relation.columns[slot]
-		if source == nil && b.relation.relationKind == viewRelation {
-			continue
-		}
-		var target *arrayAssignmentTarget
-		if partial {
-			target, err = binder.bindArrayTarget(dest, a.Subscripts, a.Target.Pos)
-			if err != nil {
-				return err
-			}
-			if u.arrayTargets == nil {
-				u.arrayTargets = make([]*arrayAssignmentTarget, len(assignments))
-			}
-			u.arrayTargets[i] = target
-			dest = target.column(dest)
-		}
-		if source.ResultUsage() != dest.Usage {
-			plan, err := sqltype.PlanCoercion(source.ResultUsage(), dest.Usage, sqltype.Assignment)
-			if err != nil {
-				if target != nil {
-					return target.diagnostic(err, source.ResultUsage().Type)
-				}
-				var d *sqlstate.Error
-				if errors.As(err, &d) && d.Code == "42804" {
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, dest.Name, dest.Usage.Type.DiagnosticName(), source.ResultUsage().Type.DiagnosticName()), Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(parser.ExpressionStart(a.Value).Character)}
-				}
-				return err
-			}
-			if plan.RequiresCatalogOutput() {
-				binder.regclassConcat = true
-			}
-			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), coercionProperties(source, plan)), source, plan, sqltype.Assignment}
-			u.assignments[i] = source
-		}
-	}
-	b.update = u
 	return nil
 }
 
@@ -462,24 +360,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		// RHS and bounds see the unchanged old frame; partial writes compose
 		// only in this private replacement. Losing FROM pairs still demand SET.
-		row := make([]sqltype.Value, len(old.values))
-		copy(row, old.values)
-		for i, expr := range b.update.assignments {
-			if expr == nil {
-				continue
-			}
-			target := b.targets[i]
-			var value sqltype.Value
-			var err error
-			if len(b.update.arrayTargets) != 0 && b.update.arrayTargets[i] != nil {
-				value, err = b.update.arrayTargets[i].applyExpression(&eval, row[target], expr)
-			} else {
-				value, err = expr.Eval(&eval)
-			}
-			if err != nil {
-				return Result{}, err
-			}
-			row[target] = value
+		row, err := evaluateUpdateAssignments(&eval, b.update, b.targets, old.values)
+		if err != nil {
+			return Result{}, err
 		}
 		if b.update.from != nil && updated[candidate.row] {
 			continue

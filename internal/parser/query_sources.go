@@ -308,15 +308,41 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			}
 		}
 		if s.Source != nil {
+			var err error
 			if s.Source.Select != nil {
-				return query(s.Source.Select)
+				err = query(s.Source.Select)
+			} else {
+				err = values(s.Source.Values)
 			}
-			return values(s.Source.Values)
-		}
-		for _, row := range s.Rows {
-			if err := expressions(row); err != nil {
+			if err != nil {
 				return err
 			}
+		} else {
+			for _, row := range s.Rows {
+				if err := expressions(row); err != nil {
+					return err
+				}
+			}
+		}
+		if s.Conflict != nil && s.Conflict.Update {
+			// Match shared assignment binding: every RHS precedes destination
+			// subscript analysis, and action WHERE follows the complete SET list.
+			for _, assignment := range s.Conflict.Assignments {
+				if err := expression(assignment.Value); err != nil {
+					return err
+				}
+			}
+			for _, assignment := range s.Conflict.Assignments {
+				for _, bound := range assignment.Subscripts {
+					if err := expression(bound.Lower); err != nil {
+						return err
+					}
+					if err := expression(bound.Upper); err != nil {
+						return err
+					}
+				}
+			}
+			return expression(s.Conflict.Where)
 		}
 	case *Merge:
 		if err := from(s.Source, &Select{From: s.Source}); err != nil {

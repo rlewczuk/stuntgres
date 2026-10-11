@@ -514,7 +514,7 @@ retry:
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
 		s.owner.mu.Unlock()
-		if s.insertConflict != nil {
+		if s.insertConflict != nil && s.insertConflict.update == nil {
 			var err error
 			rows, err = s.revalidateConflictRows(ref, rows)
 			if err != nil {
@@ -552,7 +552,7 @@ retry:
 			return errors.New("stuntgres: invalid staged row width")
 		}
 	}
-	if s.insertConflict != nil {
+	if s.insertConflict != nil && s.insertConflict.update == nil {
 		s.insertConflict.affected = len(rows)
 	}
 	if len(rows) == 0 {

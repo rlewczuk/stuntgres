@@ -49,12 +49,8 @@ func TestReferenceInsertConflictExcludedActions(t *testing.T) {
 					run(fixture.Exec("CREATE TABLE t(k INT UNIQUE,p TEXT)", 0))
 					run(fixture.Exec("INSERT INTO t VALUES(1,'kept')", 1))
 					q := "INSERT INTO t VALUES(1,'ignored') " + suffix
-					if !b.PG {
-						token := "UPDATE"
-						if strings.Contains(suffix, "RETURNING") {
-							token = "RETURNING"
-						}
-						s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: fixture.Position(strings.Index(q, token) + 1)})
+					if !b.PG && strings.Contains(suffix, "RETURNING") {
+						s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: fixture.Position(strings.Index(q, "RETURNING") + 1)})
 						s.Prepared = prepared
 						s.ErrorStage = "execute"
 						if prepared {
@@ -71,7 +67,7 @@ func TestReferenceInsertConflictExcludedActions(t *testing.T) {
 						run(s)
 					}
 					payload := "kept"
-					if b.PG && !strings.Contains(suffix, "RETURNING") {
+					if !strings.Contains(suffix, "RETURNING") {
 						payload = "changed"
 					}
 					run(fixture.Select("SELECT k,p FROM t", []string{"k", "p"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), payload}}))

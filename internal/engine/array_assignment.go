@@ -113,12 +113,18 @@ func (t *arrayAssignmentTarget) applyBounds(c *EvalContext, current, rhs sqltype
 }
 
 func preflightArrayTargets(c *EvalContext, targets []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {
+	return preflightArrayTargetsWithPlanning(c, targets, false)
+}
+
+func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*arrayAssignmentTarget, planConstants bool) ([]*arrayAssignmentTarget, error) {
 	var replacements []*arrayAssignmentTarget
 	for i, target := range targets {
 		if target == nil {
 			continue
 		}
-		node, changed, err := mapSubscript(target.node, func(old BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, old) })
+		node, changed, err := mapSubscript(target.node, func(old BoundExpr) (BoundExpr, bool, error) {
+			return preflightUpdateExpression(c, old, planConstants)
+		})
 		if err != nil {
 			return nil, err
 		}

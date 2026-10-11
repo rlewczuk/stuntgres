@@ -248,14 +248,22 @@ ALTER TABLE target ALTER [COLUMN] column SET DEFAULT default_expression
 ALTER TABLE target ALTER [COLUMN] column DROP DEFAULT
 ALTER TABLE [IF EXISTS] target SET SCHEMA schema
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
-INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
-INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
+INSERT INTO [schema.]name [AS alias] [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
+       [insert_conflict]
+INSERT INTO [schema.]name [AS alias] [(column [, ...])] SELECT [projection_target [, ...]]
        [FROM from_list [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
         [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]] [query_bounds]
-INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-       [ORDER BY ordering_key [, ...]] [query_bounds]
-INSERT INTO [schema.]name DEFAULT VALUES
+       [insert_conflict]
+INSERT INTO [schema.]name [AS alias] [(column [, ...])] VALUES (value [, ...]) [, ...]
+       [ORDER BY ordering_key [, ...]] [query_bounds] [insert_conflict]
+INSERT INTO [schema.]name [AS alias] DEFAULT VALUES [insert_conflict]
 insert_value := value | DEFAULT
+insert_conflict := ON CONFLICT [conflict_target] DO NOTHING
+                 | ON CONFLICT conflict_target DO UPDATE SET update_assignment [, ...]
+                   [WHERE logical_predicate]
+conflict_target := (column_or_expression [COLLATE collation] [opclass] [, ...])
+                   [WHERE index_predicate]
+                 | ON CONSTRAINT constraint_name
 MERGE INTO [schema.]name [[AS] alias] USING joined_table ON expression
       merge_arm [merge_arm ...]
 merge_arm := WHEN MATCHED [AND boolean_expression]
@@ -1012,6 +1020,8 @@ UPDATE FROM, DELETE USING, scalar subqueries, partial array assignments and
 INSERT VALUES/SELECT/DEFAULT VALUES/ON CONFLICT DO NOTHING use the real base
 producer. Every omitted physical column uses the base default, identity,
 generation or typed NULL. Explicit NULL differs from DEFAULT.
+Conflict UPDATE on writable target views remains unsupported; the physical-table
+action does not widen this view-write contract.
 
 Computed output assignment rejects 0A000 even for NULL/DEFAULT or an empty
 producer. Different-type casts and explicit COLLATE are computed; a same-type

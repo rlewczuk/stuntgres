@@ -64,7 +64,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	holder, _ := insertConflictUnitScope(t, f)
-	if admitted, err := holder.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil); err != nil || !admitted {
+	if admitted, err := holder.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil); err != nil || !admitted {
 		t.Fatal("holder claim", admitted, err)
 	}
 	mark := f.e.locks.checkpointUnique(holder.ticket, nil)
@@ -135,7 +135,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	}
 	scope.insertConflict = action
 	prefix := insertConflictUnitRow(t, f, 30)
-	if admitted, err := scope.admitInsertRow(ref, prefix, nil); err != nil || !admitted {
+	if admitted, err := scope.admitInsertRow(ref, prefix, nil, nil); err != nil || !admitted {
 		t.Fatal("authorized prefix", admitted, err)
 	}
 	ticket := scope.ticket
@@ -150,7 +150,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	proposal := insertConflictUnitRow(t, f, 20)
 	started = true
 	go func() {
-		admitted, err := scope.admitInsertRow(ref, proposal, [][]sqltype.Value{prefix})
+		admitted, err := scope.admitInsertRow(ref, proposal, [][]sqltype.Value{prefix}, nil)
 		done <- outcome{admitted, err}
 	}()
 	// Registration is witnessed under the actual manager mutex for this exact
@@ -256,7 +256,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	}
 	accepted := make([][]sqltype.Value, 0, 2)
 	for _, row := range [][]sqltype.Value{prefix, proposal} {
-		admitted, err := scope.admitInsertRow(ref, row, accepted)
+		admitted, err := scope.admitInsertRow(ref, row, accepted, nil)
 		if err != nil || !admitted {
 			t.Fatal("postfailure authorized admission", admitted, err)
 		}

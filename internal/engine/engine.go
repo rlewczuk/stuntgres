@@ -596,6 +596,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if err := e.bindInsertConflict(&b, binder, auth, s.Conflict); err != nil {
 			return b, err
 		}
+		if err := e.bindInsertConflictUpdate(&b, binder, s); err != nil {
+			return b, err
+		}
 	case *parser.Merge:
 		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err

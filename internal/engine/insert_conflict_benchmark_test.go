@@ -61,14 +61,14 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.insertConflict = action
-				if admitted, err := scope.admitInsertRow(ref, f.store.versions[0].values, nil); admitted || err != nil {
+				if admitted, err := scope.admitInsertRow(ref, f.store.versions[0].values, nil, nil); admitted || err != nil {
 					b.Fatal("warmup", admitted, err)
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
 					for i := range f.store.versions {
-						if admitted, err := scope.admitInsertRow(ref, f.store.versions[i].values, nil); admitted || err != nil {
+						if admitted, err := scope.admitInsertRow(ref, f.store.versions[i].values, nil, nil); admitted || err != nil {
 							b.Fatal("committed omission", admitted, err)
 						}
 					}

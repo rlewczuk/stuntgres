@@ -381,11 +381,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
-		switch stmt.(type) {
+		storageTarget := false
+		switch statement := stmt.(type) {
 		case *parser.Delete, *parser.Update:
-			if descriptor.relationKind != tableRelation {
-				break
-			}
+			storageTarget = true
+		case *parser.Insert:
+			storageTarget = statement.Conflict != nil && statement.Conflict.Update
+		}
+		if storageTarget && descriptor.relationKind == tableRelation {
 			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if s.lockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")

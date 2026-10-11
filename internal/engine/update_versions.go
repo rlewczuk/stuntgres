@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"slices"
 	"stuntgres/internal/sqltype"
 )
 
@@ -53,7 +54,17 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 	return next
 }
 
+// Only conflict UPDATE's affected-RowID admission proves distinct append-only
+// effects within this command. Ordinary UPDATE/MERGE keep replacement merging.
+func (w *WriteStage) replaceDistinct(ref ObjectRef, old []rowVersion, rows [][]sqltype.Value) error {
+	return w.replaceRows(ref, old, rows, true)
+}
+
 func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.Value) error {
+	return w.replaceRows(ref, old, rows, false)
+}
+
+func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, rows [][]sqltype.Value, distinct bool) error {
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
@@ -99,10 +110,27 @@ retry:
 			return errors.New("stuntgres: invalid staged row")
 		}
 	}
+	if distinct {
+		if s.insertConflict == nil || s.insertConflict.update == nil {
+			return errors.New("stuntgres: distinct replacement without conflict update")
+		}
+		for _, predecessor := range old {
+			if _, affected := s.insertConflict.affectedRows[predecessor.row]; affected {
+				return conflictUpdateCardinalityError()
+			}
+		}
+	}
 	if uint64(len(rows)) > ^uint64(0)-e.nextVersion {
 		return errors.New("stuntgres: version identity exhausted")
 	}
-	versions := make([]rowVersion, len(rows))
+	var versions, distinctRows []rowVersion
+	if distinct {
+		prefix := w.rows[ref.Address]
+		distinctRows = slices.Grow(prefix, len(rows))[:len(prefix)+len(rows)]
+		versions = distinctRows[len(prefix):]
+	} else {
+		versions = make([]rowVersion, len(rows))
+	}
 	for i, row := range rows {
 		predecessor := old[i]
 		if reserved, ok := s.reservedExclusionRow(ref, row); ok {
@@ -131,7 +159,11 @@ retry:
 		if w.rows == nil {
 			w.rows = make(map[ObjectAddress][]rowVersion)
 		}
-		w.rows[ref.Address] = mergePrivateRows(w.rows[ref.Address], versions, true)
+		if distinct {
+			w.rows[ref.Address] = distinctRows
+		} else {
+			w.rows[ref.Address] = mergePrivateRows(w.rows[ref.Address], versions, true)
+		}
 		w.replacing = true
 	}
 	return nil
