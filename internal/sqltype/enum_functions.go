@@ -41,7 +41,7 @@ func BindEnumSupport(name string, result Usage, arguments ...Usage) (EnumSupport
 }
 func (p EnumSupportPlan) Name() string      { return p.name }
 func (p EnumSupportPlan) Enum() *Descriptor { return p.enum }
-func (p EnumSupportPlan) Evaluate(ctx context.Context, first, last Value) (Value, error) {
+func (p EnumSupportPlan) Evaluate(ctx context.Context, first, last Value, env InputEnvironment) (Value, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return Value{}, err
@@ -60,7 +60,7 @@ func (p EnumSupportPlan) Evaluate(ctx context.Context, first, last Value) (Value
 			}
 		}
 	}
-	count := len(p.enum.enum.labels)
+	count := len(p.enum.enum.members)
 	if p.name != "enum_range" {
 		if count == 0 {
 			return Value{}, failure("55000", fmt.Sprintf("enum %s contains no values", p.enum.DiagnosticName()))
@@ -69,15 +69,19 @@ func (p EnumSupportPlan) Evaluate(ctx context.Context, first, last Value) (Value
 		if p.name == "enum_last" {
 			ordinal = count - 1
 		}
-		return Value{typ: p.enum, integer: int64(ordinal)}, nil
+		member := p.enum.enum.members[ordinal].ID
+		if err := p.enum.checkEnumMember(member, env); err != nil {
+			return Value{}, err
+		}
+		return Value{typ: p.enum, integer: member}, nil
 	}
 	lower, upper := 0, count-1
 	if p.arity == 2 {
 		if !first.null {
-			lower = int(first.integer)
+			lower = p.enum.enum.ranks[first.integer]
 		}
 		if !last.null {
-			upper = int(last.integer)
+			upper = p.enum.enum.ranks[last.integer]
 		}
 	}
 	if upper < lower {
@@ -85,7 +89,11 @@ func (p EnumSupportPlan) Evaluate(ctx context.Context, first, last Value) (Value
 	}
 	cells := make([]Value, upper-lower+1)
 	for i := range cells {
-		cells[i] = Value{typ: p.enum, integer: int64(lower + i)}
+		member := p.enum.enum.members[lower+i].ID
+		if err := p.enum.checkEnumMember(member, env); err != nil {
+			return Value{}, err
+		}
+		cells[i] = Value{typ: p.enum, integer: member}
 	}
 	return OwnedArrayValue(p.array, []ArrayDimension{{Lower: 1, Length: int32(len(cells))}}, cells)
 }

@@ -111,6 +111,15 @@ type CreateEnum struct {
 
 func (*CreateEnum) statement() {}
 
+type AlterEnum struct {
+	Name                        ObjectName
+	Label, Old, Neighbor        EnumLabel
+	Rename, IfNotExists, Before bool
+	Pos                         Position
+}
+
+func (*AlterEnum) statement() {}
+
 type CreateComposite struct {
 	Name    ObjectName
 	Members []Column

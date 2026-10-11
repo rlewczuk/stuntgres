@@ -329,6 +329,8 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP TABLE"
 	case *parser.CreateComposite, *parser.CreateEnum:
 		return "CREATE TYPE"
+	case *parser.AlterEnum:
+		return "ALTER TYPE"
 	case *parser.CreateDomain:
 		return "CREATE DOMAIN"
 	case *parser.DropDomain:
@@ -415,7 +417,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
-	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+	case *parser.CreateComposite, *parser.CreateDomain, *parser.DropDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

@@ -26,7 +26,7 @@ type StatementDescription struct {
 	catalogOwner *Engine
 	catalogEpoch CatalogEpoch
 	// Public signatures stay immutable. Explicit DISCARD invalidates complete
-	// private literal groups, published together under Engine.mu on next bind.
+	// private typed literal groups, published together under Engine.mu on next bind.
 	temporals      []temporalConstant
 	sequences      *sequenceAnalysis
 	regtypes       *regtypeAnalysis
@@ -43,7 +43,7 @@ type temporalConstant struct {
 	months, days int32
 	typed        bool
 	typedTypmod  int32
-	value        sqltype.Value // immutable typed array literal, including temporal elements
+	value        sqltype.Value // immutable analyzed array, composite or enum literal
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership

@@ -33,6 +33,9 @@ type InputEnvironment struct {
 	// TypeDiagnosticName captures coherent catalog visibility for child input
 	// errors. A nil callback or empty spelling uses immutable descriptor naming.
 	TypeDiagnosticName func(ID) string
+	// EnumMemberSafe admits produced members against this operation's private
+	// catalog provenance. A nil callback means the committed catalog.
+	EnumMemberSafe func(ID, int64) bool
 	// ExactSnapshot is private native-import policy. Codecs and coercions reject
 	// modifier loss throughout nested values; ordinary SQL leaves it disabled.
 	ExactSnapshot bool

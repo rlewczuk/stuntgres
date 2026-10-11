@@ -29,15 +29,17 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			for i, column := range relation.columns {
 				columnsChanged = columnsChanged || old.columns[i].Usage.Type != column.Usage.Type
 			}
-			if columnsChanged && e.storage[address] != nil {
-				if stores == nil {
-					stores = make(map[ObjectAddress]*relationStorage)
-				}
+			if columnsChanged {
 				store := e.storage[address]
 				if shape, ok := stage.rowShapes[address]; ok {
 					store = shape.replacement
 				}
-				stores[address] = store
+				if store != nil {
+					if stores == nil {
+						stores = make(map[ObjectAddress]*relationStorage)
+					}
+					stores[address] = store
+				}
 			}
 		}
 		if stage.base.state.descriptors[address] == nil {

@@ -46,6 +46,28 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 	}, nil
 }
 
+// Safety belongs to admission, not discovery of an enum node. Scope inputs and
+// standalone binders borrow the same immutable root; candidate mutations clone
+// it. Inputs are never retained across admissions, so an existing callback is
+// already the current scope's capture and can be shared without another closure.
+func captureEnumOperationSafety(op *Operation, input *sqltype.InputEnvironment) {
+	if input.EnumMemberSafe != nil || op == nil || op.session == nil || op.session.transactions == nil || op.session.transactions.catalog == nil {
+		return
+	}
+	input.EnumMemberSafe = enumSafety(op.session.transactions.catalog.enumUnsafe)
+}
+
+// Capture naming only after the caller supplies its coherent catalog authority.
+// Alternate staged binders retain lazy naming through captureTypeDiagnosticInput.
+func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvironment) error {
+	if input.EnumMemberSafe == nil || input.TypeDiagnosticName != nil {
+		return nil
+	}
+	var err error
+	input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+	return err
+}
+
 func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
 	if b.input.TypeDiagnosticName != nil || !hasEnumInput(typ) {
 		return nil
@@ -80,8 +102,8 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 }
 
 // Retained write expressions are not rebound with the consuming statement.
-// Inspect their admitted IO coercions using the same lexical child walker.
-func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, generations map[int32]columnGeneration) error {
+// Capture lazy diagnostic naming without evaluating any default or branch.
+func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, generations map[int32]columnGeneration, checks []checkConstraint) error {
 	if b.input.TypeDiagnosticName != nil {
 		return nil
 	}
@@ -90,8 +112,13 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, gener
 		if failure != nil || b.input.TypeDiagnosticName != nil {
 			return
 		}
-		if cast, ok := node.(coercionExpression); ok && sqltype.IsCharacter(cast.child.ResultUsage().Type.BaseType().ID()) {
-			failure = b.captureTypeDiagnosticInput(cast.ResultUsage().Type)
+		switch node := node.(type) {
+		case enumFunctionExpression:
+			failure = b.captureTypeDiagnosticInput(node.plan.Enum())
+		case coercionExpression:
+			if sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID()) {
+				failure = b.captureTypeDiagnosticInput(node.ResultUsage().Type)
+			}
 		}
 	}
 	for _, node := range defaults {
@@ -102,6 +129,12 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, gener
 	}
 	for _, definition := range generations {
 		walkBoundExpression(definition.planned, visit)
+		if failure != nil || b.input.TypeDiagnosticName != nil {
+			return failure
+		}
+	}
+	for _, definition := range checks {
+		walkBoundExpression(definition.expression, visit)
 		if failure != nil || b.input.TypeDiagnosticName != nil {
 			return failure
 		}

@@ -632,7 +632,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		if len(collations) != 0 {
 			collation = collations[0]
 		}
-		n.value, err = reownDomainDatum(n.value, typ, collation)
+		n.value, err = reownDomainDatum(n.value, typ, collation, view.state.enumImports)
 		n.expressionInfo = info
 		rebound = n
 	case timeZoneExpression:

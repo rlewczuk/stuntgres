@@ -251,8 +251,17 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id || v.typ.IsDomain() != d.IsDomain() || v.typ.BaseType().id != d.BaseType().id {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
 	}
-	if !compatibleEnum(v.typ.BaseType(), d.BaseType()) {
+	fromEnum, toEnum := v.typ.BaseType(), d.BaseType()
+	if fromEnum.IsEnum() != toEnum.IsEnum() {
 		return Value{}, fmt.Errorf("incompatible enum declaration")
+	}
+	if fromEnum.IsEnum() && !v.null {
+		if _, ok := fromEnum.enum.ranks[v.integer]; !ok {
+			return Value{}, fmt.Errorf("invalid enum member")
+		}
+		if _, ok := toEnum.enum.ranks[v.integer]; !ok {
+			return Value{}, fmt.Errorf("foreign enum member")
+		}
 	}
 	if d.IsDomain() {
 		from, to := v.typ.Usage().BaseUsage(), d.Usage().BaseUsage()
@@ -1580,10 +1589,10 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		if _, err := p.right.enumOutput(b); err != nil {
 			return 0, err
 		}
-		if a.integer < b.integer {
+		if p.left.enum.ranks[a.integer] < p.right.enum.ranks[b.integer] {
 			return -1, nil
 		}
-		if a.integer > b.integer {
+		if p.left.enum.ranks[a.integer] > p.right.enum.ranks[b.integer] {
 			return 1, nil
 		}
 		return 0, nil

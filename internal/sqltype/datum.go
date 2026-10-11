@@ -18,7 +18,8 @@ func SameDatum(a, b Value) bool {
 	}
 	if a.typ.BaseType().IsEnum() {
 		d := a.typ.BaseType()
-		return a.integer >= 0 && a.integer < int64(len(d.enum.labels)) && a.integer == b.integer
+		_, present := d.enum.ranks[a.integer]
+		return present && a.integer == b.integer
 	}
 	if a.typ.BaseType().IsComposite() {
 		if !a.validCompositePayload() || !b.validCompositePayload() {

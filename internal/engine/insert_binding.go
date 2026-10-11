@@ -65,7 +65,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		if err := e.bindInsertSource(b, binder, auth, s); err != nil {
 			return err
 		}
-		return binder.captureRetainedWriteInput(b.defaults, nil)
+		return binder.captureRetainedWriteInput(b.defaults, nil, nil)
 	}
 	binder.aggregateClause = "INSERT VALUES"
 	b.expressions = make([][]BoundExpr, len(s.Rows))
@@ -207,5 +207,5 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			b.insertProjection[target] = i
 		}
 	}
-	return binder.captureRetainedWriteInput(b.defaults, nil)
+	return binder.captureRetainedWriteInput(b.defaults, nil, nil)
 }

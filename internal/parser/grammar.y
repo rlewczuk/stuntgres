@@ -115,6 +115,7 @@ package parser
  createIndex *CreateIndex
  alterView *AlterView
  enumLabels []EnumLabel
+ alterEnum *AlterEnum
  alterIndex *AlterIndex
  indexOptions []IndexOption
  indexOption IndexOption
@@ -307,7 +308,7 @@ package parser
 %type <into> into_clause
 %type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
-%type <stmt> create_domain drop_domain create_enum create_composite
+%type <stmt> create_domain drop_domain create_enum create_composite alter_enum
 %type <stmt> create_collation alter_collation drop_collation
 %type <createCollation> collation_create_head
 %type <alterCollation> collation_alter_head
@@ -318,6 +319,8 @@ package parser
 %type <columns> composite_members composite_member_list
 %type <col> composite_member
 %type <tok> enum_word
+%type <tok> enum_placement_word
+%type <alterEnum> enum_placement
 %type <tok> check_function_head
 %type <tok> extract_field
 %type <alterActions> alter_actions
@@ -564,7 +567,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
- | alter_collation | drop_collation
+ | alter_collation | drop_collation | alter_enum
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -955,6 +958,23 @@ enum_word: generic_word {
 enum_labels: /* empty */ {$$=nil} | enum_label_list {$$=$1} ;
 enum_label_list: STRING {$$=[]EnumLabel{{Text:$1.text,Pos:$1.pos}}}
  | enum_label_list ',' STRING {$$=append($1,EnumLabel{Text:$3.text,Pos:$3.pos})} ;
+alter_enum: ALTER TYPE relation_name ADD VALUE STRING enum_placement {
+ $7.Name=$3;$7.Label=EnumLabel{Text:$6.text,Pos:$6.pos};$7.Pos=$1.pos;$$=$7
+}
+ | ALTER TYPE relation_name ADD VALUE IF NOT EXISTS STRING enum_placement {
+ $10.Name=$3;$10.Label=EnumLabel{Text:$9.text,Pos:$9.pos};$10.IfNotExists=true;$10.Pos=$1.pos;$$=$10
+}
+ | ALTER TYPE relation_name RENAME VALUE STRING TO STRING {
+ $$=&AlterEnum{Name:$3,Old:EnumLabel{Text:$6.text,Pos:$6.pos},Label:EnumLabel{Text:$8.text,Pos:$8.pos},Rename:true,Pos:$1.pos}
+} ;
+enum_placement: /* empty */ {$$=&AlterEnum{}}
+ | enum_placement_word STRING {
+ $$=&AlterEnum{Neighbor:EnumLabel{Text:$2.text,Pos:$2.pos},Before:$1.text=="before"}
+} ;
+enum_placement_word: generic_word {
+ if $1.keyword==nil || $1.text!="before" && $1.text!="after" {sqllex.(*lexer).syntax($1);return 1}
+ $$=$1
+} ;
 create_composite: CREATE TYPE relation_name AS '(' composite_members ')' { $$=&CreateComposite{Name:$3,Members:$6,Pos:$1.pos} } ;
 composite_members: /* empty */ {$$=nil} | composite_member_list {$$=$1} ;
 composite_member_list: composite_member {$$=[]Column{*$1}}

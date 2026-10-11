@@ -1274,10 +1274,20 @@ enum metadata identity. Native export/ScanType is string, DatabaseTypeName is
 empty; pinned pq exports raw bytes with interface{} ScanType for enum OIDs.
 Dump emits enums before dependent domains/tables/stored consumers, preserving
 label order and owners. Fresh prepares after Reset/Restore use new identities;
-retained eager rows remain owned. ALTER/DROP TYPE, pg_enum and general direct enum[]
-syntax/storage are excluded. See [enum types](docs/TYPES.md#enums--change-note).
+retained eager rows remain owned. `ALTER TYPE ... ADD VALUE [IF NOT EXISTS]`
+with optional BEFORE/AFTER and `ALTER TYPE ... RENAME VALUE` preserve existing
+member identity, stored dependencies and held analyzed enum literals.
+CREATE/ALTER enum utilities are transactional/savepoint-aware; demanded new
+members on existing types fail55P04 until top-level commit. Same-type mutations
+use actual catalog type locks; peers see committed generations only.
+Dump/Restore remaps fresh imported member identities, including same-OID nested
+values and stored literals. DROP TYPE, other ALTER TYPE forms, pg_enum and
+general direct enum[] syntax/storage remain excluded.
+See [enum types](docs/TYPES.md#enums--change-note).
 Feature smoke: `make check RUN='^TestReferenceEnumSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumSmoke$'`.
+Enum alteration proof: `make check RUN='^TestReferenceEnumAlter.*$'`;
+pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumAlter.*$'`.
 
 Change note: `enum_first`, `enum_last` and both `enum_range` overloads use the
 actual enum descriptor and declaration order. Unary calls ignore the datum,

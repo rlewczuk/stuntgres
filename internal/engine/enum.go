@@ -30,8 +30,8 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	labels := make([]string, len(s.Labels))
-	seen := make(map[string]bool, len(labels))
+	members := make([]sqltype.EnumMember, len(s.Labels))
+	seen := make(map[string]bool, len(members))
 	for i, label := range s.Labels {
 		if len(label.Text) > 63 {
 			diagnostic := sqlError("42602", fmt.Sprintf(`invalid enum label "%s"`, label.Text)).(*sqlstate.Error)
@@ -47,14 +47,18 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 			return diagnostic
 		}
 		seen[label.Text] = true
-		labels[i] = label.Text
+		member, err := e.allocateEnumMemberLocked()
+		if err != nil {
+			return err
+		}
+		members[i] = sqltype.EnumMember{ID: member, Label: label.Text}
 	}
 	revision, err := e.revisionLocked()
 	if err != nil {
 		return err
 	}
 	namespace := auth.catalog.state.descriptors[ns.Address].Name()
-	typ, err := sqltype.Enum(sqltype.ID(oid), name, dependencyIdentifier(namespace)+"."+dependencyIdentifier(name), labels)
+	typ, err := sqltype.EnumWithMembers(sqltype.ID(oid), name, dependencyIdentifier(namespace)+"."+dependencyIdentifier(name), members)
 	if err != nil {
 		return err
 	}

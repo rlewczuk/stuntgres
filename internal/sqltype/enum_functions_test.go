@@ -47,7 +47,7 @@ func TestEnumSupportFunctions(t *testing.T) {
 		}
 		var values [2]Value
 		copy(values[:], tc.args)
-		got, err := plan.Evaluate(ctx, values[0], values[1])
+		got, err := plan.Evaluate(ctx, values[0], values[1], InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -68,7 +68,7 @@ func TestEnumSupportFunctions(t *testing.T) {
 	}
 	first, _ := BindEnumSupport("enum_first", mood.Usage(), mood.Usage())
 	if allocations := testing.AllocsPerRun(100, func() {
-		v, err := first.Evaluate(ctx, Null(mood), Value{})
+		v, err := first.Evaluate(ctx, Null(mood), Value{}, InputEnvironment{})
 		if err != nil || v.Type() != mood {
 			panic("enum first")
 		}
@@ -76,7 +76,7 @@ func TestEnumSupportFunctions(t *testing.T) {
 		t.Fatal("scalar allocations", allocations)
 	}
 	foreign, _ := Enum(mood.ID(), "mood", "public.mood", mood.EnumLabels())
-	if _, err := first.Evaluate(ctx, Null(foreign), Value{}); err == nil {
+	if _, err := first.Evaluate(ctx, Null(foreign), Value{}, InputEnvironment{}); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	if _, err := BindEnumSupport("enum_range", array.Usage(), foreign.Usage()); err == nil {
@@ -85,20 +85,20 @@ func TestEnumSupportFunctions(t *testing.T) {
 	empty, _ := Enum(45002, "empty", "public.empty", nil)
 	emptyArray, _ := Array(45003, "_empty", empty)
 	emptyRange, _ := BindEnumSupport("enum_range", emptyArray.Usage(), empty.Usage())
-	v, err := emptyRange.Evaluate(ctx, Null(empty), Value{})
+	v, err := emptyRange.Evaluate(ctx, Null(empty), Value{}, InputEnvironment{})
 	if err != nil || v.IsNull() || v.ArrayLen() != 0 || len(v.ArrayDimensions()) != 0 {
 		t.Fatal(v, err)
 	}
 	for _, name := range []string{"enum_first", "enum_last"} {
 		p, _ := BindEnumSupport(name, empty.Usage(), empty.Usage())
-		if _, err := p.Evaluate(ctx, Null(empty), Value{}); err == nil {
+		if _, err := p.Evaluate(ctx, Null(empty), Value{}, InputEnvironment{}); err == nil {
 			t.Fatal("empty extrema")
 		}
 	}
 	special, _ := Enum(45004, "special", "public.special", []string{"", "NULL", "x,y", "{x}", "a\"b", "a\\b", " a "})
 	specialArray, _ := Array(45005, "_special", special)
 	p, _ := BindEnumSupport("enum_range", specialArray.Usage(), special.Usage())
-	v, err = p.Evaluate(ctx, Null(special), Value{})
+	v, err = p.Evaluate(ctx, Null(special), Value{}, InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestEnumSupportFunctions(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := p.Evaluate(canceled, Null(special), Value{}); err != context.Canceled {
+	if _, err := p.Evaluate(canceled, Null(special), Value{}, InputEnvironment{}); err != context.Canceled {
 		t.Fatal(err)
 	}
 }

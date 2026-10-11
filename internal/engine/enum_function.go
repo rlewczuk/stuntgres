@@ -26,7 +26,7 @@ func (e enumFunctionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
-	value, err := e.plan.Evaluate(c.Context, values[0], values[1])
+	value, err := e.plan.Evaluate(c.Context, values[0], values[1], c.Input)
 	if d, ok := err.(*sqlstate.Error); ok && d.Code == "55000" {
 		name := e.enumName
 		if c.Input.TypeDiagnosticName != nil {
@@ -93,6 +93,9 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+	}
+	if err := b.captureTypeDiagnosticInput(selected); err != nil {
+		return nil, err
 	}
 	result := selected.Usage()
 	if name == "enum_range" {

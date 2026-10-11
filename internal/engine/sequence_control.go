@@ -289,11 +289,16 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			break
 		}
 	}
+	if err := e.importEnumMembersLocked(next, mapping); err != nil {
+		return err
+	}
+	defer func() { next.enumImports = nil }()
 	domainsChanged, err := reownDomainTypes(next, mapping)
 	if err != nil {
 		return err
 	}
-	if typesChanged || domainsChanged || len(mapping) != 0 {
+	refreshEnumImportDestinations(next)
+	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.enumImports) != 0 {
 		if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
 			return err
 		}

@@ -29,7 +29,10 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	for _, labels := range []string{"'ok','ok'", "'" + strings.Repeat("x", 64) + "'"} {
 		raw := statement(t, "CREATE TYPE public.failed AS ENUM ("+labels+")")
 		e.mu.Lock()
-		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{})
+		auth, err := e.authorizationLocked(op)
+		if err == nil {
+			err = e.stageCreateEnumLocked(op, auth, e.BeginCatalogStage(auth.catalog), raw.(*parser.CreateEnum))
+		}
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || (diagnostic.Code != "23505" && diagnostic.Code != "42602") {
@@ -131,7 +134,17 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 		if typ == wrapped.typ {
 			destination = newWrapped
 		}
-		mapped, err := reownDomainDatum(value, destination, nil)
+		if _, err := reownDomainDatum(value, destination, nil, nil); err == nil {
+			t.Fatal("cross-ID enum import admitted without source authority")
+		}
+		foreign, err := sqltype.EnumWithMembers(newMood.ID(), newMood.Name(), newMood.SQLName(), newMood.EnumMembers())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.typ: foreign}); err == nil {
+			t.Fatal("equal-ID/member/label destination bypassed exact codec authority")
+		}
+		mapped, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.typ: newMood})
 		if err != nil {
 			t.Fatal(err)
 		}

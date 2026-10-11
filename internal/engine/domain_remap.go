@@ -41,7 +41,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 				associated = sqltype.ID(destination.ObjectID)
 			}
 			if target != address || namespace != d.Namespace() || declaration != d.typ.SQLName() || associated != d.array {
-				typ, err := sqltype.Enum(sqltype.ID(target.ObjectID), d.Name(), declaration, d.typ.EnumLabels())
+				typ, err := sqltype.EnumWithMembers(sqltype.ID(target.ObjectID), d.Name(), declaration, d.typ.EnumMembers())
 				if err != nil {
 					return err
 				}
@@ -255,22 +255,36 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
-func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper) (sqltype.Value, error) {
+func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor) (sqltype.Value, error) {
 	if value.Type().BaseType().IsComposite() && target.BaseType().IsComposite() {
 		return value.MapComposite(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
-			return reownDomainDatum(v, t, collation)
+			return reownDomainDatum(v, t, collation, imports)
 		})
 	}
 	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
 		return value.MapArray(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
-			return reownDomainDatum(v, t, collation)
+			return reownDomainDatum(v, t, collation, imports)
 		})
+	}
+	if imported := imports[value.Type().BaseType()]; imported != nil {
+		if !target.BaseType().IsEnum() || imported != target.BaseType() {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported enum destination")
+		}
+		physical, err := value.BaseValue()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		physical, err = physical.RemapEnum(target.BaseType())
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if target.IsDomain() {
+			return target.Wrap(physical)
+		}
+		return physical, nil
 	}
 	if value.Type().ID() == target.ID() && value.Type().BaseType().ID() == target.BaseType().ID() && (!value.Type().IsDomain() || value.Type().Usage().BaseUsage().Collation == target.Usage().BaseUsage().Collation) {
 		return value.Retag(target)
-	}
-	if value.Type().IsEnum() && target.IsEnum() {
-		return value.RemapEnum(target)
 	}
 	if !value.Type().IsDomain() || !target.IsDomain() {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported scalar identity")
@@ -290,7 +304,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	physical, err = reownDomainDatum(physical, to.Type, collation)
+	physical, err = reownDomainDatum(physical, to.Type, collation, imports)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -357,7 +371,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 				changed := target != value.Type()
 				var err error
 				if changed {
-					rebound, err = reownDomainDatum(value, target, collation)
+					rebound, err = reownDomainDatum(value, target, collation, next.enumImports)
 					if err != nil {
 						return err
 					}

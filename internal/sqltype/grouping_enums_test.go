@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestGroupingEnumOrdinalDomainsAndRecursiveArrays(t *testing.T) {
+func TestGroupingEnumMemberDomainsAndRecursiveArrays(t *testing.T) {
 	ctx := context.Background()
 	enum, err := Enum(62000, "group_enum", "public.group_enum", []string{"z", "a", "q"})
 	if err != nil {
@@ -80,13 +80,13 @@ func TestGroupingEnumOrdinalDomainsAndRecursiveArrays(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, ordinal := range []int64{-1, 3} {
-			value := Value{typ: typ, integer: ordinal}
+		for _, member := range []int64{-1, 0, int64(len(enum.EnumMembers())) + 1} {
+			value := Value{typ: typ, integer: member}
 			if _, err := g.Hash(ctx, value); err == nil {
-				t.Fatal("invalid enum ordinal hashed", typ, ordinal)
+				t.Fatal("invalid enum member hashed", typ, member)
 			}
 			if _, err := g.Equal(ctx, value, value); err == nil {
-				t.Fatal("invalid enum ordinal compared", typ, ordinal)
+				t.Fatal("invalid enum member compared", typ, member)
 			}
 		}
 	}

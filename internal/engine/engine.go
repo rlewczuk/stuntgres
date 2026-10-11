@@ -26,6 +26,7 @@ type Engine struct {
 	indexRoots          map[ObjectAddress]*logicalIndexRoot
 	nextOID             OID
 	nextRevision        DefinitionRevision
+	nextEnumMember      int64
 	sessionMu           sync.Mutex
 	sessions            map[SessionToken]*Session
 	settingsDefinitions map[string]SettingDefinition
@@ -104,6 +105,7 @@ type binding struct {
 	regtypeConstants      []regtypeConstant
 	regtypeInput          sqltype.RegtypeResolver
 	typeDiagnosticName    func(sqltype.ID) string
+	enumMemberSafe        func(sqltype.ID, int64) bool
 }
 
 func New() *Engine {
@@ -296,7 +298,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
-	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+	case *parser.CreateComposite, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return StatementDescription{}, nil
 	case *parser.RoleMembership, *parser.ObjectGrant:
 		return StatementDescription{}, nil
@@ -323,7 +325,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		info, _, err := e.describeSettingCall(op.ctx, s, scope.input, op)
+		info, _, err := e.describeSettingCall(op.ctx, s, &scope.input, op)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
@@ -390,6 +392,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	}
 	binder.queryLockAdmission = admission
 	binder.queryAuth = &auth
+	if err := e.captureEnumOperationInput(auth, &binder.input); err != nil {
+		return b, err
+	}
 	if binder.queryLockAdmission == nil {
 		manifest, _, _, err := newQueryLockAdmission(stmt)
 		if err != nil {
@@ -745,7 +750,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Merge:
 		if b.relation != nil {
-			if err := binder.captureRetainedWriteInput(nil, b.relation.generations); err != nil {
+			if err := binder.captureRetainedWriteInput(nil, b.relation.generations, b.relation.checkConstraints); err != nil {
 				return b, err
 			}
 		}
@@ -777,6 +782,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.regtypeConstants = binder.regtypeConstants
 	b.regtypeInput = binder.input.Regtype
 	b.typeDiagnosticName = binder.input.TypeDiagnosticName
+	b.enumMemberSafe = binder.input.EnumMemberSafe
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
@@ -790,7 +796,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		return b, err
 	}
 	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.generations); err != nil {
+		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.generations, b.viewWrite.base.checkConstraints); err != nil {
 			return b, err
 		}
 		b.typeDiagnosticName = binder.input.TypeDiagnosticName

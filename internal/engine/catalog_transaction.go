@@ -17,6 +17,8 @@ type catalogChanges struct {
 	dependencies []catalogDependencyObservation
 	cachedBase   *catalogState
 	cached       CatalogRead
+	enumCreated  map[ObjectAddress]bool // CREATE at top transaction level only.
+	enumUnsafe   map[int64]bool         // Globally nonreused member identities.
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -26,6 +28,18 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n := newCatalogChanges()
 	if c == nil {
 		return n
+	}
+	if c.enumCreated != nil {
+		n.enumCreated = make(map[ObjectAddress]bool, len(c.enumCreated))
+		for a, v := range c.enumCreated {
+			n.enumCreated[a] = v
+		}
+	}
+	if c.enumUnsafe != nil {
+		n.enumUnsafe = make(map[int64]bool, len(c.enumUnsafe))
+		for id, v := range c.enumUnsafe {
+			n.enumUnsafe[id] = v
+		}
 	}
 	for a, d := range c.originals {
 		n.originals[a] = d

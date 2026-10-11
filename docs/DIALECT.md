@@ -1898,7 +1898,8 @@ and must reference a projected expression, output alias or ordinal. Hidden keys
 fail42P10 and all four locking modes fail0A000, also through DISTINCT views.
 Native metadata, held execution, INSERT SELECT source-type equality and
 Dump/Restore retain the same contract. Arrays/domains use structural key equality.
-Enums and enum domains use declaration-ordinal keys. Explicit ORDER aliases and
+Enums and enum domains use checked stable-member identity keys; declaration rank
+determines ordering, not grouping identity. Explicit ORDER aliases and
 ordinals preserve the selected visible occurrence, including independent repeated
 volatile projections. Projected enum-domain arrays do not widen array storage.
 Ordinary array operators/order remain excluded; ON key equality does not add ordering.
@@ -6204,7 +6205,21 @@ values are string versus pq raw bytes. Logical type identity remains exact.
 Qualified declarations/owners/ordered labels and stored dependent consumers
 roundtrip through native Dump/Restore and import remapping. Held eager rows
 survive replacement; old prepared logical contracts cannot retarget by name.
-ALTER/DROP TYPE, pg_enum catalogs and general direct enum[] syntax/storage remain excluded.
+`ALTER TYPE ... ADD VALUE [IF NOT EXISTS] 'label' [BEFORE|AFTER 'neighbor']`
+and `ALTER TYPE ... RENAME VALUE 'old' TO 'new'` are supported, with effect-free
+Prepare and owner-checked execution. ADD preserves existing member identities;
+RENAME updates rendering without changing rank. Held analyzed SELECT/DML/predicate
+enum literals keep their member, while fresh input uses current labels.
+CREATE TYPE AS ENUM and these ALTER forms participate in transactions/savepoints.
+New labels on existing types remain unsafe55P04 until top-level commit; the
+CREATE-and-ADD exemption requires both at outermost transaction depth.
+Child provenance is retained across RELEASE and restored by ROLLBACK TO.
+Actual type-resource locks serialize same-type changes with cancellation,
+timeout and deadlock behavior; peers see only committed labels.
+Dump/Restore uses current committed labels and explicit fresh-member import
+remapping, including nested values and stored dependencies.
+DROP TYPE, other ALTER TYPE forms, pg_enum catalogs and general direct enum[]
+syntax/storage remain excluded.
 AS (...) composites are documented separately. See [types](TYPES.md#enums--change-note).
 
 `enum_first(anyenum)`, `enum_last(anyenum)`, `enum_range(anyenum)` and

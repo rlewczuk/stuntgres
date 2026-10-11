@@ -151,6 +151,9 @@ type catalogState struct {
 	namespaceGeneration uint64
 	descriptors         map[ObjectAddress]Descriptor
 	names               map[NameKey]ObjectAddress
+	// Replacement-candidate-only translation, cleared before publication.
+	// Keys are exact source codecs, never numeric identity coincidences.
+	enumImports map[*sqltype.Descriptor]*sqltype.Descriptor
 }
 type CatalogRead struct {
 	owner *Engine

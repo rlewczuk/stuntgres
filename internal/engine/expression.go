@@ -1205,6 +1205,7 @@ type expressionBinder struct {
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
+	captureEnumOperationSafety(op, &input)
 	b := &expressionBinder{engine: e, ctx: ctx, parameters: make(map[int]sqltype.Usage), input: input, op: op, expected: expected}
 	if expected != nil {
 		b.seedParameters(expected.Parameters.Types)
@@ -1682,23 +1683,28 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if established := b.updateInputParameters[r.Number]; established.Type != nil {
 			u = established
 		}
-		if r.Number <= len(b.formalParameters) && b.formalParameters[r.Number-1].Type != nil {
-			u = b.parameters[r.Number]
+		retained := r.Number <= len(b.formalParameters) && b.formalParameters[r.Number-1].Type != nil
+		if retained {
+			u = b.formalParameters[r.Number-1]
 		}
-		// A retained prepared parameter is an input contract, not the current
-		// destination column's type. Reanalysis adds ordinary coercion from
-		// that immutable source to the fresh destination.
+		// Retained parameter contracts keep their logical input type, but their
+		// codec must come from the admitted catalog, including private generations.
 		if b.expected != nil && r.Number <= len(b.expected.Parameters.Types) {
 			u = b.expected.Parameters.Types[r.Number-1]
-			// Native replacement remints builtin descriptors. Keep the SQL input
-			// identity/modifiers, but bind values/providers to this catalog generation.
-			if u.Type != nil {
-				current := b.typ(u.Type.ID())
-				if current == nil && u.Type.IsUserDefined() {
-					return nil, sqlError("0A000", "cached plan must not change parameter type")
-				}
-				u.Type = current
+			retained = u.Type != nil
+		}
+		if retained {
+			catalog := b.bindingCatalog()
+			if b.expected != nil && statementCatalogType(u.Type) && b.expected.catalogOwner != nil &&
+				(b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch()) {
+				return nil, sqlError("0A000", "cached plan must not change parameter type")
 			}
+			current, _ := catalog.LookupType(u.Type.ID())
+			if current == nil && statementCatalogType(u.Type) {
+				return nil, sqlError("0A000", "cached plan must not change parameter type")
+			}
+			u.Type = current
+			b.parameters[r.Number] = u
 		}
 		if u.Type == nil {
 			u = b.parameters[r.Number]
@@ -2184,7 +2190,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22000" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "55P04" || d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22000" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
@@ -2254,7 +2260,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return node.(literalExpression).value, nil
 	}
-	if u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() {
+	if u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}
@@ -2263,6 +2269,16 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			return sqltype.Value{}, err
 		}
 		if found {
+			catalog := b.bindingCatalog()
+			if hasEnumInput(u.Type) && (b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch()) {
+				actual := *b.expected
+				actual.catalogOwner = catalog.owner
+				actual.catalogEpoch = catalog.Epoch()
+				if err := checkStatementSignature(*b.expected, actual); err != nil {
+					return sqltype.Value{}, err
+				}
+				return sqltype.Value{}, ErrCatalogReplaced
+			}
 			return c.value.Retag(u.Type)
 		}
 		if u.Type.ContainsCatalogIdentifier() {

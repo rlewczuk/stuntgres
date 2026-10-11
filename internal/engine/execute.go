@@ -11,6 +11,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
+	captureEnumOperationSafety(op, &scope.input)
 	if !op.commandAdmission {
 		op.snapshotNoticeThreshold()
 	}
@@ -48,6 +49,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeDropView(scope, stmt.(*parser.DropView), count)
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return e.executeSequenceDDL(scope, stmt, count)
+	case *parser.CreateEnum, *parser.AlterEnum:
+		return e.executeEnumDDL(scope, stmt, count)
 	case *parser.Comment:
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
 			return e.executeSequenceComment(scope, c, count)
@@ -57,7 +60,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
@@ -113,6 +116,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	if err := scope.captureIdentityLocked(identityAuth); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	if err := e.captureEnumOperationInput(auth, &scope.input); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -199,6 +206,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.typeDiagnosticName != nil {
 		scope.input.TypeDiagnosticName = b.typeDiagnosticName
 	}
+	scope.input.EnumMemberSafe = b.enumMemberSafe
 	for _, usage := range b.parameters.Types {
 		if usage.Type.ContainsRegclass() && scope.input.Regclass == nil {
 			scope.input.Regclass, err = e.captureRegclassInput(auth)

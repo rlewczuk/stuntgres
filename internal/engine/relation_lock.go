@@ -45,7 +45,7 @@ func relationWaitError(ctx context.Context, policy relationLockPolicy, lockDeadl
 	return ctx.Err()
 }
 
-type relationLockMode uint16
+type relationLockMode uint32
 
 const (
 	accessShare relationLockMode = 1 << iota
@@ -64,6 +64,7 @@ const (
 	transactionCompletion
 	advisoryShared
 	advisoryExclusive
+	typeExclusive
 )
 
 type lockResourceKind uint8
@@ -153,6 +154,9 @@ func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	return t, nil
 }
 func lockConflict(a, b relationLockMode) bool {
+	if a&typeExclusive != 0 || b&typeExclusive != 0 {
+		return a&typeExclusive != 0 && b&typeExclusive != 0
+	}
 	if a&(advisoryShared|advisoryExclusive) != 0 || b&(advisoryShared|advisoryExclusive) != 0 {
 		return a&advisoryExclusive != 0 && b&(advisoryShared|advisoryExclusive) != 0 ||
 			b&advisoryExclusive != 0 && a&(advisoryShared|advisoryExclusive) != 0
@@ -435,6 +439,11 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		if !m.valid(owner) {
 			m.mu.Unlock()
 			return nil, nil
+		}
+	} else if ref.Address.ClassID == TypeClassID {
+		if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid type lock request")
 		}
 	} else if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()

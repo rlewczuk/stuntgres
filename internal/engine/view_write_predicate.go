@@ -11,6 +11,24 @@ type viewQualificationExpression struct {
 }
 
 func (e viewQualificationExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	if err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	value, known, err := queryPredicateProofValue(c, e.user)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if known {
+		truth, err := TruthOf(value)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if truth != True {
+			// A proven empty user input cannot expose a row or demand a
+			// retained qualification. Preserve its original FALSE/NULL value.
+			return value, c.Context.Err()
+		}
+	}
 	for i := len(e.predicates) - 1; i >= 0; i-- {
 		value, err := e.predicates[i].Eval(c)
 		if err != nil {
@@ -23,6 +41,9 @@ func (e viewQualificationExpression) Eval(c *EvalContext) (sqltype.Value, error)
 		if truth != True {
 			return sqltype.Boolean(e.usage.Type, false), nil
 		}
+	}
+	if known {
+		return value, c.Context.Err()
 	}
 	if e.user == nil {
 		return sqltype.Boolean(e.usage.Type, true), c.Context.Err()

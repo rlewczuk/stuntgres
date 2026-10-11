@@ -14,7 +14,18 @@ func domainUnitStage(t *testing.T, e *Engine, op *Operation, q string) *CatalogS
 	t.Helper()
 	ast := statement(t, q)
 	e.mu.Lock()
-	stage, err := e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{})
+	var stage *CatalogStage
+	var err error
+	if enum, ok := ast.(*parser.CreateEnum); ok {
+		var auth AuthorizationView
+		auth, err = e.authorizationLocked(op)
+		if err == nil {
+			stage = e.BeginCatalogStage(auth.catalog)
+			err = e.stageCreateEnumLocked(op, auth, stage, enum)
+		}
+	} else {
+		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{})
+	}
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(q, err)

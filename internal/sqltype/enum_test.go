@@ -62,7 +62,7 @@ func TestEnumImmutableCodecAndOrdering(t *testing.T) {
 			t.Fatal("invalid label accepted", text)
 		}
 	}
-	for _, ordinal := range []int64{-1, int64(len(labels))} {
+	for _, ordinal := range []int64{0, int64(len(labels)) + 1} {
 		if _, err := mood.Output(ctx, Value{typ: mood, integer: ordinal}); err == nil {
 			t.Fatal("invalid ordinal accepted")
 		}
@@ -87,7 +87,7 @@ func TestEnumIdentityCoercionAndGeneration(t *testing.T) {
 	a, _ := Enum(45000, "a", "public.a", []string{"z", "a"})
 	b, _ := Enum(45001, "b", "public.b", []string{"z", "a"})
 	generation, _ := Enum(a.ID(), "a", "renamed.a", []string{"z", "a"})
-	reordered, _ := Enum(a.ID(), "a", "public.a", []string{"a", "z"})
+	foreignMembers, _ := EnumWithMembers(a.ID(), "a", "public.a", []EnumMember{{ID: 100, Label: "a"}, {ID: 101, Label: "z"}})
 	value, _ := a.Input(ctx, "z", -1)
 	if _, err := BindComparison(a, b); err == nil {
 		t.Fatal("distinct enums compare")
@@ -95,8 +95,8 @@ func TestEnumIdentityCoercionAndGeneration(t *testing.T) {
 	if _, err := value.Retag(b); err == nil {
 		t.Fatal("distinct enum retag")
 	}
-	if _, err := value.Retag(reordered); err == nil {
-		t.Fatal("changed enum generation retag")
+	if _, err := value.Retag(foreignMembers); err == nil {
+		t.Fatal("foreign enum member retag")
 	}
 	retagged, err := value.Retag(generation)
 	if err != nil || retagged.Type() != generation {

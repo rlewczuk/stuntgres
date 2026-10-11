@@ -83,21 +83,24 @@ type projectNode struct {
 	cteOwner            bool // An invocation boundary, not statement-global producer state.
 }
 
-// A physical literal or this execution's imported BOOL parameter can prove a
-// dead input before child demand. Never evaluate rows, stages or subqueries.
-func queryPredicateRejectsAll(c *EvalContext, expr BoundExpr) (bool, error) {
-	var value sqltype.Value
+// Only a physical literal or this execution's imported parameter is row-free.
+// Never evaluate arbitrary expressions, rows, stages or subqueries as a proof.
+func queryPredicateProofValue(c *EvalContext, expr BoundExpr) (sqltype.Value, bool, error) {
 	switch expression := expr.(type) {
 	case literalExpression:
-		value = expression.value
+		return expression.value, true, nil
 	case parameterExpression:
-		var err error
-		value, err = expression.Eval(c)
-		if err != nil {
-			return false, err
-		}
+		value, err := expression.Eval(c)
+		return value, true, err
 	default:
-		return false, nil
+		return sqltype.Value{}, false, nil
+	}
+}
+
+func queryPredicateRejectsAll(c *EvalContext, expr BoundExpr) (bool, error) {
+	value, known, err := queryPredicateProofValue(c, expr)
+	if err != nil || !known {
+		return false, err
 	}
 	truth, err := TruthOf(value)
 	return err == nil && truth != True, err
@@ -863,6 +866,9 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, err
 		}
 		if rejects && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
+			// Only child-reachable consumed physical marks require the eager
+			// input frontier. Unrelated semantic context, identity-only manifests
+			// and unopened opaque CTE bodies do not demand this child.
 			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}

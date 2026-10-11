@@ -80,6 +80,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err != nil {
 		return err
 	}
+	input.EnumMemberSafe = b.enumMemberSafe
 	for _, column := range b.createColumns {
 		if typ := column.Usage.Type; typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
 			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}}
@@ -115,6 +116,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
 	auth.catalog = e.stageRead(stage)
+	// Preserve operation safety, but resolve diagnostic names lazily against
+	// the staged catalog that owns these defaults, generations and CHECKs.
+	input.TypeDiagnosticName = nil
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
 	binder.defaultTemporary = auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor).temporary
@@ -351,10 +355,6 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 	case *parser.DropCollation:
 		if err = e.stageDropCollationLocked(op, auth, stage, s); err != nil {
-			return nil, err
-		}
-	case *parser.CreateEnum:
-		if err = e.stageCreateEnumLocked(op, auth, stage, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDomain:

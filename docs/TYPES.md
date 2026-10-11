@@ -775,15 +775,16 @@ The list may be empty (then only NULL is representable). Labels must fit 63 UTF8
 bytes; longer declarations fail42602. Duplicate labels fail23505 with the
 PostgreSQL pg_enum unique-constraint diagnostic; failed declarations publish nothing.
 
-Equality, all six ordinary comparisons and ORDER BY use declaration ordinals,
-not label spelling or insertion order. Different enum types fail42883 even with
+Equality uses stable member identity; all six ordinary comparisons and ORDER BY
+use the current declaration order, not label spelling, numeric identity or
+insertion time. Different enum types fail42883 even with
 shared labels, NULL or empty sources. Cast both operands to TEXT for lexical
 comparison. Unknown literals and inferred string/byte binds use exact enum input;
 invalid labels fail22P02 with positioned literals or unnamed portal parameter
 Context for bound values. Typed TEXT cannot implicitly assign or compare as enum;
 explicit enum↔TEXT casts are supported. Modifiers and COLLATE are rejected.
 Domains over enum retain their immediate/physical enum authority.
-DISTINCT keys use the same checked declaration ordinals for enums and domains
+DISTINCT keys use checked member identities for enums and domains
 over enums, with NULL-equal grouping semantics and strict descriptor generations.
 Recursive keys also support admitted projected arrays of domain-over-enum
 elements and domains over those arrays. Native enum-array column storage remains
@@ -821,10 +822,16 @@ normal binder diagnostics rather than a generic unsupported-query error.
 
 Native Go values and ScanType are string (nil for NULL); DatabaseTypeName is
 empty, Length/DecimalSize unknown. Stored nullable-column metadata is true/known.
+Native declared view columns retain their nullable/known metadata, even when
+their source is a computed enum support call; standalone computed results
+do not acquire that stored-column nullability contract.
 Pinned pq uses raw []byte/interface{} and unknown Nullable for user enum OIDs.
 These transport differences do not erase the logical engine enum ID.
 Held prepared parameters/results cannot retarget same-name types after native
 replacement; fresh prepares are required. Eager rows retain old values/metadata.
+Within the same lifetime, prepared parameter codecs refresh from the admitted
+catalog (including private enum/domain/composite generations), while their
+logical input contracts remain immutable.
 Schema rename updates stored dependencies and rendering; an old explicitly
 qualified prepared source is freshly resolved and can fail3F000.
 
@@ -832,7 +839,62 @@ Dump/Restore emits qualified enum declarations before dependent domains/tables,
 preserving label order, canonical escaping, owner remapping and stored defaults,
 CHECKs and views. Changed type ACLs are refused rather than silently discarded.
 Restore remains atomic on parse/input/owner/read/cancellation failures.
-ALTER TYPE, DROP TYPE, pg_enum queries and general direct enum[] syntax/storage remain excluded.
+`ALTER TYPE [schema.]name ADD VALUE [IF NOT EXISTS] 'label' [BEFORE|AFTER 'neighbor']`
+and `ALTER TYPE [schema.]name RENAME VALUE 'old' TO 'new'` are supported.
+Prepare is effect-free; Exec/Query completion performs the owner-checked mutation.
+ADD appends by default, or inserts at the exact neighbor; RENAME preserves rank
+and member identity. Existing rows, nested domain/composite values, stored
+DEFAULT/CHECK/view literals and successfully analyzed prepared enum literals
+retain their member after rename. Fresh textual input and bound parameters use
+current labels. A successful IF NOT EXISTS duplicate emits notice42710 and
+skips neighbor resolution; it does not create an unsafe member.
+
+CREATE TYPE AS ENUM and these two ALTER forms are transaction/savepoint-aware.
+An ADD to an existing type is unsafe until top-level commit: demanded literal,
+cast, bind, nested input and enum support-function producers fail55P04, with
+`New enum values must be committed before they can be used.` as Hint.
+Support functions check only members they actually produce; old members,
+bounded safe intervals and empty reversed intervals remain usable.
+Every operation captures current unsafe-member provenance from its admitted
+catalog, independently of freshly bound enum inputs. Retained DEFAULT/CHECK
+producers, nested stored views and qualifications, lowered view writes, routed
+physical leaf CHECKs and MERGE share that environment, including integer-only
+writes. Capture does not evaluate a producer: supplied values, untaken branches,
+zero-row sources and unused arms remain undemanded. Held prepared consumers
+recapture safety on every execution; commit and rollback retire unsafe roots.
+A WHERE input proven empty by a FALSE/NULL literal or this execution's BOOL
+parameter does not pull a nested view projection unless its child has a
+reachable mandatory physical input frontier. Native consuming owners retain
+that frontier for actual semantic rowmarks; unrelated semantic context,
+identity-only cursor manifests and unopened opaque CTE bodies do not require
+it. Proven-empty user predicates also avoid lowered view qualifications.
+Arbitrary user work still follows the required qualifications.
+The CREATE-and-ADD exemption applies only when both occur at the transaction's
+outermost level. Child-created types and child-added labels are not upgraded by
+RELEASE; ROLLBACK TO restores exact catalog/member provenance. Other utility
+transaction exclusions remain unchanged.
+Mutation errors/notices and input/unsafe diagnostics surround original label
+bytes with double quotes without Go-style escaping; backslashes, embedded
+quotes and supported control characters retain their exact diagnostic text.
+The 63-byte new-label limit is checked after object/kind/owner resolution but
+before requesting the type lock, so invalid ADD/RENAME does not turn into a
+lock timeout. Mutable duplicate/old/neighbor decisions and authorization still
+refresh after grant.
+
+Peers retain committed labels until publication. ADD/RENAME serialize on the
+actual catalog type resource; waits retain lock_timeout, deadlock, cancellation
+and transaction/savepoint release behavior. Generation replacement retains row,
+column, type and associated-array identities while rebuilding dependent codecs.
+A two-type lock cycle rejects one victim with40P01 `deadlock detected` and the
+server-log Hint. The failed transaction remains25P02 until rollback; survivor
+commit publishes only its own changes, and both sessions can reuse both type
+resources after terminal cleanup.
+Dump emits only committed current labels. Restore imports allocate new member
+identities and explicitly remap nested values and stored literals, including when
+source/destination type OIDs coincide. Ordinary same-lifetime retagging cannot
+use that import authority. Owner/read/input/cancellation failures remain atomic.
+DROP TYPE, other ALTER TYPE forms, pg_enum queries and general direct enum[]
+syntax/storage remain excluded.
 Named AS (...) composites are documented separately above. Public verification:
 `make check RUN='^TestReferenceEnum.*$'`
 and `make check REFERENCE=1 RUN='^TestReferenceEnum.*$'`.

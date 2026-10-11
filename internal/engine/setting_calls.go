@@ -17,11 +17,11 @@ func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor
 
 // describeSettingCall uses the same inference and literal binding as relations.
 // The caller holds e.mu over descriptor lookup and binding.
-func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input sqltype.InputEnvironment, op *Operation) (ParameterInfo, []BoundExpr, error) {
+func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *Operation) (ParameterInfo, []BoundExpr, error) {
 	if !(s.Name == "current_setting" && len(s.Args) == 1 || s.Name == "set_config" && len(s.Args) == 3) {
 		return ParameterInfo{}, nil, sqlError("0A000", "unsupported setting function signature")
 	}
-	binder := newExpressionBinder(ctx, e, input, op, nil)
+	binder := newExpressionBinder(ctx, e, *input, op, nil)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: s.Name, Pos: s.Pos}}}
 	if s.Schema != nil {
 		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.Pos}}
@@ -51,11 +51,13 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 		}
 	}
 	info, err := binder.finish()
+	input.EnumMemberSafe = binder.input.EnumMemberSafe
+	input.TypeDiagnosticName = binder.input.TypeDiagnosticName
 	return info, bound, err
 }
 func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
-	info, bound, err := e.describeSettingCall(op.ctx, s, input, op)
+	info, bound, err := e.describeSettingCall(op.ctx, s, &input, op)
 	typ, typeOK := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 	e.mu.Unlock()
 	if err != nil {
