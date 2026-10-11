@@ -164,6 +164,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.partitionRelations = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
+	s.viewWrite = nil
 	s.indexMaintenance = nil
 	s.viewCreationNamespace = ObjectRef{}
 	s.lockedStorage = nil

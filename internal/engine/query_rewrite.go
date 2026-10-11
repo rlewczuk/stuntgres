@@ -4,9 +4,15 @@ import "fmt"
 
 // Copy only paths changed by an expression rewrite. Query-local frame identities
 // and analyzed schemas are preserved across outer grouping and stored replay.
-func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error) {
+func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExpr, bool, error), rewriteNode ...func(LogicalNode) (LogicalNode, error)) (LogicalNode, error) {
 	if node == nil {
 		return nil, nil
+	}
+	if len(rewriteNode) != 0 && rewriteNode[0] != nil {
+		next, err := rewriteNode[0](node)
+		if err != nil || next != node {
+			return next, err
+		}
 	}
 	changed := false
 	var err error
@@ -14,7 +20,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		if err != nil {
 			return old
 		}
-		next, failure := rewriteQueryExpressions(old, rewrite)
+		next, failure := rewriteQueryExpressions(old, rewrite, rewriteNode...)
 		err = failure
 		changed = changed || next != old
 		return next

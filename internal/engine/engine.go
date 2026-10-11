@@ -58,6 +58,7 @@ type binding struct {
 	relation              *relationDescriptor
 	storage               *relationStorage
 	ref                   ObjectRef
+	viewWrite             *viewWrite
 	targets               []int
 	arrayTargets          []*arrayAssignmentTarget
 	usedColumns           []int
@@ -333,6 +334,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission, scope.initialParameters)
 	if err != nil {
 		return StatementDescription{}, err
+	}
+	if b.viewWrite != nil {
+		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
+			return StatementDescription{}, err
+		}
 	}
 	if err := scope.validateQuerySources(b.querySources); err != nil {
 		return StatementDescription{}, err
@@ -664,7 +670,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		if !b.relation.virtualView && (b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation) {
+		if !b.relation.virtualView && b.relation.relationKind == catalogRelation {
 			return b, tableKind(b.relation, "change")
 		}
 		if err := inheritanceScanGuard(auth.catalog, b.relation); err != nil {
@@ -672,7 +678,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 		if !b.relation.virtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil {
+			if b.storage == nil && b.relation.relationKind == tableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -764,6 +770,15 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
+	if err := e.bindViewWrite(&b, auth, stmt); err != nil {
+		return b, err
+	}
+	if b.viewWrite != nil {
+		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.generations); err != nil {
+			return b, err
+		}
+		b.typeDiagnosticName = binder.input.TypeDiagnosticName
+	}
 	return b, nil
 }
 

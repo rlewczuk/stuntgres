@@ -145,6 +145,9 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			}
 		}
 		if _, requested := a.Value.(parser.DefaultExpr); requested {
+			if b.relation.relationKind == viewRelation {
+				continue // Rewrite diagnoses computed/generated destinations.
+			}
 			return expressionError("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
 		}
 		expected := sqltype.Usage{}
@@ -198,6 +201,9 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		b.targets = append(b.targets, slot)
 		source := u.assignments[i]
 		dest := b.relation.columns[slot]
+		if source == nil && b.relation.relationKind == viewRelation {
+			continue
+		}
 		var target *arrayAssignmentTarget
 		if partial {
 			target, err = binder.bindArrayTarget(dest, a.Subscripts, a.Target.Pos, true)
@@ -310,10 +316,13 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	source.scope = s
 	inputs := source
 	if from != nil {
-		defer from.close()
 		if err := selectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
+		if b.viewWrite != nil {
+			from = freezeViewWriteSources(s, from, b.querySources)
+		}
+		defer from.close()
 		inputs = from
 	}
 	state := queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}

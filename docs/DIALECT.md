@@ -1799,13 +1799,34 @@ and security SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE and IF EXIST
 Scalar COLLATE annotations support default/C/POSIX and the fixed Unicode16
 `pg_c_utf8`/`pg_unicode_fast` identities; arbitrary locale/ICU providers remain excluded.
 Cyclic replacement is admitted, but recursive reads fail42P17 and native cyclic
-Dump explicitly fails. CREATE RECURSIVE/TEMP syntax, check options, view writes,
-column defaults/type-changing ALTER, full catalogs/RLS/UDFs/optimizer facilities
+Dump explicitly fails. CREATE RECURSIVE/TEMP syntax, check options,
+view column defaults/type-changing ALTER, full catalogs/RLS/UDFs/optimizer facilities
 and explicit-transaction view DDL remain excluded.
 Native fixture controls serialize current definitions, not materialized results
 or alteration history.
 Feature smokes: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'` and
 `make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`.
+
+Automatically updatable simple one-relation views support INSERT/UPDATE/DELETE
+through nested stable attribute mappings. Direct columns and same-type no-op
+casts are writable; other casts, explicit COLLATE and computed outputs are
+read-only. A mixed view remains writable through its direct columns. DELETE
+also works through computed-only and zero-column simple views. DISTINCT,
+GROUP/HAVING, set operations, bounds, top-level aggregate/window targets,
+joins and derived FROM inputs reject writes with PostgreSQL 55000 reasons;
+unsupported query syntax retains its parser boundary. Stored rowmarks do not
+disqualify a view. Omitted computed outputs are not evaluated during safe writes.
+The physical base supplies defaults/identity/generation, constraints, unique
+arbitration and RX/row locks. Every view predicate guards UPDATE/DELETE and
+latest-predecessor rechecks, but no implicit CHECK OPTION is introduced.
+Logical result columns/OLD/NEW remain those of the requested view.
+Main-source SELECT is conditional on logical command reads, not a hidden view
+predicate. Independent stored-subquery sources retain SELECT under their layer's
+current owner/original invoker. Frozen source layouts consume live selected
+versions, including own transaction changes; Prepare binds without executor ACLs.
+INSERT RETURNING, trigger/rule rewriting and RLS remain excluded.
+Feature smoke: `make check RUN='^TestReferenceViewUpdatableSmoke$'`;
+use the same selector with `REFERENCE=1` for the pinned PostgreSQL contract.
 
 SELECT targets support `AS label` and eligible bare labels for view definitions
 and normal output metadata. ORDER resolves output labels and ordinals alongside
@@ -2322,7 +2343,7 @@ Postpublication consumer cancellation does not undo deletion.
 Dump/Restore persists committed survivors/objects and sequence state, not
 RETURNING cursors/history; its mutation-script whitelist is not widened.
 Whole-row records, SRFs, triggers/FKs,
-view writes/rewrite-to-UPDATE and physical tuple/C/wire metadata remain
+rewrite-to-UPDATE and physical tuple/C/wire metadata remain
 PostgreSQL-only boundaries. See [output details](QUERIES.md#delete-returning--change-note).
 Feature smoke: `make check RUN='^TestReferenceDeleteUsingMigratedReturning'`;
 reference: `make check REFERENCE=1 RUN='^TestReferenceDeleteReturning'`.
@@ -2339,7 +2360,7 @@ signature. Output/constraint/cancellation failure publishes no partial replaceme
 or output, following existing abort/savepoint rules; sequence draws are not undone.
 Dump/Restore persists committed live data/catalog/sequence state, not output/history;
 its script whitelist is unchanged. Triggers, whole-row records/record expansion,
-view writes/rewrites/rules/partition movement and physical/C/wire
+rewrite rules/partition movement and physical/C/wire
 tuple metadata are genuine PostgreSQL-only mechanisms, not native no-ops.
 See [UPDATE output details](QUERIES.md#update-returning--change-note).
 Feature smoke: `make check RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)'`; pinned mode: `make check REFERENCE=1 RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)'`.

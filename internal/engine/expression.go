@@ -219,6 +219,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return nil, false, err
 	}
 	switch e := expression.(type) {
+	case viewQualificationExpression:
+		return mapViewQualification(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
 	case groupingExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {

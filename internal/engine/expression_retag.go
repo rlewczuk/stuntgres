@@ -19,8 +19,20 @@ func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltyp
 }
 
 func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+	return mapBoundExpression(view, node, retainedType, queryMapper, nil, collations...)
+}
+
+// mapBoundExpression shares the complete copy-on-change traversal with catalog
+// retagging. A leaf rewrite runs before children, without evaluating expressions.
+func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
 	if node == nil {
 		return nil, false, nil
+	}
+	if leaf != nil {
+		next, changed, err := leaf(node)
+		if changed || err != nil {
+			return next, changed, err
+		}
 	}
 	info := boundExpressionInfo(node)
 	typ := retainedType(info.usage.Type)
@@ -40,16 +52,20 @@ func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType fun
 		}
 		var next BoundExpr
 		var replaced bool
-		next, replaced, err = retagBoundTypesWithQuery(view, old, retainedType, queryMapper, collations...)
+		next, replaced, err = mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
 		changed = changed || replaced
 		return next
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case viewQualificationExpression:
+		return mapViewQualification(n, func(child BoundExpr) (BoundExpr, bool, error) {
+			return mapBoundExpression(view, child, retainedType, queryMapper, leaf, collations...)
+		})
 	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range n.elements {
-			next, replaced, failure := retagBoundTypesWithQuery(view, old, retainedType, queryMapper, collations...)
+			next, replaced, failure := mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -72,7 +88,7 @@ func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType fun
 	case subscriptExpression:
 		var replaced bool
 		n, replaced, err = mapSubscript(n, func(old BoundExpr) (BoundExpr, bool, error) {
-			return retagBoundTypesWithQuery(view, old, retainedType, queryMapper, collations...)
+			return mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
 		})
 		if err != nil {
 			return nil, false, err
@@ -196,6 +212,12 @@ func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType fun
 		}
 		n.expressionInfo = info
 		rebound = n
+	case parameterExpression:
+		if !changed {
+			return node, false, nil
+		}
+		n.expressionInfo = info
+		rebound = n
 	case columnExpression:
 		n.expressionInfo = info
 		rebound = n
@@ -208,7 +230,7 @@ func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType fun
 	case groupingExpression:
 		var args []BoundExpr
 		for i, arg := range n.args {
-			next, replaced, failure := retagBoundTypesWithQuery(view, arg, retainedType, queryMapper, collations...)
+			next, replaced, failure := mapBoundExpression(view, arg, retainedType, queryMapper, leaf, collations...)
 			if failure != nil {
 				return nil, false, failure
 			}

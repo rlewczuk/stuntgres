@@ -162,6 +162,23 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if b.viewWrite != nil {
+		e.mu.Unlock()
+		if err := scope.acquireViewWriteTarget(b.viewWrite); err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+		auth, err = e.statementAuthorizationLocked(op, stmt)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		b.storage = scope.lockedStorage
+		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
 	if b.regclassInput != nil {
 		scope.input.Regclass = b.regclassInput
 	}
@@ -283,7 +300,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, err
 				}
 			}
-			if err := b.conflict.selectArbiters(&evaluation, b.relation, auth.catalog); err != nil {
+			if err := b.conflict.selectArbiters(&evaluation, b.physicalBinding().relation, auth.catalog); err != nil {
 				return Result{}, err
 			}
 			scope.insertConflict = b.conflict
@@ -296,6 +313,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// Supplied values retain priority over defaults and executor ACLs.
 			// Constant planning and frame conversions both run unlocked; only
 			// changed rows and the outer slice need execution-private copies.
+			destination, destinationTargets := b.relation, b.targets
+			if b.viewWrite != nil {
+				destination, destinationTargets = b.viewWrite.logical.relation, b.viewWrite.logical.targets
+			}
 			for i, row := range b.expressions {
 				var privateRow []BoundExpr
 				for j, expression := range row {
@@ -304,7 +325,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
-						return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
+						return Result{}, insertValueError(auth.catalog, foldErr, destination.columns[destinationTargets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
 					}
 					if changed {
 						if privateRow == nil {
@@ -395,7 +416,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
-		if b.relation.relationKind != materializedViewRelation {
+		if b.viewWrite == nil && b.relation.relationKind != materializedViewRelation {
 			if err := tableKind(b.relation, "change"); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -412,6 +433,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	b = b.physicalBinding()
 	if err = partitionWriteExtensionBoundary(stmt, b.relation); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -576,6 +598,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err := selectQuerySources(ctx, source); err != nil {
 				return Result{}, err
 			}
+			if b.viewWrite != nil {
+				source = freezeViewWriteSources(scope, source, b.querySources)
+			}
 			b.query = &BoundQuery{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output, scope)
 			if queryErr != nil {
@@ -596,7 +621,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			defer inputs.close()
 			state := &queryState{source: inputs, parameters: canonical, input: scope.input, output: scope.output, locking: inputs.locks != nil}
 			evaluation.query = state
 			evaluation.Scope, evaluation.Frame = 1, 1
@@ -606,6 +630,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err := selectQuerySources(ctx, evaluation.query.source); err != nil {
 				return Result{}, err
 			}
+			if b.viewWrite != nil {
+				evaluation.query.source = freezeViewWriteSources(scope, evaluation.query.source, b.querySources)
+			}
+			defer evaluation.query.source.close()
 		}
 		rows := make([][]sqltype.Value, 0, len(s.Rows))
 		for i, source := range s.Rows {

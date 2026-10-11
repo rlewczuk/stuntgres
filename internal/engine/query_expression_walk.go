@@ -18,6 +18,9 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		}
 	}
 	switch e := node.(type) {
+	case viewQualificationExpression:
+		args(e.predicates)
+		walk(e.user)
 	case groupingExpression:
 		args(e.args)
 	case arrayExpression:

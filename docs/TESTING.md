@@ -390,6 +390,61 @@ inheritance graph, its exclusion constraint OID, physical data and enforcement.
 Include `Inheritance|Exclusion` when verifying this integrated composition; do not
 replace these consumer outcomes with dump-string or canonical-byte assertions.
 
+## Automatically updatable view witnesses
+
+The `TestReferenceViewUpdatable` families exercise logical view targets through
+public direct and retained prepared consumers: base defaults and counts,
+visibility/filter escape, existing DML caller variants, restricted shapes and
+full diagnostics, current owner/invoker authority, atomicity, transactions,
+contention, replacement and native-control cycles. Their independently specified
+expectations must be observed on the pinned oracle before production changes.
+Select the small families separately in both modes (900 seconds per command):
+
+```sh
+make check RUN='^TestReferenceViewUpdatable(Rows|Visibility|Callers|Obligations)$' REFERENCE=1
+make check RUN='^TestReferenceViewUpdatable(Restrictions|Diagnostics|Discovery)$' REFERENCE=1
+make check RUN='^TestReferenceViewUpdatable(Security|InsertSecurity|WriteSecurity)$' REFERENCE=1
+make check RUN='^TestReferenceViewUpdatable(Atomicity|Transactions|Contention)$' REFERENCE=1
+make check RUN='^TestReferenceViewUpdatable(Lifecycle|Smoke|Replay)$' REFERENCE=1
+make check RUN='^TestViewWrite(Mapping|Defaults|Demand|QueuedRecheck|Cancellation|Replacement)$' RACE=1
+make check RUN='^TestReferenceViewWriteCapabilityBoundary$' REFERENCE=1
+```
+
+Repeat those exact selectors without `REFERENCE=1` for native proof. Initial
+oracle discovery may temporarily filter non-PG backends under the policy below;
+remove every discovery filter before native red and final dual-mode verification.
+`Discovery` resolves no-op casts/COLLATE, stored row marks and unused constant
+expression demand using full diagnostic mismatch evidence, not native goldens.
+Native Reset/Dump/Restore phases do not invent server control APIs. PostgreSQL
+tuple contexts are structurally validated, not assigned native physical values.
+Supplemental native manager/stage units accompany the production round.
+`TestViewWriteDefaults` also checks physical conflict-arbiter selection without
+changing the logical target namespace; `TestViewWriteDemand` retains typed
+parameter identity and imported values through the shared expression rewrite.
+`TestViewWriteMapping` admits source-alias wrappers emitted by native Dump replay
+without admitting aliases around derived sources; public Smoke and the actual-API
+Go smoke retain their post-Restore future-write expectations unchanged.
+The independent-review regressions pin narrow-view INSERT conversion22003,
+independent stored-subquery SELECT42501 under owner/invoker grant changes, and
+live subquery counts after unrelated source-layout changes and own update/delete
+overlays. Run the complete definitions in both modes:
+
+```sh
+make check RUN='^TestReferenceViewUpdatableReview(Conversion|SubqueryACL|SubqueryVisibility)$'
+make check RUN='^TestReferenceViewUpdatableReview(Conversion|SubqueryACL|SubqueryVisibility)$' REFERENCE=1
+```
+
+`TestViewWriteDemand` additionally captures a real physical prefix with a
+committed deletion, selects its live rows, then bridges reordered frozen
+attributes and closes the source before checking manager cleanup.
+These mechanics supplement the public Callers/Security/Lifecycle/Smoke/Replay
+regressions; they do not replace their required native and real-mode proof.
+WITH, TABLESAMPLE, function FROM and target set-returning definitions have no
+admitted executable native definition surface in this part; they are not falsely
+reported as automatic-updatability diagnostics by parser-error witnesses.
+The separate actual-API Go smoke source is an ephemeral OMP session artifact;
+root materializes, runs and removes it rather than committing a smoke executable.
+
 ## Required implementation order
 
 1. **Write the shared reference scenario and run real PostgreSQL first.** Use

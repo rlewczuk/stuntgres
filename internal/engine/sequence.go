@@ -66,9 +66,6 @@ func tableKind(d *relationDescriptor, operation string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for indexes."}
 	}
 	if d.relationKind == viewRelation {
-		if operation == "change" {
-			return sqlError("0A000", "view writes are unsupported")
-		}
 		return sqlError("0A000", "view mutation is unsupported")
 	}
 	if d.relationKind == catalogRelation {

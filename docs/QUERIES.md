@@ -1674,7 +1674,7 @@ generations. Dump serializes committed survivors, descriptors/defaults/NOT NULL,
 comments, views and current sequence state, excluding private deletions and
 output cursors/history. Restore continues to reject DELETE RETURNING scripts.
 Whole-row OLD/NEW records and SRF providers,
-triggers/FKs/view writes and rewrite-to-UPDATE (where PostgreSQL NEW can be
+triggers/FKs and rewrite-to-UPDATE (where PostgreSQL NEW can be
 nonnull) remain real PostgreSQL-only controls, not native engine mechanisms.
 PostgreSQL18.0's excluded parenthesized whole-row expansion
 `RETURNING (old).*,(new).*` can expand both through the target's ordinary OLD
@@ -1953,15 +1953,30 @@ Eager values/schema/settings are owned after successful Finish and remain stable
 after rollback, later DML and native Reset/Restore. Dump serializes committed live
 rows/catalog/sequence state, never private replacement/history/cursors; Restore's
 mutation whitelist is unchanged and rejects UPDATE RETURNING scripts atomically.
-Native exact ACL controls remain internal, not a new SQL GRANT API.
+View targets use current public relation/column GRANT/REVOKE authority.
 
 Triggers and whole-row records/parenthesized expansion,
-view writes/rewrite rules, partition movement and physical/C/wire tuple metadata
+rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
 transformation/suppression and whole-row controls, not native successful no-ops.
 INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE and recursive inheritance
 remain excluded; leaf inherited-table DML is supported. No new evaluator,
 durability or retry path is introduced.
+
+Simple view targets preserve these UPDATE/DELETE RETURNING routes: output
+names/types/stars and OLD/NEW aliases remain logical view metadata, while values
+come from the actual predecessor and constrained complete physical base row.
+UPDATE FROM and DELETE USING source columns retain their own namespaces.
+Invisible base rows are excluded before user work and rechecked after row waits;
+an UPDATE leaving the view still returns NEW without filtering it away.
+Computed columns may be demanded by RHS/predicates/RETURNING, but cannot be
+destinations. All late errors discard staged writes and unexposed output.
+Independent stored subqueries require their defining layer's current-owner or
+original-invoker SELECT rights, separately from the main target's conditional
+read demand. Each demanded physical source selects live versions and own changes
+before applying its frozen attribute layout, so unrelated source column additions
+cannot expose deleted or superseded versions. Held Prepare retains source
+admission without executing these ACLs; Execute rebinds and authorizes afresh.
 
 Feature commands:
 `make check RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)$'`,

@@ -8,13 +8,14 @@ import (
 
 // Each manifest entry is an SQL occurrence, even when physical identity repeats.
 type queryLeaf struct {
-	ref      ObjectRef
-	relation *relationDescriptor
-	storage  *relationStorage
-	uses     []int
-	mark     queryRowMark
-	query    *parser.Select
-	table    *parser.TableReference
+	ref              ObjectRef
+	relation         *relationDescriptor
+	storage          *relationStorage
+	frozenAttributes []int32 // Execution-owned stored-view subquery layout.
+	uses             []int
+	mark             queryRowMark
+	query            *parser.Select
+	table            *parser.TableReference
 	// DELETE's immediate USING occurrences require reference-kind validation,
 	// not SELECT FOR UPDATE authority or source tuple locks.
 	deleteReference  bool

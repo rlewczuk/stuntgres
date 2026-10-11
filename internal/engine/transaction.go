@@ -264,6 +264,7 @@ type StatementScope struct {
 	lockedRef             ObjectRef
 	viewCreationNamespace ObjectRef
 	lockedDescriptor      Descriptor
+	viewWrite             *viewWrite
 	indexMaintenance      *indexMaintenanceGrant
 	querySources          []queryLeaf
 	queryLockAdmission    queryLockAdmission

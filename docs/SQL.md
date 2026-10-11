@@ -855,12 +855,57 @@ DATE/TIME/TIMESTAMP/TIMETZ/TIMESTAMPTZ casts use the captured session environmen
 native DateStyle and TimeZone settings are supported. Canonical replay remains
 independent of presentation settings.
 
-CREATE RECURSIVE/TEMP syntax, view writes/check options, ALTER VIEW column
-defaults, type-changing ALTER actions, public GRANT, RLS, UDFs and
+### Automatically updatable view targets
+
+INSERT/UPDATE/DELETE accept a simple view over one ordinary table or another
+such view. Mapping follows creation-bound attribute identities, not current
+column names or value matching. Logical view columns retain their namespaces,
+parameter types and UPDATE/DELETE RETURNING metadata. Source aliases, including
+the frozen-layout aliases emitted by native Dump and recreated by Restore, do
+not change a single ordinary table/view source into a read-only shape. Existing
+target aliases,
+UPDATE FROM, DELETE USING, scalar subqueries, partial array assignments and
+INSERT VALUES/SELECT/DEFAULT VALUES/ON CONFLICT DO NOTHING use the real base
+producer. Every omitted physical column uses the base default, identity,
+generation or typed NULL. Explicit NULL differs from DEFAULT.
+
+Computed output assignment rejects 0A000 even for NULL/DEFAULT or an empty
+producer. Different-type casts and explicit COLLATE are computed; a same-type
+no-op cast remains writable. Repeated aliases are individually writable, but
+assigning the same physical column twice rejects 42601 (except compatible
+partial array composition). Mixed views remain writable; simple computed-only
+and zero-column views allow DELETE. Restricted query shapes reject 55000 with
+the operation-specific reason and trigger/rule hint, not arbitrary base writes.
+
+UPDATE/DELETE qualify only rows satisfying every nested view WHERE and user
+predicate; latest predecessors are rechecked after contention. INSERT may add
+an invisible row and UPDATE may leave the view, returning its completed NEW
+values. Unused computed projections are not demanded. Failure/cancellation
+discards the whole private statement stage, including eager RETURNING output.
+The authoritative base owns RX/row locks and constraints; views store no rows.
+
+The caller needs logical view write rights and SELECT on referenced view
+columns. Each ordinary layer checks its current owner's mapped base rights;
+security_invoker uses the original caller even underneath an ordinary owner.
+Main-source SELECT follows actual logical read demand: INSERT-only, literal
+UPDATE and constant DELETE do not require it merely for a view-only predicate.
+Independent stored subquery occurrences retain SELECT requirements under their
+defining layer's current owner or original invoker, even when they read the same
+physical relation as the main source. Child views retain their own authority and
+applicable row marks. Demanded sources select live versions and own changes
+before bridging frozen attribute layouts. Held statements bind those sources at
+Prepare without executing ACL checks, then recheck current ACLs and mappings at
+Execute. INSERT conversion preflight uses coherent logical destination columns;
+physical completed-row constraints remain base-owned. Native Dump/Restore
+serializes current definitions and committed base rows, rebuilding mappings
+for subsequent writes; it does not serialize output/history or PostgreSQL
+physical tuple metadata. INSERT RETURNING remains the existing suffix boundary.
+
+CREATE RECURSIVE/TEMP syntax, check options, ALTER VIEW column
+defaults, type-changing ALTER actions, RLS, UDFs and
 optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
-Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
-public native ACL API.
+Public GRANT/REVOKE use the existing central relation/column ACL paths.
 Smokes: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'` and
 `make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`;
 dual-mode replacement union: `make check RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$'`;

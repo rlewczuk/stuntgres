@@ -206,10 +206,10 @@ func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *
 }
 
 func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, parameters []sqltype.Value) (Result, error) {
-	if inputs != nil {
-		defer inputs.close()
-	}
 	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.read().generationAt(b.ref.Address) {
+		if inputs != nil {
+			inputs.close()
+		}
 		return Result{}, ErrCatalogReplaced
 	}
 	ctx := s.op.Context()
@@ -218,6 +218,10 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if err := selectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
 		}
+		if b.viewWrite != nil {
+			inputs = freezeViewWriteSources(s, inputs, b.querySources)
+		}
+		defer inputs.close()
 		state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
 		inputs.scope = s
 		evaluation.query = state

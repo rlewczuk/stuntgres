@@ -422,6 +422,14 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
+	if s.viewWrite != nil {
+		for _, layer := range s.viewWrite.layers {
+			current, ok := catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+			if !ok || current.view != layer.relation.view || !sameRelationRowShape(current, layer.relation) {
+				return ErrCatalogReplaced
+			}
+		}
+	}
 	for address, captured := range s.partitionRelations {
 		if catalog.state.descriptors[address] != captured {
 			return ErrCatalogReplaced

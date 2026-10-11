@@ -1,0 +1,388 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+type viewWriteFixture struct {
+	e                *Engine
+	base, view       *relationDescriptor
+	baseRef, viewRef ObjectRef
+	integer, boolean *sqltype.Descriptor
+}
+
+// No SQL/API witnesses live here. The fixture supplies immutable analyzed nodes
+// and physical versions directly to the production rewrite/publication seams.
+func viewWriteMechanics(t *testing.T) viewWriteFixture {
+	t.Helper()
+	e := New()
+	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
+	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	owner := e.roles.names["postgres"]
+	base := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
+	baseRef := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: base.address}
+	column := func(slot int) BoundExpr {
+		ref := baseRef
+		ref.Address.SubID = base.attributes[slot]
+		return columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+	}
+	view := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, owner: owner, relationKind: viewRelation, attributes: []int32{1, 2}, attributeHighWater: 2, columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"x": 0, "key": 1}}
+	syntax := &parser.Select{From: &parser.TableReference{}}
+	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []BoundExpr{column(1), column(0)}}
+	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
+	viewRef := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: view.address}
+	e.state.descriptors[base.address] = base
+	e.state.descriptors[view.address] = view
+	e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: base.name}] = base.address
+	e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: view.name}] = view.address
+	value := func(n int64) sqltype.Value {
+		v, err := sqltype.Integer(integer, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	e.storage[base.address] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value(1), value(10), value(42)}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value(2), value(20), value(42)}}}}
+	e.commitSeq = 1
+	e.nextRow = 2
+	e.nextVersion = 2
+	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
+}
+
+func (f viewWriteFixture) authorization(t *testing.T, op *Operation) AuthorizationView {
+	t.Helper()
+	f.e.mu.Lock()
+	defer f.e.mu.Unlock()
+	v, err := f.e.statementAuthorizationLocked(op, &parser.Update{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*StatementScope, *Operation) {
+	t.Helper()
+	session := sessionStart(t, f.e, nil)
+	if len(explicit) != 0 && explicit[0] {
+		transactionBegin(t, session)
+	}
+	op := transactionOperation(t, session)
+	scope, err := f.e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := scope.gate(&parser.Update{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if !scope.finished {
+			_ = scope.Finish(errors.New("mechanics cleanup"))
+		}
+	})
+	w := &viewWrite{base: f.base, ref: f.baseRef, layers: []viewWriteLayer{{relation: f.view, ref: f.viewRef, source: f.base, sourceRef: f.baseRef}}}
+	scope.lockedRef, scope.lockedDescriptor = f.viewRef, f.view
+	if err := scope.acquireViewWriteTarget(w); err != nil {
+		t.Fatal(err)
+	}
+	return scope, op
+}
+
+func TestViewWriteMapping(t *testing.T) {
+	f := viewWriteMechanics(t)
+	scope, op := f.scope(t)
+	auth := f.authorization(t, op)
+	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+	if err := f.e.bindViewWrite(&b, auth, &parser.Update{}); err != nil {
+		t.Fatal(err)
+	}
+	if b.relation != f.view || b.ref != f.viewRef || b.targets[0] != 1 || b.physicalBinding().ref != f.baseRef {
+		t.Fatal("logical/physical authority conflated", b.targets)
+	}
+	// Creation slots survive current dense compaction and column renames.
+	compact := *f.base
+	compact.attributes = []int32{11, 19}
+	compact.columns = []ColumnDescriptor{f.base.columns[1], f.base.columns[2]}
+	compact.columns[0].Name = "renamed"
+	slot, err := stableViewSlot(&compact, f.view.view.sources[0], 1)
+	if err != nil || slot != 0 {
+		t.Fatal(slot, err)
+	}
+	if _, err := stableViewSlot(&compact, f.view.view.sources[0], 0); !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatal("missing identity admitted", err)
+	}
+	// Reject the first released classifier reason rather than a later group
+	// restriction. These are admitted AST shapes, not invented parser nodes.
+	restricted := *f.view
+	definition := *f.view.view
+	syntax := *definition.syntax
+	syntax.Distinct = &parser.DistinctClause{}
+	syntax.GroupBy = &parser.GroupClause{}
+	definition.syntax = &syntax
+	restricted.view = &definition
+	_, _, _, reason := viewWriteShape(&restricted)
+	if reason != "Views containing DISTINCT are not automatically updatable." {
+		t.Fatal(reason)
+	}
+	syntax.Distinct = nil
+	_, _, _, reason = viewWriteShape(&restricted)
+	if reason != "Views containing GROUP BY are not automatically updatable." {
+		t.Fatal(reason)
+	}
+	// Native dump replay adds explicit source aliases to preserve the frozen
+	// layout. Those wrappers do not turn a single base source into a derived
+	// query, and must not make a restored definition read-only.
+	syntax.GroupBy = nil
+	table := syntax.From
+	syntax.From = &parser.AliasReference{Input: &parser.AliasReference{Input: table, Name: parser.Identifier{Text: "inner_source"}}, Name: parser.Identifier{Text: "restored_source"}}
+	if _, _, _, reason = viewWriteShape(&restricted); reason != "" {
+		t.Fatal("aliased ordinary source rejected", reason)
+	}
+	syntax.From = &parser.AliasReference{Input: &parser.DerivedQuery{}, Name: parser.Identifier{Text: "derived_source"}}
+	if _, _, _, reason = viewWriteShape(&restricted); reason != "Views that do not select from a single table or view are not automatically updatable." {
+		t.Fatal("aliased derived source admitted", reason)
+	}
+	if err := scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestViewWriteDefaults(t *testing.T) {
+	f := viewWriteMechanics(t)
+	scope, op := f.scope(t)
+	constant, _ := sqltype.Integer(f.integer, 42)
+	f.base.defaults = map[int32]columnDefault{19: {expression: literalExpression{expressionInfo: expressionInfo{usage: f.integer.Usage()}, value: constant}}}
+	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]BoundExpr{{nil}}}
+	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.defaults) != 3 || b.defaults[2] == nil || b.targets[0] != 1 {
+		t.Fatal("hidden omission/default lost", b.targets, b.defaults)
+	}
+	// Conflict discovery consumes physical target authority, never the logical
+	// view address, even when DO NOTHING has no explicit inference keys.
+	indexAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: 20002}
+	f.e.state.descriptors[indexAddress] = &relationDescriptor{
+		address:  indexAddress,
+		sqlIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
+	}
+	conflict := &boundInsertConflict{}
+	evaluation := EvalContext{Context: context.Background()}
+	if err := conflict.selectArbiters(&evaluation, b.physicalBinding().relation, f.e.CatalogRead()); err != nil {
+		t.Fatal(err)
+	}
+	if len(conflict.selected) != 1 || conflict.selected[0] != indexAddress || b.relation != f.view {
+		t.Fatal("physical arbiter selection lost logical namespace", conflict.selected)
+	}
+	if err := scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestViewWriteDemand(t *testing.T) {
+	f := viewWriteMechanics(t)
+	calls := 0
+	unsafe := queryProbe(f.boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		calls++
+		return sqltype.Value{}, errors.New("hidden user work")
+	})
+	guard := literalExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
+	expression := viewWritePredicate([]BoundExpr{guard}, unsafe)
+	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	matched, err := updateMatches(&eval, expression)
+	if err != nil || matched || calls != 0 {
+		t.Fatal("hidden row demanded user work", matched, err, calls)
+	}
+	// Same-type analyzed casts preserve direct origin; COLLATE never does.
+	ref := f.baseRef
+	ref.Address.SubID = 11
+	column := columnExpression{expressionInfo: expressionInfo{usage: f.integer.Usage()}, origin: ref, slot: 1}
+	cast := coercionExpression{expressionInfo: column.expressionInfo, child: column}
+	if _, ok := viewDirectColumn(cast); !ok {
+		t.Fatal("no-op cast lost origin")
+	}
+	if _, ok := viewDirectColumn(collationExpression{expressionInfo: column.expressionInfo, child: column}); ok {
+		t.Fatal("COLLATE gained write authority")
+	}
+	// Prepared/direct parameters are execution inputs, not stored-default
+	// literals. Rewriting must retain their number/type/dependence unchanged.
+	parameter := parameterExpression{
+		expressionInfo: expressionInfo{usage: f.integer.Usage(), properties: ExprProperties{ParameterDependent: true}},
+		number:         1,
+	}
+	rewritten, changed, err := rewriteViewExpression(f.e.CatalogRead(), parameter, func(node BoundExpr) (BoundExpr, bool, error) {
+		return node, false, nil
+	})
+	if err != nil || changed {
+		t.Fatal("unchanged parameter rewrite", changed, err)
+	}
+	retained, ok := rewritten.(parameterExpression)
+	if !ok || retained.number != 1 || retained.ResultUsage() != parameter.ResultUsage() || retained.Properties() != parameter.Properties() {
+		t.Fatal("parameter identity/type changed", rewritten)
+	}
+	value, err := sqltype.Integer(f.integer, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eval.Parameters = []sqltype.Value{value}
+	got, err := rewritten.Eval(&eval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if number, err := got.Integer(); err != nil || number != 42 {
+		t.Fatal("rewritten parameter lost imported argument", number, err)
+	}
+	t.Run("frozen_live_prefix", func(t *testing.T) {
+		f := viewWriteMechanics(t)
+		f.e.commitSeq = 2
+		store := f.e.storage[f.base.address]
+		store.ends = &deletionRoot{rows: map[RowID]rowEnd{1: {version: 1, end: 2}}}
+		scope, op := f.scope(t)
+		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
+		f.e.mu.Lock()
+		source, err := f.e.captureQuerySourcesLocked(scope, leaves, false)
+		f.e.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if source.input != nil || source.count() != 2 {
+			source.close()
+			t.Fatal("raw capture installed a bridge or selected prematurely")
+		}
+		if err := selectQuerySources(op.Context(), source); err != nil {
+			t.Fatal(err)
+		}
+		source = freezeViewWriteSources(scope, source, leaves)
+		if source.input == nil || source.count() != 1 {
+			source.close()
+			t.Fatal("frozen bridge exposed a deleted version")
+		}
+		row := source.row(0)
+		a, aErr := row[0].Integer()
+		id, idErr := row[1].Integer()
+		source.close()
+		if aErr != nil || idErr != nil || a != 20 || id != 2 {
+			t.Fatal("selected source lost frozen attribute identities", a, id, aErr, idErr)
+		}
+		if err := scope.Finish(nil); err != nil {
+			t.Fatal(err)
+		}
+		lockEmpty(t, f.e)
+	})
+}
+
+func TestViewWriteQueuedRecheck(t *testing.T) {
+	f := viewWriteMechanics(t)
+	holder, _ := f.scope(t)
+	waiter, _ := f.scope(t)
+	old := f.e.storage[f.base.address].versions[0]
+	resource := lockResource{ObjectRef: f.baseRef, row: old.row}
+	if request, err := f.e.locks.startAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
+		t.Fatal(request, err)
+	}
+	request, err := f.e.locks.startAcquire(waiter.op.Context(), waiter.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	if err != nil || request == nil {
+		t.Fatal("not actually queued", request, err)
+	}
+	f.e.locks.mu.Lock()
+	pending := len(f.e.locks.entries[resource].pending)
+	f.e.locks.mu.Unlock()
+	if pending != 1 {
+		t.Fatal("missing physical queue", pending)
+	}
+	row := append([]sqltype.Value(nil), old.values...)
+	row[1], _ = sqltype.Integer(f.integer, 0)
+	if err := holder.Writes().replace(f.baseRef, []rowVersion{old}, [][]sqltype.Value{row}); err != nil {
+		t.Fatal(err)
+	}
+	if err := holder.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := request.wait(); err != nil {
+		t.Fatal(err)
+	}
+	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{rowVersion: old, slot: 0})
+	if err != nil || !live || current.version == old.version {
+		t.Fatal(current, live, err)
+	}
+	predicate := queryProbe(f.boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+		n, _ := c.Row[1].Integer()
+		return sqltype.Boolean(f.boolean, n > 5), nil
+	})
+	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: current.values}
+	matched, err := updateMatches(&eval, viewWritePredicate([]BoundExpr{predicate}, nil))
+	if err != nil || matched {
+		t.Fatal("latest predecessor bypassed view qualification", matched, err)
+	}
+	if err := waiter.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	lockEmpty(t, f.e)
+}
+
+func TestViewWriteCancellation(t *testing.T) {
+	f := viewWriteMechanics(t)
+	holder, _ := f.scope(t)
+	scope, _ := f.scope(t)
+	originals := f.e.storage[f.base.address].versions
+	resource := lockResource{ObjectRef: f.baseRef, row: originals[0].row}
+	if request, err := f.e.locks.startAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
+		t.Fatal(request, err)
+	}
+	row := append([]sqltype.Value(nil), originals[1].values...)
+	row[1], _ = sqltype.Integer(f.integer, 99)
+	if err := scope.Writes().replace(f.baseRef, []rowVersion{originals[1]}, [][]sqltype.Value{row}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(scope.op.Context())
+	request, err := f.e.locks.startAcquire(ctx, scope.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	if err != nil || request == nil {
+		t.Fatal("missing actual pending row", request, err)
+	}
+	cancel()
+	if err := request.wait(); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	current := f.e.storage[f.base.address].versions
+	if current[0].version != originals[0].version || current[1].version != originals[1].version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
+		t.Fatal("canceled stage published or retained resources")
+	}
+	f.e.locks.mu.Lock()
+	entry := f.e.locks.entries[resource]
+	pending := len(entry.pending)
+	hold := entry.holders[holder.ticket].mode
+	f.e.locks.mu.Unlock()
+	if pending != 0 || hold != noKeyUpdate {
+		t.Fatal("cancel damaged holder or leaked queue", pending, hold)
+	}
+	if err := holder.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	lockEmpty(t, f.e)
+}
+
+func TestViewWriteReplacement(t *testing.T) {
+	f := viewWriteMechanics(t)
+	scope, _ := f.scope(t, true)
+	// Real explicit transaction admission permits native replacement without
+	// releasing or forging an implicit statement's lifetime reservation.
+	if err := f.e.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	f.e.mu.Lock()
+	err := scope.validateLockedRelation(f.e)
+	f.e.mu.Unlock()
+	if !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatal("old write grant survived replacement", err)
+	}
+	if err := scope.Finish(err); !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatal(err)
+	}
+	lockEmpty(t, f.e)
+}

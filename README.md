@@ -1377,6 +1377,23 @@ allowed, while recursive reads and native cyclic Dump explicitly fail.
 Feature smoke: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'`.
 Replacement smoke: `make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`.
 
+Change note: simple one-table (including nested) views now accept INSERT,
+UPDATE and DELETE through stable base-column identities. Reordered/renamed
+outputs, omitted base defaults, identity/generated columns, existing UPDATE FROM,
+DELETE USING and UPDATE/DELETE RETURNING retain their ordinary DML behavior.
+Computed outputs can be read but not assigned; computed-only and zero-column
+simple views can DELETE. View predicates guard UPDATE/DELETE and are rechecked
+after row waits; INSERT and escaping UPDATE do not imply CHECK OPTION.
+Writes use the real base's locks, constraints and atomic publication. Current
+view-owner or original-invoker rights are checked at every execution.
+Main-target SELECT follows logical read demand, not a view-only predicate;
+independent stored subqueries retain SELECT rights under their defining layer.
+Their frozen attribute layouts consume live selected rows, including own changes.
+Native Dump/Restore retains definitions and committed base rows, with future
+view writes remapped after Restore. INSERT RETURNING and trigger/rule-based
+writes remain excluded. View-write smoke:
+`make check RUN='^TestReferenceViewUpdatableSmoke$'` (also with `REFERENCE=1`).
+
 Change note: scalar/EXISTS, IN/NOT IN, ANY/SOME/ALL and row comparison
 subqueries now use the shared typed query pipeline, with legal lexical
 correlation and non-lateral derived SELECT. Ordinary no-FROM SELECT uses a

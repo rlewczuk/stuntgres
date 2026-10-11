@@ -1,0 +1,60 @@
+package engine
+
+import "stuntgres/internal/sqltype"
+
+// View qualification is a relational guard, not a change to ordinary Boolean
+// expression evaluation. Unsafe user work never sees a row hidden by any layer.
+type viewQualificationExpression struct {
+	expressionInfo
+	predicates []BoundExpr // outer-to-inner storage; evaluated inner-to-outer
+	user       BoundExpr
+}
+
+func (e viewQualificationExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	for i := len(e.predicates) - 1; i >= 0; i-- {
+		value, err := e.predicates[i].Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		truth, err := TruthOf(value)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if truth != True {
+			return sqltype.Boolean(e.usage.Type, false), nil
+		}
+	}
+	if e.user == nil {
+		return sqltype.Boolean(e.usage.Type, true), c.Context.Err()
+	}
+	return e.user.Eval(c)
+}
+func mapViewQualification(e viewQualificationExpression, mapper func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, bool, error) {
+	changed := false
+	var private []BoundExpr
+	for i, x := range e.predicates {
+		next, different, err := mapper(x)
+		if err != nil {
+			return nil, false, err
+		}
+		if different {
+			if private == nil {
+				private = append([]BoundExpr(nil), e.predicates...)
+			}
+			private[i] = next
+			changed = true
+		}
+	}
+	next, different, err := mapper(e.user)
+	if err != nil {
+		return nil, false, err
+	}
+	if different {
+		e.user = next
+		changed = true
+	}
+	if private != nil {
+		e.predicates = private
+	}
+	return e, changed, nil
+}

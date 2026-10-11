@@ -14,25 +14,16 @@ func TestReferenceViewWriteCapabilityBoundary(t *testing.T) {
 				run(s)
 			}
 			queries := []string{"INSERT INTO v VALUES(8)", "UPDATE v SET id=8", "DELETE FROM v"}
-			if b.PG {
-				expected := [][][]any{{{int64(7)}, {int64(8)}}, {{int64(8)}, {int64(8)}}, {}}
-				for i, q := range queries {
-					count := int64(2)
-					if i == 0 {
-						count = 1
-					}
-					run(fixture.Exec(q, count))
-					s := fixture.Select("SELECT id FROM t", []string{"id"}, []string{"INT4"}, expected[i])
-					s.Bag = true
-					run(s)
+			expected := [][][]any{{{int64(7)}, {int64(8)}}, {{int64(8)}, {int64(8)}}, {}}
+			for i, q := range queries {
+				count := int64(2)
+				if i == 0 {
+					count = 1
 				}
-			} else {
-				for _, q := range queries {
-					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "view writes are unsupported"})
-					s.ErrorStage = "execute"
-					run(s)
-				}
-				run(fixture.Select("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+				run(fixture.Exec(q, count))
+				s := fixture.Select("SELECT id FROM t", []string{"id"}, []string{"INT4"}, expected[i])
+				s.Bag = true
+				run(s)
 			}
 		})
 	}
