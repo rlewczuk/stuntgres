@@ -3,9 +3,10 @@
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
 Each engine starts with the trusted native `postgres` principal (LOGIN,
-superuser). `OpenConnector` uses it. Role identities are opaque, engine-owned
-and never reused after DROP, Reset or Restore. PUBLIC is an ACL grantee meaning
-all existing and future principals, not a role or membership endpoint.
+superuser, identity10) and the sixteen PostgreSQL18 predefined roles below.
+`OpenConnector` uses the bootstrap principal. Role identities are opaque,
+engine-owned and never reused after DROP, Reset or Restore. PUBLIC is an ACL
+grantee meaning all existing and future principals, not a role or membership endpoint.
 
 Persistent views retain normal owner/ACL descriptors. At CREATE, the creator
 needs destination CREATE and source-schema lookup USAGE, not source SELECT.
@@ -79,7 +80,11 @@ adding LOGIN or VALID UNTIL requires full ALTER authority. Ordinary actors canno
 alter superuser targets or either SUPERUSER toggle. Positive CREATEDB, REPLICATION
 and BYPASSRLS on CREATE, and either direction on ALTER, require the actor's matching
 direct attribute. There is no blanket replication-target restriction.
-DROP and COMMENT ON ROLE retain their existing superuser gates. `pg_user` grants
+Native DROP and COMMENT ON ROLE retain their existing actual-SUPERUSER gates.
+CREATEROLE plus creator ADMIN does not authorize native DROP. PostgreSQL's broader
+CREATEROLE/target-ADMIN authority and creator current/session55006 precedence are
+backend-specific supplements, not native parity. Privileged native DROP checks
+every name before pinned or ordinary dependencies. `pg_user` grants
 PUBLIC SELECT on every LOGIN role's direct summary, including unrelated users;
 membership does not synthesize its flags. Its password is always `********`.
 `pg_roles` grants PUBLIC SELECT on every role, including unrelated NOLOGIN,
@@ -125,6 +130,80 @@ introduced. LOGIN and CONNECTION LIMIT still govern new physical admission; see
 CREATE/ALTER and other cluster-role utilities remain native explicit-transaction
 0A000 boundaries; read-only Execute rejects modifying utilities with25006 before
 lookup or authority. Prepared execution resolves fresh authority without caching it.
+
+### Predefined PostgreSQL18 roles — change note
+
+The immutable role authority seeds these exact names/identities. Each has
+INHERIT=true, NOLOGIN, all other attribute flags false, CONNECTION LIMIT -1,
+NULL password/expiry and no comment. Membership never copies SUPERUSER or
+BYPASSRLS attributes onto an ordinary actor.
+
+| Role | Fixed identity | Native capability or boundary |
+|---|---:|---|
+| `pg_checkpoint` | 4544 | CHECKPOINT explicitly fails0A000. |
+| `pg_create_subscription` | 6304 | CREATE SUBSCRIPTION explicitly fails0A000. |
+| `pg_database_owner` | 6171 | Implicit native database owner; canonical public owner. |
+| `pg_maintain` | 6337 | MAINTAIN for eligible relations; real REINDEX/LOCK authority. |
+| `pg_monitor` | 3373 | Ordinary INHERIT/SET membership in the next three roles. |
+| `pg_read_all_settings` | 3374 | Supported settings remain readable; no protected SET authority. |
+| `pg_read_all_stats` | 3375 | Identity/membership only: no native statistics provider. |
+| `pg_stat_scan_tables` | 3377 | Identity/membership only: no native scan extension/provider. |
+| `pg_read_all_data` | 6181 | Schema USAGE and table/view/materialization/column SELECT; sequence SELECT. |
+| `pg_write_all_data` | 6182 | Schema USAGE and table/view/materialization/column INSERT/UPDATE/DELETE; sequence UPDATE. |
+| `pg_read_server_files` | 4569 | No filesystem access; COPY excluded and file functions absent. |
+| `pg_write_server_files` | 4570 | No filesystem writes; COPY excluded. |
+| `pg_execute_server_program` | 4571 | No command execution; COPY PROGRAM excluded. |
+| `pg_signal_autovacuum_worker` | 6392 | No workers/PIDs or signal functions. |
+| `pg_signal_backend` | 4200 | No PostgreSQL PID signaling functions. |
+| `pg_use_reserved_connections` | 4550 | No PostgreSQL reserved-slot tier; ordinary LOGIN/role limits still apply. |
+
+`pg_monitor` starts with three ordinary `(role, member, grantor)` edges:
+settings/stats/scan to monitor, grantor bootstrap10, ADMIN=false,
+INHERIT=true and SET=true. They can be revoked normally and are not reseeded by
+Reset/Restore. All fifteen non-database-owner roles support normal explicit
+membership, options, provenance and SET ROLE.
+
+The fixed single-engine database owner is bootstrap10. Its implicit MEMBER,
+INHERIT and SET successor is `pg_database_owner`, including when an ordinary
+membership traversal reaches the database owner; no persisted membership row or
+direct ADMIN option is invented. GRANT cannot give `pg_database_owner` explicit
+members or make it a member of any role (0A000), including initial CREATE clauses.
+ALTER GROUP's reserved target guard remains42939. Plain REVOKE retains normal
+member-first absent-grant WARNING01000 diagnostics. CREATE/ALTER reserved role
+guards remain42939. After authorization/name preflight, DROP of any predefined
+role fails2BP01 with primary `cannot drop role NAME because it is required by the database system`
+and empty DETAIL; mixed batches publish nothing.
+
+Capabilities supplement ordinary ACL bits through the same live INHERIT closure,
+including held prepared execution and column requirements. They do not grant
+schema CREATE, TRUNCATE, REFERENCES, TRIGGER, grant options, ownership, owner-only
+ALTER/DDL, or write access to protected catalog/provider relations. Sequence
+UPDATE authorizes nextval/setval but not SELECT/currval by itself; SELECT does
+not authorize nextval/setval. Session-local currval still requires prior nextval.
+MAINTAIN uses actual index-root rebuilding and existing transaction-owned AX LOCK
+exclusion, not an owner bypass or a successful no-op. VACUUM, ANALYZE, CLUSTER and
+REFRESH remain native0A000. The selected missing file/signal/scan functions retain
+the native parser boundary0A000 `functions are unsupported` at position8; PostgreSQL
+missing functions retain independently specified42883 diagnostics and their Hint.
+Absent native statistics relations remain42P01. Granted role names never
+manufacture unavailable mechanisms.
+
+Native RLS execution is absent: ALTER TABLE RLS actions fail0A000 without changing
+rows. PostgreSQL-only policy-less RLS witnesses show that these data roles do not
+bypass RLS; they are not native policy-engine parity evidence. Protected locale/
+logging SET gates likewise stay unchanged for monitoring roles.
+
+Canonical public namespace ownership and owner/grantor/grantee ACL provenance use
+6171. Native keeps its historical PUBLIC USAGE|CREATE convenience ACL, unlike fresh
+PostgreSQL18's PUBLIC USAGE-only default. pg_catalog/information_schema retain
+bootstrap10 ownership. Dump emits real namespace ownership deltas against those
+baselines, including renamed/cyclic bootstrap schemas; Reset restores canonical
+local metadata but keeps the shared role authority/graph. Restore and independent
+engine catalog imports remap validated predefined owner/ACL identities without
+serializing or importing memberships or regranting revoked monitor edges.
+
+See [selected dual-mode definitions and feature smokes](TESTING.md#predefined-role-oracle-first-contracts).
+
 
 ### Membership options and provenance
 
@@ -416,10 +495,10 @@ NAME identity results use the same catalog-owned typed values and retained
 snapshots as ordinary NAME columns (builtin OID19, C collation950); stored NAME
 values preserve spelling rather than applying role/identifier normalization.
 
-**Bootstrap divergence from fresh PostgreSQL 18:** native public has an
-explicit host-convenience PUBLIC USAGE|CREATE ACL; pg_catalog has PUBLIC USAGE
-only. This is not PostgreSQL's fresh public CREATE default and not a generic
-default-allow. The reference harness recreates public, so ordinary-owner
+**Bootstrap divergence from fresh PostgreSQL 18:** canonical native public is
+owned by `pg_database_owner` and has an explicit host-convenience PUBLIC
+USAGE|CREATE ACL; pg_catalog has PUBLIC USAGE only. The CREATE default is not
+PostgreSQL's fresh default and not a generic default-allow. The reference harness recreates public, so ordinary-owner
 fixtures explicitly run `GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC` on
 the privileged PostgreSQL setup connection only.
 

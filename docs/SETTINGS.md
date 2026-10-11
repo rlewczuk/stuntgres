@@ -247,6 +247,18 @@ the same physical connection, plus read-only/deny-only access for bootstrap
 postgres and an ordinary authenticated role. These assertions do not add
 privilege-grant mechanisms.
 
+Predefined `pg_monitor` has normal INHERIT/SET edges to `pg_read_all_settings`,
+`pg_read_all_stats` and `pg_stat_scan_tables`. All four roles can read supported
+native settings, as ordinary roles already can; none grants protected
+lc_messages/log_statement_stats SET authority. Native data_directory and
+PostgreSQL statistics providers remain absent, not approximated. The selected
+dual-mode monitoring definition separately checks PostgreSQL's protected SHOW
+permission (including prepared-Describe denial), actual absolute directory
+metadata and other-session statistics visibility without claiming native parity:
+`make check RUN='^TestReferencePredefinedMonitoringSettings$'` and the same
+command with `REFERENCE=1`. See [role boundaries](AUTHORIZATION.md#predefined-postgresql18-roles--change-note).
+
+
 The reference corpus also asserts exact decimal subnormal handling and underflow
 rejection, typed boolean/string/integer/floating/enum settings, normalized units
 and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,

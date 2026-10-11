@@ -19,6 +19,20 @@ outside this scalar feature. See [network types](docs/TYPES.md#inet-and-cidr--ch
 Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
 
+Change note: all sixteen PostgreSQL18 predefined role identities are seeded.
+Live INHERIT membership supplies real read/write/schema/sequence capabilities;
+`pg_maintain` uses substantive REINDEX and transaction-owned LOCK exclusion.
+`pg_database_owner` is implicit for the fixed native bootstrap database owner and
+owns canonical public, whose historical PUBLIC USAGE|CREATE default is retained.
+Monitoring names do not unlock protected SET, and roles never synthesize missing
+statistics, filesystem/program, checkpoint, subscription, signaling or RLS providers.
+See [predefined role capabilities and limits](docs/AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
+and [small dual-mode proof groups](docs/TESTING.md#predefined-role-oracle-first-contracts).
+Public test smokes:
+`make check RUN='^TestReferencePredefined(DataFeatureSmoke|MaintainFeatureSmoke|BoundaryFeatureSmoke)$'`;
+add `REFERENCE=1` for the same pinned PostgreSQL definitions. Executable smoke
+evidence remains a separately run public Go program, not a test exit.
+
 Change note: SQL `PREPARE name [(types)] AS statement`, `EXECUTE name [(expressions)]`
 and `DEALLOCATE [PREPARE] name|ALL` now use the existing typed binder and executor
 for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.
@@ -827,9 +841,12 @@ and member identities, never credentials. Fresh held executions observe role/edg
 changes while already-open native rows remain captured. Native controls preserve
 roles/membership and omit them from Dump; group writes remain native0A000 catalog
 mutation exclusions, not PostgreSQL55000 non-updatable-view claims.
-Membership never synthesizes summary flags. Rename, role settings, object-GRANT
-SQL and `pg_authid`/`pg_shadow` remain excluded; existing DROP/COMMENT superuser
-gates are unchanged. See the exact [pg_roles](docs/SQL.md#pg_roles-safe-role-view--change-note)
+Membership never synthesizes summary flags. Rename, role settings and
+`pg_authid`/`pg_shadow` remain excluded. Object GRANT/REVOKE supports the selected
+table/column privileges through the existing ACL authority. Native DROP and
+COMMENT retain their existing actual-SUPERUSER gates; broader PostgreSQL DROP
+authority stays a backend-specific diagnostic supplement, not a native permission
+expansion. See the exact [pg_roles](docs/SQL.md#pg_roles-safe-role-view--change-note)
 and [pg_group](docs/SQL.md#pg_group-legacy-group-view--change-note) contracts.
 Group smoke: `make check RUN='^TestReferencePGGroupFeatureSmoke$'`; repeat with
 `REFERENCE=1` for pinned PostgreSQL18.0, each with an external900-second deadline.

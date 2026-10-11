@@ -130,8 +130,8 @@ func (e *Engine) validateRoleAttributesLocked(op *Operation, stmt parser.Stateme
 		if _, ok := v.roles.Lookup(target.Name); ok {
 			return actor, target, o, sqlError("42710", "role \""+target.Name+"\" already exists")
 		}
-		if e.nextPrincipal == 0 || e.nextPrincipal == ^uint64(0) {
-			return actor, target, o, fmt.Errorf("stuntgres: principal identity or authorization revision exhausted")
+		if _, err := e.nextRolePrincipalLocked(); err != nil {
+			return actor, target, o, err
 		}
 	}
 	if e.roles.revision == ^uint64(0) {
@@ -217,7 +217,10 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	}
 	n := cloneRoles(e.roles)
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		d.Ref = PrincipalRef{e, e.nextPrincipal}
+		d.Ref, err = e.nextRolePrincipalLocked()
+		if err != nil {
+			return Result{}, err
+		}
 		n.names[d.Name] = d.Ref
 		if !actor.Superuser {
 			n.edges = make([]Membership, len(e.roles.edges)+1)
@@ -264,7 +267,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		return Result{}, err
 	}
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		e.nextPrincipal++
+		e.nextPrincipal = d.Ref.id + 1
 	}
 	e.roles = n
 	notice.emit(op)

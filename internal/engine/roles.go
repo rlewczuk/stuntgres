@@ -332,6 +332,9 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	}
 	for _, ref := range ordered {
 		d := targets[ref]
+		if d.predefined {
+			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
+		}
 		var dependencies []roleDependency
 		for _, object := range e.state.descriptors {
 			dependencies = descriptorRoleDependencies(dependencies, object, ref)

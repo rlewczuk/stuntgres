@@ -44,18 +44,18 @@ func TestMembershipImmutableDefaultsAndAtomicity(t *testing.T) {
 	roleExecute(t, e, op, "GRANT r TO m")
 	read := e.Roles()
 	edges := read.Memberships()
-	if len(edges) != 1 || edges[0].Admin || !edges[0].Inherit || !edges[0].Set || read.state.revision != revision+1 || len(old.Memberships()) != 0 {
+	if len(edges) != 4 || edges[3].Admin || !edges[3].Inherit || !edges[3].Set || read.state.revision != revision+1 || len(old.Memberships()) != 3 {
 		t.Fatal(edges, read.state.revision, revision)
 	}
-	edges[0].Inherit = false
-	if !read.Memberships()[0].Inherit {
+	edges[3].Inherit = false
+	if !read.Memberships()[3].Inherit {
 		t.Fatal("borrowed edge mutation")
 	}
 	roleExecute(t, e, op, "GRANT r TO m WITH ADMIN TRUE, INHERIT FALSE, SET FALSE")
 	roleExecute(t, e, op, "GRANT r TO m WITH INHERIT TRUE")
 	now := e.Roles()
-	edge := now.Memberships()[0]
-	if !edge.Admin || !edge.Inherit || edge.Set || !read.Memberships()[0].Set {
+	edge := now.Memberships()[3]
+	if !edge.Admin || !edge.Inherit || edge.Set || !read.Memberships()[3].Set {
 		t.Fatal("omitted options or old read changed", edge)
 	}
 	roleExecute(t, e, op, "GRANT r TO m")
@@ -88,7 +88,7 @@ func TestMembershipInitialFailureFences(t *testing.T) {
 		}
 	}
 	roleExecute(t, e, op, "CREATE ROLE n IN ROLE p")
-	if len(e.roles.edges) != 1 || !e.roles.edges[0].Inherit || !e.roles.edges[0].Set || e.roles.edges[0].Admin {
+	if len(e.roles.edges) != 4 || !e.roles.edges[3].Inherit || !e.roles.edges[3].Set || e.roles.edges[3].Admin {
 		t.Fatal(e.roles.edges)
 	}
 }
@@ -114,19 +114,19 @@ func TestMembershipInitialAttributeCutover(t *testing.T) {
 	if child.Inherit || child.ConnectionLimit != 2 || child.Password != "" || !child.HasValidUntil {
 		t.Fatal("combined attributes lost", child)
 	}
-	edge := e.Roles().Memberships()[0]
+	edge := e.Roles().Memberships()[3]
 	if edge.Role != parent.Ref || edge.Member != child.Ref || edge.Inherit || !edge.Set || edge.Admin {
 		t.Fatal("initial edge ignored NOINHERIT", edge)
 	}
 	roleExecute(t, e, admin, "ALTER ROLE child INHERIT")
-	if e.Roles().Memberships()[0] != edge {
+	if e.Roles().Memberships()[3] != edge {
 		t.Fatal("ALTER attribute rewrote old initial membership")
 	}
 	roleExecute(t, e, actor, "CREATE ROLE owned NOINHERIT ROLE child")
 	owned, _ := e.Roles().Lookup("owned")
 	creator, _ := e.Roles().Lookup("creator")
 	edges := e.Roles().Memberships()
-	if len(edges) != 3 || edges[1] != (Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.names["postgres"], Admin: true}) || edges[2].Role != owned.Ref || edges[2].Member != child.Ref || !edges[2].Inherit || !edges[2].Set {
+	if len(edges) != 6 || edges[4] != (Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.names["postgres"], Admin: true}) || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
 		t.Fatal("creator ADMIN and initial membership were not combined", edges)
 	}
 	roleExecute(t, e, actor, "ALTER ROLE owned LOGIN")
@@ -150,7 +150,7 @@ func TestMembershipReferenceValidationAndRevision(t *testing.T) {
 	}
 	e.roles.revision = ^uint64(0)
 	before := e.roles
-	if err := grantMembership(t, e, Membership{Role: r.Ref, Member: m.Ref, Grantor: bootstrap}); err == nil || e.roles != before || len(e.roles.edges) != 0 {
+	if err := grantMembership(t, e, Membership{Role: r.Ref, Member: m.Ref, Grantor: bootstrap}); err == nil || e.roles != before || len(e.roles.edges) != 3 {
 		t.Fatal("revision exhaustion published", err)
 	}
 }
@@ -167,7 +167,7 @@ func TestMembershipCascadeAlternateSource(t *testing.T) {
 	}
 	old := e.Roles()
 	roleExecute(t, e, op, "REVOKE ADMIN OPTION FOR r FROM a")
-	if len(e.roles.edges) != 5 || !old.Memberships()[0].Admin {
+	if len(e.roles.edges) != 8 || !old.Memberships()[3].Admin {
 		t.Fatal("alternate source or old read", e.roles.edges)
 	}
 	before := e.roles
@@ -177,7 +177,7 @@ func TestMembershipCascadeAlternateSource(t *testing.T) {
 		t.Fatal("restrict published")
 	}
 	roleExecute(t, e, op, "REVOKE r FROM a GRANTED BY x CASCADE")
-	if len(e.roles.edges) != 2 {
+	if len(e.roles.edges) != 5 {
 		t.Fatal("cascade graph", e.roles.edges)
 	}
 }
@@ -198,7 +198,7 @@ func TestMembershipCancelledCandidate(t *testing.T) {
 	}
 	op.ctx = ctx
 	_, err = e.Execute(op, statement(t, "GRANT r TO m"), 0, nil)
-	if err != context.Canceled || e.roles != old || len(e.roles.edges) != 0 {
+	if err != context.Canceled || e.roles != old || len(e.roles.edges) != 3 {
 		t.Fatal("cancelled membership published", err)
 	}
 }
@@ -237,7 +237,7 @@ func TestMembershipConcurrentCyclePublication(t *testing.T) {
 			failures++
 		}
 	}
-	if successes != 1 || failures != 1 || len(e.roles.edges) != 1 {
+	if successes != 1 || failures != 1 || len(e.roles.edges) != 4 {
 		t.Fatal("concurrent cycle", successes, failures, e.roles.edges)
 	}
 }
@@ -292,7 +292,7 @@ func TestMembershipRevokeOriginalRowActions(t *testing.T) {
 		t.Fatal("original row matches warned", notices)
 	}
 	edges := e.Roles().Memberships()
-	if len(edges) != 2 || len(retained.Memberships()) != 5 {
+	if len(edges) != 5 || len(retained.Memberships()) != 8 {
 		t.Fatal(edges, retained.Memberships())
 	}
 	for _, edge := range edges {
@@ -401,7 +401,7 @@ func TestMembershipRevokeTargetActionOverlap(t *testing.T) {
 			if tc.code == "" && tc.name != "same target duplicate member" && e.roles != before.state {
 				t.Fatal("noop invalidated authority")
 			}
-			if tc.name == "same target duplicate member" && len(e.roles.edges) != 0 {
+			if tc.name == "same target duplicate member" && len(e.roles.edges) != 3 {
 				t.Fatal("duplicate member failed to delete", e.roles.edges)
 			}
 		})

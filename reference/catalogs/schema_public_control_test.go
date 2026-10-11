@@ -17,8 +17,8 @@ func TestReferenceSchemaPublicLifecycleControls(t *testing.T) {
 		name, setup, namespace, owner string
 		table                         bool
 	}{
-		{"renamed", "CREATE TABLE public.t(id INT NOT NULL); INSERT INTO public.t VALUES(7); ALTER SCHEMA public RENAME TO replay_public;", "replay_public", "postgres", true},
-		{"renamed_empty", "ALTER SCHEMA public RENAME TO replay_public;", "replay_public", "postgres", false},
+		{"renamed", "CREATE TABLE public.t(id INT NOT NULL); INSERT INTO public.t VALUES(7); ALTER SCHEMA public RENAME TO replay_public;", "replay_public", "pg_database_owner", true},
+		{"renamed_empty", "ALTER SCHEMA public RENAME TO replay_public;", "replay_public", "pg_database_owner", false},
 		{"missing", "DROP SCHEMA public;", "", "", false},
 		{"missing_nonpublic", "DROP SCHEMA public; CREATE SCHEMA replay_other_schema CREATE TABLE t(id INT NOT NULL); INSERT INTO replay_other_schema.t VALUES(9);", "replay_other_schema", "postgres", true},
 		{"recreated", "DROP SCHEMA public; CREATE SCHEMA public; CREATE TABLE public.t(id INT NOT NULL); INSERT INTO public.t VALUES(7);", "public", "postgres", true},
@@ -37,9 +37,9 @@ func TestReferenceSchemaPublicLifecycleControls(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			// The shared fixture supplies the native owner; keep the authenticator
-			// stuntgres and replay SQL unchanged.
-			for _, q := range []string{"ALTER SCHEMA public OWNER TO postgres"} {
+			// Match the native canonical public owner without changing the
+			// authenticating role or ownership of ordinary recreated schemas.
+			for _, q := range []string{"ALTER SCHEMA public OWNER TO pg_database_owner"} {
 				if _, err := fixture.Admin.ExecContext(p.Ctx, q); err != nil {
 					t.Fatal(q, err)
 				}

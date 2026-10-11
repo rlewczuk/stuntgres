@@ -235,13 +235,18 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		originalTable := relation.acl
 		nextTable := relation.acl
 		var tableChanged bool
+		var hasRelationPrivileges, relationPrivilegesChecked bool
 		if tableMask != 0 {
 			source, available, sourceErr := objectGrantSource(op.Context(), relation.owner, originalTable, ACLValue{}, principals, actor.Superuser, tableMask)
 			if sourceErr != nil {
 				return Result{}, sourceErr
 			}
-			if available == 0 && aclRights(originalTable, relation.owner, principals, tableGrantPrivileges, false) == 0 {
-				return Result{}, sqlError("42501", "permission denied for table "+relation.name)
+			if available == 0 {
+				hasRelationPrivileges = aclRights(originalTable, relation.owner, principals, tableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
+				relationPrivilegesChecked = true
+				if !hasRelationPrivileges {
+					return Result{}, sqlError("42501", "permission denied for table "+relation.name)
+				}
 			}
 			grantWarning(op, relation.name, "", tableMask, available, tableAll, s.Revoke)
 			if available != 0 {
@@ -259,8 +264,14 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if sourceErr != nil {
 				return Result{}, sourceErr
 			}
-			if available == 0 && (aclRights(originalTable, relation.owner, principals, tableGrantPrivileges, false)|aclRights(old, PrincipalRef{}, principals, columnGrantPrivileges, false)) == 0 {
-				return Result{}, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.name))
+			if available == 0 {
+				if !relationPrivilegesChecked {
+					hasRelationPrivileges = aclRights(originalTable, relation.owner, principals, tableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
+					relationPrivilegesChecked = true
+				}
+				if !hasRelationPrivileges && aclRights(old, PrincipalRef{}, principals, columnGrantPrivileges, false) == 0 {
+					return Result{}, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.name))
+				}
 			}
 			grantWarning(op, relation.name, column.name, column.mask, available, column.mask == columnGrantPrivileges, s.Revoke)
 			// System attributes participate in release diagnostics, not native storage.

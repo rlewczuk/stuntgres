@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,7 +20,7 @@ func (r RoleRead) roleClosure(ctx context.Context, actor PrincipalRef, inherit b
 		return nil, err
 	}
 	result := []PrincipalRef{actor}
-	if len(r.state.edges) == 0 {
+	if len(r.state.edges) == 0 && r.implicitDatabaseOwner(actor) == (PrincipalRef{}) {
 		return result, nil
 	}
 	seen := map[PrincipalRef]bool{actor: true}
@@ -41,6 +42,13 @@ func (r RoleRead) roleClosure(ctx context.Context, actor PrincipalRef, inherit b
 			}
 			seen[edge.Role] = true
 			result = append(result, edge.Role)
+		}
+		if next := r.implicitDatabaseOwner(result[at]); next != (PrincipalRef{}) && !seen[next] {
+			if _, err := r.Descriptor(next); err != nil {
+				return nil, err
+			}
+			seen[next] = true
+			result = append(result, next)
 		}
 	}
 	return result, nil
@@ -218,6 +226,13 @@ func planMembership(op *Operation, r RoleRead, state RoleState, s *parser.RoleMe
 	if err != nil {
 		return nil, err
 	}
+	if s.Alias {
+		for _, target := range s.Targets {
+			if strings.HasPrefix(target.Name, "pg_") {
+				return nil, roleDiagnostic("42939", "role name \""+target.Name+"\" is reserved", "Cannot alter reserved roles.")
+			}
+		}
+	}
 	var values, specified [3]bool
 	for _, option := range s.Options {
 		index := 0
@@ -248,6 +263,9 @@ func planMembership(op *Operation, r RoleRead, state RoleState, s *parser.RoleMe
 		if err != nil {
 			return nil, err
 		}
+		if !s.Revoke && members[i].id == databaseOwnerRoleID {
+			return nil, roleDiagnostic("0A000", "role \"pg_database_owner\" cannot be a member of any role", "")
+		}
 	}
 	edges := r.state.edges
 	var actions, applied []membershipRevokeAction
@@ -274,6 +292,9 @@ func planMembership(op *Operation, r RoleRead, state RoleState, s *parser.RoleMe
 		role, err := membershipRole(targetRead, state, spec)
 		if err != nil {
 			return nil, err
+		}
+		if !s.Revoke && role.id == databaseOwnerRoleID {
+			return nil, roleDiagnostic("0A000", "role \"pg_database_owner\" cannot have explicit members", "")
 		}
 		if err := membershipAuthority(ctx, targetRead, actor, role, s.Revoke, s.Alias); err != nil {
 			return nil, err

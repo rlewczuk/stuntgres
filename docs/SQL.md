@@ -70,7 +70,9 @@ against the original authenticator, with idle counting, reuse without extra slot
 physical-close release, superuser limit exemption and NOLOGIN FATAL28000.
 See [physical admission](DRIVER.md#trusted-role-admission-and-physical-limits).
 Native explicit-transaction role utilities remain0A000, and read-only Execute
-uses25006 before lookup. DROP/COMMENT keep existing superuser gates. Rename,
+uses25006 before lookup. Native DROP and COMMENT retain actual-SUPERUSER gates;
+CREATEROLE/creator ADMIN do not expand native DROP authority. Predefined identities and capabilities are
+documented in [the role contract](AUTHORIZATION.md#predefined-postgresql18-roles--change-note). Rename,
 ALTER ROLE SET/RESET, password handshake/settings, pg_authid and SQL
 object grants remain excluded; integrated role GRANT/REVOKE is unchanged.
 

@@ -27,6 +27,27 @@ See [network types](TYPES.md#inet-and-cidr--change-note).
 Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
 
+### Predefined roles — change note
+
+Sixteen fixed PostgreSQL18 role identities share the existing immutable role
+authority, reserved-name/pinned-dependency diagnostics and normal membership/
+SET ROLE behavior. Database owner bootstrap10 implicitly reaches
+`pg_database_owner`6171 without an ADMIN row; explicit membership in either
+direction is forbidden. Canonical public is owned by6171 but retains the native
+PUBLIC USAGE|CREATE convenience ACL, not PostgreSQL18's fresh CREATE default.
+Read/write data roles add live schema USAGE and exact relation/column/sequence
+bits, never ownership, schema CREATE, grant options or protected catalog writes.
+MAINTAIN drives real REINDEX INDEX/TABLE and AX LOCK exclusion through existing
+authorization/transaction seams. Supported settings remain readable but
+monitoring grants do not change protected SET gates. Statistics/scan extensions,
+OS files/programs, physical checkpoints, subscriptions/replication, PostgreSQL
+PID signaling, reserved slots and native RLS execution remain unavailable;
+CHECKPOINT and CREATE SUBSCRIPTION explicitly fail0A000 rather than succeeding
+as no-ops. Reset/Restore retain the shared roles and deliberately revoked monitor
+edges; local public ownership/ACL references remap by validated identity.
+See [the exact role table and boundaries](AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
+and [selected proofs](TESTING.md#predefined-role-oracle-first-contracts).
+
 ### Table and column grants — change note
 
 Autocommit GRANT and plain REVOKE support SELECT, INSERT, UPDATE, DELETE,
@@ -5560,8 +5581,10 @@ Physical limits count original authenticators, including idle pools; -1 is
 unlimited, 0 denies ordinary admission, close releases and reuse adds no slot.
 Superusers bypass limits but not NOLOGIN; new NOLOGIN admission fails FATAL28000.
 Role rename, ALTER ROLE SET/RESET, password handshake/settings and pg_authid
-remain excluded; no database, replication or RLS executor is added. DROP/COMMENT
-retain existing superuser gates. CREATE/ALTER role utilities remain native
+remain excluded; no database, replication or RLS executor is added. Native DROP
+and COMMENT retain actual-SUPERUSER gates, including DROP of a creator-owned
+ADMIN target. PostgreSQL's broader DROP checks are backend-specific supplements.
+CREATE/ALTER role utilities remain native
 explicit-transaction0A000 boundaries, with read-only25006 before lookup.
 Observed public smoke reached creator ADMIN, omission, expired trusted admission,
 physical release, NOLOGIN and fresh held authority; repeat with

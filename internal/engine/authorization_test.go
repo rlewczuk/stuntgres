@@ -260,7 +260,7 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	if e.roles != before {
 		t.Fatal("exhaustion publication")
 	}
-	e.nextPrincipal = 11
+	e.nextPrincipal = lastPredefinedRoleID + 1
 	ctx, cancel := context.WithCancel(context.Background())
 	s, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1))})
 	if err != nil {
@@ -437,15 +437,15 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
-	bootstrap := e.roles.names["postgres"]
+	namespaceOwner := e.roles.names["pg_database_owner"]
 	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	original := e.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: CreatePrivilege, GrantOptions: CreatePrivilege},
-		{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: CreatePrivilege},
-		{Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege},
-		{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
+		{Grantor: namespaceOwner, Grantee: ACLGrantee{Role: namespaceOwner}, Privileges: CreatePrivilege, GrantOptions: CreatePrivilege},
+		{Grantor: namespaceOwner, Grantee: ACLGrantee{Public: true}, Privileges: CreatePrivilege},
+		{Grantor: namespaceOwner, Grantee: ACLGrantee{Role: namespaceOwner}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege},
+		{Grantor: namespaceOwner, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
 	}}
 	if err := e.SetObjectACL(context.Background(), namespace, equivalent); err != nil {
 		t.Fatal(err)
@@ -469,8 +469,8 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege},
-		{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
+		{Grantor: namespaceOwner, Grantee: ACLGrantee{Role: namespaceOwner}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege},
+		{Grantor: namespaceOwner, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
 	}}
 	if err := e.SetObjectACL(context.Background(), namespace, changed); err != nil {
 		t.Fatal(err)

@@ -163,9 +163,12 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		if ns.oid == PublicNamespaceOID {
 			rights |= CreatePrivilege
 		}
-		bootstrap := e.roles.names["postgres"]
-		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: bootstrap,
-			acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: rights}, {Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege}}}}
+		owner := e.roles.names["postgres"]
+		if ns.oid == PublicNamespaceOID {
+			owner = e.roles.names["pg_database_owner"]
+		}
+		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner,
+			acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: rights}, {Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege}}}}
 		d.comment = namespaceCommentBaseline(ns.oid)
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address

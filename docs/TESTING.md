@@ -3684,3 +3684,133 @@ review, each invocation bounded to 900 seconds:
 make check RACE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 make check RACE=1 REFERENCE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 ```
+
+## Predefined role oracle-first contracts
+
+The untagged `reference/roles/predefined_*_test.go` definitions exercise all
+sixteen documented identities, implicit database-owner membership, restrictions
+and pinned diagnostics, real read/write/schema/sequence consumers, REINDEX and
+transactional lock exclusion, monitoring settings, lifecycle controls and explicit
+absent-provider boundaries. Every supported shared operation runs direct and
+prepared routes with independently specified rows, metadata, counts and complete
+diagnostics. The safe `pg_roles` projection, including all sixteen predefined
+identities, is supported and tested on both backends. Privileged PostgreSQL
+`pg_authid`, hidden-setting/statistics and policy-less RLS supplements remain
+explicitly separate from native unsupported providers.
+
+Oracle-first discovery uses these small exact groups with `REFERENCE=1`, followed
+by native red before production changes. The temporary PostgreSQL-only discovery
+guard has been removed; integrated definitions always discover both backends.
+All four groups, including every new definition and all three test smokes, must
+subsequently pass both modes:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePredefined(RoleIdentities|DatabaseOwner|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferencePredefined(AllData|Sequences|DataFeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePredefined(Maintain|MaintainFeatureSmoke|MonitoringSettings)$'
+make check REFERENCE=1 RUN='^TestReferencePredefined(UnavailableCapabilities|RLSBoundary|BoundaryFeatureSmoke|Lifecycle)$'
+```
+
+The review-remedy acceptance definitions add actual automatically updatable view
+INSERT/UPDATE/DELETE, owner-versus-invoker source authority and held owner revoke;
+safe catalog OIDs/direct flags/password mask/typed NULLs observed by an ordinary
+actor; and parameter/NULL table and sequence state with held revoke/regrant.
+Existing definitions remain intact. Discover these independent expectations on
+the pinned oracle first, then use the matching native selector:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePredefined(ViewWrites|SafeCatalog|ParametersAndNulls)$'
+make check RUN='^TestReferencePredefined(ViewWrites|SafeCatalog|ParametersAndNulls)$'
+```
+
+Each definition has `prepared=false` and `prepared=true` subtests; held statements
+add execution-time authority rechecks in both routes. Supported updatable views
+are not an unavailable-provider boundary: materialized and DISTINCT view write
+errors are separately asserted, with unchanged physical data.
+
+Use the same four selectors without `REFERENCE=1` for native proof, with an
+external 900-second deadline per command. These are definitions, not verification
+claims. Native host-control phases have no invented PostgreSQL Reset/Restore API.
+Fresh native engines remap builtin ownership; actual dump replay is additionally
+consumed by PostgreSQL whenever that backend is enabled.
+The safe PostgreSQL subscription witness uses `connect=false`, `slot_name=NONE`
+and a harmless conninfo password; even disconnected creation validates password
+presence for a nonsuperuser. Cleanup is registered before scenario creation and
+unconditionally drops the scenario subscription and revokes its introduced
+database CREATE privilege before role teardown, including assertion-failure paths.
+
+PostgreSQL COPY denial is exercised directly. Its outside-transaction prepared
+route also asserts lib/pq's exact ordinary driver error, not a fabricated SQLSTATE.
+Lifecycle pre-canceled admission is deterministic native-only evidence; the
+PostgreSQL branch independently grants inside a transaction, rolls back, and
+asserts no authorization publication. This rollback witness is not claimed as
+PostgreSQL cancellation proof.
+
+Selected absent file/signal/scan calls independently expect native0A000
+`functions are unsupported`, position8, with no invented function Hint.
+PostgreSQL missing-function42883 diagnostics are unchanged. This preserves the
+existing parser exclusion instead of implementing absent functions to match a
+proposed golden. Native DROP likewise retains the prerequisite actual-SUPERUSER
+gate: creator ADMIN/CREATEROLE still deny42501 before current/session checks.
+PostgreSQL creator current/session55006 remains a backend-specific witness;
+privileged bootstrap current-user55006 and builtin pins/missing-name preflight
+remain directly and prepared SQL-exercised on both backends.
+
+All-data INSERT RETURNING independently preserves PostgreSQL's table42501 and
+the native parser boundary0A000 `INSERT suffix is unsupported`, position39.
+Supported read-dependent UPDATE/DELETE denial and constant writer effects
+remain separate assertions; this is not a RETURNING implementation claim.
+The independent-driver lifecycle witness restores through a host-control pool,
+then observes rows, types and affected counts through the existing recorded
+notice-pool wrapper for that same connector. PostgreSQL dump replay resets
+imported session authorization before cleanup, without changing replay results.
+
+
+Separate root-owned non-test executable smoke evidence must use public driver,
+authentication and database/sql APIs, without test fixtures or internal hooks.
+Create its source ephemerally in the assigned worktree, execute it under an
+external 900-second deadline, and retain the source and actual argv/exit/stdout/
+stderr in the part verification evidence. Remove the ephemeral source afterward;
+durable repository reproduction commands are the reference selectors above.
+It independently asserts public grants/revokes and held prepared authorization,
+data rows/counts and sequence10/11, REINDEX INDEX/TABLE, ACCESS EXCLUSIVE NOWAIT
+exclusion/release and complete truthful unavailable diagnostics. Test-smoke exits
+do not replace this executable evidence. No executable native RLS, OS-program,
+filesystem, physical-checkpoint or replication-provider parity is claimed.
+
+Function-level initialization, allocation/exhaustion/publication fences, implicit
+MEMBER/INHERIT/SET (without ADMIN), capability/column/protected-class masks, real
+maintenance roots, immutable snapshots, principal remapping and control retention
+are independently asserted without adding a second public SQL test surface:
+
+```sh
+make check RUN='^TestPredefined(RoleInitialization|RoleAllocation|ImplicitDatabaseOwner|MembershipRestrictions|CapabilityMasks|CapabilityGrantSource|MaintainRebuild|RoleSnapshots|RoleControls|NoBypassRLS|UnavailableSyntax)$'
+```
+
+The grant-source proof checks actual no-op table/column GRANT WITH GRANT OPTION
+warnings, unchanged catalog/role authority, and independently absent recipient
+rights, rather than treating global use rights as grant options. Existing
+semantic split/reordered public ACL and renamed-public lifecycle/control
+regressions remain substantive behavioral roundtrips:
+
+```sh
+make check RUN='^Test(AuthorizationDumpRejectsChangedNamespaceState|SchemaPublicLifecycleControls)$'
+make check RUN='^TestReferenceRoleAttributesRetentionAndControls$'
+make check REFERENCE=1 RUN='^TestReferenceRoleAttributesRetentionAndControls$'
+```
+
+
+Canonical public ownership also changes the existing bootstrap schema replay
+definition. Its original owner is now pg_database_owner; ordinary recreated
+schemas still retain their real creator/selected owner:
+
+```sh
+make check RUN='^TestReferenceSchemaPublicLifecycleControls$'
+make check REFERENCE=1 RUN='^TestReferenceSchemaPublicLifecycleControls$'
+```
+
+Run every command with an external 900-second deadline. These selected proofs
+supplement, rather than replace, the root-owned whole-project Docker-free
+quickcheck and final verification.
+
+

@@ -22,8 +22,8 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 		owner     string
 		explicit  bool
 	}{
-		{"renamed", []string{"CREATE TABLE public.t(id INT)", "INSERT INTO public.t VALUES(7)", "ALTER SCHEMA public RENAME TO renamed_public"}, "renamed_public", true, "postgres", true},
-		{"renamed_empty", []string{"ALTER SCHEMA public RENAME TO renamed_public"}, "renamed_public", false, "postgres", true},
+		{"renamed", []string{"CREATE TABLE public.t(id INT)", "INSERT INTO public.t VALUES(7)", "ALTER SCHEMA public RENAME TO renamed_public"}, "renamed_public", true, "pg_database_owner", true},
+		{"renamed_empty", []string{"ALTER SCHEMA public RENAME TO renamed_public"}, "renamed_public", false, "pg_database_owner", true},
 		{"missing", []string{"DROP SCHEMA public"}, "", false, "", false},
 		{"recreated", []string{"DROP SCHEMA public", "CREATE SCHEMA public", "CREATE TABLE public.t(id INT)", "INSERT INTO public.t VALUES(7)"}, "public", true, "postgres", false},
 		{"recreated_empty", []string{"DROP SCHEMA public", "CREATE SCHEMA public AUTHORIZATION ordinary"}, "public", false, "ordinary", false},
@@ -32,7 +32,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 		{"renamed_transferred", []string{"CREATE TABLE public.t(id INT)", "INSERT INTO public.t VALUES(7)", "ALTER SCHEMA public RENAME TO renamed_public", "ALTER SCHEMA renamed_public OWNER TO ordinary"}, "renamed_public", true, "ordinary", true},
 		{"renamed_and_recreated", []string{"ALTER SCHEMA public RENAME TO renamed_public", "CREATE SCHEMA public AUTHORIZATION ordinary", "SET SESSION AUTHORIZATION ordinary", "CREATE TABLE public.t(id INT)", "INSERT INTO public.t VALUES(7)", "RESET SESSION AUTHORIZATION"}, "public", true, "ordinary", false},
 		{"absent_nonpublic", []string{"DROP SCHEMA public", "CREATE SCHEMA nonpublic CREATE TABLE t(id INT)", "INSERT INTO nonpublic.t VALUES(9)"}, "nonpublic", true, "postgres", false},
-		{"catalog_relocated", []string{"ALTER SCHEMA pg_catalog RENAME TO moved_catalog", "ALTER SCHEMA public RENAME TO renamed_public", "CREATE SCHEMA public AUTHORIZATION ordinary", "CREATE SCHEMA stuntgres_restore_namespace_0_0"}, "renamed_public", false, "postgres", true},
+		{"catalog_relocated", []string{"ALTER SCHEMA pg_catalog RENAME TO moved_catalog", "ALTER SCHEMA public RENAME TO renamed_public", "CREATE SCHEMA public AUTHORIZATION ordinary", "CREATE SCHEMA stuntgres_restore_namespace_0_0"}, "renamed_public", false, "pg_database_owner", true},
 		{"transferred_collision", []string{"ALTER SCHEMA public RENAME TO renamed_public", "ALTER SCHEMA renamed_public OWNER TO ordinary", "CREATE SCHEMA public AUTHORIZATION ordinary_other", "SET SESSION AUTHORIZATION ordinary_other", "CREATE TABLE public.t(id INT)", "INSERT INTO public.t VALUES(7)", "RESET SESSION AUTHORIZATION"}, "public", true, "ordinary_other", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -196,6 +196,7 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 			upstream := Membership{Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
 			downstream := Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
 			unrelated := Membership{Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
+			seed := e.Roles().Memberships()
 			for _, edge := range []Membership{upstream, downstream, unrelated} {
 				if err := grantMembership(t, e, edge); err != nil {
 					t.Fatal(err)
@@ -213,24 +214,24 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 			}
 			roleExecute(t, e, op, "DROP ROLE "+order)
 			if strings.Contains(order, "member") {
-				if len(e.roles.edges) != 0 {
+				if len(e.roles.edges) != 3 {
 					t.Fatal("member batch retained edges", e.roles.edges)
 				}
 			} else {
-				if !reflect.DeepEqual(e.roles.edges, []Membership{unrelated}) {
+				if len(e.roles.edges) != 4 || !reflect.DeepEqual(e.roles.edges[:3], seed) || e.roles.edges[3] != unrelated {
 					t.Fatal("unrelated edge removed", e.roles.edges)
 				}
 				roleExecute(t, e, op, "DROP ROLE member")
-				if len(e.roles.edges) != 0 {
+				if len(e.roles.edges) != 3 {
 					t.Fatal("member endpoint retained")
 				}
 			}
-			if !reflect.DeepEqual(read.Memberships(), []Membership{upstream, downstream, unrelated}) {
+			if !reflect.DeepEqual(read.Memberships(), append(seed, upstream, downstream, unrelated)) {
 				t.Fatal("retained membership view changed")
 			}
 			copied := read.Memberships()
-			copied[0] = Membership{}
-			if read.Memberships()[0] != upstream {
+			copied[3] = Membership{}
+			if read.Memberships()[3] != upstream {
 				t.Fatal("membership read exposed backing array")
 			}
 		})

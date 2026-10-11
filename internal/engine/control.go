@@ -118,8 +118,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// authority; ACLs are reproduced by normal owner-transfer semantics.
 	var preamble []string
 	type builtinSchema struct {
-		original, name, owner string
-		moved                 bool
+		original, name, owner, baselineOwner string
+		moved                                bool
 	}
 	var builtins []builtinSchema
 	for _, b := range []struct {
@@ -137,7 +137,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return err
 		}
-		builtins = append(builtins, builtinSchema{original: b.name, name: ns.name, owner: role.Name})
+		baselineOwner := "postgres"
+		if b.oid == PublicNamespaceOID {
+			baselineOwner = "pg_database_owner"
+		}
+		builtins = append(builtins, builtinSchema{original: b.name, name: ns.name, owner: role.Name, baselineOwner: baselineOwner})
 	}
 	remaining := 0
 	for i := range builtins {
@@ -190,7 +194,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for _, b := range builtins {
-		if b.owner != "postgres" {
+		if b.owner != b.baselineOwner {
 			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.name)+" OWNER TO "+quoteIdentifier(b.owner)+";\n")
 		}
 	}

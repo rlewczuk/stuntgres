@@ -193,7 +193,7 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 		if _, ok := e.Roles().Lookup("stale_authority"); ok || e.nextPrincipal != next {
 			t.Fatal("stale creator published role/edge/allocator")
 		}
-		if len(e.Roles().Memberships()) != 0 {
+		if len(e.Roles().Memberships()) != 3 {
 			t.Fatal("stale creator leaked ADMIN")
 		}
 	})

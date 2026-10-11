@@ -252,6 +252,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			}
 			lookup := func(name string) PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
 			edge := Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("postgres"), Inherit: true, Set: true}
+			expectedEdges := append(e.Roles().Memberships(), edge)
 			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)
 			}
@@ -271,7 +272,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 				}
 			}
 			roleError(t, e, op, "DROP ROLE endpoint,owner", "2BP01", `role "owner" cannot be dropped because some objects depend on it`, "owner of table sentinel")
-			if e.roles != roles || e.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), []Membership{edge}) {
+			if e.roles != roles || e.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
 				t.Fatal("later dependency changed state")
 			}
 			afterAuth, err := op.Authorization()

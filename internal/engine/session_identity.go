@@ -163,7 +163,7 @@ func (r RoleRead) canSetRole(session, target PrincipalRef) (bool, error) {
 	if session == target || actor.Superuser {
 		return true, nil
 	}
-	if len(r.state.edges) == 0 {
+	if len(r.state.edges) == 0 && r.implicitDatabaseOwner(session) == (PrincipalRef{}) {
 		return false, nil
 	}
 	visited := map[PrincipalRef]bool{session: true}
@@ -183,6 +183,16 @@ func (r RoleRead) canSetRole(session, target PrincipalRef) (bool, error) {
 			}
 			visited[edge.Role] = true
 			queue = append(queue, edge.Role)
+		}
+		if next := r.implicitDatabaseOwner(member); next != (PrincipalRef{}) && !visited[next] {
+			if _, err := r.Descriptor(next); err != nil {
+				return false, err
+			}
+			if next == target {
+				return true, nil
+			}
+			visited[next] = true
+			queue = append(queue, next)
 		}
 	}
 	return false, nil

@@ -23,6 +23,7 @@ type RoleDescriptor struct {
 	ValidUntil                                                              int64  // Typed timestamptz microseconds, including infinities.
 	HasValidUntil                                                           bool
 	Comment                                                                 string
+	predefined                                                              bool
 }
 type Membership struct {
 	Role, Member, Grantor PrincipalRef
@@ -80,7 +81,7 @@ func (r RoleRead) inheritsRole(actor, target PrincipalRef) (bool, error) {
 	if actor == target || role.Superuser {
 		return true, nil
 	}
-	if len(r.state.edges) == 0 {
+	if len(r.state.edges) == 0 && r.implicitDatabaseOwner(actor) == (PrincipalRef{}) {
 		return false, nil
 	}
 	seen := map[PrincipalRef]bool{actor: true}
@@ -100,6 +101,16 @@ func (r RoleRead) inheritsRole(actor, target PrincipalRef) (bool, error) {
 			}
 			seen[edge.Role] = true
 			queue = append(queue, edge.Role)
+		}
+		if next := r.implicitDatabaseOwner(member); next != (PrincipalRef{}) && !seen[next] {
+			if _, err := r.Descriptor(next); err != nil {
+				return false, err
+			}
+			if next == target {
+				return true, nil
+			}
+			seen[next] = true
+			queue = append(queue, next)
 		}
 	}
 	return false, nil
@@ -143,6 +154,13 @@ func (r RoleRead) adminOfRole(actor, target PrincipalRef) (bool, error) {
 				queue = append(queue, edge.Role)
 			}
 		}
+		if next := r.implicitDatabaseOwner(member); next != (PrincipalRef{}) && !seen[next] {
+			if _, err := r.Descriptor(next); err != nil {
+				return false, err
+			}
+			seen[next] = true
+			queue = append(queue, next)
+		}
 	}
 	return false, nil
 }
@@ -175,11 +193,6 @@ func advanceRoleRevision(r *roleCatalog) *roleCatalog {
 	n := *r
 	n.revision++
 	return &n
-}
-func (e *Engine) initializeRoles() {
-	ref := PrincipalRef{e, 10}
-	e.nextPrincipal = 11
-	e.roles = &roleCatalog{revision: 1, roles: map[PrincipalRef]RoleDescriptor{ref: {Ref: ref, Name: "postgres", Login: true, Superuser: true, CreateDB: true, CreateRole: true, Inherit: true, Replication: true, BypassRLS: true, ConnectionLimit: -1}}, names: map[string]PrincipalRef{"postgres": ref}}
 }
 
 // SetRoleReferences publishes copied persistent dependencies owned by another
@@ -543,6 +556,9 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 	rights := aclRights(acl, owner, principals, mask, grantOptions)
 	if ref.Address.SubID > 0 {
 		rights |= aclRights(columns[ref.Address.SubID], PrincipalRef{}, principals, mask, grantOptions)
+	}
+	if !grantOptions {
+		rights |= predefinedPrivileges(d, principals)
 	}
 	return rights & mask, nil
 }
