@@ -818,10 +818,21 @@ bypass limits, not NOLOGIN (FATAL28000). Role utilities remain autocommit-only
 natively; Reset/Restore preserve roles and membership while Dump omits cluster-role
 DDL. Public-safe `pg_user` exposes the nine-column LOGIN-role summary; `pg_roles`
 exposes a thirteen-column summary of all roles' direct attributes, with PUBLIC SELECT,
-a constant eight-star password mask and typed NULL role configuration. Membership
-never synthesizes summary flags. Rename, role settings, object-GRANT SQL and
-`pg_authid`/`pg_shadow` remain excluded; existing DROP/COMMENT superuser gates are
-unchanged. See [the exact pg_roles contract](docs/SQL.md#pg_roles-safe-role-view--change-note).
+a constant eight-star password mask and typed NULL role configuration. Legacy
+`pg_group` exposes exactly NAME groname, OID grosysid and OID[] grolist for current
+NOLOGIN roles. Direct membership records contribute one member OID each, including
+duplicates across grantors and all-false options; no recursion or array order is
+promised. Empty lists are non-NULL `'{}'`. Unrelated ordinary readers see groups
+and member identities, never credentials. Fresh held executions observe role/edge
+changes while already-open native rows remain captured. Native controls preserve
+roles/membership and omit them from Dump; group writes remain native0A000 catalog
+mutation exclusions, not PostgreSQL55000 non-updatable-view claims.
+Membership never synthesizes summary flags. Rename, role settings, object-GRANT
+SQL and `pg_authid`/`pg_shadow` remain excluded; existing DROP/COMMENT superuser
+gates are unchanged. See the exact [pg_roles](docs/SQL.md#pg_roles-safe-role-view--change-note)
+and [pg_group](docs/SQL.md#pg_group-legacy-group-view--change-note) contracts.
+Group smoke: `make check RUN='^TestReferencePGGroupFeatureSmoke$'`; repeat with
+`REFERENCE=1` for pinned PostgreSQL18.0, each with an external900-second deadline.
 Observed public smoke exercised creator ADMIN, ALTER USER omission, expired trusted
 admission, limit release, NOLOGIN and held authority refresh. Repeatable smoke:
 `make check RUN='^TestReferenceRoleAttributes(FeatureSmoke|ContextualMembershipNames|SelfPasswordCancellation)$'`;

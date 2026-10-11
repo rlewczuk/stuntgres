@@ -759,6 +759,55 @@ PostgreSQL-only `pg_attribute` research guard and native-only control phases.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+### Legacy pg_group verification
+
+Use these small selectors in **both** Docker-free and pinned PostgreSQL modes,
+with an external900-second deadline for each command:
+
+```sh
+timeout 900s make check RUN='^TestReferencePGGroup(Shape|OracleCatalog|Diagnostics)$'
+timeout 900s make check RUN='^TestReferencePGGroup(Membership|GrantorMultiplicity)$'
+timeout 900s make check RUN='^TestReferencePGGroup(Freshness|Snapshots|Visibility)$'
+timeout 900s make check RUN='^TestReferencePGGroup(Controls|FeatureSmoke)$'
+# Repeat each selected command above with REFERENCE=1.
+timeout 900s make check RUN='^TestReferencePGTableViews(Builtins|Controls)$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferencePGTableViews(Builtins|Controls)$'
+timeout 900s make check RUN='^Test(PGGroup(Descriptor|Projection|RoleRoot|Cancellation)|TableViewSummaryBuiltinIdentity)$'
+timeout 900s make check RACE=1 RUN='^TestPGGroup(RoleRoot|Cancellation)$'
+timeout 900s make check RUN='^TestReferencePGGroupFeatureSmoke$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferencePGGroupFeatureSmoke$'
+```
+
+Shared public scenarios independently specify the exact NAME/OID/_OID fields,
+current NOLOGIN predicate, real pg_roles identity relationships, direct-edge
+element bags preserving grantor multiplicities, all-false membership options,
+nonnull empty arrays, role defaults/overrides, unrelated-reader disclosure,
+credential-column diagnostics, full diagnostic fields/positions and direct/
+prepared error phases. Generated OIDs are backend-local, not allocator goldens.
+The group helper validates raw consumer and middleware-owned buffers, preserves
+element multiplicity and ignores only unpromised row/array order. Password setup
+never enters the recorder or diagnostic failure output.
+
+Oracle-first discovery may temporarily filter native backends **only** in the
+new group scenario helper under the policy above. Remove the filter before
+native-red and every completed dual-mode verification. Keep the permanent
+PostgreSQL-only pg_attribute/pg_type structural witness and actual native-only
+retained Rows/metadata, catalog-write/row-lock exclusions, cancellation and
+Dump/Reset/Restore phases. Native controls preserve role identities/edges and
+stored symbolic consumers; real mode replays the **actual native-emitted SQL**
+on PostgreSQL using its own group/member identities, never a substitute Reset API.
+Valid native writes fail0A000, not an invented PostgreSQL55000 join-view error.
+
+The standalone public Driver/database/sql smoke program in the PG18-VIEW-GROUP
+living plan is materialized temporarily at `/tmp/pg18-view-group-smoke.go`.
+From the worktree, run `timeout 900s go run /tmp/pg18-view-group-smoke.go`.
+Expected exit0 with exactly `pg_group public smoke: PASS`: three-column metadata,
+empty→direct all-false member→empty, held unrelated-reader freshness, LOGIN hides/
+NOLOGIN restores the same OID/list, and credential42703. Record observations and
+remove the temporary source; it is not a committed test or production dependency.
+Whole-project Docker-free verification remains `make quickcheck`; selected
+dual-mode proof and the smoke are not replaced by quickcheck or finalcheck.
+
 ### Forward-only SQL cursor verification
 
 Run the entire cursor family after changing an oracle expectation: a driver panic

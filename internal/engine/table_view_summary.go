@@ -150,6 +150,14 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 // In particular native pg_indexes retains its separately documented ACL policy.
 func representedSummaryViewDefinition(oid OID) string {
 	switch oid {
+	case 12008:
+		return ` SELECT rolname AS groname,
+    oid AS grosysid,
+    ARRAY( SELECT pg_auth_members.member
+           FROM pg_auth_members
+          WHERE (pg_auth_members.roleid = pg_authid.oid)) AS grolist
+   FROM pg_authid
+  WHERE (NOT rolcanlogin);`
 	case 12007:
 		return ` SELECT pg_authid.rolname,
     pg_authid.rolsuper,

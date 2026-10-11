@@ -912,13 +912,38 @@ See [the exact schema/contract](SQL.md#pg_roles-safe-role-view--change-note).
 Feature smoke: `make check RUN='^TestReferencePGRolesFeatureSmoke$'` in both
 native and `REFERENCE=1` modes, each with an external900-second deadline.
 
+### Legacy group view — change note
+
+`pg_group` is the public three-column current-NOLOGIN projection: NAME groname,
+OID grosysid and OID[] grolist. Actual LOGIN, not CREATE ROLE/USER/GROUP spelling,
+is the only row filter. Members are the actual OIDs of direct membership records,
+including LOGIN members, all-false options and duplicates from distinct grantors.
+No transitive membership, DISTINCT or array-order guarantee is added. An empty
+group has non-NULL `'{}'`, not NULL or `'{NULL}'`.
+
+PUBLIC readers see unrelated and privileged groups and their member identities;
+no credential, expiry or flag columns exist. One saved immutable role root covers
+repeated/nested/derived/join consumers; each held execution refreshes while old
+native rows and metadata survive mutation and Reset/Restore. Cluster roles/edges
+are preserved by controls and excluded from Dump; stored consumers remain symbolic.
+`pg_class` classifies pg_group as v/three attributes, `pg_views` supplies the pinned
+release reconstruction, and `pg_tables` excludes it.
+
+Normal semantic errors precede the native write exclusion0A000 / `catalog source
+mutation is unsupported`, including WHERE FALSE. Native row locking retains0A000 /
+`row locking is not supported for virtual catalog relations`. PostgreSQL's view
+has some updatable base columns; no blanket PostgreSQL55000 claim or executable
+pg_authid/pg_auth_members exposure is implied. See [the exact contract](SQL.md#pg_group-legacy-group-view--change-note).
+Smoke: `make check RUN='^TestReferencePGGroupFeatureSmoke$'`, then repeat with
+`REFERENCE=1`; use an external900-second deadline for each invocation.
+
 ### Table and view summaries — change note
 
 Readonly `pg_tables`/`pg_views` use their documented PostgreSQL18 eight/four
 fields and exact unfiltered underlying-object disclosure, independent of actor
 and search_path. They summarize supported ordinary tables and stored views plus
-the explicitly represented nine system tables/seven system views, including
-pg_matviews, pg_user and pg_roles; this does not
+the explicitly represented nine system tables/eight system views, including
+pg_matviews, pg_user, pg_roles and pg_group; this does not
 promise a full PostgreSQL catalog inventory or change `pg_class` kinds.
 Tables retain sticky index-publication history after DROP. Native admitted user
 tables have default NULL tablespace and false rule/trigger/RLS states; no success

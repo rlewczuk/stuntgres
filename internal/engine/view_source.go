@@ -41,6 +41,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			roles := scope.commentRoles
 			e.mu.Unlock()
 			return capturePGRoles(ctx, roles, ref, d)
+		case 12008:
+			roles := scope.commentRoles
+			e.mu.Unlock()
+			return capturePGGroup(ctx, roles, ref, d)
 		}
 		if d.virtualView {
 			e.mu.Unlock()

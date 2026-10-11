@@ -637,6 +637,7 @@ Queryable catalog sources have this deliberately bounded exact schema:
 | `pg_catalog.pg_sequence` | `seqrelid OID`, `seqtypid OID`, `seqstart INT8`, `seqincrement INT8`, `seqmax INT8`, `seqmin INT8`, `seqcache INT8`, `seqcycle BOOL` |
 | `pg_catalog.pg_user` | `usename NAME`, `usesysid OID`, `usecreatedb BOOL`, `usesuper BOOL`, `userepl BOOL`, `usebypassrls BOOL`, `passwd TEXT`, `valuntil TIMESTAMPTZ`, `useconfig TEXT[]` |
 | `pg_catalog.pg_roles` | `rolname NAME`, `rolsuper BOOL`, `rolinherit BOOL`, `rolcreaterole BOOL`, `rolcreatedb BOOL`, `rolcanlogin BOOL`, `rolreplication BOOL`, `rolconnlimit INT4`, `rolpassword TEXT`, `rolvaliduntil TIMESTAMPTZ`, `rolbypassrls BOOL`, `rolconfig TEXT[]`, `oid OID` |
+| `pg_catalog.pg_group` | `groname NAME`, `grosysid OID`, `grolist OID[]` |
 
 Each user view has one `_RETURN` rule (`ev_type='1'`, `ev_enabled='O'`,
 `is_instead=true`) tied to its real relation OID. OIDs are engine-local, not
@@ -728,6 +729,57 @@ retains its explicit0A000 boundary. No new role utilities, settings or locks.
 Feature smoke: `make check RUN='^TestReferencePGRolesFeatureSmoke$'`, then the same
 command with `REFERENCE=1`; each invocation has an external900-second deadline.
 
+### pg_group legacy group view — change note
+
+`pg_catalog.pg_group` exposes exactly three ordered columns: `groname NAME`,
+`grosysid OID` and `grolist OID[]`. Ordinary unqualified lookup and schema
+qualification follow the existing search_path rules; qualification bypasses a
+real shadow table. Rows are roles whose **current LOGIN attribute is false**,
+not roles chosen by their creation spelling. CREATE ROLE/GROUP defaults NOLOGIN,
+CREATE USER defaults LOGIN, and explicit overrides or ALTER determine visibility.
+Other privilege flags, INHERIT, expiry and connection limits do not filter rows.
+There are no extra role-flag or credential columns.
+
+`grosysid` equals that role's actual `pg_roles.oid`. Every direct membership record
+contributes its member's actual OID to `grolist`: LOGIN and NOLOGIN members count,
+ADMIN/INHERIT/SET options do not filter, and independent grantors preserve duplicate
+member OIDs. Option-only revocation retains the member; removing an origin removes
+only its occurrence. Nested membership does not synthesize transitive elements.
+Neither row order without ORDER BY nor array element order is promised. Zero
+members means a non-NULL, zero-dimensional empty OID array `'{}'`, never SQL NULL
+or `'{NULL}'`; nonempty lists have lower bound one and non-NULL OID elements.
+
+PUBLIC SELECT and catalog USAGE disclose unrelated and privileged NOLOGIN roles
+and their members to ordinary readers without a membership or privilege filter.
+PUBLIC is an implicit ACL grantee, not a role/group row. Passwords and credential
+verifiers are never consulted or projected. NAME uses C collation950; the other
+columns are noncollatable. Database type names are NAME/OID/_OID, typmods are−1,
+and native declared nullable metadata is true/known for all three columns.
+Generated relation identities are local; existing row/array types link to the
+actual view. `pg_class` reports relkind v/relnatts3, `pg_views` includes the exact
+pinned PostgreSQL18.0 reconstruction, and `pg_tables` excludes the view.
+
+One immutable captured role root serves every source opening in a statement,
+including repeated aliases, nested stored views, derived sources and joins.
+Direct and held prepared executions immediately observe role/edge publication;
+already-open native rows, membership arrays and metadata retain the old capture
+across GRANT/REVOKE, LOGIN changes, drop/recreation and Reset/Restore. A recreated
+same-name group has a distinct identity; old-OID queries do not retarget it.
+Native Reset/Restore preserve cluster roles and memberships; Dump omits role DDL,
+credentials and virtual-row INSERTs while retaining symbolic stored consumers.
+Actual emitted user SQL can replay against PostgreSQL with its own role identities.
+
+Ordinary target/assignment/WHERE/RETURNING/parameter diagnostics precede native
+write rejection. INSERT/UPDATE/DELETE, including WHERE FALSE, are excluded with
+0A000 / `catalog source mutation is unsupported` and empty Detail/Hint. Native
+catalog row locking remains0A000 / `row locking is not supported for virtual
+catalog relations`. These are native capability boundaries, not fabricated55000
+PostgreSQL parity: the PostgreSQL single-base-relation view has some updatable
+base columns. No system-catalog writes, pg_authid/pg_auth_members exposure, new
+role utilities, role settings or array syntax are added.
+Feature smoke: `make check RUN='^TestReferencePGGroupFeatureSmoke$'`, then repeat
+with `REFERENCE=1`; each invocation requires an external900-second deadline.
+
 ### Table and view summaries — change note
 
 `pg_tables` and `pg_views` expose current real names, schemas and owners without
@@ -754,8 +806,9 @@ The represented builtin table inventory is `pg_cast`, `pg_sequence`, `pg_depend`
 hasrules/hastriggers/rowsecurity=false; tablespace is NULL except
 `pg_shdescription`'s `pg_global`. These flags do not invent native system backing
 indexes or physical storage. The represented builtin views are `pg_views`,
-`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_matviews`, `pg_user` and `pg_roles`. Classification is local to these
-summaries, not a broader `pg_class` schema/kind expansion or full catalog inventory.
+`pg_prepared_xacts`, `pg_indexes`, `pg_tables`, `pg_matviews`, `pg_user`, `pg_roles`
+and `pg_group`. Classification is local to these summaries, not a broader
+`pg_class` schema/kind expansion or full catalog inventory.
 
 User `pg_views.definition` reconstructs the actual immutable stored SELECT using
 current identities and output labels, preserving frozen stars/aliases and without

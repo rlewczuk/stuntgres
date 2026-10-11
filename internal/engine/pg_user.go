@@ -53,6 +53,9 @@ func capturePGUser(ctx context.Context, roles RoleRead, ref ObjectRef, source *r
 // Target slots are already resolved by ordinary mutation binding. Readonly
 // rejection follows semantic analysis and does not depend on values or row demand.
 func virtualViewWriteError(d *relationDescriptor, operation string, targets []int) error {
+	if d.address.ObjectID == 12008 {
+		return sqlError("0A000", "catalog source mutation is unsupported")
+	}
 	if d.address.ObjectID != 12014 {
 		return timezoneViewWriteError(d, operation)
 	}

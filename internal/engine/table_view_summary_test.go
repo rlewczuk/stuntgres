@@ -174,6 +174,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12006, "pg_matviews", false},
 		{12014, "pg_user", false},
 		{12007, "pg_roles", false},
+		{12008, "pg_group", false},
 	} {
 		relation, ok := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: expected.oid}].(*relationDescriptor)
 		if !ok || relation.name != expected.name || relation.relationKind != catalogRelation {
