@@ -14,7 +14,7 @@ Current worktree seams, **not release semantic evidence**:
 - `internal/parser/ast.go` already uses ObjectName for CreateTable/Insert/Select; Identifier retains decoded Text/Pos, not quoting provenance. Preserve input normalization and whole-input rejection.
 - `conn.go` PrepareContext discards inferred binding/types, retaining AST/count; both `stmt.go` execution methods re-enter Execute. Selective caching/fixed-result validation remain future work.
 - `internal/engine/control.go` Reset/Restore use ReplaceCatalog; Dump captures descriptors/storage before I/O and quotes schema/name separately. Preserve Driver/exact opaque-DSN isolation, root native validation/release-before-I/O and snapshot/rows retention.
-- `internal/sqlstate/error.go` and `reference/fixture_test.go` already support full diagnostic records. Feature owners add exact fixtures and held-plan interleavings, not another transport.
+- `internal/sqlstate/error.go` and `reference/fixture/fixture.go` already support full diagnostic records. Feature owners add exact fixtures and held-plan interleavings, not another transport.
 
 ## 2. Identity and ownership
 

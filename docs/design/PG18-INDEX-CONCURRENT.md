@@ -199,7 +199,7 @@ retaining the destination's existing TEMP descriptors/roots and ownership.
 
 ## Evidence and verification inputs
 
-The shared `reference/concurrent_index_*_test.go` bodies define R1–R11 and a real
+The shared `reference/indexes/concurrent_index_*_test.go` bodies define R1–R11 and a real
 feature smoke for both backends. They retain direct/held/plain/Context consumers,
 full independent diagnostics, exact row/type/count observations and bounded
 joined workers. PostgreSQL observes real pg_index/progress/VXID/pg_locks. Native

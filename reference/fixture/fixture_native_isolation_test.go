@@ -1,0 +1,107 @@
+package fixture
+
+import (
+	"bytes"
+	"stuntgres"
+	"testing"
+)
+
+func TestReferenceFixtureNativeIsolation(t *testing.T) {
+	// Equal test names must not retain an earlier pilot's process-local engine.
+	first := NewFixture(t, false, true)
+	first.Step(t, Exec("CREATE TABLE isolated(v INT)", 0))
+	first.Step(t, Exec("INSERT INTO isolated VALUES (7)", 1))
+	var value int64
+	if err := first.Native.QueryRowContext(first.Ctx, "SELECT v FROM isolated").Scan(&value); err != nil || value != 7 {
+		t.Fatalf("native control pool shares wrapped state: value=%d error=%v", value, err)
+	}
+	second := NewFixture(t, false, true)
+	second.Step(t, Exec("CREATE TABLE isolated(v INT)", 0))
+	second.Step(t, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, nil))
+	first.Step(t, Select("SELECT v FROM isolated", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+}
+
+func TestReferenceFixtureResetIsolation(t *testing.T) {
+	t.Run("contaminate", func(t *testing.T) {
+		p := NewScenario(t)
+		for _, b := range p.Backends() {
+			t.Run(b.Name, func(t *testing.T) {
+				c, err := b.DB.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer c.Close()
+				for _, query := range []string{
+					"SET SESSION AUTHORIZATION postgres",
+					"SET application_name='fixture-contaminated'",
+					"CREATE TABLE public.fixture_reset_probe(v INT)",
+				} {
+					RunStep(t, p.Ctx, c, b.Recorder, Exec(query, 0))
+				}
+				if b.PG {
+					// A replay can return an admin session with the wrong
+					// principal. Boundary sanitation must restore its original
+					// authenticator before recreating the public schema.
+					admin, err := Admin.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer admin.Close()
+					if _, err := admin.ExecContext(p.Ctx, "SET SESSION AUTHORIZATION postgres"); err != nil {
+						t.Fatal(err)
+					}
+				}
+			})
+		}
+	})
+	t.Run("next_case", func(t *testing.T) {
+		p := NewScenario(t)
+		for _, b := range p.Backends() {
+			t.Run(b.Name, func(t *testing.T) {
+				principal := "postgres"
+				if b.PG {
+					principal = "stuntgres"
+				}
+				run := func(step Step) {
+					RunStep(t, p.Ctx, b.DB, b.Recorder, step)
+				}
+				run(Select("SELECT session_user,current_user", []string{"session_user", "current_user"}, []string{"NAME", "NAME"}, [][]any{{principal, principal}}))
+				run(Select("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{""}}))
+				if b.PG {
+					// pg_namespace is an oracle surface, not a native catalog.
+					run(Select("SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname='public'", []string{"owner"}, []string{"NAME"}, [][]any{{principal}}))
+				} else {
+					var dump bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+						t.Fatal(err)
+					}
+					if dump.Len() != 0 {
+						t.Fatalf("fresh native fixture retained catalog state: %s", dump.String())
+					}
+				}
+				// Successful same-name creation and the empty result independently
+				// establish that no previous fixture table or data was retained.
+				run(Exec("CREATE TABLE public.fixture_reset_probe(v INT)", 0))
+				run(Select("SELECT v FROM public.fixture_reset_probe", []string{"v"}, []string{"INT4"}, nil))
+				if !b.PG {
+					// Native host control independently clears actual catalog/data
+					// without PostgreSQL-only namespace introspection.
+					run(Exec("INSERT INTO public.fixture_reset_probe VALUES(7)", 1))
+					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+						t.Fatal(err)
+					}
+					var dump bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+						t.Fatal(err)
+					}
+					if dump.Len() != 0 {
+						t.Fatalf("native reset retained catalog state: %s", dump.String())
+					}
+					run(Select("SELECT session_user,current_user", []string{"session_user", "current_user"}, []string{"NAME", "NAME"}, [][]any{{principal, principal}}))
+					run(Exec("CREATE TABLE public.fixture_reset_probe(v INT)", 0))
+					run(Select("SELECT v FROM public.fixture_reset_probe", []string{"v"}, []string{"INT4"}, nil))
+				}
+			})
+		}
+	})
+}

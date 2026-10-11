@@ -1,0 +1,48 @@
+package reference_test
+
+import (
+	"strings"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+func TestReferenceQueryWindowCapabilityBoundaries(t *testing.T) {
+	queryWindowScenario(t, func(p *fixture.Pair, b fixture.Backend) {
+		queryWindowSeed(t, p, b)
+		for _, tc := range []struct {
+			q, name, typ, message, marker string
+			v                             []int64
+		}{
+			{"SELECT count(id) OVER() AS n FROM t ORDER BY id", "n", "INT8", "window function provider is unsupported", "count", []int64{7, 7, 7, 7, 7, 7, 7}},
+			{"SELECT count(*) FILTER(WHERE id>2) OVER() AS n FROM t ORDER BY id", "n", "INT8", "window aggregate FILTER is unsupported", "FILTER", []int64{5, 5, 5, 5, 5, 5, 5}},
+			{"SELECT count(*) OVER(ORDER BY id ROWS UNBOUNDED PRECEDING) AS n FROM t ORDER BY id", "n", "INT8", "explicit window frames are unsupported", "ROWS", []int64{1, 2, 3, 4, 5, 6, 7}},
+			{"SELECT sum(id) OVER() AS n FROM t ORDER BY id", "n", "INT8", "window function provider is unsupported", "sum", []int64{28, 28, 28, 28, 28, 28, 28}},
+		} {
+			rows := make([][]any, len(tc.v))
+			for i, v := range tc.v {
+				rows[i] = []any{v}
+			}
+			s := fixture.Select(tc.q, []string{tc.name}, []string{tc.typ}, rows)
+			if !b.PG {
+				s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: tc.message, Position: fixture.Position(strings.Index(tc.q, tc.marker) + 1)})
+				s.SelectRows = true
+			}
+			queryWindowRoutes(t, p, b, s)
+		}
+		// Malformed window syntax must reject the entire input before any prefix writes.
+		for _, prepared := range []bool{false, true} {
+			q := "INSERT INTO empty_t VALUES(9,'x',1);SELECT count(*) OVER(ORDER BY) FROM t"
+			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near ")"`, Position: fixture.Position(strings.Index(q, "BY)") + 3)})
+			s.Prepared = prepared
+			if prepared {
+				// lib/pq rejects multi-command preparation before parser errors; use the
+				// actual single malformed statement for its Prepare analysis companion.
+				s.Query = "SELECT count(*) OVER(ORDER BY) FROM t"
+				s.Diagnostic.Position = "30"
+				s.ErrorStage = "prepare"
+			}
+			queryWindowRun(t, p, b, s)
+			queryWindowRun(t, p, b, fixture.Select("SELECT id FROM empty_t", []string{"id"}, []string{"INT4"}, nil))
+		}
+	})
+}

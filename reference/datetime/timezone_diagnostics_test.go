@@ -1,0 +1,176 @@
+package reference_test
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"stuntgres/reference/fixture"
+	"testing"
+	"unicode/utf8"
+)
+
+func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
+	p := fixture.TimezoneReferencePair(t)
+	p.Step(t, fixture.Exec("UPDATE tz_witness SET z='epoch',q='10:00+00' WHERE id=1", 1))
+	sentinel := fixture.Select("SELECT id,z::TEXT AS z,q::TEXT AS q FROM tz_witness ORDER BY id", []string{"id", "z", "q"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "1970-01-01 00:00:00+00", "10:00:00+00"}})
+	for _, tc := range []struct{ typ, input, code, message, hint string }{
+		{"TIMESTAMPTZ", "nonsense", "22007", `invalid input syntax for type timestamp with time zone: "nonsense"`, ""},
+		{"TIMESTAMPTZ", "2004-10-19 10:00+16", "22009", `time zone displacement out of range: "2004-10-19 10:00+16"`, ""},
+		{"TIMESTAMPTZ", "2004-10-19 10:00+00:00:60", "22009", `time zone displacement out of range: "2004-10-19 10:00+00:00:60"`, ""},
+		{"TIMESTAMPTZ", "2004-10-19 10:00+02:60", "22009", `time zone displacement out of range: "2004-10-19 10:00+02:60"`, ""},
+		{"TIMESTAMPTZ", "2004-10-19 10:00 No/Such_Zone", "22023", `time zone "no/such_zone" not recognized`, ""},
+		{"TIMETZ", "10:00 America/New_York", "22007", `invalid input syntax for type time with time zone: "10:00 America/New_York"`, ""},
+		{"TIMETZ", "10:00+16", "22009", `time zone displacement out of range: "10:00+16"`, ""},
+		{"DATE", "31/12/2024", "22008", `date/time field value out of range: "31/12/2024"`, `Perhaps you need a different "DateStyle" setting.`},
+		{"TIMESTAMPTZ", "2024-02-30 10:00+00", "22008", `date/time field value out of range: "2024-02-30 10:00+00"`, ""},
+		{"TIMESTAMPTZ", "2004-01-01 UTC America/New_York", "22007", `invalid input syntax for type timestamp with time zone: "2004-01-01 UTC America/New_York"`, ""},
+	} {
+		t.Run(tc.typ+tc.input, func(t *testing.T) {
+			q := "/*é*/ SELECT " + tc.typ + " '" + tc.input + "' FROM tz_witness"
+			pos := strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'")]) + 1)
+			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: pos})
+			s.SelectRows = true
+			s.ErrorStage = "execute"
+			p.Step(t, s)
+			timezoneBoth(t, p, sentinel)
+			s.ErrorStage = "prepare"
+			p.Step(t, fixture.Prepared(s))
+			timezoneBoth(t, p, sentinel)
+			column := "z"
+			if tc.typ == "TIMETZ" {
+				column = "q"
+			}
+			if tc.typ == "DATE" {
+				column = "d"
+			}
+			q = "INSERT INTO tz_witness(id," + column + ") VALUES(2,NULL),(3,'" + tc.input + "')"
+			pos = strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'"+tc.input)]) + 1)
+			s = fixture.ImplicitError(q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: pos})
+			s.ErrorStage = "execute"
+			p.Step(t, s)
+			timezoneBoth(t, p, sentinel)
+			s.ErrorStage = "prepare"
+			p.Step(t, fixture.Prepared(s))
+			timezoneBoth(t, p, sentinel)
+			q = "INSERT INTO tz_witness(id," + column + ") VALUES(2,NULL),(3,$1)"
+			s = fixture.ImplicitError(q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint}, tc.input)
+			pg := *s.Diagnostic
+			pg.Context = "unnamed portal parameter $1 = '...'"
+			s.Diagnostic = &pg
+			s.ErrorStage = "execute"
+			p.Step(t, s)
+			timezoneBoth(t, p, sentinel)
+			p.Step(t, fixture.Prepared(s))
+			timezoneBoth(t, p, sentinel)
+		})
+	}
+	for _, tc := range []struct {
+		query, code, message, detail, position string
+		parse                                  bool
+	}{
+		{"SET TIME ZONE 'No/Such_Zone'", "22023", `invalid value for parameter "TimeZone": "No/Such_Zone"`, "", "", false},
+		{"SET DateStyle='ISO,SQL'", "22023", `invalid value for parameter "DateStyle": "ISO,SQL"`, `Conflicting "DateStyle" specifications.`, "", false},
+		{"SET DateStyle='MDY,DMY'", "22023", `invalid value for parameter "DateStyle": "MDY,DMY"`, `Conflicting "DateStyle" specifications.`, "", false},
+		{"SET DateStyle='nonsense'", "22023", `invalid value for parameter "DateStyle": "nonsense"`, `Unrecognized key word: "nonsense".`, "", false},
+		{"SET DateStyle='ISO,,MDY'", "22023", `invalid value for parameter "DateStyle": "ISO,,MDY"`, `List syntax is invalid.`, "", false},
+		{"SET TIME ZONE 168", "22023", `invalid value for parameter "TimeZone": "168"`, `UTC timezone offset is out of range.`, "", false},
+		{"SET TIME ZONE INTERVAL '168 hours'", "22023", `invalid value for parameter "TimeZone": "INTERVAL '168:00:00'"`, `UTC timezone offset is out of range.`, "", false},
+		{"SET TIME ZONE INTERVAL '1 month'", "22023", `invalid value for parameter "TimeZone": "INTERVAL '1 mon'"`, `Cannot specify months in time zone interval.`, "", false},
+		{"SET TIME ZONE INTERVAL '1 month 1 day'", "22023", `invalid value for parameter "TimeZone": "INTERVAL '1 mon 1 day'"`, `Cannot specify months in time zone interval.`, "", false},
+		{"SET TIME ZONE INTERVAL '1 day'", "22023", `invalid value for parameter "TimeZone": "INTERVAL '1 day'"`, `Cannot specify days in time zone interval.`, "", false},
+		{"SET TIME ZONE INTERVAL 'nonsense'", "22007", `invalid input syntax for type interval: "nonsense"`, "", "", false},
+		{"SET TIME ZONE INTERVAL '1' DAY", "42601", `time zone interval must be HOUR or HOUR TO MINUTE`, "", "28", true},
+		{"SET TIME ZONE = 'UTC'", "42601", `syntax error at or near "="`, "", "15", true},
+		{"SET TIME ZONE INTERVAL (-1) '1 second'", "42601", `syntax error at or near "-"`, "", "25", true},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			// Fix the supported IntervalStyle explicitly so timezone interval
+			// diagnostics are independent of preceding session presentation.
+			p.Step(t, fixture.Exec("SET IntervalStyle='postgres'", 0))
+			s := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: tc.code, Message: tc.message, Detail: tc.detail, Position: tc.position})
+			for _, prepared := range []bool{false, true} {
+				s.Prepared = prepared
+				s.ErrorStage = "execute"
+				if prepared && tc.parse {
+					s.ErrorStage = "prepare"
+				}
+				p.Step(t, s)
+				timezoneBoth(t, p, fixture.Select("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
+				timezoneBoth(t, p, fixture.Select("SHOW DateStyle", []string{"DateStyle"}, []string{"TEXT"}, [][]any{{"ISO, MDY"}}))
+				timezoneBoth(t, p, sentinel)
+			}
+		})
+	}
+	q := "SELECT TIMESTAMP '2004-10-19 10:00' AT TIME ZONE 'No/Such_Zone' FROM tz_witness"
+	s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "22023", Message: `time zone "No/Such_Zone" not recognized`})
+	s.SelectRows = true
+	s.ErrorStage = "execute"
+	p.Step(t, s)
+	timezoneBoth(t, p, sentinel)
+	p.Step(t, fixture.Prepared(s))
+	timezoneBoth(t, p, sentinel)
+	s = fixture.ImplicitError("UPDATE tz_witness SET z=$1::TEXT::TIMESTAMPTZ WHERE id=1", fixture.Diagnostic{Code: "22007", Message: `invalid input syntax for type timestamp with time zone: "nonsense"`}, "nonsense")
+	s.ErrorStage = "execute"
+	p.Step(t, s)
+	timezoneBoth(t, p, sentinel)
+	p.Step(t, fixture.Prepared(s))
+	timezoneBoth(t, p, sentinel)
+	for _, backend := range p.Backends() {
+		tx, err := backend.DB.BeginTx(p.Ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.RunStep(t, p.Ctx, tx, backend.Recorder, fixture.Exec("SET LOCAL TIME ZONE 'America/New_York'", 0))
+		s = fixture.ImplicitError("SET DateStyle='ISO,SQL'", fixture.Diagnostic{Code: "22023", Message: `invalid value for parameter "DateStyle": "ISO,SQL"`, Detail: `Conflicting "DateStyle" specifications.`})
+		s.ErrorStage = "execute"
+		fixture.RunStep(t, p.Ctx, tx, backend.Recorder, s)
+		if err := tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
+		ctx, cancel := context.WithCancel(p.Ctx)
+		cancel()
+		if _, err := backend.DB.ExecContext(ctx, "UPDATE tz_witness SET z='infinity'"); !errors.Is(err, context.Canceled) {
+			t.Fatal("cancel must remain ordinary", err)
+		}
+		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, sentinel)
+	}
+}
+
+func TestReferenceTimezonePrecisionAndLocalNotices(t *testing.T) {
+	p := fixture.NewScenario(t)
+	for _, backend := range p.Backends() {
+		var notices []fixture.Diagnostic
+		_, conn, record := fixture.NoticeReferencePool(t, p, backend.PG, &notices)
+		record.RawBackend = fixture.RawNative
+		if backend.PG {
+			record.RawBackend = fixture.RawPostgres
+		}
+		fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("CREATE TABLE tz_notice(id INTEGER)", 0))
+		fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("INSERT INTO tz_notice VALUES(1)", 1))
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Exec("SET TIME ZONE INTERVAL (7) '1 second'", 0)
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, conn, record, s)
+			want := []fixture.Diagnostic{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "INTERVAL(7) precision reduced to maximum allowed, 6"}}
+			if !reflect.DeepEqual(notices, want) {
+				t.Fatalf("interval precision notices %#v want %#v", notices, want)
+			}
+			notices = nil
+			s = fixture.Exec("SET LOCAL TIME ZONE 'UTC'", 0)
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, conn, record, s)
+			want = []fixture.Diagnostic{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"}}
+			if !reflect.DeepEqual(notices, want) {
+				t.Fatalf("local notices %#v want %#v", notices, want)
+			}
+			notices = nil
+			fixture.RunStep(t, p.Ctx, conn, record, fixture.Select("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"<+00:00:01>-00:00:01"}}))
+			fixture.RunStep(t, p.Ctx, conn, record, fixture.Select("SELECT TIMESTAMPTZ '2004-01-01 12:00+00'::TEXT AS z FROM tz_notice", []string{"z"}, []string{"TEXT"}, [][]any{{"2004-01-01 12:00:01+00:00:01"}}))
+		}
+		fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("DROP TABLE tz_notice", 0))
+		conn.Close()
+	}
+}

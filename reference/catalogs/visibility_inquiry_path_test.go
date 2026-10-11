@@ -1,0 +1,378 @@
+package reference_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+	"stuntgres"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+func referenceVisibilityPair(t *testing.T, conn *sql.Conn, name, firstPath, secondPath string) (int64, int64) {
+	t.Helper()
+	ctx := context.Background()
+	var bag map[int64]bool
+	discover := func(path string) int64 {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, "SET search_path="+path); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := conn.QueryContext(ctx, "SELECT oid,pg_table_is_visible(oid) FROM pg_catalog.pg_class WHERE relname='"+name+"'")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		seen := map[int64]bool{}
+		var winner int64
+		for rows.Next() {
+			var id int64
+			var visible bool
+			if err := rows.Scan(&id, &visible); err != nil {
+				t.Fatal(err)
+			}
+			if id <= 0 || id > 4294967295 {
+				t.Fatal(id)
+			}
+			if _, ok := seen[id]; ok {
+				t.Fatal("duplicate candidate", id)
+			}
+			seen[id] = visible
+			if visible {
+				if winner != 0 {
+					t.Fatal("multiple visible candidates")
+				}
+				winner = id
+			}
+		}
+		if rows.Err() != nil || len(seen) != 2 || winner == 0 {
+			t.Fatal("incomplete candidates", seen, rows.Err())
+		}
+		if bag != nil {
+			for id := range bag {
+				if _, ok := seen[id]; !ok {
+					t.Fatal("candidate bag changed", bag, seen)
+				}
+			}
+		}
+		bag = seen
+		return winner
+	}
+	a, b := discover(firstPath), discover(secondPath)
+	if a == b {
+		t.Fatal("winner did not reverse")
+	}
+	return a, b
+}
+
+func referenceVisibilityHeldPair(t *testing.T, conn *sql.Conn, a, b int64, paths []string) {
+	t.Helper()
+	ctx := context.Background()
+	held, err := conn.PrepareContext(ctx, "SELECT pg_table_is_visible($1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	for i, path := range paths {
+		if _, err := conn.ExecContext(ctx, "SET search_path="+path); err != nil {
+			t.Fatal(err)
+		}
+		for _, obj := range []struct {
+			id   int64
+			want bool
+		}{{a, i == 0}, {b, i == 1}} {
+			var got bool
+			if err := held.QueryRowContext(ctx, obj.id).Scan(&got); err != nil || got != obj.want {
+				t.Fatal(path, obj, got, err)
+			}
+			rows, err := held.QueryContext(ctx, obj.id)
+			visibilityInquiryRows(t, rows, err, "pg_table_is_visible", []any{obj.want})
+		}
+	}
+}
+
+func TestReferenceVisibilityInquiryRestoredSameNameReversal(t *testing.T) {
+	for _, source := range []bool{false, true} {
+		t.Run(fmt.Sprint(source), func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			if p.Postgres != nil {
+				t.Cleanup(func() {
+					if _, err := p.Postgres.ExecContext(context.Background(), "DROP SCHEMA IF EXISTS pgv_restore_a,pgv_restore_b CASCADE"); err != nil {
+						t.Error("restored visibility schema cleanup", err)
+					}
+				})
+			}
+			for _, q := range []string{"CREATE SCHEMA pgv_restore_a", "CREATE SCHEMA pgv_restore_b", "CREATE TABLE pgv_restore_a.pgv_restored_pair(id INT)", "CREATE TABLE pgv_restore_b.pgv_restored_pair(id INT)"} {
+				s := fixture.Exec(q, 0)
+				s.NonContext = source
+				fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, s)
+			}
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			if p.Postgres != nil {
+				if _, err := p.Postgres.ExecContext(p.Ctx, dump.String()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, backend := range p.Backends() {
+				conn, err := backend.DB.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer conn.Close()
+				a, b := referenceVisibilityPair(t, conn, "pgv_restored_pair", "pgv_restore_a,pgv_restore_b", "pgv_restore_b,pgv_restore_a")
+				referenceVisibilityHeldPair(t, conn, a, b, []string{"pgv_restore_a,pgv_restore_b", "pgv_restore_b,pgv_restore_a", "public"})
+				conn.Close()
+			}
+		})
+	}
+}
+
+func TestReferenceVisibilityInquiryTempPrecedence(t *testing.T) {
+	fixture.DeparseReviewStreams(t, func(t *testing.T, conn *sql.Conn, postgres bool, run func(fixture.Step) fixture.Observed) {
+		run(fixture.Exec("CREATE SEQUENCE public.pgv_temp_pair", 0))
+		run(fixture.Exec("CREATE TEMP SEQUENCE pgv_temp_pair", 0))
+		permanent, temp := referenceVisibilityPair(t, conn, "pgv_temp_pair", "public,pg_temp", "public")
+		referenceVisibilityHeldPair(t, conn, permanent, temp, []string{"public,pg_temp", "public"})
+		// Inquiry never creates a missing TEMP namespace; this session already owns one.
+		run(fixture.Select("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4402)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+	})
+}
+
+func TestReferenceVisibilityInquiryUserPathRefresh(t *testing.T) {
+	fixture.RoleReferenceCleanup(t, []string{"pgv_user_a", "pgv_user_b"})
+	fixture.DeparseReviewStreams(t, func(t *testing.T, conn *sql.Conn, postgres bool, run func(fixture.Step) fixture.Observed) {
+		roles := []string{"pgv_user_a", "pgv_user_b"}
+		var createdRoles []string
+		cleanup := func() {
+			exec := conn.ExecContext
+			if postgres {
+				exec = fixture.Admin.ExecContext
+			}
+			for _, q := range []string{"RESET ROLE", "SET search_path=public", "DROP SCHEMA IF EXISTS pgv_user_a CASCADE", "DROP SCHEMA IF EXISTS pgv_user_b CASCADE"} {
+				if _, err := exec(context.Background(), q); err != nil {
+					t.Error(q, err)
+				}
+			}
+			if !postgres {
+				for _, role := range createdRoles {
+					if _, err := exec(context.Background(), "DROP ROLE "+role); err != nil {
+						t.Error("native user-path role cleanup", role, err)
+					}
+				}
+			}
+		}
+		if postgres {
+			t.Cleanup(cleanup)
+		} else {
+			defer cleanup()
+		}
+		for i, q := range []string{"CREATE ROLE pgv_user_a", "CREATE ROLE pgv_user_b", "CREATE SCHEMA pgv_user_a AUTHORIZATION pgv_user_a", "CREATE SCHEMA pgv_user_b AUTHORIZATION pgv_user_b", "CREATE TABLE pgv_user_a.pgv_user_pair(id INT)", "CREATE TABLE pgv_user_b.pgv_user_pair(id INT)"} {
+			run(fixture.Exec(q, 0))
+			if i < len(roles) {
+				createdRoles = append(createdRoles, roles[i])
+			}
+		}
+		a, b := referenceVisibilityPair(t, conn, "pgv_user_pair", "pgv_user_a,pgv_user_b", "pgv_user_b,pgv_user_a")
+		run(fixture.Exec(`SET search_path="$user",public`, 0))
+		held, err := conn.PrepareContext(context.Background(), "SELECT pg_table_is_visible($1)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer held.Close()
+		for _, tc := range []struct {
+			role   string
+			av, bv bool
+		}{{"pgv_user_a", true, false}, {"pgv_user_b", false, true}, {"NONE", false, false}} {
+			run(fixture.Exec("SET ROLE "+tc.role, 0))
+			for _, obj := range []struct {
+				id   int64
+				want bool
+			}{{a, tc.av}, {b, tc.bv}} {
+				run(fixture.Select("SELECT pg_table_is_visible($1)", []string{"pg_table_is_visible"}, []string{"BOOL"}, [][]any{{obj.want}}, obj.id))
+				var got bool
+				if err := held.QueryRowContext(context.Background(), obj.id).Scan(&got); err != nil || got != obj.want {
+					t.Fatal(tc.role, obj, got, err)
+				}
+			}
+		}
+	})
+}
+
+func TestReferenceVisibilityInquiryForeignTemp(t *testing.T) {
+	p := fixture.NewScenario(t)
+	for _, backend := range p.Backends() {
+		backend.DB.SetMaxOpenConns(2)
+		owner, err := backend.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer owner.Close()
+		fixture.RunStep(t, p.Ctx, owner, backend.Recorder, fixture.Exec("CREATE TEMP SEQUENCE pgv_foreign_temp", 0))
+		var id int64
+		if err := owner.QueryRowContext(p.Ctx, "SELECT oid FROM pg_catalog.pg_class WHERE relname='pgv_foreign_temp'").Scan(&id); err != nil || id <= 0 {
+			t.Fatal(id, err)
+		}
+		rows, err := owner.QueryContext(p.Ctx, "SELECT pg_table_is_visible($1)", id)
+		visibilityInquiryRows(t, rows, err, "pg_table_is_visible", []any{true})
+		if _, err := owner.ExecContext(p.Ctx, "SET search_path=pg_temp,public"); err != nil {
+			t.Fatal(err)
+		}
+		var namespace string
+		if err := owner.QueryRowContext(p.Ctx, "SELECT current_schema").Scan(&namespace); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(namespace, "pg_temp_") {
+			t.Fatal("missing TEMP namespace identity", namespace)
+		}
+		var ownPath string
+		if err := owner.QueryRowContext(p.Ctx, "SELECT current_schemas(true)").Scan(&ownPath); err != nil {
+			t.Fatal(err)
+		}
+		// pg_catalog is implicit and precedes the explicitly positioned TEMP
+		// namespace. current_schema instead selects the first explicit entry.
+		if want := "{pg_catalog," + namespace + ",public}"; ownPath != want {
+			t.Fatal("TEMP resolved path/namespace identity mismatch", ownPath, want)
+		}
+		var explicitPath string
+		if err := owner.QueryRowContext(p.Ctx, "SELECT current_schemas(false)").Scan(&explicitPath); err != nil || explicitPath != "{"+namespace+",public}" {
+			t.Fatal("TEMP explicit path/namespace identity mismatch", explicitPath, namespace, err)
+		}
+		fixed := fixture.Select("SELECT pg_table_is_visible(1259) AS catalog_visible,pg_table_is_visible($1) AS temp_visible", []string{"catalog_visible", "temp_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}, id)
+		fixed.CheckMetadata = fixture.VisibilityBoolMetadata
+		fixture.RunStep(t, p.Ctx, owner, backend.Recorder, fixed)
+		peer, err := backend.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer peer.Close()
+		if _, err := peer.ExecContext(p.Ctx, "SET search_path="+namespace+",public"); err != nil {
+			t.Fatal(err)
+		}
+		var before string
+		if err := peer.QueryRowContext(p.Ctx, "SELECT current_schemas(true)").Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		// Native paths intentionally exclude foreign TEMP; PostgreSQL searches
+		// an explicitly named peer namespace when schema USAGE permits it.
+		selected := fixture.Select("SELECT pg_table_is_visible($1)", []string{"pg_table_is_visible"}, []string{"BOOL"}, [][]any{{backend.PG}}, id)
+		selected.CheckMetadata = fixture.VisibilityBoolMetadata
+		fixture.RunStep(t, p.Ctx, peer, backend.Recorder, selected)
+		var visible bool
+		if err := peer.QueryRowContext(p.Ctx, "SELECT pg_table_is_visible($1)", id).Scan(&visible); err != nil || visible != backend.PG {
+			t.Fatal("foreign TEMP scalar consumer", visible, err)
+		}
+		var after string
+		if err := peer.QueryRowContext(p.Ctx, "SELECT current_schemas(true)").Scan(&after); err != nil {
+			t.Fatal(err)
+		}
+		if before != after {
+			t.Fatal("visibility allocated missing TEMP", before, after)
+		}
+		peer.Close()
+		owner.Close()
+	}
+}
+
+func TestReferenceVisibilityInquiryIndexRelations(t *testing.T) {
+	for _, source := range []bool{false, true} {
+		t.Run(fmt.Sprint(source), func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			run := func(s fixture.Step) { s.NonContext = source; p.Step(t, s) }
+			for _, backend := range p.Backends() {
+				backend.DB.SetMaxOpenConns(1)
+			}
+			if p.Postgres != nil {
+				t.Cleanup(func() {
+					if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA IF EXISTS pgv_index_a,pgv_index_b CASCADE"); err != nil {
+						t.Error("index visibility schema cleanup", err)
+					}
+				})
+			}
+			for _, q := range []string{
+				"CREATE SCHEMA pgv_index_a", "CREATE SCHEMA pgv_index_b",
+				"CREATE TABLE pgv_index_a.index_parent(id INT)", "CREATE TABLE pgv_index_b.index_parent(id INT)",
+				"CREATE INDEX pgv_index_pair ON pgv_index_a.index_parent(id)", "CREATE INDEX pgv_index_pair ON pgv_index_b.index_parent(id)",
+				"CREATE INDEX pgv_index_table ON pgv_index_a.index_parent(id)", "CREATE TABLE pgv_index_b.pgv_index_table(id INT)",
+				"CREATE VIEW pgv_index_a.pgv_view_index AS SELECT id FROM pgv_index_a.index_parent", "CREATE INDEX pgv_view_index ON pgv_index_b.index_parent(id)",
+				"CREATE SEQUENCE pgv_index_a.pgv_sequence_index", "CREATE INDEX pgv_sequence_index ON pgv_index_b.index_parent(id)",
+			} {
+				run(fixture.Exec(q, 0))
+			}
+			run(fixture.Exec("INSERT INTO pgv_index_a.index_parent VALUES(7)", 1))
+			run(fixture.Exec("INSERT INTO pgv_index_b.index_parent VALUES(9)", 1))
+			check := func() {
+				t.Helper()
+				for _, backend := range p.Backends() {
+					conn, err := backend.DB.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					held, err := conn.PrepareContext(p.Ctx, "SELECT pg_table_is_visible($1)")
+					if err != nil {
+						conn.Close()
+						t.Fatal(err)
+					}
+					func() {
+						defer conn.Close()
+						defer held.Close()
+						for _, name := range []string{"pgv_index_pair", "pgv_index_table", "pgv_view_index", "pgv_sequence_index"} {
+							a, b := referenceVisibilityPair(t, conn, name, "pgv_index_a,pgv_index_b", "pgv_index_b,pgv_index_a")
+							for _, tc := range []struct {
+								path   string
+								av, bv bool
+							}{{"pgv_index_a,pgv_index_b", true, false}, {"pgv_index_b,pgv_index_a", false, true}, {"public", false, false}} {
+								fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Exec("SET search_path="+tc.path, 0))
+								q := "SELECT pg_table_is_visible('pgv_index_a." + name + "'::regclass),pg_table_is_visible('pgv_index_b." + name + "'::regclass)"
+								s := fixture.Select(q, []string{"pg_table_is_visible", "pg_table_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{tc.av, tc.bv}})
+								s.CheckMetadata = fixture.VisibilityBoolMetadata
+								fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
+								var av, bv bool
+								if err := conn.QueryRowContext(p.Ctx, q).Scan(&av, &bv); err != nil || av != tc.av || bv != tc.bv {
+									t.Fatal(name, tc.path, av, bv, err)
+								}
+								for _, obj := range []struct {
+									id   int64
+									want bool
+								}{{a, tc.av}, {b, tc.bv}} {
+									rows, err := held.QueryContext(p.Ctx, obj.id)
+									visibilityInquiryRows(t, rows, err, "pg_table_is_visible", []any{obj.want})
+									var got bool
+									if err := held.QueryRowContext(p.Ctx, obj.id).Scan(&got); err != nil || got != obj.want {
+										t.Fatal(got, obj.want, err)
+									}
+								}
+							}
+						}
+					}()
+				}
+			}
+			check()
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			// PostgreSQL retains its independently created objects. Compare native
+			// reconstructed identities with the same explicit expectations, not OIDs.
+			check()
+			run(fixture.Select("SELECT id FROM pgv_index_a.index_parent", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			run(fixture.Select("SELECT id FROM pgv_index_b.index_parent", []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}}))
+		})
+	}
+}

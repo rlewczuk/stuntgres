@@ -1,0 +1,199 @@
+package reference_test
+
+import (
+	"database/sql"
+	"reflect"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+func TestReferenceSearchPathQualifiedProviderConsumers(t *testing.T) {
+	p := fixture.NewScenario(t)
+	fixture.SchemaReferenceCleanup(t, "sp_consumer")
+	for _, backend := range p.Backends() {
+		t.Run(backend.Name, func(t *testing.T) {
+			c, err := backend.DB.Conn(p.Ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, backend.Recorder, s) }
+			run(fixture.Exec("CREATE SCHEMA sp_consumer", 0))
+			run(fixture.Exec("CREATE TABLE sp_consumer.t(id pg_catalog.int4)", 0))
+			run(fixture.Exec("INSERT INTO sp_consumer.t VALUES(7)", 1))
+			run(fixture.Exec("SET search_path TO sp_consumer", 0))
+			for _, tc := range []struct {
+				q    string
+				want any
+			}{{"SELECT pg_catalog.num_nulls(NULL,7)", int64(1)}, {"SELECT pg_catalog.current_schemas(false)", "{sp_consumer}"}, {"SELECT pg_catalog.current_schemas('false')", "{sp_consumer}"}, {"SELECT pg_catalog.current_setting('search_path')", "sp_consumer"}, {"SELECT CAST(id AS pg_catalog.int4) FROM sp_consumer.t", int64(7)}, {"SELECT id OPERATOR(pg_catalog.+) 1 FROM sp_consumer.t", int64(8)}, {"SELECT id OPERATOR(pg_catalog.=) 7 FROM sp_consumer.t", true}, {"SELECT id OPERATOR(pg_catalog.-) 2 + 3 FROM sp_consumer.t", int64(2)}, {"SELECT OPERATOR(pg_catalog.-) id + 3 FROM sp_consumer.t", int64(-10)}, {"SELECT id - 2 + 3 FROM sp_consumer.t", int64(8)}} {
+				var got any
+				if err := c.QueryRowContext(p.Ctx, tc.q).Scan(&got); err != nil || !reflect.DeepEqual(fixture.Normalize(got), tc.want) {
+					t.Fatal(tc.q, got, tc.want, err)
+				}
+			}
+		})
+	}
+}
+
+func TestReferenceSearchPathQualifiedMathConsumers(t *testing.T) {
+	for _, sourceSetup := range []bool{false, true} {
+		t.Run(map[bool]string{false: "recorded", true: "source setup"}[sourceSetup], func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			fixture.SchemaReferenceCleanup(t, "math_consumer")
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
+					c, err := backend.DB.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer c.Close()
+					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, backend.Recorder, s) }
+					for _, s := range []fixture.Step{fixture.Exec("CREATE SCHEMA math_consumer", 0), fixture.Exec("CREATE TABLE math_consumer.source(id INT)", 0), fixture.Exec("INSERT INTO math_consumer.source VALUES(7)", 1)} {
+						if sourceSetup {
+							s.NonContext = true
+							fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
+						} else {
+							run(s)
+						}
+					}
+					for _, tc := range []struct {
+						name, args, typ, signature string
+						want                       any
+					}{{"min_scale", "8.4100", "INT4", "numeric", int64(2)}, {"scale", "8.4100", "INT4", "numeric", int64(4)}, {"trim_scale", "8.4100", "NUMERIC", "numeric", "8.41"}, {"round", "1.25,1", "NUMERIC", "numeric, integer", "1.3"}, {"trunc", "-1.25,1", "NUMERIC", "numeric, integer", "-1.2"}, {"sign", "-13.000", "NUMERIC", "numeric", "-1"}, {"mod", "-9,4", "INT4", "integer, integer", int64(-1)}} {
+						run(fixture.Exec("SET search_path TO public", 0))
+						q := "SELECT pg_catalog." + tc.name + "(" + tc.args + ")"
+						held, err := c.PrepareContext(p.Ctx, q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						check := func(rows *sql.Rows) {
+							t.Helper()
+							defer rows.Close()
+							metadata, err := rows.ColumnTypes()
+							scan := reflect.TypeOf(tc.want)
+							if backend.PG {
+								if tc.typ == "NUMERIC" {
+									scan = reflect.TypeFor[any]()
+								} else {
+									scan = reflect.TypeFor[int32]()
+								}
+							}
+							if err != nil || len(metadata) != 1 || metadata[0].Name() != tc.name || metadata[0].DatabaseTypeName() != tc.typ || metadata[0].ScanType() != scan {
+								t.Fatal(metadata, scan, err)
+							}
+							if !rows.Next() {
+								t.Fatal(rows.Err())
+							}
+							var got any
+							if err := rows.Scan(&got); err != nil {
+								t.Fatal(err)
+							}
+							if backend.PG && tc.typ == "NUMERIC" {
+								if _, ok := got.([]byte); !ok {
+									t.Fatal("pq raw numeric", got)
+								}
+							} else {
+								if reflect.TypeOf(got) != reflect.TypeOf(tc.want) {
+									t.Fatal("raw scalar", got)
+								}
+							}
+							if !reflect.DeepEqual(fixture.Normalize(got), tc.want) {
+								t.Fatal(got, tc.want)
+							}
+							if rows.Next() || rows.Err() != nil {
+								t.Fatal(rows.Err())
+							}
+							if err := rows.Close(); err != nil {
+								t.Fatal(err)
+							}
+						}
+						rows, err := c.QueryContext(p.Ctx, q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						check(rows)
+						for _, path := range []string{"public", "math_consumer"} {
+							run(fixture.Exec("SET search_path TO "+path, 0))
+							rows, err := held.QueryContext(p.Ctx)
+							if err != nil {
+								held.Close()
+								t.Fatal(err)
+							}
+							check(rows)
+						}
+						held.Close()
+						rows, err = c.QueryContext(p.Ctx, "SELECT "+tc.name+"("+tc.args+")")
+						if err != nil {
+							t.Fatal(err)
+						}
+						check(rows)
+						want := fixture.ControlsReferenceDiagnostic("42883", "function public."+tc.name+"("+tc.signature+") does not exist")
+						want.Position = "8"
+						want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+						for _, prepared := range []bool{false, true} {
+							s := fixture.ErrorDiagnostic("SELECT public."+tc.name+"("+tc.args+")", want)
+							s.SelectRows = true
+							s.Prepared = prepared
+							if prepared {
+								s.ErrorStage = "prepare"
+							}
+							run(s)
+						}
+					}
+					want := fixture.ControlsReferenceDiagnostic("3F000", `schema "missing_path_ns" does not exist`)
+					want.Position = "8"
+					for _, prepared := range []bool{false, true} {
+						s := fixture.ErrorDiagnostic("SELECT missing_path_ns.round(1.25,1)", want)
+						s.SelectRows = true
+						s.Prepared = prepared
+						if prepared {
+							s.ErrorStage = "prepare"
+						}
+						run(s)
+					}
+					var path string
+					if err := c.QueryRowContext(p.Ctx, "SHOW search_path").Scan(&path); err != nil || path != "math_consumer" {
+						t.Fatal(path, err)
+					}
+					var id int64
+					if err := c.QueryRowContext(p.Ctx, "SELECT id FROM math_consumer.source").Scan(&id); err != nil || id != 7 {
+						t.Fatal(id, err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestReferenceSearchPathQualifiedBitwiseConsumers(t *testing.T) {
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE public.path_bits(id INT,mask INT DEFAULT (7 OPERATOR(pg_catalog.&) 3))", 0))
+	p.Step(t, fixture.Exec("INSERT INTO public.path_bits(id) VALUES(7)", 1))
+	for _, backend := range p.Backends() {
+		for _, tc := range []struct {
+			expression string
+			want       int64
+		}{{"id OPERATOR(pg_catalog.&) 3", 3}, {"id OPERATOR(pg_catalog.|) 8", 15}, {"id OPERATOR(pg_catalog.#) 3", 4}, {"id OPERATOR(pg_catalog.<<) 1", 14}, {"id OPERATOR(pg_catalog.>>) 1", 3}, {"OPERATOR(pg_catalog.~) id", -8}, {"CAST(id OPERATOR(pg_catalog.&) 3 AS pg_catalog.int2)", 3}, {"mask", 3}} {
+			q := "SELECT " + tc.expression + " FROM public.path_bits"
+			var got int64
+			if err := backend.DB.QueryRowContext(p.Ctx, q).Scan(&got); err != nil || got != tc.want {
+				t.Fatal(q, got, err)
+			}
+			held, err := backend.DB.PrepareContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = held.QueryRowContext(p.Ctx).Scan(&got)
+			held.Close()
+			if err != nil || got != tc.want {
+				t.Fatal(q, got, err)
+			}
+		}
+	}
+	want := fixture.ControlsReferenceDiagnostic("42883", "operator does not exist: integer public.& integer")
+	want.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
+	want.Position = "11"
+	s := fixture.ErrorDiagnostic("SELECT id OPERATOR(public.&) 3 FROM public.path_bits", want)
+	s.SelectRows = true
+	p.Step(t, s)
+}

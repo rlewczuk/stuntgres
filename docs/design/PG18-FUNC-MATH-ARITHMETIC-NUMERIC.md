@@ -82,7 +82,7 @@ indivisible big.Int operation or public mid-running Restore is claimed.
 
 ## Evidence and root verification
 
-Permanent public scenarios use only `reference/fixture_test.go` and public driver,
+Permanent public scenarios use only `reference/fixture` test support and public driver,
 error and control APIs. Exact finite/scale/power/special expectations precede
 backend parity. High-precision pinned strings are exact; the2609-byte guard
 success is checked in full by SHA256 plus weight/scale/prefix/suffix. No oracle

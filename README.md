@@ -2111,13 +2111,21 @@ See [whole-root cutover commands](docs/DEVELOPMENT.md#driver-session-and-catalog
 The `reference` build tag still includes untouched legacy PostgreSQL tests and
 retained PostgreSQL-only edges; it does not select runtime mode. A tagged
 selection restricted to mode-aware migrated tests with `-reference=false`
-remains Docker-free, but selecting a legacy test lazily starts the same pinned
+remains Docker-free, but selecting a legacy test lazily starts its package's pinned
 container even when the flag is absent or false. Whole-root cutover does not
 convert every PostgreSQL-only ACL, inheritance, keyed-row, role-lifetime or
 rules/trigger edge to native coverage. `TestReferenceControlTransactionsDiagnostics`
 is now an untagged dual-mode scenario, not a legacy Docker-only test.
 `make check RUN='...' REFERENCE=1` enables the `reference` build tag and
-`-args -reference=true` only for `./reference`. After merge, `make finalcheck`
+`-args -reference=true` only for reference test packages discovered recursively
+under `./reference/...`, with `-p 1` serializing independent package/container
+lifecycles. Ordinary selectors run packages containing matching top-level test
+names; slash-containing subtest selectors conservatively retain every test
+package. A no-match selector still starts the fixture package's pinned oracle.
+The reference tree has at most 30 packages including the importable common
+`reference/fixture` and selector command, each at most 1,000,000 bytes across all
+files. Explicit true eagerly starts each selected package's oracle before test
+execution. After merge, `make finalcheck`
 runs generation, startup benchmark, full Docker-free native race tests and
 dependencies under the agent's external 1800-second deadline. Earlier task-specific
 aggregate bounds are historical evidence, not current Makefile behavior.
@@ -2126,8 +2134,9 @@ aggregate bounds are historical evidence, not current Makefile behavior.
 Start with the [dialect contract](docs/DIALECT.md) and
 [development guide](docs/DEVELOPMENT.md). Root packages expose the driver and
 native APIs; `internal/parser`, `internal/engine`, and `internal/sqltype` own
-parsing, execution, and SQL value handling. Public scenarios live in `smoke/`;
-PostgreSQL compatibility fixtures live in `reference/`.
+parsing, execution, and SQL value handling. Public SQL scenarios live in
+feature-group packages under `reference/`; shared compatibility fixtures live
+in the importable `reference/fixture` package.
 
 For behavior changes, add a failing behavioral regression first and ground
 compatibility expectations in PostgreSQL 18. Edit `internal/parser/grammar.y`,

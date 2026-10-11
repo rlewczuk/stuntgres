@@ -31,6 +31,10 @@ This is the authoritative test-placement and implementation workflow.
 - Assert behavior, boundaries, errors, atomicity and lifecycle transitions, not
   source text, wiring counts, mock echoes or parity alone. Keep functional files
   at most 750 lines; shared fixture code is exempt. Keep output quiet by default.
+- Organize whole test files in feature-group packages under `reference/`, with
+  common importable helpers in `reference/fixture/`. Keep at most 30 packages
+  total including the fixture, and at most 1,000,000 bytes per package counting
+  all files. Do not split or duplicate test bodies to meet these limits.
 - Every added, modified or migrated dual-mode reference test MUST be selectively
   run in both real pinned PostgreSQL mode and Docker-free quick mode, using the
   same completed test definitions and a `RUN` selector covering all affected tests.
@@ -457,17 +461,30 @@ for check, quickcheck, racecheck and bench, or 1800 seconds for finalcheck.
 invoke it. Neither whole-project target replaces selected dual-mode pre-review proof.
 
 `make check RUN='...' REFERENCE=1` enables `-reference=true` and the `reference`
-build tag; it runs both native and PostgreSQL backends, not PostgreSQL alone.
+build tag for `./reference/...`; it runs both native and PostgreSQL backends,
+not PostgreSQL alone. Real-mode targets use `-p 1`: each package owns an
+independent fixture/container/process lifecycle, with startup and teardown
+serialized across packages. Explicit true eagerly starts every selected
+package's oracle even when no tests match. The stdlib-only
+`reference/cmd/checkpackages` command recursively discovers tagged test files
+using `go list -json -tags reference ./reference/...` and parses top-level test
+names without running tests. For selectors without `/`, only packages with
+matching top-level tests run. Slash-containing subtest selectors conservatively
+retain all test packages so Go performs exact test/subtest matching; invalid
+regexes fail rather than narrowing selection. A no-match selector runs the
+fixture test package to preserve eager startup and visible startup failures.
+Packages with no test files are excluded. The at-most-30-package cap, including
+the selector command and fixture, bounds conservative startup overhead.
 The ordinary runner visits native first. During the initial oracle-discovery iteration, use the
-shared `p.backends()` loop and temporarily select only `backend.pg` (for example,
-`if !backend.pg { continue }`) so an unimplemented native feature cannot prevent
+shared `p.Backends()` loop and temporarily select only `backend.PG` (for example,
+`if !backend.PG { continue }`) so an unimplemented native feature cannot prevent
 PostgreSQL observations. Remove that discovery filter before quick validation
 and final verification. Never commit a filter that bypasses either backend.
 
 There is no automatic golden-file recorder or PostgreSQL-only make mode.
 Use failure diagnostics or temporary verbose-only observation logging to inspect
 unknown PostgreSQL results, then encode those results as explicit expectations
-and remove discovery scaffolding. `p.step` validates expectations; it does not
+and remove discovery scaffolding. `p.Step` validates expectations; it does not
 learn or update them. Do not weaken assertions to accommodate native failures.
 
 PG_USER coverage uses `RUN='^TestReferencePGUser'` in both
@@ -637,7 +654,7 @@ exact persisted rows, never inferred from driver count alone. Native provider427
 versus positive PostgreSQL system identities is explicit; native column ACL units
 supplement real PostgreSQL GRANT, without implementing an adjacent public API.
 Fixtures use supported named UNIQUE constraints with NOT NULL (implicit for
-identity); they do not depend on PRIMARY KEY support. Native controls receive the unwrapped `p.native` pool;
+identity); they do not depend on PRIMARY KEY support. Native controls receive the unwrapped `p.Native` pool;
 wrapped same-DSN peers remain SQL visibility witnesses. Denied PostgreSQL actors
 receive schema USAGE before testing table denial. Admission diagnostics distinguish
 Prepare token positions on both backends from the absent Position on held Execute.
@@ -675,7 +692,7 @@ INSERT SELECT is included above because INSERT input binding is shared.
 
 ### Encoding, locale and float-presentation settings
 
-The eleven shared definitions live in `reference/format_encoding_*_test.go`.
+The eleven shared definitions live in `reference/patterns_encoding/format_encoding_*_test.go`.
 Their completed selector must run in both modes before review/integration,
 under separate 900-second deadlines, without verbose output:
 
@@ -1261,7 +1278,7 @@ make check RUN='^TestDatetimeZone'
 Both complete reference modes must run before review/integration. Each selected check
 has a900-second deadline. Provider units include warmed EST/MSK/IANA allocation
 witnesses; they supplement, not replace, public independent SQL expectations.
-The discovery backend.pg filter and focused logging-only oracle probes are
+The discovery backend.PG filter and focused logging-only oracle probes are
 temporary and must be removed before native checks; neither remains in the
 completed family. The root runs verification and feature smoke after edits, then
 the final post-merge finalcheck under one1800-second deadline.
@@ -2023,7 +2040,7 @@ ACL-neutral. Run alongside the shared reference gate:
 make check RUN='^(TestPGIndexes.*|TestIndexMaintenanceMetadata.*)$'
 ```
 
-The shared referenceHeldStatement retains its three-field layout and adds actual
+The shared fixture.HeldStatement retains its three-field layout and adds actual
 plain DB/Tx Prepare/Exec/Query consumers alongside existing Context consumers.
 Its matched query uses the genuinely held statement; unmatched queries use the
 underlying plain DB/Tx, never a Context stand-in. This central fixture change also
@@ -2069,7 +2086,7 @@ finalcheck (one 1800-second deadline).
 
 ## RANGE partition reference coverage
 
-`reference/range_partition_*_test.go` uses one shared scenario body in both modes.
+`reference/tables/range_partition_*_test.go` uses one shared scenario body in both modes.
 Rebase consumer witnesses include genuine direct/prepared ON CONFLICT and MERGE
 hierarchy boundaries (root/intermediate/physical member), full independently
 expected errors, unchanged rows and undemanded defaults. A plain-table conflict
@@ -2241,12 +2258,15 @@ under a single 1800-second deadline, with actual failures remedied separately.
 
 ## How the dual-mode fixture works
 
-`newReferenceScenario(t)` creates a fresh native engine, a middleware-wrapped
+`fixture.NewScenario(t)` creates a fresh native engine, a middleware-wrapped
 native pool and an unwrapped pool for native controls. In quick mode PostgreSQL
 is absent. In real mode it also opens the pinned PostgreSQL pool. The fixture
 owns a 30-second context and pool cleanup; real fixtures reset `public` before
-and after each case. All real fixtures share one bounded-lifecycle container:
-**do not use `t.Parallel()`**.
+and after each case. All real fixtures in one package share one bounded-lifecycle
+container: **do not use `t.Parallel()`**. Each package's `TestMain` delegates to
+`fixture.Main`; different package processes own independent containers,
+administrative sessions and fixture state. Real-mode Makefile targets serialize
+those processes with `-p 1`, including startup and final teardown.
 
 Change note: the pinned admin pool retains one idle physical session instead of
 reconnecting at every fixture reset. Open connections remain unrestricted so
@@ -2274,7 +2294,7 @@ and
 `make check REFERENCE=1 RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`.
 
 Non-public schemas are not reset by the fixture. Register
-`schemaReferenceCleanup(t, "schema_name")` before constructing the scenario
+`fixture.SchemaReferenceCleanup(t, "schema_name")` before constructing the scenario
 when a case creates or moves objects into another schema; otherwise a later
 case can fail with `42P06` even when it passes in isolation.
 Dropping a moved view does not remove its destination schema. Prepared utility
@@ -2291,13 +2311,13 @@ extra identities. The visibility source-route scenario keeps the complete
 unfiltered two-peer bag and creates an unrelated `public.t` to exercise
 isolation from the old generic basename.
 
-`p.step(t, step)` executes one description on native and, when enabled,
+`p.Step(t, step)` executes one description on native and, when enabled,
 PostgreSQL. Each backend must match the supplied expectations independently;
 complete observed records are then compared for parity. SELECT checks include
 column names, database type names, complete rows and owned middleware-recorded
 rows/closure. Raw codec representations are checked before normalization.
 
-Use `p.step` for straightforward streams. Use `p.backends()` and one shared
+Use `p.Step` for straightforward streams. Use `p.Backends()` and one shared
 callback for transactions, pinned sessions, held statements, richer metadata,
 concurrency or initial oracle discovery. Keep SQL session state on a borrowed
 `*sql.Conn` or `*sql.Tx`, not an arbitrary pooled connection. Close rows before
@@ -2352,7 +2372,7 @@ assertions without eager million-row preparation or a larger fixture deadline.
 The `TestReferenceTimeout` family adds transaction, physical idle, cleanup and
 pool contracts without duplicating the statement/lock corpus. Its ten names
 are selected together below; `settingsTimeoutWorkload` is shared with the
-existing CPU scenarios, and lock workers use `referenceLockOperation` plus the
+existing CPU scenarios, and lock workers use `fixture.LockOperation` plus the
 PostgreSQL external queue barrier. No new delay SQL is needed.
 
 ```sh
@@ -2515,7 +2535,7 @@ while actual unsupported array/function-provider forms remain boundaries.
 
 
 Original source methods are obligations, not interchangeable API labels.
-For proven DB/Tx plain calls, set referenceStep.nonContext=true on the existing
+For proven DB/Tx plain calls, set fixture.Step.NonContext=true on the existing
 runner: actual Exec/Query/Prepare and returned Stmt.Exec/Query retain complete
 count/error-stage/nil-output/cursor assertions. Metadata and specialized Scan
 hooks inspect the actual source cursor before the truthful return preceding
@@ -2523,8 +2543,8 @@ Context-only recording. Keep a fresh recorded Context companion; never fabricate
 its recorder key for a plain call. *sql.Conn has no plain methods: original
 Conn.QueryContext and physical-owner adapters remain actual Conn routes.
 Explicit QueryRow/Begin/native raw calls and SAME held objects stay explicit.
-referencePrepared prepares anew; it does not prove quiet Prepare or held reuse.
-Consumers such as deleteReferenceConsume do not invoke step metadata/Scan
+fixture.Prepared prepares anew; it does not prove quiet Prepare or held reuse.
+Consumers such as fixture.DeleteReferenceConsume do not invoke step metadata/Scan
 callbacks, so preserve those original checks at the callsite. Cleanup follows
 rows, statements, rollback, borrowed connections, then fixture/schema/role reset;
 worker joins and registered failure exits are part of the assertion union.
@@ -2533,32 +2553,39 @@ worker joins and registered failure exits are part of the assertion union.
 
 ### Common helper reference
 
-These helpers are package-local and directly available to `reference_test` files.
-No additional helper imports or fixture setup are needed.
+Import common helpers explicitly as `fixture` from
+`"stuntgres/reference/fixture"`; do not use dot imports or package-local
+compatibility aliases. Each feature-group package's `TestMain` must call
+`os.Exit(fixture.Main(m))` to own its startup and teardown.
+
+When moving or exporting helpers, update runtime-frame admission probes to the
+actual new symbol name. `fixture.BinaryConversionActiveCancel` requires both the
+provider and its worker frame before cancellation; preserve that gate, workload,
+cleanup and assertions rather than weakening them to make a migration pass.
 
 | Helper | Contract and use |
 | --- | --- |
-| `newReferenceScenario(t) *referencePair` | Required entry point for new dual-mode tests; honors `-reference` and uses a fresh native engine. Do not use legacy `newReferencePair(t)`, which always starts Docker. |
-| `p.step(t, s)` | Execute and independently assert the same step on available backends, then compare observations. |
-| `p.backends()` | Returns backend descriptors with `name`, `db` (`*sql.DB`), `recorder`, and `pg` (true only for PostgreSQL). Loop once over these and share the callback. |
-| `p.ctx`, `p.native`, `p.nativeConnector` | Bounded scenario context; unwrapped native control pool; fresh native connector for public connector controls. `p.memory` and `p.postgres` are the wrapped pools; `p.postgres` is nil in quick mode. |
-| `referenceExec(query, count, args...) referenceStep` | Exec success with exact `RowsAffected` and unsupported `LastInsertId`; DDL generally expects zero. Arguments are bound normally. Error steps require nil published results. |
-| `referenceSelect(query, columns, types, rows, args...) referenceStep` | Query success with exact column names, `DatabaseTypeName` strings and normalized `[][]any` values. Supply metadata even for zero rows. |
-| `referencePrepared(s) referenceStep` | Return the same step with Prepare followed by statement execution. This prepares anew per step; it does not prove held-statement reuse. |
-| `referenceError(query, state, args...) referenceStep` | Exec failure with exact SQLSTATE, asserted through `SQLState() string`. Use structured diagnostics when testing message/field fidelity or failure stage. |
-| `referenceErrorDiagnostic(query, want, args...) referenceStep` | Exec failure with a complete `referenceDiagnostic` expectation, including exact empty fields. |
-| `referenceImplicitError(query, want, args...) referenceStep` | As above, filling both severity fields with `ERROR`. |
-| `referencePosition(n) string` | Decimal diagnostic character position; zero becomes the absent-field empty string. PostgreSQL positions are character-based, not byte offsets. |
-| `controlsReferenceDiagnostic(code, message) referenceDiagnostic` | Build a diagnostic with both severities `ERROR`, code and message; set any additional expected fields explicitly. |
-| `referenceRunStep(t, ctx, executor, recorder, s) referenceObserved` | Run standard independent assertions on a chosen backend/session. Context steps accept DB/Conn/Tx; proven `s.nonContext=true` requires actual DB/Tx plain methods and cannot use Conn or a fake forwarding adapter. Actual cursor callbacks remain checked before returning without Context-only recording. Does not compare backends for you. |
-| `referenceHeldStatement{referenceExecutor: conn, statement: stmt, query: q}` | Executor wrapper for an already prepared `*sql.Stmt`, usable with `referenceRunStep`; leave `s.prepared` false, use the matching query, and close the held statement yourself. Other queries route through the embedded executor. |
-| `referenceState(t, err, want) string` | Check SQLSTATE through the interface; empty `want` requires success. Useful for custom public API calls. |
-| `referenceExtractDiagnostic(t, err) referenceDiagnostic` | Extract structured public native/pq diagnostics; validates diagnostic shape and excludes native claims of PostgreSQL C source locations. Useful while discovering oracle data. |
-| `referenceAssertDiagnostic(t, err, &want) referenceDiagnostic` | Assert the complete structured diagnostic for custom calls. Does not accept a nil expectation. |
-| `referenceNormalize(value) any` | Converts `[]byte` to string and `time.Time` to UTC without monotonic/location identity; leaves other values unchanged. Standard steps apply this automatically. |
-| `noticeReferencePool(t, p, postgres, &records)` | Return a notice-enabled pool, pinned connection and recorder; append complete notice diagnostics to `records`. Select the backend using `backend.pg`; fixture registers cleanup. |
-| `referenceSessionCancel(t, parent, conn, prepared, queryMode...)` | Observe real PostgreSQL pg_sleep admission, cancel through the server, join the operation and assert full57014. Optional true queryMode selects Query with nil error cursor; otherwise Exec. The caller asserts SAME-owner continuation; this is not a native precancel substitute. |
-| `roleReferenceCleanup(t, names)` | Register cleanup for real PostgreSQL roles created by the test **before constructing the scenario**, so pool closure and schema reset happen before role removal. Public-schema resets do not remove cluster roles. |
+| `fixture.NewScenario(t) *fixture.Pair` | Required entry point for new dual-mode tests; honors `-reference` and uses a fresh native engine. Do not use legacy `fixture.NewPair(t)`, which always starts Docker. |
+| `p.Step(t, s)` | Execute and independently assert the same step on available backends, then compare observations. |
+| `p.Backends()` | Returns backend descriptors with `Name`, `DB` (`*sql.DB`), `Recorder`, and `PG` (true only for PostgreSQL). Loop once over these and share the callback. |
+| `p.Ctx`, `p.Native`, `p.NativeConnector` | Bounded scenario context; unwrapped native control pool; fresh native connector for public connector controls. `p.Memory` and `p.Postgres` are the wrapped pools; `p.Postgres` is nil in quick mode. |
+| `fixture.Exec(query, count, args...) fixture.Step` | Exec success with exact `RowsAffected` and unsupported `LastInsertId`; DDL generally expects zero. Arguments are bound normally. Error steps require nil published results. |
+| `fixture.Select(query, columns, types, rows, args...) fixture.Step` | Query success with exact column names, `DatabaseTypeName` strings and normalized `[][]any` values. Supply metadata even for zero rows. |
+| `fixture.Prepared(s) fixture.Step` | Return the same step with Prepare followed by statement execution. This prepares anew per step; it does not prove held-statement reuse. |
+| `fixture.Error(query, state, args...) fixture.Step` | Exec failure with exact SQLSTATE, asserted through `SQLState() string`. Use structured diagnostics when testing message/field fidelity or failure stage. |
+| `fixture.ErrorDiagnostic(query, want, args...) fixture.Step` | Exec failure with a complete `fixture.Diagnostic` expectation, including exact empty fields. |
+| `fixture.ImplicitError(query, want, args...) fixture.Step` | As above, filling both severity fields with `ERROR`. |
+| `fixture.Position(n) string` | Decimal diagnostic character position; zero becomes the absent-field empty string. PostgreSQL positions are character-based, not byte offsets. |
+| `fixture.ControlsReferenceDiagnostic(code, message) fixture.Diagnostic` | Build a diagnostic with both severities `ERROR`, code and message; set any additional expected fields explicitly. |
+| `fixture.RunStep(t, ctx, executor, recorder, s) fixture.Observed` | Run standard independent assertions on a chosen backend/session. Context steps accept DB/Conn/Tx; proven `s.NonContext=true` requires actual DB/Tx plain methods and cannot use Conn or a fake forwarding adapter. Actual cursor callbacks remain checked before returning without Context-only recording. Does not compare backends for you. |
+| `fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}` | Executor wrapper for an already prepared `*sql.Stmt`, usable with `fixture.RunStep`; leave `s.Prepared` false, use the matching query, and close the held statement yourself. Other queries route through the embedded executor. |
+| `fixture.State(t, err, want) string` | Check SQLSTATE through the interface; empty `want` requires success. Useful for custom public API calls. |
+| `fixture.ExtractDiagnostic(t, err) fixture.Diagnostic` | Extract structured public native/pq diagnostics; validates diagnostic shape and excludes native claims of PostgreSQL C source locations. Useful while discovering oracle data. |
+| `fixture.AssertDiagnostic(t, err, &want) fixture.Diagnostic` | Assert the complete structured diagnostic for custom calls. Does not accept a nil expectation. |
+| `fixture.Normalize(value) any` | Converts `[]byte` to string and `time.Time` to UTC without monotonic/location identity; leaves other values unchanged. Standard steps apply this automatically. |
+| `fixture.NoticeReferencePool(t, p, postgres, &records)` | Return a notice-enabled pool, pinned connection and recorder; append complete notice diagnostics to `records`. Select the backend using `backend.PG`; fixture registers cleanup. |
+| `fixture.SessionCancel(t, parent, conn, prepared, queryMode...)` | Observe real PostgreSQL pg_sleep admission, cancel through the server, join the operation and assert full57014. Optional true queryMode selects Query with nil error cursor; otherwise Exec. The caller asserts SAME-owner continuation; this is not a native precancel substitute. |
+| `fixture.RoleReferenceCleanup(t, names)` | Register cleanup for real PostgreSQL roles created by the test **before constructing the scenario**, so pool closure and schema reset happen before role removal. Public-schema resets do not remove cluster roles. |
 
 Register role cleanup on the same `testing.T` that owns the scenario, before
 constructing its pair. A child subtest using a parent's pair must not register
@@ -2568,25 +2595,25 @@ have been cleaned up; consumer subtests retain all assertions and reset identity
 
 ### Step fields and expected data
 
-- `referenceStep.query`, `args`, `prepared`, `selectRows`, `affected`, `state`,
-  `columns`, `types` and `rows` are populated by the constructors above.
-- Set `s.bag = true` for unordered results: order is ignored but duplicate
+- `fixture.Step.Query`, `Args`, `Prepared`, `SelectRows`, `Affected`, `State`,
+  `Columns`, `Types` and `Rows` are populated by the constructors above.
+- Set `s.Bag = true` for unordered results: order is ignored but duplicate
   occurrences must match. Otherwise add SQL `ORDER BY` when ordering is part of
   the expected result; never depend on traversal order.
-- Set `s.checkMetadata = func(t *testing.T, rows *sql.Rows) { ... }` for complete
+- Set `s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { ... }` for complete
   raw descriptor contracts on the actual result, before iteration even when
   empty. Retain independent backend ScanType/Nullable/Length/DecimalSize flags.
-- Set `s.checkScan = func(t *testing.T, rows *sql.Rows, rowIndex int) { ... }` to
+- Set `s.CheckScan = func(t *testing.T, rows *sql.Rows, rowIndex int) { ... }` to
   rescan the current row into specialized destinations. It must not issue SQL.
   Use a shared backend callback for metadata contracts beyond database type names.
-- For Query errors, start with `referenceErrorDiagnostic`, then set
-  `s.selectRows = true`. Set `s.errorStage` to `"prepare"` or `"execute"` when
+- For Query errors, start with `fixture.ErrorDiagnostic`, then set
+  `s.SelectRows = true`. Set `s.ErrorStage` to `"prepare"` or `"execute"` when
   stage matters; this field is checked only with a structured diagnostic.
-- `s.postgresDiagnostic` permits an independently specified PostgreSQL diagnostic
+- `s.PostgresDiagnostic` permits an independently specified PostgreSQL diagnostic
   for intentional differences. Both full records are asserted first; only
   Position/Context are normalized for subsequent parity. This is not permission
   to suppress unrelated differences.
-- `referenceDiagnostic` fields are `Severity`, `SeverityUnlocalized`, `Code`,
+- `fixture.Diagnostic` fields are `Severity`, `SeverityUnlocalized`, `Code`,
   `Message`, `Detail`, `Hint`, `Position`, `InternalPosition`, `InternalQuery`,
   `Context`, `Schema`, `Table`, `Column`, `DataType`, `Constraint`. Unspecified
   fields must actually be empty; source File/Line/Routine are not reference data.
@@ -2594,26 +2621,33 @@ have been cleaned up; consumer subtests retain all assertions and reset identity
   `bool`, NULL `nil`; normalized byte payloads use strings. Do not confuse
   `ColumnType.ScanType` with the actual raw scanned value. Temporal/OID and other
   codec differences can require independently captured backend expectations;
-  branch on `backend.pg` for those expectations, not to duplicate the scenario.
+  branch on `backend.PG` for those expectations, not to duplicate the scenario.
 
 ## Self-contained example
 
-Place this untagged file in `reference/feature_answer_test.go`. The literal
-expectations illustrate the final recorded form; when adding real functionality,
-validate its own expectations against the pinned PostgreSQL run first.
+Place this untagged file in `reference/query_core/feature_answer_test.go`, using
+that group's existing external test package and `TestMain`. New packages need a
+`TestMain` calling `os.Exit(fixture.Main(m))`; do not duplicate an existing one.
+The literal expectations illustrate the final recorded form; when adding real
+functionality, validate its own expectations against the pinned PostgreSQL run
+first.
 
 ```go
 package reference_test
 
-import "testing"
+import (
+    "testing"
+
+    "stuntgres/reference/fixture"
+)
 
 func TestReferenceFeatureAnswer(t *testing.T) {
-    p := newReferenceScenario(t)
-    for _, backend := range p.backends() {
-        t.Run(backend.name, func(t *testing.T) {
-            // During oracle discovery only, temporarily select backend.pg
+    p := fixture.NewScenario(t)
+    for _, backend := range p.Backends() {
+        t.Run(backend.Name, func(t *testing.T) {
+            // During oracle discovery only, temporarily select backend.PG
             // before this callback. The completed test runs every backend.
-            conn, err := backend.db.Conn(p.ctx)
+            conn, err := backend.DB.Conn(p.Ctx)
             if err != nil {
                 t.Fatal(err)
             }
@@ -2622,24 +2656,24 @@ func TestReferenceFeatureAnswer(t *testing.T) {
                     t.Error(err)
                 }
             })
-            run := func(s referenceStep) {
-                referenceRunStep(t, p.ctx, conn, backend.recorder, s)
+            run := func(s fixture.Step) {
+                fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
             }
 
-            run(referenceExec("CREATE TABLE answer (v INTEGER)", 0))
-            run(referenceExec("INSERT INTO answer VALUES (41), (NULL)", 2))
+            run(fixture.Exec("CREATE TABLE answer (v INTEGER)", 0))
+            run(fixture.Exec("INSERT INTO answer VALUES (41), (NULL)", 2))
             for _, prepared := range []bool{false, true} {
-                s := referenceSelect(
+                s := fixture.Select(
                     "SELECT v + $1::integer AS result FROM answer ORDER BY v NULLS LAST",
                     []string{"result"}, []string{"INT4"},
                     [][]any{{int64(42)}, {nil}}, int64(1),
                 )
                 if prepared {
-                    s = referencePrepared(s)
+                    s = fixture.Prepared(s)
                 }
                 run(s)
             }
-            run(referenceError("SELECT absent FROM answer", "42703"))
+            run(fixture.Error("SELECT absent FROM answer", "42703"))
         })
     }
 }
@@ -2672,8 +2706,8 @@ This guide is sufficient for ordinary dual-mode tests. Do **not** read other
 feature tests to discover the basic convention. Only when a required advanced
 fixture behavior is not covered above, optionally consult:
 
-- `reference/fixture_test.go`: step runner, diagnostic, notice and control helpers.
-- `reference/fixture_lifecycle_test.go`: mode selection, backend descriptors and
+- `reference/fixture/fixture.go`: step runner, diagnostic, notice and control helpers.
+- `reference/fixture/lifecycle.go`: mode selection, backend descriptors and
   container lifecycle.
 - `Makefile`: non-standard command details.
 
@@ -2681,7 +2715,7 @@ These are last-resort implementation references, not prerequisites for each test
 
 ## Subquery regression and instrumentation coverage
 
-`reference/query_subquery_*_test.go` contains the shared direct/prepared,
+`reference/query_core/query_subquery_*_test.go` contains the shared direct/prepared,
 held-handle, mutation, metadata, admission, locking and stored-view scenarios.
 Both backends execute the same callback without a discovery-only backend filter:
 
@@ -3268,7 +3302,7 @@ one 1800-second deadline.
 
 ## DISTINCT ON reference contracts and feature smoke
 
-The untagged `reference/query_distinct_on_*_test.go` family shares fixture/public
+The untagged `reference/query_order/query_distinct_on_*_test.go` family shares fixture/public
 API bodies in both modes. Latest-row/NULL grouping, visible/hidden metadata,
 direct/fresh/held routes, resolved-prefix diagnostics, typed hidden keys,
 group/window/FETCH/subquery consumers, INSERT source typing, physical authority,

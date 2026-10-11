@@ -1,0 +1,445 @@
+package reference_test
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"reflect"
+	"strings"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+const uuidA = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+const uuidZ = "00000000-0000-0000-0000-000000000000"
+const uuidF = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+
+func TestReferenceUUIDCreateInputAndOrder(t *testing.T) {
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE u(v UUID)", 0))
+	p.Step(t, fixture.Exec("INSERT INTO u(v) VALUES(NULL),('ffffffff-ffff-ffff-ffff-ffffffffffff'),('{A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11}'),('00000000000000000000000000000000'),('a0eebc999c0b4ef8bb6d6bb9bd380a11')", 5))
+	p.Step(t, fixture.Select("SELECT v FROM u ORDER BY v", []string{"v"}, []string{"UUID"}, [][]any{{uuidZ}, {uuidA}, {uuidA}, {uuidF}, {nil}}))
+	p.Step(t, fixture.Select("SELECT v FROM u ORDER BY v DESC", []string{"v"}, []string{"UUID"}, [][]any{{nil}, {uuidF}, {uuidA}, {uuidA}, {uuidZ}}))
+	p.Step(t, fixture.Select("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}, {uuidA}}, "{A0EEBC999C0B4EF8BB6D6BB9BD380A11}"))
+	p.Step(t, fixture.Prepared(fixture.Select("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}, {uuidA}}, "{A0EEBC999C0B4EF8BB6D6BB9BD380A11}")))
+}
+
+func TestReferenceUUIDNoncanonicalGroupedForms(t *testing.T) {
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE u(v UUID)", 0))
+	for _, prepared := range []bool{false, true} {
+		for _, form := range []string{
+			"a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11",
+			"{a0eebc99-9c0b4ef8-bb6d6bb9-bd380a11}",
+		} {
+			for _, step := range []fixture.Step{
+				fixture.Exec("INSERT INTO u VALUES('"+form+"')", 1),
+				fixture.Exec("INSERT INTO u VALUES($1)", 1, form),
+				fixture.Exec("INSERT INTO u VALUES($1)", 1, []byte(form)),
+			} {
+				step.Prepared = prepared
+				p.Step(t, step)
+			}
+		}
+	}
+	want := make([][]any, 12)
+	for i := range want {
+		want[i] = []any{uuidA}
+	}
+	p.Step(t, fixture.Select("SELECT v FROM u ORDER BY v", []string{"v"}, []string{"UUID"}, want))
+	for _, prepared := range []bool{false, true} {
+		for _, form := range []string{
+			"a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11",
+			"{a0eebc99-9c0b4ef8-bb6d6bb9-bd380a11}",
+		} {
+			for _, step := range []fixture.Step{
+				fixture.Select("SELECT v FROM u WHERE v='"+form+"'", []string{"v"}, []string{"UUID"}, want),
+				fixture.Select("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, want, form),
+				fixture.Select("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, want, []byte(form)),
+			} {
+				step.Prepared = prepared
+				p.Step(t, step)
+			}
+		}
+	}
+}
+
+func TestReferenceUUIDBindingsAndRawMetadata(t *testing.T) {
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE u(v UUID)", 0))
+	for _, prepared := range []bool{false, true} {
+		for _, arg := range []any{"{A0EEBC999C0B4EF8BB6D6BB9BD380A11}", []byte("ffffffffffffffffffffffffffffffff"), nil} {
+			s := fixture.Exec("INSERT INTO u VALUES($1)", 1, arg)
+			s.Prepared = prepared
+			p.Step(t, s)
+		}
+	}
+	p.Step(t, fixture.Select("SELECT v FROM u ORDER BY v DESC", []string{"v"}, []string{"UUID"}, [][]any{{nil}, {nil}, {uuidF}, {uuidF}, {uuidA}, {uuidA}}))
+	p.Step(t, fixture.Select("SELECT v FROM u WHERE v=NULL", []string{"v"}, []string{"UUID"}, nil))
+	p.Step(t, fixture.Prepared(fixture.Select("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, nil, nil)))
+	p.Step(t, fixture.Exec("CREATE TABLE root_u(v UUID)", 0))
+	for _, backend := range p.Backends() {
+		func() {
+			q := "INSERT INTO root_u VALUES($1)"
+			stmt, err := backend.DB.PrepareContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			held := fixture.HeldStatement{Executor: backend.DB, Statement: stmt, SQL: q}
+			source := []byte("{A0EEBC999C0B4EF8BB6D6BB9BD380A11}")
+			for _, arg := range []any{source, uuidReferenceValuer(uuidF), nil} {
+				fixture.RunStep(t, p.Ctx, held, backend.Recorder, fixture.Exec(q, 1, arg))
+			}
+			source[1] = '0'
+			q = "SELECT v FROM root_u WHERE v=$1"
+			filter, err := backend.DB.PrepareContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer filter.Close()
+			reused := fixture.HeldStatement{Executor: backend.DB, Statement: filter, SQL: q}
+			for _, frame := range []struct {
+				arg  any
+				rows [][]any
+			}{{"{A0EEBC999C0B4EF8BB6D6BB9BD380A11}", [][]any{{uuidA}}}, {uuidF, [][]any{{uuidF}}}, {nil, nil}} {
+				rows, err := reused.QueryContext(context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder), q, frame.arg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				types, err := rows.ColumnTypes()
+				if err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				uuidReferenceColumns(t, types, backend.PG, []bool{true})
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				fixture.RunStep(t, p.Ctx, reused, backend.Recorder, fixture.Select(q, []string{"v"}, []string{"UUID"}, frame.rows, frame.arg))
+			}
+			_, err = stmt.ExecContext(p.Ctx, [16]byte{})
+			var state interface{ SQLState() string }
+			if err == nil || errors.As(err, &state) {
+				t.Fatal("ordinary binary-array error", err)
+			}
+			conflict := fixture.ImplicitError("SELECT $1 FROM root_u WHERE v=$1", fixture.Diagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "uuid versus text", Position: "8"})
+			conflict.ErrorStage = "prepare"
+			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(conflict))
+		}()
+	}
+	for _, backend := range p.Backends() {
+		for _, prepared := range []bool{false, true} {
+			query := func(q string) (*sql.Rows, error) {
+				if !prepared {
+					return backend.DB.QueryContext(context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder), q)
+				}
+				s, err := backend.DB.PrepareContext(p.Ctx, q)
+				if err != nil {
+					return nil, err
+				}
+				t.Cleanup(func() {
+					if err := s.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				return s.QueryContext(context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder))
+			}
+			for _, q := range []string{"SELECT v FROM u ORDER BY v", "SELECT v FROM u WHERE v=NULL"} {
+				rows, err := query(q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				types, err := rows.ColumnTypes()
+				if err != nil {
+					t.Fatal(err)
+				}
+				uuidReferenceColumns(t, types, backend.PG, []bool{true})
+				var retained []byte
+				var count int
+				want := []any{uuidA, uuidA, uuidF, uuidF, nil, nil}
+				if q == "SELECT v FROM u WHERE v=NULL" {
+					want = nil
+				}
+				for rows.Next() {
+					var raw any
+					if err := rows.Scan(&raw); err != nil {
+						t.Fatal(err)
+					}
+					if count >= len(want) {
+						t.Fatalf("%s returned unexpected row %d: %T %v", q, count+1, raw, raw)
+					}
+					if want[count] == nil {
+						if raw != nil {
+							t.Fatalf("row %d got %T %v, want NULL", count+1, raw, raw)
+						}
+					} else if backend.PG {
+						b, ok := raw.([]byte)
+						if !ok || string(b) != want[count] {
+							t.Fatalf("row %d got %T %v, want canonical bytes %v", count+1, raw, raw, want[count])
+						}
+						if count == 0 {
+							retained = b
+						}
+					} else if text, ok := raw.(string); !ok || text != want[count] {
+						t.Fatalf("row %d got %T %v, want canonical string %v", count+1, raw, raw, want[count])
+					}
+					count++
+				}
+				if err := rows.Err(); err != nil {
+					t.Fatal(err)
+				}
+				rows.Close()
+				if count != len(want) {
+					t.Fatalf("%s returned %d rows, want %d", q, count, len(want))
+				}
+				if backend.PG && len(want) > 0 && string(retained) != uuidA {
+					t.Fatal("first pq UUID buffer changed or was not retained")
+				}
+			}
+		}
+	}
+}
+
+func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE u(v UUID)", 0))
+	for _, tc := range []struct{ text string }{{"bad"}, {""}, {" a0eebc999c0b4ef8bb6d6bb9bd380a11"}, {"a0eebc999c0b4ef8bb6d6bb9bd380a11-"}, {"{a0eebc999c0b4ef8bb6d6bb9bd380a11"}, {"urn:uuid:a0eebc999c0b4ef8bb6d6bb9bd380a11"}} {
+		for _, prefix := range []string{"", "/*é*/ "} {
+			for _, q := range []string{"INSERT INTO u(v) VALUES('" + tc.text + "')", "SELECT v FROM u WHERE v='" + tc.text + "'"} {
+				pos := "25"
+				if prefix != "" {
+					pos = "31"
+				}
+				s := fixture.ImplicitError(prefix+q, fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "` + tc.text + `"`, Position: pos})
+				s.SelectRows = strings.HasPrefix(q, "SELECT")
+				s.ErrorStage = "execute"
+				p.Step(t, s)
+				if s.SelectRows {
+					exec := s
+					exec.SelectRows = false
+					p.Step(t, exec)
+				}
+				s.ErrorStage = "prepare"
+				p.Step(t, fixture.Prepared(s))
+			}
+		}
+	}
+	for _, backend := range p.Backends() {
+		for _, q := range []string{"INSERT INTO u(v) VALUES($1)", "SELECT v FROM u WHERE v=$1"} {
+			func() {
+				stmt, err := backend.DB.PrepareContext(p.Ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stmt.Close()
+				held := fixture.HeldStatement{Executor: backend.DB, Statement: stmt, SQL: q}
+				for _, arg := range []any{"bad", []byte("bad"), 1, true} {
+					text := "bad"
+					if arg == 1 {
+						text = "1"
+					}
+					if arg == true {
+						text = "true"
+					}
+					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`, Context: "unnamed portal parameter $1 = '...'"}, arg)
+					s.SelectRows, s.ErrorStage = strings.HasPrefix(q, "SELECT"), "execute"
+					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
+					fixture.RunStep(t, p.Ctx, held, backend.Recorder, s)
+					if s.SelectRows {
+						s.SelectRows = false
+						fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
+						fixture.RunStep(t, p.Ctx, held, backend.Recorder, s)
+					}
+				}
+			}()
+		}
+	}
+	for _, tc := range []struct{ q, code, message, hint, pos string }{
+		{"INSERT INTO u(v) VALUES(1)", "42804", `column "v" is of type uuid but expression is of type integer`, "You will need to rewrite or cast the expression.", "25"},
+		{"INSERT INTO u(v) VALUES(TRUE)", "42804", `column "v" is of type uuid but expression is of type boolean`, "You will need to rewrite or cast the expression.", "25"},
+		{"SELECT v FROM u WHERE v=1", "42883", "operator does not exist: uuid = integer", "No operator matches the given name and argument types. You might need to add explicit type casts.", "24"},
+		{"SELECT v FROM u WHERE v=TRUE", "42883", "operator does not exist: uuid = boolean", "No operator matches the given name and argument types. You might need to add explicit type casts.", "24"},
+		{"SELECT v FROM u WHERE v", "42804", "argument of WHERE must be type boolean, not type uuid", "", "23"},
+	} {
+		s := fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: tc.pos})
+		s.SelectRows = strings.HasPrefix(tc.q, "SELECT")
+		s.ErrorStage = "execute"
+		p.Step(t, s)
+		if s.SelectRows {
+			exec := s
+			exec.SelectRows = false
+			p.Step(t, exec)
+		}
+		s.ErrorStage = "prepare"
+		p.Step(t, fixture.Prepared(s))
+	}
+	p.Step(t, fixture.ImplicitError(`CREATE TABLE bad(v "UUID")`, fixture.Diagnostic{Code: "42704", Message: `type "UUID" does not exist`, Position: "20"}))
+	p.Step(t, fixture.Exec("CREATE TABLE required(id INT NOT NULL,v UUID NOT NULL)", 0))
+	p.Step(t, fixture.Exec("INSERT INTO required VALUES(99,$1)", 1, uuidA))
+	for _, tc := range []struct {
+		q          string
+		args       []any
+		diagnostic fixture.Diagnostic
+		stage      string
+	}{
+		{"INSERT INTO required VALUES(1,'00000000000000000000000000000000'),(2,'bad')", nil, fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Position: "70"}, "prepare"},
+		{"INSERT INTO required VALUES(1,$1),(2,$2)", []any{uuidZ, "bad"}, fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`}, "execute"},
+		{"INSERT INTO required VALUES(1,'00000000000000000000000000000000'),(2,NULL)", nil, fixture.Diagnostic{Code: "23502", Message: `null value in column "v" of relation "required" violates not-null constraint`, Detail: "Failing row contains (2, null).", Schema: "public", Table: "required", Column: "v"}, "execute"},
+		{"INSERT INTO required VALUES(NULL,$1)", []any{"{A0EEBC999C0B4EF8BB6D6BB9BD380A11}"}, fixture.Diagnostic{Code: "23502", Message: `null value in column "id" of relation "required" violates not-null constraint`, Detail: "Failing row contains (null, " + uuidA + ").", Schema: "public", Table: "required", Column: "id"}, "execute"},
+	} {
+		s := fixture.ImplicitError(tc.q, tc.diagnostic, tc.args...)
+		s.ErrorStage = "execute"
+		if tc.diagnostic.Code == "22P02" && len(tc.args) > 0 {
+			pg := *s.Diagnostic
+			pg.Context = "unnamed portal parameter $2 = '...'"
+			s.Diagnostic = &pg
+		}
+		p.Step(t, s)
+		p.Step(t, fixture.Select("SELECT * FROM required", []string{"id", "v"}, []string{"INT4", "UUID"}, [][]any{{int64(99), uuidA}}))
+		s.ErrorStage = tc.stage
+		p.Step(t, fixture.Prepared(s))
+		p.Step(t, fixture.Select("SELECT * FROM required", []string{"id", "v"}, []string{"INT4", "UUID"}, [][]any{{int64(99), uuidA}}))
+	}
+	for _, backend := range p.Backends() {
+		ctx, cancel := context.WithCancel(p.Ctx)
+		cancel()
+		if _, err := backend.DB.ExecContext(ctx, "INSERT INTO u VALUES($1)", uuidA); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT * FROM u", []string{"v"}, []string{"UUID"}, nil))
+	}
+}
+
+func TestReferenceUUIDAuthorization(t *testing.T) {
+	fixture.RoleReferenceCleanup(t, []string{"uuid_reader"})
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE ROLE uuid_reader", 0))
+	// The fixture recreates public without PUBLIC privileges. Match native public
+	// namespace visibility before testing the independently denied table rights.
+	if p.Postgres != nil {
+		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p.Step(t, fixture.Exec("CREATE TABLE u(v UUID)", 0))
+	p.Step(t, fixture.Exec("INSERT INTO u VALUES($1)", 1, uuidA))
+	for _, backend := range p.Backends() {
+		c, err := backend.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+		held, err := c.PrepareContext(p.Ctx, "SELECT v FROM u")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer held.Close()
+		defer c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
+		fixture.RunStep(t, p.Ctx, c, backend.Recorder, fixture.Exec("SET SESSION AUTHORIZATION uuid_reader", 0))
+		var value string
+		err = held.QueryRowContext(context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder)).Scan(&value)
+		want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table u"}
+		fixture.AssertDiagnostic(t, err, &want)
+		rows, err := held.QueryContext(context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder))
+		if rows != nil {
+			rows.Close()
+		}
+		fixture.AssertDiagnostic(t, err, &want)
+		if rows != nil {
+			t.Fatal("denied held Query exposed a cursor")
+		}
+		for _, prepared := range []bool{false, true} {
+			for _, q := range []string{"SELECT v FROM u", "INSERT INTO u VALUES('a0eebc999c0b4ef8bb6d6bb9bd380a11')", "INSERT INTO u VALUES($1)"} {
+				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42501", Message: "permission denied for table u"})
+				s.Prepared = prepared
+				s.SelectRows = strings.HasPrefix(q, "SELECT")
+				s.ErrorStage = "execute"
+				if strings.Contains(q, "$1") {
+					s.Args = []any{uuidA}
+				}
+				fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
+				if s.SelectRows {
+					s.SelectRows = false
+					fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
+				}
+			}
+			s := fixture.ImplicitError("INSERT INTO u VALUES($1)", fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $1 = '...'"}, "bad")
+			s.Prepared = prepared
+			s.ErrorStage = "execute"
+			fixture.RunStep(t, p.Ctx, c, backend.Recorder, s)
+		}
+		fixture.RunStep(t, p.Ctx, c, backend.Recorder, fixture.Exec("RESET SESSION AUTHORIZATION", 0))
+		ctx := context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder)
+		backend.Recorder.Mu.Lock()
+		recordStart := len(backend.Recorder.Operations)
+		backend.Recorder.Mu.Unlock()
+		if err := held.QueryRowContext(ctx).Scan(&value); err != nil || value != uuidA {
+			t.Fatal("held single-row authorization recovery", value, err)
+		}
+		backend.Recorder.Mu.Lock()
+		var captured *fixture.Operation
+		for _, op := range backend.Recorder.Operations[recordStart:] {
+			if op.SQL == "SELECT v FROM u" && op.Columns != nil {
+				captured = op
+			}
+		}
+		backend.Recorder.Mu.Unlock()
+		if captured == nil || !reflect.DeepEqual(captured.Columns, []string{"v"}) || len(captured.Rows) != 1 || len(captured.Rows[0]) != 1 || captured.Err != nil || !captured.Closed || captured.CloseErr != nil {
+			t.Fatal("held single-row authorization recovery recording", captured)
+		}
+		fixture.AssertRawValue(t, backend.PG, "UUID", captured.Rows[0][0])
+		if fixture.Normalize(captured.Rows[0][0]) != uuidA {
+			t.Fatal("recorded held single-row UUID recovery", captured.Rows)
+		}
+		reused := fixture.HeldStatement{Executor: c, Statement: held, SQL: "SELECT v FROM u"}
+		fixture.RunStep(t, p.Ctx, reused, backend.Recorder, fixture.Select("SELECT v FROM u", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}}))
+	}
+	p.Step(t, fixture.Select("SELECT v FROM u", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}}))
+}
+
+func TestReferenceUUIDOrderingAndNullMetadata(t *testing.T) {
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE u(v UUID)", 0))
+	p.Step(t, fixture.Exec("INSERT INTO u VALUES('80000000000000000000000000000000'),('00000100000000000000000000000000'),('00000001000000000000000000000000'),('7fffffffffffffffffffffffffffffff'),('00000000000000000000000000000001'),('00000000000000000000000000000000')", 6))
+	p.Step(t, fixture.Select("SELECT v FROM u ORDER BY v", []string{"v"}, []string{"UUID"}, [][]any{{uuidZ}, {"00000000-0000-0000-0000-000000000001"}, {"00000001-0000-0000-0000-000000000000"}, {"00000100-0000-0000-0000-000000000000"}, {"7fffffff-ffff-ffff-ffff-ffffffffffff"}, {"80000000-0000-0000-0000-000000000000"}}))
+	p.Step(t, fixture.Exec("CREATE TABLE nulls(v UUID)", 0))
+	p.Step(t, fixture.Exec("INSERT INTO nulls VALUES(NULL)", 1))
+	p.Step(t, fixture.Prepared(fixture.Select("SELECT v,v FROM nulls", []string{"v", "v"}, []string{"UUID", "UUID"}, [][]any{{nil, nil}})))
+	p.Step(t, fixture.Exec("CREATE TABLE required(v UUID NOT NULL)", 0))
+	p.Step(t, fixture.Select("SELECT * FROM required", []string{"v"}, []string{"UUID"}, nil))
+	for _, backend := range p.Backends() {
+		for _, q := range []string{"SELECT * FROM nulls", "SELECT * FROM required"} {
+			rows, err := backend.DB.QueryContext(context.WithValue(p.Ctx, fixture.RecorderKey{}, backend.Recorder), q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			types, err := rows.ColumnTypes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			uuidReferenceColumns(t, types, backend.PG, []bool{q == "SELECT * FROM nulls"})
+			count := 0
+			for rows.Next() {
+				var raw any
+				if err := rows.Scan(&raw); err != nil || raw != nil {
+					t.Fatal(raw, err)
+				}
+				count++
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+			expectedCount := 0
+			if q == "SELECT * FROM nulls" {
+				expectedCount = 1
+			}
+			if count != expectedCount {
+				t.Fatal(count, expectedCount)
+			}
+		}
+	}
+}

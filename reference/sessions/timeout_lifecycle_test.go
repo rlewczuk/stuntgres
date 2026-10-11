@@ -1,0 +1,129 @@
+package reference_test
+
+import (
+	"context"
+	"stuntgres/reference/fixture"
+	"testing"
+	"time"
+)
+
+func TestReferenceTimeoutChainPrepared(t *testing.T) {
+	for _, end := range []string{"COMMIT", "ROLLBACK", "aborted-COMMIT", "aborted-ROLLBACK"} {
+		t.Run(end, func(t *testing.T) {
+			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				f := newTimeoutReferenceFixture(t, p, b)
+				f.set("transaction_timeout", "500ms")
+				f.beginPrivate()
+				f.exec(f.owner, "SET LOCAL transaction_timeout='250ms'", 0)
+				command := end
+				aborted := end == "aborted-COMMIT" || end == "aborted-ROLLBACK"
+				if aborted {
+					_, err := f.owner.ExecContext(p.Ctx, "SELECT timeout_missing")
+					want := fixture.ControlsReferenceDiagnostic("42703", `column "timeout_missing" does not exist`)
+					want.Position = "8"
+					fixture.AssertDiagnostic(t, err, &want)
+					command = "COMMIT"
+					if end == "aborted-ROLLBACK" {
+						command = "ROLLBACK"
+					}
+				}
+				timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
+				f.exec(f.owner, command+" AND CHAIN", 0)
+				f.show("transaction_timeout", "500ms")
+				// Cross old BEGIN's deadline and old LOCAL duration without
+				// crossing the new incarnation's full restored 500ms budget.
+				timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
+				f.show("transaction_timeout", "500ms")
+				timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
+				f.fatalProbe("25P04")
+				if end == "COMMIT" {
+					f.rows(f.peer, 7, 8)
+				} else {
+					f.rows(f.peer, 7)
+				}
+			})
+		})
+	}
+	t.Run("detached-survives-origin-idle", func(t *testing.T) {
+		timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+			f := newTimeoutReferenceFixture(t, p, b)
+			const gid = "timeout_detached"
+			fixture.PreparedReferenceCleanup(t, b, gid)
+			f.set("transaction_timeout", "250ms")
+			f.set("idle_session_timeout", "375ms")
+			f.beginPrivate()
+			f.exec(f.owner, "PREPARE TRANSACTION '"+gid+"'", 0)
+			entry := fixture.PreparedReferenceOne(t, p, f.peer, gid)
+			timeoutReferenceIdle(t, p.Ctx, 500*time.Millisecond)
+			f.fatalProbe("57P05")
+			got := fixture.PreparedReferenceOne(t, p, f.peer, gid)
+			expectedZone, expectedOffset := entry.Prepared.Zone()
+			gotZone, gotOffset := got.Prepared.Zone()
+			if got.Xid != entry.Xid || got.Gid != entry.Gid || got.Owner != entry.Owner || got.Database != entry.Database ||
+				!got.Prepared.Equal(entry.Prepared) || gotZone != expectedZone || gotOffset != expectedOffset {
+				t.Fatal("origin timeout changed detached entry", entry, got)
+			}
+			f.exec(f.peer, "BEGIN", 0)
+			_, err := f.peer.ExecContext(p.Ctx, "LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE NOWAIT")
+			fixture.WaitsDiagnostic(t, err, "55P03", `could not obtain lock on relation "timeout_sentinel"`)
+			f.exec(f.peer, "ROLLBACK", 0)
+			f.exec(f.peer, "COMMIT PREPARED '"+gid+"'", 0)
+			fixture.PreparedReferenceAbsent(t, p, f.peer, gid)
+			f.rows(f.peer, 7, 8)
+		})
+	})
+}
+
+func TestReferenceTimeoutFatalCleanup(t *testing.T) {
+	for _, code := range []string{"25P04", "25P03"} {
+		t.Run(code, func(t *testing.T) {
+			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				f := newTimeoutReferenceFixture(t, p, b)
+				f.exec(f.owner, "CREATE TEMP TABLE timeout_owner_temp(v INT)", 0)
+				f.exec(f.owner, "INSERT INTO timeout_owner_temp VALUES(11)", 1)
+				f.exec(f.peer, "CREATE TEMP TABLE timeout_peer_temp(v INT)", 0)
+				f.exec(f.peer, "INSERT INTO timeout_peer_temp VALUES(22)", 1)
+				fixture.RunStep(t, p.Ctx, f.peer, b.Recorder, fixture.Select("SELECT relname FROM pg_class WHERE relname='timeout_owner_temp'", []string{"relname"}, []string{"NAME"}, [][]any{{"timeout_owner_temp"}}))
+				held, err := f.owner.PrepareContext(p.Ctx, "SELECT v FROM timeout_owner_temp")
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { held.Close() })
+				op, pp := 0, 0
+				if b.PG {
+					op = fixture.LockPID(t, p.Ctx, f.owner)
+					pp = fixture.LockPID(t, p.Ctx, f.peer)
+				}
+				setting := "transaction_timeout"
+				if code == "25P03" {
+					setting = "idle_in_transaction_session_timeout"
+				}
+				f.set(setting, "375ms")
+				f.beginPrivate()
+				await := fixture.LockOperation(t, p.Ctx, func(ctx context.Context) fixture.RelationOutcome {
+					r, e := f.peer.QueryContext(ctx, "SELECT v FROM timeout_sentinel ORDER BY v")
+					return fixture.RelationOutcome{Rows: r, Err: e}
+				})
+				if b.PG {
+					fixture.LockWaitBehind(t, p.Ctx, pp, op, fixture.LockOID(t, p.Ctx, "public.timeout_sentinel"), "AccessShareLock")
+				}
+				timeoutReferenceIdle(t, p.Ctx, 500*time.Millisecond)
+				f.fatalProbe(code)
+				o := await()
+				fixture.LimitLockValues(t, o, b.PG, 7)
+				// The catalog witness tests actual TEMP disposal, not merely loss
+				// of lookup through an already unusable physical owner.
+				f.tempAbsent()
+				fixture.RunStep(t, p.Ctx, f.peer, b.Recorder, fixture.Select("SELECT v FROM timeout_peer_temp", []string{"v"}, []string{"INT4"}, [][]any{{int64(22)}}))
+				rows, err := held.QueryContext(p.Ctx)
+				if rows != nil {
+					rows.Close()
+					t.Fatal("terminated handle published rows")
+				}
+				timeoutReferenceDeadError(t, err)
+				fixture.RunStep(t, p.Ctx, f.peer, b.Recorder, localReferenceSelect(b.PG, "SHOW "+setting, setting, "0"))
+				f.rows(f.peer, 7)
+			})
+		})
+	}
+}

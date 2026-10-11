@@ -92,7 +92,7 @@ for `check`, `quickcheck`, `racecheck` and `bench`, or 1800 seconds for `finalch
 including generation and compilation. Slow or hanging tests must be fixed, not exempted.
 Read `Makefile` for non-standard actions.
 
-Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
+Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. `make deps` and the dependency phase of `make finalcheck` enumerate `. ./internal/...`, the production seams, rather than the whole reference tree. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only: the importable `reference/fixture` is test support and MUST NOT be imported by production code. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
 
 Historical complete-suite baseline (2026-10-11): on Linux 7.0.0-30-generic x86_64,
 AMD RYZEN AI MAX+ 395 (32 logical processors), Go 1.27.1 linux/amd64 and
@@ -139,7 +139,7 @@ Dump/Reset/Restore and a second already-open pool. Run the catalog witness with
 `make check RUN='^TestCatalogOwnersPublicWitness$'`.
 Go test reports each test's pass or failure instead of standalone output labels.
 
-The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
+The explicitly enabled reference suite requires working Docker and image/module access. Each reference test package independently owns one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. Real-mode targets use `-p 1` to serialize package processes and their container lifecycles. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
 
 ### Driver, session and catalog whole-root cutover
 
@@ -454,7 +454,7 @@ private-comment witness on PostgreSQL. These are independent backend outcomes,
 not parity exceptions or fabricated native successes.
 
 Root CHECK diagnostic helpers have been removed after all callers migrated.
-The shared mode-aware `referenceCheckBackends` lives in `reference/`.
+The shared mode-aware `fixture.CheckBackends` lives in `reference/fixture/`.
 
 Table DDL, defaults and nullability now contribute **134 untagged definitions**,
 merging the full assertion union of **120 former root tests in 44 files** with
@@ -480,7 +480,8 @@ witness, not a portable pq simple-protocol promise; real server cancellation
 remains independently covered by tagged PostgreSQL scenarios.
 
 Fresh notice pools reuse the scenario's native connector/Driver/DSN. Shared
-character/time metadata and PostgreSQL lock helpers live in `reference/`.
+character/time metadata and PostgreSQL lock helpers live under `reference/`;
+cross-package common helpers are exported by `reference/fixture`.
 Obsolete root table/nullability helper hosts are removed. The DROP-system union
 has one untagged owner, `TestReferenceNotNullDropSystemColumnDiagnostics`.
 
@@ -603,12 +604,40 @@ make check REFERENCE=1 RUN='^TestReferenceDateDocumentedInputsAndCivilBounds$'
 ```
 
 Absent/false quick mode does not contact Docker, fetch an image, open PostgreSQL
-or read server state. Explicit true starts the pinned oracle before test execution,
-even if selection matches no tests; startup/configuration errors fail visibly,
-never skip or fall back. Only `./reference` accepts this custom flag; `check`
-scopes `REFERENCE=1` to that package. `make quickcheck` and `make racecheck`
-discover migrated quick scenarios normally. Selected `make check RUN='...'
-REFERENCE=1` commands include matching legacy tagged cases.
+or read server state. Explicit true starts each selected package's pinned oracle
+before test execution, even if selection matches no tests; startup/configuration errors
+fail visibly, never skip or fall back. Reference test packages under
+`./reference/...` accept this custom flag; `check` scopes `REFERENCE=1` to that
+recursive package set and uses `-p 1` to serialize independent package processes,
+startup and teardown. `make quickcheck` and `make racecheck` discover migrated
+quick scenarios normally. Selected `make check RUN='...' REFERENCE=1` commands
+include matching legacy tagged cases.
+
+Selective real-mode checks use the stdlib-only
+`reference/cmd/checkpackages` command to discover packages recursively through
+`go list -json -tags reference ./reference/...`. It parses actual top-level test
+declarations in the discovered `TestGoFiles` and `XTestGoFiles`, without
+executing tests or `TestMain`. Ordinary `RUN` regexes select only packages with
+matching top-level test names, including tagged companions. The final `go test`
+still receives the unchanged selector and controls all test execution.
+
+Selectors containing `/` conservatively select every test package rather than
+approximate Go's slash-separated subtest grammar or dynamically registered
+subtests. Invalid regexes fail instead of narrowing selection. If no package
+matches, the fixture test package runs to preserve eager real startup and
+visible startup/configuration failure despite no matching tests. Packages with
+no test files, including the selector command itself, are excluded. Human-only
+`refcheck` uses the same discovery command with `.*` to select every test
+package; agents must not invoke it.
+
+This reduces ordinary selective checks to matching package lifecycles while
+retaining conservative complete selection for subtest patterns. Each selected
+package eagerly starts its independent container; `-p 1` serializes startup,
+tests and teardown. The at-most-30-package cap includes the fixture and selector
+command and bounds the remaining conservative startup overhead. A
+`go test -list` discovery pass would itself run package `TestMain` startup and
+does not enumerate subtests, so it would not safely remove eager-startup cost.
+
 After merge, `timeout --signal=KILL 1800s make finalcheck` runs generation,
 startup benchmark, full native race tests and dependencies together, without Docker.
 Do not substitute selected tests for this aggregate invocation; commit any failure
@@ -618,7 +647,7 @@ not current Makefile deadlines; SQL1ms timeout vectors are unchanged.
 The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
 restricted to mode-aware migrated scenarios with `-reference=false` (flag after
 `-args`) is still Docker-free; selecting actual legacy cases lazily starts the
-same singleton even when the runtime flag is absent/false. The tag alone
+same package-owned singleton even when the runtime flag is absent/false. The tag alone
 therefore does not make the whole legacy suite quick. Richer tagged
 ordering/lock complements, the standalone PostgreSQL count column-ACL test and
 DML rules/triggers, privilege and exact blocker/server-cancellation edges remain
@@ -768,8 +797,19 @@ silently remapped. Pooled administrative session state is discarded before
 schema resets. Sequence queue witnesses observe the captured local OID and
 actual blocker, not a hard-coded relation name or sleep-based timing.
 
-Reference tests live in the dedicated `reference/` external test package and use only the public stuntgres API. Shared setup and helpers belong in `reference/fixture_test.go`; functional groups belong in separate test files of at most 750 lines each. Select affected fixtures with `make check RUN='...' REFERENCE=1`; runs are uncached and quiet.
-The cohesive common fixture is exempt from the 750-line limit; it keeps container lifecycle, diagnostic assertions, notice connections and middleware recording together.
+Reference tests live in feature-group external test packages under `reference/`
+and use only the public stuntgres API and the importable shared
+`reference/fixture` package. Shared setup and helpers belong in
+`reference/fixture/`; functional groups contain whole test files of at most 750
+lines each. Keep at most 30 packages total, including the fixture, and at most
+1,000,000 bytes per package counting all files. Select affected fixtures with
+`make check RUN='...' REFERENCE=1`; runs are uncached and quiet.
+The cohesive common fixture is exempt from the 750-line file limit, not the
+package byte cap; it keeps container lifecycle, diagnostic assertions, notice
+connections and middleware recording together. Each test package calls
+`os.Exit(fixture.Main(m))` from its `TestMain`, independently owns its fixture
+state and container, and tears them down before its process exits. Packages do
+not share a container or administrative session across processes.
 
 Implicit INSERT and UPDATE diagnostic fixtures independently specify preparation versus execution failure stages, not just backend agreement. Native engine tests also use test-owned contexts to deterministically cancel after row staging and immediately before publication, checking complete sentinel preservation and subsequent engine usability without sleeps or production hooks.
 

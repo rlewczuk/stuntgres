@@ -238,7 +238,7 @@ make check REFERENCE=1 RUN='^TestReferenceHashIndexFeatureSmoke$'
 make check RUN='^TestHashIndexLookupFeatureSmoke$'
 ```
 
-The central referenceHeldStatement keeps its existing three-field layout and
+The central fixture.HeldStatement keeps its existing three-field layout and
 Context-only consumers. Its plain methods delegate to actual underlying DB/Tx
 Prepare/Exec/Query, routing the matched query through the held SQL statement.
 Unsupported underlying plain routes are explicit fixture misuse errors, not

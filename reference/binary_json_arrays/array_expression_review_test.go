@@ -1,0 +1,191 @@
+package reference_test
+
+import (
+	"database/sql"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+func arrayReviewFixtureRows() [][]any {
+	return [][]any{{int64(1), "{10,NULL,30}", "{{1,2},{3,4}}"}, {int64(2), "[0:2]={40,50,60}", "[-1:0][3:4]={{5,6},{7,8}}"}, {int64(3), "{}", "{}"}, {int64(4), nil, nil}}
+}
+
+func arrayReviewCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, rows [][]any) {
+	t.Helper()
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ArrayReferenceSelect("SELECT id,a,m FROM public.ax ORDER BY id", []string{"id", "a", "m"}, []string{"INT4", "_INT4", "_INT4"}, []string{"INT4", "_INT4", "_INT4"}, rows, b.PG))
+}
+
+// Independent source expectations: REL_18_0 array_set_slice validates each
+// existing dimension's inversion/range, then final destination shape/bounds,
+// before source sufficiency. Its ndim=0 path instead constructs supplied spans;
+// ArrayGetNItems rejects negative spans and construct_md_array canonicalizes zero.
+// MaxArraySize = 0x3fffffff / sizeof(Datum) = 134217727 in the pinned x64 oracle.
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/arrayfuncs.c
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/arrayutils.c
+func TestReferenceArrayExpressionReviewRegression(t *testing.T) {
+	failures := []struct{ name, q, code, message, detail string }{
+		{"bounds_before_short_source", "UPDATE public.ax SET m[1:3][1:1]=ARRAY[7] WHERE id=1", "2202E", "array subscript out of range", ""},
+		{"rank_before_inversion", "UPDATE public.ax SET a[2:1][1:1]=ARRAY[7] WHERE id=1", "2202E", "wrong number of array subscripts", ""},
+		{"earlier_bounds_before_later_inversion", "UPDATE public.ax SET m[1:3][2:1]=ARRAY[7] WHERE id=1", "2202E", "array subscript out of range", ""},
+		{"earlier_low_bounds_before_later_inversion", "UPDATE public.ax SET m[0:1][2:1]=ARRAY[7] WHERE id=1", "2202E", "array subscript out of range", ""},
+		{"earlier_inversion_before_later_bounds", "UPDATE public.ax SET m[2:1][1:3]=ARRAY[7] WHERE id=1", "2202E", "upper bound cannot be less than lower bound", ""},
+		{"final_shape_before_short_source", "UPDATE public.ax SET a[1:2147483647]=ARRAY[7] WHERE id=1", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"element_enlargement_overflow", "UPDATE public.ax SET a[-2147483648]=7 WHERE id=1", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"insert_negative_span", "INSERT INTO public.ax(id,a[3:1]) VALUES(5,ARRAY[7])", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"empty_negative_span", "UPDATE public.ax SET a[3:1]=ARRAY[7] WHERE id=3", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"null_negative_span", "UPDATE public.ax SET a[3:1]=ARRAY[7] WHERE id=4", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"zero_then_negative_span", "INSERT INTO public.ax(id,m[2:1][3:1]) VALUES(5,ARRAY[7])", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"overflow_span", "INSERT INTO public.ax(id,a[-2147483648:2147483647]) VALUES(5,ARRAY[7])", "54000", "array size exceeds the maximum allowed (134217727)", ""},
+		{"singleton_bound_overflow", "INSERT INTO public.ax(id,a[2147483647:2147483647]) VALUES(5,ARRAY[7])", "54000", "array lower bound is too large: 2147483647", ""},
+		{"zero_span_missing_boundary", "INSERT INTO public.ax(id,m[2:1][:1]) VALUES(5,ARRAY[7])", "2202E", "array slice subscript must provide both boundaries", "When assigning to a slice of an empty array value, slice boundaries must be fully specified."},
+		// construct_md_array checks final bounds even when another span is zero.
+		{"zero_span_with_earlier_bound_overflow", "INSERT INTO public.ax(id,m[2147483647:2147483647][2:1]) VALUES(5,ARRAY[7])", "54000", "array lower bound is too large: 2147483647", ""},
+		{"zero_span_with_later_bound_overflow", "INSERT INTO public.ax(id,m[2:1][2147483647:2147483647]) VALUES(5,ARRAY[7])", "54000", "array lower bound is too large: 2147483647", ""},
+		{"empty_source_before_final_bounds", "INSERT INTO public.ax(id,a[2147483647:2147483647]) VALUES(5,ARRAY[]::int[])", "2202E", "source array too small", ""},
+	}
+	for _, tc := range failures {
+		for _, prepared := range []bool{false, true} {
+			name := tc.name
+			if prepared {
+				name += "_prepared"
+			}
+			t.Run(name, func(t *testing.T) {
+				arrayExpressionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+					arrayExpressionFixture(t, p, b, c)
+					diagnostic := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+					diagnostic.Detail = tc.detail
+					step := fixture.ErrorDiagnostic(tc.q, diagnostic)
+					step.Prepared = prepared
+					step.ErrorStage = "execute"
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+					arrayReviewCheck(t, p, b, c, arrayReviewFixtureRows())
+				})
+			})
+		}
+	}
+	successes := []struct {
+		name, q  string
+		updateID int
+		insert   bool
+	}{
+		{"insert_zero_span", "INSERT INTO public.ax(id,a[2:1]) VALUES(5,ARRAY[7])", 0, true},
+		{"empty_zero_span", "UPDATE public.ax SET a[2:1]=ARRAY[7] WHERE id=3", 3, false},
+		{"null_zero_span", "UPDATE public.ax SET a[2:1]=ARRAY[7] WHERE id=4", 4, false},
+		{"insert_multidimensional_zero_span", "INSERT INTO public.ax(id,a[1:1][2:1]) VALUES(5,ARRAY[7])", 0, true},
+		{"empty_multidimensional_zero_span", "UPDATE public.ax SET a[1:1][2:1]=ARRAY[7] WHERE id=3", 3, false},
+		{"null_multidimensional_zero_span", "UPDATE public.ax SET a[1:1][2:1]=ARRAY[7] WHERE id=4", 4, false},
+		{"insert_zero_span_empty_source", "INSERT INTO public.ax(id,a[2:1]) VALUES(5,ARRAY[]::int[])", 0, true},
+		{"insert_negative_span_null_rhs", "INSERT INTO public.ax(id,a[3:1]) VALUES(5,NULL)", 0, true},
+		{"empty_negative_span_null_rhs", "UPDATE public.ax SET a[3:1]=NULL WHERE id=3", 3, false},
+		{"null_negative_span_null_rhs", "UPDATE public.ax SET a[3:1]=NULL WHERE id=4", 4, false},
+		{"zero_span_maximum_valid_lower_bound", "INSERT INTO public.ax(id,a[2147483647:2147483646][1:1]) VALUES(5,ARRAY[7])", 0, true},
+	}
+	for _, tc := range successes {
+		for _, prepared := range []bool{false, true} {
+			name := tc.name
+			if prepared {
+				name += "_prepared"
+			}
+			t.Run(name, func(t *testing.T) {
+				arrayExpressionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+					arrayExpressionFixture(t, p, b, c)
+					step := fixture.Exec(tc.q, 1)
+					step.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+					rows := arrayReviewFixtureRows()
+					if tc.insert {
+						rows = append(rows, []any{int64(5), "{}", nil})
+					} else {
+						rows[tc.updateID-1][1] = "{}"
+					}
+					arrayReviewCheck(t, p, b, c, rows)
+				})
+			})
+		}
+	}
+}
+
+// Release ExecEvalArrayExpr evaluates every child before inspecting the first
+// nonempty child's added outer rank. array_subscript_transform analyzes lower
+// then upper within each lexical dimension before rejecting a seventh bound.
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/executor/execExprInterp.c
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/arraysubs.c
+func TestReferenceArrayExpressionRankPrecedence(t *testing.T) {
+	const rankSix = "'{{{{{{1}}}}}}'::int[]"
+	const rankMessage = "number of array dimensions (7) exceeds the maximum allowed (6)"
+	const boundMessage = "array subscript must have type integer"
+	failures := []struct {
+		name, q, code, message, position string
+		analysis                         bool
+	}{
+		{"constructor_rank6_then_null", "SELECT ARRAY[" + rankSix + ",NULL::int[]] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_rank6_then_empty", "SELECT ARRAY[" + rankSix + ",ARRAY[]::int[]] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_rank6_then_different_rank", "SELECT ARRAY[" + rankSix + ",'{2}'::int[]] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_null_before_rank6", "SELECT ARRAY[NULL::int[]," + rankSix + "] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_empty_before_rank6", "SELECT ARRAY[ARRAY[]::int[]," + rankSix + "] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_rank7_control", "SELECT ARRAY[" + rankSix + "] FROM public.one", "54000", rankMessage, "", false},
+		{"constructor_children_demanded_before_rank", "SELECT ARRAY[" + rankSix + ",ARRAY[1/(id-id)]] FROM public.ax WHERE id=1", "22012", "division by zero", "", false},
+		{"constructor_child_left_to_right", "SELECT ARRAY[" + rankSix + ",ARRAY[2147483647+id],ARRAY[1/(id-id)]] FROM public.ax WHERE id=1", "22003", "integer out of range", "", false},
+		{"fetch_bad_first", "SELECT m[TRUE][1][1][1][1][1][1] FROM public.ax", "42804", boundMessage, "10", true},
+		{"fetch_bad_later", "SELECT m[1][1][1][1][1][1][TRUE] FROM public.ax", "42804", boundMessage, "28", true},
+		{"insert_bad_first", "INSERT INTO public.ax(id,m[TRUE][1][1][1][1][1][1]) VALUES(5,7)", "42804", boundMessage, "28", true},
+		{"insert_bad_later", "INSERT INTO public.ax(id,m[1][1][1][1][1][1][TRUE]) VALUES(5,7)", "42804", boundMessage, "46", true},
+		{"update_bad_first", "UPDATE public.ax SET m[TRUE][1][1][1][1][1][1]=7 WHERE id=1", "42804", boundMessage, "24", true},
+		{"update_bad_later", "UPDATE public.ax SET m[1][1][1][1][1][1][TRUE]=7 WHERE id=1", "42804", boundMessage, "42", true},
+		{"slice_lower_before_upper", "SELECT m[TRUE:TRUE][1][1][1][1][1][1] FROM public.ax", "42804", boundMessage, "10", true},
+		{"slice_earlier_upper_before_later_lower", "SELECT m[1:TRUE][TRUE:1][1][1][1][1][1] FROM public.ax", "42804", boundMessage, "12", true},
+		{"insert_slice_bad_later_upper", "INSERT INTO public.ax(id,m[1][1][1][1][1][1][1:TRUE]) VALUES(5,ARRAY[7])", "42804", boundMessage, "48", true},
+		{"update_slice_bad_later_lower", "UPDATE public.ax SET m[1][1][1][1][1][1][TRUE:1]=ARRAY[7] WHERE id=1", "42804", boundMessage, "42", true},
+		{"fetch_valid_seven_control", "SELECT m[1][1][1][1][1][1][1] FROM public.ax", "54000", rankMessage, "", true},
+		{"insert_valid_seven_control", "INSERT INTO public.ax(id,m[1][1][1][1][1][1][1]) VALUES(5,7)", "54000", rankMessage, "", true},
+		{"update_valid_seven_control", "UPDATE public.ax SET m[1][1][1][1][1][1][1]=7 WHERE id=1", "54000", rankMessage, "", true},
+	}
+	for _, tc := range failures {
+		for _, prepared := range []bool{false, true} {
+			name := tc.name
+			if prepared {
+				name += "_prepared"
+			}
+			t.Run(name, func(t *testing.T) {
+				arrayExpressionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+					arrayExpressionFixture(t, p, b, c)
+					want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+					want.Position = tc.position
+					step := fixture.ErrorDiagnostic(tc.q, want)
+					step.Prepared = prepared
+					step.SelectRows = tc.q[0] == 'S'
+					step.ErrorStage = "execute"
+					if prepared && tc.analysis {
+						step.ErrorStage = "prepare"
+					}
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+					arrayReviewCheck(t, p, b, c, arrayReviewFixtureRows())
+				})
+			})
+		}
+	}
+	for _, tc := range []struct {
+		name, expression, typ string
+		value                 any
+	}{
+		{"all_empty_null_children", "ARRAY[ARRAY[]::int[],NULL::int[],ARRAY[]::int[]]", "_INT4", "{}"},
+		{"all_null_children", "ARRAY[NULL::int[],NULL::int[]]", "_INT4", "{}"},
+		{"six_valid_bounds_control", "(" + rankSix + ")[1][1][1][1][1][1]", "INT4", int64(1)},
+	} {
+		for _, prepared := range []bool{false, true} {
+			name := tc.name
+			if prepared {
+				name += "_prepared"
+			}
+			t.Run(name, func(t *testing.T) {
+				arrayExpressionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+					arrayExpressionFixture(t, p, b, c)
+					step := fixture.ArrayReferenceSelect("SELECT "+tc.expression+" AS a FROM public.one", []string{"a"}, []string{tc.typ}, []string{tc.typ}, [][]any{{tc.value}}, b.PG)
+					step.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+					arrayReviewCheck(t, p, b, c, arrayReviewFixtureRows())
+				})
+			})
+		}
+	}
+}

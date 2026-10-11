@@ -217,7 +217,7 @@ expanding the stored type surface.
 
 ## Public definitions and executable checks
 
-Untagged shared public definitions under reference/index_maintenance*_test.go
+Untagged shared public definitions under reference/indexes/index_maintenance*_test.go
 cover lifecycle, UNIQUE enforcement, full diagnostics/notices/options/precedence,
 held preparation/admission/routes, privileges, real lock waits/cancellation,
 retained rows, native controls/foreign restore, metadata/provider controls and

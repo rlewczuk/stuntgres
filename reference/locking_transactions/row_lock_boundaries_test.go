@@ -1,0 +1,104 @@
+package reference_test
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"stuntgres/reference/fixture"
+	"testing"
+	"time"
+)
+
+func TestReferenceRowLockCancellation(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
+					a, b := fixture.LockConnections(t, p.Ctx, backend.DB)
+					fixture.LockExec(t, p.Ctx, a, "CREATE TABLE t(id INT,v INT)", 0)
+					fixture.LockExec(t, p.Ctx, a, "INSERT INTO t VALUES(1,10)", 1)
+					ap, bp := 0, 0
+					if backend.PG {
+						ap, bp = fixture.RowPIDs(t, p.Ctx, a, b)
+					}
+					holder, err := a.BeginTx(p.Ctx, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() { holder.Rollback() })
+					reader, err := b.BeginTx(p.Ctx, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() { reader.Rollback() })
+					fixture.LimitLockValues(t, fixture.RowQuery(p.Ctx, holder, "SELECT v FROM t FOR UPDATE", false), backend.PG, 10)
+					var out fixture.RelationOutcome
+					if backend.PG {
+						done := fixture.RowAsync(t, p.Ctx, reader, "SELECT v FROM t FOR KEY SHARE", prepared, true)
+						fixture.RowWait(t, p.Ctx, bp, ap)
+						var canceled bool
+						if err := fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", bp).Scan(&canceled); err != nil || !canceled {
+							t.Fatal(canceled, err)
+						}
+						out = fixture.LockResult(t, done)
+						referenceRowTimeoutDiagnostic(t, out.Err, true, "57014", "canceling statement due to user request", "locking")
+					} else {
+						bounded, cancel := context.WithTimeout(p.Ctx, 30*time.Millisecond)
+						out = fixture.RowQuery(bounded, reader, "SELECT v FROM t FOR KEY SHARE", prepared)
+						cancel()
+						if !errors.Is(out.Err, context.DeadlineExceeded) {
+							t.Fatal(out.Err)
+						}
+						var state interface{ SQLState() string }
+						if errors.As(out.Err, &state) {
+							t.Fatal("fabricated native caller SQLSTATE", out.Err)
+						}
+					}
+					if out.Rows != nil {
+						out.Rows.Close()
+						t.Fatal("canceled locker exposed rows")
+					}
+					if out.Stmt != nil {
+						if err := out.Stmt.Close(); err != nil {
+							t.Fatal(err)
+						}
+					}
+					fixture.RunStep(t, p.Ctx, reader, backend.Recorder, fixture.ImplicitError("SELECT v FROM t", fixture.TransactionAborted()))
+					if err := reader.Rollback(); err != nil {
+						t.Fatal(err)
+					}
+					if err := holder.Rollback(); err != nil {
+						t.Fatal(err)
+					}
+					fixture.LimitLockValues(t, fixture.RowQuery(p.Ctx, b, "SELECT v FROM t FOR SHARE", prepared), backend.PG, 10)
+				})
+			}
+		})
+	}
+}
+
+func TestReferenceRowLockBoundaries(t *testing.T) {
+	fixture.QueryLockScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, peer *sql.Conn) {
+		fixture.RowAffected(t, p.Ctx, a, "DELETE FROM t WHERE id>1", false, 3)
+		for _, suffix := range []string{"FOR UPDATE OF t", "FOR SHARE NOWAIT", "FOR KEY SHARE SKIP LOCKED", "FOR UPDATE FOR SHARE"} {
+			for _, prepared := range []bool{false, true} {
+				fixture.QueryLockRows(t, p, b, a, "SELECT id FROM t "+suffix, prepared, "id", 1)
+			}
+		}
+		for _, prepared := range []bool{false, true} {
+			q := "SELECT id FROM t FOR UPDATE garbage"
+			stage := "execute"
+			if prepared {
+				stage = "prepare"
+			}
+			fixture.QueryLockFailure(t, p, b, a, q, prepared, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "garbage"`, Position: queryLockPosition(q, "garbage")}, stage)
+			fixture.QueryLockFailure(t, p, b, a, "(SELECT id FROM t UNION SELECT id FROM t) FOR UPDATE", prepared, fixture.Diagnostic{Code: "0A000", Message: "FOR UPDATE is not allowed with UNION/INTERSECT/EXCEPT"}, stage)
+		}
+		fixture.RowAffected(t, p.Ctx, peer, "UPDATE t SET v=10", false, 1)
+		fixture.RowAffected(t, p.Ctx, peer, "UPDATE t SET id=2", false, 1)
+		fixture.QueryLockRows(t, p, b, peer, "SELECT id FROM t", false, "id", 2)
+		fixture.QueryLockRows(t, p, b, peer, "SELECT v FROM t", false, "v", 10)
+		fixture.QueryLockRows(t, p, b, a, "SELECT v FROM t FOR SHARE", false, "v", 10)
+	})
+}

@@ -1,0 +1,148 @@
+package reference_test
+
+import (
+	"fmt"
+	"stuntgres/reference/fixture"
+	"testing"
+)
+
+func TestReferenceUniqueFeatureSmoke(t *testing.T) {
+	uniqueReferenceFeatureSmoke(t, false)
+}
+
+func TestReferenceUniqueIndexFeatureSmoke(t *testing.T) {
+	uniqueReferenceFeatureSmoke(t, true)
+}
+
+func uniqueReferenceFeatureSmoke(t *testing.T, standalone bool) {
+	p := fixture.NewScenario(t)
+	for _, backend := range p.Backends() {
+		t.Run(backend.Name, func(t *testing.T) {
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
+			uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(a INT,b TEXT,CONSTRAINT t_ab_u UNIQUE NULLS NOT DISTINCT(a,b))", "CREATE TABLE t(a INT,b TEXT)", "CREATE UNIQUE INDEX t_ab_u ON t(a,b) NULLS NOT DISTINCT")
+			run(fixture.Prepared(fixture.Exec("INSERT INTO t VALUES($1,$2)", 1, int64(1), "x")))
+			run(fixture.Prepared(fixture.Exec("INSERT INTO t VALUES($1,$2)", 1, nil, "n")))
+			for _, prepared := range []bool{false, true} {
+				s := fixture.ErrorDiagnostic("INSERT INTO t VALUES($1,$2)", fixture.UniqueReferenceDuplicate("t", "t_ab_u", "Key (a, b)=(1, x) already exists."), int64(1), "x")
+				s.ErrorStage = "execute"
+				if prepared {
+					s = fixture.Prepared(s)
+				}
+				run(s)
+			}
+			run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(NULL,'n')", fixture.UniqueReferenceDuplicate("t", "t_ab_u", "Key (a, b)=(null, n) already exists.")))
+			run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(2,'y'),(1,'x')", fixture.UniqueReferenceDuplicate("t", "t_ab_u", "Key (a, b)=(1, x) already exists.")))
+			want := fixture.Select("SELECT a,b FROM t ORDER BY a NULLS LAST", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "x"}, {nil, "n"}})
+			run(want)
+			run(fixture.Prepared(want))
+			run(fixture.Exec("UPDATE t SET a=a WHERE a=1", 1))
+			run(fixture.ErrorDiagnostic("UPDATE t SET a=1,b='x' WHERE a IS NULL", fixture.UniqueReferenceDuplicate("t", "t_ab_u", "Key (a, b)=(1, x) already exists.")))
+			run(want)
+			uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE distinct_t(a INT,b TEXT,UNIQUE(a,b))", "CREATE TABLE distinct_t(a INT,b TEXT)", "CREATE UNIQUE INDEX distinct_t_a_b_idx ON distinct_t(a,b)")
+			run(fixture.Exec("INSERT INTO distinct_t VALUES(NULL,'n'),(NULL,'n')", 2))
+			run(fixture.Select("SELECT a,b FROM distinct_t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{nil, "n"}, {nil, "n"}}))
+		})
+	}
+}
+
+func TestReferenceUniqueValues(t *testing.T) {
+	uniqueReferenceValues(t, false)
+}
+
+func TestReferenceUniqueIndexValues(t *testing.T) {
+	uniqueReferenceValues(t, true)
+}
+
+func uniqueReferenceValues(t *testing.T, standalone bool) {
+	for _, mode := range []string{"", " NULLS DISTINCT", " NULLS NOT DISTINCT"} {
+		t.Run(fmt.Sprintf("mode%q", mode), func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
+					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(a INT,b INT,CONSTRAINT u UNIQUE"+mode+"(a,b))", "CREATE TABLE t(a INT,b INT)", "CREATE UNIQUE INDEX u ON t(a,b)"+mode)
+					run(fixture.Exec("INSERT INTO t VALUES(1,1),(1,2),(NULL,1),(1,NULL),(NULL,NULL)", 5))
+					run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(1,1)", fixture.UniqueReferenceDuplicate("t", "u", "Key (a, b)=(1, 1) already exists.")))
+					rows := [][]any{{int64(1), int64(1)}, {int64(1), int64(2)}, {nil, int64(1)}, {int64(1), nil}, {nil, nil}}
+					for _, key := range []struct {
+						sql, detail string
+						row         []any
+					}{
+						{"NULL,1", "null, 1", []any{nil, int64(1)}}, {"1,NULL", "1, null", []any{int64(1), nil}}, {"NULL,NULL", "null, null", []any{nil, nil}},
+					} {
+						q := "INSERT INTO t VALUES(" + key.sql + ")"
+						if mode == " NULLS NOT DISTINCT" {
+							run(fixture.ErrorDiagnostic(q, fixture.UniqueReferenceDuplicate("t", "u", "Key (a, b)=("+key.detail+") already exists.")))
+						} else {
+							run(fixture.Prepared(fixture.Exec(q, 1)))
+							rows = append(rows, key.row)
+						}
+					}
+					run(fixture.Exec("INSERT INTO t VALUES(NULL,2),(2,NULL)", 2))
+					rows = append(rows, []any{nil, int64(2)}, []any{int64(2), nil})
+					s := fixture.Select("SELECT a,b FROM t", []string{"a", "b"}, []string{"INT4", "INT4"}, rows)
+					s.Bag = true
+					run(s)
+				})
+			}
+		})
+	}
+}
+
+func TestReferenceUniqueTypedEquality(t *testing.T) {
+	uniqueReferenceTypedEquality(t, false)
+}
+
+func TestReferenceUniqueIndexTypedEquality(t *testing.T) {
+	uniqueReferenceTypedEquality(t, true)
+}
+
+func uniqueReferenceTypedEquality(t *testing.T, standalone bool) {
+	cases := []struct {
+		name, typ, first, second string
+		collide                  bool
+	}{
+		{"numeric_scale", "NUMERIC", "1.0", "1.00", true},
+		{"numeric_rounding", "NUMERIC(4,1)", "1.04", "1.03", true},
+		{"float_zero", "DOUBLE PRECISION", "'0'", "'-0'", true},
+		{"float_nan", "DOUBLE PRECISION", "'NaN'", "'NaN'", true},
+		{"real_rounding", "REAL", "16777216", "16777217", true},
+		{"bpchar", "CHAR(3)", "'x'", "'x '", true},
+		{"text", "TEXT", "'x'", "'x '", false},
+		{"bytea", "BYTEA", "'\\x6162'", "E'\\\\141\\\\142'", true},
+		{"uuid", "UUID", "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'", "'A0EEBC999C0B4EF8BB6D6BB9BD380A11'", true},
+		{"timestamptz", "TIMESTAMPTZ", "'2024-01-01 00:00:00+00'", "'2023-12-31 19:00:00-05'", true},
+		{"interval", "INTERVAL", "'1 mon'", "'30 days'", true},
+		{"timetz_offset", "TIMETZ", "'12:00:00+00'", "'13:00:00+01'", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
+					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
+					uniqueIndexReferenceCreate(run, standalone, "CREATE TABLE t(k "+c.typ+" CONSTRAINT u UNIQUE)", "CREATE TABLE t(k "+c.typ+")", "CREATE UNIQUE INDEX u ON t(k)")
+					run(fixture.Exec("INSERT INTO t VALUES("+c.first+")", 1))
+					q := "INSERT INTO t VALUES(" + c.second + ")"
+					count := int64(2)
+					if c.collide {
+						output := map[string]string{
+							"numeric_scale": "1.00", "numeric_rounding": "1.0",
+							"float_zero": "-0", "float_nan": "NaN",
+							"real_rounding": "1.6777216e+07", "bpchar": "x  ",
+							"bytea": "\\x6162", "uuid": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+							"timestamptz": "2024-01-01 00:00:00+00", "interval": "30 days",
+						}[c.name]
+						s := fixture.Prepared(fixture.ErrorDiagnostic(q, fixture.UniqueReferenceDuplicate("t", "u", "Key (k)=("+output+") already exists.")))
+						s.ErrorStage = "execute"
+						run(s)
+						count = 1
+					} else {
+						run(fixture.Prepared(fixture.Exec(q, 1)))
+					}
+					run(fixture.Select("SELECT count(*) AS n FROM t", []string{"n"}, []string{"INT8"}, [][]any{{count}}))
+				})
+			}
+		})
+	}
+}

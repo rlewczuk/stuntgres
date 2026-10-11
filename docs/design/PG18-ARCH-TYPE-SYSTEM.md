@@ -12,7 +12,7 @@ Normative evidence is the PostgreSQL 18 manual (currently identifies **18.6**) a
 postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854
 ```
 
-`reference/fixture_test.go` pins that image and asserts version/locale/encoding. Minor-specific behavior belongs to PG18-REF-ORACLE-18-6, never a guessed image. Local PostgreSQL 20devel is research-only; Go/ramsql implementations are not PostgreSQL semantic evidence.
+`reference/fixture/fixture.go` pins that image; `reference/fixture/lifecycle.go` asserts version/locale/encoding. Minor-specific behavior belongs to PG18-REF-ORACLE-18-6, never a guessed image. Local PostgreSQL 20devel is research-only; Go/ramsql implementations are not PostgreSQL semantic evidence.
 
 The user explicitly selected **“Use PostgreSQL 18 rules”** for three identified conflicts: typmod-sensitive input (§2), contextual unknown output parameters (§3/§5), and `pg_typeof` REGTYPE metadata (W1). This supersedes only the prior universal input-without-typmod rule, blanket unresolved-parameter/no-text rule, and W1 TEXT metadata claim. Independent destination sizing, unresolved-parameter failure after contextual resolution, and all other acceptance remain. Shared plan/conflict history records rationale and deferred implementation.
 
@@ -28,7 +28,7 @@ The user explicitly selected **“Use PostgreSQL 18 rules”** for three identif
 | Extensions, complete cutover, bounded owners | §§3–9 | Inventory and slice exit witnesses |
 | Required assignment-vs-overload, exact/ambiguous/no-match, metadata | §§4–5/§7 | W1–W3/W6/W7 |
 
-Current baseline already has catalog descriptors/name indexes, identity-keyed relation storage and parser ObjectName. It still uses `parser.Type`, parser columns, driver-valued rows, enum/where-bool coercion, unchecked primitive comparison, enum metadata and AST/count-only prepared handles. `referenceDiagnostic`/extraction/assertion already support full fields; new features need exact fixtures, not a new diagnostic transport. §8 names current callers rather than the obsolete Engine.tables inventory.
+Current baseline already has catalog descriptors/name indexes, identity-keyed relation storage and parser ObjectName. It still uses `parser.Type`, parser columns, driver-valued rows, enum/where-bool coercion, unchecked primitive comparison, enum metadata and AST/count-only prepared handles. `fixture.Diagnostic`/extraction/assertion already support full fields; new features need exact fixtures, not a new diagnostic transport. §8 names current callers rather than the obsolete Engine.tables inventory.
 
 ## 2. Values, codecs and adapter boundary
 
@@ -193,7 +193,7 @@ All edits below are **future implementation deferrals**, not fixed by this desig
 | rows.go rows/newRows/Next/three metadata methods | ColumnDescriptor/typed scratch/ExportValue/descriptor adapters; remove parser import/type switch/default bool; preserve EOF/Close/context. |
 | engine_test.go tuples/Describe/invalid type/qualified metadata/control tests; catalog_test.go relationDescriptor fixtures | Migrate internal representation/constructors and add descriptor/plan invariants without changing independently expected SQL results. |
 | parser_test.go TestScriptAndLiterals | Replace `create.Columns[3].Type != Int8` with a raw TypeName canonical `bigint` assertion for INT8 syntax; preserve identifier/nullability, literal payload, parameter and source-position expectations. |
-| driver_test.go direct/prepared/metadata/retained-query tests; reference/fixtures_test.go and reference/diagnostics_test.go rows/types/diagnostic fixtures | Preserve independent public outcomes; extend exact feature fixtures using existing full-field helpers, not parity alone or incidental source-wiring counts. |
+| driver_test.go direct/prepared/metadata/retained-query tests; reference/sessions/fixtures_test.go and reference/type_resolution/diagnostics_test.go rows/types/diagnostic fixtures | Preserve independent public outcomes; extend exact feature fixtures using existing full-field helpers, not parity alone or incidental source-wiring counts. |
 
 Caller inventory pattern over Go files: `parser\.(Type|Column|Value|Int4|Int8|Text|Bool)|\.DatabaseType\(|\.SQL\(|ParameterInfo|\.Values\(`. Supplement inside `internal/parser/*.go` with `\b(Type|Int4|Int8|Text|Bool)\b|\.Type\b` to find unqualified enum/Column.Type assertions, including TestScriptAndLiterals. Include catalog fixtures/diagnostic formatting and follow generated parser callers through grammar source. Raw parser.Value/Column syntax callers may remain; resolved enum aliases/reexports/deprecated helpers/shims may not.
 
