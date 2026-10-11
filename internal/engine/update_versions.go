@@ -72,6 +72,22 @@ func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, rows [][]sqlty
 	if err := s.active(); err != nil {
 		return err
 	}
+	if s.foreignActionAuth != nil {
+		admission := s.foreignActionAdmissions[ref.Address]
+		if admission == nil || !admission.writable {
+			return errors.New("stuntgres: missing writable internal action admission")
+		}
+		e := s.op.session.Engine()
+		e.locks.mu.Lock()
+		for _, row := range old {
+			entry := e.locks.entries[lockResource{ObjectRef: ref, row: row.row}]
+			if !e.locks.valid(s.ticket) || entry == nil || entry.holders[s.ticket].mode&(noKeyUpdate|rowUpdate) == 0 {
+				e.locks.mu.Unlock()
+				return errors.New("stuntgres: internal action replacement requires its row grant")
+			}
+		}
+		e.locks.mu.Unlock()
+	}
 retry:
 	s.owner.mu.Lock()
 	e := s.op.session.Engine()
@@ -100,6 +116,11 @@ retry:
 	}
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
+	}
+	if s.foreignActionAuth != nil || !distinct && ref != s.lockedRef && s.partitionRelations[ref.Address] == nil {
+		if err := s.validateForeignActionLocked(e, ref); err != nil {
+			return err
+		}
 	}
 	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || e.privateStorageLocked(s.owner.catalog, ref.Address) == nil || len(old) != len(rows) {
@@ -165,6 +186,9 @@ retry:
 			w.rows[ref.Address] = mergePrivateRows(w.rows[ref.Address], versions, true)
 		}
 		w.replacing = true
+		for i, next := range versions {
+			s.recordForeignActionReplacement(ref, old[i], next)
+		}
 	}
 	return nil
 }

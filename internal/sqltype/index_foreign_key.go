@@ -11,12 +11,19 @@ import (
 // Original domain values retain their storage authority; comparison strips only
 // their already-validated wrappers.
 type IndexForeignKeyComparison struct {
-	parent, child               *Descriptor
-	parentCast, childCast       CoercionPlan
-	parentConvert, childConvert bool
-	cross                       bool
-	comparison                  Comparison
-	index                       IndexComparison
+	parent, child                 *Descriptor
+	operatorParent, operatorChild *Descriptor
+	parentCast, childCast         CoercionPlan
+	parentConvert, childConvert   bool
+	cross                         bool
+	comparison                    Comparison
+	index                         IndexComparison
+}
+
+// InputTypes identifies the selected operator inputs for released RI query
+// diagnostics. It is comparison authority, not destination assignment typing.
+func (p IndexForeignKeyComparison) InputTypes() (*Descriptor, *Descriptor) {
+	return p.operatorParent, p.operatorChild
 }
 
 func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) (*Descriptor, bool)) (IndexForeignKeyComparison, error) {
@@ -30,7 +37,17 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 			return IndexForeignKeyComparison{}, failure("42804", "incompatible foreign-key descriptor generation")
 		}
 	}
-	plan := IndexForeignKeyComparison{parent: parent.Type, child: child.Type}
+	plan := IndexForeignKeyComparison{parent: parent.Type, child: child.Type, operatorParent: parent.Type, operatorChild: child.Type}
+	if !class.enum {
+		input, ok := lookup(class.input)
+		if !ok || !input.Concrete() {
+			return plan, fmt.Errorf("missing foreign-key class input descriptor")
+		}
+		plan.operatorParent, plan.operatorChild = input, input
+		if indexFamilyEquality(class.Family, class.input, child.Type.id) {
+			plan.operatorChild = child.Type
+		}
+	}
 	// Binary-compatible same-base inputs already have the selected index's
 	// equality semantics, including enums and CIDR through inet_ops.
 	if parent.Type == child.Type {

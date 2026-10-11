@@ -85,7 +85,7 @@ func TestReferenceForeignKeyBoundariesModes(t *testing.T) {
 			foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 				run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
 				q := "CREATE TABLE c(pid INT DEFAULT 1 REFERENCES p " + clause + ")"
-				if b.PG {
+				if b.PG || clause != "DEFERRABLE" && clause != "INITIALLY DEFERRED" {
 					run(fixture.Exec(q, 0))
 					run(fixture.Exec("INSERT INTO p VALUES(1),(2)", 2))
 					run(fixture.Exec("INSERT INTO c VALUES(2)", 1))
@@ -103,9 +103,7 @@ func TestReferenceForeignKeyBoundariesModes(t *testing.T) {
 						run(fixture.Exec("DELETE FROM p WHERE id=2", 1))
 						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))
 					case "ON DELETE RESTRICT":
-						d := foreignKeyParent("p", "c", "c_pid_fkey", `Key (id)=(2) is referenced from table "c".`)
-						d.Code = "23001"
-						d.Message = `update or delete on table "p" violates RESTRICT setting of foreign key constraint "c_pid_fkey" on table "c"`
+						d := foreignActionsRestrict("p", "c", "c_pid_fkey", `Key (id)=(2) is referenced from table "c".`)
 						run(foreignKeyFail("DELETE FROM p WHERE id=2", d, false))
 						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 2))
 					default:
@@ -124,13 +122,11 @@ func TestReferenceForeignKeyBoundariesModes(t *testing.T) {
 					}
 					return
 				}
-				message, token := "foreign key referential actions are unsupported", ""
+				message, token := "foreign key deferrability is unsupported", ""
 				if clause == "DEFERRABLE" {
 					message, token = "foreign key deferrability is unsupported", "DEFERRABLE"
 				} else if clause == "INITIALLY DEFERRED" {
 					message, token = "foreign key deferrability is unsupported", "DEFERRED"
-				} else {
-					token = strings.Fields(clause)[2]
 				}
 				d := foreignKeyError("0A000", message, "", "", "")
 				d.Position = fixture.Position(strings.Index(q, token) + 1)

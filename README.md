@@ -161,15 +161,23 @@ pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceSQLPrepared'`.
 
 Change note: CREATE TABLE FOREIGN KEY/REFERENCES supports single/composite
-keys, MATCH SIMPLE/FULL and immediate NO ACTION with canonical transaction-owned
-row grants, atomic command-end checks and current authorization-based diagnostics.
-Supporting-index family/input coercions own equality and ordered probes; native
-Restore ignores FK declarations on an actually skipped CREATE IF NOT EXISTS.
-Stable dependencies follow supported rename/move/TYPE/drop operations; native
-Dump/Restore handles forward references/cycles without public ALTER ADD support
-and preserves retained TEMP graphs. See [foreign keys](docs/TABLES.md#foreign-key-constraints--change-note).
-Smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`; pinned oracle:
-`make check REFERENCE=1 RUN='^TestReferenceForeignKeyFeatureSmoke$'`.
+keys, MATCH SIMPLE/FULL and all five ON DELETE/UPDATE actions: NO ACTION,
+RESTRICT, CASCADE, SET NULL and SET DEFAULT. DELETE SET actions accept a
+stable referencing-column subset; UPDATE SET lists remain unsupported.
+Canonical transaction-owned grants and one atomic command stage settle action
+chains and local constraints before publication. Defaults use current child-owner
+authority, without changing the invoking session. Supporting-index equality and
+datum-image change detection have distinct roles. Native Dump/Restore retains
+actions, selected attributes, forward references/cycles and live TEMP graphs;
+invalid imports are rejected, not repaired by cascades.
+Stable-isolation actions crosscheck both new/current and retained matching
+children; post-snapshot conflicts are `40001`, including an originally empty
+child root. Action settlement repeats exclusion completion only for newly
+admitted event work, preserving unrelated deferred obligations without a
+redundant pass.
+See [foreign keys](docs/TABLES.md#foreign-key-constraints--change-note).
+Smoke: `make check RUN='^TestReferenceForeignActionsFeatureSmoke'`; pinned oracle:
+`make check REFERENCE=1 RUN='^TestReferenceForeignActionsFeatureSmoke'`.
 
 Change note: `CREATE TABLE ... INHERITS (parent, ...)` merges compatible parent
 columns, defaults, inheritable CHECK and NOT NULL constraints into a real,

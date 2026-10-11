@@ -435,7 +435,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 	}
 	e.mu.Lock()
-	before, beforeErr := e.authorizationLocked(scope.op)
+	before, beforeErr := scope.writeAuthorizationLocked(e)
 	if beforeErr == nil && scope.catalog != nil {
 		before.catalog = e.privateCatalogLocked(scope.catalog)
 	}
@@ -466,7 +466,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := scope.writeAuthorizationLocked(e)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

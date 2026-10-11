@@ -894,13 +894,22 @@ Implicit primary-key references use the actual selected attributes; neither
 table SELECT nor UPDATE is a substitute. Later child INSERT/UPDATE and parent
 UPDATE/DELETE do not recheck REFERENCES or require cross-table SELECT rights.
 Revoking REFERENCES therefore prevents new definitions, not enforcement of an
-existing one. Referential checks retain canonical relation/row grants and use
-the statement's current authorization only for disclosure.
+existing one. Referential checks retain canonical relation/row grants. Internal
+action assignments/deletions/default providers execute as the affected child
+owner and bypass child RLS enforcement, including FORCE, without changing
+session identities or the initiating parent's ordinary ACL/RLS selection.
 
-23503 fields identify the referencing schema/table/constraint. The key values
-and labels are disclosed only with table SELECT or SELECT on every key column
-of the violating side. Otherwise Detail omits labels/values but retains the
-referenced/referencing table; MATCH FULL's partial-NULL detail contains no values.
+23503 and RESTRICT23001 fields identify the referencing schema/table/constraint.
+Top-level reporting uses the original invoker. The key values and labels are
+disclosed only with table SELECT or SELECT on every key column of the violating
+side, and only when RLS does not apply. Otherwise Detail omits labels/values but
+retains the referenced/referencing table; MATCH FULL contains no key values.
+In-action NOT NULL/CHECK/unique/provider errors retain the generated SQL Context;
+local row errors disclose the child owner's full row even with FORCE RLS.
+After-event child FK/MATCH FULL/exclusion/deep RESTRICT errors have no SPI Context.
+Nested child FK reporting uses child-owner rights with ordinary reporting RLS
+applicability: an owner can disclose an unforced key, but FORCE redacts it.
+Enforcement bypass must not leak into that after-event disclosure decision.
 ACL/COMMENT changes after a successful staged command do not retroactively
 invalidate that command's FK proof at Commit.
 

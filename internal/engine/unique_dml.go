@@ -308,7 +308,7 @@ retry:
 			return uniqueConflict{}, ErrCatalogReplaced
 		}
 		parent, index = currentParent, currentIndex
-		auth, err := e.authorizationLocked(s.op)
+		auth, err := s.writeAuthorizationLocked(e)
 		auth.catalog = current
 		namespace, _ := current.state.descriptors[parent.namespace].(*namespaceDescriptor)
 		root := e.indexRoots[index.address]

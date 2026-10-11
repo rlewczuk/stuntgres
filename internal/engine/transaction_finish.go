@@ -54,6 +54,12 @@ func (s *StatementScope) Finish(err error) error {
 		t.mu.Unlock()
 		err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainedMessage, nil)
 		if err == nil {
+			err = s.settleForeignActions()
+		}
+		if err == nil && s.foreignActionExclusionAdded {
+			err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainedMessage, nil)
+		}
+		if err == nil {
 			err = s.checkForeignKeys()
 		}
 		t.mu.Lock()

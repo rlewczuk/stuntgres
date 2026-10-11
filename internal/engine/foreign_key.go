@@ -14,19 +14,21 @@ import (
 
 // All links are stable catalog addresses/attributes, never descriptor pointers.
 type foreignKeyConstraint struct {
-	OID        OID
-	Name       string
-	Attributes []int32
-	Target     ObjectAddress
-	Referenced []int32
-	Index      ObjectAddress
-	Full       bool
+	OID              OID
+	Name             string
+	Attributes       []int32
+	Target           ObjectAddress
+	Referenced       []int32
+	Index            ObjectAddress
+	Full             bool
+	UpdateAction     parser.ForeignKeyAction
+	DeleteAction     parser.ForeignKeyAction
+	DeleteAttributes []int32
 }
 
 type foreignKeyComparison struct {
-	child, parent   int
-	comparison      sqltype.IndexForeignKeyComparison
-	indexComparison sqltype.IndexComparison
+	child, parent int
+	comparison    sqltype.IndexForeignKeyComparison
 }
 
 func foreignKeyDeclarations(s *parser.CreateTable) []parser.ForeignKeyConstraint {
@@ -125,10 +127,7 @@ func bindForeignKeyComparison(view CatalogRead, child, parent, index *relationDe
 			}
 			if node == nil && a == f.Referenced[i] {
 				pu = indexKeyCollation(pu, key)
-				bound.indexComparison, err = sqltype.BindIndexOrdering(pu, key.class)
-				if err == nil {
-					bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.class, view.LookupType)
-				}
+				bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.class, view.LookupType)
 				matchedAt = at
 				break
 			}
@@ -205,6 +204,31 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err != nil {
 		return err
 	}
+	deleteAttributes, err := foreignKeyAttributes(child, raw.DeleteColumns)
+	if err != nil {
+		return err
+	}
+	normalized := deleteAttributes[:0]
+	for i, a := range deleteAttributes {
+		if !slices.Contains(local, a) {
+			return sqlError("42P10", fmt.Sprintf(`column "%s" referenced in ON DELETE SET action must be part of foreign key`, raw.DeleteColumns[i].Text))
+		}
+		if !slices.Contains(normalized, a) {
+			normalized = append(normalized, a)
+		}
+	}
+	deleteAttributes = normalized
+	for _, a := range local {
+		if _, generated := child.generations[a]; !generated {
+			continue
+		}
+		if raw.UpdateAction == parser.ForeignKeyCascade || raw.UpdateAction == parser.ForeignKeySetNull || raw.UpdateAction == parser.ForeignKeySetDefault {
+			return sqlError("42601", "invalid ON UPDATE action for foreign key constraint containing generated column")
+		}
+		if raw.DeleteAction == parser.ForeignKeySetNull || raw.DeleteAction == parser.ForeignKeySetDefault {
+			return sqlError("42601", "invalid ON DELETE action for foreign key constraint containing generated column")
+		}
+	}
 	var referenced []int32
 	if len(raw.Referenced) == 0 {
 		for _, key := range parent.uniqueConstraints {
@@ -249,7 +273,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if relationConstraintNameExists(child, name) {
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.name))
 	}
-	f := foreignKeyConstraint{Name: name, Attributes: local, Target: parent.address, Referenced: referenced, Index: index.address, Full: raw.Full}
+	f := foreignKeyConstraint{Name: name, Attributes: local, Target: parent.address, Referenced: referenced, Index: index.address, Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes}
 	if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
@@ -296,6 +320,14 @@ func validateForeignKeys(view CatalogRead, child *relationDescriptor, names map[
 	for _, f := range child.foreignKeys {
 		if child.relationKind != tableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
+		}
+		if f.UpdateAction > parser.ForeignKeySetDefault || f.DeleteAction > parser.ForeignKeySetDefault || len(f.DeleteAttributes) != 0 && f.DeleteAction != parser.ForeignKeySetNull && f.DeleteAction != parser.ForeignKeySetDefault {
+			return fmt.Errorf("stuntgres: invalid foreign-key action")
+		}
+		for i, a := range f.DeleteAttributes {
+			if !slices.Contains(child.attributes, a) || !slices.Contains(f.Attributes, a) || slices.Contains(f.DeleteAttributes[:i], a) {
+				return fmt.Errorf("stuntgres: invalid foreign-key action attribute")
+			}
 		}
 		names[f.Name] = true
 		parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
@@ -360,6 +392,14 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.name, f.Name, child.name)
 		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.name)
 	}
+	disposition, err := rowSecurityDecision(auth, violating, auth.state.CurrentUser, policySelect, false)
+	if err != nil {
+		return err
+	}
+	if disposition != rlsUnrestricted {
+		d.Detail = "Key" + suffix
+		return d
+	}
 	keys := make([]indexKey, len(attributes))
 	for i, a := range attributes {
 		keys[i].attribute = a
@@ -383,21 +423,4 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	}
 	d.Detail = "Key (" + strings.Join(labels, ", ") + ")=(" + strings.Join(text, ", ") + ")" + suffix
 	return d
-}
-
-func foreignKeyParentUnchanged(ctx context.Context, comparisons []foreignKeyComparison, before, after []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
-	for _, comparison := range comparisons {
-		left, right := before[comparison.parent], after[comparison.parent]
-		if left.IsNull() || right.IsNull() {
-			if left.IsNull() != right.IsNull() {
-				return false, nil
-			}
-			continue
-		}
-		cmp, err := comparison.indexComparison.Compare(ctx, left, right, input)
-		if err != nil || cmp != 0 {
-			return false, err
-		}
-	}
-	return true, nil
 }

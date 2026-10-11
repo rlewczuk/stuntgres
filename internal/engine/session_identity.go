@@ -45,6 +45,15 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
 		identity = c.query.source.authority.expression.identity
 	}
+	if s.foreignActionAuth != nil {
+		auth := s.foreignActionAuth
+		role, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		name, _ := auth.catalog.LookupType(sqltype.Name)
+		identity.current, identity.currentMissing = sqltype.String(name, role.Name), PrincipalRef{}
+	}
 	switch e.kind {
 	case identityCatalog, identityDatabase:
 		return identity.database, nil
@@ -61,13 +70,13 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	case identitySystemUser:
 		return identity.system, nil
 	case identityCurrentSchema:
-		if s.currentSchemaResult.Type() != nil {
+		if s.foreignActionAuth == nil && s.currentSchemaResult.Type() != nil {
 			return s.currentSchemaResult, nil
 		}
 		engine := s.op.session.Engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
-		auth, err := engine.authorizationLocked(s.op)
+		auth, err := s.writeAuthorizationLocked(engine)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -75,11 +84,14 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		s.currentSchemaResult = sqltype.Null(e.usage.Type)
+		result := sqltype.Null(e.usage.Type)
 		if len(path) > 0 {
-			s.currentSchemaResult = sqltype.String(e.usage.Type, auth.catalog.state.descriptors[path[0]].Name())
+			result = sqltype.String(e.usage.Type, auth.catalog.state.descriptors[path[0]].Name())
 		}
-		return s.currentSchemaResult, nil
+		if s.foreignActionAuth == nil {
+			s.currentSchemaResult = result
+		}
+		return result, nil
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid identity expression")
 }

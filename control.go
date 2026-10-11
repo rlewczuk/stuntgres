@@ -79,7 +79,8 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // replacement rather than adopting new same-name persistent providers.
 // Temporary views retain exact source identities. Invalidated persistent table
 // or view providers prevent replacement; unchanged pinned catalog providers survive.
-// Same-owner temporary FK graphs retain exact definition/parent/key identities.
+// Same-owner temporary FK action graphs retain exact definition/parent/key/list
+// identities, storage, defaults and prepared provenance.
 // Persistent registered extensions and their member identities are removed together.
 // Live destination TEMP-target installations retain their exact namespace token,
 // extension/member/provider identities, owner authority and owned TEMP consumers.
@@ -111,6 +112,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // policy-expression enforcement remains unsupported.
 // FK declarations are ordinary CREATE syntax; native Restore handles their
 // forward references/cycles independently of table definition output order.
+// All admitted ON DELETE/UPDATE actions and DELETE SET subsets are serialized
+// canonically using current stable-attribute names, without evaluating defaults.
 // Registered extension installations precede their CHECK/view consumers. Native
 // ownership metadata comments preserve independently named extension/member
 // owners, even when destination role attributes differ; templates are ownerless.
@@ -150,7 +153,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
 // FK owner/schema authority is captured at declaration. Attachments and final
 // rows are validated after isolated table/index/data staging, before installation;
-// this does not admit public ALTER ADD FOREIGN KEY or defer ordinary SQL checks.
+// actions/lists survive import, but Restore never cascades to repair invalid data.
+// This does not admit public ALTER ADD FOREIGN KEY or defer ordinary SQL checks.
 // Named owners must already exist. Private Restore-stage CREATE TABLE/COLLATION
 // destination authority preserves independent schema/object owners without ACL grants.
 // Private stage INSERT and database-local COMMENT use validated captured bootstrap

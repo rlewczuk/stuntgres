@@ -384,30 +384,8 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if b.update.from != nil && updated[candidate.row] {
 			continue
 		}
-		generationEval := eval
-		if err := evaluateGenerations(ctx, b.relation, row, &generationEval); err != nil {
+		if err := e.validateMutationRow(s, b, schema, row, &eval); err != nil {
 			return Result{}, err
-		}
-		for i, column := range b.relation.columns {
-			if column.Nullable {
-				continue
-			}
-			value, err := logicalColumnValue(b.relation, i, row, &generationEval)
-			if err != nil {
-				return Result{}, err
-			}
-			if value.IsNull() {
-				return Result{}, e.rowConstraintError(s, b, schema, column.Name, "", row)
-			}
-		}
-		if len(b.relation.checkConstraints) != 0 {
-			constraint, err := validateCheckRow(b.relation, row, &eval)
-			if err != nil {
-				return Result{}, err
-			}
-			if constraint != nil {
-				return Result{}, e.rowConstraintError(s, b, schema, "", constraint.Name, row)
-			}
 		}
 		keyChanged, err := s.uniqueKeyChanged(b.ref, old.values, row)
 		if err != nil {
@@ -486,6 +464,36 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 	return notNullDetailError(schema, b.relation.name, column, detail)
 }
 
+// Public UPDATE and admitted RI assignment share generation and local checks.
+func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string, row []sqltype.Value, eval *EvalContext) error {
+	generationEval := *eval
+	if err := evaluateGenerations(eval.Context, b.relation, row, &generationEval); err != nil {
+		return err
+	}
+	for i, column := range b.relation.columns {
+		if column.Nullable {
+			continue
+		}
+		value, err := logicalColumnValue(b.relation, i, row, &generationEval)
+		if err != nil {
+			return err
+		}
+		if value.IsNull() {
+			return e.rowConstraintError(s, b, schema, column.Name, "", row)
+		}
+	}
+	if len(b.relation.checkConstraints) != 0 {
+		constraint, err := validateCheckRow(b.relation, row, eval)
+		if err != nil {
+			return err
+		}
+		if constraint != nil {
+			return e.rowConstraintError(s, b, schema, "", constraint.Name, row)
+		}
+	}
+	return nil
+}
+
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
@@ -495,9 +503,12 @@ func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltyp
 func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
+	if err == nil && s.foreignActionAuth != nil {
+		err = s.validateForeignActionLocked(e, b.ref)
+	}
 	var auth AuthorizationView
 	if err == nil {
-		auth, err = e.authorizationLocked(s.op)
+		auth, err = s.writeAuthorizationLocked(e)
 	}
 	e.mu.Unlock()
 	if err != nil {

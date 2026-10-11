@@ -41,7 +41,47 @@ func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreign
 	if f.Full {
 		text += " MATCH FULL"
 	}
+	for _, direction := range []struct {
+		name   string
+		action parser.ForeignKeyAction
+	}{{"UPDATE", f.UpdateAction}, {"DELETE", f.DeleteAction}} {
+		if direction.action == parser.ForeignKeyNoAction {
+			continue
+		}
+		action, err := foreignKeyActionSQL(direction.action)
+		if err != nil {
+			return "", err
+		}
+		text += " ON " + direction.name + " " + action
+		if direction.name == "DELETE" && len(f.DeleteAttributes) != 0 {
+			labels := make([]string, len(f.DeleteAttributes))
+			for i, a := range f.DeleteAttributes {
+				labels[i], err = deparseAttribute(child, a)
+				if err != nil {
+					return "", err
+				}
+			}
+			text += " (" + strings.Join(labels, ", ") + ")"
+		}
+	}
 	return text, nil
+}
+
+func foreignKeyActionSQL(action parser.ForeignKeyAction) (string, error) {
+	switch action {
+	case parser.ForeignKeyNoAction:
+		return "NO ACTION", nil
+	case parser.ForeignKeyRestrict:
+		return "RESTRICT", nil
+	case parser.ForeignKeyCascade:
+		return "CASCADE", nil
+	case parser.ForeignKeySetNull:
+		return "SET NULL", nil
+	case parser.ForeignKeySetDefault:
+		return "SET DEFAULT", nil
+	default:
+		return "", fmt.Errorf("stuntgres: invalid foreign-key action")
+	}
 }
 
 // Column retirement already owns local AUTO definitions and shape projection.

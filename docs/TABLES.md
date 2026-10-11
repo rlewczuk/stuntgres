@@ -111,6 +111,37 @@ identities preserve the final image; there is no separate FK value index/cache.
 Successful iterator visits stop immediately. After a parent row wait, the exact
 physical-version locator is revalidated against refreshed visibility/root state.
 
+ON DELETE and ON UPDATE independently admit NO ACTION, RESTRICT, CASCADE,
+SET NULL and SET DEFAULT. NO ACTION permits an equal final replacement parent;
+RESTRICT rejects a live old-key reference with23001 even when an equal parent
+replacement exists. CASCADE deletes matching physical children or assigns the
+new paired parent key. SET actions assign typed NULL or current defaults; an
+absent default is NULL. DELETE SET NULL/DEFAULT optionally names only selected
+referencing attributes. Duplicate list names normalize to their first occurrence;
+matching always uses the full FK key. Lists are not legal for UPDATE.
+
+Datum-image changes trigger actions even when supporting-index equality still
+considers the keys equal (for example NUMERIC scale). Assignment independently
+performs destination conversion/typmod checks and recomputes stored generated
+non-key columns. Generated referencing keys forbid UPDATE CASCADE/SET actions
+and DELETE SET actions, including a subset omitting the generated attribute.
+DELETE CASCADE on stored generated keys remains legal.
+
+All affected children use the same private statement stage and canonical locks.
+Self references, chains, diamonds and cycles retain actual row/version transitions;
+local NOT NULL/CHECK/unique/exclusion and final FK errors roll back the entire
+command. SET DEFAULT rechecks integrity even for an unchanged assigned datum.
+RowsAffected and RETURNING describe initiating rows, never action counts.
+Prepared Execute consumes current definitions/defaults/providers/authorization;
+Prepare and Dump do not evaluate child defaults.
+Under Repeatable Read/Serializable, action candidates include both current
+matching children (even an insertion into an originally empty child table) and
+retained matching children whose latest key moved away. Canonical row grants
+crosscheck the live physical successor against the transaction frontier before
+matching or changing it; post-snapshot insertions and moved-in/moved-away rows
+raise `40001` with the generated action SQL context. This does not advance the
+transaction snapshot, discard a peer's committed child, or publish partial work.
+
 
 FKs own stable constraint identities and stable child/parent attributes, plus
 the actual supporting index identity; they create no child index. Existing
@@ -136,16 +167,17 @@ but registers pending attachments only for the creator's actual newly minted
 table reference. CREATE IF NOT EXISTS no-ops ignore their FK clauses completely,
 including absent target schemas/relations. Captured namespace/principal authority
 survives later owner directives and trusted replay permission elevation.
-Restore resolves supporting keys and validates every final row before installation.
+Restore resolves supporting keys and validates every final row before installation;
+it preserves actions/list metadata but never executes cascades to repair import data.
 Forward references and cycles work; invalid empty/populated groups leave the target
 and retained snapshots unchanged. Retained same-owner TEMP FK graphs keep their
 exact identities/data through Reset/Restore and are omitted from Dump;
 permanent/TEMP cross-references are rejected.
 
 Public ALTER ADD FOREIGN KEY and ADD COLUMN REFERENCES remain unsupported.
-MATCH PARTIAL retains PostgreSQL's 0A000 boundary. Referential actions other
-than NO ACTION, DEFERRABLE/INITIALLY DEFERRED, temporal PERIOD and partition
-hierarchy FKs are explicit native 0A000 boundaries. NOT DEFERRABLE and
+MATCH PARTIAL retains PostgreSQL's 0A000 boundary. DEFERRABLE/INITIALLY DEFERRED,
+temporal PERIOD and partition hierarchy FKs are explicit native 0A000 boundaries.
+NOT DEFERRABLE and
 INITIALLY IMMEDIATE are accepted; no deferred mode/event mechanism is added.
 Grammar admits one optional MATCH before the action clauses, at most one ON UPDATE
 and one ON DELETE in either order, then constraint attributes. Compatible repeated

@@ -6367,6 +6367,87 @@ Feature smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`, plus
 the identical selector with REFERENCE=1. Every external check invocation uses
 a 900-second deadline. Quickcheck remains whole-project Docker-free proof.
 
+Foreign action selections use64 independently expected public definitions:
+
+```sh
+make check RUN='^TestReferenceForeignActions(Definition|Values|Equality|Metadata)'
+make check RUN='^TestReferenceForeignActions(Defaults|Constraints|Diagnostics|Authorization)'
+make check RUN='^TestReferenceForeignActions(Graphs|Atomicity|Transactions|Producers)'
+make check RUN='^TestReferenceForeignActions(Concurrent|Cancellation)'
+make check RUN='^TestReferenceForeignActions(Prepared|Lifecycle|Temporary|FeatureSmoke)'
+```
+
+Run each identical selector with `REFERENCE=1` for real pinned PostgreSQL18.0.
+The changed `TestReferenceForeignKeyBoundariesModes` retains its deferred
+native capability boundary and real PostgreSQL assertions, while its admitted
+actions now share positive/error effects. Sequence owner transitions provide
+shared owner-sensitive DEFAULT proof without requiring native sequence GRANT.
+Constrained domains retain the exact native0A000 boundary and PG23514; real
+unconstrained-domain assignment plus table CHECK proves shared composition.
+No new-only oracle discovery filter remains.
+The inheritance action witness preserves native UPDATE ONLY/recursive-DML
+boundaries and real PostgreSQL ONLY behavior, then exercises shared leaf-parent
+UPDATE/DELETE while descendant children survive. SELECT ONLY remains supported.
+Domain provider assignment uses a plain domain; the separate constrained-domain
+declaration checks the complete positioned native boundary.
+Captured-authority Restore uses named owner directives. Replacement proof uses
+positive current catalog IDs and an actual pre-replacement transaction's prepared
+statement/read epoch fence, not numeric OID inequality. Idle held analysis may
+legitimately rebind afterward; both idle-held and newly prepared current action
+effects are asserted. Allocator numbers may repeat after replacement.
+PostgreSQL concurrent DDL uses a dedicated physical connection and real
+`lock_timeout`, not pool exhaustion or caller-context timeout as a lock witness.
+Ordinary native DROP has no AX admission and is not claimed to produce55P03.
+Its explicit-transaction DROP capability diagnostic is asserted with savepoint
+recovery; actual child RX, row waits, cancellation and Reset/Restore no-retarget
+have deterministic private/public witnesses. Both modes retain the genuine
+post-action DROP/recreate and held current-action checks. No general DROP
+admission or adjacent partition/lock capability is added.
+
+Private `^TestForeignActions(Definition|Equality|Admission|Closure|Defaults|Diagnostics|Prepared)`
+checks canonical immutable metadata, physical predecessor/successor lineage,
+unspoofed child admission, ordinal default demand and reporting authority.
+`^TestForeignActions(Locks|Cancellation)` checks exact RX/read and row modes,
+wait mutex release, latest payload/version and replacement/cancel cleanup.
+`TestForeignActionsLocksTwoPhase` proves detached child grants and deletion
+ownership through both prepared outcomes. `TestForeignActionsLocksSnapshot`
+checks moved-child40001 from an admitted stable image even when its successor
+commits before action discovery. The owner/FORCE reporting unit installs an
+immutable owner descriptor through the existing validated catalog-stage API;
+it does not imply public ALTER TABLE OWNER support.
+Keep incumbent late-postpublication cancellation and conflict UPDATE regression
+bodies unchanged and select
+`make check RUN='^(TestDeleteCorePublicationCancellation|TestDeleteReturningCancellation|TestUpdateReturningCancellation|TestInsertConflictUpdateIdentity|TestInsertConflictUpdateDistinctStage|TestInsertConflictUpdateCursorFailure)'`.
+Race proof selects the private groups and
+`^TestReferenceForeignActions(Concurrent|Cancellation)` with `RACE=1`; shared
+concurrent definitions also require `REFERENCE=1`. Parser proof remains
+`^TestForeignKeyGrammar`. Feature smoke selects
+`^TestReferenceForeignActionsFeatureSmoke` in both modes.
+Native Dump/Reset/Restore phases are genuine public controls, not simulated PG
+APIs; shared SQL assertions surround them. These selections describe proof
+obligations, not recorded passing results.
+
+Stable-isolation insertion/move-into-key regressions select
+`make check RUN='^TestReferenceForeignActionsConcurrentNewRows$'` and the
+identical `REFERENCE=1` command. These sixteen DELETE/UPDATE × insertion/move ×
+RR/Serializable × direct/prepared schedules assert complete `40001` action
+context, retained snapshots, aborted state/savepoint recovery and the peer's
+committed child. The private empty-root crosscheck selects
+`make check RUN='^TestForeignActionsLocksNewRows$'`.
+
+Select the allocation/behavior complement explicitly:
+`make check RUN='^TestForeignActionsExclusionCompletion$'`.
+It is not covered by the older private prefix groups above. Real completion
+with retained deferred events may add at most the incumbent remaining-event
+vector allocation relative to a settled control; unrelated SELECT and unchanged
+parent-key UPDATE must not add a second pass. Subsequent SET IMMEDIATE still
+raises the genuine retained `23P01`. No production instrumentation or checker
+call counter supplies that proof. Complete private coverage is
+`make check RUN='^TestForeignActions'`; race proof additionally selects
+`make check RACE=1 RUN='^TestForeignActionsLocksNewRows$'` and the public
+ConcurrentNewRows command with `RACE=1` in native and real reference modes.
+
+
 FK regression remediation keeps incumbent keyword and consumer semantics:
 INITIALLY remains usable by EXCLUDE/PRIMARY KEY/UNIQUE controls, and FOREIGN
 retains its keyword-label behavior. Supporting-index and referenced-column

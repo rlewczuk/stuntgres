@@ -182,20 +182,31 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 			return false, errors.New("stuntgres: duplicate staged deletion")
 		}
 	}
+	if err := w.stageDeletionLocked(e, candidate, original); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// Both named-target and separately admitted RI deletion use the same roots,
+// SSI evidence and exclusion projection after validating their own authority.
+func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original rowVersion) error {
+	s := w.scope
 	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.version, baseBorn: original.born, creator: e.serializable.creators[original.version], deletion: true}}
 	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
-		return false, err
+		return err
 	}
 	if w.deletes == nil {
 		w.deletes = make(map[ObjectAddress]*privateDeletionRoot)
 	}
+	root := w.deletes[candidate.ref.Address]
 	if root == nil {
 		root = &privateDeletionRoot{rows: make(map[RowID]deleteCandidate)}
 		w.deletes[candidate.ref.Address] = root
 	}
 	root.rows[candidate.row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
-	return true, nil
+	return nil
 }
 
 func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *querySource, parameters []sqltype.Value) (Result, error) {

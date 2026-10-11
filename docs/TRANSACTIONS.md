@@ -215,6 +215,11 @@ cleanup. Runtime providers and completion waits run outside engine/session/owner
 manager metadata locks. Savepoints restore modes/events/dirty membership; prepared
 transfer retains the original ticket until completion. No transient modes/events
 are dumped. See [exclusion constraints](TABLES.md#exclusion-constraints--change-note).
+Foreign actions settle after the incumbent statement-final exclusion pass.
+A second pass runs only when settlement actually admits a new exclusion event,
+not for an unrelated query, unchanged parent key, or unmatched child scan.
+Retained deferred obligations remain selective and are still forced by their
+ordinary SET IMMEDIATE/transaction-completion paths.
 In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.
@@ -1313,6 +1318,13 @@ Immediate NO ACTION constraints validate the final command row image, not each
 producer's intermediate row order and not merely outer Commit. Self references,
 prior own writes, command successors/deletions and replacement keys share the
 normal statement stage; a failure follows existing abort/savepoint recovery.
+CASCADE and SET actions settle an iterative worklist of real parent row/version
+transitions in that same stage. A diamond can update one child through both
+references without losing its first change; deletion terminates live cycles.
+RESTRICT checks live old-key references at the immediate command boundary,
+whereas NO ACTION permits an equal final parent replacement. Defaults and local
+constraints cannot publish part of a chain. Successful counts/cursors include
+initiating rows only.
 Already checked commands are not rechecked under later ACL/COMMENT metadata.
 
 Child insertion acquires canonical KEY SHARE on the actual referenced committed
@@ -1325,10 +1337,17 @@ are retained/released/restored by normal Finish, Commit, rollback and savepoint
 paths; no FK queue, hidden transaction, SQL replay or fabricated row identity exists.
 Waits release metadata/replacement mutexes and retain the existing cancellation,
 deadline, deadlock and epoch/storage authority fences.
+Internally written children hold ROW EXCLUSIVE relation grants; read checks hold
+ROW SHARE. DELETE uses UPDATE-strength row grants, while assignment starts at
+NO KEY UPDATE and upgrades for eligible key changes. After waiting, actions
+reread the same physical child, skip a moved key and preserve latest unrelated
+payload. Stable-snapshot conflicts retain40001. Captured child admission never
+replaces the initiating target/view authority. Action-created grants transfer
+through existing prepared-transaction ownership and savepoint recovery.
 
 Definition admission retains SHARE ROW EXCLUSIVE on external parent relations;
 TYPE/dependency operations use the existing relation manager. Temporary cleanup
 and replacement do not export private FK graphs or change retained TEMP identities.
-Referential actions and deferrable/temporal/partition FKs remain capability
-boundaries; this is not PostgreSQL physical RI triggers or deferred events.
+Deferrable/temporal/partition FKs remain capability boundaries; this is not
+PostgreSQL physical RI triggers or deferred FK events.
 

@@ -42,17 +42,31 @@ func TestForeignKeyGrammar(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 	}
+	for _, tc := range []struct {
+		action string
+		value  ForeignKeyAction
+	}{
+		{"NO ACTION", ForeignKeyNoAction}, {"RESTRICT", ForeignKeyRestrict}, {"CASCADE", ForeignKeyCascade}, {"SET NULL", ForeignKeySetNull}, {"SET DEFAULT", ForeignKeySetDefault},
+	} {
+		q := "CREATE TABLE c(a INT,b INT,FOREIGN KEY(a,b) REFERENCES p ON UPDATE " + tc.action + " ON DELETE SET NULL(b,b))"
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		f := statements[0].(*CreateTable).Elements[2].ForeignKey
+		if f.UpdateAction != tc.value || f.DeleteAction != ForeignKeySetNull || len(f.DeleteColumns) != 2 || f.DeleteColumns[0].Text != "b" || f.DeleteColumns[0].Pos.Character <= 0 || f.DeleteColumns[1].Pos.Character <= f.DeleteColumns[0].Pos.Character {
+			t.Fatal(f)
+		}
+	}
 }
 
 func TestForeignKeyGrammarBoundaries(t *testing.T) {
 	for _, tc := range []struct{ suffix, token, message string }{
 		{"MATCH PARTIAL", "MATCH", "MATCH PARTIAL not yet implemented"},
-		{"ON DELETE CASCADE", "CASCADE", "foreign key referential actions are unsupported"},
-		{"ON UPDATE RESTRICT", "RESTRICT", "foreign key referential actions are unsupported"},
-		{"ON DELETE SET NULL", "SET", "foreign key referential actions are unsupported"},
-		{"ON UPDATE SET DEFAULT", "SET", "foreign key referential actions are unsupported"},
 		{"DEFERRABLE", "DEFERRABLE", "foreign key deferrability is unsupported"},
 		{"INITIALLY DEFERRED", "DEFERRED", "foreign key deferrability is unsupported"},
+		{"ON UPDATE SET NULL(a)", "ON UPDATE", "a column list with SET NULL is only supported for ON DELETE actions"},
+		{"ON UPDATE SET DEFAULT(a)", "ON UPDATE", "a column list with SET DEFAULT is only supported for ON DELETE actions"},
 	} {
 		q := `CREATE TABLE "é"(pid INT REFERENCES p ` + tc.suffix + ")"
 		statements, err := Parse(q)
@@ -78,6 +92,10 @@ func TestForeignKeyGrammarCompleteInput(t *testing.T) {
 		`CREATE TABLE c(a INT REFERENCES p ON DELETE NO nonsense)`,
 		`CREATE TABLE c(a INT REFERENCES p MATCH "full")`,
 		`CREATE TABLE c(a INT REFERENCES p(id,))`,
+		`CREATE TABLE c(a INT REFERENCES p ON DELETE SET NULL())`,
+		`CREATE TABLE c(a INT REFERENCES p ON DELETE CASCADE(a))`,
+		`CREATE TABLE c(a INT REFERENCES p ON DELETE CASCADE ON DELETE SET NULL)`,
+		`CREATE TABLE c(a INT REFERENCES p ON UPDATE CASCADE ON UPDATE RESTRICT)`,
 	} {
 		statements, err := Parse(q)
 		var d *sqlstate.Error

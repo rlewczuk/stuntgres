@@ -297,9 +297,12 @@ func (s *StatementScope) captureExclusionScan(ref ObjectRef, binding *uniqueWrit
 	if ref.Epoch != e.state.epoch || view.state != binding.catalog {
 		return exclusionScan{}, ErrCatalogReplaced
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
 		return exclusionScan{}, err
+	}
+	if admission := s.foreignActionAdmissions[ref.Address]; admission != nil && admission.mutated {
+		auth = foreignActionOwner(auth, admission.relation.owner)
 	}
 	auth.catalog = view
 	root := e.indexRoots[index.address]
@@ -518,6 +521,9 @@ func (s *StatementScope) probeExclusionRow(ref ObjectRef, values []sqltype.Value
 			event := exclusionEvent{parent: ref, index: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: index.address}, constraint: c.OID, row: candidate.row, version: candidate.version}
 			if !slices.Contains(s.exclusionModes.events, event) {
 				s.exclusionModes.events = append(slices.Clone(s.exclusionModes.events), event)
+				if s.foreignActionsSettling {
+					s.foreignActionExclusionAdded = true
+				}
 			}
 		}
 	}

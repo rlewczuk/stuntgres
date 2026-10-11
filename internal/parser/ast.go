@@ -334,12 +334,31 @@ type UniqueConstraint struct {
 // ForeignKeyConstraint retains one declaration for column and table syntax.
 // Column REFERENCES receives its local column when the CREATE binder walks it.
 type ForeignKeyConstraint struct {
-	Name       Identifier
-	Columns    []Identifier
-	Target     ObjectName
-	Referenced []Identifier
-	Full       bool
-	Pos        Position
+	Name          Identifier
+	Columns       []Identifier
+	Target        ObjectName
+	Referenced    []Identifier
+	Full          bool
+	Pos           Position
+	UpdateAction  ForeignKeyAction
+	DeleteAction  ForeignKeyAction
+	DeleteColumns []Identifier
+}
+
+// The zero value is the SQL default, independently for each event direction.
+type ForeignKeyAction uint8
+
+const (
+	ForeignKeyNoAction ForeignKeyAction = iota
+	ForeignKeyRestrict
+	ForeignKeyCascade
+	ForeignKeySetNull
+	ForeignKeySetDefault
+)
+
+type foreignActionClause struct {
+	action  ForeignKeyAction
+	columns []Identifier
 }
 
 // OnCommitAction is stored with a temporary table's transactional descriptor.

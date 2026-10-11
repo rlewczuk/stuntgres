@@ -25,6 +25,7 @@ package parser
  check *CheckConstraint
  unique *UniqueConstraint
  foreignKey *ForeignKeyConstraint
+ foreignAction foreignActionClause
  usingIndex *UsingIndexConstraint
  exclusion *ExclusionConstraint
  exclusionElements []ExclusionElement
@@ -421,9 +422,10 @@ package parser
 %type <element> element
 %type <check> check_constraint
 %type <unique> unique_constraint column_unique primary_constraint column_primary
-%type <foreignKey> foreign_key foreign_reference foreign_body foreign_definition
-%type <identifiers> foreign_columns foreign_columns_optional
-%type <tok> foreign_match foreign_match_optional foreign_action foreign_actions foreign_update foreign_delete
+%type <foreignKey> foreign_key foreign_reference foreign_body foreign_definition foreign_actions
+%type <identifiers> foreign_columns foreign_columns_optional foreign_set_columns
+%type <tok> foreign_match foreign_match_optional
+%type <foreignAction> foreign_action foreign_update foreign_delete
 %type <tok> primary_head primary_modifier
 %type <usingIndex> using_index_constraint
 %type <identifiers> primary_columns
@@ -1272,24 +1274,25 @@ foreign_columns: view_names {$$=$1}
 foreign_reference: REFERENCES relation_name foreign_columns_optional {$$=&ForeignKeyConstraint{Target:$2,Referenced:$3,Pos:$1.pos}} ;
 foreign_match_optional: /* empty */ {$$=lexeme{}}
  | MATCH foreign_match {if $2.text=="partial"{sqllex.(*lexer).deferUnsupported($1,"MATCH PARTIAL not yet implemented")};$$=$2} ;
-foreign_update: ON UPDATE foreign_action {$$=$1} ;
-foreign_delete: ON DELETE foreign_action {$$=$1} ;
-foreign_actions: /* empty */ {$$=lexeme{}}
- | foreign_update {$$=$1}
- | foreign_delete {$$=$1}
- | foreign_update foreign_delete {$$=$1}
- | foreign_delete foreign_update {$$=$1} ;
-foreign_body: foreign_reference foreign_match_optional foreign_actions {$$=$1;$$.Full=$2.text=="full"} ;
+foreign_update: ON UPDATE foreign_action {if len($3.columns)!=0 {message:="a column list with SET NULL is only supported for ON DELETE actions";if $3.action==ForeignKeySetDefault{message="a column list with SET DEFAULT is only supported for ON DELETE actions"};sqllex.(*lexer).deferUnsupported($1,message)};$$=$3} ;
+foreign_delete: ON DELETE foreign_action {$$=$3} ;
+foreign_actions: /* empty */ {$$=&ForeignKeyConstraint{}}
+ | foreign_update {$$=&ForeignKeyConstraint{UpdateAction:$1.action}}
+ | foreign_delete {$$=&ForeignKeyConstraint{DeleteAction:$1.action,DeleteColumns:$1.columns}}
+ | foreign_update foreign_delete {$$=&ForeignKeyConstraint{UpdateAction:$1.action,DeleteAction:$2.action,DeleteColumns:$2.columns}}
+ | foreign_delete foreign_update {$$=&ForeignKeyConstraint{DeleteAction:$1.action,DeleteColumns:$1.columns,UpdateAction:$2.action}} ;
+foreign_body: foreign_reference foreign_match_optional foreign_actions {$$=$1;$$.Full=$2.text=="full";$$.UpdateAction=$3.UpdateAction;$$.DeleteAction=$3.DeleteAction;$$.DeleteColumns=$3.DeleteColumns} ;
 foreign_definition: foreign_body {$$=$1}
  | foreign_definition NOT_DEFERRABLE_LA DEFERRABLE {$$=$1}
  | foreign_definition DEFERRABLE {sqllex.(*lexer).deferUnsupported($2,"foreign key deferrability is unsupported");$$=$1}
  | foreign_definition INITIALLY name {if $3.keyword==nil||($3.text!="immediate"&&$3.text!="deferred"){sqllex.(*lexer).syntax($3);return 1};if $3.text=="deferred"{sqllex.(*lexer).deferUnsupported($3,"foreign key deferrability is unsupported")};$$=$1} ;
 foreign_match: FULL | name {if $1.keyword==nil||($1.text!="simple"&&$1.text!="partial"){sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
-foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).syntax($2);return 1};$$=$1}
- | RESTRICT {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1}
- | CASCADE {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1}
- | SET NULL {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1}
- | SET DEFAULT {sqllex.(*lexer).deferUnsupported($1,"foreign key referential actions are unsupported");$$=$1} ;
+foreign_set_columns: /* empty */ {$$=nil} | '(' view_names ')' {$$=$2} ;
+foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).syntax($2);return 1};$$=foreignActionClause{action:ForeignKeyNoAction}}
+ | RESTRICT {$$=foreignActionClause{action:ForeignKeyRestrict}}
+ | CASCADE {$$=foreignActionClause{action:ForeignKeyCascade}}
+ | SET NULL foreign_set_columns {$$=foreignActionClause{action:ForeignKeySetNull,columns:$3}}
+ | SET DEFAULT foreign_set_columns {$$=foreignActionClause{action:ForeignKeySetDefault,columns:$3}} ;
 foreign_key: FOREIGN name '(' foreign_columns ')' foreign_definition {if $2.keyword==nil||$2.text!="key"{sqllex.(*lexer).syntax($2);return 1};$$=$6;$$.Columns=$4;$$.Pos=$1.pos}
  | CONSTRAINT name FOREIGN name '(' foreign_columns ')' foreign_definition {if $4.keyword==nil||$4.text!="key"{sqllex.(*lexer).syntax($4);return 1};$$=$8;$$.Name=Identifier{Text:$2.text,Pos:$2.pos};$$.Columns=$6;$$.Pos=$3.pos} ;
 using_index_constraint: UNIQUE USING INDEX name {$$=&UsingIndexConstraint{Index:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos,KindPos:$1.pos}}

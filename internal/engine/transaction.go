@@ -338,23 +338,29 @@ type StatementScope struct {
 	initialParameters              []sqltype.Usage
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
-	pgRegex                sqltype.PGRegexExecution
-	quoteCaptures          *quoteCaptureCandidate // sealed before executor/source publication
-	catalog                *catalogChanges
-	catalogAuthority       *catalogAuthority
-	projectedRoots         bool
-	foreignKeyTargets      []ObjectRef
-	searchPathResults      [2]sqltype.Value
-	commentCatalog         CatalogRead
-	commentRoles           RoleRead
-	deparseAuth            AuthorizationView
-	visibilityCatalog      CatalogRead
-	visibilityDemand       bool
-	visibilityRelationPath []ObjectAddress
-	visibilityOtherPath    []ObjectAddress
-	identity               identitySnapshot
-	currentSchemaResult    sqltype.Value
-	deparsePath            []ObjectAddress
+	pgRegex                     sqltype.PGRegexExecution
+	quoteCaptures               *quoteCaptureCandidate // sealed before executor/source publication
+	catalog                     *catalogChanges
+	catalogAuthority            *catalogAuthority
+	projectedRoots              bool
+	foreignKeyTargets           []ObjectRef
+	foreignActionAdmissions     map[ObjectAddress]*foreignActionAdmission
+	foreignActionTransitions    []foreignActionTransition
+	foreignActionsSettling      bool
+	foreignActionExclusionAdded bool // a new event admitted while settling actions
+	foreignActionAuth           *AuthorizationView
+	foreignActionJobs           []foreignKeyJob
+	searchPathResults           [2]sqltype.Value
+	commentCatalog              CatalogRead
+	commentRoles                RoleRead
+	deparseAuth                 AuthorizationView
+	visibilityCatalog           CatalogRead
+	visibilityDemand            bool
+	visibilityRelationPath      []ObjectAddress
+	visibilityOtherPath         []ObjectAddress
+	identity                    identitySnapshot
+	currentSchemaResult         sqltype.Value
+	deparsePath                 []ObjectAddress
 }
 
 type WriteStage struct {

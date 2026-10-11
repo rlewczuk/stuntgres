@@ -222,10 +222,11 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 }
 
 type foreignKeyJob struct {
-	child, parent, index *relationDescriptor
-	definition           foreignKeyConstraint
-	comparisons          []foreignKeyComparison
-	childKey             []sqltype.Value // Reused across final rows and waited probes.
+	child, parent, index   *relationDescriptor
+	definition             foreignKeyConstraint
+	comparisons            []foreignKeyComparison
+	childKey               []sqltype.Value // Reused across final rows and waited probes.
+	deletePlan, updatePlan *foreignActionPlan
 }
 
 func (s *StatementScope) checkForeignKeys() error {
@@ -233,97 +234,34 @@ func (s *StatementScope) checkForeignKeys() error {
 		return nil
 	}
 	e := s.op.session.Engine()
-	e.mu.Lock()
-	changes := s.owner.catalog
-	if s.catalog != nil {
-		changes = s.catalog
-	}
-	view := e.privateCatalogLocked(changes)
-	var jobs []foreignKeyJob
-	var refs []ObjectRef
-	for _, descriptor := range view.state.descriptors {
-		child, ok := descriptor.(*relationDescriptor)
-		if !ok {
-			continue
-		}
-		for _, f := range child.foreignKeys {
-			if len(s.stage.rows[child.address]) == 0 && len(s.stage.rows[f.Target]) == 0 && s.stage.deletes[f.Target] == nil {
-				continue
-			}
-			parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
-			if !ok {
-				e.mu.Unlock()
-				return ErrCatalogReplaced
-			}
-			index, ok := view.state.descriptors[f.Index].(*relationDescriptor)
-			if !ok {
-				e.mu.Unlock()
-				return ErrCatalogReplaced
-			}
-			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
-			for _, a := range []ObjectAddress{child.address, parent.address} {
-				ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: a}
-				if !slices.Contains(refs, ref) {
-					refs = append(refs, ref)
-				}
-			}
-		}
-	}
-	e.mu.Unlock()
+	jobs := s.foreignActionJobs
 	if len(jobs) == 0 {
 		return nil
-	}
-	slices.SortFunc(jobs, func(a, b foreignKeyJob) int { return cmp.Compare(a.definition.OID, b.definition.OID) })
-	slices.SortFunc(refs, func(a, b ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
-	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, relationRowShare, nil); err != nil {
-			return err
-		}
 	}
 	auth, err := s.op.Authorization()
 	if err != nil {
 		return err
 	}
 	e.mu.Lock()
+	changes := s.owner.catalog
+	if s.catalog != nil {
+		changes = s.catalog
+	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]
-		f := job.definition
-		child, ok := auth.catalog.state.descriptors[job.child.address].(*relationDescriptor)
-		if !ok {
-			return ErrCatalogReplaced
-		}
-		parent, ok := auth.catalog.state.descriptors[job.parent.address].(*relationDescriptor)
-		if !ok {
-			return ErrCatalogReplaced
-		}
-		index, ok := auth.catalog.state.descriptors[job.index.address].(*relationDescriptor)
-		if !ok {
-			return ErrCatalogReplaced
-		}
-		found := false
-		for _, current := range child.foreignKeys {
-			if current.OID != f.OID {
-				continue
-			}
-			if current.Target != f.Target || current.Index != f.Index || current.Full != f.Full || !slices.Equal(current.Attributes, f.Attributes) || !slices.Equal(current.Referenced, f.Referenced) {
-				return ErrCatalogReplaced
-			}
-			f = current
-			job.definition = current
-			found = true
-			break
-		}
-		if !found || index.sqlIndex == nil || index.sqlIndex.parent != parent.address {
-			return ErrCatalogReplaced
-		}
-		job.child, job.parent, job.index = child, parent, index
-		job.comparisons, err = bindForeignKeyComparison(auth.catalog, job.child, job.parent, job.index, f)
-		if err != nil {
+		if err = refreshForeignActionJob(auth.catalog, job); err != nil {
 			return err
 		}
-		job.childKey = make([]sqltype.Value, len(job.comparisons))
+		f := job.definition
+		childAuth, parentAuth := auth, auth
+		if admission := s.foreignActionAdmissions[job.child.address]; admission != nil && admission.mutated {
+			childAuth = foreignActionOwner(auth, admission.relation.owner)
+		}
+		if admission := s.foreignActionAdmissions[job.parent.address]; admission != nil && admission.mutated {
+			parentAuth = foreignActionOwner(auth, admission.relation.owner)
+		}
 		childRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: job.child.address}
 		parentRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: f.Target}
 		parentRows, err := s.captureForeignKeyRows(parentRef, f.Index)
@@ -341,10 +279,22 @@ func (s *StatementScope) checkForeignKeys() error {
 					continue
 				}
 			}
+			if previous, exists := children.previous(row.row); exists {
+				unchanged := true
+				for _, comparison := range job.comparisons {
+					if !sqltype.SameDatum(previous.values[comparison.child], row.values[comparison.child]) {
+						unchanged = false
+						break
+					}
+				}
+				if unchanged {
+					continue
+				}
+			}
 			any, all := foreignKeyNullState(job.comparisons, row.values)
 			if any {
 				if f.Full && !all {
-					return foreignKeyDiagnostic(s.op.Context(), auth, job.child, job.parent, f, row.values, false, true, s.output)
+					return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.values, false, true, s.output)
 				}
 				continue
 			}
@@ -353,7 +303,7 @@ func (s *StatementScope) checkForeignKeys() error {
 				return err
 			}
 			if !found {
-				return foreignKeyDiagnostic(s.op.Context(), auth, job.child, job.parent, f, row.values, false, false, s.output)
+				return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.values, false, false, s.output)
 			}
 		}
 		checkOld := func(old rowVersion) error {
@@ -366,17 +316,13 @@ func (s *StatementScope) checkForeignKeys() error {
 				if err != nil || found {
 					return false, err
 				}
-				return false, foreignKeyDiagnostic(s.op.Context(), auth, job.child, job.parent, f, old.values, true, false, s.output)
+				return false, foreignKeyDiagnostic(s.op.Context(), parentAuth, job.child, job.parent, f, old.values, true, false, s.output)
 			})
 		}
 		for _, row := range parentRows.staged {
 			old, ok := parentRows.previous(row.row)
 			if ok {
-				unchanged, err := foreignKeyParentUnchanged(s.op.Context(), job.comparisons, old.values, row.values, s.input)
-				if err != nil {
-					return err
-				}
-				if unchanged {
+				if foreignActionSameKey(job.comparisons, old.values, row.values) {
 					continue
 				}
 				if err := checkOld(old); err != nil {

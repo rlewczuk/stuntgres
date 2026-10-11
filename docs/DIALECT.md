@@ -3015,9 +3015,12 @@ DELETE/tombstone history. Restore's whitelist stays unchanged. Self/foreign cata
 replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
-a row cannot violate supported NOT NULL, but parent deletion enforces immediate
-NO ACTION foreign keys against the final command image. Triggers, CTE and
-recursive inheritance targets remain excluded; leaf child DELETE works.
+a row cannot violate supported NOT NULL, but parent deletion settles immediate
+NO ACTION/RESTRICT/CASCADE/SET NULL/SET DEFAULT foreign keys and action-created
+child constraints against one atomic command image. DELETE SET lists select
+referencing attributes; UPDATE lists remain unsupported. Initiating RETURNING
+and counts do not include internally changed rows. Triggers, CTE and recursive
+inheritance targets remain excluded; leaf child DELETE works.
 Positioned `DELETE WHERE CURRENT OF cursor_name` uses the current physical
 cursor occurrence with normal USING/RETURNING and transaction semantics,
 not value matching.
