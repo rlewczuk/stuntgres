@@ -8,7 +8,7 @@ func (s *StatementScope) acquireViewSources() error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	d, _ := e.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
-	hasView := d != nil && d.relationKind == viewRelation
+	hasView := d != nil && (d.relationKind == viewRelation || s.materializedRefresh && d.relationKind == materializedViewRelation)
 	for _, leaf := range s.querySources {
 		if leaf.relation.relationKind == viewRelation {
 			hasView = true
@@ -32,6 +32,9 @@ func (s *StatementScope) acquireViewSources() error {
 		if ref.owner != e.owner || ref.Epoch != e.state.epoch || !ok {
 			return ErrCatalogReplaced
 		}
+		if s.materializedRefresh && !visited {
+			s.materializedSources = append(s.materializedSources, d)
+		}
 		admitted := ref == s.lockedRef
 		admittedMode := relationLockMode(0)
 		for _, leaf := range s.querySources {
@@ -43,7 +46,7 @@ func (s *StatementScope) acquireViewSources() error {
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
 			refs = append(refs, ref)
 		}
-		if d.relationKind == viewRelation {
+		if d.relationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.relationKind == materializedViewRelation {
 			for i, leaf := range d.view.sources {
 				if err := visit(leaf.ref, viewLeafRowMark(d.view, i, queryRowMark{mode: mode}).mode); err != nil {
 					return err
@@ -72,7 +75,19 @@ func (s *StatementScope) acquireViewSources() error {
 	if err != nil {
 		return err
 	}
-	return s.acquireBoundViewRelationModes(refs, seen)
+	if err := s.acquireBoundViewRelationModes(refs, seen); err != nil {
+		return err
+	}
+	if s.materializedRefresh {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		for _, observed := range s.materializedSources {
+			if e.state.descriptors[observed.Address()] != observed {
+				return ErrCatalogReplaced
+			}
+		}
+	}
+	return nil
 }
 
 func (s *StatementScope) acquireBoundViewRelations(refs []ObjectRef) error {

@@ -448,7 +448,14 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if s.transactions != nil {
 		view = e.privateCatalogLocked(s.transactions.catalog)
 	}
-	return AuthorizationView{engine: e, catalog: view, roles: r, state: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}, nil
+	identity := a.state
+	if op.materializedOwner != (PrincipalRef{}) {
+		if _, err := r.Descriptor(op.materializedOwner); err != nil {
+			return AuthorizationView{}, err
+		}
+		identity.CurrentUser = op.materializedOwner
+	}
+	return AuthorizationView{engine: e, catalog: view, roles: r, state: identity, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}, nil
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {

@@ -455,6 +455,7 @@ admission; restored defaults retain typed NULL and deferred errors.
 ```sql
 CREATE MATERIALIZED VIEW [IF NOT EXISTS] name [(column_names)]
   AS query [WITH [NO] DATA];
+REFRESH MATERIALIZED VIEW name [WITH [NO] DATA];
 DROP MATERIALIZED VIEW [IF EXISTS] name [, ...] [RESTRICT | CASCADE];
 ```
 
@@ -474,15 +475,29 @@ are unchanged, including after failure.
 Reads require the materialization's privileges, not renewed source privileges,
 and do not evaluate its definition. Unpopulated demanded reads fail55000 with
 `materialized view "<name>" has not been populated` and the PostgreSQL REFRESH
-hint; REFRESH itself is not supported. Valid-owner INSERT/UPDATE/DELETE fail42809
+hint. REFRESH default/WITH DATA reruns the frozen definition and atomically
+replaces the complete stored bag; repeated refresh never appends rows. WITH NO
+DATA clears storage without running or locking the producer's sources. REFRESH
+has affected count zero and no result columns. Protocol Prepare is syntax-only;
+execution reacquires the target and current MAINTAIN authority. Population runs
+as the MV owner with restricted search_path, while SESSION_USER and caller
+settings are unchanged. Native eager cursors retain their captured old rows and
+metadata across DATA and NO DATA. Producer failure/cancellation before publication
+preserves prior rows/population. Valid-owner INSERT/UPDATE/DELETE fail42809
 `cannot change materialized view "<name>"`; semantic, ACL and read-only errors
 retain their ordinary precedence. Row-lock requests fail42809.
 Grouped DROP preflights every target before one publication. RESTRICT/CASCADE
 retain ordinary frozen-definition dependency behavior without dropping sources.
 
-No runtime parameters, temporary MV/source, OR REPLACE, MV ALTER/index/REFRESH,
+No runtime parameters, temporary MV/source, OR REPLACE, MV ALTER/index,
 storage options, access methods or tablespaces are added. Existing producer and
 explicit-transaction utility exclusions remain. See [lifecycle and persistence](TABLES.md#materialized-views--change-note).
+Nonconcurrent refresh takes target ACCESS EXCLUSIVE and producer ACCESS SHARE
+locks. Native explicit-transaction refresh retains the utility0A000 boundary;
+read-only25006 precedes target lookup. PostgreSQL transactional refresh/rollback
+is a separately tested server behavior. CONCURRENTLY is an explicit native0A000
+capability boundary, not a successful no-op. WAL, heap/relfilenode/index swap,
+crash durability and pg_dump remain external PostgreSQL mechanisms.
 
 ## Views
 

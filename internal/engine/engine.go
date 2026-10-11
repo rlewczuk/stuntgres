@@ -276,6 +276,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.RefreshMaterializedView:
+		return StatementDescription{}, materializedRefreshCapability(s)
 	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:

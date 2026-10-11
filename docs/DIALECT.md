@@ -1062,9 +1062,15 @@ qualification. Dump uses that renderer with fully qualified identities so native
 replay preserves the definition's presentation without synthetic source aliases.
 MVs do not appear as
 ordinary pg_tables/pg_views rows. No full catalogs, physical statistics, public
-MV indexes, ALTER or REFRESH are added. Native persistence preserves exact stale
-rows privately; PostgreSQL dump-script replay deliberately restores only
-unpopulated definitions. See [native controls](TABLES.md#materialized-views--change-note).
+MV indexes or ALTER are added. Nonconcurrent REFRESH default/WITH DATA atomically
+replaces logical stored results; WITH NO DATA leaves demanded reads55000.
+Caller MAINTAIN authorizes the target; the frozen producer runs as MV owner.
+Native explicit utility transactions and CONCURRENTLY remain excluded.
+Native persistence preserves exact last-refreshed stale rows privately;
+PostgreSQL dump-script replay restores unpopulated definitions and explicit
+subsequent REFRESH computes replayed base rows. Heap swap, WAL/index rebuilding,
+crash durability and pg_dump remain external PostgreSQL mechanisms.
+See [native controls](TABLES.md#materialized-views--change-note).
 The bounded surface does not add pg_namespace or pg_attribute query
 providers: exact schema/owner names come from pg_matviews, while existing
 pg_class/pg_rewrite identities expose namespace/owner relationships and rule
@@ -5144,7 +5150,7 @@ cross-kind shadowing, and their definitions roundtrip through native Dump/Restor
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views follow the
 [bounded supported surface](SQL.md#materialized-views--change-note), without
-temporary materializations/sources, MV ALTER/index or REFRESH.
+temporary materializations/sources, MV ALTER/index or concurrent refresh.
 Builtin/catalog row identities stay lookup-only; supported user rows have
 concrete codecs. TEMP tables use the ordinary table path.
 

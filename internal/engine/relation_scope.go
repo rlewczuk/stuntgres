@@ -11,6 +11,11 @@ import (
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
 	switch stmt.(type) {
+	case *parser.RefreshMaterializedView:
+		if !execute {
+			return nil
+		}
+		return s.acquireMaterializedRefresh(stmt.(*parser.RefreshMaterializedView))
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
 		if !execute {
 			return nil

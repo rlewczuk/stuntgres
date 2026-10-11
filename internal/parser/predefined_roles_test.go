@@ -16,7 +16,6 @@ func TestPredefinedUnavailableSyntax(t *testing.T) {
 		{"VACUUM t", "statement is unsupported", "1"},
 		{"ANALYZE t", "statement is unsupported", "1"},
 		{"CLUSTER t", "statement is unsupported", "1"},
-		{"REFRESH MATERIALIZED VIEW t", "statement is unsupported", "1"},
 	} {
 		statements, err := Parse(tc.query)
 		var diagnostic *sqlstate.Error

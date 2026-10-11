@@ -906,7 +906,9 @@ ORDER identities. Complex frozen namespaces can require canonical synthetic
 aliases instead of PostgreSQL's private cosmetic choices. The documented nested
 USING/output-override fidelity exception above applies to these exports too.
 No definition is evaluated; dormant errors and sequence draws remain dormant.
-Materialized-view DDL remains outside the native dialect.
+Permanent materialized views support bounded CREATE/DROP and nonconcurrent
+REFRESH through the common frozen-query pipeline. Deparsing does not execute
+the producer; REFRESH does. MV ALTER/index/CONCURRENTLY remain excluded.
 
 ```sh
 make check RUN='^TestReferenceDeparseRelations'

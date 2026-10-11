@@ -133,7 +133,8 @@ type Operation struct {
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
 	restoreCommentAuthority bool
-	materializedPopulation  bool // Operation-local execution path, never session settings.
+	materializedPopulation  bool         // Operation-local execution path, never session settings.
+	materializedOwner       PrincipalRef // Population-only effective principal; session_user is unchanged.
 	restoreDefaultReplay    bool
 	discardRoleReset        RoleState // nonzero Authenticated only during DISCARD ALL publication
 }

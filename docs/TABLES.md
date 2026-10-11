@@ -32,6 +32,16 @@ The definition's source/attribute/type dependencies survive stale data and sourc
 renames. Ordinary views over a materialization read its stored rows, not its base.
 Public INSERT/UPDATE/DELETE never populate or modify it.
 
+`REFRESH MATERIALIZED VIEW saved [WITH DATA]` atomically replaces stored rows by
+executing the frozen definition once as its owner. The caller needs MAINTAIN,
+not SELECT on the target or base. WITH NO DATA atomically clears population
+without source queries, source privileges or source locks; empty WITH DATA is
+still readable. Failed/canceled population retains old storage/population.
+Target ACCESS EXCLUSIVE conflicts with readers and refreshes; source reads use
+ACCESS SHARE. Native eager cursors keep immutable captured rows/metadata.
+Native explicit utility transactions remain excluded; PostgreSQL transactional
+refresh and rollback are separately expected server complements.
+
 Native Dump writes owner-bearing canonical CREATE MATERIALIZED VIEW ... WITH NO
 DATA in dependency order, then captures exact stored rows at the dump frontier.
 Definition SQL uses the existing identity-bound presentation renderer with
@@ -59,8 +69,12 @@ This import-only rule does not change ordinary SQL's cast or assignment semantic
 
 PostgreSQL ignores these comments. Replaying the actual dump script there
 restores schema and frozen definitions with all MVs unpopulated, not native stale
-rows. There is no public DML bypass, REFRESH or reconstruction from current base
-data. See [syntax and exclusions](SQL.md#materialized-views--change-note).
+rows. An explicit subsequent REFRESH recomputes from the replayed base. Native
+Dump/Restore instead retains the last successful refreshed rows even if base
+data subsequently diverged; Restore never reevaluates the query and its SQL
+whitelist still rejects REFRESH. There is no public DML bypass. Heap/relfilenode
+swap, WAL, index rebuilding, crash durability and pg_dump are external-only.
+See [syntax and exclusions](SQL.md#materialized-views--change-note).
 
 ## CREATE-time inheritance — change note
 

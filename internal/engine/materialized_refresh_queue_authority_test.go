@@ -1,0 +1,116 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"maps"
+	"stuntgres/internal/parser"
+	"testing"
+	"time"
+)
+
+func TestMaterializedRefreshQueuedAuthority(t *testing.T) {
+	for _, phase := range []string{"owner", "columns", "attributes", "rowtype", "definition", "ref", "epoch"} {
+		t.Run(phase, func(t *testing.T) {
+			e := New()
+			d := refreshUnitRelation(t, e)
+			oldStorage := e.storage[d.address]
+			originalEpoch := e.state.epoch
+			holder := sessionStart(t, e, nil)
+			tx := transactionBegin(t, holder)
+			ref := ObjectRef{owner: e.owner, Epoch: originalEpoch, Address: d.address}
+			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			scope := refreshUnitScope(t, e, ctx)
+			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}
+			done := make(chan error, 1)
+			go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
+			joined := false
+			defer func() {
+				cancel()
+				e.mu.Lock()
+				e.state.epoch = originalEpoch
+				e.mu.Unlock()
+				e.locks.end(holder.transactions.ticket)
+				if !joined {
+					select {
+					case <-done:
+					case <-time.After(5 * time.Second):
+						t.Error("queued authority worker did not join")
+					}
+				}
+			}()
+			lockPending(t, e, 1)
+			// Mutate authoritative immutable catalog roots while the actual request
+			// is pending. These are package fixtures, not added SQL ALTER capabilities.
+			e.mu.Lock()
+			nextState := *e.state
+			nextState.descriptors = maps.Clone(e.state.descriptors)
+			nextState.names = maps.Clone(e.state.names)
+			next := *d
+			next.revision++
+			expectedAddress := d.address
+			expectedStorage := oldStorage
+			switch phase {
+			case "owner":
+				owner, _ := refreshUnitPrincipals(e)
+				next.owner = owner
+			case "columns":
+				next.columns = append([]ColumnDescriptor(nil), d.columns...)
+				next.columns[0].Name = "changed_shape"
+			case "attributes":
+				next.attributes = append([]int32(nil), d.attributes...)
+				next.attributes[0]++
+			case "rowtype":
+				next.rowType++
+			case "definition":
+				definition := *d.view
+				definition.invoker = !definition.invoker
+				next.view = &definition
+			case "ref":
+				next.address.ObjectID += 100000
+				expectedAddress = next.address
+				delete(nextState.descriptors, d.address)
+				nextState.names[NameKey{ClassID: d.address.ClassID, Namespace: d.namespace, Name: d.name}] = next.address
+				storage := *oldStorage
+				expectedStorage = &storage
+				e.storage = maps.Clone(e.storage)
+				delete(e.storage, d.address)
+				e.storage[next.address] = expectedStorage
+			case "epoch":
+				nextState.epoch++
+			}
+			nextState.descriptors[expectedAddress] = &next
+			e.state = &nextState
+			before, rowCounter, versionCounter := e.commitSeq, e.nextRow, e.nextVersion
+			e.mu.Unlock()
+			e.locks.end(holder.transactions.ticket)
+			var err error
+			select {
+			case err = <-done:
+				joined = true
+			case <-ctx.Done():
+				t.Fatal("queued authority join", ctx.Err())
+			}
+			if !errors.Is(err, ErrCatalogReplaced) {
+				t.Fatal("changed frozen authority was admitted", phase, err)
+			}
+			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ObjectRef{}) || len(scope.materializedSources) != 0 {
+				t.Fatal("rejected queue captured or retargeted a producer")
+			}
+			if e.state.descriptors[expectedAddress] != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.populated {
+				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
+			}
+			// Restore only the fixture epoch before normal session/transaction cleanup.
+			e.mu.Lock()
+			e.state.epoch = originalEpoch
+			e.mu.Unlock()
+			scope.Finish(err)
+			transactionEnd(t, holder, tx, false)
+			lockEmpty(t, e)
+		})
+	}
+}

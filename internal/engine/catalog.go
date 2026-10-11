@@ -113,8 +113,8 @@ type relationDescriptor struct {
 	populated            bool // Independent of stored row count, including populated-empty MVs.
 	virtualView          bool
 	sqlIndex             *indexDefinition
-	partition          *partitionDefinition
-	membership         *partitionMembership
+	partition            *partitionDefinition
+	membership           *partitionMembership
 	rowType              sqltype.ID
 }
 
@@ -475,10 +475,11 @@ type CatalogStage struct {
 	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
-	initialTables map[ObjectAddress]*relationStorage
-	initialTx     TxRef
-	querySources  []Descriptor
-	likeSources   []Descriptor // CREATE-only exact descriptor captures, not dependencies.
+	initialTables           map[ObjectAddress]*relationStorage
+	initialTx               TxRef
+	materializedReplacement *materializedReplacement
+	querySources            []Descriptor
+	likeSources             []Descriptor // CREATE-only exact descriptor captures, not dependencies.
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -782,6 +783,9 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	if err := s.validateInitialTables(); err != nil {
 		return nil, err
 	}
+	if err := s.validateMaterializedReplacement(); err != nil {
+		return nil, err
+	}
 	e.mu.Lock()
 	for address, descriptor := range s.descriptors {
 		typ, ok := descriptor.(*typeDescriptor)
@@ -818,6 +822,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 			e.mu.Unlock()
 			return nil, CatalogConflict{}
 		}
+	}
+	if err := s.materializedReplacementCurrent(e.state, e.storage); err != nil {
+		e.mu.Unlock()
+		return nil, err
 	}
 	e.mu.Unlock()
 	var view CatalogRead
@@ -979,6 +987,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
+		if err := s.materializedReplacementCurrent(current, currentStorage); err != nil {
+			e.mu.Unlock()
+			return ChangeSet{}, err
+		}
 		for address, candidate := range s.indexCandidates {
 			index, ok := s.descriptors[address].(*relationDescriptor)
 			if !ok || index.sqlIndex == nil || !candidate.matches(currentStorage[index.sqlIndex.parent]) {
@@ -1039,6 +1051,9 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		for a, shape := range s.rowShapes {
 			storage[a] = shape.replacement
+		}
+		if replacement := s.materializedReplacement; replacement != nil {
+			storage[replacement.original.address] = replacement.storage
 		}
 		for k, a := range s.names {
 			next.names[k] = a
@@ -1166,6 +1181,13 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
+		if err := s.materializedReplacementCurrent(e.state, e.storage); err != nil {
+			if op != nil {
+				op.session.mu.Unlock()
+			}
+			e.mu.Unlock()
+			return ChangeSet{}, err
+		}
 		err := p.ctx.Err()
 		if err == nil && op != nil {
 			err = publicationOperationLocked(e, op)
@@ -1191,6 +1213,16 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				err = fmt.Errorf("stuntgres: authorization changed before publication")
 			}
 		}
+		if err == nil && s.materializedReplacement != nil && s.authSession != nil {
+			if op == nil || s.authSession != op.session {
+				s.authSession.mu.Lock()
+			}
+			auth := AuthorizationView{engine: e, catalog: CatalogRead{e, e.state}, roles: RoleRead{e, e.roles}, state: s.authSession.authorization.state}
+			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: MaintainPrivilege})
+			if op == nil || s.authSession != op.session {
+				s.authSession.mu.Unlock()
+			}
+		}
 		if err == nil {
 			err = p.ctx.Err()
 		}
@@ -1206,7 +1238,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				err = next.advanceNamespaceGeneration()
 			}
 		}
-		if err == nil && len(s.initialTables) != 0 && e.commitSeq == CommitSeq(math.MaxUint64) {
+		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.commitSeq == CommitSeq(math.MaxUint64) {
 			err = fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if err == nil && s.initialTx != (TxRef{}) {
@@ -1224,13 +1256,18 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 					}
 				}
 			}
-			if len(s.initialTables) != 0 {
+			if len(s.initialTables) != 0 || s.materializedReplacement != nil {
 				frontier := e.commitSeq + 1
 				for _, initial := range s.initialTables {
 					for i := range initial.versions {
 						initial.versions[i].born = frontier
 					}
 					initial.generation = 1
+				}
+				if replacement := s.materializedReplacement; replacement != nil {
+					for i := range replacement.storage.versions {
+						replacement.storage.versions[i].born = frontier
+					}
 				}
 				e.commitSeq = frontier
 			}

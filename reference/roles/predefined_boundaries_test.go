@@ -20,7 +20,7 @@ func predefinedMissingFunction(s *membershipScenario, q, signature string) {
 
 func predefinedNativeBoundaries(s *membershipScenario) {
 	s.t.Helper()
-	for _, q := range []string{"CHECKPOINT", "COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'", "COPY t TO PROGRAM 'false'", "VACUUM t", "ANALYZE t", "CLUSTER t", "REFRESH MATERIALIZED VIEW pdef_ad.mv"} {
+	for _, q := range []string{"CHECKPOINT", "COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'", "COPY t TO PROGRAM 'false'", "VACUUM t", "ANALYZE t", "CLUSTER t"} {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 	}
 	predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")

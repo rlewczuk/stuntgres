@@ -266,6 +266,8 @@ type StatementScope struct {
 	lockedDescriptor      Descriptor
 	viewWrite             *viewWrite
 	indexMaintenance      *indexMaintenanceGrant
+	materializedRefresh   bool
+	materializedSources   []Descriptor
 	querySources          []queryLeaf
 	queryLockAdmission    queryLockAdmission
 	queryLocks            *queryLockContext
@@ -612,6 +614,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
+	case *parser.RefreshMaterializedView:
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	}
@@ -687,6 +691,17 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
+	if refresh, ok := stmt.(*parser.RefreshMaterializedView); ok {
+		if err := materializedRefreshCapability(refresh); err != nil {
+			return Result{}, err
+		}
+		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		if err := s.executionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+	}
 	if err := s.snapshotPhase(stmt); err != nil {
 		return Result{}, err
 	}
@@ -701,7 +716,8 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 		}
 	}
 	indexBuild := earlyIndexUtility(stmt)
-	earlyEligibility := indexBuild || queryCreation
+	_, refreshing := stmt.(*parser.RefreshMaterializedView)
+	earlyEligibility := indexBuild || queryCreation || refreshing
 	if earlyEligibility && !queryCreation {
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err

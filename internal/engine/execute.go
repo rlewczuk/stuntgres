@@ -121,6 +121,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.alterDefaultLocked(scope, op, auth, s, count)
 	}
 	switch s := stmt.(type) {
+	case *parser.RefreshMaterializedView:
+		return e.refreshMaterializedLocked(scope, auth, s, count)
 	case *parser.AlterTableRenameConstraint:
 		return e.renameConstraintLocked(scope, op, auth, s, count)
 	case *parser.AlterTableSetSchema:

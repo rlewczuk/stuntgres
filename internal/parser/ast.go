@@ -270,6 +270,15 @@ type CreateQueryTable struct {
 
 func (*CreateQueryTable) statement() {}
 
+type RefreshMaterializedView struct {
+	Name       ObjectName
+	NoData     bool
+	Concurrent Position
+	Pos        Position
+}
+
+func (*RefreshMaterializedView) statement() {}
+
 type IndexKey struct {
 	Column            Identifier
 	Expression        Expr

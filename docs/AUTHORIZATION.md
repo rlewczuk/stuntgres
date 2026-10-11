@@ -408,7 +408,14 @@ Table REVOKE emits its table warning before system attributes
 This does not add system-column query support.
 
 Real consumers are SELECT/source expressions, assigned INSERT/UPDATE columns,
-DELETE, RETURNING, row-locking SELECT, explicit LOCK and MAINTAIN-based REINDEX.
+DELETE, RETURNING, row-locking SELECT, explicit LOCK, and MAINTAIN-based REINDEX
+and nonconcurrent REFRESH MATERIALIZED VIEW. REFRESH requires caller MAINTAIN,
+not target SELECT or schema ownership. DATA's frozen producer executes as MV
+owner, including nested security_invoker sources, identity expressions and live
+sequence authority; SESSION_USER remains caller. Owner/current-schema context
+is operation-local and restored on success/failure before caller publication
+fences. Caller source/sequence rights cannot rescue denied owner rights.
+WITH NO DATA needs no producer/source/sequence rights or draws.
 TRUNCATE supplies an existing LOCK alternative; REFERENCES/TRIGGER are stored
 and delegated without inventing FK/trigger commands. Table INSERT does not
 grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas

@@ -230,6 +230,59 @@ endpoint's TEXT representation is intentional because pq cannot construct its
 raw invalid-Location time.Time. Normal SQL expectations are shared; no PostgreSQL
 Restore API or native stored-row parity from PostgreSQL script replay is invented.
 
+Nonconcurrent refresh uses the shared `TestReferenceMaterializedRefresh` family:
+
+```sh
+make check RUN='^TestReferenceMaterializedRefresh'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefresh'
+make check RUN='^TestMaterializedRefresh'
+make check RACE=1 RUN='^TestMaterializedRefresh|^TestReferenceMaterializedRefresh(Locks|Cancellation|QueuedReplacement|Snapshots|Controls)$'
+make check RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshQueuedReplacement/(data_data|no_data_data)/^postgres$'
+```
+
+Each check has an external900-second deadline. Independent bags retain
+duplicate/NULL rows, default/DATA refresh returns affected0, and NO DATA is
+unpopulated rather than populated-empty. Full producer/kind/ACL/read-only/lock
+diagnostics, actual protocol Prepare/held statements, catalog identities and
+typmod metadata are checked before backend comparison.
+Public rowtype identity is observed through the existing REGTYPE registry;
+`pg_class.reltype` and reciprocal `pg_type.typrelid` links are PG-only
+complements. Native publication units independently pin the exact rowtype link.
+Owner-context sequence witnesses use existing ALTER SEQUENCE OWNER transitions,
+not excluded direct sequence grants. The caller's ownership cannot rescue a
+denied MV owner; source/sequence owner context and caller settings/SESSION_USER
+are checked independently.
+Native explicit utility0A000/aborted25P02, eager retained Rows, original context
+cancellation, genuine Dump/Reset/Restore and fresh-driver stale rows remain
+explicit native phases. PostgreSQL independently asserts transactional
+refresh/rollback/commit, active-portal55006 and actual backend-cancel57014.
+Native active cancellation observes the actual public worker's target-request
+wait through runtime goroutine profiles, following the existing active-provider
+witness pattern. Package units additionally pin the lock-manager pending
+request and queued refresh-refresh handoff. No SQL LOCK-on-MV capability,
+elapsed-time admission assumption or merely-started signal is introduced.
+QueuedReplacement starts an actual direct first worker behind a retained reader,
+observes its target AX request, then starts an actual protocol-prepared second
+worker and observes its later AX request. PG asserts the second worker's first
+worker soft blocker; native profiles identify each distinct worker's real target
+wait. DATA→DATA and NO DATA→DATA both join with affected0, the exact duplicate/NULL
+four-row bag, populatedtrue and stable relation/REGTYPE/rewrite identities,
+owner and definition. Private units additionally observe the first publication
+and grant-time predecessor for both transitions, and reject owner, column,
+attribute, rowtype, definition, identity and epoch changes while truly queued.
+Workers always have bounded cancel/release/join cleanup. The PG-only command
+above discovers this new contract without modifying the shared definitions.
+Completed real mode consumes the actual native emitted dump SQL, asserts
+unpopulated definitions, then explicitly refreshes replayed base rows.
+The selected FeatureSmoke composes these contract scenarios. A separate
+root-owned standalone public Go source in the OMP session is temporarily
+materialized as `./.materialized-refresh-smoke/main.go`, run with
+`go run ./.materialized-refresh-smoke` (external900-second deadline), then removed.
+Neither selected tests nor oracle-only discovery replace this executable proof.
+
+
 SQL prepared lifecycle definitions use `RUN='^TestReferenceSQLPrepared'` with
 `make check` and
 `make check REFERENCE=1`, each with a

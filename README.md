@@ -123,15 +123,23 @@ do not replace this executable gate; see [testing](docs/TESTING.md).
 
 Change note: permanent `CREATE/DROP MATERIALIZED VIEW` stores a typed query
 result, including duplicate and NULL occurrences, independently of later base
-writes. `WITH NO DATA` retains the definition but reads fail55000; public DML
-fails42809. Native Dump/Restore preserves the exact stale rows and population
-bit through a Restore-only comment snapshot, not REFRESH or writable MVs.
-PostgreSQL replay of the emitted script restores definitions unpopulated.
+writes. Nonconcurrent `REFRESH MATERIALIZED VIEW [WITH DATA]` reruns the frozen
+producer as MV owner and atomically replaces rows; caller MAINTAIN is required.
+`WITH NO DATA` clears population without source evaluation; reads fail55000.
+Failure/cancellation before publication retains old rows, and native eager
+cursors retain captured values/metadata. Public DML fails42809. Native
+Dump/Restore preserves the exact last-refreshed stale rows/population through a
+Restore-only comment snapshot, never query recomputation or writable MVs.
+PostgreSQL replay restores definitions unpopulated; explicit refresh computes
+the replayed base. Native CONCURRENTLY and explicit utility transactions remain
+excluded. Heap/WAL/index rebuilding, crash durability and pg_dump are server-only.
 See [materialized views](docs/TABLES.md#materialized-views--change-note).
 Feature smoke (900 seconds per invocation):
-`make check RUN='^TestReferenceMaterializedViewFeatureSmoke$'`;
+`make check RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`;
 pinned counterpart:
-`make check REFERENCE=1 RUN='^TestReferenceMaterializedViewFeatureSmoke$'`.
+`make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`.
+The root also runs a temporary standalone public Go program; these selectors
+provide contract coverage, not a substitute executable proof.
 
 Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
 documented eight/four columns with exact current schema/name/owner identities.
@@ -709,7 +717,7 @@ other valid columns give only the key expression or included column name, and
 invalid columns give empty text. Text view arguments resolve relation names, not
 numeric OIDs. Ordinary views and existing simple, expression-key and UNIQUE
 backing indexes are covered, including ordinary indexes with INCLUDE payload.
-Materialized-view ALTER, indexes and REFRESH remain excluded. Partial index predicates are supported
+Materialized-view ALTER, indexes and concurrent refresh remain excluded. Partial index predicates are supported
 through the same current-name index introspection and control paths.
 Feature smoke:
 `make check RUN='^TestReferenceDeparseRelations'`
@@ -1542,7 +1550,7 @@ explicit regclass-to-oid cast is needed.
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views have a
 [bounded supported surface](docs/SQL.md#materialized-views--change-note), without
-temporary materializations/sources, MV ALTER/index or REFRESH.
+temporary materializations/sources, MV ALTER/index or concurrent refresh.
 See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
 Feature smoke: `make check RUN='^TestReferenceCollationLegacyVisibility$'`.
 Index identity/path/control witnesses:

@@ -36,7 +36,6 @@ func TestMaterializedViewGrammar(t *testing.T) {
 		`CREATE OR REPLACE MATERIALIZED VIEW v AS SELECT 1`,
 		`CREATE TEMP MATERIALIZED VIEW v AS SELECT 1`,
 		`CREATE MATERIALIZED VIEW v AS SELECT 1 INTO other`,
-		`REFRESH MATERIALIZED VIEW v`,
 	} {
 		if _, err := Parse(text); err == nil {
 			t.Fatalf("accepted excluded syntax %s", text)

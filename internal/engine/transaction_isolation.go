@@ -272,6 +272,8 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 }
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.RefreshMaterializedView:
+		return "REFRESH MATERIALIZED VIEW"
 	case *parser.CreateIndex:
 		return "CREATE INDEX"
 	case *parser.DropIndex:
@@ -403,6 +405,8 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
+	case *parser.RefreshMaterializedView:
+		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
 	case *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:

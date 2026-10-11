@@ -285,6 +285,7 @@ package parser
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
 %type <queryTable> query_table_target
 %type <stmt> create_query_table
+%type <stmt> refresh_materialized_view
 %type <selectStmt> query_table_body
 %type <desc> query_table_data
 %type <tok> data_word
@@ -549,6 +550,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
  | alter_collation | drop_collation
+ | refresh_materialized_view
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -847,6 +849,7 @@ query_table_body: query_select {$$=$1}
  | EXECUTE name {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil}
  | EXECUTE name '(' call_args ')' {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil} ;
 query_table_data: /* empty */ {$$=false} | WITH data_word {$$=false} | WITH NO data_word {$$=true} ;
+refresh_materialized_view: REFRESH MATERIALIZED VIEW maintenance_concurrent relation_name query_table_data {$$=&RefreshMaterializedView{Name:$5,NoData:$6,Concurrent:$4.pos,Pos:$1.pos}} ;
 data_word: name {if $1.text!="data" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 query_table_options: /* empty */
  | query_table_options USING name {sqllex.(*lexer).deferUnsupported($2,"table access methods are unsupported")}
