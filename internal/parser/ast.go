@@ -66,8 +66,18 @@ type Copy struct {
 
 func (*Copy) statement() {}
 
+type CopyArgument uint8
+
+const (
+	CopyArgumentNone CopyArgument = iota
+	CopyArgumentScalar
+	CopyArgumentStar
+	CopyArgumentColumns
+)
+
 type CopyOption struct {
 	Name     string
+	Argument CopyArgument
 	Value    string
 	HasValue bool
 	Numeric  bool

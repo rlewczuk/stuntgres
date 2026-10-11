@@ -8,11 +8,13 @@ import (
 	"io"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"unicode/utf8"
 )
 
 type copyField struct {
-	raw, decoded []byte
-	start, end   int
+	decoded                   []byte
+	start, end                int
+	quoted, isNull, isDefault bool
 }
 type copyCursor struct {
 	scope                        *StatementScope
@@ -47,6 +49,9 @@ func (c *copyCursor) lineError(message string, hint string) error {
 	return d
 }
 func (c *copyCursor) readLine() (present bool, err error) {
+	if c.options.csv {
+		return c.readCSVLine()
+	}
 	if c.ended {
 		return false, nil
 	}
@@ -193,6 +198,9 @@ func decodeCopyField(dst, raw []byte) []byte {
 	return dst
 }
 func (c *copyCursor) split(defaultMarkers bool) error {
+	if c.options.csv {
+		return c.splitCSV(defaultMarkers)
+	}
 	c.fields = c.fields[:0]
 	c.decoded = c.decoded[:0]
 	start := 0
@@ -220,7 +228,7 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 			c.decoded = decodeCopyField(c.decoded, raw)
 		}
 		// Offsets rather than slices survive growth of the reusable decode buffer.
-		c.fields = append(c.fields, copyField{raw: raw, start: begin, end: len(c.decoded)})
+		c.fields = append(c.fields, copyField{start: begin, end: len(c.decoded), isNull: isNull, isDefault: isDefault})
 		start = i + 1
 	}
 	for i := range c.fields {
@@ -251,7 +259,7 @@ func (c *copyCursor) header() error {
 	}
 	for i, field := range c.fields {
 		name := c.binding.relation.columns[c.binding.targets[i]].Name
-		if string(field.raw) == c.options.null {
+		if field.isNull {
 			return c.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, c.options.null, name), "")
 		}
 		if string(field.decoded) != name {
@@ -290,10 +298,18 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		}
 		field := c.fields[i]
 		dst[i] = sqltype.Null(column.Usage.Type)
-		if string(field.raw) == c.options.null {
+		isNull := field.isNull
+		if c.options.csv {
+			if isNull && copyForced(c.options.notNullFields, i) {
+				isNull = false
+			} else if field.quoted && copyForced(c.options.nullFields, i) && string(field.decoded) == c.options.null {
+				isNull = true
+			}
+		}
+		if isNull {
 			continue
 		}
-		if c.options.hasDefault && string(field.raw) == c.options.def {
+		if field.isDefault {
 			c.defaults[target] = true
 			continue
 		}
@@ -308,14 +324,14 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 	return true, nil
 }
 func copyContextValue(text string) string {
-	n := 0
-	for offset := range text {
-		if n == 100 {
-			return text[:offset] + "..."
-		}
-		n++
+	if len(text) <= 100 {
+		return text
 	}
-	return text
+	end := 100
+	for end > 0 && !utf8.RuneStart(text[end]) {
+		end--
+	}
+	return text[:end] + "..."
 }
 func (c *copyCursor) diagnostic(err error) error {
 	if err == nil {
@@ -382,7 +398,11 @@ func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) 
 			if i != 0 {
 				buffer = append(buffer, o.delimiter)
 			}
-			buffer = appendCopyText(buffer, column.Name, o.delimiter)
+			if o.csv {
+				buffer = appendCopyCSV(buffer, column.Name, o, false, len(schema) == 1)
+			} else {
+				buffer = appendCopyText(buffer, column.Name, o.delimiter)
+			}
 		}
 		buffer = append(buffer, '\n')
 		if err = write(); err != nil {
@@ -410,7 +430,11 @@ func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) 
 			if outputErr != nil {
 				return 0, outputErr
 			}
-			buffer = appendCopyText(buffer, text, o.delimiter)
+			if o.csv {
+				buffer = appendCopyCSV(buffer, text, o, copyForced(o.quoteFields, i), len(schema) == 1)
+			} else {
+				buffer = appendCopyText(buffer, text, o.delimiter)
+			}
 		}
 		buffer = append(buffer, '\n')
 		if err = write(); err != nil {

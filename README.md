@@ -19,14 +19,16 @@ even definition/count/stored/join reads; FALSE/name-rejected rows do not.
 See [sequence view contract](docs/SQL.md#pg_sequences-view--change-note).
 
 Change note: native `CopyFrom` and `CopyTo` on a pinned `*sql.Conn` stream
-PostgreSQL text COPY through real type codecs and atomic DML staging.
-Table FROM STDIN, table/query TO STDOUT, column lists, delimiter/NULL/default
-markers and header matching share physical-session settings, ACLs and transaction
-semantics. Caller I/O runs without engine/owner mutexes; same-owner commands wait
-on a cancellable reservation. File/PROGRAM and CSV/binary remain explicit
-capability boundaries. See [COPY streams](docs/DRIVER.md#pinned-copy-text-streams--change-note).
-Feature smoke: `make check RUN='^TestReferenceCopyTextFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyTextFeatureSmoke$'`.
+PostgreSQL text and CSV COPY through real type codecs and atomic DML staging.
+CSV preserves quoted empty strings versus unquoted NULL, embedded separators/
+quotes/newlines, HEADER MATCH, custom QUOTE/ESCAPE and column-selective FORCE
+options. Table FROM STDIN, table/query TO STDOUT, ordered columns, defaults,
+ACLs and transactions share existing authorities. Caller I/O runs without
+engine/owner mutexes; same-owner commands wait on a cancellable reservation.
+File/PROGRAM and binary remain explicit capability boundaries.
+See [COPY streams](docs/DRIVER.md#pinned-copy-text-streams--change-note).
+Feature smoke: `make check RUN='^TestReferenceCopyCSVFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyCSVFeatureSmoke$'`.
 
 Change note: expression comparisons retain their resolved collation capability,
 including hidden inputs of BOOL results and native stored-expression remapping.

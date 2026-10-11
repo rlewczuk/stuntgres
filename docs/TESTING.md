@@ -156,6 +156,76 @@ rejection for builtin/plain/nested-domain operands. Success is quiet exit0, not 
 test-shelling. Root runs whole-project Docker-free quickcheck after edits and
 post-integration finalcheck; those do not replace selected dual-mode evidence.
 
+## COPY CSV selected proof
+
+Untagged `reference/dml/copy_csv_*_test.go` shares the existing public COPY
+transport, full diagnostic fixture and arbitrary-chunk/barrier helpers. Independent
+handwritten rows and output bytes cover quoted NULL/empty, permissive quoting,
+custom escapes, header/force matrices, pathological accepted one-byte settings,
+UTF8 byte-budget Context, release-specific line counting and malformed atomicity.
+Direct/prepared consumers, defaults/identity/sequence demand, transactions,
+constraints and admitted multiline cancellation use real existing authorities.
+Native adapter errors and Dump/Reset/Restore are explicit native phases; pinned
+Controls genuinely replays emitted native SQL on PostgreSQL. No discovery filter
+or staging gate belongs in final evidence.
+
+Root runs each bounded group in both modes, with external900s deadlines:
+
+```sh
+make check RUN='^TestReferenceCopyCSV(RoundTrip|Escapes|Framing)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(RoundTrip|Escapes|Framing)$'
+make check RUN='^TestReferenceCopyCSV(Header|ForceOptions|OptionsDiagnostics|PathologicalOptions)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(Header|ForceOptions|OptionsDiagnostics|PathologicalOptions)$'
+make check RUN='^TestReferenceCopyCSV(Diagnostics|UnicodeContext|InputConstraints|LineCounting)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(Diagnostics|UnicodeContext|InputConstraints|LineCounting)$'
+make check RUN='^TestReferenceCopyCSV(DefaultsDemand|AdmissionAndFormat)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(DefaultsDemand|AdmissionAndFormat)$'
+make check RUN='^TestReferenceCopyCSV(Transactions|Lifecycle)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(Transactions|Lifecycle)$'
+make check RUN='^TestReferenceCopyCSV(Controls|DatabaseSQLBoundary|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(Controls|DatabaseSQLBoundary|FeatureSmoke)$'
+make check RUN='^TestReferenceCopyCSV(SeparatorTransitions|EscapedLineCounting)$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSV(SeparatorTransitions|EscapedLineCounting)$'
+make check RUN='^TestReferenceCopyCSVEqualNewlineQuote$'
+make check REFERENCE=1 RUN='^TestReferenceCopyCSVEqualNewlineQuote$'
+make check RUN='^TestCopyCSV(Options|Framing|Fields|Output|Context|Lifecycle)$'
+make check RUN='^TestCopyParser'
+make check RUN='^TestCopyText(OwnerReservation|Timeout|FinalCancellationVeto)$'
+make check RACE=1 RUN='^(TestCopyCSVLifecycle|TestReferenceCopyCSVLifecycle|TestCopyText(OwnerReservation|OwnerWaitCompletion|Replacement|OutputReplacement|Termination|Timeout|PanicCleanup|CopiedReservation|FinalCancellationVeto))$'
+```
+
+Review regressions explicitly cover established CR followed by CRLF, conversion
+precedence before leftover LF, escaped LF/CR pairs and escapes before quotes,
+initial separator history, subsequent-record Context and decoded value/output.
+EqualNewlineQuote exercises actual CR/LF QUOTE bytes with default/explicit equal
+ESCAPE, first-record raw Context and staged-row mixed-separator failures. Private
+Framing units cover equal-quote toggles and distinct odd/even escape parity/reset;
+the standalone public smoke includes both actual newline-QUOTE failures.
+Their full diagnostics and unchanged committed sentinel are independently
+specified and require both-mode proof; private Framing units supplement them.
+
+Shared text codec/diagnostic regressions retain selected native and pinned
+`^TestReferenceCopyText(RoundTrip|Framing|Diagnostics|OptionsDiagnostics|OptionsAdmissionPrecedence|QuotedFormat|Header|OptionsAndDefaults)$`
+proof. Whole-project Docker-free verification remains `make quickcheck`, not
+a broad selected-check expression.
+
+Standalone public source `local://copy-csv-smoke.go` is session evidence:
+root materializes `.copy-csv-smoke/main.go`, runs `go run ./.copy-csv-smoke`
+from this checkout under an external900s deadline, records exact observations
+and removes the owned materialization. It verifies NULL/empty/multiline rows,
+metadata and held-prepared SELECT, selected forces/custom escaping, late-error
+atomicity, Unicode diagnostics, actual native controls and retained snapshots.
+Success prints only `COPY CSV smoke passed` followed by LF.
+
+Lifecycle input blocks inside an open quoted multiline field. PostgreSQL
+cancel observes ClientRead and a true pg_cancel_backend acknowledgement;
+statement timeout observes its real query_start deadline. Release supplies a
+closing quote before EOF so malformed-input errors cannot outrank interrupts.
+Full57014 Context includes the completed raw record. Native expiry separately
+observes the actual private Operation signal; caller cancellation/I/O identities
+remain ordinary errors. Every blocked callback is released and its worker joined
+before connection teardown.
+
 ## COPY text selected proof
 
 Shared untagged `reference/dml/copy_text_*_test.go` definitions run on the native

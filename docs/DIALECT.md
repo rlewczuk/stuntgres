@@ -19,15 +19,15 @@ FROM routes through existing DML; virtual partitioned-table TO is rejected with
 the query-variant hint rather than silently exporting descendants.
 
 Modern WITH options and bounded legacy DELIMITER/NULL/HEADER syntax support
-FORMAT text, one safe one-byte DELIMITER, NULL, DEFAULT (FROM only), and HEADER
+FORMAT text/csv, one-byte DELIMITER, NULL, DEFAULT (FROM only), and HEADER
 Boolean or FROM HEADER MATCH. Boolean forms true/false, on/off and numeric1/0
 are accepted; yes/no and quoted numeric values are not generic Boolean aliases.
 DEFAULT requires a different marker from NULL; a NULL-valued or absent default
 does not provide an effective default for a marker. Duplicate/unknown options
-retain source positions. CSV/binary, encoding overrides, FREEZE, WHERE, FORCE
-options and error-skipping/logging options are not silently accepted.
-FORMAT string literals are case-sensitive: `'text'` is accepted, while `'TEXT'`
-or `'Text'` returns22023 with the original spelling and FORMAT option position.
+retain source positions. Binary, encoding overrides, FREEZE, WHERE and
+error-skipping/logging options are not silently accepted.
+FORMAT string literals are case-sensitive: `'text'`/`'csv'` are accepted, while
+uppercase/mixed-case strings return22023 with original spelling and FORMAT position.
 Unquoted identifiers retain ordinary lexer case folding. Table COPY resolves and
 locks the target and checks columns/INSERT-or-SELECT rights before processing
 options or input defaults; query TO validates options before query analysis.
@@ -39,6 +39,8 @@ validation uses the canonical text-input authority. Output uses the actual type
 and captured session/catalog environment, not fmt or hand-written type switches.
 Logical failures preserve PostgreSQL-shaped optional diagnostics, including
 COPY line/column Context where supplied by the COPY input stage.
+Context display clips at100 UTF8 bytes on a character boundary and appends `...`
+when necessary; the primary diagnostic preserves the full invalid value.
 An SQL-owned statement timeout during admitted FROM input returns57014 with the
 active COPY line Context. Relation-opening statement timeout keeps empty Context;
 ordinary caller cancellation and I/O failures are not invented SQL diagnostics.
@@ -52,6 +54,36 @@ Native inherited-parent query export retains the existing0A000
 `recursive table inheritance is unsupported` boundary; physical table COPY still
 exports only that parent's stored rows. Supported ordinary/leaf queries use the
 real query path. No SELECT ONLY syntax or new explicit-cast provider is introduced.
+
+CSV defaults to comma, an empty unquoted NULL marker, double-quote QUOTE and
+ESCAPE equal to QUOTE. Quoted empty is a non-NULL empty string; quoted NULL
+markers are literal unless FORCE_NULL selects that column. FORCE_NOT_NULL
+preserves unquoted markers as text; both flags together preserve unquoted
+markers but null quoted markers. Input forces apply only FROM; FORCE_QUOTE
+applies only TO and never quotes NULL or forces otherwise plain header names.
+Named selectors bind before caller I/O to selected columns/query aliases; `*`
+selects all COPY fields. Existing-but-unselected columns are errors.
+Custom one-byte QUOTE/ESCAPE are supported; CSV permits delimiters such as
+backslash/dot/letters/digits but rejects delimiter=QUOTE and CR/LF delimiters.
+
+CSV fields may contain embedded separators, CR/LF and escaped quotes across
+arbitrary byte chunks. PostgreSQL's permissive mid-field quotes/closing-quote
+suffixes and significant whitespace are preserved; ESCAPE decodes only before
+QUOTE/ESCAPE inside quotes. Backslash has no text escape meaning, and raw `\.`
+does not terminate PostgreSQL18 CSV input. Single-column `\.` output is quoted
+for compatibility; output always uses LF separators. NULL/DEFAULT classify raw
+fields; quoted `"DEF"` remains literal with DEFAULT `'DEF'`. HEADER MATCH checks
+decoded names in selected-column order before input forces. Error line Context
+follows PostgreSQL's parser history, counting each raw quoted newline even when
+an ESCAPE pair decodes to one byte, rather than a promised logical-record count.
+Once CR separators are established, a CR ends the current record without
+consuming a following LF; current-row conversion errors precede that leftover
+LF's next-record framing error. With QUOTE=ESCAPE, framing toggles on every
+quote byte before testing record boundaries, including accepted CR/LF QUOTE.
+Distinct ESCAPE uses raw-byte parity and resets at unrelated bytes; field
+decoding separately consumes escape pairs. Alternate legacy `CSV`/`FORCE QUOTE`
+spellings are outside this modern FORMAT csv scope.
+
 
 
 See [the public API](DRIVER.md#pinned-copy-text-streams--change-note) and

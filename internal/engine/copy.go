@@ -50,7 +50,7 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	}
 	var options copyOptions
 	if syntax.Query != nil {
-		options, err = copyTextOptions(syntax)
+		options, err = parseCopyOptions(syntax)
 		if err != nil {
 			return 0, err
 		}
@@ -75,6 +75,9 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 				err = closeErr
 			}
 		}()
+		if err = options.bindForces(nil, nil, result.Rows.Schema()); err != nil {
+			return 0, err
+		}
 		if err = s.reserveCopy(); err != nil {
 			return 0, err
 		}
@@ -99,8 +102,11 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	} else if err = copyRelationKind(b.relation, false); err != nil {
 		return 0, err
 	}
-	options, err = copyTextOptions(syntax)
+	options, err = parseCopyOptions(syntax)
 	if err != nil {
+		return 0, err
+	}
+	if err = options.bindForces(b.relation, b.targets, nil); err != nil {
 		return 0, err
 	}
 	if !syntax.From {

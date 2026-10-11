@@ -9147,42 +9147,42 @@ sqldefault:
 	case 118:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: sqlDollar[1].tok.text}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text}
 		}
 	case 119:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: sqlDollar[1].tok.text, Numeric: true}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text, Numeric: true}
 		}
 	case 120:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: "true"}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "true"}
 		}
 	case 121:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: "false"}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: "false"}
 		}
 	case 122:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: sqlDollar[1].tok.text}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text}
 		}
 	case 123:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: sqlDollar[1].tok.text}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, HasValue: true, Value: sqlDollar[1].tok.text}
 		}
 	case 124:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Value: "*"}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentStar, HasValue: true, Value: "*"}
 		}
 	case 125:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{HasValue: true, Columns: sqlDollar[2].identifiers}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentColumns, HasValue: true, Columns: sqlDollar[2].identifiers}
 		}
 	case 126:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -9197,12 +9197,12 @@ sqldefault:
 	case 128:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
 		}
 	case 129:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.copyOption = CopyOption{Name: "null", Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
+			sqlVAL.copyOption = CopyOption{Argument: CopyArgumentScalar, Name: "null", Pos: sqlDollar[1].tok.pos, HasValue: true, Value: sqlDollar[2].tok.text}
 		}
 	case 130:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]

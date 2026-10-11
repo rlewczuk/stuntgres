@@ -19,11 +19,12 @@ report native0A000 `COPY FROM STDIN requires stuntgres.CopyFrom` or
 report their explicit capability boundary. No filesystem or process
 access is performed. SQL arguments are not interpolated into a second statement.
 
-Text supports ordered columns, FORMAT text, DELIMITER, NULL, DEFAULT (FROM only)
-and HEADER Boolean/MATCH. Defaults and identities, generated columns, real type
-input/output, constraints, partition routing, ACLs and transaction publication
-use existing native authorities. See [the bounded dialect](DIALECT.md#copy-text-streams--change-note)
-and [the implementation design](design/PG18-DRIVER-COPY-TEXT.md).
+Text and modern FORMAT csv support ordered columns, DELIMITER, NULL, DEFAULT
+(FROM only) and HEADER Boolean/MATCH. CSV additionally supports QUOTE/ESCAPE,
+TO FORCE_QUOTE and FROM FORCE_NULL/FORCE_NOT_NULL with named columns or `*`.
+Defaults and identities, generated columns, real type input/output, constraints,
+partition routing, ACLs and publication use existing native authorities.
+See [the bounded dialect](DIALECT.md#copy-text-streams--change-note).
 
 COPY is one admitted command on the physical session. Explicit transactions must
 stay pinned; malformed SQL and SQL COPY errors preserve ordinary transaction
@@ -45,9 +46,13 @@ pinned `*sql.Conn`: `database/sql` Raw retains that connection's ownership for
 the entire transfer even while engine mutexes are released. Use independent peer
 connections for concurrent SQL and controls.
 
-Feature smoke: `make check RUN='^TestReferenceCopyTextFeatureSmoke$'`;
+CSV example: `COPY t FROM STDIN WITH(FORMAT csv,HEADER MATCH)` imports a
+CSV header followed by rows; `COPY (SELECT * FROM t ORDER BY id) TO STDOUT
+WITH(FORMAT csv,HEADER true,FORCE_QUOTE(value))` exports deterministic rows.
+An unquoted empty field is NULL by default; `""` is an empty string.
+Feature smoke: `make check RUN='^TestReferenceCopyCSVFeatureSmoke$'`;
 pinned counterpart:
-`make check REFERENCE=1 RUN='^TestReferenceCopyTextFeatureSmoke$'`.
+`make check REFERENCE=1 RUN='^TestReferenceCopyCSVFeatureSmoke$'`.
 
 
 ## Explicit DISCARD and pool reuse

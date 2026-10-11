@@ -20,15 +20,24 @@ func CopyBoundary(s *parser.Copy) error {
 	return sqlError("0A000", "COPY TO STDOUT requires stuntgres.CopyTo")
 }
 
-type copyOptions struct {
-	delimiter  byte
-	null, def  string
-	hasDefault bool
-	header     uint8
+type copyForce struct {
+	specified, all bool
+	columns        []parser.Identifier
 }
 
-func copyTextOptions(s *parser.Copy) (copyOptions, error) {
-	o := copyOptions{delimiter: '\t', null: `\N`}
+type copyOptions struct {
+	csv                                    bool
+	delimiter, quote, escape               byte
+	null, def                              string
+	hasDefault                             bool
+	header                                 uint8
+	forceQuote, forceNull, forceNotNull    copyForce
+	quoteFields, nullFields, notNullFields []bool
+}
+
+func parseCopyOptions(s *parser.Copy) (copyOptions, error) {
+	o := copyOptions{}
+	delimiterSet, nullSet, quoteSet, escapeSet := false, false, false, false
 	for i, v := range s.Options {
 		name := strings.ToLower(v.Name)
 		for _, prior := range s.Options[:i] {
@@ -46,21 +55,29 @@ func copyTextOptions(s *parser.Copy) (copyOptions, error) {
 		case "format":
 			switch v.Value {
 			case "text":
-			case "csv", "binary":
-				return o, sqlError("0A000", "COPY "+strings.ToUpper(v.Value)+" format is unsupported")
+			case "csv":
+				o.csv = true
+			case "binary":
+				return o, sqlError("0A000", "COPY BINARY format is unsupported")
 			default:
 				return o, insertError("22023", fmt.Sprintf("COPY format \"%s\" not recognized", v.Value), v.Pos)
 			}
-		case "delimiter":
+		case "delimiter", "quote", "escape":
 			if len(v.Value) != 1 {
-				return o, sqlError("0A000", "COPY delimiter must be a single one-byte character")
+				return o, sqlError("0A000", "COPY "+name+" must be a single one-byte character")
 			}
-			o.delimiter = v.Value[0]
+			switch name {
+			case "delimiter":
+				o.delimiter, delimiterSet = v.Value[0], true
+			case "quote":
+				o.quote, quoteSet = v.Value[0], true
+			case "escape":
+				o.escape, escapeSet = v.Value[0], true
+			}
 		case "null":
-			o.null = v.Value
+			o.null, nullSet = v.Value, true
 		case "default":
-			o.def = v.Value
-			o.hasDefault = true
+			o.def, o.hasDefault = v.Value, true
 		case "header":
 			value := strings.ToLower(v.Value)
 			if !v.HasValue {
@@ -87,13 +104,62 @@ func copyTextOptions(s *parser.Copy) (copyOptions, error) {
 			default:
 				return o, sqlError("42601", `header requires a Boolean value or "match"`)
 			}
-		case "quote", "escape", "force_quote", "force_not_null", "force_null":
-			return o, sqlError("0A000", "COPY "+strings.ToUpper(name)+" requires CSV mode")
+		case "force_quote", "force_null", "force_not_null":
+			if v.Argument != parser.CopyArgumentStar && v.Argument != parser.CopyArgumentColumns {
+				return o, insertError("22023", fmt.Sprintf("argument to option \"%s\" must be a list of column names", name), v.Pos)
+			}
+			force := copyForce{specified: true, all: v.Argument == parser.CopyArgumentStar, columns: v.Columns}
+			switch name {
+			case "force_quote":
+				o.forceQuote = force
+			case "force_null":
+				o.forceNull = force
+			case "force_not_null":
+				o.forceNotNull = force
+			}
 		case "freeze", "on_error", "reject_limit", "log_verbosity", "encoding":
 			return o, sqlError("0A000", "COPY "+strings.ToUpper(name)+" is unsupported")
 		default:
 			return o, insertError("42601", fmt.Sprintf("option \"%s\" not recognized", name), v.Pos)
 		}
+	}
+	if !delimiterSet {
+		if o.csv {
+			o.delimiter = ','
+		} else {
+			o.delimiter = '\t'
+		}
+	}
+	if !nullSet && !o.csv {
+		o.null = `\N`
+	}
+	if !quoteSet {
+		o.quote = '"'
+	}
+	if !escapeSet {
+		o.escape = o.quote
+	}
+	if !o.csv {
+		for _, option := range []struct {
+			name string
+			set  bool
+		}{
+			{"QUOTE", quoteSet}, {"ESCAPE", escapeSet}, {"FORCE_QUOTE", o.forceQuote.specified},
+			{"FORCE_NOT_NULL", o.forceNotNull.specified}, {"FORCE_NULL", o.forceNull.specified},
+		} {
+			if option.set {
+				return o, sqlError("0A000", "COPY "+option.name+" requires CSV mode")
+			}
+		}
+	}
+	if o.forceQuote.specified && s.From {
+		return o, sqlError("0A000", "COPY FORCE_QUOTE cannot be used with COPY FROM")
+	}
+	if o.forceNotNull.specified && !s.From {
+		return o, sqlError("22023", "COPY FORCE_NOT_NULL cannot be used with COPY TO")
+	}
+	if o.forceNull.specified && !s.From {
+		return o, sqlError("22023", "COPY FORCE_NULL cannot be used with COPY TO")
 	}
 	if o.delimiter == '\r' || o.delimiter == '\n' {
 		return o, sqlError("22023", "COPY delimiter cannot be newline or carriage return")
@@ -105,11 +171,17 @@ func copyTextOptions(s *parser.Copy) (copyOptions, error) {
 		return o, sqlError("22023", "COPY default representation cannot use newline or carriage return")
 	}
 	d := o.delimiter
-	if d == '\\' || d == '.' || d >= 'a' && d <= 'z' || d >= '0' && d <= '9' {
+	if !o.csv && (d == '\\' || d == '.' || d >= 'a' && d <= 'z' || d >= '0' && d <= '9') {
 		return o, sqlError("22023", fmt.Sprintf("COPY delimiter cannot be \"%c\"", d))
+	}
+	if o.csv && d == o.quote {
+		return o, sqlError("22023", "COPY delimiter and quote must be different")
 	}
 	if strings.IndexByte(o.null, d) >= 0 {
 		return o, sqlError("22023", "COPY delimiter character must not appear in the NULL specification")
+	}
+	if o.csv && strings.IndexByte(o.null, o.quote) >= 0 {
+		return o, sqlError("22023", "CSV quote character must not appear in the NULL specification")
 	}
 	if o.hasDefault {
 		if !s.From {
@@ -117,6 +189,9 @@ func copyTextOptions(s *parser.Copy) (copyOptions, error) {
 		}
 		if strings.IndexByte(o.def, d) >= 0 {
 			return o, sqlError("0A000", "COPY delimiter character must not appear in the DEFAULT specification")
+		}
+		if o.csv && strings.IndexByte(o.def, o.quote) >= 0 {
+			return o, sqlError("0A000", "CSV quote character must not appear in the DEFAULT specification")
 		}
 		if o.null == o.def {
 			return o, sqlError("0A000", "NULL specification and DEFAULT specification cannot be the same")

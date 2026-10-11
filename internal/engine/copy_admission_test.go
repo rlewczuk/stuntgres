@@ -18,9 +18,17 @@ type copyUnitReader struct {
 	once             sync.Once
 	first            bool
 	panicValue       any
+	prefix, suffix   io.Reader
 }
 
 func (r *copyUnitReader) Read(p []byte) (int, error) {
+	if r.prefix != nil {
+		n, err := r.prefix.Read(p)
+		if err != io.EOF {
+			return n, err
+		}
+		r.prefix = nil
+	}
 	if !r.first {
 		r.first = true
 		return copy(p, "1\n"), nil
@@ -29,6 +37,9 @@ func (r *copyUnitReader) Read(p []byte) (int, error) {
 	<-r.release
 	if r.panicValue != nil {
 		panic(r.panicValue)
+	}
+	if r.suffix != nil {
+		return r.suffix.Read(p)
 	}
 	return 0, io.EOF
 }
@@ -63,13 +74,23 @@ func copyUnitSyntax() *parser.Copy {
 	return &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}, Columns: []parser.Identifier{{Text: "v"}}, From: true, Endpoint: parser.CopyStdin}
 }
 func TestCopyTextOwnerReservation(t *testing.T) {
+	copyOwnerReservation(t, false)
+}
+func copyOwnerReservation(t *testing.T, csv bool) {
 	for _, entry := range []string{"statement", "begin", "commit", "rollback"} {
 		t.Run(entry, func(t *testing.T) {
 			e, session, op, scope := copyUnitStart(t, true)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
+			syntax := copyUnitSyntax()
+			if csv {
+				syntax.Options = []parser.CopyOption{{Name: "format", Value: "csv", HasValue: true, Argument: parser.CopyArgumentScalar}}
+				reader.first = true
+				reader.prefix = strings.NewReader("\"1\n")
+				reader.suffix = strings.NewReader("\"\n")
+			}
 			copyDone := make(chan error, 1)
 			go func() {
-				_, err := scope.Copy(copyUnitSyntax(), reader, nil)
+				_, err := scope.Copy(syntax, reader, nil)
 				err = scope.Finish(err)
 				op.Done()
 				copyDone <- err
@@ -303,8 +324,15 @@ func TestCopyTextEscapeUnits(t *testing.T) {
 	}
 }
 func TestCopyTextFinalCancellationVeto(t *testing.T) {
+	copyFinalCancellationVeto(t, false)
+}
+func copyFinalCancellationVeto(t *testing.T, csv bool) {
 	e, _, op, scope := copyUnitStart(t, false)
-	result, err := scope.Copy(copyUnitSyntax(), strings.NewReader("1\n"), nil)
+	syntax := copyUnitSyntax()
+	if csv {
+		syntax.Options = []parser.CopyOption{{Name: "format", Value: "csv", HasValue: true, Argument: parser.CopyArgumentScalar}}
+	}
+	result, err := scope.Copy(syntax, strings.NewReader("1\n"), nil)
 	if err != nil || result != 1 {
 		t.Fatal(result, err)
 	}
@@ -491,6 +519,9 @@ func TestCopyTextOutputReplacement(t *testing.T) {
 }
 
 func TestCopyTextTimeout(t *testing.T) {
+	copyTimeoutTest(t, false)
+}
+func copyTimeoutTest(t *testing.T, csv bool) {
 	for _, setting := range []string{"statement_timeout", "transaction_timeout"} {
 		t.Run(setting, func(t *testing.T) {
 			e := New()
@@ -510,9 +541,15 @@ func TestCopyTextTimeout(t *testing.T) {
 				t.Fatal(err)
 			}
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
+			syntax := copyUnitSyntax()
+			if csv {
+				syntax.Options = []parser.CopyOption{{Name: "format", Value: "csv", HasValue: true, Argument: parser.CopyArgumentScalar}}
+				reader.first = true
+				reader.prefix = strings.NewReader("1\n\"2\n")
+			}
 			done := make(chan error, 1)
 			go func() {
-				_, err := scope.Copy(copyUnitSyntax(), reader, nil)
+				_, err := scope.Copy(syntax, reader, nil)
 				err = op.CommandError(scope.Finish(err))
 				op.Done()
 				done <- err
@@ -546,6 +583,9 @@ func TestCopyTextTimeout(t *testing.T) {
 			code, severity, message, errorContext := "57014", "ERROR", "canceling statement due to statement timeout", "COPY t, line 2"
 			if setting == "transaction_timeout" {
 				code, severity, message, errorContext = "25P04", "FATAL", "terminating connection due to transaction timeout", "COPY t, line 2"
+			}
+			if csv {
+				errorContext = "COPY t, line 3"
 			}
 			want := sqlstate.Error{Code: code, Severity: severity, SeverityUnlocalized: severity, Message: message, Context: errorContext}
 			if *record != want {

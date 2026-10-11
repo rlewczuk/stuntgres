@@ -669,18 +669,18 @@ copy_option_list: copy_option { $$=[]CopyOption{$1} }
 copy_option_name: generic_word | NULL | DEFAULT ;
 copy_option: copy_option_name { $$=CopyOption{Name:$1.text,Pos:$1.pos} }
  | copy_option_name copy_option_value { $$=$2;$$.Name=$1.text;$$.Pos=$1.pos} ;
-copy_option_value: STRING { $$=CopyOption{HasValue:true,Value:$1.text} }
- | NUMBER { $$=CopyOption{HasValue:true,Value:$1.text,Numeric:true} }
- | TRUE { $$=CopyOption{HasValue:true,Value:"true"} }
- | FALSE { $$=CopyOption{HasValue:true,Value:"false"} }
- | generic_word { $$=CopyOption{HasValue:true,Value:$1.text} }
- | TEXT { $$=CopyOption{HasValue:true,Value:$1.text} }
- | '*' { $$=CopyOption{HasValue:true,Value:"*"} }
- | '(' view_names ')' { $$=CopyOption{HasValue:true,Columns:$2} } ;
+copy_option_value: STRING { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
+ | NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text,Numeric:true} }
+ | TRUE { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"true"} }
+ | FALSE { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"false"} }
+ | generic_word { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
+ | TEXT { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
+ | '*' { $$=CopyOption{Argument:CopyArgumentStar,HasValue:true,Value:"*"} }
+ | '(' view_names ')' { $$=CopyOption{Argument:CopyArgumentColumns,HasValue:true,Columns:$2} } ;
 copy_legacy_options: copy_legacy_option { $$=[]CopyOption{$1} }
  | copy_legacy_options copy_legacy_option { $$=append($1,$2) } ;
-copy_legacy_option: generic_word STRING { $$=CopyOption{Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
- | NULL STRING { $$=CopyOption{Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
+copy_legacy_option: generic_word STRING { $$=CopyOption{Argument:CopyArgumentScalar,Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
+ | NULL STRING { $$=CopyOption{Argument:CopyArgumentScalar,Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
  | generic_word {if $1.text!="header" {sqllex.(*lexer).syntax($1);return 1};$$=CopyOption{Name:"header",Pos:$1.pos}} ;
 copy_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 } ;
 prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
