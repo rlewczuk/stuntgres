@@ -60,7 +60,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.sources = make([]viewLeaf, len(b.querySources))
 	for occurrence, source := range b.querySources {
 		leaf := &definition.sources[occurrence]
-		leaf.ref, leaf.mark = source.ref, source.mark
+		leaf.ref, leaf.mark, leaf.only = source.ref, source.mark, source.only
 		leaf.analysisOnly = source.analysisOnly
 		leaf.attributes = append([]int32(nil), source.relation.attributes...)
 		for _, slot := range source.uses {

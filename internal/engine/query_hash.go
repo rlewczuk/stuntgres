@@ -16,7 +16,7 @@ type capturedHashIndex struct {
 // The caller holds e.mu, the same owner as visibility-prefix capture. After
 // this proof, probing consults only the retained root and retained source rows.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf, source *querySource, mark queryRowMark) error {
-	if !scope.implicit || scope.catalog != nil || mark.mode != 0 || source.view == nil || len(source.own) != 0 {
+	if !scope.implicit || scope.catalog != nil || mark.mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
 		return nil
 	}
 	data := source.view.read()

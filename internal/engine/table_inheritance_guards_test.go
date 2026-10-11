@@ -33,12 +33,12 @@ func TestInheritanceGuards(t *testing.T) {
 	cyclic := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90006}, relationKind: viewRelation}
 	cyclic.view = &viewDefinition{sources: []viewLeaf{{ref: ObjectRef{Address: cyclic.address}}, {ref: ObjectRef{Address: parent.address}}}}
 	catalog.state.descriptors[cyclic.address] = cyclic
-	assertError(inheritanceScanGuard(catalog, cyclic), "0A000", "recursive table inheritance is unsupported", "")
+	assertError(inheritanceTargetGuard(catalog, cyclic), "0A000", "recursive table inheritance is unsupported", "")
 	for _, relation := range []*relationDescriptor{parent, view} {
-		assertError(inheritanceScanGuard(catalog, relation), "0A000", "recursive table inheritance is unsupported", "")
+		assertError(inheritanceTargetGuard(catalog, relation), "0A000", "recursive table inheritance is unsupported", "")
 	}
 	for _, relation := range []*relationDescriptor{child, standalone} {
-		if err := inheritanceScanGuard(catalog, relation); err != nil {
+		if err := inheritanceTargetGuard(catalog, relation); err != nil {
 			t.Fatal(err)
 		}
 	}

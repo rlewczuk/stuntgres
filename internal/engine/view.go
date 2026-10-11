@@ -39,6 +39,7 @@ type viewDefinition struct {
 // descriptors. Ordinals are SQL occurrences, including repeated self-joins.
 type viewLeaf struct {
 	ref          ObjectRef
+	only         bool
 	attributes   []int32
 	reads        []int32
 	analysisOnly bool

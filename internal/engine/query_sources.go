@@ -11,6 +11,7 @@ type queryLeaf struct {
 	ref              ObjectRef
 	relation         *relationDescriptor
 	storage          *relationStorage
+	only             bool
 	principal        PrincipalRef // Relation authority, not expression/session identity.
 	frozenAttributes []int32      // Execution-owned stored-view subquery layout.
 	uses             []int
@@ -110,7 +111,7 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 		leaf := &s.querySources[len(s.querySources)-1]
 		// Keep SQL marks in the admission manifest for exact binder validation.
 		// pg_sequences drops only effective physical marks during source capture.
-		leaf.mark, leaf.query, leaf.table = mark, queries[i], table
+		leaf.mark, leaf.query, leaf.table, leaf.only = mark, queries[i], table, table.Only
 		entry := s.queryLockAdmission.tableQueries[table]
 		entry.query, entry.ref = queries[i], leaf.ref
 		s.queryLockAdmission.tableQueries[table] = entry
@@ -143,7 +144,7 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 	}
 	for i, leaf := range leaves {
 		grant := s.querySources[i]
-		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark {
+		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
 			return ErrCatalogReplaced
 		}
 	}
@@ -253,7 +254,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		refs = make([]ObjectRef, 0, len(leaves))
 	}
 	var collectErr error
-	refs, collectErr = e.queryTableRefsLocked(scope.commentCatalog, leaves, refs)
+	refs, collectErr = e.queryTableRefsLocked(scope.inheritanceRead(scope.commentCatalog), leaves, refs, scope.op.session.token)
 	if collectErr != nil {
 		return nil, collectErr
 	}
@@ -333,14 +334,16 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 					source, err = capturePartitionQueryPrefix(scope.commentCatalog, view, leaf.ref, leaf.relation)
 				}
 			case tableRelation:
-				source, err = captureQueryPrefix(view, leaf.ref)
+				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.commentCatalog), view, leaf, scope.op.session.token)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
 						source.close()
 						source = nil
 					} else {
-						source.partialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
+						if source.inheritance == nil {
+							source.partialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
+						}
 					}
 				}
 			default:
@@ -389,6 +392,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 
 func selectQuerySources(ctx context.Context, source *querySource) error {
 	selectOne := func(source *querySource) error {
+		if source.inheritance != nil {
+			return source.selectInheritancePrefixes(ctx)
+		}
 		if source.partitions != nil {
 			return source.selectPartitionPrefixes(ctx)
 		}

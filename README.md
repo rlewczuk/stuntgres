@@ -148,8 +148,13 @@ Change note: `CREATE TABLE ... INHERITS (parent, ...)` merges compatible parent
 columns, defaults, inheritable CHECK and NOT NULL constraints into a real,
 identity-based graph. UNIQUE/indexes, identity ownership and foreign/primary keys
 do not propagate. Native Dump/Restore retains ordered parents and local declarations;
-DROP CASCADE removes descendants. Recursive scans/DML and graph-shape ALTER remain
-explicit native capability boundaries, not silently physical-only operations.
+DROP CASCADE removes descendants. SELECT includes descendants by default (also `p*`);
+`ONLY p` / `ONLY(p)` retain the named physical table. Bag scans map parent columns
+and authority, with physical descendant row locks and parent VIRTUAL recipes.
+Generated physical-table recipes retain exact owner/type structural identity through
+inheritance remapping; postwait parent frames are refreshed before recheck/projection.
+Recursive modifying targets, ordinary LOCK and graph-shape ALTER retain their
+explicit native capability boundaries.
 Provider CASCADE uses the staged graph: a parent left standalone by complete child
 retirement retains ordinary dependency projection. This includes schema-parent
 retirement and a shared child's newly discovered removal through its other parent,
@@ -161,6 +166,10 @@ Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceInheritanceFeatureSmoke$'`;
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceInheritanceFeatureSmoke$'`.
+Inherited-query smoke (900 seconds per invocation):
+`make check RUN='^TestReferenceInheritanceQueryFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceInheritanceQueryFeatureSmoke$'`.
 
 Change note: `CREATE TYPE name AS (...)` and supported user table/view row types
 now share concrete, immutable composite codecs. Named backing relations are

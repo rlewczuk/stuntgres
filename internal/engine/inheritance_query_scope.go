@@ -1,0 +1,234 @@
+package engine
+
+import "stuntgres/internal/parser"
+
+// Closure is physical-identity deduplication within one SQL occurrence. A foreign
+// session's temporary branch is not admitted, even through a persistent ancestor.
+func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, token SessionToken, visit func(*relationDescriptor) error) error {
+	if err := visit(root); err != nil {
+		return err
+	}
+	children := inheritanceChildren(catalog, root.address)
+	if len(children) == 0 {
+		return nil
+	}
+	seen := map[ObjectAddress]bool{root.address: true}
+	var walk func([]*relationDescriptor) error
+	walk = func(children []*relationDescriptor) error {
+		for _, child := range children {
+			if seen[child.address] {
+				continue
+			}
+			seen[child.address] = true
+			ns, ok := catalog.state.descriptors[child.namespace].(*namespaceDescriptor)
+			if !ok {
+				return ErrCatalogReplaced
+			}
+			if ns.temporary != (SessionToken{}) && ns.temporary != token {
+				continue
+			}
+			if err := visit(child); err != nil {
+				return err
+			}
+			if err := walk(inheritanceChildren(catalog, child.address)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(children)
+}
+
+// Called under Engine.mu. Stored views expose their named source's scan mode,
+// not a flattened set of leaves or the mode of an unrelated SQL occurrence.
+func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token SessionToken, visit func(queryLeaf) error) error {
+	var active []ObjectAddress
+	var walk func(queryLeaf) error
+	walk = func(leaf queryLeaf) error {
+		d, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		if !ok || leaf.ref.Epoch != catalog.Epoch() {
+			return ErrCatalogReplaced
+		}
+		leaf.relation = d
+		if d.relationKind == viewRelation {
+			for _, address := range active {
+				if address == d.address {
+					return nil
+				}
+			}
+			active = append(active, d.address)
+			defer func() { active = active[:len(active)-1] }()
+			for i, child := range d.view.sources {
+				if child.analysisOnly {
+					continue
+				}
+				ref, err := storedViewUseReference(catalog, d, child.ref)
+				if err != nil {
+					return err
+				}
+				if err := walk(queryLeaf{ref: ref, only: child.only, mark: viewLeafRowMark(d.view, i, leaf.mark)}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if d.relationKind != tableRelation || leaf.only {
+			return visit(leaf)
+		}
+		return inheritanceQueryClosure(catalog, d, token, func(physical *relationDescriptor) error {
+			child := leaf
+			child.ref.Address, child.relation = physical.address, physical
+			return visit(child)
+		})
+	}
+	for _, leaf := range roots {
+		if !leaf.analysisOnly {
+			if err := walk(leaf); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// AccessShare on the named parent does not freeze CREATE INHERITS. Reconcile
+// growth after every wait, then freeze one immutable topology for this statement.
+// Previously admitted identities must survive; a same-name replacement is never
+// a substitute. No manager wait is performed under Engine.mu.
+func (s *StatementScope) acquireInheritanceSources(grants map[ObjectRef]relationLockMode) error {
+	e := s.op.session.Engine()
+	roots := s.querySources
+	if s.materializedRefresh {
+		e.mu.Lock()
+		catalog := e.privateCatalogLocked(s.owner.catalog)
+		d, ok := catalog.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
+		if !ok || d.view == nil {
+			e.mu.Unlock()
+			return ErrCatalogReplaced
+		}
+		roots = append([]queryLeaf(nil), roots...)
+		for _, leaf := range d.view.sources {
+			if leaf.analysisOnly {
+				continue
+			}
+			ref, err := storedViewUseReference(catalog, d, leaf.ref)
+			if err != nil {
+				e.mu.Unlock()
+				return err
+			}
+			roots = append(roots, queryLeaf{ref: ref, only: leaf.only})
+		}
+		e.mu.Unlock()
+	}
+	for {
+		e.mu.Lock()
+		catalog := e.privateCatalogLocked(s.owner.catalog)
+		for _, leaf := range s.inheritanceRelations {
+			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, leaf); err != nil {
+				e.mu.Unlock()
+				return err
+			}
+		}
+		var pending []queryLeaf
+		err := inheritanceQueryLeaves(catalog, roots, s.op.session.token, func(leaf queryLeaf) error {
+			if leaf.relation.relationKind != tableRelation {
+				return nil
+			}
+			mode := accessShare
+			if leaf.mark.mode != 0 {
+				mode = relationRowShare
+			}
+			// Named query roots already have exact-identity grants. Leave the
+			// ordinary single-table path allocation- and reacquisition-free.
+			for _, root := range roots {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.relationKind == tableRelation && (root.mark.mode != 0 || mode == accessShare) {
+					return nil
+				}
+			}
+			// Stored-base admission uses query rowmark modes: a present zero
+			// entry already holds AccessShare, any nonzero entry holds RowShare.
+			prior, granted := grants[leaf.ref]
+			if granted && (prior != 0 || mode == accessShare) {
+				return nil
+			}
+			if granted {
+				for i := range pending {
+					if pending[i].ref == leaf.ref {
+						pending[i].mark = leaf.mark
+						grants[leaf.ref] = leaf.mark.mode
+						return nil
+					}
+				}
+			}
+			leaf.storage = e.privateStorageLocked(s.owner.catalog, leaf.ref.Address)
+			pending = append(pending, leaf)
+			if grants == nil {
+				grants = make(map[ObjectRef]relationLockMode)
+			}
+			grants[leaf.ref] = leaf.mark.mode
+			return nil
+		})
+		if err == nil && len(pending) == 0 {
+			s.inheritanceCatalog = catalog
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		if len(pending) == 0 {
+			return nil
+		}
+		for _, leaf := range pending {
+			mode := accessShare
+			if grants[leaf.ref] != 0 {
+				mode = relationRowShare
+			}
+			policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+			request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref}, mode, policy)
+			if request != nil {
+				s.admissionWaited = true
+				if s.replacementRead {
+					e.replacementMu.RUnlock()
+					s.replacementRead = false
+				}
+				err = request.wait()
+			}
+			if err != nil {
+				return err
+			}
+			s.owner.mu.Lock()
+			implicit := s.owner.state == TxImplicit
+			s.owner.mu.Unlock()
+			if implicit && !s.replacementRead {
+				e.replacementMu.RLock()
+				s.replacementRead = true
+			}
+			e.mu.Lock()
+			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
+			if err == nil {
+				e.markTemporaryAccessLocked(s, leaf.ref)
+				s.inheritanceRelations = append(s.inheritanceRelations, leaf)
+			}
+			e.mu.Unlock()
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func sourceOnly(statement parser.Statement) bool {
+	if query, ok := statement.(*parser.Select); ok && query.From != nil {
+		if table, ok := query.From.(*parser.TableReference); ok {
+			return table.Only
+		}
+	}
+	return false
+}
+
+func (s *StatementScope) inheritanceRead(current CatalogRead) CatalogRead {
+	if s.inheritanceCatalog.state != nil {
+		return s.inheritanceCatalog
+	}
+	return current
+}

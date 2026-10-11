@@ -1372,11 +1372,95 @@ suite history through per-frame pipes. All test deadlines remain unchanged.
 CREATE inheritance coverage lives in the untagged `TestReferenceInheritance`
 family. It independently asserts merges, diagnostics/notices, direct/prepared
 metadata, nonpropagating keys, dependency/drop lifecycle, generated/serial/identity
-composition, recursive/ALTER capability boundaries and actual native controls.
+composition, recursive modifying-target/ALTER boundaries and actual native controls.
 Controls use native Dump output, including persistent graph replay beside observed
 live TEMP address collisions and exact live TEMP-to-persistent replacement refusal.
 The controls have no invented PostgreSQL API counterpart; PostgreSQL independently
 executes shared SQL and consumes native emitted streams where applicable.
+
+Inherited SELECT has untagged shared `TestReferenceInheritanceQuery` definitions.
+Each body independently specifies direct/prepared bags, projection/full metadata,
+supported consumers and frozen ONLY, parent ACL/RLS, generated mapping, physical
+rowmarks/recheck, snapshot/TEMP, optimization safety and genuine native controls.
+CTE ONLY/star forms retain ordinary CTE resolution (a/INT4,row1). No discovery
+filter or deliberately failing PG observation remains.
+
+Run each bounded expression below with both `make check RUN='<expression>'` and
+`make check REFERENCE=1 RUN='<expression>'`, external 900-second deadlines:
+
+|Group|Expression|
+|---|---|
+|Forms/bags|`^TestReferenceInheritanceQuery(Forms\|Diagnostics\|BagDiamond)$`|
+|Consumers/views|`^TestReferenceInheritanceQuery(Consumers\|PreparedViews)$`|
+|Authority|`^TestReferenceInheritanceQuery(Authorization\|RLS)$`|
+|Recipes/eligibility|`^TestReferenceInheritanceQuery(Generated\|Optimization)$`|
+|Physical rowmarks|`^TestReferenceInheritanceQuery(RowMarks\|LockRecheck)$`|
+|Snapshots/TEMP|`^TestReferenceInheritanceQuery(Snapshots\|TemporaryVisibility)$`|
+|Admission wait|`^TestReferenceInheritanceQueryRelationWait$`|
+|Controls/smoke|`^TestReferenceInheritanceQuery(Controls\|FeatureSmoke)$`|
+|Migrated scan boundaries|`^TestReferenceInheritance(Boundaries\|HeldPreparedBoundary\|BoundaryNoEffects\|OnCommitDeletePhysical)$`|
+|Migrated COPY query|`^TestReferenceCopyTextQueryAndColumns$`|
+|Migrated typed-parent scan boundaries|`^TestReferenceTypedTable(InheritedPropagation\|InheritedCollisionAtomicity\|OtherParentRetention)$`|
+
+The typed-parent group retains its genuine ALTER TYPE propagation, collision
+atomicity and other-parent/local-column retention assertions. Default inherited
+scans and ONLY now have shared positive values/empty-row metadata expectations;
+there is no native SELECT rejection or new typed-table production capability.
+Run this changed group against pinned PostgreSQL first, then the same native definitions.
+
+The wait definition retains real PG DROP/recreate with in-flight parent10 and no
+replacement9, followed by fresh10,9. Native explicitly asserts its permanent
+CREATE-in-transaction0A000 capability boundary, atomic rollback and recovery,
+not an unreachable fake replacement. `TestInheritanceQueryAdmissionReplacement`
+uses actual descendant grant admission and validated catalog Remove/Create with
+allocated identities/distinct storage; the original waiter returns ErrCatalogReplaced
+and a fresh retained scan sees sentinel9.
+`TestInheritanceQueryAdmissionGrowth` adds a real late child while the scanner
+waits on its original descendant, then proves both exact grants and one retained
+snapshot containing10,20,9. This is graph reconciliation, not SQL replay or a
+synthetic snapshot.
+
+`TestInheritanceQueryStoredViewAdmission` uses real catalog publication, frozen
+view binding and transaction tickets. Ordinary/ONLY/default-inherited/local and
+outer-marked/overlapping occurrences assert exact physical grants and parent bags.
+An actually queued peer Exclusive grant proves RowShare strength; an AccessShare-only
+base permits that peer. A genuinely weaker admitted base is upgraded, and cleanup
+releases both tickets without replacing logical view-source authority.
+
+Root-run supplements:
+
+```sh
+timeout 900s make check RUN='^TestInheritanceQuery(Closure|Layout|Locator|Visibility|ScanMode)$'
+timeout 900s make check RUN='^TestInheritanceQueryAdmissionReplacement$'
+timeout 900s make check RUN='^TestInheritanceQueryAdmissionGrowth$'
+timeout 900s make check RUN='^TestInheritanceQueryStoredViewAdmission$'
+timeout 900s make check RUN='^TestGeneratedTableOIDStructuralEquality$'
+timeout 900s make check RUN='^TestInheritanceGuards$'
+timeout 900s make check RUN='^Test(MaterializedViewAuthorization|TemporaryViewRetainedSourceFrontier|UpdateFrom(FramesOriginsAndPhysicalTargets|LosingPairsDemandAndFailureCleanup|ImmediateGrantFreezesSource))$'
+timeout 900s make check RACE=1 RUN='^TestReferenceInheritanceQuery(RowMarks|LockRecheck|RelationWait)$'
+timeout 900s make check RACE=1 RUN='^TestInheritanceQueryAdmissionReplacement$'
+timeout 900s make check RACE=1 RUN='^TestInheritanceQueryAdmissionGrowth$'
+timeout 900s make check RACE=1 RUN='^TestInheritanceQueryStoredViewAdmission$'
+```
+
+`TestGeneratedTableOIDStructuralEquality` uses the real row-reference mapper:
+equal mapped physical owner/full Usage compares equal; different owner, epoch,
+address, subobject, Usage or expression kind does not. It never evaluates recipes.
+The generated and locked-postwait reference expectations remain unchanged.
+MERGE source consumer counts use the incumbent native actual-modification count
+versus lib/pq's zero export; independent sink rows prove the same modifications.
+
+The root materializes `local://inherit-query-smoke.go` as
+`.inherit-query-smoke/main.go`, runs `timeout 60s go run ./.inherit-query-smoke`,
+records stdout/stderr/exit and removes only that temporary source directory.
+It must prove five-row mapped bags versus physical two, exact metadata, prepared
+and frozen ONLY modes, parent authority/RLS, real child row locking and genuine
+Dump/Reset/Restore with held Rows, not Ping or a synthetic stream.
+The smoke's parent ACL/default-deny phase uses a separate disposable five-row
+hierarchy, actually dropped CASCADE before Dump. REVOKE alone leaves explicit ACL
+metadata outside native serialization. The original diamond/data/views used for
+physical rowlocks and genuine controls are never rebuilt or replaced as cleanup.
+Whole-project Docker-free `make quickcheck` and post-integration `make finalcheck` remain separate.
 
 The retained-exclusion collision regression observes an actual imported parent
 descriptor OID equal to a live TEMP child's local EXCLUDE constraint OID before

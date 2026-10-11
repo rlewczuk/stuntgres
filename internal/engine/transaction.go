@@ -263,56 +263,58 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 // Binding uses current resolution metadata; data consumers explicitly acquire a
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
-	self                  *StatementScope
-	owner                 *transactionOwner
-	op                    *Operation
-	authority             *queryAuthority
-	stage                 WriteStage
-	view                  *VisibilityView
-	finished              bool
-	message               bool
-	messageEnded          bool
-	messageResult         error
-	result                error
-	worked                bool
-	completed             bool
-	sessionCompleted      bool // Successful session utilities have no private stage to merge.
-	controlOutcome        controlOutcome
-	replacementRead       bool
-	ticket                *relationTicket
-	lockedRef             ObjectRef
-	viewCreationNamespace ObjectRef
-	viewPersistence       string
-	viewBinding           binding
-	viewChanges           *catalogChanges
-	lockedDescriptor      Descriptor
-	viewWrite             *viewWrite
-	indexMaintenance      *indexMaintenanceGrant
-	materializedRefresh   bool
-	materializedSources   []Descriptor
-	querySources          []queryLeaf
-	queryLockAdmission    queryLockAdmission
-	queryLocks            *queryLockContext
-	activeViews           []ObjectAddress
-	lockedStorage         *relationStorage
-	lockedIdentityOnly    bool
-	txRef                 TxRef
-	command               CommandID
-	ownWrites             map[ObjectAddress][]rowVersion
-	ownDeletes            map[ObjectAddress]*privateDeletionRoot
-	uniqueBinding         *uniqueWriteBinding
-	exclusionModes        exclusionModes
-	exclusionStarted      bool
-	exclusionCandidates   map[ObjectAddress][]rowVersion
-	insertConflict        *boundInsertConflict
-	partitionInsert       *partitionInsertState
-	rlsTargetDenied       bool
-	rlsProposal           rlsDisposition
-	rlsMergeUpdate        rlsDisposition
-	rlsMergeInsert        rlsDisposition
-	rlsProposalTable      string
-	partitionRelations    map[ObjectAddress]*relationDescriptor
-	Expected              *StatementDescription
+	self                           *StatementScope
+	owner                          *transactionOwner
+	op                             *Operation
+	authority                      *queryAuthority
+	stage                          WriteStage
+	view                           *VisibilityView
+	finished                       bool
+	message                        bool
+	messageEnded                   bool
+	messageResult                  error
+	result                         error
+	worked                         bool
+	completed                      bool
+	sessionCompleted               bool // Successful session utilities have no private stage to merge.
+	controlOutcome                 controlOutcome
+	replacementRead                bool
+	ticket                         *relationTicket
+	lockedRef                      ObjectRef
+	viewCreationNamespace          ObjectRef
+	viewPersistence                string
+	viewBinding                    binding
+	viewChanges                    *catalogChanges
+	lockedDescriptor               Descriptor
+	viewWrite                      *viewWrite
+	indexMaintenance               *indexMaintenanceGrant
+	materializedRefresh            bool
+	materializedSources            []Descriptor
+	querySources                   []queryLeaf
+	queryLockAdmission             queryLockAdmission
+	queryLocks                     *queryLockContext
+	activeViews                    []ObjectAddress
+	lockedStorage                  *relationStorage
+	lockedIdentityOnly             bool
+	txRef                          TxRef
+	command                        CommandID
+	ownWrites                      map[ObjectAddress][]rowVersion
+	ownDeletes                     map[ObjectAddress]*privateDeletionRoot
+	uniqueBinding                  *uniqueWriteBinding
+	exclusionModes                 exclusionModes
+	exclusionStarted               bool
+	exclusionCandidates            map[ObjectAddress][]rowVersion
+	insertConflict                 *boundInsertConflict
+	partitionInsert                *partitionInsertState
+	rlsTargetDenied                bool
+	rlsProposal                    rlsDisposition
+	rlsMergeUpdate                 rlsDisposition
+	rlsMergeInsert                 rlsDisposition
+	rlsProposalTable               string
+	partitionRelations             map[ObjectAddress]*relationDescriptor
+	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
+	inheritanceCatalog             CatalogRead // Immutable topology after the last grant/wait reconciliation.
+	Expected                       *StatementDescription
 	preparedReuse                  *preparedAnalysis
 	preparedInvalid                bool
 	preparedPath                   sequenceEnvironment
@@ -323,13 +325,13 @@ type StatementScope struct {
 	admissionWaited                bool
 	admittedTargetName             parser.ObjectName
 	admittedTargetLexical          ObjectRef
-	implicit              bool
-	input                 sqltype.InputEnvironment
-	statementStart        time.Time
-	transactionStart      time.Time
-	timeoutRef            TxRef // admission projection for preparse ERROR timer retirement
-	output                sqltype.OutputEnvironment
-	initialParameters     []sqltype.Usage
+	implicit                       bool
+	input                          sqltype.InputEnvironment
+	statementStart                 time.Time
+	transactionStart               time.Time
+	timeoutRef                     TxRef // admission projection for preparse ERROR timer retirement
+	output                         sqltype.OutputEnvironment
+	initialParameters              []sqltype.Usage
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
 	pgRegex                sqltype.PGRegexExecution

@@ -50,10 +50,9 @@ Ordinary database/sql calls reject stream COPY with0A000
 `COPY TO STDOUT requires stuntgres.CopyTo`; files and PROGRAM retain separate
 capability errors and never perform external I/O. Native RLS execution is an
 existing unavailable prerequisite, not synthesized by this feature.
-Native inherited-parent query export retains the existing0A000
-`recursive table inheritance is unsupported` boundary; physical table COPY still
-exports only that parent's stored rows. Supported ordinary/leaf queries use the
-real query path. No SELECT ONLY syntax or new explicit-cast provider is introduced.
+Inherited-parent COPY(query) uses the shared descendants-included SELECT path;
+ONLY in its query restricts that occurrence. Physical table COPY still exports
+only that parent's stored rows. No new explicit-cast provider is introduced.
 
 CSV defaults to comma, an empty unquoted NULL marker, double-quote QUOTE and
 ESCAPE equal to QUOTE. Quoted empty is a non-NULL empty string; quoted NULL
@@ -5228,7 +5227,11 @@ CREATE TABLE admits ordered one/multiple INHERITS parents before ON COMMIT,
 merging compatible columns/defaults/CHECK/NOT NULL with real normal dependencies.
 IF NOT EXISTS skips source resolution for an existing destination. Malformed/
 repeated/extra-tail input remains42601 with no script-prefix effects.
-Native recursive parent scans/DML/ordinary LOCK reject0A000
+SELECT includes descendants by default or with `parent*`; `ONLY parent` and
+`ONLY(parent)` restrict the occurrence to the named physical relation. Bags retain
+duplicate values but visit diamond descendants once per SQL occurrence. Parent
+schema/ACL/RLS and VIRTUAL recipes combine with physical STORED values/rowmarks.
+Native recursive UPDATE/DELETE targets and ordinary LOCK retain0A000
 `recursive table inheritance is unsupported`; physical INSERT and leaf DML work.
 Graph shape/default/nullability/constraint ALTER rejects0A000
 `ALTER TABLE inheritance operations are unsupported`, with sourced inherited

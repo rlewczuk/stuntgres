@@ -120,6 +120,45 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	}
 }
 
+func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
+	e, view, parent := generatedUnitDescriptor(t)
+	oid, _ := view.LookupType(sqltype.Oid)
+	owner := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: parent.address}
+	original := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, owner}
+	child := *parent
+	child.address.ObjectID++
+	mapper := createLikeInput{source: parent}
+	left, err := mapper.remap(original, &child, view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := mapper.remap(original, &child, view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sameGroupExpression(left, right) || sameGroupExpression(original, left) || original.owner != owner {
+		t.Fatal("mapped recipe equality lost exact row owner or mutated the source")
+	}
+	mapped := left.(tableOIDExpression)
+	for _, change := range []func(*tableOIDExpression){
+		func(n *tableOIDExpression) { n.owner.owner = New().owner },
+		func(n *tableOIDExpression) { n.owner.Epoch++ },
+		func(n *tableOIDExpression) { n.owner.Address.ObjectID++ },
+		func(n *tableOIDExpression) { n.owner.Address.SubID++ },
+		func(n *tableOIDExpression) { n.usage = parent.columns[0].Usage },
+	} {
+		different := mapped
+		change(&different)
+		if sameGroupExpression(mapped, different) || sameGroupExpression(different, mapped) {
+			t.Fatal("distinct physical row authority or full Usage compared equal")
+		}
+	}
+	column := columnExpression{expressionInfo: mapped.expressionInfo, origin: mapped.owner}
+	if sameGroupExpression(mapped, column) {
+		t.Fatal("different expression kind compared equal")
+	}
+}
+
 func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &Operation{ctx: context.Background()}

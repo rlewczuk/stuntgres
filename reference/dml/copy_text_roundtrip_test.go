@@ -39,16 +39,7 @@ func TestReferenceCopyTextQueryAndColumns(t *testing.T) {
 		c.exec(t, "INSERT INTO copy_child VALUES(2)")
 		c.output(t, "COPY copy_parent TO STDOUT", "1\n", 1)
 		c.output(t, "COPY (SELECT * FROM copy_child) TO STDOUT", "2\n", 1)
-		if b.PG {
-			c.output(t, "COPY (SELECT * FROM copy_parent ORDER BY id) TO STDOUT", "1\n2\n", 2)
-		} else {
-			var rejected strings.Builder
-			result, err = c.to("COPY (SELECT * FROM copy_parent ORDER BY id) TO STDOUT", &rejected)
-			copyTextDiagnostic(t, result, err, fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
-			if rejected.Len() != 0 {
-				t.Fatal("excluded recursive query wrote bytes")
-			}
-		}
+		c.output(t, "COPY (SELECT * FROM copy_parent ORDER BY id) TO STDOUT", "1\n2\n", 2)
 		c.exec(t, "CREATE TABLE copy_generated(id int,g int GENERATED ALWAYS AS(id+1) STORED)")
 		c.exec(t, "INSERT INTO copy_generated(id) VALUES(1)")
 		c.output(t, "COPY copy_generated TO STDOUT", "1\n", 1)

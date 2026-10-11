@@ -1946,6 +1946,9 @@ inner_join: /* empty */ { $$=JoinInner } | INNER { $$=JoinInner }
  | FULL optional_outer { $$=JoinFull } ;
 optional_outer: /* empty */ { $$=false } | OUTER { $$=true } ;
 from_base: relation_name { $$=&TableReference{Name:$1} }
+ | relation_name '*' { $$=&TableReference{Name:$1} }
+ | ONLY relation_name { $$=&TableReference{Name:$2,Only:true} }
+ | ONLY '(' relation_name ')' { $$=&TableReference{Name:$3,Only:true} }
  | select_with_parens %prec NAME_LIST { if $1.Query.Values!=nil && len($1.Query.Locking)==0 {$$=$1.Query.Values} else {$$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos}} }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {

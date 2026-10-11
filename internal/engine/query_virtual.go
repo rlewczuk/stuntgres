@@ -78,3 +78,32 @@ func (c *EvalContext) queryOperandAbsent(local int) (bool, error) {
 	}
 	return false, fmt.Errorf("stuntgres: missing virtual query occurrence")
 }
+
+func (c *EvalContext) queryOperandPhysicalRef(local int) (ObjectRef, error) {
+	if c.query == nil || c.query.source == nil || local < 0 || len(c.queryOccurrences) != len(c.queryProvenance) {
+		return ObjectRef{}, fmt.Errorf("stuntgres: invalid virtual query identity")
+	}
+	bundle := c.query.source
+	if bundle.sources != nil && local >= len(bundle.sources) || bundle.sources == nil && local != 0 {
+		return ObjectRef{}, fmt.Errorf("stuntgres: invalid virtual query source")
+	}
+	source := querySourceAt(bundle, local)
+	for source.input != nil {
+		source = source.input
+	}
+	physical := source.occurrence
+	for i, occurrence := range c.queryOccurrences {
+		if occurrence != physical {
+			continue
+		}
+		index := c.queryProvenance[i]
+		if index == absentQueryIndex {
+			return ObjectRef{}, nil
+		}
+		if bundle.locks != nil && occurrence >= 0 && occurrence < len(bundle.locks.leaves) {
+			source = bundle.locks.leaves[occurrence].source
+		}
+		return source.physicalRef(index), nil
+	}
+	return ObjectRef{}, fmt.Errorf("stuntgres: missing virtual query occurrence")
+}

@@ -60,6 +60,35 @@ Owner-dependent stored generation detects tableoid in any operand of any row
 pair. Native owner collision/remapping therefore recomputes affected row BOOL
 cells even when other pairs contain only ordinary columns.
 
+## Inherited relation scans — change note
+
+`FROM parent` and `FROM parent*` include the named plain table and descendants.
+`FROM ONLY parent` or `FROM ONLY(parent)` scan just its physical rows. Qualified,
+quoted and aliased names retain the same modes. CTE lookup keeps its normal
+precedence, including `ONLY cte`, `ONLY(cte)` and `cte*`; these are not catalog-only
+forms. Ordinary filters, joins, subqueries, CTEs, aggregates, views, ordering,
+limits and supported query-consuming DML/creation/COPY routes share this source path.
+
+The named parent's columns and full metadata define the result. Descendant
+payloads are mapped to that layout; child-only columns are not exposed. A diamond
+descendant contributes once per occurrence, but equal-valued physical rows and
+self-join occurrences retain bag multiplicity. Use ORDER BY for an order guarantee.
+Parent SELECT/column ACL and RLS own logical admission; physical descendant ACL/RLS
+is checked only when the descendant itself is a named source. VIRTUAL generated
+reads use the parent's recipe; STORED values belong to the physical row.
+
+Stored-view admission reuses the named bases' already validated grants. Ordinary
+and frozen ONLY sources do not reacquire those bases; effective rowmarks retain
+their stronger relation grants, and missing descendants join the same accounting.
+
+Supported rowmarks lock the actual physical descendant identity and remap
+postwait updates before predicate/order/virtual recheck. NOWAIT/SKIP LOCKED and
+outer-join absence retain their ordinary semantics. All roots share the sole
+statement snapshot. ONLY persists in frozen views and genuine native Dump/Restore;
+prepared execution sees later admitted descendants while held eager Rows stay fixed.
+Recursive modifying targets, ordinary LOCK and propagating ALTER remain boundaries.
+Public tableoid exposure and arbitrary native RLS-policy evaluation are not added.
+
 ## Timezone lookup sources — change note
 
 The [timezone lookup views](DIALECT.md#timezone-lookup-views--change-note)

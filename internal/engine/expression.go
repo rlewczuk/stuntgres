@@ -52,6 +52,7 @@ type EvalContext struct {
 	queryOccurrences []int
 	queryProvenance  []int
 	queryRowSource   *querySource
+	physicalTable    ObjectRef // Existing generated recipe's containing physical row.
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
@@ -161,6 +162,13 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	local.Context = c.Context
 	local.Scope, local.Frame = 1, 1
 	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
+	if e.queryOccurrence != 0 {
+		ref, err := row.queryOperandPhysicalRef(e.queryOccurrence - 1)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		local.physicalTable = ref
+	}
 	return e.virtual.Eval(&local)
 }
 

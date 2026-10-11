@@ -328,6 +328,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		}
 		if v.simple {
 			name := relationDiagnosticNameAt(catalog, d, v.presentation.path)
+			if leaf.only {
+				name = "ONLY " + name
+			}
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
@@ -347,6 +350,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
 		if v.presentation.deparse && v.presentation.pretty {
 			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
+		}
+		if leaf.only {
+			from.relation = "ONLY " + from.relation
 		}
 		for _, attribute := range d.attributes {
 			column := viewRenderColumn{slot: -1}

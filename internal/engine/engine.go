@@ -662,7 +662,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
-		if err := inheritanceScanGuard(auth.catalog, b.relation); err != nil {
+		if err := inheritanceTargetGuard(auth.catalog, b.relation); err != nil {
 			return b, err
 		}
 		if !b.relation.virtualView {
@@ -726,7 +726,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if !b.relation.virtualView && b.relation.relationKind == catalogRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		if err := inheritanceScanGuard(auth.catalog, b.relation); err != nil {
+		if err := inheritanceTargetGuard(auth.catalog, b.relation); err != nil {
 			return b, err
 		}
 		if !b.relation.virtualView {

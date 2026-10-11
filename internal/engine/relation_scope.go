@@ -461,20 +461,16 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if preparedDefinitionStamp(descriptor) != definitionStamp {
 		s.preparedChangedDuringAdmission = true
 	}
-	if source {
-		if err := inheritanceScanGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
-			return err
-		}
-	} else {
+	if !source {
 		switch stmt.(type) {
 		case *parser.Update, *parser.Delete:
-			if err := inheritanceScanGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
+			if err := inheritanceTargetGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
 				return err
 			}
 		}
 	}
 	if source {
-		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
+		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, only: sourceOnly(stmt), storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
@@ -568,6 +564,11 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 	for address, captured := range s.partitionRelations {
 		if catalog.state.descriptors[address] != captured {
 			return ErrCatalogReplaced
+		}
+	}
+	for _, source := range s.inheritanceRelations {
+		if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, source); err != nil {
+			return err
 		}
 	}
 	for i, source := range s.querySources {

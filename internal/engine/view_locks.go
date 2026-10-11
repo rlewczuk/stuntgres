@@ -4,7 +4,13 @@ import (
 	"sort"
 )
 
-func (s *StatementScope) acquireViewSources() error {
+func (s *StatementScope) acquireViewSources() (err error) {
+	var grants map[ObjectRef]relationLockMode
+	defer func() {
+		if err == nil {
+			err = s.acquireInheritanceSources(grants)
+		}
+	}()
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -81,7 +87,7 @@ func (s *StatementScope) acquireViewSources() error {
 		}
 		return nil
 	}
-	err := visit(s.lockedRef, 0)
+	err = visit(s.lockedRef, 0)
 	for _, leaf := range s.querySources {
 		if err != nil {
 			break
@@ -112,6 +118,9 @@ func (s *StatementScope) acquireViewSources() error {
 			}
 		}
 	}
+	// Membership records an acquired AccessShare grant even when the effective
+	// query rowmark is zero. Reuse this accounting only after view validation.
+	grants = seen
 	return nil
 }
 

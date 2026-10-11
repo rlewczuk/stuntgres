@@ -49,16 +49,15 @@ func TestReferenceInheritanceBoundaryNoEffects(t *testing.T) {
 		s.exec("CREATE TABLE c() INHERITS(p)", 0)
 		s.exec("INSERT INTO p VALUES(1)", 1)
 		s.exec("INSERT INTO c VALUES(2)", 1)
+		s.values("SELECT nextval('seed') FROM p WHERE false", []string{"nextval"}, []string{"INT8"}, nil)
+		s.values("SELECT last_value,is_called FROM seed", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(31), false}})
 		if s.b.PG {
 			s.values("SELECT nextval('seed') FROM p ORDER BY a", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(31)}, {int64(32)}})
 			s.values("SELECT last_value,is_called FROM seed", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(32), true}})
 			s.exec("TRUNCATE p", 0)
 			s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, nil)
 		} else {
-			step := fixture.ImplicitError("SELECT nextval('seed') FROM p WHERE false", fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
-			step.SelectRows = true
-			s.run(step)
-			s.values("SELECT last_value,is_called FROM seed", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(31), false}})
+			s.values("SELECT * FROM p ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
 			s.fail("TRUNCATE p", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
 			s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}})
 		}
@@ -74,12 +73,7 @@ func TestReferenceInheritanceOnCommitDeletePhysical(t *testing.T) {
 		s.exec("INSERT INTO commit_child VALUES(2)", 1)
 		s.exec("COMMIT", 0)
 		s.values("SELECT * FROM commit_child", []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}})
-		if s.b.PG {
-			s.values("SELECT * FROM ONLY commit_parent", []string{"a"}, []string{"INT4"}, nil)
-		} else {
-			step := fixture.ImplicitError("SELECT * FROM commit_parent", fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
-			step.SelectRows = true
-			s.run(step)
-		}
+		s.values("SELECT * FROM ONLY commit_parent", []string{"a"}, []string{"INT4"}, nil)
+		s.values("SELECT * FROM commit_parent", []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}})
 	})
 }

@@ -6,21 +6,21 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Query sources recurse in PostgreSQL, unlike physical INSERT targets. Inspect
-// stored view sources too: a view can predate the creation of a table's child.
-func inheritanceScanGuard(catalog CatalogRead, relation *relationDescriptor) error {
+// Recursive modifying targets and ordinary LOCK retain their capability
+// boundary. SELECT sources use the admitted physical hierarchy instead.
+func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) error {
 	if relation.view == nil {
 		if relation.relationKind == tableRelation && inheritanceHasChildren(catalog, relation.address) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
 		}
 		return nil
 	}
-	return inheritanceViewScanGuard(catalog, relation, make(map[ObjectAddress]bool))
+	return inheritanceViewTargetGuard(catalog, relation, make(map[ObjectAddress]bool))
 }
 
-func inheritanceViewScanGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ObjectAddress]bool) error {
+func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ObjectAddress]bool) error {
 	if relation.view == nil {
-		return inheritanceScanGuard(catalog, relation)
+		return inheritanceTargetGuard(catalog, relation)
 	}
 	if visited[relation.address] {
 		// The existing view binder owns recursive-view diagnostics.
@@ -32,7 +32,7 @@ func inheritanceViewScanGuard(catalog CatalogRead, relation *relationDescriptor,
 		if !ok {
 			return ErrCatalogReplaced
 		}
-		if err := inheritanceViewScanGuard(catalog, live, visited); err != nil {
+		if err := inheritanceViewTargetGuard(catalog, live, visited); err != nil {
 			return err
 		}
 	}

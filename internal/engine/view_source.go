@@ -17,10 +17,6 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		e.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if err := inheritanceScanGuard(e.privateCatalogLocked(scope.owner.catalog), d); err != nil {
-		e.mu.Unlock()
-		return nil, err
-	}
 	if hierarchyRelation(d) && mark.mode != 0 {
 		e.mu.Unlock()
 		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
@@ -134,25 +130,6 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			return nil, err
 		}
 		return source, nil
-	case tableRelation, materializedViewRelation:
-		denied, securityErr := e.rowSecurityInputLocked(scope, d, invoker, policySelect, false)
-		if securityErr != nil {
-			e.mu.Unlock()
-			return nil, securityErr
-		}
-		if d.relationKind == materializedViewRelation && !d.populated {
-			e.mu.Unlock()
-			return nil, materializedViewReadError(d)
-		}
-		view, err := scope.acquireDataViewLocked(e, ref)
-		e.mu.Unlock()
-		if err != nil {
-			return nil, err
-		}
-		if denied {
-			return captureDeniedQuerySource(view, ref)
-		}
-		return captureQuerySource(ctx, view, ref)
 	case indexRelation:
 		e.mu.Unlock()
 		return nil, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.name))

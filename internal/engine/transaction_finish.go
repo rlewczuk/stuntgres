@@ -178,6 +178,8 @@ func (s *StatementScope) Finish(err error) error {
 	s.rlsProposal, s.rlsMergeInsert, s.rlsMergeUpdate = rlsUnrestricted, rlsUnrestricted, rlsUnrestricted
 	s.rlsProposalTable = ""
 	s.partitionRelations = nil
+	s.inheritanceRelations = nil
+	s.inheritanceCatalog = CatalogRead{}
 	s.ticket = nil
 	s.lockedDescriptor = nil
 	s.viewWrite = nil

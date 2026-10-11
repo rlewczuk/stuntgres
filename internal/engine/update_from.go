@@ -17,10 +17,10 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
-func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, refs []ObjectRef) ([]ObjectRef, error) {
+func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, refs []ObjectRef, token SessionToken) ([]ObjectRef, error) {
 	var visited map[ObjectRef]bool
-	var collect func(ObjectRef) error
-	collect = func(ref ObjectRef) error {
+	var collect func(ObjectRef, bool) error
+	collect = func(ref ObjectRef, only bool) error {
 		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok || ref.owner != e.owner || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
@@ -41,17 +41,24 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 				if err != nil {
 					return err
 				}
-				if err := collect(use); err != nil {
+				if err := collect(use, child.only); err != nil {
 					return err
 				}
 			}
 		}
 		if relation.partition != nil {
 			for _, address := range relation.partition.children {
-				if err := collect(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}); err != nil {
+				if err := collect(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}, true); err != nil {
 					return err
 				}
 			}
+		}
+		if relation.relationKind == tableRelation && !only {
+			return inheritanceQueryClosure(catalog, relation, token, func(physical *relationDescriptor) error {
+				child := ref
+				child.Address = physical.address
+				return collect(child, true)
+			})
 		}
 		if relation.relationKind.stored() {
 			for _, prior := range refs {
@@ -67,7 +74,7 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 		if leaf.analysisOnly {
 			continue
 		}
-		if err := collect(leaf.ref); err != nil {
+		if err := collect(leaf.ref, leaf.only); err != nil {
 			return nil, err
 		}
 	}

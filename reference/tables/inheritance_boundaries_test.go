@@ -36,35 +36,41 @@ func TestReferenceInheritanceBoundaries(t *testing.T) {
 				s.exec("INSERT INTO c VALUES(2)", 1)
 				s.exec("CREATE TABLE sink(a INT)", 0)
 				s.exec("INSERT INTO sink VALUES(1)", 1)
-				if s.b.PG {
-					if tc.selectRows {
-						s.values(tc.query, []string{"a"}, []string{"INT4"}, tc.rows)
-					} else {
-						s.exec(tc.query, tc.affected)
-					}
-					if tc.name == "update_parent" {
-						s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(12)}})
-					}
-					if tc.name == "delete_parent" {
-						s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, nil)
-					}
-					if tc.name == "merge_source" {
-						s.values("SELECT * FROM sink ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
-					}
-					// Pinned PostgreSQL through pq reports RowsAffected0 for MERGE;
-					// actual target rows independently prove descendant-source execution.
-					if tc.name == "direct_merge_source" {
-						s.values("SELECT * FROM sink ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
-					}
+				target := tc.name == "update_parent" || tc.name == "empty_update" || tc.name == "delete_parent" || tc.name == "empty_delete"
+				if target && !s.b.PG {
+					s.fail(tc.query, fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
+				} else if tc.selectRows {
+					s.values(tc.query, []string{"a"}, []string{"INT4"}, tc.rows)
 				} else {
-					step := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
-					step.SelectRows = tc.selectRows
-					s.run(step)
-					s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}})
-					s.values("SELECT * FROM sink", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}})
-					if tc.name == "view_source" {
-						s.absent("v")
+					affected := tc.affected
+					if !s.b.PG && (tc.name == "merge_source" || tc.name == "direct_merge_source") {
+						affected = 1 // lib/pq exports zero; native reports the actual insert.
 					}
+					s.exec(tc.query, affected)
+				}
+				switch tc.name {
+				case "view_source":
+					s.values("SELECT * FROM v ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
+				case "insert_select":
+					s.values("SELECT * FROM sink ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}, {int64(2)}})
+				case "update_from":
+					s.values("SELECT * FROM sink", []string{"a"}, []string{"INT4"}, [][]any{{int64(11)}})
+				case "delete_using":
+					s.values("SELECT * FROM sink", []string{"a"}, []string{"INT4"}, nil)
+				case "merge_source", "direct_merge_source":
+					// pq reports MERGE affected0; real sink values prove execution.
+					s.values("SELECT * FROM sink ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
+				}
+				if target {
+					want := [][]any{{int64(2)}}
+					if s.b.PG && tc.name == "update_parent" {
+						want = [][]any{{int64(12)}}
+					}
+					if s.b.PG && tc.name == "delete_parent" {
+						want = nil
+					}
+					s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, want)
+					s.values("SELECT * FROM sink", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}})
 				}
 			})
 		})
@@ -84,28 +90,17 @@ func TestReferenceInheritanceHeldPreparedBoundary(t *testing.T) {
 		s.exec("CREATE TABLE c() INHERITS(p)", 0)
 		s.exec("INSERT INTO c VALUES(2)", 1)
 		rows, err := stmt.QueryContext(s.p.Ctx)
-		if s.b.PG {
-			if err != nil {
-				s.t.Fatal(err)
-			}
-			defer rows.Close()
-			columns, err := rows.ColumnTypes()
-			if err != nil {
-				s.t.Fatal(err)
-			}
-			fixture.TableDDLColumnTypes(s.t, true, columns, []string{"a"}, []string{"INT4"}, []bool{true})
-			fixture.TransactionRowValues(s.t, rows, 1, 2)
-			s.values("SELECT * FROM v ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
-		} else {
-			if rows != nil {
-				rows.Close()
-			}
-			d := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "recursive table inheritance is unsupported"}
-			fixture.AssertDiagnostic(s.t, err, &d)
-			step := fixture.ImplicitError("SELECT * FROM v", fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
-			step.SelectRows = true
-			s.run(step)
+		if err != nil {
+			s.t.Fatal(err)
 		}
+		defer rows.Close()
+		columns, err := rows.ColumnTypes()
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		fixture.TableDDLColumnTypes(s.t, s.b.PG, columns, []string{"a"}, []string{"INT4"}, []bool{true})
+		fixture.TransactionRowValues(s.t, rows, 1, 2)
+		s.values("SELECT * FROM v ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
 	})
 }
 

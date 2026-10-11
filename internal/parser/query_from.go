@@ -2,7 +2,10 @@ package parser
 
 // FromItem preserves join operand and whole-result alias boundaries.
 type FromItem interface{ fromItem() }
-type TableReference struct{ Name ObjectName }
+type TableReference struct {
+	Name ObjectName
+	Only bool // Otherwise scan the named relation and its descendants.
+}
 
 func (*TableReference) fromItem() {}
 

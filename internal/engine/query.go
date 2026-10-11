@@ -417,6 +417,8 @@ type querySource struct {
 	sources              []*querySource
 	partitions           []*querySource
 	partitionEnds        []int
+	inheritance          []inheritanceQuerySegment
+	inheritanceEnds      []int
 	flat                 []sqltype.Value
 	flatWidth, flatCount int
 	materialized         bool
@@ -476,6 +478,12 @@ func (s *querySource) count() int {
 	if s.visible != nil {
 		return len(s.visible)
 	}
+	if s.inheritance != nil {
+		if len(s.inheritanceEnds) == 0 {
+			return 0
+		}
+		return s.inheritanceEnds[len(s.inheritanceEnds)-1]
+	}
 	if s.partitions != nil {
 		if len(s.partitionEnds) == 0 {
 			return 0
@@ -534,6 +542,10 @@ func (s *querySource) row(i int) []sqltype.Value {
 	if s.singleton {
 		return nil
 	}
+	if s.inheritance != nil {
+		segment, index := s.inheritanceSegment(i)
+		return segment.mapValues(segment.prefix.row(index))
+	}
 	if s.partitions != nil {
 		return s.partitionRow(i)
 	}
@@ -551,6 +563,10 @@ func (s *querySource) rawIndex(i int) int {
 func (s *querySource) versionAt(i int) rowVersion {
 	if i == absentQueryIndex {
 		return rowVersion{}
+	}
+	if s.inheritance != nil {
+		segment, index := s.inheritanceSegment(i)
+		return segment.prefix.versionAt(segment.prefix.rawIndex(index))
 	}
 	if s.partitions != nil {
 		return s.partitionVersion(i)
@@ -583,6 +599,10 @@ func (s *querySource) close() {
 		child.close()
 	}
 	s.partitions, s.partitionEnds = nil, nil
+	for _, segment := range s.inheritance {
+		segment.prefix.close()
+	}
+	s.inheritance, s.inheritanceEnds = nil, nil
 	s.flat = nil
 	s.windowValues, s.windowIndices = nil, nil
 	s.windowCount, s.windowWidth, s.window = 0, 0, false

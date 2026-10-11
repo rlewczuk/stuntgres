@@ -111,7 +111,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref Obj
 			return nil, ErrCatalogReplaced
 		}
 		if !only || d.view != nil {
-			if err := inheritanceScanGuard(auth.catalog, d); err != nil {
+			if err := inheritanceTargetGuard(auth.catalog, d); err != nil {
 				return nil, err
 			}
 		}

@@ -45,7 +45,11 @@ func (n tableOIDExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if c.Scope != 1 || c.Frame != 1 || n.owner.Address.ObjectID == 0 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
 	}
-	return sqltype.OIDValue(n.usage.Type, uint32(n.owner.Address.ObjectID))
+	owner := n.owner
+	if c.physicalTable != (ObjectRef{}) {
+		owner = c.physicalTable
+	}
+	return sqltype.OIDValue(n.usage.Type, uint32(owner.Address.ObjectID))
 }
 
 func generationWriteError(column string, update bool) error {

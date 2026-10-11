@@ -35,6 +35,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		same = func(a, other BoundExpr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
 	}
 	switch e := a.(type) {
+	case tableOIDExpression:
+		o, ok := other.(tableOIDExpression)
+		return ok && e.owner == o.owner
 	case groupingExpression:
 		o, ok := other.(groupingExpression)
 		if !ok || !comparison.sameFrame(e.frame, o.frame) || len(e.args) != len(o.args) {

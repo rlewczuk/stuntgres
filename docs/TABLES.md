@@ -369,10 +369,36 @@ CASCADE removes the descendant closure with ordinary dependent objects. Whole
 table RENAME/SET SCHEMA preserve graph identities. TEMP cleanup/ON COMMIT DROP
 uses the same closure; ON COMMIT DELETE ROWS clears only the named physical table.
 
-Recursive parent scans, nested/stored source scans, UPDATE/DELETE targets and
-ordinary LOCK on a parent with children reject0A000
-`recursive table inheritance is unsupported`. Physical INSERT and leaf DML work;
-LOCK ONLY is physical. Graph column/default/type/nullability/constraint ALTER
+SELECT from a named parent includes its own rows and all admitted descendants;
+`parent*` is explicit default mode, while `ONLY parent` / `ONLY(parent)` are physical.
+Each occurrence scans a diamond or direct-plus-indirect child once by identity,
+without deduplicating equal-valued rows or sharing multiplicity across self-joins.
+Without ORDER BY no row order is promised. Projection and full type/typmod/collation
+metadata belong to the named parent, even when child columns occupy different slots.
+Supported SELECT consumers, prepared statements and stored views share this behavior;
+ONLY remains frozen through rename, schema move and genuine Dump/Restore.
+
+ACL/column ACL and RLS are the named parent's authority, not separate child checks.
+Existing default-deny, owner, BYPASSRLS and FORCE semantics apply; applicable native
+policy-expression enforcement still rejects0A000. Own session TEMP descendants
+participate, other sessions' TEMP branches do not. All physical roots use one
+statement snapshot, including private writes and transaction-retained RR roots.
+STORED generated values are the child's stored payload, whereas VIRTUAL reads use
+the parent's recipe with parent-mapped inputs and actual physical recipe provenance.
+This does not expose the public tableoid system column.
+
+Rowmarks lock the actual descendant relation/storage/row identity and recheck its
+latest values in the parent frame. All supported strengths, OF aliases, NOWAIT,
+SKIP LOCKED, derived/stored-view and absent outer-join rows retain existing semantics.
+Admission waits never retarget a same-name replacement; native reports its ordinary
+exact-identity error. Permanent CREATE in explicit transactions remains unsupported;
+this feature does not add transactional permanent DDL.
+
+Recursive UPDATE/DELETE targets and ordinary LOCK on a parent with children
+reject0A000 `recursive table inheritance is unsupported`. Physical INSERT and
+leaf DML work; LOCK ONLY is physical. COPY table remains physical; COPY(query)
+uses the inherited SELECT path. Foreign-table/partition capabilities are not enlarged.
+Graph column/default/type/nullability/constraint ALTER
 rejects0A000 `ALTER TABLE inheritance operations are unsupported`, except inherited
 column rename/drop/type and inherited NOT NULL removal use PostgreSQL42P16.
 Dependency-driven column, DEFAULT or CHECK removal on a surviving graph
@@ -388,7 +414,7 @@ definitions. A retiring parent can also be the regclass provider of a retained
 other parent's DEFAULT or CHECK: CASCADE retires their shared child before pruning
 that newly standalone owner's dependent definition. Independent definitions and
 physical rows remain. Whole-table graph closure removal also remains supported.
-ALTER INHERIT/NO INHERIT, recursive execution, propagation and partitions are not added.
+ALTER INHERIT/NO INHERIT, recursive modifying targets, propagation and partitions are not added.
 
 Dump topologically emits ordered INHERITS and only local declarations, preserving
 explicit DEFAULT NULL, equal local CHECK/NN merges and actual data. A plain local

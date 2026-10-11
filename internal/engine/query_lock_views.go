@@ -626,6 +626,10 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 			provenance = appendQueryProvenance(provenance[:0], child.source, index)
 			evaluation.queryOccurrences, evaluation.queryProvenance = occurrences, provenance
 			versions = appendQueryVersions(versions[:0], child.source, index, locks)
+			// Load the frozen frame before mapping latest physical values. A
+			// nonidentity inheritance segment reuses its capture-owned scratch;
+			// loading it afterward would overwrite currentRows with old values.
+			row := child.source.row(index)
 			live, changed := true, false
 			for j, occurrence := range occurrences {
 				entry := locks.leaves[occurrence]
@@ -637,18 +641,14 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					continue
 				}
 				mark := due[occurrence]
+				locator := entry.source.physicalRow(visible, entry.leaf, versions[j])
 				if mark.mode == 0 {
-					currentRows[occurrence] = versions[j].values
+					currentRows[occurrence] = locator.values(versions[j])
 					locks.leaves[occurrence].changed = false
 					continue
 				}
-				raw := entry.source.rawIndex(visible)
-				candidate := versions[j]
-				hint := raw
-				if raw >= len(entry.source.committed) {
-					hint -= len(entry.source.committed)
-				}
-				acquired, err := scope.acquireQueryRow(entry.leaf, candidate.row, mark)
+				candidate := locator.version
+				acquired, err := scope.acquireQueryRow(locator.leaf, candidate.row, mark)
 				if err != nil {
 					return false, err
 				}
@@ -656,20 +656,19 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					live = false
 					break
 				}
-				current, present, err := scope.latestQueryRow(entry.leaf, candidate, hint, mark.mode)
+				current, present, err := scope.latestQueryRow(locator.leaf, candidate, locator.hint, mark.mode)
 				if err != nil {
 					return false, err
 				}
 				live = live && present
 				changed = changed || current.version != candidate.version
-				currentRows[occurrence] = current.values
+				currentRows[occurrence] = locator.values(current)
 				versions[j] = current
 				locks.leaves[occurrence].changed = current.version != candidate.version
 			}
 			if !live {
 				continue
 			}
-			row := child.source.row(index)
 			if changed {
 				evaluation.orderValues = child.orderRow(i)
 				offset := 0
@@ -705,7 +704,12 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 				}
 				out.selection = append(out.selection, index)
 			} else {
-				if changed || child.source.input != nil || child.source.final != nil && child.source.final.source != nil {
+				mapped := false
+				if child.source.inheritance != nil {
+					segment, _ := child.source.inheritanceSegment(index)
+					mapped = segment.layout != nil
+				}
+				if changed || mapped || child.source.input != nil || child.source.final != nil && child.source.final.source != nil {
 					row = append([]sqltype.Value(nil), row...)
 				}
 				out.selection = append(out.selection, len(source.anonymous))

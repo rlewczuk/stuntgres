@@ -605,7 +605,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		refs, err := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
+		refs, err := e.queryTableRefsLocked(scope.inheritanceRead(auth.catalog), b.querySources, []ObjectRef{b.ref}, scope.op.session.token)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -645,7 +645,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		var view *VisibilityView
 		if len(b.querySources) != 0 {
-			refs, collectErr := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
+			refs, collectErr := e.queryTableRefsLocked(scope.inheritanceRead(auth.catalog), b.querySources, []ObjectRef{b.ref}, scope.op.session.token)
 			if collectErr != nil {
 				e.mu.Unlock()
 				return Result{}, collectErr
@@ -829,7 +829,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		var view *VisibilityView
 		var viewErr error
 		if len(b.querySources) != 0 {
-			refs, err := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
+			refs, err := e.queryTableRefsLocked(scope.inheritanceRead(auth.catalog), b.querySources, []ObjectRef{b.ref}, scope.op.session.token)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
