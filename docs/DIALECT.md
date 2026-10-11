@@ -57,6 +57,48 @@ real query path. No SELECT ONLY syntax or new explicit-cast provider is introduc
 See [the public API](DRIVER.md#pinned-copy-text-streams--change-note) and
 [selected proof](TESTING.md#copy-text-selected-proof).
 
+### Expression collation — change note
+
+Expression and column `COLLATE` resolve actual seeded or registered identities.
+Default collation yields to an implicit nondefault identity. Explicit annotation
+on a collatable operand wins over implicit conflict; different sibling explicit
+identities fail42P21 even when their providers have identical behavior. An outer
+annotation replaces an inner one. Integer/BOOL and other noncollatable operands
+fail42804 at the COLLATE token; annotating `(a=b)` cannot repair its BOOL input.
+
+All six scalar predicates, DISTINCT predicates, simple CASE, NULLIF, extrema,
+join keys and row/subquery pair comparisons retain bound input authority.
+Reached nonNULL string comparison with unresolved implicit conflict fails42P22
+`could not determine which collation to use for string comparison`, with Hint
+`Use the COLLATE clause to set the collation explicitly.` Runtime Position is
+absent. Strict NULL pairs, dead branches and unused scalar comparisons do not
+demand a provider. Local row ordering evaluates pair left then right and stops
+before both operands of later pairs on a decisive or strict NULL result.
+Simple CASE's saved test retains its collation but has implicit derivation;
+annotate the WHEN operand to override an implicit conflict.
+
+Hashable uncorrelated IN/`= ANY` builds real bound RHS membership before LHS
+demand; empty RHS skips LHS errors/effects. NonNULL RHS hashing reports42P22
+`... string hashing` with the same hint. Each actual execution/source occurrence
+retains its table across unrelated parent/constant-CTE rescans, but distinct stored
+view aliases and new Execute are independent. Correlated membership, including
+actually outer-dependent CTE bodies, and ALL scan through comparison providers.
+Top-level cross-input equality join keys initialize at execution even when
+inputs are empty; this is not a Prepare rejection or eager scalar preflight.
+ORDER/GROUP/DISTINCT implicit key conflicts fail42P21 during analysis.
+
+Coercion to a domain with nondefault declared collation supplies implicit domain
+authority, replacing child implicit conflict or nested concat/CASE explicit
+authority. A top-level COLLATE wrapper is retained outside the coercion and
+therefore still wins. Default-collation domains instead inherit child authority.
+Identity relabels of an already matching domain are not a new domain coercion.
+
+Supported deterministic C/POSIX and registered fixed builtin providers preserve
+bytewise equality, Unicode codepoint order and existing BPCHAR tail rules.
+There is no arbitrary locale, ICU, nondeterministic equality or fallback provider.
+Column/result metadata, dependencies and native Dump/Restore retain identity;
+BOOL output metadata does not expose its hidden input collation.
+
 ### INET and CIDR — change note
 
 Typed scalar INET/CIDR declarations, contextual input, direct/prepared textual

@@ -56,7 +56,7 @@ func TestJSONRetainedTextAndIdentity(t *testing.T) {
 	if _, err := String(types[Text], "null").JSONText(); err == nil {
 		t.Fatal("TEXT accessor admitted")
 	}
-	if _, err := BindComparison(d, d); err == nil {
+	if _, err := BindComparison(d, d, CollationRef{}, false); err == nil {
 		t.Fatal("JSON equality admitted")
 	}
 	if _, err := BindOrdering(d.Usage()); err == nil {

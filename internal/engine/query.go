@@ -642,7 +642,30 @@ type queryState struct {
 	retain       bool
 	derived      map[*derivedNode]*querySource
 	ctes         *cteInvocation
+	hashOwner    *queryState
+	memberships  map[subqueryMembershipKey]*subqueryMembership
 }
+
+// Physical child stages borrow the actual execution owner. Rescanning a parent
+// does not change an uncorrelated child's inputs or its membership lifetime.
+func (s *queryState) membershipOwner() *queryState {
+	if s.hashOwner == nil {
+		s.hashOwner = s
+	}
+	return s.hashOwner
+}
+
+func (s *queryState) releaseMemberships() {
+	if s.hashOwner != nil && s.hashOwner != s {
+		return
+	}
+	for _, membership := range s.memberships {
+		*membership = subqueryMembership{}
+	}
+	s.memberships = nil
+	s.hashOwner = nil
+}
+
 type indexedStage struct {
 	source           *querySource
 	selection        []int
@@ -1092,6 +1115,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		}
 		var owner *cteInvocation
 		if n.cteOwner {
+			state.membershipOwner()
 			owner = &cteInvocation{frame: n.frame, parent: state.ctes, state: *state}
 			state.ctes = owner
 		}
@@ -1363,6 +1387,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
 	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
+	defer state.releaseMemberships()
 	if scope := source.liveScope(); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}

@@ -187,6 +187,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.args[i] = child(n.args[i])
 		}
 		next = n
+	case rowComparisonExpression:
+		n.comparisons = append([]comparisonExpression(nil), n.comparisons...)
+		for i, pair := range n.comparisons {
+			n.comparisons[i] = child(pair).(comparisonExpression)
+		}
+		next = n
 	case comparisonExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
@@ -616,7 +622,8 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			case extremaProvider:
 				p.usage = usage(p.usage)
 				if err == nil {
-					p.comparison, err = sqltype.BindComparison(p.usage.Type, p.usage.Type)
+					_, conflict := p.comparison.InputCollation()
+					p.comparison, err = sqltype.BindComparison(p.usage.Type, p.usage.Type, p.usage.Collation, conflict)
 				}
 				copy.calls[i].provider = p
 			case stringAggregateProvider:

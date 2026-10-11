@@ -274,7 +274,7 @@ func TestJSONPathSQLCapabilitiesRejected(t *testing.T) {
 	}
 	for _, d := range []*Descriptor{types[JSONPath], types[4073], domain} {
 		t.Run(d.Name(), func(t *testing.T) {
-			if _, err := BindComparison(d, d); err == nil {
+			if _, err := BindComparison(d, d, CollationRef{}, false); err == nil {
 				t.Fatal("SQL comparison admitted")
 			}
 			_, err := BindOrdering(d.Usage())

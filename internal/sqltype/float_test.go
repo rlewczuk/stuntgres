@@ -143,7 +143,7 @@ func TestFloatProvidersOwnership(t *testing.T) {
 	types := testTypes()
 	a, _ := Float(types[Float4], 16777216)
 	b, _ := Integer(types[Int4], 16777217)
-	cmp, err := BindComparison(types[Float4], types[Int4])
+	cmp, err := BindComparison(types[Float4], types[Int4], CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestFloatProvidersOwnership(t *testing.T) {
 	for _, pair := range [][2]ID{{Float4, Float8}, {Float8, Float4}, {Float4, Float4}} {
 		left, _ := Float(types[pair[0]], math.NaN())
 		right, _ := Float(types[pair[1]], math.NaN())
-		eq, err := BindComparisonPredicate(CompareEqual, left.Type(), right.Type(), types[Bool])
+		eq, err := BindComparisonPredicate(CompareEqual, left.Type(), right.Type(), types[Bool], CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -257,7 +257,7 @@ func TestFloatCoercionsAndExactDiagnostics(t *testing.T) {
 		}
 		positive, _ := Float(d, 0)
 		negative, _ := Float(d, math.Copysign(0, -1))
-		cmp, _ := BindComparison(d, d)
+		cmp, _ := BindComparison(d, d, CollationRef{}, false)
 		if n, err := cmp.Compare(ctx, positive, negative, InputEnvironment{}); err != nil || n != 0 {
 			t.Fatal(n, err)
 		}
@@ -265,12 +265,12 @@ func TestFloatCoercionsAndExactDiagnostics(t *testing.T) {
 	// Integer-to-preferred-float8 conversion intentionally loses integer bits.
 	a, _ := Float(types[Float8], 9007199254740992)
 	b, _ := Integer(types[Int8], 9007199254740993)
-	cmp, _ := BindComparison(a.Type(), b.Type())
+	cmp, _ := BindComparison(a.Type(), b.Type(), CollationRef{}, false)
 	if n, err := cmp.Compare(ctx, a, b, InputEnvironment{}); err != nil || n != 0 {
 		t.Fatal(n, err)
 	}
 	x, _ := Integer(types[Int8], 9007199254740992)
-	exact, _ := BindComparison(x.Type(), b.Type())
+	exact, _ := BindComparison(x.Type(), b.Type(), CollationRef{}, false)
 	if n, err := exact.Compare(ctx, x, b, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal(n, err)
 	}

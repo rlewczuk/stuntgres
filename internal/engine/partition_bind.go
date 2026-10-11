@@ -151,13 +151,19 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		return nil, err
 	}
 	if node.ResultUsage() != key.usage {
-		plan, err := sqltype.PlanCoercion(node.ResultUsage(), key.usage, sqltype.Assignment)
+		input, annotations := domainCoercionInput(node, key.usage)
+		info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(key.usage, datum.Pos, input.Properties()), input)
+		if err != nil {
+			return nil, err
+		}
+		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 		if err != nil {
 			return nil, expressionError("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.usage.Type.DiagnosticName(), key.label), datum.Pos)
 		}
-		node = coercionExpression{binder.info(key.usage, datum.Pos, coercionProperties(node, plan)), node, plan, sqltype.Assignment}
+		info.properties = coercionProperties(input, plan)
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
 	}
-	return node, nil
+	return storageDestination(node, key.usage, node.SourcePosition())
 }
 
 func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *EvalContext) error {

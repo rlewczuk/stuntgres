@@ -263,6 +263,19 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case rowComparisonExpression:
+		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
+		for i, pair := range e.comparisons {
+			pair.left, err = child(pair.left)
+			if err == nil {
+				pair.right, err = child(pair.right)
+			}
+			if err != nil {
+				break
+			}
+			e.comparisons[i] = pair
+		}
+		expression = e
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -784,6 +797,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.args[0]) && literal(e.args[1])
 	case similarSubstringExpression:
 		return literal(e.args[0]) && literal(e.args[1]) && literal(e.args[2])
+	case rowComparisonExpression:
+		for _, pair := range e.comparisons {
+			if !literal(pair.left) || !literal(pair.right) {
+				return false
+			}
+		}
+		return true
 	case comparisonExpression:
 		return literal(e.left) && literal(e.right)
 	case logicalExpression:

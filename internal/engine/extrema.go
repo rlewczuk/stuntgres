@@ -11,10 +11,9 @@ import (
 // A provider is immutable; each execution/group owns just one retained datum.
 // Comparison is demanded only after the first eligible candidate.
 type extremaProvider struct {
-	usage             sqltype.Usage
-	comparison        sqltype.Comparison
-	maximum           bool
-	collationConflict bool
+	usage      sqltype.Usage
+	comparison sqltype.Comparison
+	maximum    bool
 }
 type extremaState struct{ value sqltype.Value }
 
@@ -45,9 +44,6 @@ func (p extremaProvider) Advance(ctx context.Context, state any, value, _ sqltyp
 	if s.value.IsNull() {
 		s.value = value
 		return ctx.Err()
-	}
-	if p.collationConflict {
-		return conditionalCollationError()
 	}
 	sign, err := p.comparison.Compare(ctx, value, s.value, sqltype.InputEnvironment{})
 	if err != nil {
@@ -101,7 +97,7 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 	selected := arg.ResultUsage().Type
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
-	comparison, err := sqltype.BindComparison(selected, selected)
+	comparison, err := sqltype.BindComparison(selected, selected, usage.Collation, arg.CollationIndeterminate())
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +105,7 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 	if raw.Name == "max" {
 		operation = aggregateMax
 	}
-	provider := extremaProvider{usage: usage, comparison: comparison, maximum: operation == aggregateMax, collationConflict: arg.CollationIndeterminate()}
+	provider := extremaProvider{usage: usage, comparison: comparison, maximum: operation == aggregateMax}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
@@ -166,7 +162,10 @@ func (b *expressionBinder) resolveExtremaSignature(raw parser.AggregateExpr, nam
 		}
 	}
 	if typ := operand.descriptor(); typ != nil && typ.BaseType().ID() == sqltype.Char {
-		info := b.info(selected.Usage(), operand.node.SourcePosition(), operand.node.Properties())
+		info, failure := b.coercionInfo(b.info(selected.Usage(), operand.node.SourcePosition(), operand.node.Properties()), operand.node)
+		if failure != nil {
+			return nil, failure
+		}
 		plan, failure := sqltype.PlanExtremaCharText(operand.node.ResultUsage(), info.usage)
 		if failure != nil {
 			return nil, failure

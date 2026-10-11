@@ -37,6 +37,12 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return plannedVolatility(n.child)
 	case coercionExpression:
 		return session(plannedVolatility(n.child), n.plan.SessionDependent())
+	case rowComparisonExpression:
+		v := Immutable
+		for _, pair := range n.comparisons {
+			v = merge(v, plannedVolatility(pair))
+		}
+		return v
 	case comparisonExpression:
 		return session(children(n.left, n.right), n.predicate.SessionDependent())
 	case arithmeticExpression:

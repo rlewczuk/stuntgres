@@ -89,7 +89,7 @@ func TestEnumIdentityCoercionAndGeneration(t *testing.T) {
 	generation, _ := Enum(a.ID(), "a", "renamed.a", []string{"z", "a"})
 	foreignMembers, _ := EnumWithMembers(a.ID(), "a", "public.a", []EnumMember{{ID: 100, Label: "a"}, {ID: 101, Label: "z"}})
 	value, _ := a.Input(ctx, "z", -1)
-	if _, err := BindComparison(a, b); err == nil {
+	if _, err := BindComparison(a, b, CollationRef{}, false); err == nil {
 		t.Fatal("distinct enums compare")
 	}
 	if _, err := value.Retag(b); err == nil {
@@ -140,7 +140,7 @@ func TestEnumIdentityCoercionAndGeneration(t *testing.T) {
 	if output, err := base.Output(ctx, wrapped); err != nil || output != "a" {
 		t.Fatal(output, err)
 	}
-	comparison, _ := BindComparison(a, a)
+	comparison, _ := BindComparison(a, a, CollationRef{}, false)
 	right, _ := a.Input(ctx, "a", -1)
 	if allocs := testing.AllocsPerRun(100, func() {
 		if got, err := comparison.Compare(ctx, value, right, InputEnvironment{}); err != nil || got != -1 {
@@ -150,7 +150,7 @@ func TestEnumIdentityCoercionAndGeneration(t *testing.T) {
 		t.Fatal("enum comparison allocations", allocs)
 	}
 	for operator := CompareEqual; operator <= CompareGreaterEqual; operator++ {
-		predicate, err := BindComparisonPredicate(operator, a, a, testTypes()[Bool])
+		predicate, err := BindComparisonPredicate(operator, a, a, testTypes()[Bool], CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +185,7 @@ func TestEnumDomainComparisonAndOrdering(t *testing.T) {
 	}
 	for _, pair := range [][2]*Descriptor{{wrapped, mood}, {mood, wrapped}, {wrapped, wrapped}, {wrapped, other}} {
 		for operator := CompareEqual; operator <= CompareGreaterEqual; operator++ {
-			if _, err := BindComparisonPredicate(operator, pair[0], pair[1], testTypes()[Bool]); err == nil {
+			if _, err := BindComparisonPredicate(operator, pair[0], pair[1], testTypes()[Bool], CollationRef{}, false); err == nil {
 				t.Fatal("domain accepted as polymorphic enum operand", pair[0].Name(), pair[1].Name(), operator)
 			}
 		}
@@ -225,7 +225,7 @@ func TestEnumDomainComparisonAndOrdering(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pair := range [][2]*Descriptor{{integerDomain, integer}, {integer, integerDomain}, {integerDomain, integerDomain}} {
-		if _, err := BindComparison(pair[0], pair[1]); err != nil {
+		if _, err := BindComparison(pair[0], pair[1], CollationRef{}, false); err != nil {
 			t.Fatal("nonenum domain comparison changed", err)
 		}
 	}

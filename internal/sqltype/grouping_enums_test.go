@@ -108,13 +108,13 @@ func TestGroupingEnumMemberDomainsAndRecursiveArrays(t *testing.T) {
 	if _, err := g.Equal(ctx, value, value); err == nil {
 		t.Fatal("foreign enum generation compared")
 	}
-	if _, err := BindComparison(enum, foreign); err == nil {
+	if _, err := BindComparison(enum, foreign, CollationRef{}, false); err == nil {
 		t.Fatal("ordinary enum identity widened")
 	}
-	if _, err := BindComparison(domain, domain); err == nil {
+	if _, err := BindComparison(domain, domain, CollationRef{}, false); err == nil {
 		t.Fatal("ordinary polymorphic enum domain operands widened")
 	}
-	if _, err := BindComparison(array, array); err == nil {
+	if _, err := BindComparison(array, array, CollationRef{}, false); err == nil {
 		t.Fatal("ordinary enum-array comparison widened")
 	}
 	if _, err := BindOrdering(array.Usage()); err == nil {

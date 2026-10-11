@@ -62,7 +62,12 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 		return nil, expressionError("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
-		plan, err := sqltype.PlanCoercion(node.ResultUsage(), column.Usage, sqltype.Assignment)
+		input, annotations := domainCoercionInput(node, column.Usage)
+		info, err := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+		if err != nil {
+			return nil, err
+		}
+		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42804" {
 				d := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
@@ -71,9 +76,10 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 			}
 			return nil, err
 		}
-		node = coercionExpression{b.info(column.Usage, parser.Position{}, coercionProperties(node, plan)), node, plan, sqltype.Assignment}
+		info.properties = coercionProperties(input, plan)
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
 	}
-	return node, nil
+	return storageDestination(node, column.Usage, parser.Position{})
 }
 
 func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]columnDefault, error) {
@@ -673,6 +679,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return `pg_catalog."substring"(` + source + ", " + pattern + ", " + escape + ")", nil
 		}
 		return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
+	case rowComparisonExpression:
+		for _, pair := range n.comparisons {
+			if _, err := r.sql(ctx, view, pair); err != nil {
+				return "", err
+			}
+		}
+		return renderRowComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
@@ -694,7 +707,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default comparison")
 		}
-		predicate, err := sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type)
+		ref, conflict := n.predicate.InputCollation()
+		predicate, err := sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type, ref, conflict)
 		if err != nil || predicate != n.predicate {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
 		}
@@ -752,7 +766,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default distinct test")
 		}
-		predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type)
+		ref, conflict := n.equality.InputCollation()
+		predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type, ref, conflict)
 		if err != nil || predicate != n.equality {
 			return "", fmt.Errorf("stuntgres: invalid default distinct binding")
 		}

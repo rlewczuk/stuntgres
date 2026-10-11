@@ -305,6 +305,98 @@ with exit barrier, and persistent schema RESTRICT/CASCADE closure. A test named
 FeatureSmoke does not replace that program. Post-merge finalcheck uses an external
 1800s deadline; targets themselves introduce no hidden deadlines.
 
+## Expression collation selected proof
+
+The shared untagged definitions in `reference/patterns_encoding/expr_collation_*`
+cover independently expected rows/types/routes and complete diagnostics.
+`TestReferenceCollationNativeCollision` additionally preserves the genuine TEMP
+allocator collision, exact dependency totals, source immutability, repeated
+Restore and real PostgreSQL emitted-SQL replay with stored comparisons.
+Expected replay errors use recovered PostgreSQL savepoints, not aborted-transaction
+assertion bypasses. Run every changed definition in both modes (external900s):
+
+```sh
+make check RUN='^TestReferenceExprCollation(Resolution|Demand|Consumers|Keys|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceExprCollation(Resolution|Demand|Consumers|Keys|FeatureSmoke)$'
+make check RUN='^TestReferenceCollation(Identity|Provider|NativeCollision)$'
+make check REFERENCE=1 RUN='^TestReferenceCollation(Identity|Provider|NativeCollision)$'
+make check RUN='^TestExprCollation(ComparisonAuthority|RetagAuthority|KeyAuthority|AnnotationAST)$'
+make check RACE=1 RUN='^TestExprCollation(ComparisonAuthority|RetagAuthority|KeyAuthority|AnnotationAST)$'
+make check RUN='^TestReferenceExprCollation(RowOperandDemand|ScheduledPayloadDemand)$'
+make check REFERENCE=1 RUN='^TestReferenceExprCollation(RowOperandDemand|ScheduledPayloadDemand)$'
+make check RUN='^TestReferenceGeneratedStoredTableOIDControls$'
+make check REFERENCE=1 RUN='^TestReferenceGeneratedStoredTableOIDControls$'
+make check RUN='^TestExprCollation(RowOperandDemand|ScheduledPayloadDemand|GeneratedTableOIDReachability)$'
+make check RACE=1 RUN='^TestExprCollation(RowOperandDemand|ScheduledPayloadDemand|GeneratedTableOIDReachability)$'
+make check RUN='^TestReferenceExprCollation(StoredPreflightDemand|NestedPayloadDemand|DomainDerivation)$'
+make check REFERENCE=1 RUN='^TestReferenceExprCollation(StoredPreflightDemand|NestedPayloadDemand|DomainDerivation)$'
+make check RUN='^TestExprCollation(StoredPreflightDemand|NestedPayloadDemand|DomainDerivation)$'
+make check RACE=1 RUN='^TestExprCollation(StoredPreflightDemand|NestedPayloadDemand|DomainDerivation)$'
+make check RUN='^TestReferenceExprCollationHash(Demand|Invocation|CTEInvocation|SourceOccurrence)$'
+make check REFERENCE=1 RUN='^TestReferenceExprCollationHash(Demand|Invocation|CTEInvocation|SourceOccurrence)$'
+make check RUN='^TestExprCollationHashExecutionOwner$'
+make check RACE=1 RUN='^TestExprCollationHashExecutionOwner$'
+```
+
+Private invariants assert actual retained capabilities, forged-ref admission,
+cancellation, equality/hash consistency including BPCHAR domains, hidden BOOL
+authority remapping/source immutability and full-authority optimizer eligibility.
+RetagAuthority asserts direct stored projection demand skips an unused conflict
+without changing source graph, selected provider or schema; full/star demand
+retains the original graph and invalid slots reject. RowOperandDemand checks
+actual pair providers and side-effect order; ScheduledPayloadDemand exercises
+actual sort/evaluation cache producers rather than final cached readers.
+GeneratedTableOIDReachability binds genuine first-only/later-only/no-owner row
+generation graphs. Shared frontier definitions independently check decisive,
+NULL and reached left/right demand, unused sorted/bounded payload, demanded
+keys, retained volatile effects, full/star and materialized refresh.
+The original generated tableoid controls fixture also binds first/later owner
+row predicates to the actual retained TEMP OID. Its replay candidate compares
+TRUE before owner remapping and must recompute FALSE afterward; scalar repair,
+source-held rows, TEMP identity/state, DML and actual PostgreSQL replay remain.
+KeyAuthority imports genuine declared domain values through existing Input,
+retaining domain identity and the BPCHAR trailing-space normalization witnesses.
+StoredPreflightDemand exercises the admitted ordinary legality route before
+stored-source opening, including an unused CASE-to-TEXT payload and demanded
+full diagnostics. NestedPayloadDemand checks actual nested projections for
+separate same-OID aliases in both shared and distinct lexical frames, while
+preserving full frozen ACL/dependency reads. DomainDerivation independently
+distinguishes top annotations from nested concat/CASE explicit authority,
+nondefault implicit reset and default-domain bubbling; private consumers demand
+the actual bound provider and retain child dependencies/properties. RetagAuthority
+also checks mapped provider authority, explicit diagnostic location,
+consumer execution and source-immutable rendering, not incidental wrapper shape.
+DomainDerivation additionally requires exact stored default/analyzed/planned
+generation destination Usage while retaining semantic rendering and row demand.
+Existing TestStringEncodingRetainedFormalOwnership keeps its genuine mapped
+formal descriptor ownership and evaluation assertions. Select it together with
+TestCollationStoredExpressionMetadataRetention and TestCollationRetainedProviderProvenance
+for native storage/formal-role remapping proof.
+HashDemand checks RHS-first empty/NULL/negated/effect/error frontiers.
+HashInvocation and HashCTEInvocation check volatile RHS reuse across probes and
+plain/OFFSET 0 correlated-parent rescans, versus actual correlated RHS freshness
+and new held Execute/bind freshness. HashSourceOccurrence checks same-frozen-view
+aliases independently without pinning build order. HashExecutionOwner requires
+one counted build, non-consuming NULL evidence, failed/canceled nonpublication,
+actual captured alias keys, source immutability and true-owner memory release;
+borrowed stage closure must not release the ancestor's table.
+Select affected existing consumer definitions separately in both modes; these
+small checks do not replace whole-project Docker-free `make quickcheck`.
+
+Public test smoke:
+`make check RUN='^TestReferenceExprCollationFeatureSmoke$'` and the same command
+with `REFERENCE=1`. Standalone smoke source is supplied in the OMP session file
+`local://expr-collation-smoke.go`; materialize it temporarily as
+`.expr-collation-feature-smoke/main.go` and run
+`timeout 900s go run ./.expr-collation-feature-smoke` from the worktree.
+It uses only public Driver/database/sql/Error/Dump/Restore, independently checks
+C ordering/bytewise equality, full demand/conflict/noncollatable diagnostics,
+types and stored comparison identity/dependencies after Restore. It also checks
+nested resolved output and unused CASE-coercion success, then demands their
+actual42P22 errors through direct/prepared execution before and after Restore.
+Success is quiet exit0; failure reports the actual mismatch. Remove only that temporary
+smoke directory afterward; session communication is not a parent deliverable.
+
 ## DISCARD selected proof
 
 The untagged shared `reference/sessions/discard_*_test.go` definitions assert

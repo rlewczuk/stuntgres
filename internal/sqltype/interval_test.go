@@ -189,7 +189,7 @@ func TestIntervalDiagnostics(t *testing.T) {
 func TestIntervalWidenedComparisonGroupingAndExactDatum(t *testing.T) {
 	d := testTypes()[Interval]
 	ctx := context.Background()
-	cmp, e := BindComparison(d, d)
+	cmp, e := BindComparison(d, d, CollationRef{}, false)
 	if e != nil {
 		t.Fatal(e)
 	}

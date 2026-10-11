@@ -12,7 +12,7 @@ import (
 
 func extremaUnitProvider(t *testing.T, d *sqltype.Descriptor, maximum bool) extremaProvider {
 	t.Helper()
-	comparison, err := sqltype.BindComparison(d, d)
+	comparison, err := sqltype.BindComparison(d, d, d.Usage().Collation, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,11 @@ func TestExtremaProviderDemandAndInvariants(t *testing.T) {
 		}
 	}
 	p := extremaUnitProvider(t, typ, false)
-	p.collationConflict = true
+	var bindErr error
+	p.comparison, bindErr = sqltype.BindComparison(typ, typ, typ.Usage().Collation, true)
+	if bindErr != nil {
+		t.Fatal(bindErr)
+	}
 	s, _ := p.Init(ctx)
 	first := sqltype.String(typ, "a")
 	for _, v := range []sqltype.Value{sqltype.Null(typ), first, sqltype.Null(typ)} {

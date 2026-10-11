@@ -182,7 +182,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	open := func(r ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, r, e.roles.names["postgres"], queryRowMark{}, nil)
+		source, err := e.openRelationSourceLocked(scope, r, e.roles.names["postgres"], queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +233,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	current, err := e.openRelationSourceLocked(fresh, ref, e.roles.names["postgres"], queryRowMark{}, nil)
+	current, err := e.openRelationSourceLocked(fresh, ref, e.roles.names["postgres"], queryRowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: unknown.address}, e.roles.names["postgres"], queryRowMark{}, nil)
+	source, err := e.openRelationSourceLocked(scope, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: unknown.address}, e.roles.names["postgres"], queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

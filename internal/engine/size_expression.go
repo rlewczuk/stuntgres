@@ -69,11 +69,16 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 		return nil, err
 	}
 	if arg.ResultUsage() != target.Usage() {
-		plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target.Usage(), sqltype.Implicit)
+		info, err := b.coercionInfo(b.info(target.Usage(), arg.SourcePosition(), arg.Properties()), arg)
 		if err != nil {
 			return nil, err
 		}
-		arg = coercionExpression{b.info(target.Usage(), arg.SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit}
+		plan, err := sqltype.PlanCoercion(arg.ResultUsage(), info.usage, sqltype.Implicit)
+		if err != nil {
+			return nil, err
+		}
+		info.properties = coercionProperties(arg, plan)
+		arg = coercionExpression{info, arg, plan, sqltype.Implicit}
 	}
 	result := b.typ(sqltype.Text).Usage()
 	if name == "pg_size_bytes" {

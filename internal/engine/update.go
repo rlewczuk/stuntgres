@@ -262,6 +262,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		inputs = from
 	}
 	state := queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
+	defer state.releaseMemberships()
 	eval := state.evaluation(ctx)
 	var stage indexedStage
 	var frame []sqltype.Value

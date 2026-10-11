@@ -66,7 +66,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
 	probe := randomExpression{expressionInfo: expressionInfo{usage: floating.Usage(), properties: ExprProperties{Volatility: Volatile}}, name: "random"}
-	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean)
+	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

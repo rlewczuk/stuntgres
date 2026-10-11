@@ -96,9 +96,6 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
-			if e.CollationIndeterminate() {
-				return sqltype.Value{}, conditionalCollationError()
-			}
 			sign, err := e.comparison.Compare(c.Context, left, right, c.Input)
 			if err != nil {
 				return sqltype.Value{}, err
@@ -128,9 +125,6 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			best = value
 			continue
 		}
-		if e.CollationIndeterminate() {
-			return sqltype.Value{}, conditionalCollationError()
-		}
 		sign, err := e.comparison.Compare(c.Context, value, best, c.Input)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -149,10 +143,6 @@ func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
 	a.ParameterDependent = a.ParameterDependent || b.ParameterDependent
 	a.StageDependent = a.StageDependent || b.StageDependent
 	return a
-}
-
-func conditionalCollationError() error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
 }
 
 // commonExpressionUsage is also the VALUES authority. The caller supplies the
@@ -237,16 +227,17 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if node.ResultUsage().Type == target.Type {
 		return node, nil
 	}
-	info, err := b.collatedInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), node)
+	input, annotations := domainCoercionInput(node, target.Type.Usage())
+	info, err := b.coercionInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), input)
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.usage, sqltype.Implicit)
+	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Implicit)
 	if err != nil {
 		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
-	info.properties = coercionProperties(node, plan)
-	return coercionExpression{info, node, plan, sqltype.Implicit}, nil
+	info.properties = coercionProperties(input, plan)
+	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit}), nil
 }
 func equalityError(err error, left, right *sqltype.Descriptor, pos parser.Position) error {
 	d, ok := err.(*sqlstate.Error)
@@ -282,17 +273,21 @@ func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, po
 	if err != nil {
 		return nil, nil, sqltype.Comparison{}, err
 	}
-	comparison, err := sqltype.BindEqualityComparison(l.ResultUsage().Type, r.ResultUsage().Type)
+	input, err := b.comparisonInfo(l, r)
+	if err != nil {
+		return nil, nil, sqltype.Comparison{}, err
+	}
+	comparison, err := sqltype.BindComparison(l.ResultUsage().Type, r.ResultUsage().Type, input.usage.Collation, input.collationConflict)
 	return l, r, comparison, err
 }
 
 // Extrema use ordering, not scalar equality, for enum-based logical types.
 // Preserve the original Usage so domain datum ownership remains checked.
-func bindExtremaComparison(usage sqltype.Usage) (sqltype.Comparison, error) {
+func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Comparison, error) {
 	if usage.Type.BaseType().IsEnum() {
 		return sqltype.BindOrdering(usage)
 	}
-	return sqltype.BindComparison(usage.Type, usage.Type)
+	return sqltype.BindComparison(usage.Type, usage.Type, usage.Collation, indeterminate)
 }
 
 func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExpr, error) {
@@ -325,12 +320,6 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 				return nil, err
 			}
 		}
-		if raw.Kind != parser.Coalesce {
-			comparison, err = bindExtremaComparison(usage)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 	var properties ExprProperties
 	for _, arg := range args {
@@ -343,8 +332,21 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	if err != nil {
 		return nil, err
 	}
+	if raw.Kind == parser.Greatest || raw.Kind == parser.Least {
+		comparison, err = bindExtremaComparison(info.usage, info.collationConflict)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return conditionalExpression{info, raw.Kind, args, comparison}, nil
 }
+
+// CASE compares the once-saved test datum through an implicit CaseTestExpr.
+// Its type and selected capability survive, but explicit derivation does not.
+type implicitComparisonOperand struct{ BoundExpr }
+
+func (implicitComparisonOperand) ExplicitCollation() parser.Position { return parser.Position{} }
+
 func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 	var test BoundExpr
 	var err error
@@ -373,7 +375,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 				return nil, e
 			}
 			var view BoundExpr
-			view, arms[i].condition, arms[i].equality, err = b.conditionalEquality(comparisonOperand{node: test, raw: raw.Test}, o, arm.Pos)
+			view, arms[i].condition, arms[i].equality, err = b.conditionalEquality(comparisonOperand{node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
 			if err == nil {
 				arms[i].testUsage = view.ResultUsage()
 				arms[i].testPlan, err = sqltype.PlanCoercion(test.ResultUsage(), view.ResultUsage(), sqltype.Implicit)

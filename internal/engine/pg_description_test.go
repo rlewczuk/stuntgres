@@ -175,7 +175,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions, commentCatalog: old}
 	e.mu.Lock()
-	frozen, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil)
+	frozen, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil, nil)
 	if err != nil || pgDescriptionUnitBag(t, frozen)[relation] != "whole" {
 		t.Fatal("nested frontier", err)
 	}

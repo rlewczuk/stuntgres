@@ -175,7 +175,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref Object
 		e.mu.Unlock()
 		return nil, err
 	}
-	root, source, err := e.prepareStoredQueryLocked(scope, ref, d.view, d.owner, queryRowMark{}, nil)
+	root, source, err := e.prepareStoredQueryLocked(scope, ref, d.view, d.owner, queryRowMark{}, nil, nil)
 	if err != nil {
 		return nil, err
 	}

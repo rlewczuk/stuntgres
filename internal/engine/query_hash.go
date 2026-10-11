@@ -120,7 +120,7 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 	default:
 		return nil, nil
 	}
-	if probe.ResultUsage() != column.ResultUsage() || !predicate.predicate.EqualityFor(column.ResultUsage().Type) {
+	if probe.ResultUsage() != column.ResultUsage() || !predicate.predicate.EqualityFor(column.ResultUsage()) {
 		return nil, nil
 	}
 	for _, capture := range source.hashIndexes {

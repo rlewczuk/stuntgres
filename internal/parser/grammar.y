@@ -1806,7 +1806,8 @@ default_target: target_base %prec NAME_LIST { $$=$1 }
  * layers erase grouping; this explicit shift preserves their existing ASTs
  * without admitting Boolean targets as arithmetic operands. */
 target_base: operand %prec NAME_LIST { $$=$1 }
- | '(' target_or ')' { $$=groupedQualification($2) } ;
+ | '(' target_or ')' %prec NAME_LIST { $$=groupedQualification($2) }
+ | '(' target_or ')' COLLATE relation_name %prec COLLATE { $$=CollateExpr{Child:groupedQualification($2),Name:$5,Pos:$4.pos} } ;
 target_between: target_base %prec IS { $$=$1 }
  | target_between_predicate { $$=$1 }
  | target_base like_operator target_base target_escape %prec BETWEEN { $$=likeExpr($1,$3,$4,$2,false,$2.pos) }

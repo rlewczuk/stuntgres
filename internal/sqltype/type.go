@@ -1503,13 +1503,21 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 }
 
 type Comparison struct {
-	left, right         *Descriptor
-	defaultBtreeOpclass uint32
+	left, right            *Descriptor
+	defaultBtreeOpclass    uint32
+	inputCollation         CollationRef
+	collationIndeterminate bool
 }
 
 // DefaultBtreeOpclass identifies the provider admitted by BindOrdering.
 // Comparisons bound for scalar equality do not imply an ordering provider.
 func (p Comparison) DefaultBtreeOpclass() uint32 { return p.defaultBtreeOpclass }
+
+// InputCollation is the retained comparison authority, independent of BOOL
+// result metadata. The flag defers implicit conflicts until a comparison occurs.
+func (p Comparison) InputCollation() (CollationRef, bool) {
+	return p.inputCollation, p.collationIndeterminate
+}
 
 // BindOrdering validates the actual builtin provider and bounded C collation
 // before any rows are read, including empty and all-NULL inputs.
@@ -1543,14 +1551,27 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !ok || class.OID() == 0 {
 		return Comparison{}, fmt.Errorf("invalid ordering class identity")
 	}
-	return Comparison{left: u.Type, right: u.Type, defaultBtreeOpclass: class.OID()}, nil
+	return Comparison{left: u.Type, right: u.Type, defaultBtreeOpclass: class.OID(), inputCollation: u.Collation}, nil
 }
 
 func (p Comparison) SessionDependent() bool {
 	return p.left != nil && p.right != nil && p.left.BaseType().id != p.right.BaseType().id && (p.left.BaseType().id == Timestamptz || p.right.BaseType().id == Timestamptz)
 }
 
-func BindComparison(left, right *Descriptor) (Comparison, error) {
+func BindComparison(left, right *Descriptor, collation CollationRef, indeterminate bool) (Comparison, error) {
+	p, err := bindComparisonTypes(left, right)
+	if err != nil {
+		return p, err
+	}
+	collatable := left.Usage().Collation.ID != 0 || right.Usage().Collation.ID != 0
+	if collatable && !collation.Valid() || !collatable && (collation != (CollationRef{}) || indeterminate) {
+		return Comparison{}, fmt.Errorf("invalid comparison collation")
+	}
+	p.inputCollation, p.collationIndeterminate = collation, indeterminate
+	return p, nil
+}
+
+func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	p := Comparison{left: left, right: right}
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
@@ -1564,7 +1585,7 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 		return p, nil
 	}
 	if left.IsDomain() || right.IsDomain() {
-		_, err := BindComparison(left.BaseType(), right.BaseType())
+		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
 	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == Xid || right.id == Xid || isMultirange(left.id) || isMultirange(right.id) {
@@ -1599,6 +1620,9 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
+	}
+	if p.collationIndeterminate {
+		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
@@ -1637,10 +1661,10 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		if p.left.id == BPChar && p.right.id == VarChar || p.right.id == BPChar && p.left.id == VarChar {
 			left, right = strings.TrimRight(left, " "), strings.TrimRight(right, " ")
 		}
-		return strings.Compare(left, right), nil
+		return p.inputCollation.CompareText(ctx, left, right)
 	}
 	if p.left.id == Name && p.right.id == Text || p.left.id == Text && p.right.id == Name {
-		return strings.Compare(a.text, b.text), nil
+		return p.inputCollation.CompareText(ctx, a.text, b.text)
 	}
 	if isFloat(p.left.id) || isFloat(p.right.id) {
 		left, err := checkedFloatOperand(ctx, a)
@@ -1710,7 +1734,9 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		if a.integer > b.integer {
 			return 1, nil
 		}
-	case Bytea, Name, Char:
+	case Name:
+		return p.inputCollation.CompareText(ctx, a.text, b.text)
+	case Bytea, Char:
 		return strings.Compare(a.text, b.text), nil
 	case Bool:
 		if !a.boolean && b.boolean {
@@ -1745,15 +1771,32 @@ type ComparisonPredicate struct {
 func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
 
 // EqualityFor proves the owned strict same-type predicate used by hash probes.
-func (p ComparisonPredicate) EqualityFor(t *Descriptor) bool {
-	return t.Concrete() && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
+func (p ComparisonPredicate) EqualityFor(u Usage) bool {
+	t := u.Type
+	return t.Concrete() && u.validCollation() && !p.operands.collationIndeterminate && p.operands.inputCollation == u.Collation && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
 }
 
-func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor) (ComparisonPredicate, error) {
+func (p ComparisonPredicate) InputCollation() (CollationRef, bool) {
+	return p.operands.InputCollation()
+}
+
+// DemandCollation initializes an equality key strategy independently of tuple
+// population. Scalar strict NULL policy remains in Evaluate.
+func (p ComparisonPredicate) DemandCollation(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if p.operands.collationIndeterminate {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
+	}
+	return nil
+}
+
+func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor, collation CollationRef, indeterminate bool) (ComparisonPredicate, error) {
 	if operator > CompareGreaterEqual || result == nil || result.id != Bool || !result.Concrete() {
 		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")
 	}
-	operands, err := BindComparison(left, right)
+	operands, err := BindComparison(left, right, collation, indeterminate)
 	if err != nil {
 		return ComparisonPredicate{}, err
 	}

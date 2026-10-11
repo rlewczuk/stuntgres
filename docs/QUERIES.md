@@ -2,6 +2,64 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Expression collation and comparison demand
+
+Scalar comparison keeps input collation separately from its noncollatable BOOL
+result. Empty/filtered scalar inputs and strict NULL pairs do not demand
+comparison; reached implicit conflict fails42P22. Explicit operand annotation
+resolves it. CASE's saved test is implicit, so annotate WHEN for precedence.
+Local row comparisons evaluate each reached pair left then right, stopping
+before either operand of a later pair after a decisive or strict NULL result.
+Subquery comparisons retain their separately captured left tuple semantics.
+MIN/MAX/GREATEST/LEAST require a second eligible nonNULL candidate to compare.
+
+Key binding differs from scalar demand: ORDER/GROUP/DISTINCT rejects implicit
+conflict42P21 during analysis, even for empty input. Join equality keys spanning
+both inputs initialize their actual comparison provider at execution, including
+empty inputs, while branch-local comparisons keep ordinary scalar demand.
+Uncorrelated hashable IN/`= ANY` builds provider-bound membership buckets before
+projecting the LHS. Empty RHS returns FALSE (TRUE for NOT IN) without LHS errors,
+effects or probe scratch. Successful empty/nonempty tables are retained by the
+existing execution owner for their actual RHS plan and captured source occurrence,
+not by frozen expressions, stored views, prepared statements or a global cache.
+Unchanged children, including constant volatile materialized CTE inputs, retain
+their tables across correlated parent rescans. Distinct aliases of the same stored
+view remain independent. New Execute always builds fresh, including unchanged
+binds; actual outer-dependent RHS/CTE bodies retain their correlated scan route.
+Reached RHS hashing reports string-hashing42P22 before any LHS effects. Probes
+reuse owner-local scratch and preserve partial-NULL indexes for later probes.
+Borrowed stage/CTE-reader closure cannot erase the ancestor table; true execution
+completion, errors and cancellation release it. Failed builds are never published.
+Correlated forms and ALL retain scan comparison and existing NULL truth tables.
+Index eligibility and predicate implication use full resolved input authority;
+an incompatible/indeterminate predicate cannot optimize away its demand.
+Stored views/defaults/checks/generated expressions retain hidden comparison
+authority through dependency accounting, rendering and native remapping.
+An ordinary stored-view read maps actual referenced output slots before coercion
+preflight: unused nonvolatile payloads are not evaluated just because a sibling
+is selected. Execution-local projection and sort/bounded payload cache slots
+retain their full typed layout. Demand follows selected and internally read
+cache slots to their scheduled producers, including shared/transitive reads;
+only unused nonvolatile payloads are omitted. Clause/key demand, volatile
+payloads, frozen definitions/dependencies, authorization and snapshot ownership
+remain intact. Star/full consumers and materialized refresh retain full demand.
+Legality preflight and actual stored-source opening use the same demand-shaped
+execution root; neither preflights the full frozen payload first. Nested runtime
+reads come from remaining executable producers, not the frozen read manifest.
+Lexical frames and physical occurrence spans distinguish repeated aliases of
+one relation; captured attribute identities bridge those reads to current slots.
+Frozen full manifests retain their existing authorization/dependency roles and
+analysis-only CTE edges. Clause predicates, keys and volatile payloads
+still demand their genuine inputs across each nested view boundary.
+Admitted pass-through stored roots without a payload projection retain their
+original source/snapshot stage; referenced slots still validate against the root
+schema. They are not wrapped in a synthetic projection.
+GROUP BY reuses an equivalent SELECT target's collation provenance, including
+its diagnostic location, rather than rebinding the later spelling for key demand.
+Owner-dependent stored generation detects tableoid in any operand of any row
+pair. Native owner collision/remapping therefore recomputes affected row BOOL
+cells even when other pairs contain only ordinary columns.
+
 ## Timezone lookup sources — change note
 
 The [timezone lookup views](DIALECT.md#timezone-lookup-views--change-note)
@@ -725,7 +783,7 @@ Eager finalization preserves immutable result buffers/metadata, cancellation,
 captured-source ownership and atomic INSERT publication. Dump/Restore persists
 existing data/sequence state and analyzed view definitions, never sort datum caches.
 Native public SQL/API ACL mutation remains absent: exact column grants use engine units and
-independent PostgreSQL GRANT scenarios. ORDER USING, general COLLATE/ICU,
+independent PostgreSQL GRANT scenarios. ORDER USING, arbitrary locale/ICU providers,
 unadmitted aggregate-internal ordering remain excluded; selected windows are described below.
 The existing AND/OR bare-label ambiguity remains a bounded
 logical-grammar difference; AS and quoted forms can label those outputs.

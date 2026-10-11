@@ -559,6 +559,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
 		}
 		return `"substring"(` + source + ", " + pattern + ", " + escape + ")", nil
+	case rowComparisonExpression:
+		if len(n.comparisons) == 0 {
+			return "", fmt.Errorf("stuntgres: invalid row comparison")
+		}
+		return renderRowComparison(n, child, operator(n.comparisons[0].namespace, n.operator))
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:

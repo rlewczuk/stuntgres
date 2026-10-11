@@ -25,7 +25,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	equality, err := sqltype.BindComparison(integer, integer)
+	equality, err := sqltype.BindComparison(integer, integer, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

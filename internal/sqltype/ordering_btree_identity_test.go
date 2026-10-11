@@ -57,7 +57,7 @@ func TestOrderingBtreeIdentity(t *testing.T) {
 					t.Fatal("ordering identity allocates or changes provider", allocs, got, bindErr)
 				}
 			}
-			scalar, err := BindComparison(base, base)
+			scalar, err := BindComparison(base, base, base.Usage().Collation, false)
 			if err != nil || scalar.DefaultBtreeOpclass() != 0 {
 				t.Fatal("scalar comparison acquired an ordering identity", scalar, err)
 			}

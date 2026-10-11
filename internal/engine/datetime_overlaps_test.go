@@ -401,7 +401,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	var start BoundExpr = columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 0}
 	sentinel := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}
 	e.args[2], e.args[3] = sentinel, sentinel
-	comparison, err := sqltype.BindComparison(b.typ(sqltype.Timestamp), b.typ(sqltype.Timestamp))
+	comparison, err := sqltype.BindComparison(b.typ(sqltype.Timestamp), b.typ(sqltype.Timestamp), sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

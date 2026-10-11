@@ -315,7 +315,7 @@ func TestPartialIndexImplication(t *testing.T) {
 	n := columnExpression{expressionInfo: expressionInfo{usage: integer}, scope: 1, frame: 1, slot: 0}
 	one, _ := sqltype.Integer(integer.Type, 1)
 	two, _ := sqltype.Integer(integer.Type, 2)
-	comparison, err := sqltype.BindComparisonPredicate(sqltype.CompareLess, integer.Type, integer.Type, boolean.Type)
+	comparison, err := sqltype.BindComparisonPredicate(sqltype.CompareLess, integer.Type, integer.Type, boolean.Type, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestPartialIndexImplication(t *testing.T) {
 	if partialPredicateImpliedBy(q, p) || !partialPredicateImpliedBy(and(p, param), p) {
 		t.Fatal("parameter implication")
 	}
-	greater, err := sqltype.BindComparisonPredicate(sqltype.CompareGreater, integer.Type, integer.Type, boolean.Type)
+	greater, err := sqltype.BindComparisonPredicate(sqltype.CompareGreater, integer.Type, integer.Type, boolean.Type, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

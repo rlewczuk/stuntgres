@@ -111,7 +111,7 @@ func TestUUIDCodecFormsAndGuards(t *testing.T) {
 func TestUUIDComparisonAndNull(t *testing.T) {
 	ctx := context.Background()
 	d := uuidDescriptor()
-	p, err := BindComparison(d, d)
+	p, err := BindComparison(d, d, CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestUUIDComparisonAndNull(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	boolType := testTypes()[Bool]
-	eq, err := BindComparisonPredicate(CompareEqual, d, d, boolType)
+	eq, err := BindComparisonPredicate(CompareEqual, d, d, boolType, CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

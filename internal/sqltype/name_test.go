@@ -138,7 +138,7 @@ func TestNameComparison(t *testing.T) {
 		{Name, Text, strings.Repeat("a", 63), strings.Repeat("a", 64), -1}, {Text, Name, strings.Repeat("a", 64), strings.Repeat("a", 63), 1},
 		{Name, Text, "a ", "a", 1}, {Text, Name, "a ", "a", 1},
 	} {
-		p, err := BindComparison(ds[tc.left], ds[tc.right])
+		p, err := BindComparison(ds[tc.left], ds[tc.right], ds[tc.left].Usage().Collation, false)
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -148,7 +148,7 @@ func TestNameComparison(t *testing.T) {
 		}
 	}
 	for _, op := range []ComparisonOperator{CompareEqual, CompareNotEqual, CompareLess, CompareLessEqual, CompareGreater, CompareGreaterEqual} {
-		p, err := BindComparisonPredicate(op, ds[Name], ds[Name], ds[Bool])
+		p, err := BindComparisonPredicate(op, ds[Name], ds[Name], ds[Bool], ds[Name].Usage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -159,7 +159,7 @@ func TestNameComparison(t *testing.T) {
 			}
 		}
 	}
-	if _, err := BindComparison(ds[Name], ds[Bool]); err == nil {
+	if _, err := BindComparison(ds[Name], ds[Bool], ds[Name].Usage().Collation, false); err == nil {
 		t.Fatal("NAME/BOOL comparison admitted")
 	}
 }

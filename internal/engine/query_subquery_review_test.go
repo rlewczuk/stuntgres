@@ -42,7 +42,7 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 				})
 				expr := subqueryTestExpression(t, e, q, kind)
 				if kind == parser.SubqueryRow {
-					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, expr.usage.Type)
+					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, expr.usage.Type, usage.Collation, false)
 					if err != nil {
 						t.Fatal(err)
 					}

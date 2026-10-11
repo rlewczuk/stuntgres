@@ -95,7 +95,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 	}{{dateMaximum, 0, 1}, {0, 1, -1}, {-1, -1, -1}, {0, 0, 0}, {DatePositiveInfinity, TimestampPositiveInfinity, 0}, {DateNegativeInfinity, TimestampNegativeInfinity, 0}, {DateNegativeInfinity, 0, -1}, {0, TimestampPositiveInfinity, -1}} {
 		a, _ := DateValue(types[Date], tc.day)
 		b, _ := TimestampValue(types[Timestamp], tc.stamp)
-		p, err := BindEqualityComparison(types[Date], types[Timestamp])
+		p, err := BindComparison(types[Date], types[Timestamp], CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +103,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 		if err != nil || sign != tc.sign {
 			t.Fatal(tc, sign, err)
 		}
-		p, err = BindEqualityComparison(types[Timestamp], types[Date])
+		p, err = BindComparison(types[Timestamp], types[Date], CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +153,7 @@ func TestConditionalNameEqualityProvider(t *testing.T) {
 	types := testTypes()
 	ctx := context.Background()
 	for _, pair := range [][2]ID{{Name, Text}, {Text, Name}, {Name, Name}} {
-		p, err := BindEqualityComparison(types[pair[0]], types[pair[1]])
+		p, err := BindComparison(types[pair[0]], types[pair[1]], types[pair[0]].Usage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -59,7 +59,7 @@ func TestCompareOpsProvidersAndStrictNull(t *testing.T) {
 					left, right, sign = b, a, -tc.sign
 				}
 				for op, want := range []bool{sign == 0, sign != 0, sign < 0, sign <= 0, sign > 0, sign >= 0} {
-					p, err := BindComparisonPredicate(ComparisonOperator(op), left.Type(), right.Type(), types[Bool])
+					p, err := BindComparisonPredicate(ComparisonOperator(op), left.Type(), right.Type(), types[Bool], left.Type().Usage().Collation, false)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -95,20 +95,20 @@ func TestCompareOpsPredicateInvariantsAndCancellation(t *testing.T) {
 		{CompareEqual, types[Int4], types[Int8], nil},
 		{CompareEqual, types[Int4], types[Int8], types[Text]},
 	} {
-		_, err := BindComparisonPredicate(tc.op, tc.left, tc.right, tc.result)
+		_, err := BindComparisonPredicate(tc.op, tc.left, tc.right, tc.result, CollationRef{}, false)
 		var diagnostic *sqlstate.Error
 		if err == nil || errors.As(err, &diagnostic) {
 			t.Fatal("invariant acquired SQLSTATE", err)
 		}
 	}
 	for _, pair := range [][2]ID{{Int4, Bool}, {Text, Int4}, {Time, Timestamp}, {Name, Bool}} {
-		_, err := BindComparisonPredicate(CompareLess, types[pair[0]], types[pair[1]], types[Bool])
+		_, err := BindComparisonPredicate(CompareLess, types[pair[0]], types[pair[1]], types[Bool], types[pair[0]].Usage().Collation, false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" {
 			t.Fatal(err)
 		}
 	}
-	p, err := BindComparisonPredicate(CompareLess, types[Int4], types[Int8], types[Bool])
+	p, err := BindComparisonPredicate(CompareLess, types[Int4], types[Int8], types[Bool], CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

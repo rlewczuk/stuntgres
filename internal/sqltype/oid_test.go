@@ -153,7 +153,7 @@ func TestOIDComparisonGrouping(t *testing.T) {
 			av, _ := OIDValue(d, a)
 			bv, _ := OIDValue(d, b)
 			for op := CompareEqual; op <= CompareGreaterEqual; op++ {
-				p, err := BindComparisonPredicate(op, d, d, ts[Bool])
+				p, err := BindComparisonPredicate(op, d, d, ts[Bool], CollationRef{}, false)
 				if err != nil {
 					t.Fatal(err)
 				}

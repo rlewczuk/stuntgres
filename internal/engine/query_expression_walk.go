@@ -54,6 +54,11 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case bitwiseExpression:
 		walk(e.left)
 		walk(e.right)
+	case rowComparisonExpression:
+		for _, pair := range e.comparisons {
+			walk(pair.left)
+			walk(pair.right)
+		}
 	case comparisonExpression:
 		walk(e.left)
 		walk(e.right)

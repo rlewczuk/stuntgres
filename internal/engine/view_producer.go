@@ -94,7 +94,7 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 			if !ok {
 				return false, fmt.Errorf("stuntgres: view lacks final projection")
 			}
-			innerState := &queryState{source: source.nestedInputs, locking: source.locks.rowMarked(), input: state.input, output: state.output, inherited: source.inherited, retain: state.retain}
+			innerState := &queryState{source: source.nestedInputs, locking: source.locks.rowMarked(), input: state.input, output: state.output, inherited: source.inherited, retain: state.retain, hashOwner: state.membershipOwner()}
 			inner, err := openQueryNode(ctx, innerState, project)
 			if err != nil {
 				return false, err

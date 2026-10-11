@@ -177,7 +177,11 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		if err != nil {
 			return nil, err
 		}
-		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, left.ResultUsage().Type, right.ResultUsage().Type, b.typ(sqltype.Bool))
+		input, err := b.comparisonInfo(left, right)
+		if err != nil {
+			return nil, err
+		}
+		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, left.ResultUsage().Type, right.ResultUsage().Type, b.typ(sqltype.Bool), input.usage.Collation, input.collationConflict)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42883" {
 				copy := *d

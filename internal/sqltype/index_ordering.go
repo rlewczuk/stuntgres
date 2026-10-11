@@ -302,7 +302,7 @@ func (p IndexComparison) Compare(ctx context.Context, a, b Value, input InputEnv
 		return 0, nil
 	}
 	if p.input == BPChar {
-		return strings.Compare(strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " ")), nil
+		return p.comparison.inputCollation.CompareText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
 	}
 	return p.comparison.Compare(ctx, a, b, input)
 }

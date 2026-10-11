@@ -46,9 +46,25 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case rowComparisonExpression:
+		o, ok := other.(rowComparisonExpression)
+		if !ok || e.operator != o.operator || len(e.comparisons) != len(o.comparisons) || len(e.ordering) != len(o.ordering) {
+			return false
+		}
+		for i, pair := range e.comparisons {
+			if !same(pair, o.comparisons[i]) {
+				return false
+			}
+		}
+		for i, provider := range e.ordering {
+			if provider != o.ordering[i] {
+				return false
+			}
+		}
+		return true
 	case subqueryExpression:
 		o, ok := other.(subqueryExpression)
-		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
+		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || len(e.membership) != len(o.membership) || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
 			return false
 		}
 		if comparison == nil {
@@ -623,6 +639,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case rowComparisonExpression:
+		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
+		for i, pair := range e.comparisons {
+			e.comparisons[i] = rewrite(pair).(comparisonExpression)
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -888,6 +911,11 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case similarSubstringExpression:
 		for _, arg := range e.args {
 			walk(arg)
+		}
+	case rowComparisonExpression:
+		for _, pair := range e.comparisons {
+			walk(pair.left)
+			walk(pair.right)
 		}
 	case comparisonExpression:
 		walk(e.left)

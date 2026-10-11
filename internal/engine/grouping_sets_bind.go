@@ -91,13 +91,21 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			}
 		}
 		leaf++
+		// PostgreSQL reuses an equivalent SELECT target, including its
+		// collation provenance, rather than the later GROUP BY spelling.
+		for _, target := range projection {
+			if b.sameGroupExpression(key, target) {
+				key = target
+				break
+			}
+		}
 		for i, existing := range keys {
 			if b.sameGroupExpression(key, existing) {
 				out.key = i
 				return out, nil
 			}
 		}
-		family, err := sqltype.BindGrouping(key.ResultUsage())
+		family, err := b.bindDistinctGrouping(key)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
 				copy := *diagnostic

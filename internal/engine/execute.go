@@ -720,6 +720,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, sourceErr
 			}
 			state := &queryState{source: inputs, parameters: canonical, input: scope.input, output: scope.output, locking: inputs.locks != nil}
+			defer state.releaseMemberships()
 			evaluation.query = state
 			evaluation.Scope, evaluation.Frame = 1, 1
 		}

@@ -116,14 +116,38 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 			return sqlError("42P17", "generation expression is not immutable")
 		}
 		if node.ResultUsage() != column.Usage {
-			plan, failure := sqltype.PlanCoercion(node.ResultUsage(), column.Usage, sqltype.Assignment)
+			input, annotations := domainCoercionInput(node, column.Usage)
+			info, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+			if failure != nil {
+				return failure
+			}
+			plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 			if failure != nil {
 				diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
 				diagnostic.Hint = "You will need to rewrite or cast the expression."
 				return diagnostic
 			}
-			node = coercionExpression{b.info(column.Usage, parser.Position{}, coercionProperties(node, plan)), node, plan, sqltype.Assignment}
-			analyzed = coercionExpression{b.info(column.Usage, parser.Position{}, coercionProperties(analyzed, plan)), analyzed, plan, sqltype.Assignment}
+			info.properties = coercionProperties(input, plan)
+			node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+			analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
+			analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
+			if failure != nil {
+				return failure
+			}
+			analyzedPlan, failure := sqltype.PlanCoercion(analyzedInput.ResultUsage(), analyzedInfo.usage, sqltype.Assignment)
+			if failure != nil {
+				return failure
+			}
+			analyzedInfo.properties = coercionProperties(analyzedInput, analyzedPlan)
+			analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment})
+		}
+		node, err = storageDestination(node, column.Usage, parser.Position{})
+		if err != nil {
+			return err
+		}
+		analyzed, err = storageDestination(analyzed, column.Usage, parser.Position{})
+		if err != nil {
+			return err
 		}
 		definition := columnGeneration{kind: kind, expression: analyzed, planned: node}
 		_, err = (scalarRenderer{owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
@@ -168,6 +192,13 @@ func generationImmutable(node BoundExpr) bool {
 		return !n.provider.SessionDependent() && both(n.left, n.right)
 	case bitwiseExpression:
 		return both(n.left, n.right)
+	case rowComparisonExpression:
+		for _, pair := range n.comparisons {
+			if pair.predicate.SessionDependent() || !both(pair.left, pair.right) {
+				return false
+			}
+		}
+		return true
 	case comparisonExpression:
 		return !n.predicate.SessionDependent() && both(n.left, n.right)
 	case logicalExpression:
@@ -310,6 +341,13 @@ func generationHasTableOID(node BoundExpr) bool {
 		return both(n.left, n.right)
 	case bitwiseExpression:
 		return both(n.left, n.right)
+	case rowComparisonExpression:
+		for _, pair := range n.comparisons {
+			if both(pair.left, pair.right) {
+				return true
+			}
+		}
+		return false
 	case comparisonExpression:
 		return both(n.left, n.right)
 	case logicalExpression:
@@ -568,6 +606,13 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return pair(n.left, n.right)
 	case bitwiseExpression:
 		return pair(n.left, n.right)
+	case rowComparisonExpression:
+		for _, comparison := range n.comparisons {
+			if err := pair(comparison.left, comparison.right); err != nil {
+				return err
+			}
+		}
+		return nil
 	case comparisonExpression:
 		return pair(n.left, n.right)
 	case logicalExpression:

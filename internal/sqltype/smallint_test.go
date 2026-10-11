@@ -10,7 +10,10 @@ import (
 )
 
 func TestSerialIntegralModifierDiagnostics(t *testing.T) {
-	for _, tc := range []struct{ id ID; name string }{
+	for _, tc := range []struct {
+		id   ID
+		name string
+	}{
 		{Int2, "smallint"}, {Int4, "integer"}, {Int8, "bigint"},
 	} {
 		err := testTypes()[tc.id].CheckModifierSupport()
@@ -160,7 +163,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 				a, b = b, a
 				want = -want
 			}
-			p, err := BindComparison(a.Type(), b.Type())
+			p, err := BindComparison(a.Type(), b.Type(), CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -168,7 +171,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil || n != want {
 				t.Fatal(id, n, err)
 			}
-			eq, err := BindComparisonPredicate(CompareEqual, a.Type(), b.Type(), types[Bool])
+			eq, err := BindComparisonPredicate(CompareEqual, a.Type(), b.Type(), types[Bool], CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -180,7 +183,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 	}
 	min, _ := Integer(d, -32768)
 	max, _ := Integer(types[Int8], 9223372036854775807)
-	p, _ := BindComparison(d, types[Int8])
+	p, _ := BindComparison(d, types[Int8], CollationRef{}, false)
 	if n, err := p.Compare(ctx, min, max, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal(n, err)
 	}

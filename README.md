@@ -28,6 +28,20 @@ capability boundaries. See [COPY streams](docs/DRIVER.md#pinned-copy-text-stream
 Feature smoke: `make check RUN='^TestReferenceCopyTextFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyTextFeatureSmoke$'`.
 
+Change note: expression comparisons retain their resolved collation capability,
+including hidden inputs of BOOL results and native stored-expression remapping.
+C/POSIX ordering and equality remain bytewise; explicit annotations override
+implicit conflicts, while reached ambiguous comparisons fail42P22.
+Domain coercion preserves PostgreSQL's structural COLLATE precedence. Stored
+legality and nested source opening share executable output demand while retaining
+the complete frozen authorization and dependency manifests.
+Hashed membership builds its RHS before LHS demand and retains it per actual
+execution/source occurrence across unrelated parent rescans; a new Execute is fresh.
+See [expression collation](docs/DIALECT.md#expression-collation--change-note)
+and [selected proofs](docs/TESTING.md#expression-collation-selected-proof).
+Feature smoke: `make check RUN='^TestReferenceExprCollationFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExprCollationFeatureSmoke$'`.
+
 Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
 direct/prepared binds, metadata and native Dump/Restore. INET preserves host
 bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical

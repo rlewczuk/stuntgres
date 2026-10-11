@@ -47,7 +47,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, beforeLeft.Type(), afterLeft.Type(), b.typ(sqltype.Bool))
+		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, beforeLeft.Type(), afterLeft.Type(), b.typ(sqltype.Bool), sqltype.CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}

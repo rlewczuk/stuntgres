@@ -39,7 +39,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	spy := func(i int, v sqltype.Value) BoundExpr {
 		return conditionalSpy{expressionInfo{usage: v.Type().Usage(), properties: ExprProperties{RowDependent: true}}, v, &calls[i], nil}
 	}
-	comparison, err := sqltype.BindEqualityComparison(integer, integer)
+	comparison, err := sqltype.BindComparison(integer, integer, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := expressionInfo{usage: floating.Usage()}
-	comparison, err := sqltype.BindComparison(floating, floating)
+	comparison, err := sqltype.BindComparison(floating, floating, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

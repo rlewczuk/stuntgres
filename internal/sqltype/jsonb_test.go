@@ -337,7 +337,7 @@ func TestJSONBComparisonHashAndDatumProviders(t *testing.T) {
 	types := testTypes()
 	d := types[JSONB]
 	ctx := context.Background()
-	cmp, err := BindComparison(d, d)
+	cmp, err := BindComparison(d, d, CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

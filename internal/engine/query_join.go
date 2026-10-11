@@ -74,6 +74,9 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			n = &copy
 		}
 	}
+	if err := initializeJoinEquality(ctx, n.predicate, n.leftWidth); err != nil {
+		return indexedStage{}, err
+	}
 	left, err := openQueryNode(ctx, state, n.left)
 	if err != nil {
 		return indexedStage{}, err
@@ -258,4 +261,46 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		}
 	}
 	return out, nil
+}
+
+// Only top-level conjunctive equality keys spanning the two inputs initialize
+// a join strategy. Comparisons inside branches remain ordinary scalar demand.
+func initializeJoinEquality(ctx context.Context, expr BoundExpr, leftWidth int) error {
+	if expr == nil {
+		return nil
+	}
+	if logical, ok := expr.(logicalExpression); ok && logical.op == parser.LogicalAnd {
+		if err := initializeJoinEquality(ctx, logical.left, leftWidth); err != nil {
+			return err
+		}
+		return initializeJoinEquality(ctx, logical.right, leftWidth)
+	}
+	comparison, ok := expr.(comparisonExpression)
+	if !ok || comparison.operator != "=" {
+		return nil
+	}
+	side := func(expr BoundExpr) int {
+		result := 0
+		walkBoundExpression(expr, func(node BoundExpr) {
+			column, ok := node.(columnExpression)
+			if !ok || column.scope != 1 {
+				return
+			}
+			value := 1
+			if column.slot < leftWidth {
+				value = -1
+			}
+			if result == 0 {
+				result = value
+			} else if result != value {
+				result = 2
+			}
+		})
+		return result
+	}
+	left, right := side(comparison.left), side(comparison.right)
+	if left*right != -1 {
+		return nil
+	}
+	return comparison.predicate.DemandCollation(ctx)
 }

@@ -8,7 +8,7 @@ import (
 func TestOrderingRegclassRegression(t *testing.T) {
 	ctx := context.Background()
 	d := testTypes()[Regclass]
-	provider, err := BindComparison(d, d)
+	provider, err := BindComparison(d, d, CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

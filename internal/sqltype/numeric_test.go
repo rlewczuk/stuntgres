@@ -135,7 +135,7 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 		a, _ := d.Input(ctx, tc.a, -1)
 		b, _ := d.Input(ctx, tc.b, -1)
 		before := a
-		p, _ := BindComparison(d, d)
+		p, _ := BindComparison(d, d, CollationRef{}, false)
 		got, err := p.Compare(ctx, a, b, InputEnvironment{})
 		if err != nil || got != tc.want || a != before {
 			t.Fatal(tc, got, err)
@@ -205,16 +205,16 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	}
 	integer, _ := Integer(types[Int8], 9007199254740993)
 	decimal, _ := d.Input(ctx, "9007199254740993.0", -1)
-	p, _ := BindComparison(types[Int8], d)
+	p, _ := BindComparison(types[Int8], d, CollationRef{}, false)
 	if n, err := p.Compare(ctx, integer, decimal, InputEnvironment{}); err != nil || n != 0 {
 		t.Fatal(n, err)
 	}
 	huge, _ := d.Input(ctx, "1e400", -1)
 	f, _ := Float(types[Float8], 1)
-	p, _ = BindComparison(d, types[Float8])
+	p, _ = BindComparison(d, types[Float8], CollationRef{}, false)
 	_, err := p.Compare(ctx, huge, f, InputEnvironment{})
 	numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: `"` + "1" + strings.Repeat("0", 400) + `" is out of range for type double precision`})
-	equality, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
+	equality, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool], CollationRef{}, false)
 	null, err := equality.Evaluate(ctx, Null(d), decimal, InputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != types[Bool] {
 		t.Fatal(null, err)
@@ -222,12 +222,12 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	if _, err := PlanCoercion(types[Text].Usage(), d.Usage(), Implicit); err == nil {
 		t.Fatal("implicit TEXT to numeric admitted")
 	}
-	if _, err := BindComparison(d, types[Bool]); err == nil {
+	if _, err := BindComparison(d, types[Bool], CollationRef{}, false); err == nil {
 		t.Fatal("numeric BOOL comparison admitted")
 	}
 	real, _ := types[Float4].Input(ctx, "16777217", -1)
 	known, _ := d.Input(ctx, "16777217.0", -1)
-	comparison, _ := BindComparison(types[Float4], d)
+	comparison, _ := BindComparison(types[Float4], d, CollationRef{}, false)
 	if n, err := comparison.Compare(ctx, real, known, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal("known numeric narrowed to REAL", n, err)
 	}
@@ -279,7 +279,7 @@ func TestNumericFloatConversionBoundaryDiagnostics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		comparison, err := BindComparison(types[id], d)
+		comparison, err := BindComparison(types[id], d, CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -345,7 +345,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			if reverse {
 				left, right = right, left
 			}
-			equality, err := BindComparisonPredicate(CompareEqual, left.Type(), right.Type(), types[Bool])
+			equality, err := BindComparisonPredicate(CompareEqual, left.Type(), right.Type(), types[Bool], CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -381,7 +381,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			if reverse {
 				left, right, want = right, left, -want
 			}
-			comparison, err := BindComparison(left.Type(), right.Type())
+			comparison, err := BindComparison(left.Type(), right.Type(), CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -246,6 +246,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 		defer inputs.close()
 		state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
+		defer state.releaseMemberships()
 		inputs.scope = s
 		evaluation.query = state
 	}

@@ -135,7 +135,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
 			ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
 			e.mu.Lock()
-			rows, err := e.openRelationSourceLocked(scope, ref, d.owner, queryRowMark{}, nil)
+			rows, err := e.openRelationSourceLocked(scope, ref, d.owner, queryRowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

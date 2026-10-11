@@ -64,6 +64,7 @@ func (c *sqlCursor) releaseProducer() {
 		c.source.close()
 		c.source = nil
 	}
+	c.state.releaseMemberships()
 	c.state = queryState{}
 	c.root = nil
 	c.leaves, c.locks = nil, nil

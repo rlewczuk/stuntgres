@@ -216,6 +216,20 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
+		// Domain casts retain top annotations outside their executable coercion.
+		// Capture their original syntactic paths by mirroring them around the
+		// coercion input, without changing the executable or frozen AST.
+		var annotations BoundExpr
+		if _, annotated := r.Child.(parser.CollateExpr); annotated && bound.ResultUsage().Type.IsDomain() {
+			annotations = bound
+			for {
+				annotation, ok := bound.(collationExpression)
+				if !ok {
+					break
+				}
+				bound = annotation.child
+			}
+		}
 		if b.viewCastUsages == nil {
 			b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
 		}
@@ -223,6 +237,7 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
 			bound = coercion.child
 		}
+		bound = restoreDomainCastCollations(annotations, bound)
 		return child(r.Child, bound)
 	case parser.RegclassExpr:
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
@@ -231,6 +246,24 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
+		case rowComparisonExpression:
+			for side, arg := range r.Args {
+				row, ok := arg.(parser.RowExpr)
+				if !ok || len(row.Fields) != len(n.comparisons) {
+					return fmt.Errorf("stuntgres: mismatched row comparison syntax")
+				}
+				(*ordinal)++ // The represented RowExpr itself has no scalar datum.
+				for i, field := range row.Fields {
+					operand := n.comparisons[i].left
+					if side == 1 {
+						operand = n.comparisons[i].right
+					}
+					if err := child(field, operand); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		case subqueryExpression:
 			if len(r.Args) != 2 {
 				return fmt.Errorf("stuntgres: mismatched row subquery syntax")

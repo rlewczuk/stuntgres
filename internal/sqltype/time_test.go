@@ -164,7 +164,7 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 	if !reflect.DeepEqual(err, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "TIME(-1) precision must not be negative"}) {
 		t.Fatal(err)
 	}
-	cmp, err := BindComparison(d, d)
+	cmp, err := BindComparison(d, d, CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,13 +187,13 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 			stamp = v
 		}
 	}
-	eq, _ := BindComparisonPredicate(CompareEqual, d, d, boolType)
+	eq, _ := BindComparisonPredicate(CompareEqual, d, d, boolType, CollationRef{}, false)
 	v, _ := TimeValue(d, 0)
 	null, err := eq.Evaluate(ctx, Null(d), v, InputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != boolType {
 		t.Fatal(null, err)
 	}
-	if _, err = BindComparison(d, stamp); err == nil {
+	if _, err = BindComparison(d, stamp, CollationRef{}, false); err == nil {
 		t.Fatal("cross temporal comparison admitted")
 	}
 	if _, err = TimeValue(d, -1); err == nil {

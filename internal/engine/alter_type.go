@@ -213,7 +213,12 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), usage, sqltype.Assignment)
+	input, annotations := domainCoercionInput(node, usage)
+	info, err := storageCoercionInfo(auth.catalog, expressionInfo{usage: usage, properties: input.Properties()}, input)
+	if err != nil {
+		return fail(err)
+	}
+	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 	if err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
 			d = sqlError("42804", fmt.Sprintf(`column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())).(*sqlstate.Error)
@@ -239,7 +244,12 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	}
-	node = coercionExpression{expressionInfo{usage: usage, properties: coercionProperties(node, plan)}, node, plan, sqltype.Assignment}
+	info.properties = coercionProperties(input, plan)
+	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+	node, err = storageDestination(node, usage, info.pos)
+	if err != nil {
+		return fail(err)
+	}
 	attribute := original.attributes[source]
 	transformation := columnTransformation{attribute, node, a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
 	if usage == current {
@@ -257,11 +267,21 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			}
 			expression = wrapper.child
 		}
-		defaultPlan, err := sqltype.PlanCoercion(expression.ResultUsage(), usage, sqltype.Assignment)
+		input, annotations := domainCoercionInput(expression, usage)
+		info, err := storageCoercionInfo(auth.catalog, expressionInfo{usage: usage, properties: input.Properties()}, input)
+		if err != nil {
+			return fail(err)
+		}
+		defaultPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 		if err != nil {
 			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
 		}
-		expression = coercionExpression{expressionInfo{usage: usage, properties: coercionProperties(expression, defaultPlan)}, expression, defaultPlan, sqltype.Assignment}
+		info.properties = coercionProperties(input, defaultPlan)
+		expression = restoreDomainCastCollations(annotations, coercionExpression{info, input, defaultPlan, sqltype.Assignment})
+		expression, err = storageDestination(expression, usage, info.pos)
+		if err != nil {
+			return fail(err)
+		}
 		definition.dependencies = nil
 		definition.catalogSnapshot = false
 		_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, expression)

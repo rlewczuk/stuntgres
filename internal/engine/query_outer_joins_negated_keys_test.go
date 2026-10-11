@@ -23,7 +23,7 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 			"<": sqltype.CompareLess, "<=": sqltype.CompareLessEqual,
 			">": sqltype.CompareGreater, ">=": sqltype.CompareGreaterEqual,
 		}[op]
-		provider, err := sqltype.BindComparisonPredicate(operator, a.ResultUsage().Type, b.ResultUsage().Type, boolean)
+		provider, err := sqltype.BindComparisonPredicate(operator, a.ResultUsage().Type, b.ResultUsage().Type, boolean, a.ResultUsage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}

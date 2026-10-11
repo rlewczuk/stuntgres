@@ -6,7 +6,7 @@ import (
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker PrincipalRef, mark queryRowMark, locks *queryLockContext) (*querySource, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (*querySource, error) {
 	ctx := scope.op.Context()
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
@@ -103,7 +103,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		}
 		scope.activeViews = append(scope.activeViews, d.address)
 		defer func() { scope.activeViews = scope.activeViews[:len(scope.activeViews)-1] }()
-		root, source, err := e.prepareStoredQueryLocked(scope, ref, d.view, invoker, mark, locks)
+		root, source, err := e.prepareStoredQueryLocked(scope, ref, d.view, invoker, mark, locks, outputUses)
 		if err != nil {
 			return nil, err
 		}

@@ -143,6 +143,13 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case similarSubstringExpression:
 		fmt.Fprintf(out, "SimilarSubstring syntax %d", n.syntax)
 		err = args(n.args[:])
+	case rowComparisonExpression:
+		fmt.Fprintf(out, "RowCompare %s", n.operator)
+		for _, comparison := range n.comparisons {
+			if err = pair(comparison.left, comparison.right); err != nil {
+				break
+			}
+		}
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

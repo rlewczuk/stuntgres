@@ -437,7 +437,11 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 				}
 				pos := parser.Position{Offset: -1}
 				le, re := b.queryColumnAt(l, pos), b.queryColumnAt(r, pos)
-				predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, le.ResultUsage().Type, re.ResultUsage().Type, b.typ(sqltype.Bool))
+				input, err := b.comparisonInfo(le, re)
+				if err != nil {
+					return nil, queryNamespace{}, err
+				}
+				predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, le.ResultUsage().Type, re.ResultUsage().Type, b.typ(sqltype.Bool), input.usage.Collation, input.collationConflict)
 				if err != nil {
 					return nil, queryNamespace{}, equalityError(err, le.ResultUsage().Type, re.ResultUsage().Type, pos)
 				}
@@ -481,15 +485,17 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 					if value.ResultUsage() != usage {
 						// A same-type common key can still lose its typmod.
 						// Publish that relabel in the recipe as well as the slot.
-						plan, err := sqltype.PlanCoercion(value.ResultUsage(), usage, sqltype.Implicit)
+						input, annotations := domainCoercionInput(value, usage)
+						info, err := b.coercionInfo(b.info(usage, pos, input.Properties()), input)
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						info, err := b.collatedInfo(b.info(usage, pos, coercionProperties(value, plan)), value)
+						plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Implicit)
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						value = coercionExpression{info, value, plan, sqltype.Implicit}
+						info.properties = coercionProperties(input, plan)
+						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit})
 					}
 					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1}
 					join.merges = append(join.merges, value)

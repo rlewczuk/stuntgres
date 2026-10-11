@@ -146,7 +146,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		if err != nil {
 			return nil, err
 		}
-		info, err := b.collatedInfo(b.info(target, args[0].SourcePosition(), coercionProperties(args[0], plan)), args[0])
+		info, err := b.coercionInfo(b.info(target, args[0].SourcePosition(), coercionProperties(args[0], plan)), args[0])
 		if err != nil {
 			return nil, err
 		}

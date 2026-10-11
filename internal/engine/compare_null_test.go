@@ -45,7 +45,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	two, _ := sqltype.Integer(intType, 2)
 	values := []sqltype.Value{sqltype.Null(intType), integer, two}
-	equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, intType, intType, boolType)
+	equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, intType, intType, boolType, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

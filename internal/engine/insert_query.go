@@ -376,6 +376,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 		unique = len(bound.keys) != 0
 	}
 	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil}
+	defer state.releaseMemberships()
 	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, err

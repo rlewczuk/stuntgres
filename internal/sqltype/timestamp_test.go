@@ -318,7 +318,7 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 	if out != "2000-01-01 00:00:00.13" {
 		t.Fatal(out)
 	}
-	cmp, _ := BindComparison(d, d)
+	cmp, _ := BindComparison(d, d, CollationRef{}, false)
 	prev := Value{}
 	for i, s := range []string{"-infinity", "0001-01-01 BC", "epoch", "1999-12-31 23:59:59.999999", "2000-01-01", "2000-01-01 00:00:00.000001", "infinity"} {
 		v, e := d.Input(ctx, s, -1)
@@ -357,7 +357,7 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
-	eq, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
+	eq, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool], CollationRef{}, false)
 	v, e := eq.Evaluate(ctx, Null(d), prev, InputEnvironment{})
 	if e != nil || !v.IsNull() || v.Type() != types[Bool] {
 		t.Fatal(v, e)

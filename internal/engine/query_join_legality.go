@@ -10,7 +10,11 @@ import (
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
 func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog CatalogRead, inherited relationLockMode) error {
-	return validateMarkedQueryJoin(c, node, catalog, nil, queryRowMark{mode: inherited}, false, nil)
+	reads := queryExecutionSourceReads(node, nil)
+	if source, ok := node.(*sourceNode); ok {
+		reads[source.occurrence] = nil
+	}
+	return validateMarkedQueryJoin(c, node, catalog, nil, queryRowMark{mode: inherited}, false, nil, reads)
 }
 
 func firstNullableQueryMark(a, b queryRowMark) queryRowMark {
@@ -129,7 +133,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression BoundExpr, catal
 		if subquery.presenceOnly {
 			ignored = project
 		}
-		if err := validateMarkedQueryJoin(&child, project, catalog, nil, queryRowMark{}, false, ignored); err != nil {
+		if err := validateMarkedQueryJoin(&child, project, catalog, nil, queryRowMark{}, false, ignored, queryExecutionSourceReads(project, ignored)); err != nil {
 			return err
 		}
 	}
@@ -153,7 +157,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression BoundExpr, catal
 	})
 	return failure
 }
-func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRead, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode) error {
+func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRead, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode, reads map[int][]int32) error {
 
 	if node == nil {
 		return nil
@@ -178,21 +182,25 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 	case *setNode:
 		// Inline inherited sets were rejected at analysis. A stored set
 		// source is opaque to an outer row mark, but all arms still plan.
-		if err := validateMarkedQueryJoin(c, n.left, catalog, nil, queryRowMark{}, emptyInput, nil); err != nil {
+		if err := validateMarkedQueryJoin(c, n.left, catalog, nil, queryRowMark{}, emptyInput, nil, reads); err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(c, n.right, catalog, nil, queryRowMark{}, emptyInput, nil)
+		return validateMarkedQueryJoin(c, n.right, catalog, nil, queryRowMark{}, emptyInput, nil, reads)
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
 		if d, ok := catalog.state.descriptors[n.ref.Address].(*relationDescriptor); ok && d.relationKind == viewRelation {
 			if err := viewRowLockLegality(d.view, queryRowDiagnostic(mark)); err != nil {
 				return err
 			}
-			root, err := preflightQuery(c, d.view.query.Root)
+			outputUses, err := querySourceReadUses(reads[n.occurrence], d.attributes)
 			if err != nil {
 				return err
 			}
-			return validateMarkedQueryJoin(c, root, catalog, nil, mark, emptyInput, nil)
+			root, storedReads, err := prepareStoredExecutionRoot(c, d.view, outputUses)
+			if err != nil {
+				return err
+			}
+			return validateMarkedQueryJoin(c, root, catalog, nil, mark, emptyInput, nil, storedReads)
 		}
 		return nil
 	case *derivedNode:
@@ -211,7 +219,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		if err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(&child, root, catalog, marks, inherited, emptyInput, nil)
+		return validateMarkedQueryJoin(&child, root, catalog, marks, inherited, emptyInput, nil, reads)
 	case *joinNode:
 		mark := queryRowMark{}
 		if n.kind == parser.JoinLeft || n.kind == parser.JoinFull {
@@ -263,10 +271,10 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		}
 	}
 	left, right := queryInputs(node)
-	if err := validateMarkedQueryJoin(c, left, catalog, marks, inherited, emptyInput, ignoredProject); err != nil {
+	if err := validateMarkedQueryJoin(c, left, catalog, marks, inherited, emptyInput, ignoredProject, reads); err != nil {
 		return err
 	}
-	return validateMarkedQueryJoin(c, right, catalog, marks, inherited, emptyInput, ignoredProject)
+	return validateMarkedQueryJoin(c, right, catalog, marks, inherited, emptyInput, ignoredProject, reads)
 }
 
 // Every key is an effective equality. Keep only its ordered, bound operands:
@@ -531,6 +539,20 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = []BoundExpr{e.left, e.right}
 	case bitwiseExpression:
 		children = []BoundExpr{e.left, e.right}
+	case rowComparisonExpression:
+		var sides uint8
+		for _, pair := range e.comparisons {
+			left, err := joinExpressionSides(pair.left, leftWidth, rightWidth)
+			if err != nil {
+				return 0, err
+			}
+			right, err := joinExpressionSides(pair.right, leftWidth, rightWidth)
+			if err != nil {
+				return 0, err
+			}
+			sides |= left | right
+		}
+		return sides, nil
 	case comparisonExpression:
 		children = []BoundExpr{e.left, e.right}
 	case logicalExpression:

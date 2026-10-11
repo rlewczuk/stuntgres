@@ -219,3 +219,111 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 	walk(project, ignoredProject)
 	return properties
 }
+
+// Runtime reads belong to an occurrence's physical input span in its lexical
+// frame, not to a relation OID. Analysis-only CTE edges remain frozen metadata.
+func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) map[int][]int32 {
+	type span struct {
+		source *sourceNode
+		offset int
+	}
+	var frames map[uint32][]span
+	var reads map[int][]int32
+	var walk func(LogicalNode, uint32, int, *projectNode, bool)
+	walk = func(node LogicalNode, frame uint32, offset int, ignored *projectNode, collect bool) {
+		if node == nil {
+			return
+		}
+		if project, ok := node.(*projectNode); ok {
+			frame, offset = project.frame, 0
+			if frame == 0 {
+				frame = 1
+			}
+		}
+		if source, ok := node.(*sourceNode); ok && !collect {
+			if reads == nil {
+				frames = make(map[uint32][]span)
+				reads = make(map[int][]int32)
+			}
+			frames[frame] = append(frames[frame], span{source, offset})
+			reads[source.occurrence] = []int32{}
+		}
+		left, right := queryInputs(node)
+		walk(left, frame, offset, ignored, collect)
+		rightOffset := offset
+		if join, ok := node.(*joinNode); ok {
+			rightOffset += join.leftWidth
+		}
+		walk(right, frame, rightOffset, ignored, collect)
+		if node == ignored || queryIgnoresOwnExpressions(node) {
+			return
+		}
+		visit := func(expression BoundExpr) {
+			walkBoundExpression(expression, func(expression BoundExpr) {
+				switch e := expression.(type) {
+				case subqueryExpression:
+					if e.cteDefinition {
+						return
+					}
+					var ignoredChild *projectNode
+					if e.presenceOnly {
+						ignoredChild = e.queryPlan.Root.(*projectNode)
+					}
+					walk(e.queryPlan.Root, frame, 0, ignoredChild, collect)
+				case columnExpression:
+					if !collect || e.scope != 1 || e.origin.Address.SubID <= 0 {
+						return
+					}
+					for _, input := range frames[e.frame] {
+						if e.slot < input.offset || e.slot >= input.offset+len(input.source.Schema()) || e.origin.Address.ClassID != input.source.ref.Address.ClassID || e.origin.Address.ObjectID != input.source.ref.Address.ObjectID {
+							continue
+						}
+						items := reads[input.source.occurrence]
+						for _, attribute := range items {
+							if attribute == e.origin.Address.SubID {
+								return
+							}
+						}
+						reads[input.source.occurrence] = append(items, e.origin.Address.SubID)
+						return
+					}
+				}
+			})
+		}
+		if project, ok := node.(*projectNode); ok {
+			for _, expression := range project.expressions {
+				visit(expression)
+			}
+		} else {
+			queryExpressions(node, visit)
+		}
+	}
+	// Register all spans first, including outer frames referenced by correlated
+	// expressions inside other inputs. Then collect only executable producers.
+	walk(root, 1, 0, ignoredProject, false)
+	if reads != nil {
+		walk(root, 1, 0, ignoredProject, true)
+	}
+	return reads
+}
+
+// Bridge captured attribute identities to the current source layout. nil
+// denotes full demand; a nonnil empty slice denotes presence-only demand.
+func querySourceReadUses(reads []int32, attributes []int32) ([]int, error) {
+	if reads == nil {
+		return nil, nil
+	}
+	uses := make([]int, 0, len(reads))
+	for slot, attribute := range attributes {
+		for _, read := range reads {
+			if attribute == read {
+				uses = append(uses, slot)
+				break
+			}
+		}
+	}
+	if len(uses) != len(reads) {
+		return nil, ErrCatalogReplaced
+	}
+	return uses, nil
+}

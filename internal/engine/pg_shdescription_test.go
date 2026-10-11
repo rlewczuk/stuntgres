@@ -284,7 +284,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	open := func(scope *StatementScope, ref ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil)
+		source, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

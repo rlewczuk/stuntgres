@@ -53,7 +53,7 @@ type setArm struct {
 }
 
 func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []BoundExpr, schema []ColumnDescriptor) (setArm, error) {
-	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes}
+	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return setArm{}, err

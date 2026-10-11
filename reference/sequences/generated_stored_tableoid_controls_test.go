@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -21,10 +22,18 @@ func TestReferenceGeneratedStoredTableOIDControls(t *testing.T) {
 		if _, err := conn.ExecContext(p.Ctx, `CREATE TEMP SEQUENCE retained`); err != nil {
 			t.Fatal(err)
 		}
+		var retainedOID int64
+		if err := conn.QueryRowContext(p.Ctx, `SELECT oid FROM pg_class WHERE relname='retained'`).Scan(&retainedOID); err != nil || retainedOID <= 0 {
+			t.Fatal("missing genuine retained TEMP owner", retainedOID, err)
+		}
+		var retainedValue int64
+		if err := conn.QueryRowContext(p.Ctx, `SELECT nextval('retained')`).Scan(&retainedValue); err != nil || retainedValue != 1 {
+			t.Fatal("retained TEMP sequence initialization", retainedValue, err)
+		}
 		// The private replay allocates this schema before oidg, aligning oidg's
 		// relation identity with the retained TEMP sequence, not its namespace.
 		run(fixture.Exec(`CREATE SCHEMA oid_marker`, 0))
-		run(fixture.Exec(`CREATE TABLE oidg(a INT,b OID GENERATED ALWAYS AS(tableoid) STORED,c BIGINT GENERATED ALWAYS AS(CASE WHEN a IS NULL THEN tableoid::bigint ELSE tableoid::bigint+a END) STORED,CHECK(current_user=current_user),CHECK(random()>=0 AND random()<1),CHECK(obj_description(b,'pg_class') IS NULL),CHECK(pg_table_is_visible(b)))`, 0))
+		run(fixture.Exec(`CREATE TABLE oidg(a INT,b OID GENERATED ALWAYS AS(tableoid) STORED,c BIGINT GENERATED ALWAYS AS(CASE WHEN a IS NULL THEN tableoid::bigint ELSE tableoid::bigint+a END) STORED,marker BIGINT DEFAULT `+strconv.FormatInt(retainedOID, 10)+`,first_pair BOOL GENERATED ALWAYS AS((tableoid::bigint,a)=(marker,a)) STORED,later_pair BOOL GENERATED ALWAYS AS((a,tableoid::bigint)=(a,marker)) STORED,no_owner BOOL GENERATED ALWAYS AS((a,a)=(a,a)) STORED,CHECK(current_user=current_user),CHECK(random()>=0 AND random()<1),CHECK(obj_description(b,'pg_class') IS NULL),CHECK(pg_table_is_visible(b)))`, 0))
 		run(fixture.Exec(`INSERT INTO oidg(a) VALUES(2)`, 1))
 		heldInsert, err := backend.DB.PrepareContext(p.Ctx, `INSERT INTO oidg(a) VALUES($1)`)
 		if err != nil {
@@ -39,8 +48,12 @@ func TestReferenceGeneratedStoredTableOIDControls(t *testing.T) {
 		if err := backend.DB.QueryRowContext(p.Ctx, `SELECT b,c FROM oidg`).Scan(&b, &c); err != nil || b != before || c != before+2 {
 			t.Fatal(b, c, before, err)
 		}
+		if before == retainedOID {
+			t.Fatal("source and TEMP owners unexpectedly coincide", before)
+		}
+		fixture.CollationRoutes(t, p, backend, fixture.Select(`SELECT first_pair,later_pair,no_owner FROM oidg`, []string{"first_pair", "later_pair", "no_owner"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{false, false, true}}))
 		if !backend.PG {
-			held, err := p.Native.QueryContext(p.Ctx, `SELECT b,c FROM oidg`)
+			held, err := p.Native.QueryContext(p.Ctx, `SELECT b,c,first_pair,later_pair,no_owner FROM oidg`)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,8 +73,9 @@ func TestReferenceGeneratedStoredTableOIDControls(t *testing.T) {
 				t.Fatal(held.Err())
 			}
 			var oldB, oldC int64
-			if err := held.Scan(&oldB, &oldC); err != nil || oldB != before || oldC != before+2 {
-				t.Fatal(oldB, oldC, before, err)
+			var oldFirst, oldLater, oldPlain bool
+			if err := held.Scan(&oldB, &oldC, &oldFirst, &oldLater, &oldPlain); err != nil || oldB != before || oldC != before+2 || oldFirst || oldLater || !oldPlain {
+				t.Fatal(oldB, oldC, oldFirst, oldLater, oldPlain, before, err)
 			}
 			if held.Next() || held.Err() != nil {
 				t.Fatal("held rows changed", held.Err())
@@ -83,6 +97,17 @@ func TestReferenceGeneratedStoredTableOIDControls(t *testing.T) {
 		if err := backend.DB.QueryRowContext(p.Ctx, `SELECT b,c FROM oidg`).Scan(&b, &c); err != nil || b != owner || c != owner+2 {
 			t.Fatal("remapped stored cells", b, c, owner, err)
 		}
+		// The replay candidate's owner collides with retainedOID, so both
+		// row cells are TRUE before owner repair and must become FALSE afterward.
+		// Compare to the actual repaired scalar owner instead of allocator numbers.
+		fixture.CollationRoutes(t, p, backend, fixture.Select(`SELECT first_pair=(b::bigint=marker) AS first_ok,later_pair=(b::bigint=marker) AS later_ok,no_owner FROM oidg`, []string{"first_ok", "later_ok", "no_owner"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+		var preservedOID int64
+		if err := conn.QueryRowContext(p.Ctx, `SELECT oid FROM pg_class WHERE relname='retained'`).Scan(&preservedOID); err != nil || preservedOID != retainedOID {
+			t.Fatal("TEMP owner changed during replacement", preservedOID, retainedOID, err)
+		}
+		if err := conn.QueryRowContext(p.Ctx, `SELECT nextval('retained')`).Scan(&retainedValue); err != nil || retainedValue != 2 {
+			t.Fatal("TEMP sequence state changed during replacement", retainedValue, err)
+		}
 		result, err := heldInsert.ExecContext(p.Ctx, 4)
 		if err != nil {
 			t.Fatal(err)
@@ -97,6 +122,7 @@ func TestReferenceGeneratedStoredTableOIDControls(t *testing.T) {
 		if err := backend.DB.QueryRowContext(p.Ctx, `SELECT b,c FROM oidg WHERE a=4`).Scan(&b, &c); err != nil || b != owner || c != owner+4 {
 			t.Fatal(b, c, owner, err)
 		}
+		fixture.CollationRoutes(t, p, backend, fixture.Select(`SELECT a,first_pair=(b::bigint=marker) AS first_ok,later_pair=(b::bigint=marker) AS later_ok,no_owner FROM oidg ORDER BY a`, []string{"a", "first_ok", "later_ok", "no_owner"}, []string{"INT4", "BOOL", "BOOL", "BOOL"}, [][]any{{int64(4), true, true, true}, {int64(8), true, true, true}}))
 	})
 }
 

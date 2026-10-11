@@ -61,11 +61,26 @@ func BindGrouping(usage Usage) (Grouping, error) {
 	default:
 		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + usage.Type.DiagnosticName()}
 	}
-	comparison, err := BindComparison(usage.Type, usage.Type)
+	comparison, err := BindComparison(usage.Type, usage.Type, usage.Collation, false)
 	if err != nil {
 		return Grouping{}, err
 	}
 	g.comparison = comparison
+	return g, nil
+}
+
+// EqualityGrouping binds hash membership to the predicate's retained authority.
+func (p ComparisonPredicate) EqualityGrouping() (Grouping, error) {
+	if p.operator != CompareEqual || p.operands.left != p.operands.right {
+		return Grouping{}, fmt.Errorf("comparison is not a same-type hash equality")
+	}
+	usage := p.operands.left.Usage()
+	usage.Collation = p.operands.inputCollation
+	g, err := BindGrouping(usage)
+	if err != nil {
+		return Grouping{}, err
+	}
+	g.comparison = p.operands
 	return g, nil
 }
 func (g Grouping) check(v Value) error {
@@ -108,6 +123,9 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	if a.null || b.null {
 		return a.null == b.null, ctx.Err()
 	}
+	if g.comparison.collationIndeterminate {
+		return false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
+	}
 	if g.element != nil {
 		if a.array == nil || b.array == nil {
 			return false, fmt.Errorf("missing grouping array payload")
@@ -149,10 +167,12 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	switch a.typ.BaseType().id {
 	case Xid, Regtype:
 		return a.oid == b.oid, ctx.Err()
-	case Text, VarChar, Name, Bytea, Regclass, Char:
+	case Text, VarChar, Name:
+		return g.usage.Collation.EqualText(ctx, a.text, b.text)
+	case Bytea, Regclass, Char:
 		return groupingTextEqual(ctx, a.text, b.text)
 	case BPChar:
-		return groupingTextEqual(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
+		return g.usage.Collation.EqualText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
 	}
 	n, err := g.comparison.Compare(ctx, a, b, InputEnvironment{})
 	if err != nil {
@@ -177,20 +197,17 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		}
 	}
 	textHash := func(s string) error {
-		for i := range len(s) {
-			if i&1023 == 0 {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-			}
-			byteHash(s[i])
-		}
-		return nil
+		var err error
+		h, err = groupingTextHash(ctx, h, s)
+		return err
 	}
 	integerHash(uint64(v.typ.id))
 	if v.null {
 		byteHash(0)
 		return h, ctx.Err()
+	}
+	if g.comparison.collationIndeterminate {
+		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string hashing", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
 	byteHash(1)
 	if v.typ.IsEnum() {
@@ -281,7 +298,13 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		if v.typ.id == BPChar {
 			s = strings.TrimRight(s, " ")
 		}
-		if err := textHash(s); err != nil {
+		if g.usage.Collation.ID != 0 {
+			var err error
+			h, err = g.usage.Collation.HashText(ctx, h, s)
+			if err != nil {
+				return 0, err
+			}
+		} else if err := textHash(s); err != nil {
 			return 0, err
 		}
 	case UUID:
@@ -308,4 +331,16 @@ func groupingTextEqual(ctx context.Context, a, b string) (bool, error) {
 		}
 	}
 	return true, ctx.Err()
+}
+
+func groupingTextHash(ctx context.Context, seed uint64, text string) (uint64, error) {
+	for i := range len(text) {
+		if i&1023 == 0 {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+		}
+		seed = (seed ^ uint64(text[i])) * 1099511628211
+	}
+	return seed, ctx.Err()
 }

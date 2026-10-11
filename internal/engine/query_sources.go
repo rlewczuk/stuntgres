@@ -345,7 +345,13 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				}
 			default:
 				// Recursive view opening consumes the lock, including failures.
-				source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mark, locks)
+				// A nonnil empty slice means this occurrence consumes presence
+				// only, unlike nil's full-projection callers.
+				uses := leaf.uses
+				if uses == nil {
+					uses = []int{}
+				}
+				source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mark, locks, uses)
 				e.mu.Lock()
 			}
 		}

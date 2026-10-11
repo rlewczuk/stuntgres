@@ -23,7 +23,7 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right BoundExpr) comparisonExpression {
 	t.Helper()
 	operators := map[string]sqltype.ComparisonOperator{"<": sqltype.CompareLess, "<=": sqltype.CompareLessEqual, "=": sqltype.CompareEqual, ">=": sqltype.CompareGreaterEqual, ">": sqltype.CompareGreater, "<>": sqltype.CompareNotEqual}
-	predicate, err := sqltype.BindComparisonPredicate(operators[op], left.ResultUsage().Type, right.ResultUsage().Type, f.boolean)
+	predicate, err := sqltype.BindComparisonPredicate(operators[op], left.ResultUsage().Type, right.ResultUsage().Type, f.boolean, left.ResultUsage().Collation, false)
 	if err != nil {
 		t.Fatal(err)
 	}

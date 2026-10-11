@@ -31,7 +31,7 @@ func TestViewCatalogTypes(t *testing.T) {
 		if !Null(d).IsNull() {
 			t.Fatal("lost NULL")
 		}
-		comparison, err := BindComparison(d, d)
+		comparison, err := BindComparison(d, d, d.Usage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -89,7 +89,7 @@ func TestViewCatalogCHARReleaseInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comparison, err := BindComparison(d, d)
+	comparison, err := BindComparison(d, d, d.Usage().Collation, false)
 	if err != nil {
 		t.Fatal(err)
 	}

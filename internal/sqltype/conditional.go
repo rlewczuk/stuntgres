@@ -237,14 +237,3 @@ func compareDateTimestamp(day, stamp int64) int {
 	}
 	return 0
 }
-
-// BindEqualityComparison uses the same typed ordering as ordinary predicates.
-func BindEqualityComparison(left, right *Descriptor) (Comparison, error) {
-	if left != nil && right != nil && left.Concrete() && right.Concrete() && (left.ID() == Name && right.ID() == Text || left.ID() == Text && right.ID() == Name) {
-		return Comparison{left: left, right: right}, nil
-	}
-	if left != nil && right != nil && left.Concrete() && right.Concrete() && (left.ID() == Date && right.ID() == Timestamp || left.ID() == Timestamp && right.ID() == Date) {
-		return Comparison{left: left, right: right}, nil
-	}
-	return BindComparison(left, right)
-}

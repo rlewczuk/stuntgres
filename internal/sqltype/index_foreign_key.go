@@ -46,6 +46,8 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 		return plan, fmt.Errorf("missing foreign-key class input descriptor")
 	}
 	parentInput, childInput := input.Usage(), input.Usage()
+	// Foreign-key probes use the supporting index's comparison authority.
+	parentInput.Collation = parent.Collation
 	if indexFamilyEquality(class.Family, class.input, child.Type.id) {
 		// Preserve genuine mixed-width members: no narrowing int8 into int4.
 		childInput = child.Type.Usage()
@@ -62,7 +64,7 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 	}
 	plan.parentConvert, plan.childConvert = parent.Type != parentInput.Type, child.Type != childInput.Type
 	if plan.cross {
-		plan.comparison, err = BindEqualityComparison(parentInput.Type, childInput.Type)
+		plan.comparison, err = BindComparison(parentInput.Type, childInput.Type, parent.Collation, false)
 	} else {
 		plan.index, err = BindIndexOrdering(parentInput, class)
 	}

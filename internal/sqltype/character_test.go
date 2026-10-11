@@ -155,7 +155,7 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 		{BPChar, BPChar, 0}, {BPChar, VarChar, 0}, {VarChar, BPChar, 0},
 		{BPChar, Text, -1}, {Text, BPChar, 1}, {VarChar, Text, 0},
 	} {
-		p, err := BindComparison(types[pair.left], types[pair.right])
+		p, err := BindComparison(types[pair.left], types[pair.right], types[pair.left].Usage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}

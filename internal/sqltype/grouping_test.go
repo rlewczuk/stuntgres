@@ -71,7 +71,7 @@ func TestGroupingConcreteTypes(t *testing.T) {
 			if !equal || err != nil {
 				t.Fatal(equal, err)
 			}
-			strict, err := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
+			strict, err := BindComparisonPredicate(CompareEqual, d, d, types[Bool], d.Usage().Collation, false)
 			if err != nil {
 				t.Fatal(err)
 			}

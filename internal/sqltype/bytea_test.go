@@ -122,7 +122,7 @@ func TestByteaOutputAndCompare(t *testing.T) {
 	if _, err := d.OutputWithEnvironment(canceled, v, OutputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	cmp, err := BindComparison(d, d)
+	cmp, err := BindComparison(d, d, CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

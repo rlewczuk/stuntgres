@@ -397,11 +397,11 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 		{sqltype.CompareGreaterEqual, ">=", []sqltype.Value{one, one}, []sqltype.Value{one, one}, true, false},
 	} {
 		t.Run(tc.text, func(t *testing.T) {
-			predicate, err := sqltype.BindComparisonPredicate(tc.operator, integer, integer, boolean)
+			predicate, err := sqltype.BindComparisonPredicate(tc.operator, integer, integer, boolean, sqltype.CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			comparison, err := sqltype.BindComparison(integer, integer)
+			comparison, err := sqltype.BindComparison(integer, integer, sqltype.CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -427,7 +427,7 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 	project := q.Root.(*projectNode)
 	integer := project.Schema()[0].Usage.Type
 	expr := subqueryTestExpression(t, e, q, parser.SubqueryAny)
-	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, integer, integer, expr.usage.Type)
+	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, integer, integer, expr.usage.Type, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

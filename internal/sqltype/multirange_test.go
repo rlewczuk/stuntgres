@@ -249,10 +249,10 @@ func TestMultirangeComparisonAdmission(t *testing.T) {
 		for _, left := range []*Descriptor{base, span, chain} {
 			for _, right := range []*Descriptor{base, span, chain, types[Int4], types[Text]} {
 				for _, pair := range [][2]*Descriptor{{left, right}, {right, left}} {
-					_, err := BindComparison(pair[0], pair[1])
+					_, err := BindComparison(pair[0], pair[1], pair[0].Usage().Collation, false)
 					assertRejected(err)
 					for op := CompareEqual; op <= CompareGreaterEqual; op++ {
-						_, err := BindComparisonPredicate(op, pair[0], pair[1], types[Bool])
+						_, err := BindComparisonPredicate(op, pair[0], pair[1], types[Bool], pair[0].Usage().Collation, false)
 						assertRejected(err)
 					}
 				}
@@ -260,11 +260,11 @@ func TestMultirangeComparisonAdmission(t *testing.T) {
 		}
 	}
 	for _, pair := range [][2]ID{{Int4, Int8}, {Text, Text}, {Numeric, Numeric}} {
-		if _, err := BindComparison(types[pair[0]], types[pair[1]]); err != nil {
+		if _, err := BindComparison(types[pair[0]], types[pair[1]], types[pair[0]].Usage().Collation, false); err != nil {
 			t.Fatal("supported comparison changed", pair, err)
 		}
 		for op := CompareEqual; op <= CompareGreaterEqual; op++ {
-			if _, err := BindComparisonPredicate(op, types[pair[0]], types[pair[1]], types[Bool]); err != nil {
+			if _, err := BindComparisonPredicate(op, types[pair[0]], types[pair[1]], types[Bool], types[pair[0]].Usage().Collation, false); err != nil {
 				t.Fatal("supported predicate changed", pair, op, err)
 			}
 		}

@@ -103,10 +103,16 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 		if explicit {
 			node, err = b.finalizeOperand(o, childUsage.Type)
 			if err == nil && node.ResultUsage() != childUsage {
-				var plan sqltype.CoercionPlan
-				plan, err = sqltype.PlanCoercion(node.ResultUsage(), childUsage, sqltype.Explicit)
+				input, annotations := domainCoercionInput(node, childUsage)
+				var info expressionInfo
+				info, err = b.coercionInfo(b.info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
-					node = coercionExpression{b.info(childUsage, node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Explicit}
+					var plan sqltype.CoercionPlan
+					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Explicit)
+					if err == nil {
+						info.properties = coercionProperties(input, plan)
+						node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Explicit})
+					}
 				}
 			}
 		} else {

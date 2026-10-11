@@ -73,7 +73,7 @@ func TestTimezoneTimetzClockAndKeys(t *testing.T) {
 	}
 	a, _ := d.Input(ctx, "09:00+01", -1)
 	b, _ := d.Input(ctx, "08:00+00", -1)
-	comparison, _ := BindComparison(d, d)
+	comparison, _ := BindComparison(d, d, CollationRef{}, false)
 	n, err := comparison.Compare(ctx, a, b, InputEnvironment{})
 	if err != nil || n != -1 || SameDatum(a, b) {
 		t.Fatal(n, err)
@@ -97,7 +97,7 @@ func TestTimezoneCrossComparisonAndStyles(t *testing.T) {
 	types := testTypes()
 	date, _ := types[Date].Input(ctx, "2004-10-19", -1)
 	instant, _ := types[Timestamptz].Input(ctx, "2004-10-19 04:00+00", -1)
-	comparison, _ := BindComparison(types[Date], types[Timestamptz])
+	comparison, _ := BindComparison(types[Date], types[Timestamptz], CollationRef{}, false)
 	if !comparison.SessionDependent() {
 		t.Fatal("cross instant comparison must be Stable")
 	}

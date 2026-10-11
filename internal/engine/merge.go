@@ -380,6 +380,7 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 		return Result{}, err
 	}
 	state := &queryState{source: inputs, parameters: parameters, input: scope.input, output: scope.output, locking: inputs.locks != nil, virtualReads: b.merge.hasVirtualReads()}
+	defer state.releaseMemberships()
 	cursor, err := openQueryNode(ctx, state, b.merge.source)
 	if err != nil {
 		return Result{}, err

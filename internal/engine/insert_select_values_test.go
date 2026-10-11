@@ -34,7 +34,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		}
 		schema := []ColumnDescriptor{{Name: "column1", Usage: usage}}
 		values := &valuesNode{querySchema: schema, rows: expressions}
-		comparison, err := sqltype.BindComparison(typ, typ)
+		comparison, err := sqltype.BindComparison(typ, typ, typ.Usage().Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}

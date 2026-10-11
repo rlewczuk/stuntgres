@@ -306,7 +306,9 @@ func conflictComparisonProof(ctx *EvalContext, a, b BoundExpr) (bool, error) {
 			return false, nil
 		}
 	}
-	if x.left.ResultUsage().Collation.ID != y.left.ResultUsage().Collation.ID {
+	xRef, xConflict := x.predicate.InputCollation()
+	yRef, yConflict := y.predicate.InputCollation()
+	if xConflict || yConflict || xRef != yRef {
 		return false, nil
 	}
 	// Only owned B-tree operator families admit order implications.
@@ -348,7 +350,7 @@ func conflictComparisonProof(ctx *EvalContext, a, b BoundExpr) (bool, error) {
 	if op == "" {
 		return false, nil
 	}
-	provider, err := sqltype.BindComparison(second.value.Type(), first.value.Type())
+	provider, err := sqltype.BindComparison(second.value.Type(), first.value.Type(), xRef, false)
 	if err != nil || provider.SessionDependent() {
 		return false, nil
 	}

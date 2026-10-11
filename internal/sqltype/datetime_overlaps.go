@@ -34,7 +34,7 @@ func BindDatetimeOverlaps(endpoint, interval, result, clock *Descriptor, duratio
 			return DatetimeOverlapsPlan{}, fmt.Errorf("invalid local clock duration")
 		}
 	}
-	comparison, err := BindComparison(endpoint, endpoint)
+	comparison, err := BindComparison(endpoint, endpoint, CollationRef{}, false)
 	if err != nil {
 		return DatetimeOverlapsPlan{}, err
 	}

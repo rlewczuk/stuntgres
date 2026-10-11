@@ -106,7 +106,12 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			dest = target.column(dest)
 		}
 		if source.ResultUsage() != dest.Usage {
-			plan, err := sqltype.PlanCoercion(source.ResultUsage(), dest.Usage, sqltype.Assignment)
+			input, annotations := domainCoercionInput(source, dest.Usage)
+			info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, a.Value.SourcePosition(), input.Properties()), input)
+			if err != nil {
+				return err
+			}
+			plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 			if err != nil {
 				if target != nil {
 					return target.diagnostic(err, source.ResultUsage().Type)
@@ -120,7 +125,12 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if plan.RequiresCatalogOutput() {
 				binder.regclassConcat = true
 			}
-			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), coercionProperties(source, plan)), source, plan, sqltype.Assignment}
+			info.properties = coercionProperties(input, plan)
+			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+			source, err = storageDestination(source, dest.Usage, info.pos)
+			if err != nil {
+				return err
+			}
 			u.assignments[i] = source
 		}
 	}

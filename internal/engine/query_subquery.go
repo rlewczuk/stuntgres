@@ -6,14 +6,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Subquery expressions borrow the statement's captured sources. Every demand
-// opens a fresh stage with an explicit lexical outer frame, never cached rows.
+// Subquery expressions borrow captured sources and the existing execution owner.
+// Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
 type subqueryExpression struct {
 	expressionInfo
 	kind          parser.SubqueryKind
 	queryPlan     *BoundQuery
 	comparisons   []comparisonExpression
 	ordering      []sqltype.Comparison
+	membership    []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
 	operator      string
 	negate        bool
 	presenceOnly  bool
@@ -135,11 +136,23 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 		e.comparisons[i] = bound.(comparisonExpression)
 		e.properties = mergeExpressionProperties(e.properties, e.comparisons[i].left.Properties())
 		if len(e.ordering) != 0 {
-			e.ordering[i], err = sqltype.BindComparison(e.comparisons[i].left.ResultUsage().Type, e.comparisons[i].right.ResultUsage().Type)
+			ref, conflict := e.comparisons[i].predicate.InputCollation()
+			e.ordering[i], err = sqltype.BindComparison(e.comparisons[i].left.ResultUsage().Type, e.comparisons[i].right.ResultUsage().Type, ref, conflict)
 			if err != nil {
 				return nil, err
 			}
 		}
+	}
+	if raw.Kind == parser.SubqueryAny && operator == sqltype.CompareEqual && !properties.RowDependent {
+		families := make([]sqltype.Grouping, width)
+		for i, comparison := range e.comparisons {
+			families[i], err = comparison.predicate.EqualityGrouping()
+			if err != nil {
+				families = nil
+				break
+			}
+		}
+		e.membership = families
 	}
 	return e, nil
 }
@@ -150,6 +163,9 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 	}
 	if c.query == nil || c.query.source == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing subquery statement capture")
+	}
+	if len(e.membership) != 0 {
+		return e.hashMembership(c)
 	}
 	var smallLeft [4]sqltype.Value
 	left := smallLeft[:min(len(e.comparisons), len(smallLeft))]
@@ -162,7 +178,7 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 			return sqltype.Value{}, err
 		}
 	}
-	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes}
+	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
 	stage, err := openQueryProjectStage(c.Context, &state, e.queryPlan.Root.(*projectNode))
 	if err != nil {
 		return sqltype.Value{}, err
@@ -260,21 +276,33 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 	}
 }
 
-func (e subqueryExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
+// A saved subquery tuple supplies left values. Local rows pass nil so each
+// reached pair evaluates left then right before deciding whether to continue.
+func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
 	unknown := false
 	for i, comparison := range e.comparisons {
+		var valueLeft sqltype.Value
+		if left == nil {
+			var err error
+			valueLeft, err = comparison.left.Eval(c)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		} else {
+			valueLeft = left[i]
+		}
 		right, err := comparison.right.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if len(e.comparisons) == 1 {
-			return comparison.predicate.Evaluate(c.Context, left[i], right, c.Input)
+			return comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
 		}
 		if len(e.ordering) != 0 {
-			if left[i].IsNull() || right.IsNull() {
+			if valueLeft.IsNull() || right.IsNull() {
 				return sqltype.Null(e.usage.Type), nil
 			}
-			sign, err := e.ordering[i].Compare(c.Context, left[i], right, c.Input)
+			sign, err := e.ordering[i].Compare(c.Context, valueLeft, right, c.Input)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -287,7 +315,7 @@ func (e subqueryExpression) compare(c *EvalContext, left []sqltype.Value) (sqlty
 			}
 			return sqltype.Boolean(e.usage.Type, truth), nil
 		}
-		value, err := comparison.predicate.Evaluate(c.Context, left[i], right, c.Input)
+		value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -503,4 +531,185 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 	default:
 		return node
 	}
+}
+
+// A captured source distinguishes aliases of the same frozen plan. Both remain
+// stable across unrelated parent rescans, within one actual execution owner.
+type subqueryMembershipKey struct {
+	plan   *BoundQuery
+	source *querySource
+}
+
+type subqueryMembership struct {
+	flat     []sqltype.Value
+	nullRows []int
+	buckets  map[uint64][]int
+	scratch  []sqltype.Value
+	full     bool
+}
+
+func (e subqueryExpression) buildMembership(c *EvalContext) (membership *subqueryMembership, err error) {
+	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
+	stage, err := openQueryProjectStage(c.Context, &state, e.queryPlan.Root.(*projectNode))
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := stage.Close(); err == nil {
+			err = closeErr
+		}
+		if err == nil {
+			err = c.Context.Err()
+		}
+		if err != nil {
+			membership = nil
+		}
+	}()
+	width := len(e.membership)
+	membership = &subqueryMembership{}
+	var small [4]sqltype.Value
+	row := small[:min(width, len(small))]
+	if width > len(small) {
+		row = make([]sqltype.Value, width)
+	}
+	for {
+		present, failure := stage.Next(c.Context, row)
+		if failure != nil {
+			return nil, failure
+		}
+		if !present {
+			return membership, c.Context.Err()
+		}
+		if membership.scratch == nil {
+			membership.scratch = make([]sqltype.Value, width)
+			membership.buckets = make(map[uint64][]int)
+		}
+		rightContext := state.evaluation(c.Context)
+		rightContext.Row = row
+		hash := uint64(14695981039346656037)
+		hasNull := false
+		for i, comparison := range e.comparisons {
+			value, failure := comparison.right.Eval(&rightContext)
+			if failure != nil {
+				return nil, failure
+			}
+			value, failure = e.membership[i].PrepareKey(c.Context, value)
+			if failure != nil {
+				return nil, failure
+			}
+			membership.scratch[i] = value
+			hasNull = hasNull || value.IsNull()
+			h, failure := e.membership[i].Hash(c.Context, value)
+			if failure != nil {
+				return nil, failure
+			}
+			hash = (hash ^ h) * 1099511628211
+		}
+		count := len(membership.flat) / width
+		if !hasNull {
+			membership.full = true
+			index, failure := findDistinctTuple(c.Context, e.membership, membership.scratch, membership.flat, membership.buckets[hash])
+			if failure != nil {
+				return nil, failure
+			}
+			if index >= 0 {
+				continue
+			}
+			membership.buckets[hash] = append(membership.buckets[hash], count)
+		} else {
+			membership.nullRows = append(membership.nullRows, count)
+		}
+		membership.flat = append(membership.flat, membership.scratch...)
+	}
+}
+
+func (e subqueryExpression) hashMembership(c *EvalContext) (sqltype.Value, error) {
+	owner := c.query.membershipOwner()
+	key := subqueryMembershipKey{e.queryPlan, c.query.source}
+	membership := owner.memberships[key]
+	if membership == nil {
+		var err error
+		membership, err = e.buildMembership(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if owner.memberships == nil {
+			owner.memberships = make(map[subqueryMembershipKey]*subqueryMembership)
+		}
+		owner.memberships[key] = membership
+	}
+	// Empty RHS truth is known before any LHS projection, provider or effect.
+	if len(membership.flat) == 0 {
+		return sqltype.Boolean(e.usage.Type, e.negate), nil
+	}
+	left := membership.scratch
+	leftNull := false
+	for i, comparison := range e.comparisons {
+		value, err := comparison.left.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		left[i], err = e.membership[i].PrepareKey(c.Context, value)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		leftNull = leftNull || left[i].IsNull()
+	}
+	if membership.full && !leftNull {
+		hash := uint64(14695981039346656037)
+		for i, value := range left {
+			h, err := e.membership[i].Hash(c.Context, value)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			hash = (hash ^ h) * 1099511628211
+		}
+		index, err := findDistinctTuple(c.Context, e.membership, left, membership.flat, membership.buckets[hash])
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if index >= 0 {
+			return sqltype.Boolean(e.usage.Type, !e.negate), nil
+		}
+	}
+	// Keep NULL row indexes immutable: every probe needs the same partial-match
+	// evidence. A decisive unequal nonNULL field can still establish FALSE.
+	width := len(e.membership)
+	candidates := len(membership.nullRows)
+	if leftNull {
+		candidates = len(membership.flat) / width
+	}
+	for candidate := 0; candidate < candidates; candidate++ {
+		if err := c.Context.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		index := candidate
+		if !leftNull {
+			index = membership.nullRows[candidate]
+		}
+		right := membership.flat[index*width : (index+1)*width]
+		unknown, unequal := false, false
+		for i, comparison := range e.comparisons {
+			value, err := comparison.predicate.Evaluate(c.Context, left[i], right[i], c.Input)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if value.IsNull() {
+				unknown = true
+				continue
+			}
+			truth, err := value.Boolean()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if !truth {
+				unequal = true
+				break
+			}
+		}
+		if unknown && !unequal {
+			return sqltype.Null(e.usage.Type), nil
+		}
+	}
+	return sqltype.Boolean(e.usage.Type, e.negate), nil
 }

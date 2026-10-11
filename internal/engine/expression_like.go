@@ -86,6 +86,45 @@ func (b *expressionBinder) collatedInfo(info expressionInfo, inputs ...BoundExpr
 	return collatedInfo(b.bindingCatalog(), info, inputs...)
 }
 
+// Coercion inherits its child's authority except CoerceToDomain to a declared
+// nondefault collation. Targeting coercions move top-level COLLATE wrappers
+// outside their domain boundary; nested explicit authority is replaced here.
+func coercionInfo(view CatalogRead, info expressionInfo, child BoundExpr) (expressionInfo, error) {
+	info.collationExplicit = parser.Position{}
+	info.collationConflict = false
+	info.collationLeft, info.collationRight, info.collationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
+	if info.usage.Collation.ID == 0 {
+		return info, nil
+	}
+	if info.usage.Type.IsDomain() && child.ResultUsage().Type != info.usage.Type {
+		declared := info.usage.Type.Usage().Collation
+		if declared.ID != 0 && declared.ID != 100 {
+			info.usage.Collation = declared
+			return info, nil
+		}
+	}
+	if source := child.ResultUsage().Collation; source.ID != 0 {
+		info.usage.Collation = source
+	}
+	return collatedInfo(view, info, child)
+}
+
+func (b *expressionBinder) coercionInfo(info expressionInfo, child BoundExpr) (expressionInfo, error) {
+	return coercionInfo(b.bindingCatalog(), info, child)
+}
+
+func comparisonInfo(view CatalogRead, left, right BoundExpr) (expressionInfo, error) {
+	usage := left.ResultUsage()
+	if usage.Collation.ID == 0 {
+		usage = right.ResultUsage()
+	}
+	return collatedInfo(view, expressionInfo{usage: usage}, left, right)
+}
+
+func (b *expressionBinder) comparisonInfo(left, right BoundExpr) (expressionInfo, error) {
+	return comparisonInfo(b.bindingCatalog(), left, right)
+}
+
 // Collation identity is valid Usage metadata; indeterminacy is expression
 // state. Preserve both across collatable wrappers without inventing an invalid
 // stored collation or evaluating branches merely to choose their collation.
@@ -141,7 +180,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.collatedInfo(b.info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
+	info, err := b.coercionInfo(b.info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
 	if err != nil {
 		return nil, err
 	}

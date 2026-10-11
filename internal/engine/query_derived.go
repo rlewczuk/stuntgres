@@ -27,7 +27,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 	if !ok {
 		return indexedStage{}, fmt.Errorf("stuntgres: derived query lacks final projection")
 	}
-	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, retain: state.retain}
+	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, retain: state.retain, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return indexedStage{}, err

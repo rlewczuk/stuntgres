@@ -976,7 +976,7 @@ and `make check REFERENCE=1 RUN='^TestReferenceEnumStoredExtrema$'`.
 ## Domains — change note
 
 Domains are immutable catalog-owned logical types, not aliases or per-value boxed
-objects. `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` accepts supported
+objects. `CREATE DOMAIN [schema.]name [AS] base_type [COLLATE collation] [NULL]` accepts supported
 stored scalar bases, another domain, supported arrays and executable composites. Immediate-base identity,
 inherited typmod/collation, namespace, owner and distinct type ID remain represented.
 VOID, UNKNOWN and RECORD are not valid bases. Domain DEFAULT/CHECK/NOT NULL and
@@ -986,6 +986,23 @@ with42601, `unique constraints not possible for domains`, at the constraint
 opening token. Preparing the declaration still succeeds; failed creation publishes
 no domain and never silently discards the clause. Ordinary table UNIQUE and
 explicit domain NULL declarations remain supported.
+
+A new coercion to a domain with nondefault declared collation supplies that
+declaration with implicit strength, replacing both child implicit conflict and
+explicit authority nested inside concat/CASE. Top-level COLLATE annotations
+are kept outside the domain coercion, preserving their genuine identity and
+diagnostic location. A default-collation domain bubbles the child's authority,
+including explicit selection or indeterminacy. Same-domain identity relabels
+do not create a new coercion boundary. Child evaluation properties, effects,
+dependencies and native remapping remain intact.
+
+Physical column assignment is a separate outer destination relabel. Defaults,
+both analyzed and planned generation expressions, DML and reconstructed defaults
+publish the exact immutable column Usage after preserving the semantic domain
+boundary and any top annotation inside it. Retagging maps this captured Usage
+and existing structure rather than deriving it again from the child. The same
+rule preserves formal-argument destination ownership, including encoding-name
+conversions; it does not borrow a child descriptor or historical catalog.
 
 Assignment/input validates the ultimate base typmod: numeric(5,2) `12.345` becomes
 `12.35`; varchar(3) rejects assignment `abcd` with22001, while an explicit domain
@@ -1990,6 +2007,15 @@ trims only BPCHAR, while TEXT/VARCHAR tails remain significant. An unknown strin
 literal next to BPCHAR follows BPCHAR semantics. Ordering uses the same nonnull
 providers, with deterministic UTF8 byte/codepoint ordering under seeded and
 registered user collations: no locale-general or ICU comparison is invented.
+
+Comparison, ordering, grouping and B-tree/hash keys retain the selected registered
+capability, not merely a type or raw OID. Equivalent copied providers remain
+distinct objects. Missing/forged capabilities reject at admission, including
+empty/all-NULL keys, and cannot silently select C. Unicode case mappings are not
+case-insensitive equality: `A = a`, `ß = SS`, and composed/decomposed Unicode
+remain false. BPCHAR equality/hash both trim only their existing ASCII-space
+tails, including domain base normalization. Cancellation precedes equal-byte
+and NULL key shortcuts. See [expression collation](DIALECT.md#expression-collation--change-note).
 
 Expression ORDER BY validates the bounded provider/collation before reading rows.
 REGCLASS's internal canonical OID text compares as unsigned32 numeric identity,

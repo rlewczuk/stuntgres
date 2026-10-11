@@ -272,7 +272,7 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 		e.mu.Lock()
 		_, ref := pgIndexesUnitSource(t, e.privateCatalogLocked(scope.owner.catalog))
 		// A surrounding definition principal must not replace the operation actor.
-		s, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil)
+		s, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil, nil)
 		err = scope.Finish(err)
 		if err != nil {
 			t.Fatal(err)
