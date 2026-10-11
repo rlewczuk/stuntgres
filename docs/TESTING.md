@@ -1408,6 +1408,47 @@ materialized as `./.materialized-refresh-smoke/main.go`, run with
 `go run ./.materialized-refresh-smoke` (external900-second deadline), then removed.
 Neither selected tests nor oracle-only discovery replace this executable proof.
 
+### Materialized alteration and attachments — change note
+
+The untagged shared `TestReferenceMaterializedAlter` definitions specify
+independent expectations for identity/definition/population/metadata,
+authorization and owner context, full diagnostic precedence, grammar and held
+Prepare/message boundaries, genuine indexes and refresh atomicity, extension
+edges/retirement, controls, real lock waits/cancellation and feature smoke.
+
+```sh
+make check RUN='^TestReferenceMaterializedAlter'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedAlter'
+make check RUN='^TestMaterializedAlter'
+make check RACE=1 RUN='^TestMaterializedAlter|^TestReferenceMaterializedAlter(Locks|Cancellation)$'
+make check RUN='^TestReferenceMaterializedAlterFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedAlterFeatureSmoke$'
+```
+
+Each invocation has an external 900-second deadline. Changed shared definitions
+require completed native and real pinned modes before review. Shared witnesses
+use stable regclass/regtype/rewrite identities, pg_depend, summaries and
+pg_get_indexdef. pg_attribute labels/attnums are PG-only complements; there is
+no native pg_index-provider expansion. Package units use real registered
+unaccent descriptors and package stages, genuine bound indexes/roots,
+publication fences, provider-root retirement in both modes, merged x/normal
+dependency traversal, queued grant-time owner authority and immutable remapping.
+No fake provider, manufactured positive edge or index is used.
+Numeric OIDs may repeat across Reset/Restore or fresh drivers. Each cycle proves
+x references its current genuine provider, not an allocator-specific inequality.
+ControlRemap forces a real cross-class imported-extension/retained-TEMP namespace
+collision, inspects the actual displaced provider, x edge, rows and index roots,
+then retires that provider while preserving the genuine TEMP and source snapshots.
+
+The root materializes `local://materialized-alter-smoke.go` as an ephemeral
+`.materialized-alter-smoke/main.go` and runs
+`timeout 900s go run ./.materialized-alter-smoke` from the worktree. Quiet exit0
+requires typed duplicate/NULL stale rows, metadata changes, genuine index and
+extension edges, owner/schema coherence, repeated/fresh-driver control replay,
+retained Rows, detach/provider retirement and subsequent refreshed rows.
+Selected contract smokes do not replace this public executable proof.
+
+
 
 SQL prepared lifecycle definitions use `RUN='^TestReferenceSQLPrepared'` with
 `make check` and

@@ -505,6 +505,7 @@ type AlterView struct {
 	Column, Target          Identifier
 	Options                 []ViewOption
 	OwnerIdentity, IfExists bool
+	Materialized            bool
 	Pos                     Position
 }
 

@@ -232,7 +232,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 				continue
 			}
 			for _, target := range observation.targets {
-				if viewDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
+				if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
 					return CatalogConflict{}
 				}
 				if relation.sequence != nil && relation.sequence.owned == target {

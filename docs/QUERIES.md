@@ -1161,7 +1161,9 @@ USING/output-override fidelity exception above applies to these exports too.
 No definition is evaluated; dormant errors and sequence draws remain dormant.
 Permanent materialized views support bounded CREATE/DROP and nonconcurrent
 REFRESH through the common frozen-query pipeline. Deparsing does not execute
-the producer; REFRESH does. MV ALTER/index/CONCURRENTLY remain excluded.
+the producer; REFRESH does. Selected metadata ALTER preserves frozen query
+identities while current exposed-column names and logical MV index definitions
+use existing renderers. CONCURRENTLY remains excluded.
 
 ```sh
 make check RUN='^TestReferenceDeparseRelations'

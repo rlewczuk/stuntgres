@@ -7,6 +7,28 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+// PostgreSQL uses different callbacks for column, dependency and other forms.
+// Keep admission and execution on the same action-specific authority contract.
+func alterViewAuthority(auth AuthorizationView, ref ObjectRef, s *parser.AlterView) error {
+	d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	kind, label := viewRelation, "view"
+	if s.Materialized {
+		kind, label = materializedViewRelation, "materialized view"
+		if s.Action == "column" {
+			return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+		}
+		if s.Action != "depends" && s.Action != "no_depends" {
+			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+				return err
+			}
+		}
+	}
+	if d.relationKind != kind {
+		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.name, label))
+	}
+	return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+}
+
 // Utility admission pins the target identity before waiting. Shared rename and
 // namespace operations retain their ordinary descriptor publication path.
 func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, count int) (Result, error) {
@@ -45,10 +67,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(ErrCatalogReplaced)
 	}
 	old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if old.relationKind != viewRelation {
-		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a view`, old.name)))
-	}
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = alterViewAuthority(auth, ref, s); err != nil {
 		return fail(err)
 	}
 	if scope.replacementRead {
@@ -57,16 +76,38 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	}
 	switch s.Action {
 	case "rename", "column":
-		return e.renameRelationLocked(scope, scope.op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", count)
+		return e.renameRelationLocked(scope, scope.op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", count)
 	case "schema":
 		return e.alterSchemaLocked(scope, scope.op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
 	}
 	next := *old
-	next.revision, err = e.revisionLocked()
-	if err != nil {
-		return fail(err)
-	}
+	changed := true
+	var extension *extensionDescriptor
 	switch s.Action {
+	case "depends", "no_depends":
+		address, exists := auth.catalog.state.names[NameKey{ClassID: ExtensionClassID, Name: s.Target.Text}]
+		if !exists {
+			return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Target.Text)))
+		}
+		extension, _ = auth.catalog.state.descriptors[address].(*extensionDescriptor)
+		if extension == nil {
+			return fail(ErrCatalogReplaced)
+		}
+		slot := sort.Search(len(old.autoExtensions), func(i int) bool { return old.autoExtensions[i].ObjectID >= address.ObjectID })
+		present := slot < len(old.autoExtensions) && old.autoExtensions[slot] == address
+		changed = present == (s.Action == "no_depends")
+		if changed {
+			if present {
+				next.autoExtensions = make([]ObjectAddress, len(old.autoExtensions)-1)
+				copy(next.autoExtensions, old.autoExtensions[:slot])
+				copy(next.autoExtensions[slot:], old.autoExtensions[slot+1:])
+			} else {
+				next.autoExtensions = make([]ObjectAddress, len(old.autoExtensions)+1)
+				copy(next.autoExtensions, old.autoExtensions[:slot])
+				next.autoExtensions[slot] = address
+				copy(next.autoExtensions[slot+1:], old.autoExtensions[slot:])
+			}
+		}
 	case "owner":
 		target, err := schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
@@ -140,15 +181,70 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	default:
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}
+	if changed {
+		next.revision, err = e.revisionLocked()
+		if err != nil {
+			return fail(err)
+		}
+	}
+	var attachments []*relationDescriptor
+	if s.Materialized && s.Action == "owner" {
+		for _, descriptor := range auth.catalog.state.descriptors {
+			r, ok := descriptor.(*relationDescriptor)
+			if ok && r.sqlIndex != nil && r.sqlIndex.parent == old.address {
+				attachments = append(attachments, r)
+			}
+		}
+		sort.Slice(attachments, func(i, j int) bool { return attachments[i].address.ObjectID < attachments[j].address.ObjectID })
+		e.mu.Unlock()
+		for _, r := range attachments {
+			err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: r.address}, accessExclusive, false)
+			if err != nil {
+				return Result{}, err
+			}
+		}
+		e.mu.Lock()
+		fresh, freshErr := e.statementAuthorizationLocked(scope.op, s)
+		if freshErr != nil {
+			return fail(freshErr)
+		}
+		if fresh.catalog.state.descriptors[ref.Address] != old || fresh.revision != auth.revision || fresh.roles.state != auth.roles.state {
+			return fail(ErrCatalogReplaced)
+		}
+		for _, r := range attachments {
+			if fresh.catalog.state.descriptors[r.address] != r {
+				return fail(ErrCatalogReplaced)
+			}
+		}
+		auth = fresh
+	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	if extension != nil {
+		stage.querySources = []Descriptor{extension}
+	}
 	e.mu.Unlock()
 	if scope.replacementRead {
 		e.replacementMu.RUnlock()
 		scope.replacementRead = false
 	}
 	defer e.DiscardCatalogStage(stage)
-	if err = stage.Replace(&next); err == nil {
+	for _, r := range attachments {
+		replacement := *r
+		if replacement.revision == DefinitionRevision(^uint64(0)) {
+			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+		}
+		replacement.revision++
+		replacement.owner = next.owner
+		replacement.acl = schemaACLOwner(r.acl, r.owner, next.owner)
+		if err = stage.Replace(&replacement); err != nil {
+			return Result{}, err
+		}
+	}
+	if changed {
+		err = stage.Replace(&next)
+	}
+	if err == nil {
 		var prepared *PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
 		if err == nil {

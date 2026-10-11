@@ -306,7 +306,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		err = nil
 	}
 	if err == nil {
-		switch stmt.(type) {
+		switch utility := stmt.(type) {
 		case *parser.CreateView:
 			if ref.owner != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -319,10 +319,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		case *parser.AlterView:
 			if ref.owner != nil {
-				d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-				if d.relationKind != viewRelation {
-					err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.name))
-				}
+				err = alterViewAuthority(parentAuth, ref, utility)
 			}
 		}
 		if ownerOnly && !viewReplacement && err == nil {
@@ -338,8 +335,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 	}
 	var definitionStamp DefinitionRevision
+	var materializedAlterAuthority *relationDescriptor
 	if err == nil && ref.owner != nil {
 		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address])
+		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
+			materializedAlterAuthority = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		}
 		if source || preparableBody(stmt) {
 			lexical := ref
 			if retained {
@@ -461,6 +462,21 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	defer e.mu.Unlock()
 	descriptor, live := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
+		return ErrCatalogReplaced
+	}
+	if materializedAlterAuthority != nil &&
+		(descriptor.relationKind != materializedAlterAuthority.relationKind ||
+			!relationDefiningAuthorityCompatible(materializedAlterAuthority, descriptor) ||
+			descriptor.sqlIndex != materializedAlterAuthority.sqlIndex) {
+		// Check current ownership on the admitted identity, not its old name.
+		// A still-authorized actor cannot adopt a changed defining predecessor.
+		currentAuth, authorityErr := e.statementAuthorizationLocked(s.op, authorityStmt)
+		if authorityErr != nil {
+			return authorityErr
+		}
+		if authorityErr = alterViewAuthority(currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
+			return authorityErr
+		}
 		return ErrCatalogReplaced
 	}
 	if preparedDefinitionStamp(descriptor) != definitionStamp {

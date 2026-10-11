@@ -15,6 +15,13 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
+	if extension, ok := object.(*extensionDescriptor); ok {
+		namespace, ok := view.state.descriptors[extension.targetNamespace].(*namespaceDescriptor)
+		if !ok || namespace.temporary != (SessionToken{}) {
+			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
+		}
+		return extension.address.ObjectID, nil
+	}
 	if proc, ok := object.(*procedureDescriptor); ok {
 		ext, ok := view.state.descriptors[proc.extension].(*extensionDescriptor)
 		if !ok {

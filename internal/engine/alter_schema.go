@@ -40,7 +40,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	if old.relationKind != tableRelation && old.relationKind != viewRelation {
+	if old.relationKind != tableRelation && old.relationKind != viewRelation && old.relationKind != materializedViewRelation {
 		return fail(sqlError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
 	destination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.name}}})
@@ -145,10 +145,18 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	collision := func(r *relationDescriptor) error {
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists in schema "%s"`, r.name, s.Schema.Text))
 	}
+	typeCollision := func(r *relationDescriptor) error {
+		return sqlError("42710", fmt.Sprintf(`type "%s" already exists in schema "%s"`, r.name, s.Schema.Text))
+	}
 	next := make([]relationDescriptor, len(group))
 	for i, r := range group {
 		if _, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]; exists {
 			return fail(collision(r))
+		}
+		if r.rowType != 0 {
+			if winner, exists := auth.catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}) {
+				return fail(typeCollision(r))
+			}
 		}
 		frontier := descriptorRevisionFrontier(r)
 		if frontier == DefinitionRevision(^uint64(0)) {
@@ -182,6 +190,12 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 				if exists && winner != r.address {
 					err = collision(r)
 					break
+				}
+				if r.rowType != 0 {
+					if winner, exists := current.names[NameKey{ClassID: TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}) {
+						err = typeCollision(r)
+						break
+					}
 				}
 			}
 		}

@@ -406,6 +406,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				return nil
 			}
+			for _, address := range r.autoExtensions {
+				extension, ok := e.state.descriptors[address].(*extensionDescriptor)
+				if !ok {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: missing materialized extension dump provider")
+				}
+				if err := addPredecessor(address); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				sql += "ALTER MATERIALIZED VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + " DEPENDS ON EXTENSION " + quoteIdentifier(extension.name) + ";\n"
+			}
 			for _, leaf := range r.view.sources {
 				if err := addPredecessor(leaf.ref.Address); err != nil {
 					e.mu.Unlock()
@@ -1165,6 +1177,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation:
 		case *parser.CreateExtension:
+		case *parser.AlterView:
+			if !s.Materialized || (s.Action != "depends" && s.Action != "no_depends") || s.IfExists {
+				return sqlError("0A000", "restore accepts only materialized extension dependency ALTER")
+			}
 		case *parser.CreateView:
 			if s.Persistence == "temporary" || len(s.Name.Parts) == 2 && (s.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(s.Name.Parts[0].Text, "pg_temp_")) {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -1249,7 +1265,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, row-security flag ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, materialized extension dependency ALTER, row-security flag ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {

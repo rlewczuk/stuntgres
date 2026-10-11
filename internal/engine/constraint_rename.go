@@ -18,7 +18,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, true)
 	if raw.IfExists && renameMissing(err) {
-		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, count)
+		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, count)
 	}
 	if err != nil {
 		return fail(err)

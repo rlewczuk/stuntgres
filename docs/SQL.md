@@ -590,6 +590,11 @@ admission; restored defaults retain typed NULL and deferred errors.
 CREATE MATERIALIZED VIEW [IF NOT EXISTS] name [(column_names)]
   AS query [WITH [NO] DATA];
 REFRESH MATERIALIZED VIEW name [WITH [NO] DATA];
+ALTER MATERIALIZED VIEW [IF EXISTS] name RENAME TO new_name;
+ALTER MATERIALIZED VIEW [IF EXISTS] name RENAME [COLUMN] old_name TO new_name;
+ALTER MATERIALIZED VIEW [IF EXISTS] name OWNER TO role;
+ALTER MATERIALIZED VIEW [IF EXISTS] name SET SCHEMA schema;
+ALTER MATERIALIZED VIEW name [NO] DEPENDS ON EXTENSION extension;
 DROP MATERIALIZED VIEW [IF EXISTS] name [, ...] [RESTRICT | CASCADE];
 ```
 
@@ -623,9 +628,33 @@ retain their ordinary precedence. Row-lock requests fail42809.
 Grouped DROP preflights every target before one publication. RESTRICT/CASCADE
 retain ordinary frozen-definition dependency behavior without dropping sources.
 
-No runtime parameters, temporary MV/source, OR REPLACE, MV ALTER/index,
-storage options, access methods or tablespaces are added. Existing producer and
-explicit-transaction utility exclusions remain. See [lifecycle and persistence](TABLES.md#materialized-views--change-note).
+Selected metadata ALTER returns affected0/no columns and retains stored rows,
+population, frozen definition, attributes, rowtype and rewrite identities.
+Protocol Prepare is syntax-only; Execute takes ACCESS EXCLUSIVE and rechecks
+grant-time owner authority. IF EXISTS applies only to rename/owner/schema, not
+dependency forms. OWNER TO accepts CURRENT_USER, CURRENT_ROLE and SESSION_USER
+and atomically substitutes owner ACL authority on the MV, attached indexes and
+owned rowtype/array. SET SCHEMA moves the complete group with collision preflight.
+PostgreSQL's materialized column-rename callback also admits ordinary tables,
+views and indexes; renaming an index label does not change its bound parent key.
+Other selected forms require a materialized target; ordinary ALTER VIEW stays
+view-only. MAINTAIN is insufficient for metadata ALTER.
+
+Existing CREATE [UNIQUE] INDEX forms accept materializations and retain real
+parent attribute bindings, INCLUDE payload and current-name deparse. Refresh
+rebuilds logical roots from the candidate stored rows; uniqueness failure retains
+the complete predecessor. WITH NO DATA clears roots without evaluating sources.
+DEPENDS/NO DEPENDS resolves the genuine installed unaccent provider even for
+duplicate/absent edges; absent providers fail42704. Immutable whole-object
+AUTO_EXTENSION edges project as pg_depend deptype='x', distinct from ordinary
+definition references and provider members. Provider retirement through DROP
+SCHEMA automatically retires attached MVs, but ordinary dependents of those MVs
+still block RESTRICT. DROP MV never retires the provider.
+
+No runtime parameters, temporary MV/source, OR REPLACE, other MV ALTER forms,
+MV storage options/access methods/tablespaces, second extension provider or DROP
+EXTENSION are added. Existing producer and explicit-transaction utility exclusions
+remain. See [lifecycle and persistence](TABLES.md#materialized-views--change-note).
 Nonconcurrent refresh takes target ACCESS EXCLUSIVE and producer ACCESS SHARE
 locks. Native explicit-transaction refresh retains the utility0A000 boundary;
 read-only25006 precedes target lookup. PostgreSQL transactional refresh/rollback

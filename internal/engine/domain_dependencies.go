@@ -25,6 +25,19 @@ type domainDependency struct {
 // resuming its parent's remaining dependents. Stable attributes are separate
 // dependents; a containing table is never a domain-drop target.
 func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets []ObjectAddress) ([]domainDependency, error) {
+	descriptors := stage.base.state.descriptors
+	for address := range stage.descriptors {
+		if descriptors[address] == nil {
+			descriptors = make(map[ObjectAddress]Descriptor, len(stage.base.state.descriptors)+len(stage.descriptors))
+			for a, d := range stage.base.state.descriptors {
+				descriptors[a] = d
+			}
+			for a, d := range stage.descriptors {
+				descriptors[a] = d
+			}
+			break
+		}
+	}
 	domains := make(map[ObjectAddress]bool, len(targets))
 	for _, a := range targets {
 		domains[a] = true
@@ -57,6 +70,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 		seen[a] = true
 	}
 	var result []domainDependency
+	resultSlots := make(map[ObjectAddress]int)
 	var visit func(ObjectAddress, ObjectAddress) error
 	visit = func(target, root ObjectAddress) error {
 		if err := ctx.Err(); err != nil {
@@ -88,7 +102,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			}
 		}
 		var direct []domainDependency
-		for a, descriptor := range stage.base.state.descriptors {
+		for a, descriptor := range descriptors {
 			// Owned indexes are closure roots even if an earlier pass already
 			// staged their removal. Their external consumers still need pruning,
 			// just like consumers of owned row types and associated arrays.
@@ -114,6 +128,9 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				if d.relationKind == compositeRelation && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
 					continue
+				}
+				if materializedExtensionDepends(d, target) {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true, label: "materialized view " + dependencyRelationName(stage.base, d, stage.dependencyPath)})
 				}
 				if d.membership != nil && d.membership.parent == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
@@ -238,9 +255,15 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 		})
 		for _, edge := range direct {
 			if seen[edge.address] {
+				if slot, exists := resultSlots[edge.address]; exists && edge.automatic && !result[slot].automatic {
+					result[slot].automatic = true
+					result[slot].target = edge.target
+					result[slot].root = edge.root
+				}
 				continue
 			}
 			seen[edge.address] = true
+			resultSlots[edge.address] = len(result)
 			result = append(result, edge)
 			if edge.address.ClassID == TypeClassID || edge.address.ClassID == RelationClassID {
 				if err := visit(edge.address, root); err != nil {
@@ -342,6 +365,14 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		return nil
 	}
 	originalRootCount := len(roots)
+	for _, root := range roots {
+		if root.ClassID == ExtensionClassID && root.SubID == 0 {
+			// Retained-message retirement must fence x attachments introduced
+			// after this genuine provider closure was captured.
+			stage.identityDependencies = append(stage.identityDependencies, catalogDependencyObservation{stage.base.state, slices.Clone(roots)})
+			break
+		}
+	}
 	// Previously staged whole removals are retirement roots too. Discover their
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.

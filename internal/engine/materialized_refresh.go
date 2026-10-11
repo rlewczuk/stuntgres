@@ -98,7 +98,14 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 // Capture its new store only at AX grant; never retry name resolution.
 func materializedRefreshCompatible(old, current *relationDescriptor) bool {
 	return current != nil && current.relationKind == materializedViewRelation &&
-		current.address == old.address && current.namespace == old.namespace &&
+		relationDefiningAuthorityCompatible(old, current)
+}
+
+// Immutable defining authority excludes compatible row/population publications.
+// Shared by refresh and selected materialized ALTER admission; other statement
+// admission does not acquire this compatibility fence.
+func relationDefiningAuthorityCompatible(old, current *relationDescriptor) bool {
+	return current != nil && current.address == old.address && current.namespace == old.namespace &&
 		current.name == old.name && current.owner == old.owner &&
 		current.view == old.view && current.rowType == old.rowType &&
 		len(current.columns) == len(old.columns) && len(current.attributes) == len(old.attributes) &&

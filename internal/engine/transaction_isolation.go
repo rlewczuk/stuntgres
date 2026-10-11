@@ -297,6 +297,9 @@ func modifyingTag(stmt parser.Statement) string {
 	case *parser.CreateView:
 		return "CREATE VIEW"
 	case *parser.AlterView:
+		if stmt.(*parser.AlterView).Materialized {
+			return "ALTER MATERIALIZED VIEW"
+		}
 		return "ALTER VIEW"
 	case *parser.DropView:
 		if stmt.(*parser.DropView).Materialized {

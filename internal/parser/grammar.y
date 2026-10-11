@@ -373,8 +373,8 @@ package parser
 %type <returningAliases> returning_aliases returning_options
 %type <returningAlias> returning_option
 %type <stmt> create_view alter_view drop_view
-%type <alterView> view_alter_head
-%type <tok> replace_word
+%type <alterView> view_alter_head materialized_alter_head
+%type <tok> replace_word depends_word
 %type <createIndex> index_head index_definition index_policy index_storage index_tablespace create_index
 %type <tok> index_method index_direction index_null_policy
 %type <indexKeys> index_keys index_include
@@ -1044,7 +1044,16 @@ alter_view: view_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identif
  | view_alter_head SET '(' view_option_list ')' {$1.Action="set";$1.Options=$4;$$=$1}
  | view_alter_head RESET '(' view_option_list ')' {$1.Action="reset";$1.Options=$4;$$=$1}
  | view_alter_head ALTER optional_column name SET DEFAULT target_or {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1}
- | view_alter_head ALTER optional_column name DROP DEFAULT {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1} ;
+ | view_alter_head ALTER optional_column name DROP DEFAULT {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1}
+ | materialized_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | materialized_alter_head RENAME optional_column name TO name {$1.Action="column";$1.Column=Identifier{Text:$4.text,Pos:$4.pos};$1.Target=Identifier{Text:$6.text,Pos:$6.pos};$$=$1}
+ | materialized_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
+ | materialized_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | materialized_alter_head depends_word ON EXTENSION name {if $1.IfExists {sqllex.(*lexer).syntax($2);return 1};$1.Action="depends";$1.Target=Identifier{Text:$5.text,Pos:$5.pos};$$=$1}
+ | materialized_alter_head NO depends_word ON EXTENSION name {if $1.IfExists {sqllex.(*lexer).syntax($3);return 1};$1.Action="no_depends";$1.Target=Identifier{Text:$6.text,Pos:$6.pos};$$=$1} ;
+materialized_alter_head: ALTER MATERIALIZED VIEW relation_name {$$=&AlterView{Name:$4,Materialized:true,Pos:$1.pos}}
+ | ALTER MATERIALIZED VIEW IF EXISTS relation_name {$$=&AlterView{Name:$6,Materialized:true,IfExists:true,Pos:$1.pos}} ;
+depends_word: KW_U {if $1.text!="depends" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 drop_view: DROP VIEW relation_names drop_mode {$$=&DropView{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP VIEW IF EXISTS relation_names drop_mode {$$=&DropView{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
  | DROP MATERIALIZED VIEW relation_names drop_mode {$$=&DropView{Names:$4,Mode:$5,Pos:$1.pos,Materialized:true}}

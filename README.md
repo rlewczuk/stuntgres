@@ -274,7 +274,8 @@ Dump/Restore preserves the exact last-refreshed stale rows/population through a
 Restore-only comment snapshot, never query recomputation or writable MVs.
 PostgreSQL replay restores definitions unpopulated; explicit refresh computes
 the replayed base. Native CONCURRENTLY and explicit utility transactions remain
-excluded. Heap/WAL/index rebuilding, crash durability and pg_dump are server-only.
+excluded. Logical MV index roots rebuild with refresh; heap/WAL/physical index
+swap, crash durability and pg_dump are server-only.
 See [materialized views](docs/TABLES.md#materialized-views--change-note).
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`;
@@ -282,6 +283,18 @@ pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`.
 The root also runs a temporary standalone public Go program; these selectors
 provide contract coverage, not a substitute executable proof.
+
+Change note: autocommit `ALTER MATERIALIZED VIEW` supports relation/column
+rename, OWNER TO, SET SCHEMA, and DEPENDS/NO DEPENDS ON EXTENSION for genuinely
+installed `unaccent`. Metadata changes retain rowtype/rule/attribute identities,
+stored rows/population and frozen definitions. Existing CREATE INDEX forms also
+accept MVs; owner/schema changes keep attachments coherent, and refresh/storage
+and uniqueness-checked logical roots publish together. Native controls preserve
+current metadata, AUTO_EXTENSION edges and exact stale rows, never ALTER history.
+See [syntax](docs/SQL.md#materialized-views--change-note).
+Feature smoke: `make check RUN='^TestReferenceMaterializedAlterFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceMaterializedAlterFeatureSmoke$'`.
 
 Change note: readonly `pg_catalog.pg_tables` and `pg_catalog.pg_views` expose the
 documented eight/four columns with exact current schema/name/owner identities.
@@ -964,7 +977,8 @@ other valid columns give only the key expression or included column name, and
 invalid columns give empty text. Text view arguments resolve relation names, not
 numeric OIDs. Ordinary views and existing simple, expression-key and UNIQUE
 backing indexes are covered, including ordinary indexes with INCLUDE payload.
-Materialized-view ALTER, indexes and concurrent refresh remain excluded. Partial index predicates are supported
+Materialized-view metadata ALTER and logical indexes are supported; concurrent
+refresh remains excluded. Partial index predicates are supported
 through the same current-name index introspection and control paths.
 Feature smoke:
 `make check RUN='^TestReferenceDeparseRelations'`
@@ -1979,7 +1993,7 @@ explicit regclass-to-oid cast is needed.
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views have a
 [bounded supported surface](docs/SQL.md#materialized-views--change-note), without
-temporary materializations/sources, MV ALTER/index or concurrent refresh.
+temporary materializations/sources or concurrent refresh.
 See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
 Feature smoke: `make check RUN='^TestReferenceCollationLegacyVisibility$'`.
 Index identity/path/control witnesses:

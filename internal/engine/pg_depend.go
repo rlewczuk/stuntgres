@@ -111,6 +111,9 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			if d.relationKind == catalogRelation {
 				continue
 			}
+			for _, extension := range d.autoExtensions {
+				add(d.address, extension, 'x')
+			}
 			for _, policy := range d.policies {
 				owner := ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.address, 'a')

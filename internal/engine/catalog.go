@@ -122,7 +122,8 @@ type relationDescriptor struct {
 	onCommit             parser.OnCommitAction
 	sequence             *sequenceOptions
 	view                 *viewDefinition
-	populated            bool // Independent of stored row count, including populated-empty MVs.
+	populated            bool            // Independent of stored row count, including populated-empty MVs.
+	autoExtensions       []ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
 	virtualView          bool
 	sqlIndex             *indexDefinition
 	partition            *partitionDefinition
@@ -237,6 +238,21 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	if r.populated && r.relationKind != materializedViewRelation || r.view != nil && r.relationKind != viewRelation && r.relationKind != materializedViewRelation {
 		return fmt.Errorf("stuntgres: invalid stored definition kind")
+	}
+	if len(r.autoExtensions) != 0 && r.relationKind != materializedViewRelation {
+		return fmt.Errorf("stuntgres: extension dependency requires a materialized view")
+	}
+	for i, address := range r.autoExtensions {
+		if address.ClassID != ExtensionClassID || address.ObjectID == 0 || address.SubID != 0 || i > 0 && r.autoExtensions[i-1].ObjectID >= address.ObjectID {
+			return fmt.Errorf("stuntgres: invalid materialized extension dependency")
+		}
+		extension, ok := v.state.descriptors[address].(*extensionDescriptor)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing materialized extension provider")
+		}
+		if err := (extensionCatalogProvider{class: ExtensionClassID}).Validate(v, extension); err != nil {
+			return err
+		}
 	}
 	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation {
 		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
@@ -994,6 +1010,19 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 					}
 				}
 			}
+			// A newly attached MV was not in the validated retirement closure.
+			// Recheck its live immutable x authority at the final publication fence.
+			if a.ClassID == ExtensionClassID {
+				for address, descriptor := range current.descriptors {
+					if descriptor == s.base.state.descriptors[address] {
+						continue
+					}
+					if relation, ok := descriptor.(*relationDescriptor); ok && materializedExtensionDepends(relation, a) {
+						e.mu.Unlock()
+						return ChangeSet{}, CatalogConflict{}
+					}
+				}
+			}
 		}
 		for a := range s.descriptors {
 			if current.descriptors[a] != s.base.state.descriptors[a] {
@@ -1107,7 +1136,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		buildStores := indexStores
 		candidateStores := false
 		var rebuildIndexes map[ObjectAddress]bool
-		if len(indexStores) > 0 && len(s.rowShapes) > 0 {
+		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedReplacement != nil) {
 			buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores))
 			for a, store := range indexStores {
 				buildStores[a] = store
@@ -1117,6 +1146,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			for a, shape := range s.rowShapes {
 				buildStores[a] = shape.replacement
 				rebuildIndexes[a] = true
+			}
+			if replacement := s.materializedReplacement; replacement != nil {
+				buildStores[replacement.original.address] = replacement.storage
+				rebuildIndexes[replacement.original.address] = true
 			}
 		}
 		// New parents and their backing indices publish together. Build from
@@ -1128,7 +1161,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			a := index.sqlIndex.parent
 			parent, staged := s.descriptors[a].(*relationDescriptor)
-			if !staged || parent.relationKind != tableRelation || current.descriptors[a] != nil {
+			if !staged || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) || current.descriptors[a] != nil {
 				continue
 			}
 			if !candidateStores {

@@ -1472,24 +1472,25 @@ definition without evaluating it.
 
 `pg_catalog.pg_matviews` exposes exactly seven columns: `schemaname NAME`,
 `matviewname NAME`, `matviewowner NAME`, `tablespace NAME`, `hasindexes BOOL`,
-`ispopulated BOOL`, `definition TEXT`. Default tablespace is NULL and indexes
-are false within this scope. Like pg_views, membership discloses represented
+`ispopulated BOOL`, `definition TEXT`. Default tablespace is NULL; `hasindexes`
+uses the same represented index-history flag as pg_class. Like pg_views, membership discloses represented
 objects independently of privileges and search_path. The materialized definition
 uses the existing PostgreSQL presentation renderer and captured search_path for
 qualification. Dump uses that renderer with fully qualified identities so native
 replay preserves the definition's presentation without synthetic source aliases.
 MVs do not appear as
-ordinary pg_tables/pg_views rows. No full catalogs, physical statistics, public
-MV indexes or ALTER are added. Nonconcurrent REFRESH default/WITH DATA atomically
-replaces logical stored results; WITH NO DATA leaves demanded reads55000.
+ordinary pg_tables/pg_views rows. Full catalogs/physical statistics are not added.
+Selected metadata ALTER and existing logical CREATE INDEX forms accept MVs.
+Nonconcurrent REFRESH default/WITH DATA atomically replaces stored results and
+uniqueness-checked logical index roots; WITH NO DATA leaves demanded reads55000.
 Caller MAINTAIN authorizes the target; the frozen producer runs as MV owner.
 Native explicit utility transactions and CONCURRENTLY remain excluded.
 Native persistence preserves exact last-refreshed stale rows privately;
 PostgreSQL dump-script replay restores unpopulated definitions and explicit
-subsequent REFRESH computes replayed base rows. Heap swap, WAL/index rebuilding,
-crash durability and pg_dump remain external PostgreSQL mechanisms.
+subsequent REFRESH computes replayed base rows. Heap swap, WAL/physical index
+rebuilding, crash durability and pg_dump remain external PostgreSQL mechanisms.
 See [native controls](TABLES.md#materialized-views--change-note).
-The bounded surface does not add pg_namespace or pg_attribute query
+The bounded surface does not add pg_namespace, pg_attribute or pg_index query
 providers: exact schema/owner names come from pg_matviews, while existing
 pg_class/pg_rewrite identities expose namespace/owner relationships and rule
 links without promising allocator-specific OIDs. Frozen REGTYPE constants use
@@ -6047,7 +6048,7 @@ cross-kind shadowing, and their definitions roundtrip through native Dump/Restor
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views follow the
 [bounded supported surface](SQL.md#materialized-views--change-note), without
-temporary materializations/sources, MV ALTER/index or concurrent refresh.
+temporary materializations/sources or concurrent refresh.
 Builtin/catalog row identities stay lookup-only; supported user rows have
 concrete codecs. TEMP tables use the ordinary table path.
 

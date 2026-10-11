@@ -20,7 +20,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 			descriptor = stage.base.state.descriptors[address]
 		}
 		parent, ok := descriptor.(*relationDescriptor)
-		if !ok || parent.relationKind != tableRelation {
+		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
 		if parent.hasIndexes {
@@ -60,7 +60,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 			continue
 		}
 		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-		if !ok || parent.relationKind != tableRelation {
+		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
 		if !parent.hasIndexes {

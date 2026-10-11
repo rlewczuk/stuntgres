@@ -1,5 +1,7 @@
 package engine
 
+import "sort"
+
 func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddress) Descriptor {
 	address := func(a ObjectAddress) ObjectAddress {
 		if next, ok := mapping[a]; ok {
@@ -8,6 +10,24 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		return a
 	}
 	switch d := d.(type) {
+	case *relationDescriptor:
+		var addresses []ObjectAddress
+		for i, a := range d.autoExtensions {
+			next := address(a)
+			if next != a && addresses == nil {
+				addresses = append([]ObjectAddress(nil), d.autoExtensions...)
+			}
+			if addresses != nil {
+				addresses[i] = next
+			}
+		}
+		if addresses == nil {
+			return d
+		}
+		sort.Slice(addresses, func(i, j int) bool { return addresses[i].ObjectID < addresses[j].ObjectID })
+		n := *d
+		n.autoExtensions = addresses
+		return &n
 	case *extensionDescriptor:
 		n := *d
 		n.address = address(n.address)

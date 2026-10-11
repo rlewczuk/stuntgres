@@ -351,11 +351,33 @@ ACCESS SHARE. Native eager cursors keep immutable captured rows/metadata.
 Native explicit utility transactions remain excluded; PostgreSQL transactional
 refresh and rollback are separately expected server complements.
 
+Selected metadata ALTER retains exact storage/population and immutable identities.
+Owner/schema publication includes attached indexes and owned rowtype/array;
+column labels change without retargeting stable parent attributes. MV indexes use
+the existing logical index providers. DATA refresh builds candidate roots from
+candidate rows and uniqueness checks before the atomic publication. NO DATA
+publishes empty roots; retained rows/root snapshots remain unchanged.
+
+Native queued selected ALTER retains its prewait defining authority. Changed
+owner, name, namespace, frozen producer, rowtype, columns or attributes are
+rejected before handler name lookup even if the actor remains authorized.
+Compatible preceding refreshes may change rows, population and revision; ALTER
+captures their current stored result at lock grant instead of restoring stale rows.
+
 Native Dump writes owner-bearing canonical CREATE MATERIALIZED VIEW ... WITH NO
 DATA in dependency order, then captures exact stored rows at the dump frontier.
 Definition SQL uses the existing identity-bound presentation renderer with
 fully qualified names, preserving the restored public definition presentation
 without adding synthetic source aliases. Ordinary view serialization is unchanged.
+Genuine extension providers precede attached MVs. Immediately after canonical
+creation, Dump emits qualified ALTER MATERIALIZED VIEW ... DEPENDS ON EXTENSION
+for each genuine AUTO_EXTENSION edge within the same owner context. Restore
+allows only those selected dependency ALTER forms, not arbitrary ALTER history,
+and remaps whole extension addresses into its replacement candidate. Missing or
+invalid provider references and unauthorized materialized targets fail atomically.
+Adding or removing an AUTO_EXTENSION edge requires MV ownership, not extension
+ownership or privilege on the extension. Ordinary procedure references remain
+separate from x edges and six genuine unaccent member edges.
 A versioned SQL line comment, `-- stuntgres-matview-v1 <base64>`, carries strict
 JSON fields `schema`, `name`, `populated`, `rows`. The row text uses existing
 canonical scalar codecs; it is converted privately by Restore, never executed
@@ -382,7 +404,7 @@ rows. An explicit subsequent REFRESH recomputes from the replayed base. Native
 Dump/Restore instead retains the last successful refreshed rows even if base
 data subsequently diverged; Restore never reevaluates the query and its SQL
 whitelist still rejects REFRESH. There is no public DML bypass. Heap/relfilenode
-swap, WAL, index rebuilding, crash durability and pg_dump are external-only.
+swap, WAL, physical index rebuilding, crash durability and pg_dump are external-only.
 See [syntax and exclusions](SQL.md#materialized-views--change-note).
 
 ## CREATE-time inheritance — change note

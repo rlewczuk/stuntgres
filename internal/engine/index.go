@@ -147,7 +147,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
 	parent, ok := view.state.descriptors[d.parent].(*relationDescriptor)
-	if !ok || parent.relationKind != tableRelation || parent.owner != index.owner || parent.namespace != index.namespace {
+	if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) || parent.owner != index.owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.constraint != nil {
@@ -499,7 +499,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Keys)+len(s.Include) > 32 {
 			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
 		}
-		if parent.relationKind != tableRelation {
+		if parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation {
 			if parent.relationKind == indexRelation {
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.name), Detail: "This operation is not supported for indexes."})
 			}
