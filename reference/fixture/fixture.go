@@ -38,7 +38,13 @@ var Started bool
 
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
-func Main(m *testing.M) int {
+func Main(m *testing.M) (code int) {
+	defer func() {
+		if err := cleanupServerBuild(); err != nil {
+			fmt.Fprintf(os.Stderr, "server fixture binary cleanup: %v\n", err)
+			code = 1
+		}
+	}()
 	return runReferenceMain(m)
 }
 

@@ -392,6 +392,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		creationStage, creationDescriptor, skipped, err = e.prepareQueryTableLocked(op, auth, creation, b)
 		if err != nil || skipped {
 			e.mu.Unlock()
+			if err == nil {
+				return Result{CommandTag: queryCreationUtilityTag(creation.Form)}, nil
+			}
 			return Result{}, err
 		}
 		defer e.DiscardCatalogStage(creationStage)

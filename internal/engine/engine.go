@@ -55,9 +55,10 @@ type ParameterInfo struct {
 	Types []sqltype.Usage
 }
 type Result struct {
-	Count   int64
-	Rows    RowResult
-	created ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
+	CommandTag string
+	Count      int64
+	Rows       RowResult
+	created    ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 type binding struct {
 	relation              *relationDescriptor

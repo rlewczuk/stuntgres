@@ -92,7 +92,7 @@ for `check`, `quickcheck`, `racecheck` and `bench`, or 1800 seconds for `finalch
 including generation and compilation. Slow or hanging tests must be fixed, not exempted.
 Read `Makefile` for non-standard actions.
 
-Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. `make deps` and the dependency phase of `make finalcheck` enumerate `. ./internal/...`, the production seams, rather than the whole reference tree. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only: the importable `reference/fixture` is test support and MUST NOT be imported by production code. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
+Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. `make deps` and the dependency phase of `make finalcheck` enumerate `. ./internal/... ./cmd/...`, including the executable rather than the reference tree. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only: the importable `reference/fixture` is test support and MUST NOT be imported by production code. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
 
 Historical complete-suite baseline (2026-10-11): on Linux 7.0.0-30-generic x86_64,
 AMD RYZEN AI MAX+ 395 (32 logical processors), Go 1.27.1 linux/amd64 and

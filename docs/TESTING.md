@@ -1,5 +1,68 @@
 # Adding and maintaining tests
 
+## Phase 1 server selected proof
+
+Untagged `reference/sessions/server_*_test.go` definitions use one shared body
+against an actual `cmd/stuntgres` subprocess and pinned PostgreSQL18.0. The opt-in
+`reference/fixture.NewServerFixture` preserves the existing container/reset
+ownership and does not add a server backend to unrelated embedded scenarios.
+Direct calls retain sqlmw/pq and notice recording; wire controls use independent
+raw connections, and client witnesses invoke actual `psql -X -w -At` with a private
+PGPASSFILE. No oracle-discovery filter remains in the fixture.
+
+Coverage includes command counts/tags and typed row metadata, whole-input batch
+admission, successful-prefix failures/rollback, I/T/E state and settings/notice
+ordering; startup/authentication/database grants/isolation; fragmented/malformed
+frames and explicit Phase1 extended/COPY/TLS boundaries; command/row-output
+cancellation and disconnect cleanup; actual native dump replay through psql,
+restart/restore, structured logs and genuine daemon/PID/startup failure controls.
+PostgreSQL's genuine extended/TLS/GSS and frontend-processing behavior is specified
+independently where the Phase1 boundary differs. Native allowlists/PID/file controls
+are not fabricated PostgreSQL APIs. Empty native database dumps can be empty SQL.
+Protocol negotiation transports the complete encoded version: Phase1 advertises
+196608 (3.0), not0. Pinned18.0 and its actual psql18 client ground the downgrade
+boundary; higher-only clients reject3.0 explicitly rather than receiving malformed
+negotiation data. Skipped query-derived creations retain their utility completion
+tags rather than pretending that a SELECT populated zero rows.
+Canonical native session-end events also deliver fatal transaction/idle expiry
+without an extra query or ReadyForQuery. Restored dump-only databases preserve
+known owners after grant revocation while retaining42501 network denial.
+
+Run each selector in quick mode and again with `REFERENCE=1`, under an external
+900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceServer(Queries|Transactions)$'
+make check RUN='^TestReferenceServer(Protocol|Authentication|Clients|Negotiation)$'
+make check RUN='^TestReferenceServer(Cancellation|Persistence|RestoredGrants|Logs|Daemon)$'
+make check RUN='^TestReferenceServer(OutputCancellation|PipelineLifetime|FatalSession)$'
+make check RUN='^TestServer(CLI|Users|Framing|PID|StartupFailure|PersistenceFiles|Logging|StartupParameters)$'
+make check RUN='^TestServerUsers'
+```
+
+Selected race proof uses `RACE=1` for the cancellation/persistence/restored-grants/
+daemon and output/pipeline/fatal-session selectors in both modes. Race-enabled
+fixtures also build the actual subprocess server with `-race`; instrumenting only the parent test process
+would not prove server goroutine safety. Required psql, Docker or pinned-image
+failures fail visibly, never skip or fall back. Mechanical CLI/verifier/framing/
+PID/terminal/file-permission tests stay in `cmd/stuntgres`, without public SQL.
+Non-Linux foreground builds and Windows DACL tests require their platform runners
+for runtime proof; a cross-build alone establishes compilation, not ACL behavior.
+
+Separate executable smoke builds the real command, prompts through `passwd`,
+starts a daemon with two database grants, and observes psql write/read42 plus an
+independent pq read42 and42P01 isolation. It signals a dump, stops, restarts with
+`-r`, and observes the same independent values through both clients. Daemons are
+stopped and owned smoke artifacts removed. When capturing `start`, use ordinary
+files rather than pipe-backed `CombinedOutput`: the daemon intentionally inherits
+stdout/stderr, keeping such pipes open beyond its parent's exit.
+
+Whole-project Docker-free gates remain `make quickcheck`, `make racecheck`, and
+post-integration `make finalcheck` (external1800-second deadline). `make deps`
+includes `./cmd/...`; all non-standard production dependencies must be module
+paths. Finalcheck does not replace selected dual-mode proof.
+
+
 ## INSERT RETURNING oracle-first contracts
 
 The untagged `reference/dml/insert_returning_*_test.go` definitions specify

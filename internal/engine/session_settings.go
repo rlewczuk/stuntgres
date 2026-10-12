@@ -30,6 +30,24 @@ type sessionSettings struct {
 	currentDeferrable bool
 }
 
+// Setting returns the current effective value of a recognized session setting.
+// It reads only settings-protected state, including transaction projections.
+func (s *Session) Setting(name string) (string, bool) {
+	name = settingFold(name)
+	settings := s.settings
+	settings.mu.Lock()
+	defer settings.mu.Unlock()
+	if settings.ended {
+		return "", false
+	}
+	_, hasDefault := settings.defaults[name]
+	_, hasValue := settings.values[name]
+	if !hasDefault && !hasValue && !settings.placeholders[name] {
+		return "", false
+	}
+	return settings.value(name), true
+}
+
 type settingOverride struct {
 	present bool
 	text    string

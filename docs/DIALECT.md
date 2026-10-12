@@ -6,6 +6,23 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Phase 1 server transport
+
+`cmd/stuntgres` exposes this same bounded dialect through PostgreSQL protocol3.0
+simple queries; it is not another SQL implementation. Whole-input batches retain
+native message/transaction admission, successful-prefix responses and error
+recovery. Row descriptions and text values use existing type identities/codecs,
+including NULL, arrays, regclass/regtype and captured session formatting.
+Wire-level parameters/prepared statements/portals, FunctionCall, streaming COPY
+and TLS are unavailable and fail explicitly. SQL PREPARE/EXECUTE and ordinary SQL
+cursors remain available where supported by the engine. Each allowed network
+account is a local administrator of its independently owned in-memory databases.
+Only UTF8/UNICODE client encoding is admitted; there is no wire transcoder.
+Native dumps preserve their existing exclusions and do not provide WAL/crash
+recovery or arbitrary pg_dump import. See [commands and security](../README.md#phase-1-server--change-note)
+and [selected proof](TESTING.md#phase-1-server-selected-proof).
+
+
 ### TRUNCATE TABLE — change note
 
 `TRUNCATE [TABLE] target [, target ...] [CONTINUE IDENTITY] [RESTRICT | CASCADE]`

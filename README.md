@@ -6,9 +6,90 @@ SQL-backed code without starting a database server or container. Production code
 uses only the Go standard library. Requires **Go 1.26 or later**.
 
 It implements a deliberately bounded SQL subset, not a complete PostgreSQL server.
-There is no network service, filesystem storage, or durability; data disappears
-when the process exits. Use real PostgreSQL for integration tests that depend on
-features outside the [supported dialect](docs/DIALECT.md).
+The embedded driver remains process-local. The optional `cmd/stuntgres` executable
+exposes the same engine through PostgreSQL simple-query protocol, with password
+authentication and isolated in-memory databases. Native SQL dumps provide explicit
+save/restore, not WAL or crash durability. Use real PostgreSQL for features outside
+the [supported dialect](docs/DIALECT.md).
+
+## Phase 1 server — change note
+
+Build and create an account with explicit database grants:
+
+```sh
+go build -o stuntgres ./cmd/stuntgres
+./stuntgres passwd -u ./users --databases app,other alice
+./stuntgres serve -u ./users -l 127.0.0.1:5434 -d ./dumps -L ./logs
+```
+
+`passwd` prompts twice without echo on Linux terminals. New accounts require
+`--databases`; an existing account keeps its grants when the flag is omitted.
+The private userfile uses PBKDF2-SHA256 (600000 iterations), a random16-byte salt
+and a32-byte key. Changes take effect after restart. Each permitted account is a
+database-local `SUPERUSER LOGIN`; the userfile remains the cross-database gate.
+SQL-created roles do not become network accounts automatically.
+On Unix, the userfile must belong to the serving user with no group/other access
+(normally0600). On Windows, its actual DACL may grant access only to the serving
+user, SYSTEM and local Administrators; chmod-style mode bits do not replace ACLs.
+Linux password prompting also restores terminal state on catchable SIGINT/SIGTERM.
+
+**Authentication sends cleartext passwords; TLS is not available.** Listen defaults
+to `127.0.0.1:5434`; a bare port also binds loopback. Non-loopback binding logs a
+prominent warning. Use only loopback or an independently protected trusted network.
+Connect using `psql` or `lib/pq`, with `sslmode=disable` (SSL-prefer falls back).
+Keep passwords in a0600 PGPASSFILE or another client credential facility, not argv.
+
+`start` and `serve -b` reexecute in a Linux daemon session and wait for genuine
+startup readiness. Short options have descriptive long aliases; `-l` means listen,
+`-L` means log directory, and `-p` selects the PID file (default launching
+directory's `stuntgres.pid`). `--help` lists all commands and limits.
+
+```sh
+./stuntgres start -u ./users -l 5434 -d ./dumps -L ./logs -p ./server.pid
+./stuntgres dump -p ./server.pid
+./stuntgres stop -p ./server.pid
+./stuntgres start -u ./users -l 5434 -d ./dumps -L ./logs -p ./server.pid -r
+```
+
+`dump` signals an asynchronous save; it does not promise that files are already
+published when the command returns. `stop` waits for connection teardown, rollback
+of open transactions and a final dump. Lifetime PID locks and executable/start
+identity checks reject stale or conflicting records. Unix daemon/signal/PID and
+password-update locking controls are Linux-specific; foreground networking remains
+portable, with an explicit warning where PID controls are unavailable.
+
+Dumps are atomically published0600 `<database>--<UTC YYYYMMDDhhmmss>.sql` files.
+Repeated dumps do not overwrite earlier files. `-r` requires `-d` and restores
+the newest valid file for every database before listening, including dump-only
+databases without implicitly granting access. Corrupt newest files or missing
+named owners fail startup; there is no older-file or ownership fallback.
+Restored engines seed known userfile principals for retained ownership even after
+a database grant is revoked; the network allowlist still denies that account.
+Native export limitations remain visible. These are native SQL dumps, not arbitrary
+pg_dump archive import or complete PostgreSQL backup compatibility.
+
+Operational `server.log` and SQL `error.log` are JSONL, mirrored to stdout.
+Without `-L`, both streams go only to stdout. SQL records include exact query,
+SQLSTATE, primary message, empty Phase1 parameter list, and `SYNTAX`,
+`UNSUPPORTED` or `SQL` classification. Required log failures are visible errors.
+
+Protocol3.0 supports whole-input simple-query batches, typed text rows, command
+tags, notices, settings status, transactions, cancellation and session cleanup.
+Engine-owned transaction/idle-session timeouts deliver FATAL and close the socket,
+without a ReadyForQuery, including expiry while no frontend query is arriving.
+Passive peer-shutdown monitoring keeps disconnect cleanup live even when the
+frontend queue is full: Linux uses epoll, BSD uses kqueue, and Windows uses
+FD_CLOSE plus TCP_INFO (Windows10 1703/Server2016 or a compatible provider).
+Other platforms/providers log an explicit warning and retain ordinary EOF-based
+networking without claiming that passive queued-data monitor. Linux runtime paths
+are exercised; non-Linux runtime/ACL proof requires those platform runners.
+Wire parameters/prepared statements/portals, FunctionCall, COPY streams and TLS
+are explicit capability errors, not fake successes. Engine-supported SQL
+`PREPARE`/`EXECUTE` and ordinary SQL cursors remain distinct supported SQL features.
+`server_version=18.0` is negotiation metadata, not a full PostgreSQL18 claim.
+Dual-mode `TestReferenceServer*` definitions use real subprocesses, actual psql
+and sqlmw-wrapped pq alongside pinned PostgreSQL18.0; see
+[server verification](docs/TESTING.md#phase-1-server-selected-proof).
 
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,
@@ -1009,7 +1090,8 @@ rows and representable table/column comments, not rename history.
 Graph CHECK/NOT NULL ALTER remains an explicit boundary; admitted local
 UNIQUE/PRIMARY KEY/EXCLUDE graph definitions retain their existing allowance.
 Domain constraints, FK/constraint triggers and PostgreSQL physical storage,
-WAL, wire protocol and external pg_dump mechanisms are not implemented.
+WAL and external pg_dump mechanisms are not implemented; network access uses the
+bounded [Phase 1 server](#phase-1-server--change-note).
 Selected proof: `make check RUN='^TestReferenceConstraintRename'`;
 repeat with `REFERENCE=1` for the pinned oracle.
 See [the rename design](docs/design/PG18-DDL-ALTER-CONSTRAINT-RENAME.md).

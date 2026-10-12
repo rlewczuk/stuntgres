@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -712,7 +713,13 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	return s.op.session.Engine().describeOperation(s, stmt)
 }
 
-func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
+func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
+	var before TxState
+	if s != nil && s.owner != nil {
+		s.owner.mu.Lock()
+		before = s.owner.state
+		s.owner.mu.Unlock()
+	}
 	// Adapter argument normalization precedes scope admission.
 	if execute, ok := stmt.(*parser.ExecuteSQL); ok {
 		if err := s.active(); err != nil {
@@ -734,6 +741,22 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 		count = entry.description.Parameters.Count
 		importFrame = s.sqlExecuteImporter(execute)
 	}
+	base, counted, insert, ok := classifyCommandTag(stmt, before)
+	if !ok {
+		return Result{}, sqlError("0A000", "statement command tag is not supported")
+	}
+	defer func() {
+		if err != nil || result.CommandTag != "" {
+			return
+		}
+		if insert {
+			result.CommandTag = base + " 0 " + strconv.FormatInt(result.Count, 10)
+		} else if counted {
+			result.CommandTag = base + " " + strconv.FormatInt(result.Count, 10)
+		} else {
+			result.CommandTag = base
+		}
+	}()
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
 	}

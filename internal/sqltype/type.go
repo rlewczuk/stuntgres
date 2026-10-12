@@ -108,6 +108,59 @@ func (d *Descriptor) ID() ID          { return d.id }
 func (d *Descriptor) Name() string    { return d.name }
 func (d *Descriptor) SQLName() string { return d.sql }
 
+// PostgreSQLTypeLength returns pg_type.typlen, not a declaration or display
+// length. Catalog identity alone does not grant codec or storage authority.
+func (d *Descriptor) PostgreSQLTypeLength() int16 {
+	if d.IsDomain() {
+		return d.base.Type.PostgreSQLTypeLength()
+	}
+	if d.IsEnum() {
+		return 4
+	}
+	if d.IsArray() || d.IsComposite() || d.rangeSubtype != nil || d.multirangeRange != nil {
+		return -1
+	}
+	// Fixed lengths, including lookup-only identities, from PostgreSQL REL_18_0
+	// src/include/catalog/pg_type.dat. Unlisted identities are variable-width.
+	switch d.id {
+	case Bool, Char:
+		return 1
+	case Int2:
+		return 2
+	case Int4, Oid, Xid, Regclass, Regtype, Date, Float4, Void,
+		24, 29, // regproc, cid
+		269, 325, // table_am_handler, index_am_handler
+		2202, 2203, 2204, // regprocedure, regoper, regoperator
+		2276, 2279, 2280, 2283, // any, trigger, language_handler, anyelement
+		2776, 3115, 3310, 3500, // anynonarray, fdw_handler, tsm_handler, anyenum
+		3734, 3769, 3838, // regconfig, regdictionary, event_trigger
+		4089, 4096, 4191, // regnamespace, regrole, regcollation
+		5077, 5079: // anycompatible, anycompatiblenonarray
+		return 4
+	case 27, 829: // tid, macaddr
+		return 6
+	case Int8, Float8, Money, Time, Timestamp, Timestamptz,
+		774, 3220, 5069: // macaddr8, pg_lsn, xid8
+		return 8
+	case 32, 2281: // pg_ddl_command, internal: SIZEOF_POINTER
+		return int16(strconv.IntSize / 8)
+	case Timetz:
+		return 12
+	case Interval, UUID, 600, 1033: // point, aclitem
+		return 16
+	case 628, 718: // line, circle
+		return 24
+	case 601, 603: // lseg, box
+		return 32
+	case Name:
+		return 64
+	case Unknown, 2275: // cstring
+		return -2
+	default:
+		return -1
+	}
+}
+
 func (d *Descriptor) DiagnosticName() string {
 	if d.IsUserDefined() {
 		return d.sql
