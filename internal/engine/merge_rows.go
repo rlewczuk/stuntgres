@@ -76,6 +76,9 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		}
 	}
 	sourceCount := 0
+	var presenceSlots []int
+	var presenceCount int
+	var presence []bool
 	for {
 		present, err := cursor.Next(ctx, scratch)
 		if err != nil {
@@ -96,6 +99,10 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 			provenance = appendQueryProvenance(provenance, stage.source, stage.index(stage.position-1))
 		}
+		if stage, ok := cursor.(*indexedStage); ok && stage.source.presenceCount != 0 {
+			presenceSlots, presenceCount = stage.source.presenceSlots, stage.source.presenceCount
+			presence = append(presence, stage.source.presenceRow(stage.index(stage.position-1))...)
+		}
 		sourceCount++
 	}
 	if err := cursor.Close(); err != nil {
@@ -107,6 +114,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	frame := make([]sqltype.Value, len(b.relation.columns)+width)
 	evaluation := state.evaluation(ctx)
 	evaluation.Row = frame
+	evaluation.presenceSlots = presenceSlots
 	evaluation.queryOccurrences = occurrences
 	bindIdentity := func(index int) {
 		if state.virtualReads {
@@ -130,6 +138,9 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		return mergeCandidate{updateCandidate: updateCandidate{rowVersion: old, slot: slot, sourceIndex: source}, class: class, deletion: deletion}
 	}
 	for j := range sourceCount {
+		if presenceCount != 0 {
+			evaluation.presence = presence[j*presenceCount : (j+1)*presenceCount]
+		}
 		copy(frame[len(b.relation.columns):], sources[j*width:(j+1)*width])
 		bindIdentity(j)
 		matched := false
@@ -179,6 +190,11 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			source = sources[candidate.sourceIndex*width : (candidate.sourceIndex+1)*width]
 			copy(frame[len(b.relation.columns):], source)
 			bindIdentity(candidate.sourceIndex)
+			if presenceCount != 0 {
+				evaluation.presence = presence[candidate.sourceIndex*presenceCount : (candidate.sourceIndex+1)*presenceCount]
+			}
+		} else {
+			evaluation.presence = nil
 		}
 		old, class := candidate.rowVersion, candidate.class
 		setFrame := func() {

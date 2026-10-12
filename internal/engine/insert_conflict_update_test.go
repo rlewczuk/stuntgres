@@ -131,11 +131,6 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 		original := action.conflict.update
-		if tc.error {
-			if _, err := preflightUpdate(&evaluation, original); err != nil {
-				t.Fatal("ordinary UPDATE/MERGE preflight changed", tc.name, err)
-			}
-		}
 		err = action.conflict.preflightUpdate(&evaluation)
 		if tc.error {
 			var d *sqlstate.Error

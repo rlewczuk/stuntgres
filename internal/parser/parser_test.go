@@ -123,7 +123,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (?)", "42601"}, {"INSERT INTO t VALUES (:name)", "42601"},
 		{"INSERT INTO t VALUES (1z)", "42601"},
 		{"INSERT INTO t VALUES (N'a')", "0A000"},
-		{"SELECT f(x) FROM t", "0A000"},
+
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"DELETE FROM t USING", "42601"},
 		{"CREATE TABLE \"\" (x INT)", "42601"}, {"SELECT * FROM \"unterminated", "42601"},

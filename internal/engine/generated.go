@@ -190,6 +190,10 @@ func generationImmutable(node BoundExpr) bool {
 		return true
 	}
 	switch n := node.(type) {
+	case rowExpression:
+		return args(n.fields)
+	case fieldExpression:
+		return one(n.base)
 	case arrayExpression:
 		return args(n.elements)
 	case subscriptExpression:
@@ -345,6 +349,10 @@ func generationHasTableOID(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
+	case rowExpression:
+		return args(n.fields)
+	case fieldExpression:
+		return one(n.base)
 	case arrayExpression:
 		return args(n.elements)
 	case subscriptExpression:
@@ -573,8 +581,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	if usage.Type == nil {
 		return fmt.Errorf("stuntgres: missing generation plan type")
 	}
-	typ, exists := view.LookupType(usage.Type.ID())
-	if !exists || typ != usage.Type || !usage.Valid() {
+	if !validExpressionUsage(view, usage) {
 		return fmt.Errorf("stuntgres: invalid generation plan type")
 	}
 	if err := validateUsageCollation(view, usage); err != nil {
@@ -596,6 +603,27 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return nil
 	}
 	switch n := node.(type) {
+	case rowExpression:
+		shape := n.usage.Type.BaseType()
+		if !shape.IsComposite() || len(n.fields) != shape.CompositeLen() || n.presenceSlot < 0 || n.wholeNames == nil && (n.presenceSlot != 0 || n.presenceFrame != 0) || n.wholeNames != nil && (len(n.wholeNames) != len(n.fields) || n.presenceFrame == 0) {
+			return fmt.Errorf("stuntgres: invalid composite row plan")
+		}
+		for i, field := range n.fields {
+			if field == nil || !sameRecordUsage(field.ResultUsage(), shape.CompositeMember(i).Usage) {
+				return fmt.Errorf("stuntgres: incompatible composite row member")
+			}
+		}
+		return args(n.fields)
+	case fieldExpression:
+		if n.base == nil || n.base.ResultUsage().Type == nil || !n.base.ResultUsage().Type.BaseType().IsComposite() {
+			return fmt.Errorf("stuntgres: invalid composite field base")
+		}
+		shape := n.base.ResultUsage().Type.BaseType()
+		index, ok := shape.CompositeAttributeIndex(n.attribute)
+		if !ok || index != n.index || !sameRecordUsage(n.usage, shape.CompositeMember(index).Usage) {
+			return fmt.Errorf("stuntgres: invalid composite field plan")
+		}
+		return child(n.base)
 	case arrayExpression:
 		return args(n.elements)
 	case subscriptExpression:

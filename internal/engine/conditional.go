@@ -227,6 +227,9 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if node.ResultUsage().Type == target.Type {
 		return node, nil
 	}
+	if row, ok := node.(rowExpression); ok && row.usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
+		return b.assignCompositeMember(row, target.Type.Usage(), sqltype.Implicit, commonOperandStart(o))
+	}
 	input, annotations := domainCoercionInput(node, target.Type.Usage())
 	info, err := b.coercionInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), input)
 	if err != nil {
@@ -511,6 +514,14 @@ func qualifiedCastChild(raw parser.Expr) error {
 		}
 	case parser.RegclassExpr:
 		return qualifiedCastChild(e.Child)
+	case parser.FieldExpr:
+		return qualifiedCastChild(e.Base)
+	case parser.RowExpr:
+		for _, field := range e.Fields {
+			if err := qualifiedCastChild(field); err != nil {
+				return err
+			}
+		}
 	case parser.ArrayExpr:
 		for _, element := range e.Elements {
 			if err := qualifiedCastChild(element); err != nil {

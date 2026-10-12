@@ -100,6 +100,18 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				}
 			}
 		}
+		if _, plain := r.(parser.LiteralExpr); plain {
+			// Explicit constructor-member coercions have no raw CastExpr.
+			// Capture the literal input, retaining the executable domain/typmod
+			// conversion on the stored tree and reconstructing it on replay.
+			for {
+				coercion, ok := bound.(coercionExpression)
+				if !ok {
+					break
+				}
+				bound = coercion.child
+			}
+		}
 		if literal, ok := bound.(literalExpression); ok {
 			if b.viewLiterals == nil {
 				b.viewLiterals = make(map[viewLiteralPath]literalExpression)
@@ -107,12 +119,16 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			b.viewLiterals[path] = literal
 			return nil
 		}
-	case parser.ColumnExpr:
+	case parser.ColumnExpr, parser.StarExpr:
 		if column, ok := bound.(columnExpression); ok {
 			if b.viewColumns == nil {
 				b.viewColumns = make(map[viewLiteralPath]viewColumn)
 			}
 			b.viewColumns[path] = viewColumn{frame: column.frame, slot: column.slot}
+			return nil
+		}
+		if row, ok := bound.(rowExpression); ok && row.wholeNames != nil {
+			b.captureViewComposite(path, compositeWholeRow, row, nil)
 			return nil
 		}
 	case parser.GroupingExpr:
@@ -184,6 +200,42 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				return child(r.Zone, n.zone)
 			}
 			return nil
+		}
+	case parser.RowExpr:
+		if n, ok := bound.(rowExpression); ok {
+			slot := 0
+			for target, field := range r.Fields {
+				if expansion, expanded := n.expansions[target]; expanded {
+					if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
+						return err
+					}
+					slot += len(expansion.fields)
+				} else {
+					if slot >= len(n.fields) {
+						return fmt.Errorf("stuntgres: missing row source association")
+					}
+					if err := child(field, n.fields[slot]); err != nil {
+						return err
+					}
+					slot++
+				}
+			}
+			if slot != len(n.fields) {
+				return fmt.Errorf("stuntgres: invalid row source association")
+			}
+			return nil
+		}
+	case parser.FieldExpr:
+		if n, ok := bound.(fieldExpression); ok {
+			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
+			return child(r.Base, n.base)
+		}
+		if n, ok := bound.(nullCountExpression); ok && len(n.args) == 1 {
+			b.captureViewComposite(path, compositeDotBuiltin, n.args[0], nil)
+			captured := b.viewComposites[path]
+			captured.function = n.kind
+			b.viewComposites[path] = captured
+			return child(r.Base, n.args[0])
 		}
 	case parser.ArrayExpr:
 		if n, ok := bound.(arrayExpression); ok {
@@ -383,6 +435,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(installedFunctionExpression); ok {
 			return children(r.Args, []BoundExpr{n.arg})
 		}
+		if n, ok := bound.(fieldExpression); ok && len(r.Args) == 1 {
+			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
+			return child(r.Args[0], n.base)
+		}
 		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
 			return nil
 		}
@@ -560,7 +616,7 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 }
 
 func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
-	count, columnCount, starCount := 0, 0, 0
+	count, columnCount, starCount, compositeCount := 0, 0, 0, 0
 	for frame, project := range v.frames {
 		s := project.syntax
 		if s == nil {
@@ -568,7 +624,7 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 				return fmt.Errorf("stuntgres: missing stored query syntax")
 			}
 			ordinal := 0
-			if err := v.validateLiteralTree(catalog, v.expressionSyntax, viewLiteralPath{query: frame, clause: viewTargetLiteral}, &ordinal, &count, &columnCount); err != nil {
+			if err := v.validateLiteralTree(catalog, v.expressionSyntax, viewLiteralPath{query: frame, clause: viewTargetLiteral}, &ordinal, &count, &columnCount, &compositeCount); err != nil {
 				return err
 			}
 			continue
@@ -585,7 +641,7 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		}
 		validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
 			ordinal := 0
-			return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, target: target}, &ordinal, &count, &columnCount)
+			return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, target: target}, &ordinal, &count, &columnCount, &compositeCount)
 		}
 		for i, raw := range s.Targets {
 			if _, star := raw.(parser.StarExpr); star {
@@ -635,17 +691,17 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 			ordinal := 0
 			path := viewLiteralPath{query: frame, clause: viewWindowLiteral, target: i}
 			for _, key := range definition.Spec.Partition {
-				if err := v.validateLiteralTree(catalog, key, path, &ordinal, &count, &columnCount); err != nil {
+				if err := v.validateLiteralTree(catalog, key, path, &ordinal, &count, &columnCount, &compositeCount); err != nil {
 					return err
 				}
 			}
 			for _, key := range definition.Spec.Order {
-				if err := v.validateLiteralTree(catalog, key.Expr, path, &ordinal, &count, &columnCount); err != nil {
+				if err := v.validateLiteralTree(catalog, key.Expr, path, &ordinal, &count, &columnCount, &compositeCount); err != nil {
 					return err
 				}
 			}
 			for _, offset := range definition.Spec.Offsets() {
-				if err := v.validateLiteralTree(catalog, offset, path, &ordinal, &count, &columnCount); err != nil {
+				if err := v.validateLiteralTree(catalog, offset, path, &ordinal, &count, &columnCount, &compositeCount); err != nil {
 					return err
 				}
 			}
@@ -679,7 +735,7 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 					if table.regexpNamespace {
 						path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: table.viewOrdinal, target: i}
 						ordinal := 0
-						if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount); err != nil {
+						if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount, &compositeCount); err != nil {
 							return err
 						}
 					} else if err := validate(call, viewFunctionLiteral, table.viewOrdinal+i); err != nil {
@@ -706,7 +762,7 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored VALUES frame")
 				}
-				return v.validateValuesLiterals(catalog, raw, frame, values.viewOrdinal, &count, &columnCount)
+				return v.validateValuesLiterals(catalog, raw, frame, values.viewOrdinal, &count, &columnCount, &compositeCount)
 			case *parser.FunctionFrom:
 				function, ok := viewFromRoot(node).(*functionFromNode)
 				if !ok {
@@ -715,7 +771,7 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 				for i, call := range raw.Calls {
 					path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: function.viewOrdinal, target: i}
 					ordinal := 0
-					if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount); err != nil {
+					if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount, &compositeCount); err != nil {
 						return err
 					}
 				}
@@ -730,20 +786,41 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 			return err
 		}
 	}
-	if count != len(v.literals) || columnCount != len(v.columns) || starCount != len(v.stars) {
+	if count != len(v.literals) || columnCount != len(v.columns) || starCount != len(v.stars) || compositeCount != len(v.composites) {
 		return fmt.Errorf("stuntgres: invalid view literal occurrence path")
 	}
 	return nil
 }
 
-func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal, count, columnCount *int) error {
+// Scalar stars and ordinary column syntax close over the same captured frame
+// and slot, independently of composite expansion occurrences.
+func (v *viewDefinition) validateColumnOccurrence(path viewLiteralPath) error {
+	column, ok := v.columns[path]
+	owner := v.frames[column.frame]
+	if !ok || owner == nil {
+		return fmt.Errorf("stuntgres: invalid view column frame")
+	}
+	root := viewFromRoot(owner)
+	if path.clause == viewJoinLiteral && column.frame == path.query {
+		root = viewJoinAt(root, path.target)
+	}
+	if path.clause == viewValuesOrderLiteral && column.frame == path.query {
+		root = viewValuesAt(owner, path.source)
+	}
+	if root == nil || column.slot < 0 || column.slot >= len(root.Schema()) {
+		return fmt.Errorf("stuntgres: invalid view column occurrence")
+	}
+	return nil
+}
+
+func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal, count, columnCount, compositeCount *int) error {
 	if raw == nil {
 		return nil
 	}
 	path.node = *ordinal
 	(*ordinal)++
 	child := func(raw parser.Expr) error {
-		return v.validateLiteralTree(catalog, raw, path, ordinal, count, columnCount)
+		return v.validateLiteralTree(catalog, raw, path, ordinal, count, columnCount, compositeCount)
 	}
 	args := func(raw []parser.Expr) error {
 		for _, arg := range raw {
@@ -761,6 +838,22 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			return fmt.Errorf("stuntgres: missing frozen subquery syntax")
 		}
 		return child(r.Left)
+	case parser.FieldExpr:
+		captured, ok := v.composites[path]
+		if !ok || r.Expansion && captured.kind != compositeExpansion || !r.Expansion && captured.kind != compositeSelection && captured.kind != compositeDotBuiltin {
+			return fmt.Errorf("stuntgres: missing frozen field interpretation")
+		}
+		if captured.kind == compositeDotBuiltin && captured.function != nullCountFunctionKind(r.Field.Text) {
+			return fmt.Errorf("stuntgres: invalid frozen dot provider")
+		}
+		if err := captured.validate(catalog); err != nil {
+			return err
+		}
+		if err := v.validateCompositeSource(captured); err != nil {
+			return err
+		}
+		(*compositeCount)++
+		return child(r.Base)
 	case parser.RowExpr:
 		return args(r.Fields)
 	case parser.IdentityExpr:
@@ -811,24 +904,51 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		}
 		return fmt.Errorf("stuntgres: missing view literal occurrence")
 	case parser.ColumnExpr:
-		column, ok := v.columns[path]
-		owner := v.frames[column.frame]
-		if !ok || owner == nil {
-			return fmt.Errorf("stuntgres: invalid view column frame")
+		if captured, whole := v.composites[path]; whole {
+			if captured.kind != compositeWholeRow {
+				return fmt.Errorf("stuntgres: invalid frozen scalar whole row")
+			}
+			if err := captured.validate(catalog); err != nil {
+				return err
+			}
+			if err := v.validateCompositeSource(captured); err != nil {
+				return err
+			}
+			if v.namespaces[captured.source.namespace-1].qualifiers[captured.source.qualifier].name != r.Name.Parts[len(r.Name.Parts)-1].Text {
+				return fmt.Errorf("stuntgres: mismatched frozen whole row qualifier")
+			}
+			(*compositeCount)++
+			return nil
 		}
-		root := viewFromRoot(owner)
-		if path.clause == viewJoinLiteral && column.frame == path.query {
-			root = viewJoinAt(root, path.target)
-		}
-		if path.clause == viewValuesOrderLiteral && column.frame == path.query {
-			root = viewValuesAt(owner, path.source)
-		}
-		if root == nil || column.slot < 0 || column.slot >= len(root.Schema()) {
-			return fmt.Errorf("stuntgres: invalid view column occurrence")
+		if err := v.validateColumnOccurrence(path); err != nil {
+			return err
 		}
 		(*columnCount)++
 		return nil
 	case parser.StarExpr:
+		if _, scalar := v.columns[path]; scalar {
+			if err := v.validateColumnOccurrence(path); err != nil {
+				return err
+			}
+			(*columnCount)++
+			return nil
+		}
+		if _, relationStar := v.stars[path]; !relationStar {
+			captured, ok := v.composites[path]
+			if !ok || captured.kind != compositeExpansion && captured.kind != compositeWholeRow {
+				return fmt.Errorf("stuntgres: missing frozen whole row interpretation")
+			}
+			if err := captured.validate(catalog); err != nil {
+				return err
+			}
+			if err := v.validateCompositeSource(captured); err != nil {
+				return err
+			}
+			if captured.source.namespace == 0 || v.namespaces[captured.source.namespace-1].qualifiers[captured.source.qualifier].name != r.Qualifier.Parts[len(r.Qualifier.Parts)-1].Text {
+				return fmt.Errorf("stuntgres: mismatched frozen whole row star")
+			}
+			(*compositeCount)++
+		}
 		return nil
 	case parser.AggregateExpr:
 		for _, arg := range r.Args {
@@ -920,6 +1040,18 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		}
 		return child(r.Else)
 	case parser.FunctionExpr:
+		if captured, projected := v.composites[path]; projected {
+			if captured.kind != compositeSelection || len(r.Args) != 1 {
+				return fmt.Errorf("stuntgres: invalid frozen functional projection")
+			}
+			if err := captured.validate(catalog); err != nil {
+				return err
+			}
+			if err := v.validateCompositeSource(captured); err != nil {
+				return err
+			}
+			(*compositeCount)++
+		}
 		return args(r.Args)
 	case parser.CallExpr:
 		return args(r.Args)

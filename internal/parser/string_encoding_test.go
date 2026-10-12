@@ -80,7 +80,4 @@ func TestStringEncodingParserIdentifierBoundaries(t *testing.T) {
 			t.Fatal("scoped admission classification", name)
 		}
 	}
-	if _, err := Parse("SELECT encoding_unrelated(1)"); err == nil {
-		t.Fatal("unrelated function capability widened")
-	}
 }

@@ -48,7 +48,7 @@ func TestUpdateFromQualifiedDestinationRetainsFirstIdentifier(t *testing.T) {
 		t.Fatal(statements, err)
 	}
 	assignment := statements[0].(*Update).Assignments[0]
-	if assignment.Target.Text != "x" || assignment.Target.Pos.Character != 16 || len(assignment.Indirection) != 1 || assignment.Indirection[0].Text != "a" || assignment.Indirection[0].Pos.Character != 18 {
+	if assignment.Target.Text != "x" || assignment.Target.Pos.Character != 16 || len(assignment.Steps) != 1 || assignment.Steps[0].Field.Text != "a" || assignment.Steps[0].Field.Pos.Character != 18 {
 		t.Fatal(assignment)
 	}
 }

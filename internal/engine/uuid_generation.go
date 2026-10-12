@@ -192,7 +192,7 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 			}
 			types[i] = functionNamedType(raw, i, typ)
 		}
-		return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, types, false)
+		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, types, false)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid function argument labels")
@@ -271,6 +271,10 @@ func closedUUIDDefault(node BoundExpr) bool {
 			}
 		}
 		return true
+	case rowExpression, fieldExpression:
+		valid := true
+		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		return valid
 	case datetimeTruncExpression, datetimeBinExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })

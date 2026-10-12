@@ -156,7 +156,4 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	// a projection alias, matching the existing adjacent-type shift policy.
 	keywordDiagnostic(t, "SELECT v::int4 unknown FROM t", "42601", `syntax error at or near "unknown"`, "16")
 	keywordDiagnostic(t, "SELECT CAST(v AS int4 unknown) FROM t", "42601", `syntax error at or near "unknown"`, "23")
-	for _, q := range []string{"SELECT isnull(1) FROM t", "SELECT notnull(1) FROM t"} {
-		keywordDiagnostic(t, q, "0A000", "functions are unsupported", "8")
-	}
 }

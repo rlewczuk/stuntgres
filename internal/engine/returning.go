@@ -188,6 +188,14 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			for slot, column := range b.relation.columns {
 				appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 			}
+		} else if field, ok := expression.(parser.FieldExpr); ok && field.Expansion {
+			expansion, err := b.expandComposite(field)
+			if err != nil {
+				return nil, err
+			}
+			for i, expr := range expansion.fields {
+				appendOutput(expr, expansion.names[i])
+			}
 		} else {
 			expr, err := b.bindOutput(expression, false)
 			if err != nil {
@@ -201,7 +209,11 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		}
 	}
 	if len(output.schema) == 0 {
-		return nil, expressionError("42601", "RETURNING must have at least one column", raw.Targets[0].SourcePosition())
+		pos := raw.Targets[0].SourcePosition()
+		if field, ok := raw.Targets[0].(parser.FieldExpr); ok && field.OpenPos.Character != 0 {
+			pos = field.OpenPos
+		}
+		return nil, expressionError("42601", "RETURNING must have at least one column", pos)
 	}
 	// Resolve output occurrences only after every target has constrained the
 	// shared parameter slots, matching ordinary scalar projection ordering.
@@ -282,10 +294,24 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, er
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	if len(parts) == 1 {
-		if _, column := b.relation.index[parts[0].Text]; !column {
+		_, column := b.relation.index[parts[0].Text]
+		if b.queryNamespace != nil {
+			for _, candidate := range b.queryNamespace.columns {
+				column = column || candidate.descriptor.Name == parts[0].Text
+			}
+		}
+		if !column {
 			if expr, found, err := b.returningWholeRow(parts[0].Text, b.relation, b.frameID(), b.returningAliases, raw.Pos); found {
 				return expr, err
 			}
+		}
+		_, pseudo := b.returningPseudo(raw.Name)
+		visible := b.targetName
+		if b.targetAlias != "" {
+			visible = b.targetAlias
+		}
+		if !column && (pseudo || parts[0].Text == visible) {
+			return b.wholeRow(raw.Name, raw.Pos, true)
 		}
 	}
 	if b.queryNamespace != nil {
@@ -380,4 +406,25 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 		return returningColumnExpression{columnExpression: column, absent: true}
 	}
 	return column
+}
+
+// Scalar transition values and their default-row member projections share the
+// same saved column wrappers and owning frame as correlated qualified columns.
+func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos parser.Position, newValues bool) (BoundExpr, error) {
+	if scope.returning.mode == returningInsert {
+		name := scope.returning.old
+		if newValues {
+			name = scope.returning.new
+		}
+		expr, _, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, pos)
+		return expr, err
+	}
+	fields := make([]BoundExpr, len(scope.relation.columns))
+	props := ExprProperties{}
+	for i := range fields {
+		fields[i] = b.outerReturningColumnAt(scope, i, pos, newValues)
+		props = mergeExpressionProperties(props, fields[i].Properties())
+	}
+	typ, _ := b.bindingCatalog().LookupType(scope.relation.rowType)
+	return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: scope.returning.mode == returningDelete && newValues}, nil
 }

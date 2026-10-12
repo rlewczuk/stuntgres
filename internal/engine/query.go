@@ -38,13 +38,15 @@ func (s querySchema) Schema() []ColumnDescriptor { return s }
 
 type sourceNode struct {
 	querySchema
-	ref        ObjectRef
-	occurrence int
+	ref          ObjectRef
+	occurrence   int
+	presenceSlot int
 }
 type singletonNode struct{ querySchema }
 type valuesNode struct {
 	querySchema
 	viewOrdinal         int
+	presenceSlot        int
 	rows                [][]BoundExpr
 	identityOrderDemand []bool // Only singleton USER identity VALUES need pruning.
 }
@@ -470,6 +472,11 @@ type querySource struct {
 	windowCount, windowWidth int
 	windowValues             []sqltype.Value
 	windowIndices            []int
+	// Presence uses packed flags only for demanded null-extended namespaces.
+	// Slot lookup is immutable per source; emitted join rows own flat flags.
+	presenceSlots                  []int
+	presenceCount                  int
+	presenceConstant, presenceFlat []bool
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -631,6 +638,8 @@ func (s *querySource) close() {
 	s.inheritance, s.inheritanceEnds = nil, nil
 	s.flat = nil
 	s.windowValues, s.windowIndices = nil, nil
+	s.presenceSlots, s.presenceConstant, s.presenceFlat = nil, nil, nil
+	s.presenceCount = 0
 	s.windowCount, s.windowWidth, s.window = 0, 0, false
 	s.occurrences = nil
 	s.provenance = nil
@@ -921,6 +930,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
 		source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority}
+		establishSourcePresence(source, n.presenceSlot)
 		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 		evaluation := state.evaluation(nil)
 		out.reset = func(out *indexedStage) bool {
@@ -966,6 +976,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		if source == nil || source.ref != n.ref && (source.storedRef == (ObjectRef{}) || source.storedRef != n.ref) {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
+		establishSourcePresence(source, n.presenceSlot)
 		if source.pgSequences != nil {
 			return openPGSequencesStage(state, source, n.Schema()), nil
 		}

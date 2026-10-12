@@ -231,13 +231,32 @@ Change note: `CREATE TYPE name AS (...)` and supported user table/view row types
 now share concrete, immutable composite codecs. Named backing relations are
 nonstorage authorities; member constraints remain confined to physical source
 tables. Text input/output, nesting, plain domains, retained row-shape generations
-and native mixed-type/table/view Dump/Restore are supported, without ROW
-constructors, field operations or composite arrays.
+and native mixed-type/table/view Dump/Restore are supported. Composite expressions
+now add ROW constructors, stable field selection/expansion, whole-row references
+and ordered partial INSERT/UPDATE/MERGE UPDATE targets, including mixed array/
+field paths. INSERT VALUES expansion preserves every expanded member, including
+prepared inputs and identity-bearing destinations. Stored computed expansions
+retain domain/typmod conversions through native Dump/Restore. Generated columns
+and expression indexes can select an immutable constructor field without
+executing an unused volatile sibling; whole-constructor analysis and immutable
+preflight remain required. Correlated RETURNING whole rows retain their lexical
+OLD/NEW owner and nearer-name shadowing. Admitted scalar function-source aliases
+remain scalar; ordinality/multiple-call aliases retain genuine tuple presence.
+Anonymous constructed results report RECORD; composite arrays and comparisons
+remain unsupported.
+Named assignments preserve descriptor identity: equal-shaped distinct named
+types are not interchangeable. Direct UPDATE/INSERT VALUES may contextually
+construct anonymous ROW values; projected RECORD in INSERT SELECT requires an
+explicit named conversion. Empty VALUES expansions retain ordinary width errors.
 See [composites](docs/TYPES.md#composites--change-note).
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceComposite(FeatureSmoke|MixedControls|ControlLifetime)$'`;
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceComposite(FeatureSmoke|MixedControls|ControlLifetime)$'`.
+Composite-expression smoke (900 seconds each):
+`make check RUN='^TestReferenceCompositeExprFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceCompositeExprFeatureSmoke$'`.
+See [expression behavior](docs/QUERIES.md#composite-expressions--change-note).
 
 Change note: MONEY (OID790) stores exact signed eight-byte minor units and uses
 captured C/POSIX/empty-as-C monetary policy for dollar output with two fraction

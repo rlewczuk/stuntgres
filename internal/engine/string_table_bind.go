@@ -163,7 +163,9 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 		columns[i] = queryColumn{descriptor: col, slot: i, leaf: -1, physical: -1}
 	}
 	name := raw.Calls[0].Name.Parts[len(raw.Calls[0].Name.Parts)-1].Text
-	qualifier := queryQualifier{name: name, original: name, columns: columns}
+	// One scalar call remains scalar even in ROWS FROM; ordinality and
+	// multiple calls declare tuples independently of their exposed labels.
+	qualifier := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !raw.Ordinality}
 	b.queryHidden = append(b.queryHidden, qualifier)
 	captures := b.functionCaptures(calls)
 	node := &functionFromNode{querySchema: schema, calls: calls, ordinality: raw.Ordinality, correlated: len(captures) != 0, frame: b.frameID(), viewOrdinal: ordinal, captures: captures}

@@ -20,7 +20,10 @@ type queryQualifier struct {
 	name, schema, original, alias string
 	ref                           ObjectRef
 	columns                       []queryColumn
+	scalarAlias                   bool // The admitted producer declares an alias value as its scalar result.
 	excludeColumnDiagnostics      bool // Whole-join and USING aliases are not error RTE candidates.
+	sourceRoot                    LogicalNode
+	nullExtended                  bool
 	lateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.
 }
 type queryNamespace struct {
@@ -246,22 +249,28 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 				return b.queryColumnInFrame(*match, raw.Pos, scope.frame), nil
 			}
 		}
-		// Column names across visible scopes win before the bounded named-row
-		// fallback. A nearer real FROM alias must not become an outer pseudo row.
-		shadowed := false
-		for _, qualifier := range b.queryNamespace.qualifiers {
-			shadowed = shadowed || qualifier.name == name
+		// Only after all visible column scopes fail may an unqualified name
+		// denote a relation's whole row. Ambiguity never reaches this fallback.
+		if scope, newValues := b.outerReturningScope(raw.Name); scope != nil {
+			return b.outerReturningWholeRow(scope, raw.Pos, newValues)
 		}
-		for i := len(b.queryScopes) - 1; i >= 0 && !shadowed; i-- {
-			scope := &b.queryScopes[i]
+		for _, q := range b.queryNamespace.qualifiers {
+			if q.name == name {
+				return b.wholeRow(raw.Name, raw.Pos, true)
+			}
+		}
+		for i := len(b.queryScopes) - 1; i >= 0; i-- {
+			scope := b.queryScopes[i]
 			if !scope.allowed || scope.namespace == nil {
 				continue
 			}
 			if expr, found, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, raw.Pos); found {
 				return expr, err
 			}
-			for _, qualifier := range scope.namespace.qualifiers {
-				shadowed = shadowed || qualifier.name == name
+			for _, q := range scope.namespace.qualifiers {
+				if q.name == name {
+					return b.wholeRow(raw.Name, raw.Pos, true)
+				}
 			}
 		}
 	}
@@ -303,6 +312,15 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, namespace queryNamespace, failure error) {
 	// FROM preorder is shared with the renderer. Capture the namespace after
 	// aliases and USING have been applied, before a parent rebases its slots.
+	defer func() {
+		if failure == nil {
+			for i := range namespace.qualifiers {
+				if namespace.qualifiers[i].sourceRoot == nil {
+					namespace.qualifiers[i].sourceRoot = root
+				}
+			}
+		}
+	}()
 	ordinal := -1
 	if (b.noParameters || b.materializedDefinition) && item != nil {
 		ordinal = len(b.viewNamespaces)
@@ -408,8 +426,17 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		for i, name := range n.Columns {
 			ns.columns[i].descriptor.Name = name.Text
 		}
-		if function, ok := n.Input.(*parser.FunctionTable); ok && len(function.Calls) == 1 && len(n.Columns) == 0 {
-			ns.columns[0].descriptor.Name = n.Name.Text
+		if len(n.Columns) == 0 {
+			calls := 0
+			switch function := n.Input.(type) {
+			case *parser.FunctionTable:
+				calls = len(function.Calls)
+			case *parser.FunctionFrom:
+				calls = len(function.Calls)
+			}
+			if calls == 1 {
+				ns.columns[0].descriptor.Name = n.Name.Text
+			}
 		}
 		q := queryQualifier{name: n.Name.Text, alias: n.Name.Text, columns: ns.columns}
 		if _, table := n.Input.(*parser.TableReference); table {
@@ -421,8 +448,11 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionTable); function {
 			q.original = ns.qualifiers[0].original
+			q.scalarAlias = ns.qualifiers[0].scalarAlias
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionFrom); function {
+			q.original = ns.qualifiers[0].original
+			q.scalarAlias = ns.qualifiers[0].scalarAlias
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else {
 			q.excludeColumnDiagnostics = true
@@ -654,6 +684,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 				}
 			}
 			for i := range ns.qualifiers {
+				if i < len(lns.qualifiers) && (n.Kind == parser.JoinRight || n.Kind == parser.JoinFull) || i >= len(lns.qualifiers) && i < len(lns.qualifiers)+len(rns.qualifiers) && (n.Kind == parser.JoinLeft || n.Kind == parser.JoinFull) {
+					ns.qualifiers[i].nullExtended = true
+				}
 				copied := false
 				for j, column := range ns.qualifiers[i].columns {
 					if !nullable(column.slot) {
@@ -934,7 +967,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1}
 	}
 	name := schema[0].Name
-	q := queryQualifier{name: name, columns: columns}
+	q := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !ordinality}
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]

@@ -37,6 +37,8 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 	switch e := expr.(type) {
 	case SubqueryExpr:
 		absorb(e.Left) // Child queries own their qualification policy.
+	case FieldExpr:
+		absorb(e.Base)
 	case RowExpr:
 		children = e.Fields
 	case GroupingExpr:
@@ -171,6 +173,8 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	switch e := expr.(type) {
 	case SubqueryExpr:
 		return nonqueryQualification(e.Left, assignment)
+	case FieldExpr:
+		return nonqueryQualification(e.Base, assignment)
 	case RowExpr:
 		children = e.Fields
 	case GroupingExpr:
@@ -306,6 +310,12 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 		left, changed := markGroupedQualification(e.Left)
 		if changed {
 			e.Left = left
+			return e, true
+		}
+	case FieldExpr:
+		base, changed := markGroupedQualification(e.Base)
+		if changed {
+			e.Base = base
 			return e, true
 		}
 	case RowExpr:

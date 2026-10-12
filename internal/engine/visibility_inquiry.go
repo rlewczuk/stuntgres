@@ -100,7 +100,7 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 		return visibilityInquiryExpression{}, err
 	}
 	if !visible || len(raw.Args) != 1 {
-		return visibilityInquiryExpression{}, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return visibilityInquiryExpression{}, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	var kind visibilityInquiryKind
 	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
@@ -126,7 +126,7 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 		plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target, sqltype.Implicit)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42804" || diagnostic.Code == "42846") {
-				return visibilityInquiryExpression{}, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+				return visibilityInquiryExpression{}, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 			}
 			return visibilityInquiryExpression{}, err
 		}

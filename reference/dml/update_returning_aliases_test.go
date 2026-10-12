@@ -70,7 +70,7 @@ func TestReferenceUpdateReturningExternalMechanisms(t *testing.T) {
 			if !backend.PG {
 				run(fixture.Exec("CREATE TABLE triggered(a INT)", 0))
 				run(fixture.Exec("INSERT INTO triggered VALUES(10)", 1))
-				for _, q := range []string{"CREATE TRIGGER change BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()", "UPDATE triggered SET a=2 RETURNING old", "UPDATE triggered SET a=2 RETURNING (old).*"} {
+				for _, q := range []string{"CREATE TRIGGER change BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
 					result, err := db.ExecContext(p.Ctx, q)
 					if result != nil || err == nil {
 						t.Fatal("unsupported mechanism", q, result, err)

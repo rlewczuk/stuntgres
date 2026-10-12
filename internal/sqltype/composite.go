@@ -27,21 +27,40 @@ type compositePayload struct{ fields []Value }
 // Composite freezes the catalog's coherent, ordered live-member projection.
 // Catalog ownership and relation reciprocity are validated by the provider.
 func Composite(id ID, name, declaration string, associatedArray ID, members []CompositeMember) (*Descriptor, error) {
-	if id == 0 || id == Unknown || name == "" || declaration == "" || len(members) > 1600 || associatedArray == id {
+	return compositeDescriptor(id, name, declaration, associatedArray, members, 1600)
+}
+
+// RecordShape is an expression occurrence, never a catalog storage identity.
+func RecordShape(members []CompositeMember) (*Descriptor, error) {
+	d, err := compositeDescriptor(2249, "record", "RECORD", 2287, members, 1664)
+	if err == nil {
+		d.database = "RECORD"
+	}
+	return d, err
+}
+
+func compositeDescriptor(id ID, name, declaration string, associatedArray ID, members []CompositeMember, maximum int) (*Descriptor, error) {
+	if id == 0 || id == Unknown || name == "" || declaration == "" || len(members) > maximum || associatedArray == id {
 		return nil, fmt.Errorf("invalid composite descriptor")
 	}
 	definition := &compositeDefinition{members: slices.Clone(members), attributes: make(map[int32]int, len(members))}
-	names := make(map[string]bool, len(members))
+	var names map[string]bool
+	if id != 2249 {
+		names = make(map[string]bool, len(members))
+	}
 	generations := make(map[ID]*Descriptor)
 	var coherent func(*Descriptor) bool
 	coherent = func(d *Descriptor) bool {
-		if d.id == id {
+		if d.id == id && id != 2249 {
 			return false
 		}
-		if old, found := generations[d.id]; found {
-			return old == d
+		// Anonymous shapes share a SQL OID, not a catalog generation.
+		if d.id != 2249 {
+			if old, found := generations[d.id]; found {
+				return old == d
+			}
+			generations[d.id] = d
 		}
-		generations[d.id] = d
 		if d.IsDomain() {
 			return coherent(d.base.Type)
 		}
@@ -67,11 +86,13 @@ func Composite(id ID, name, declaration string, associatedArray ID, members []Co
 		if _, exists := definition.attributes[member.Attribute]; exists {
 			return nil, fmt.Errorf("duplicate composite attribute")
 		}
-		if names[member.Name] {
-			return nil, fmt.Errorf("duplicate composite member name")
+		if names != nil {
+			if names[member.Name] {
+				return nil, fmt.Errorf("duplicate composite member name")
+			}
+			names[member.Name] = true
 		}
 		definition.attributes[member.Attribute] = i
-		names[member.Name] = true
 	}
 	return &Descriptor{id: id, name: name, sql: declaration, associatedArray: associatedArray, composite: definition}, nil
 }
@@ -84,6 +105,14 @@ func (d *Descriptor) CompositeLen() int {
 	return len(d.composite.members)
 }
 func (d *Descriptor) CompositeMember(i int) CompositeMember { return d.composite.members[i] }
+
+func (d *Descriptor) CompositeAttributeIndex(attribute int32) (int, bool) {
+	if !d.IsComposite() {
+		return 0, false
+	}
+	i, ok := d.composite.attributes[attribute]
+	return i, ok
+}
 
 // CompositeValue freezes external storage; OwnedCompositeValue transfers an
 // exclusively owned buffer. Neither accessor exposes a mutable slice.

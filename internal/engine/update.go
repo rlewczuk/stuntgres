@@ -18,7 +18,7 @@ type boundUpdate struct {
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
 func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error) {
-	return preflightUpdateWithPlanning(c, original, false)
+	return preflightUpdateWithPlanning(c, original, true)
 }
 
 func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool) (*boundUpdate, error) {
@@ -274,9 +274,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
 		}
 		for _, target := range b.update.arrayTargets {
-			if target != nil {
-				state.virtualReads = state.virtualReads || boundHasVirtualReads(target.node)
-			}
+			state.virtualReads = state.virtualReads || assignmentTargetHasVirtualReads(target)
 		}
 		if b.returning != nil {
 			for _, expression := range b.returning.expressions {

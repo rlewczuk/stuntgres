@@ -206,6 +206,14 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			}
 			continue
 		}
+		if expansion, ok := expr.(parser.FieldExpr); ok && expansion.Expansion {
+			fields, err := renderer.compositeExpansionSQL(ctx, catalog, expansion, viewLiteralPath{clause: viewTargetLiteral, target: i})
+			if err != nil {
+				return "", err
+			}
+			targets = append(targets, fields...)
+			continue
+		}
 		text, err := renderer.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewTargetLiteral, target: i})
 		if err != nil {
 			return "", err
@@ -248,6 +256,9 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		if !presentation.deparse || natural != presentation.identifier(label) {
 			targets[i] += " AS " + presentation.identifier(label)
 		}
+	}
+	if len(targets) == 0 {
+		targets = append(targets, "(ROW()).*")
 	}
 	text := viewTargetsSQL(targets, presentation, s.Distinct != nil)
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
@@ -466,6 +477,17 @@ func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog Catal
 			slot -= len(columns)
 			continue
 		}
+		if expansion, ok := raw.(parser.FieldExpr); ok && expansion.Expansion {
+			fields, err := renderer.compositeExpansionSQL(ctx, catalog, expansion, path)
+			if err != nil {
+				return "", err
+			}
+			if slot < len(fields) {
+				return fields[slot], nil
+			}
+			slot -= len(fields)
+			continue
+		}
 		if slot == 0 {
 			if _, literal := raw.(parser.LiteralExpr); literal {
 				// A bare rendered constant can be reparsed as a different
@@ -513,6 +535,50 @@ func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, r
 	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal, pgRenderParent{})
 }
 
+// Scalar alias names and non-expanding scalar stars retain the same analyzed
+// frame/slot authority as ordinary columns.
+func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path viewLiteralPath) (string, error) {
+	column, ok := v.columns[path]
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing view column occurrence")
+	}
+	owner := v.frames[column.frame]
+	if owner == nil {
+		return "", fmt.Errorf("stuntgres: missing view column frame")
+	}
+	root := viewFromRoot(owner)
+	if path.clause == viewJoinLiteral && column.frame == path.query {
+		root = viewJoinAt(root, path.target)
+	}
+	if path.clause == viewValuesOrderLiteral && column.frame == path.query {
+		root = viewValuesAt(v.query.Root, path.source)
+	}
+	// Current simple-source names require owner qualification for correlated
+	// columns and source keys that could collide with output labels.
+	// Frozen expression frames have slots but no SELECT syntax.
+	currentNames := v.presentation.deparse || v.currentNames
+	ownerSimple := false
+	if currentNames && column.frame != path.query && owner.syntax != nil {
+		_, ownerSimple = owner.syntax.From.(*parser.TableReference)
+	}
+	if currentNames && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
+		source, ok := root.(*sourceNode)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing simple view source")
+		}
+		relation := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+		text, err := v.slotSQL(ctx, catalog, root, column.slot)
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(text, v.presentation.identifier(relation.name)+".") {
+			return text, nil
+		}
+		return v.presentation.identifier(relation.name) + "." + text, nil
+	}
+	return v.slotSQL(ctx, catalog, root, column.slot)
+}
+
 func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -534,13 +600,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	}
 	child := func(expr parser.Expr) (string, error) { return operand(expr, pgRenderParent{}) }
 	args := func(expressions []parser.Expr) (string, error) {
-		parts := make([]string, len(expressions))
-		for i, expr := range expressions {
+		parts := make([]string, 0, len(expressions))
+		for _, expr := range expressions {
 			text, err := operand(expr, pgRenderParent{functionArgument: true})
 			if err != nil {
 				return "", err
 			}
-			parts[i] = text
+			if text != "" {
+				parts = append(parts, text)
+			}
 		}
 		return strings.Join(parts, ", "), nil
 	}
@@ -551,6 +619,46 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		return "GROUPING(" + text + ")", nil
+	case parser.StarExpr:
+		if _, scalar := v.columns[path]; scalar {
+			return v.columnSQL(ctx, catalog, path)
+		}
+		captured, ok := v.composites[path]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing frozen scalar star")
+		}
+		base, err := v.wholeRowSQL(captured)
+		if err != nil {
+			return "", err
+		}
+		if captured.kind == compositeWholeRow {
+			return base, nil
+		}
+		if captured.kind != compositeExpansion {
+			return "", fmt.Errorf("stuntgres: invalid frozen scalar star interpretation")
+		}
+		fields, err := v.frozenCompositeFields(ctx, catalog, captured, base)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(fields, ", "), nil
+	case parser.FieldExpr:
+		captured, ok := v.composites[path]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing frozen field interpretation")
+		}
+		text, err := child(e.Base)
+		if err != nil {
+			return "", err
+		}
+		if captured.kind == compositeDotBuiltin {
+			return frozenDotBuiltinSQL(captured, text)
+		}
+		fields, err := v.frozenCompositeFields(ctx, catalog, captured, text)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(fields, ", "), nil
 	case parser.RowExpr:
 		text, err := args(e.Fields)
 		if err != nil {
@@ -617,45 +725,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
 	case parser.ColumnExpr:
-		column, ok := v.columns[path]
-		if !ok {
-			return "", fmt.Errorf("stuntgres: missing view column occurrence")
-		}
-		owner := v.frames[column.frame]
-		if owner == nil {
-			return "", fmt.Errorf("stuntgres: missing view column frame")
-		}
-		root := viewFromRoot(owner)
-		if path.clause == viewJoinLiteral && column.frame == path.query {
-			root = viewJoinAt(root, path.target)
-		}
-		if path.clause == viewValuesOrderLiteral && column.frame == path.query {
-			root = viewValuesAt(v.query.Root, path.source)
-		}
-		// Current simple-source names require owner qualification for correlated
-		// columns and source keys that could collide with output labels.
-		// Frozen expression frames have slots but no SELECT syntax.
-		currentNames := v.presentation.deparse || v.currentNames
-		ownerSimple := false
-		if currentNames && column.frame != path.query && owner.syntax != nil {
-			_, ownerSimple = owner.syntax.From.(*parser.TableReference)
-		}
-		if currentNames && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
-			source, ok := root.(*sourceNode)
-			if !ok {
-				return "", fmt.Errorf("stuntgres: missing simple view source")
+		if captured, whole := v.composites[path]; whole {
+			if captured.kind != compositeWholeRow {
+				return "", fmt.Errorf("stuntgres: invalid frozen scalar whole row")
 			}
-			relation := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
-			text, err := v.slotSQL(ctx, catalog, root, column.slot)
-			if err != nil {
-				return "", err
-			}
-			if strings.HasPrefix(text, v.presentation.identifier(relation.name)+".") {
-				return text, nil
-			}
-			return v.presentation.identifier(relation.name) + "." + text, nil
+			return v.wholeRowSQL(captured)
 		}
-		return v.slotSQL(ctx, catalog, root, column.slot)
+		return v.columnSQL(ctx, catalog, path)
 	case parser.TypedLiteralExpr:
 		return "", fmt.Errorf("stuntgres: missing analyzed typed view literal")
 	case parser.TimeZoneExpr:
@@ -931,6 +1007,20 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return text + ending, nil
 	case parser.FunctionExpr:
+		if captured, projected := v.composites[path]; projected {
+			if captured.kind != compositeSelection || len(e.Args) != 1 {
+				return "", fmt.Errorf("stuntgres: invalid frozen functional projection")
+			}
+			base, err := child(e.Args[0])
+			if err != nil {
+				return "", err
+			}
+			fields, err := v.frozenCompositeFields(ctx, catalog, captured, base)
+			if err != nil {
+				return "", err
+			}
+			return fields[0], nil
+		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
 		if e.Syntax == parser.SimilarEscapeFunctionSyntax {
 			if len(e.Args) < 1 || len(e.Args) > 2 {
@@ -1125,7 +1215,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				return name + "(" + text + ")", err
 			}
 			return "pg_catalog." + name + "(" + text + ")", err
-		case "convert", "convert_from", "convert_to", "encode", "decode", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
+		case "num_nulls", "num_nonnulls", "convert", "convert_from", "convert_to", "encode", "decode", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 			if v.presentation.deparse {
 				return name + "(" + text + ")", err
 			}

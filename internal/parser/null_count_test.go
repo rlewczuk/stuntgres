@@ -98,11 +98,10 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 	}
 	for _, q := range []string{
 		"SELECT id FROM t WHERE num_nulls(v)", "INSERT INTO t VALUES(num_nulls(NULL))",
-		"SELECT current_setting(num_nulls(NULL))", "SELECT f(1) FROM t",
+		"SELECT current_setting(num_nulls(NULL))",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
 		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t",
-		`SELECT "NUM_NULLS"(NULL) FROM t`,
 	} {
 		statements, err := Parse(q)
 		if err == nil || len(statements) != 0 {

@@ -68,7 +68,7 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		for i, o := range operands {
 			names[i] = datetimeFormattingTypeName(o)
 		}
-		return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
+		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
 	}
 	if !visible || raw.Variadic {
 		return resolutionError(false)

@@ -1582,6 +1582,9 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
 	}
+	if left.BaseType().IsComposite() || right.BaseType().IsComposite() {
+		return p, failure("0A000", "composite comparison is unsupported")
+	}
 	// Enum operators are polymorphic over actual enum types. Domains are not
 	// enum inputs, even when both operands name the same domain over an enum.
 	if left.BaseType().IsEnum() || right.BaseType().IsEnum() {

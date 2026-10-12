@@ -155,6 +155,8 @@ func containsSumAnalysis(raw parser.Expr) bool {
 			}
 		}
 		return false
+	case parser.FieldExpr:
+		return containsSumAnalysis(e.Base)
 	case parser.RowExpr:
 		children = e.Fields
 	case parser.SubqueryExpr:

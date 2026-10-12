@@ -42,8 +42,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 		return err
 	}
 	for _, usage := range frozen.castUsages {
-		typ, ok := view.LookupType(usage.Type.ID())
-		if !ok || typ != usage.Type || !usage.Valid() {
+		if !validExpressionUsage(view, usage) {
 			return fmt.Errorf("stuntgres: invalid policy cast authority")
 		}
 		if err := validateUsageCollation(view, usage); err != nil {

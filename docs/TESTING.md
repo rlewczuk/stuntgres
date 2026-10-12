@@ -227,6 +227,103 @@ session isolation, ACL and readonly diagnostics.
 Record actual argv/cwd/exit/output and observations; package readiness is not
 smoke evidence. Reserve quickcheck for whole-project Docker-free verification.
 
+## Composite expression selected proof
+
+Run each small group in native mode and with `REFERENCE=1`, using an external
+900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceCompositeExpr(Constructors|ConstructorCoercion|ConstructorDemand|Fields|Metadata|NullSemantics)$'
+make check RUN='^TestReferenceCompositeExpr(ScopeAmbiguity|FunctionalNotation|Expansion|ValuesAndInsertExpansion|NestedStars|Returning|Diagnostics)$'
+make check RUN='^TestReferenceCompositeExpr(Assignments|MixedArrayFields|MergeUpdate|AssignmentDiagnostics|AtomicityAndACL|Boundaries)$'
+make check RUN='^TestReferenceCompositeExpr(StoredConsumers|ControlsAndLifetime|ControlRejection|FeatureSmoke)$'
+make check RUN='^TestReferenceCompositeExprWholeRowAbsence$'
+make check RUN='^TestReferenceMergeUpdateFields$'
+make check RUN='^TestReferenceCompositeExpr(StoredFieldPruning|CorrelatedReturning|FunctionAlias)$'
+make check RUN='^TestReferenceCompositeExpr(ZeroWidthValues|NamedAssignmentIdentity)$'
+make check RUN='^TestReferenceCompositeExpr(VirtualBoundUpdate|VirtualBoundMerge|ViewTargetPaths|JoinTargetPaths)$'
+make check RUN='^TestReferenceCompositeExprNamedTargetDiagnostics$'
+make check RUN='^TestReferenceCompositeExprFunctionSourceCutover$'
+make check RUN='^TestReferenceCompositeExprFunctionSourceRestore$'
+make check RUN='^TestCompositeExpr(RecordShape|FieldAndNull|AssignmentPaths|VisitorsAndRetag|Parser)$'
+make check RACE=1 RUN='^TestReferenceCompositeExpr(AtomicityAndACL|ControlsAndLifetime|ControlRejection)$'
+```
+
+The ACL witnesses keep actual column UPDATE/INSERT grants and denied explicit
+field reads in both modes. Stored-field policy filtering is PostgreSQL-only;
+native asserts the full existing unsupported policy-enforcement diagnostic,
+then disables RLS to prove actual reader ACL projection. Schema USAGE grants/revokes are
+PostgreSQL-only; the stored-reader native setup transfers public-schema
+ownership for namespace visibility without transferring the table, then restores
+ownership before dropping the role. Native schema-grant syntax stays unsupported.
+Native control rejection asserts every diagnostic field using the actual appended
+failing occurrence, never an earlier matching Dump substring. Stored computed
+shapes retain anonymous occurrence ownership, contextual domain/typmod coercions
+and exact leaf providers through genuine Dump/Restore; no generic RECORD storage
+is admitted. INSERT VALUES expansion covers direct/prepared named targets and
+identity-bearing destinations as well as INSERT SELECT.
+Stored dot-builtin defaults retain their admitted notation through replay,
+including composite/scalar operands and NULL `num_nonnulls`. Ordinary function
+notation and generic DEFAULT capability boundaries remain unchanged.
+Whole-row demand uses the existing copy-on-change expression visitor and the
+side-aware RETURNING column wrapper; child binding errors propagate before
+provider usage inspection. Retained consumer regression:
+`make check RUN='^TestReferenceUpdateReturningExpressionsConsumerRoutes$'`
+(also run with `REFERENCE=1`); its independent values/metadata remain unchanged.
+StoredFieldPruning asserts direct/prepared generated/index admission, every
+write's rows and untouched sequence, selected-volatility/immutable-preflight
+errors, failed-name reuse, two native replacements and actual PostgreSQL SQL
+replay with future writes. CorrelatedReturning asserts child/grandchild
+transition frames, scalar stars/ROW, default versus member projections,
+explicit aliases, nearer shadows, ambiguity, masked-name diagnostics and
+mutation atomicity. INSERT field expansion retains the synchronized base's
+already-supported INSERT RETURNING authority rather than an obsolete exclusion.
+FunctionAlias distinguishes declared scalar function aliases from ordinality/
+multiple-call tuples, actual NULL cells from missing tuples, top/scalar/nested
+stars, explicit ROW, ordinary derived records and nearer column shadowing.
+It asserts full scalar diagnostics and five actual frozen scalar/tuple views
+through direct/prepared reads, two native replacements, emitted PostgreSQL SQL
+replay and future null-extension rows. No new FROM provider is implemented.
+ZeroWidthValues covers both width directions on direct Exec/Query and Prepare,
+full positioned/unpositioned errors, unchanged destination/sentinel, same-connection
+recovery and valid zero-column rows. NamedAssignmentIdentity distinguishes named
+identity from contextual anonymous conversion, projected INSERT SELECT RECORD,
+nested diagnostics, same-base/domain coercion and NULL versus anonymous
+all-NULL reconstruction. No oracle-discovery filter remains in either definition.
+VirtualBoundUpdate/Merge isolate virtual source reads solely in nested bounds,
+with fresh held executions, missing-source NULL and recipe-error atomicity.
+ViewTargetPaths independently asserts logical/physical slot and source-offset
+remapping, ordered original-frame writes and recovered held handles.
+JoinTargetPaths asserts planned FULL/nullable-rowmark errors even on empty
+UPDATE/INSERT/conflict/MERGE input and valid fresh joined-bound writes.
+NamedTargetDiagnostics independently checks full UPDATE/INSERT VALUES/INSERT
+SELECT partial-target records for visible, hidden and shadowed quoted named
+types and domains on direct Exec/Query and failed Prepare, unchanged nested
+rows and a preheld valid handle. Invalid subscripting of selected composite/domain
+members has no Position; plain scalar-column targets retain their independently
+pinned head Position. Coercion failures retain the assignment head. Both backends
+assert the same full diagnostic records without backend overrides or normalization.
+FunctionSourceCutover applies the existing scalar-alias/true-tuple contract to
+the admitted generic function stage: numeric, boolean, text and text-array
+results, explicit ordinal/multiple-call tuples and nearer alias-column shadow.
+No new function FROM provider is added.
+Nested correlated sources retain packed occurrence layout and invocation flags,
+including whole values consumed solely as function arguments and nullable
+inherited prefixes; an empty physical source does not evaluate failing arguments.
+FunctionSourceRestore independently checks declared scalar/tuple types and
+NULL-versus-all-NULL values before genuine two-cycle native replacement, a fresh
+driver with actual wrapped reads/unwrapped controls, retained original rows,
+actual emitted PostgreSQL SQL replay and future matching/nonmatching writes.
+The session-only public executable smoke separately exercises actual Dump,
+Reset and Restore after constructors, partial writes, fields, prepared inputs,
+stored-field admissions, correlated RETURNING transitions and declared function
+alias/tuple consumers, with future generated writes, sequence-state checks and
+frozen scalar-star/tuple replay. Root runs it as
+`go run "$SESSION_TMP/composite-expr-smoke.go"`;
+expected stdout is `composite expressions public smoke: PASS` and exit0.
+Whole-project Docker-free verification remains `make quickcheck`, after edits;
+selected checks and smoke readiness are not observed verification.
+
 ## Prepared rebind selected proof
 
 The shared untagged `reference/sessions/prepared_rebind_*_test.go` scenarios use

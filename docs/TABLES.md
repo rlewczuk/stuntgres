@@ -732,6 +732,17 @@ pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'`
 
 ## Decompiled definitions — change note
 
+Composite ROW construction and stable member selection are admitted through the
+existing DEFAULT/CHECK/generated/index/policy/view binders. Every child retains
+the existing dependency, parameter, volatility and lifetime fences; selecting a
+field never hides an invalid unused child during analysis/preflight. Generation
+and CHECK validate the completed mutation row, not intermediate partial writes.
+Stored expansion captures its exact ordered members, including zero width.
+Deparse uses explicit frozen members and genuine canonical null-count calls;
+whole-row sources retain their actual occurrence/frame and exposed labels.
+This adds no user function provider, generic RECORD storage or new DDL form.
+
+
 CHECK/default/NOT NULL definitions have generated catalog identities distinct from
 their owning table and stable attributes. CREATE allocates only at execution;
 renames and surviving DROP-column remaps preserve IDs. SET DEFAULT replaces its

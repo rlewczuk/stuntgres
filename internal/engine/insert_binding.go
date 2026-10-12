@@ -11,10 +11,19 @@ import (
 // scheduling for ordinary INSERT and each MERGE insertion arm. Its binder is
 // shared with the containing statement, including parameter/source authority.
 func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
+	if s.Source == nil {
+		binder.aggregateClause = "INSERT VALUES"
+	}
+	var firstList expandedExpressionList
 	if len(s.Targets) == 0 && s.Source == nil {
-		width := len(s.Rows[0])
+		var err error
+		firstList, err = binder.expandRawList(s.Rows[0])
+		if err != nil {
+			return err
+		}
+		width := len(firstList.raw)
 		if width > len(b.relation.columns) {
-			return insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.relation.columns)].SourcePosition())
+			return insertError("42601", "INSERT has more expressions than target columns", firstList.raw[len(b.relation.columns)].SourcePosition())
 		}
 		b.targets = make([]int, width)
 		for i := range b.targets {
@@ -27,7 +36,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 	}
 	for i, target := range s.Targets {
-		if len(target.Subscripts) == 0 {
+		if len(target.Steps) == 0 {
 			continue
 		}
 		if binder.mergeInput {
@@ -36,7 +45,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		if b.arrayTargets == nil {
 			b.arrayTargets = make([]*arrayAssignmentTarget, len(b.targets))
 		}
-		partial, err := binder.bindArrayTarget(b.relation.columns[b.targets[i]], target.Subscripts, target.Pos)
+		partial, err := binder.bindAssignmentTarget(b.relation.columns[b.targets[i]], target.Steps, target.Pos)
 		if err != nil {
 			return err
 		}
@@ -59,9 +68,35 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		binder.regexpClause = "VALUES"
 	}
 	b.expressions = make([][]BoundExpr, len(s.Rows))
-	for rowIndex, row := range s.Rows {
-		if rowIndex > 0 && len(row) != len(s.Rows[0]) {
-			return insertError("42601", "VALUES lists must all be the same length", row[0].SourcePosition())
+	b.insertRows = s.Rows
+	width := -1
+	rowsExpanded := false
+	for rowIndex, written := range s.Rows {
+		list := firstList
+		if rowIndex != 0 || len(s.Targets) != 0 {
+			var err error
+			list, err = binder.expandRawList(written)
+			if err != nil {
+				return err
+			}
+		}
+		row, expanded := list.raw, list.nodes
+		if len(list.expansions) != 0 {
+			if !rowsExpanded {
+				b.insertRows = append([][]parser.Expr(nil), s.Rows...)
+				rowsExpanded = true
+			}
+			b.insertRows[rowIndex] = row
+		}
+		if width < 0 {
+			width = len(row)
+		}
+		if len(row) != width {
+			pos := parser.Position{Offset: -1}
+			if len(row) != 0 {
+				pos = row[0].SourcePosition()
+			}
+			return expressionError("42601", "VALUES lists must all be the same length", pos)
 		}
 		if len(row) > len(b.targets) {
 			return insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].SourcePosition())
@@ -78,6 +113,10 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			// Analyze source occurrences once before destination types constrain
 			// shared parameters. Unknown literals retain destination authority.
 			for j, v := range row {
+				if expanded != nil && expanded[j] != nil {
+					b.expressions[rowIndex][j] = expanded[j]
+					continue
+				}
 				if _, requested := v.(parser.DefaultExpr); requested {
 					continue
 				}
@@ -126,7 +165,9 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			}
 			var plan BoundExpr
 			var err error
-			if stringRow {
+			if expanded != nil && expanded[j] != nil {
+				plan, err = binder.assignOutput(expanded[j], c)
+			} else if stringRow {
 				plan, err = binder.assignOutput(b.expressions[rowIndex][j], c)
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
 					copy := *d
@@ -142,7 +183,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					if plan != nil {
 						source = plan.ResultUsage().Type
 					}
-					return partial.diagnostic(err, source)
+					return partial.diagnostic(binder, err, source)
 				}
 				if plan == nil && containsSumAnalysis(v) {
 					return err

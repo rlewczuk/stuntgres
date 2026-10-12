@@ -97,6 +97,7 @@ type viewRenderer struct {
 	// Summary names follow current attributes independently of literal presentation.
 	currentNames bool
 	rowTargets   map[string]string
+	wholeRows    map[wholeRowSource]viewRenderWholeRow
 }
 
 type viewRenderFrame struct {
@@ -114,6 +115,10 @@ type viewRenderColumn struct {
 	name string
 	slot int // -1 is a newly added, unreferenced attribute.
 }
+type viewRenderWholeRow struct {
+	sql   string
+	names []string
+}
 type viewRenderFrom struct {
 	text, relation string
 	root           LogicalNode
@@ -122,12 +127,23 @@ type viewRenderFrom struct {
 	rowTarget      string
 	rowTargetSQL   string
 	rowSource      bool
+	namespace      int
+	wholeSQL       string
 }
 
 func newViewRenderer(v *viewDefinition) *viewRenderer {
 	r := &viewRenderer{viewDefinition: v, query: v.query, slots: make(map[LogicalNode]map[int]string), reserved: make(map[string]bool)}
 	if v.syntax != nil && len(v.syntax.Locking) != 0 {
 		r.rowTargets = make(map[string]string)
+	}
+	for _, captured := range v.composites {
+		if captured.source.namespace == 0 {
+			continue
+		}
+		if r.wholeRows == nil {
+			r.wholeRows = make(map[wholeRowSource]viewRenderWholeRow)
+		}
+		r.wholeRows[captured.source] = viewRenderWholeRow{}
 	}
 	if len(v.namespaces) != 0 {
 		r.renderFrames = make(map[uint32]viewRenderFrame)
@@ -259,6 +275,7 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 		from.text += "(" + strings.Join(aliases, ", ") + ")"
 	}
 	from.relation = ""
+	from.wholeSQL = quoteIdentifier(name)
 	v.slots[from.root] = from.slots
 	return from
 }
@@ -324,10 +341,34 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 		// enclosing alias must not overwrite or delete a sibling's base name.
 		v.rowTargets[from.rowTarget] = from.rowTargetSQL
 	}
+	if err == nil && v.wholeRows != nil && from.wholeSQL != "" {
+		namespace := v.namespaces[from.namespace-1]
+		for position, qualifier := range namespace.qualifiers {
+			key := wholeRowSource{namespace: from.namespace, qualifier: position, frame: namespace.frame}
+			if _, demanded := v.wholeRows[key]; !demanded {
+				continue
+			}
+			names := make([]string, len(qualifier.columns))
+			for i, column := range qualifier.columns {
+				found := false
+				for _, rendered := range from.columns {
+					if rendered.slot == column.slot {
+						names[i] = rendered.name
+						found = true
+						break
+					}
+				}
+				if !found {
+					return viewRenderFrom{}, fmt.Errorf("stuntgres: missing rendered whole-row field")
+				}
+			}
+			v.wholeRows[wholeRowSource{namespace: from.namespace, qualifier: position, frame: namespace.frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
+		}
+	}
 	return from, err
 }
 
-func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (viewRenderFrom, error) {
+func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (result viewRenderFrom, failure error) {
 	if err := ctx.Err(); err != nil {
 		return viewRenderFrom{}, err
 	}
@@ -340,6 +381,12 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view FROM namespace")
 	}
 	ns := v.namespaces[v.namespace]
+	namespaceIndex := v.namespace + 1
+	defer func() {
+		if failure == nil {
+			result.namespace = namespaceIndex
+		}
+	}()
 	v.namespace++
 	switch n := item.(type) {
 	case *parser.FunctionTable:
@@ -418,6 +465,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 				name = "ONLY " + name
 			}
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
+			from.wholeSQL = pgIdentifier(d.name)
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
 				from.rowTarget, from.rowSource = key, true

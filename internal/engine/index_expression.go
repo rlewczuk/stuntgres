@@ -45,6 +45,12 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err != nil {
 		return nil, "", err
 	}
+	// Preflight the complete analyzed definition before narrowing runtime
+	// demand, then admit volatility from the surviving physical providers.
+	execution, _, err = simplifyConditional(&evaluation, execution, true)
+	if err != nil {
+		return nil, "", err
+	}
 	if plannedVolatility(execution) != Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}

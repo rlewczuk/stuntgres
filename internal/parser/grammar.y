@@ -39,6 +39,8 @@ package parser
  targets []InsertTarget
  target InsertTarget
  subscripts []ArraySubscript
+ steps []TargetStep
+ step TargetStep
  subscript ArraySubscript
  assignments []UpdateAssignment
  assignment UpdateAssignment
@@ -473,6 +475,9 @@ package parser
 %type <target> insert_target
 %type <subscripts> array_subscripts
 %type <subscript> array_subscript
+%type <steps> target_steps
+%type <step> target_step
+%type <expr> field_value relation_star
 %type <expr> array_bracket array_member column_reference
 %type <row> array_members array_member_list
 %type <objectName> relation_name
@@ -1538,10 +1543,9 @@ update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name {
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
 update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
 update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
- | name array_subscripts '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Subscripts:$2,Value:$4} }
- | name array_subscripts '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Subscripts:$2,Value:DefaultExpr{Pos:$4.pos}} }
+ | name target_steps '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:$4} }
+ | name target_steps '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:DefaultExpr{Pos:$4.pos}} }
  | name '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:DefaultExpr{Pos:$3.pos}} }
- | name '.' name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Indirection:[]Identifier{{Text:$3.text,Pos:$3.pos}},Value:$5} }
  | name '=' scalar_projection '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
@@ -1612,7 +1616,10 @@ like_operator: LIKE | ILIKE ;
 target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;
 insert_targets: insert_target { $$=[]InsertTarget{$1} } | insert_targets ',' insert_target { $$=append($1,$3) } ;
 insert_target: name { $$=InsertTarget{Name:$1.text,Pos:$1.pos} }
- | name array_subscripts { $$=InsertTarget{Name:$1.text,Pos:$1.pos,Subscripts:$2} } ;
+ | name target_steps { $$=InsertTarget{Name:$1.text,Pos:$1.pos,Steps:$2} } ;
+target_steps: target_step { $$=[]TargetStep{$1} } | target_steps target_step { $$=append($1,$2) } ;
+target_step: '.' col_label { f:=Identifier{Text:$2.text,Pos:$2.pos};$$=TargetStep{Field:&f} }
+ | array_subscript { s:=$1;$$=TargetStep{Subscript:&s} } ;
 array_subscripts: array_subscript { $$=[]ArraySubscript{$1} } | array_subscripts array_subscript { $$=append($1,$2) } ;
 array_subscript: '[' scalar_projection ']' { $$=ArraySubscript{Upper:$2,Pos:$1.pos} }
  | '[' scalar_projection ':' scalar_projection ']' { if $3.text!=":" {sqllex.(*lexer).syntax($3);return 1};$$=ArraySubscript{Lower:$2,Upper:$4,Slice:true,Pos:$1.pos} }
@@ -1639,6 +1646,8 @@ insert_scalar_row: '(' insert_scalar_cells ')' { $$=$2 } ;
 insert_scalar_cells: insert_scalar_cell { $$=[]Expr{$1} } | insert_scalar_cells ',' insert_scalar_cell { $$=append($1,$3) } ;
 insert_scalar_cell: scalar { if !sqllex.(*lexer).scalarInput($1) {return 1};$$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 scalar: scalar_atom { $$=$1 }
+ | field_value { $$=$1 }
+ | relation_star { $$=$1 }
  | scalar GENERATION_OVER '(' generation_window_spec ')' { restriction:=GenerationRestriction{Code:"42P20",Message:"window functions are not allowed in column generation expressions",Pos:$1.SourcePosition()};l:=sqllex.(*lexer);if l.generationRestriction==nil {l.generationRestriction=&restriction} else {*l.generationRestriction=restriction};if l.generationDepth==0 {l.generationCompletedRestriction=l.generationRestriction};$$=ForbiddenGenerationExpr{restriction} }
  | select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryScalar,Query:$1.Query,Pos:$1.Pos} }
  | EXISTS select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryExists,Query:$2.Query,Pos:$1.pos} }
@@ -1677,6 +1686,16 @@ scalar: scalar_atom { $$=$1 }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | scalar qualified_operator quantifier select_with_parens %prec OPERATOR {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,$2,kind,$4.Query,false,$2.Parts[0].Pos)}
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
+field_value: '(' scalar ')' '.' col_label { $$=FieldExpr{Base:groupedQualification($2),Field:Identifier{Text:$5.text,Pos:$5.pos},Pos:$2.SourcePosition(),OpenPos:$1.pos} }
+ | '(' scalar ')' '.' '*' { $$=FieldExpr{Base:groupedQualification($2),Expansion:true,Pos:$2.SourcePosition(),OpenPos:$1.pos} }
+ | '(' function ')' '.' col_label { $$=FieldExpr{Base:$2,Field:Identifier{Text:$5.text,Pos:$5.pos},Pos:$2.SourcePosition(),OpenPos:$1.pos} }
+ | '(' function ')' '.' '*' { $$=FieldExpr{Base:$2,Expansion:true,Pos:$2.SourcePosition(),OpenPos:$1.pos} }
+ | PARAM '.' col_label { $$=FieldExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
+ | field_value '.' col_label { $$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()} }
+ | field_value '.' '*' { $$=FieldExpr{Base:$1,Expansion:true,Pos:$1.SourcePosition()} }
+ | field_value array_subscripts { $$=SubscriptExpr{Base:$1,Subscripts:$2,Pos:$1.SourcePosition()} } ;
+relation_star: name '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ | name '.' col_label '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} } ;
 overlaps_row: ROW '(' ')' { $$=RowExpr{Explicit:true,Pos:$1.pos} }
  | ROW '(' row_fields ')' { $$=RowExpr{Fields:$3,Explicit:true,Pos:$1.pos} }
  | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} } ;
@@ -1934,9 +1953,7 @@ target_or: target_and { $$=$1 }
  | target_or OR target_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 scalar_projection: target_or { $$=$1 } | function { $$=$1 } ;
 projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
- | '*' { $$=StarExpr{Pos:$1.pos} }
- | name '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
- | name '.' col_label '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} } ;
+ | '*' { $$=StarExpr{Pos:$1.pos} } ;
 /* Selected calls remain standalone projection roots, not Boolean/comparison
  * leaves. Their arguments remain ordinary operands or nested selected calls. */
 function_argument: operand { $$=$1 } | function { $$=$1 } ;
@@ -2104,32 +2121,35 @@ count_values: conditional_value { $$=[]Expr{$1} } | count_values ',' conditional
 /* One call grammar serves scalar and FETCH inputs. FILTER attaches to the
  * actual call, not to a parenthesized or otherwise composed scalar expression. */
 aggregate_application: aggregate_call %prec ')' { $$=$1 }
- | aggregate_call FILTER '(' WHERE target_or ')' { call,ok:=$1.(AggregateExpr);if !ok {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1};call.Filter=$5;call.FilterPos=$2.pos;$$=call }
- | aggregate_application over_clause { call,ok:=$1.(AggregateExpr);if !ok || call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call } ;
-aggregate_call: cast_function target_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}} }
- | qualified_call_head target_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}} }
- | cast_function target_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
- | qualified_call_head target_or ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
- | cast_function function ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos} }
- | qualified_call_head function ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos} }
- | cast_function function ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
- | qualified_call_head function ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
- | qualified_call_head '*' ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
- | cast_function '*' ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1}; $$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
- | cast_function ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Pos:$1.pos} }
- | qualified_call_head ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Pos:$1.Pos} }
- | cast_function DISTINCT count_values aggregate_order ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:$3,Order:$4,Distinct:true,Pos:$1.pos} }
- | cast_function ALL count_values aggregate_order ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:$3,Order:$4,Pos:$1.pos} }
- | qualified_call_head DISTINCT count_values aggregate_order ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:$3,Order:$4,Distinct:true,Pos:$1.Pos} }
- | qualified_call_head ALL count_values aggregate_order ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:$3,Order:$4,Pos:$1.Pos} }
- | cast_function target_or ORDER BY order_keys ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
- | qualified_call_head target_or ORDER BY order_keys ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
- | cast_function target_or ',' count_values ORDER BY order_keys ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
- | qualified_call_head target_or ',' count_values ORDER BY order_keys ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
- | cast_function function ORDER BY order_keys ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
- | qualified_call_head function ORDER BY order_keys ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
- | cast_function function ',' count_values ORDER BY order_keys ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
- | qualified_call_head function ',' count_values ORDER BY order_keys ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} } ;
+ | aggregate_call FILTER '(' WHERE target_or ')' { switch call:=$1.(type) {case AggregateExpr:call.Filter=$5;call.FilterPos=$2.pos;$$=call;case FunctionExpr:call.Filter=$5;$$=call;default:sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1} }
+ | aggregate_application over_clause { switch call:=$1.(type) {case AggregateExpr:if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call;case FunctionExpr:if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call;default:sqllex.(*lexer).syntax($2.token);return 1} } ;
+aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType($1),[]Expr{$2},$1) }
+ | qualified_call_head target_or ')' { $$=ordinaryCall(sqllex,$1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
+ | cast_function target_or ',' count_values ')' { $$=ordinaryCall(sqllex,columnType($1),append([]Expr{$2},$4...),$1) }
+ | qualified_call_head target_or ',' count_values ')' { $$=ordinaryCall(sqllex,$1,append([]Expr{$2},$4...),lexeme{text:$1.Name,pos:$1.Pos}) }
+ | cast_function function ')' { $$=ordinaryCall(sqllex,columnType($1),[]Expr{$2},$1) }
+ | qualified_call_head function ')' { $$=ordinaryCall(sqllex,$1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
+ | cast_function function ',' count_values ')' { $$=ordinaryCall(sqllex,columnType($1),append([]Expr{$2},$4...),$1) }
+ | qualified_call_head function ',' count_values ')' { $$=ordinaryCall(sqllex,$1,append([]Expr{$2},$4...),lexeme{text:$1.Name,pos:$1.Pos}) }
+ | qualified_call_head '*' ')' { $$=modifiedOrdinaryCall($1,nil,true,false,false,false,nil) }
+ | cast_function '*' ')' { $$=modifiedOrdinaryCall(columnType($1),nil,true,false,false,false,nil) }
+ | cast_function ')' { $$=ordinaryCall(sqllex,columnType($1),nil,$1) }
+ | qualified_call_head ')' { $$=ordinaryCall(sqllex,$1,nil,lexeme{text:$1.Name,pos:$1.Pos}) }
+ | cast_function name EQUALS_GREATER function_argument ')' { call:=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos,CompositeCandidate:true};$$=appendFunctionArgument(call,$4,Identifier{Text:$2.text,Pos:$2.pos}) }
+ | cast_function DISTINCT count_values aggregate_order ')' { $$=modifiedOrdinaryCall(columnType($1),$3,false,true,false,false,$4) }
+ | cast_function ALL count_values aggregate_order ')' { $$=modifiedOrdinaryCall(columnType($1),$3,false,false,true,false,$4) }
+ | qualified_call_head DISTINCT count_values aggregate_order ')' { $$=modifiedOrdinaryCall($1,$3,false,true,false,false,$4) }
+ | qualified_call_head ALL count_values aggregate_order ')' { $$=modifiedOrdinaryCall($1,$3,false,false,true,false,$4) }
+ | cast_function target_or ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$2},false,false,false,false,$5) }
+ | qualified_call_head target_or ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,[]Expr{$2},false,false,false,false,$5) }
+ | cast_function target_or ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),append([]Expr{$2},$4...),false,false,false,false,$7) }
+ | qualified_call_head target_or ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
+ | cast_function function ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$2},false,false,false,false,$5) }
+ | qualified_call_head function ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,[]Expr{$2},false,false,false,false,$5) }
+ | cast_function function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),append([]Expr{$2},$4...),false,false,false,false,$7) }
+ | qualified_call_head function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
+ | cast_function VARIADIC target_or ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$3},false,false,false,true,nil) }
+ | qualified_call_head VARIADIC target_or ')' { $$=modifiedOrdinaryCall($1,[]Expr{$3},false,false,false,true,nil) } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | aggregate_application { $$=$1 }

@@ -110,7 +110,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 		for i, o := range operands {
 			names[i] = functionNamedType(raw, i, datetimeFormattingTypeName(o))
 		}
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid function argument labels")

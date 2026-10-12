@@ -184,7 +184,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 		for i, arg := range args {
 			names[i] = functionNamedType(raw, i, functionArgumentTypeName(raw.Args[i], arg))
 		}
-		return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	if !valid {
 		return nil, signatureError()

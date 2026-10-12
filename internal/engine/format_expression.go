@@ -122,7 +122,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 				names[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	// Retain this occurrence's unresolved type until every child has been
 	// analyzed and the signature selected; a later occurrence may constrain it.

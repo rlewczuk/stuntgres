@@ -6,7 +6,7 @@ import (
 )
 
 func TestReferenceUpdateReturningExcludedMechanismsConsumerRoutes(t *testing.T) {
-	for _, query := range []string{"UPDATE t SET id=2 RETURNING old", "UPDATE t SET id=2 RETURNING (old).*", "UPDATE t SET id=2 FROM t RETURNING id", "INSERT INTO t VALUES(2) RETURNING id", "CREATE TRIGGER change BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
+	for _, query := range []string{"UPDATE t SET id=2 FROM t RETURNING id", "INSERT INTO t VALUES(2) RETURNING id", "CREATE TRIGGER change BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
 		t.Run(query, func(t *testing.T) {
 			p := fixture.NewScenario(t)
 			for _, backend := range p.Backends() {
@@ -34,9 +34,6 @@ func TestReferenceUpdateReturningExcludedMechanismsConsumerRoutes(t *testing.T) 
 					case "INSERT INTO t VALUES(2) RETURNING id":
 						fixture.DeleteReferenceCount(t, result, err, 1)
 						want = [][]any{{int64(1)}, {int64(2)}}
-					default:
-						fixture.DeleteReferenceCount(t, result, err, 1)
-						want = [][]any{{int64(2)}}
 					}
 				}
 				rows, err := db.Query("SELECT id FROM t")

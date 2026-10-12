@@ -16,6 +16,7 @@ type functionFromNode struct {
 	viewOrdinal            int
 	regexpNamespace        bool
 	captures               []functionCorrelation
+	presenceSlot           int
 }
 
 func (*functionFromNode) logicalNode() {}
@@ -206,6 +207,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid function source layout")
 	}
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
+	establishSourcePresence(source, n.presenceSlot)
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 	var invocation functionSetInvocation
 	opened := false
@@ -216,6 +218,8 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 	evaluation.Frame = n.frame
 	if state.invocation != nil && state.invocation.Scope == evaluation.Scope && state.invocation.Frame == n.frame {
 		evaluation.Row = state.invocation.Row
+		evaluation.presenceSlots = state.invocation.presenceSlots
+		evaluation.presence = state.invocation.presence
 		evaluation.queryOccurrences = state.invocation.queryOccurrences
 		evaluation.queryProvenance = state.invocation.queryProvenance
 		evaluation.queryCurrentRows = state.invocation.queryCurrentRows

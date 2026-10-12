@@ -56,7 +56,7 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		}
 		return result
 	}
-	signature := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names()) }
+	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names()) }
 	if !visible || raw.Variadic || (len(operands) != 2 && len(operands) != 3) {
 		return signature()
 	}

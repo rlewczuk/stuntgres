@@ -85,6 +85,16 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		fmt.Fprintf(out, "TransactionTime kind %d", n.kind)
 	case columnExpression:
 		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
+	case rowExpression:
+		fmt.Fprint(out, "Row")
+		for _, field := range n.fields {
+			if err = child(field); err != nil {
+				break
+			}
+		}
+	case fieldExpression:
+		fmt.Fprintf(out, "Field attnum %d", n.attribute)
+		err = child(n.base)
 	case arrayExpression:
 		fmt.Fprint(out, "Array")
 		for _, element := range n.elements {

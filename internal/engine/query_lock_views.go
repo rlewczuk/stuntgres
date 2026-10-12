@@ -476,6 +476,7 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 			frozenIndex = lineage.selection[frozenIndex]
 		}
 		frozen := lineage.stage.row(frozenIndex)
+		child.bindQueryIdentity(lineage.stage, frozenIndex)
 		return recheckLockedQuery(lineage.root, lineage.inputs, rows, &child, scratch, offset, frozen)
 	}
 	return rows[source.occurrence], true, nil
@@ -632,6 +633,8 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	source := child.source
 	if !joined {
 		source = &querySource{anonymous: [][]sqltype.Value{}, materialized: true, occurrences: occurrences, authority: state.source.authority, scope: state.source.scope}
+		source.presenceSlots, source.presenceCount = child.source.presenceSlots, child.source.presenceCount
+		source.presenceConstant = child.source.presenceConstant
 	}
 	source.occurrences = occurrences
 	out := producingStage(&child, child.schema)
@@ -704,6 +707,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 			if !live {
 				continue
 			}
+			evaluation.setQueryPresence(child.source, index)
 			if changed {
 				evaluation.orderValues = child.orderRow(i)
 				offset := 0
@@ -752,6 +756,9 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 				}
 				out.selection = append(out.selection, len(source.anonymous))
 				source.anonymous = append(source.anonymous, row)
+				if source.presenceCount != 0 && len(source.presenceConstant) == 0 {
+					source.presenceFlat = append(source.presenceFlat, child.source.presenceRow(index)...)
+				}
 				source.provenance = append(source.provenance, provenance...)
 				source.versions = append(source.versions, versions...)
 				source.flatCount++

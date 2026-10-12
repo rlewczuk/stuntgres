@@ -139,12 +139,22 @@ func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexe
 		owner.producers[n.cte] = producer
 		owner.order = append(owner.order, producer)
 	}
-	out := indexedStage{source: producer.source, schema: n.Schema(), selection: []int{}}
+	source := producer.source
+	if n.presenceSlot != 0 {
+		// Presence belongs to this reader occurrence, not the shared producer.
+		// Borrow immutable admitted tuples; no row values are copied.
+		source = &querySource{flat: producer.source.flat, flatWidth: producer.source.flatWidth, flatCount: producer.source.flatCount, materialized: true, authority: producer.source.authority, scope: producer.source.scope, locks: producer.source.locks}
+		establishSourcePresence(source, n.presenceSlot)
+	}
+	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		index := len(out.selection)
 		present, err := producer.ensure(ctx, index)
 		if err != nil || !present {
 			return present, err
+		}
+		if source != producer.source {
+			source.flat, source.flatCount = producer.source.flat, producer.source.flatCount
 		}
 		out.selection = append(out.selection, index)
 		return true, nil

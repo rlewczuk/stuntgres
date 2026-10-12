@@ -190,17 +190,3 @@ func TestGroupingSetsProducerChildWholeInputDiagnostics(t *testing.T) {
 		}
 	}
 }
-
-func TestGroupingSetsProducerNestedOrdinaryCallBoundary(t *testing.T) {
-	for _, tc := range []struct{ clause, callee string }{
-		{"ROLLUP(cube(a))", "cube(a)"}, {"CUBE(rollup(a))", "rollup(a)"},
-	} {
-		q := "/*é界*/ SELECT count(*) FROM t GROUP BY " + tc.clause
-		statements, err := Parse(q)
-		var got *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "functions are unsupported", Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, tc.callee)]) + 1)}
-		if len(statements) != 0 || !errors.As(err, &got) || *got != want {
-			t.Fatal(q, statements, got, err, want)
-		}
-	}
-}

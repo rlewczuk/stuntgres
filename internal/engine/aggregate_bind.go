@@ -27,7 +27,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	if checkDefinitionEquality {
 		leftUsage.Collation.Derivation = rightUsage.Collation.Derivation
 	}
-	if leftUsage != rightUsage || a.CollationIndeterminate() != other.CollationIndeterminate() || !checkDefinitionEquality && (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
+	if !sameRecordUsage(leftUsage, rightUsage) || a.CollationIndeterminate() != other.CollationIndeterminate() || !checkDefinitionEquality && (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
 		return false
 	}
 	same := b.sameGroupExpression
@@ -146,6 +146,20 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case parameterExpression:
 		o, ok := other.(parameterExpression)
 		return ok && e.number == o.number
+	case rowExpression:
+		o, ok := other.(rowExpression)
+		if !ok || len(e.fields) != len(o.fields) || (e.wholeNames == nil) != (o.wholeNames == nil) || e.wholeName != o.wholeName || e.wholeSource != o.wholeSource || e.presenceSlot != o.presenceSlot || e.presenceFrame != o.presenceFrame || e.returningWhole != o.returningWhole || e.returningNull != o.returningNull {
+			return false
+		}
+		for i, field := range e.fields {
+			if !same(field, o.fields[i]) {
+				return false
+			}
+		}
+		return true
+	case fieldExpression:
+		o, ok := other.(fieldExpression)
+		return ok && e.attribute == o.attribute && same(e.base, o.base)
 	case arrayExpression:
 		o, ok := other.(arrayExpression)
 		if !ok || e.multidimensional != o.multidimensional || len(e.elements) != len(o.elements) {
@@ -584,6 +598,20 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.pos)
 		}
 		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
+	case rowExpression:
+		e, _, err = mapRow(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			next := rewrite(old)
+			return next, !b.sameGroupExpression(old, next), err
+		})
+		if err != nil {
+			return nil, err
+		}
+		stage(&e.expressionInfo)
+		expr = e
+	case fieldExpression:
+		e.base = rewrite(e.base)
+		stage(&e.expressionInfo)
+		expr = e
 	case arrayExpression:
 		e.elements = append([]BoundExpr(nil), e.elements...)
 		for i, element := range e.elements {
@@ -908,6 +936,12 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	}
 	switch e := expr.(type) {
+	case rowExpression:
+		for _, field := range e.fields {
+			walk(field)
+		}
+	case fieldExpression:
+		walk(e.base)
 	case arrayExpression:
 		for _, element := range e.elements {
 			walk(element)

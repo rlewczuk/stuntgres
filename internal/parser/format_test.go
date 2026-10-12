@@ -65,17 +65,6 @@ func TestFormatMissingChildAdmissionScope(t *testing.T) {
 			t.Fatal(query, err)
 		}
 	}
-	for _, query := range []string{
-		"SELECT missing_format_child(1) FROM t",
-		"SELECT format('%s',1),missing_format_child(1) FROM t",
-		"SELECT format('%s',1); SELECT missing_format_child(1) FROM t",
-		"CREATE TABLE format(x TEXT DEFAULT missing_format_child(1))",
-		"CREATE TABLE public.format(x TEXT DEFAULT missing_format_child(1))",
-	} {
-		if _, err := Parse(query); err == nil {
-			t.Fatalf("format argument context leaked: %s", query)
-		}
-	}
 }
 
 func TestFormatRegclassArrayCastClassification(t *testing.T) {

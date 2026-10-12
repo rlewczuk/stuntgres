@@ -35,7 +35,7 @@ func (b *expressionBinder) finishStringNumericBase(raw parser.FunctionExpr, visi
 				names[i] = d.DiagnosticName()
 			}
 		}
-		return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, names, matches > 1)
+		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, matches > 1)
 	}
 	arg, err := b.finalizeOperand(operands[0], target)
 	if err != nil {

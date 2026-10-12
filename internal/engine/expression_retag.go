@@ -10,11 +10,12 @@ import (
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
 func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (BoundExpr, bool, error) {
+	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
 		if (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) {
 			return root, nil
 		}
-		return remapViewQuery(view, root, func(ref ObjectRef) ObjectRef { return ref }, retainedType, collations...)
+		return remapViewQueryMapped(view, root, func(ref ObjectRef) ObjectRef { return ref }, retainedType, collations...)
 	}, collations...)
 }
 
@@ -45,6 +46,9 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	}
 	info := boundExpressionInfo(node)
 	typ := retainedType(info.usage.Type)
+	if typ == nil && info.usage.Type != nil {
+		return nil, false, fmt.Errorf("stuntgres: invalid remapped expression type")
+	}
 	changed := typ != info.usage.Type
 	info.usage.Type = typ
 	var err error
@@ -84,6 +88,27 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		changed = changed || replaced
 		return next
 	}
+	children := func(old []BoundExpr) []BoundExpr {
+		var args []BoundExpr
+		for i, arg := range old {
+			next, replaced, failure := mapBoundExpression(view, arg, retainedType, queryMapper, leaf, collations...)
+			if failure != nil {
+				err = failure
+				return old
+			}
+			changed = changed || replaced
+			if replaced {
+				if args == nil {
+					args = append([]BoundExpr(nil), old...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			return args
+		}
+		return old
+	}
 	var rebound BoundExpr
 	switch n := node.(type) {
 	case regexpExpression:
@@ -114,6 +139,27 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		return mapViewQualification(n, func(child BoundExpr) (BoundExpr, bool, error) {
 			return mapBoundExpression(view, child, retainedType, queryMapper, leaf, collations...)
 		})
+	case rowExpression:
+		var replaced bool
+		n, replaced, err = mapRowAnalysis(n, func(old BoundExpr) (BoundExpr, bool, error) {
+			return mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
+		})
+		changed = changed || replaced
+		n.expressionInfo = info
+		rebound = n
+	case fieldExpression:
+		n.base = child(n.base)
+		if err != nil {
+			return nil, false, err
+		}
+		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: retired remapped field")
+		}
+		changed = changed || index != n.index
+		n.index = index
+		n.expressionInfo = info
+		rebound = n
 	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range n.elements {
@@ -221,10 +267,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case deparseExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
+		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
 	case uuidGenerationExpression:
@@ -243,19 +286,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case randomExpression:
-		var args []BoundExpr
-		for i, old := range n.args {
-			next := child(old)
-			if changed && args == nil {
-				args = append([]BoundExpr(nil), n.args...)
-			}
-			if args != nil {
-				args[i] = next
-			}
-		}
-		if args != nil {
-			n.args = args
-		}
+		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
 	case datetimeSleepExpression:
@@ -269,19 +300,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case advisoryExpression:
-		var args []BoundExpr
-		for i, old := range n.args {
-			next := child(old)
-			if changed && args == nil {
-				args = append([]BoundExpr(nil), n.args...)
-			}
-			if args != nil {
-				args[i] = next
-			}
-		}
-		if args != nil {
-			n.args = args
-		}
+		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
 	case parameterExpression:
@@ -351,6 +370,9 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case *windowExpression:
+		if !changed {
+			return node, false, nil
+		}
 		copy := *n
 		copy.expressionInfo = info
 		rebound = &copy
@@ -362,21 +384,20 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case sequenceCallExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
+		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
 	case binaryExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		var usages [4]sqltype.Usage
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-			usages[i] = n.args[i].ResultUsage()
-		}
+		n.args = children(n.args)
 		if err != nil {
 			return node, false, err
+		}
+		var usages [4]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return node, false, fmt.Errorf("stuntgres: invalid remapped binary argument")
+			}
+			usages[i] = arg.ResultUsage()
 		}
 		if !changed {
 			return node, false, nil
@@ -556,14 +577,16 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case stringExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		var usages [4]sqltype.Usage
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-			usages[i] = n.args[i].ResultUsage()
-		}
+		n.args = children(n.args)
 		if err != nil {
 			return node, false, err
+		}
+		var usages [4]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return node, false, fmt.Errorf("stuntgres: invalid remapped string argument")
+			}
+			usages[i] = arg.ResultUsage()
 		}
 		text := n.plan.TextUsage()
 		text.Type = retainedType(text.Type)
@@ -580,46 +603,37 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case enumFunctionExpression:
-		var args []BoundExpr
-		var usages [2]sqltype.Usage
-		for i, old := range n.args {
-			next, replaced, failure := retagBoundTypesWithQuery(view, old, retainedType, queryMapper, collations...)
-			if failure != nil {
-				return node, false, failure
-			}
-			changed = changed || replaced
-			if replaced {
-				if args == nil {
-					args = append([]BoundExpr(nil), n.args...)
-				}
-				args[i] = next
-			}
-			usages[i] = next.ResultUsage()
-		}
+		n.args = children(n.args)
 		if err != nil {
 			return node, false, err
 		}
 		if !changed {
 			return node, false, nil
 		}
-		if args != nil {
-			n.args = args
+		var usages [2]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return node, false, fmt.Errorf("stuntgres: invalid remapped enum argument")
+			}
+			usages[i] = arg.ResultUsage()
 		}
 		n.plan, err = sqltype.BindEnumSupport(n.plan.Name(), info.usage, usages[:len(n.args)]...)
 		n.expressionInfo = info
 		rebound = n
 	case mathExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		var usages [2]sqltype.Usage
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-			usages[i] = n.args[i].ResultUsage()
-		}
+		n.args = children(n.args)
 		if err != nil {
 			return node, false, err
 		}
 		if !changed {
 			return node, false, nil
+		}
+		var usages [2]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return node, false, fmt.Errorf("stuntgres: invalid remapped math argument")
+			}
+			usages[i] = arg.ResultUsage()
 		}
 		n.plan, err = sqltype.BindMath(n.plan.Name(), info.usage, usages[:len(n.args)]...)
 		n.expressionInfo = info
@@ -629,17 +643,11 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case commentInquiryExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
+		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
 	case nullCountExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
+		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
 	case stringVariadicExpression:
@@ -653,10 +661,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case formatExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
+		n.args = children(n.args)
 		int4 := retainedType(n.int4)
 		changed = changed || int4 != n.int4
 		n.int4 = int4
@@ -1013,6 +1018,9 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	if !changed {
+		return node, false, nil
 	}
 	return rebound, true, nil
 }

@@ -857,9 +857,15 @@ type InsertConflict struct {
 }
 
 type InsertTarget struct {
-	Name       string
-	Pos        Position
-	Subscripts []ArraySubscript
+	Name  string
+	Pos   Position
+	Steps []TargetStep
+}
+
+// A target path retains field/subscript order, including adjacent dimensions.
+type TargetStep struct {
+	Field     *Identifier
+	Subscript *ArraySubscript
 }
 
 func (*Insert) statement() {}
@@ -963,10 +969,9 @@ type Update struct {
 	Pos         Position
 }
 type UpdateAssignment struct {
-	Target      Identifier
-	Indirection []Identifier
-	Subscripts  []ArraySubscript
-	Value       Expr
+	Target Identifier
+	Steps  []TargetStep
+	Value  Expr
 }
 
 func (*Update) statement() {}
@@ -1283,7 +1288,7 @@ func singletonArgument(expr Expr) bool {
 		if len(e.Name.Parts) < 1 || len(e.Name.Parts) > 2 {
 			return false
 		}
-		if !e.ResolutionOnly {
+		if !e.ResolutionOnly && !e.CompositeCandidate {
 			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "format":
 			case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
@@ -1652,13 +1657,14 @@ type FunctionExpr struct {
 	Args []Expr
 	// ArgNames is nil for positional calls; zero entries mark positional arguments.
 	// Args and labels always retain written order, independently of bound slots.
-	ArgNames       []Identifier
-	Pos            Position
-	Variadic       bool
-	ResolutionOnly bool // Absent ordinary call: diagnostics, never provider dispatch.
-	Syntax         FunctionSyntax
-	StringSyntax   StringSyntax
-	Window         *WindowSpec
+	ArgNames           []Identifier
+	Pos                Position
+	Variadic           bool
+	ResolutionOnly     bool // Absent ordinary call: diagnostics, never provider dispatch.
+	CompositeCandidate bool // Otherwise-unselected call; only typed composite resolution is admitted.
+	Syntax             FunctionSyntax
+	StringSyntax       StringSyntax
+	Window             *WindowSpec
 	// Selected time providers retain modifiers only for ordinary-function
 	// diagnostics; these fields never authorize aggregate/window execution.
 	Star     bool

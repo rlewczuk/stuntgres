@@ -8,7 +8,8 @@ import (
 )
 
 type joinNode struct {
-	viewOrdinal int
+	viewOrdinal  int
+	presenceSlot int
 	querySchema
 	kind                  parser.JoinKind
 	left, right           LogicalNode
@@ -86,7 +87,9 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		return indexedStage{}, err
 	}
 	right := indexedStage{source: &querySource{flatWidth: n.rightWidth, materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.right.Schema(), selection: []int{}}
-	if !n.correlatedRight {
+	if n.correlatedRight {
+		establishDeferredPresence(right.source, n.right)
+	} else {
 		right, err = openQueryNode(ctx, state, n.right)
 		if err != nil {
 			left.Close()
@@ -128,11 +131,23 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		return indexedStage{}, fmt.Errorf("stuntgres: missing inherited function invocation frame")
 	}
 	var correlationRow []sqltype.Value
+	var correlationMoves []presenceCopy
+	var correlationPresence []bool
 	correlation := state.evaluation(nil)
 	if n.correlatedRight {
 		correlationRow = make([]sqltype.Value, n.correlationPrefix+n.leftWidth)
 		correlation.Frame = n.frame
 		correlation.Row = correlationRow
+		correlation.presenceSlots = left.source.presenceSlots
+		if n.correlationPrefix > 0 {
+			// Prefix and local-left slots share the bound query frame but
+			// may have different packed indices. Compile their union once.
+			prefix := querySource{presenceSlots: state.invocation.presenceSlots}
+			layout := querySource{}
+			correlationMoves, correlationPresence = joinPresence(&layout, &prefix, left.source, 0)
+			correlation.presenceSlots = layout.presenceSlots
+			correlation.presence = correlationPresence
+		}
 	}
 	invocation := *state
 	if n.correlatedRight {
@@ -141,6 +156,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	rightIdentity := false
 	frame := make([]sqltype.Value, width)
 	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
+	presenceMoves, presence := joinPresence(source, left.source, right.source, n.presenceSlot)
 	locking := state.locking || state.source.locks.rowMarked()
 	identity := locking || state.virtualReads
 	if identity {
@@ -176,6 +192,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			evaluation.queryProvenance = appendQueryProvenance(evaluation.queryProvenance, right.source, ri)
 		}
 	}
+	evaluation.presenceSlots, evaluation.presence = source.presenceSlots, presence
 	leftOccurrence, rightOccurrence := -1, 0
 	leftMatched, tail := false, false
 	var rightMatched []bool
@@ -189,6 +206,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	emit := func(ctx context.Context, out *indexedStage, li, ri int) (bool, error) {
 		evaluation.setContext(ctx)
 		bindIdentity(li, ri)
+		fillJoinPresence(presence, presenceMoves, left.source.presenceRow(li), right.source.presenceRow(ri))
 		for k, expr := range n.merges {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
@@ -200,10 +218,11 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			frame[n.leftWidth+n.rightWidth+k] = value
 		}
 		maxInt := int(^uint(0) >> 1)
-		if source.flatCount == maxInt || len(source.flat) > maxInt-width {
+		if source.flatCount == maxInt || len(source.flat) > maxInt-width || len(source.presenceFlat) > maxInt-len(presence) {
 			return false, fmt.Errorf("stuntgres: join result is too large")
 		}
 		source.flat = append(source.flat, frame...)
+		source.presenceFlat = append(source.presenceFlat, presence...)
 		if identity {
 			source.provenance = append(source.provenance, evaluation.queryProvenance...)
 		}
@@ -253,6 +272,11 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 							copy(correlationRow, state.invocation.Row[:n.correlationPrefix])
 						}
 						copy(correlationRow[n.correlationPrefix:], row)
+						if n.correlationPrefix > 0 {
+							fillJoinPresence(correlationPresence, correlationMoves, state.invocation.presence, left.source.presenceRow(left.index(i)))
+						} else {
+							correlation.presence = left.source.presenceRow(left.index(i))
+						}
 						if identity {
 							correlation.queryOccurrences = correlation.queryOccurrences[:0]
 							correlation.queryProvenance = correlation.queryProvenance[:0]
@@ -317,6 +341,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 			}
 			evaluation.setContext(ctx)
 			bindIdentity(left.index(leftOccurrence), right.index(j))
+			fillJoinPresence(presence, presenceMoves, left.source.presenceRow(left.index(leftOccurrence)), right.source.presenceRow(right.index(j)))
 			if n.predicate != nil {
 				matches, err := updateMatches(&evaluation, n.predicate)
 				if err != nil {

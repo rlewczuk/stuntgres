@@ -11,12 +11,13 @@ import (
 // Its output is execution-private; it never owns captured relation pins.
 type derivedNode struct {
 	querySchema
-	query     *BoundQuery
-	cte       *cteDefinition
-	table     *parser.TableReference
-	ordinal   int
-	scanFrame uint32
-	demand    []bool
+	query        *BoundQuery
+	cte          *cteDefinition
+	table        *parser.TableReference
+	ordinal      int
+	scanFrame    uint32
+	demand       []bool
+	presenceSlot int
 }
 
 func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
@@ -33,6 +34,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		return indexedStage{}, err
 	}
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
+	establishSourcePresence(source, n.presenceSlot)
 	if state.source.locks != nil {
 		source.lineage = &queryLockLineage{root: project, inputs: state.source, stage: inner.source, state: innerState}
 	}

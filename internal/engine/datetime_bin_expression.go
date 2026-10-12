@@ -50,7 +50,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		for i, o := range operands {
 			names[i] = datetimeFormattingTypeName(o)
 		}
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	if !visible || raw.Variadic || len(operands) != 3 {
 		return signature()

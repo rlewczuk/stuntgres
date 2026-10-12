@@ -164,12 +164,39 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if u.Collation.ID != 0 {
 		r.recordStoredCollation(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}}, u.Collation)
 	}
-	typ, ok := view.LookupType(u.Type.ID())
-	if !ok || typ != u.Type {
+	if !validExpressionUsage(view, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
 	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
+	case rowExpression:
+		parts := make([]string, len(n.fields))
+		for i, field := range n.fields {
+			text, err := r.sql(ctx, view, field)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		text := "ROW(" + strings.Join(parts, ", ") + ")"
+		if u.Type.ID() != 2249 {
+			declaration, err := catalogTypeDeclaration(view, u)
+			if err != nil {
+				return "", err
+			}
+			text = "(" + text + ")::" + declaration
+		}
+		return text, nil
+	case fieldExpression:
+		text, err := r.sql(ctx, view, n.base)
+		if err != nil {
+			return "", err
+		}
+		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: retired field in stored expression")
+		}
+		return "(" + text + ")." + pgIdentifier(n.base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case arrayExpression:
 		return r.arraySQL(ctx, view, n)
 	case subscriptExpression:

@@ -876,23 +876,56 @@ by name after lifetime replacement.
 Standalone composites additionally support [typed-table attachment and attribute
 lifecycle](TABLES.md#typed-tables--change-note), including grouped DROP TYPE.
 
-INSERT RETURNING additionally constructs actual named logical target composites
-for bare visible target/OLD/NEW aliases, after same-named column lookup. Absent OLD
-is SQL NULL; present all-NULL/zero-member NEW retains its actual named descriptor
-and canonical `(,)`/`()` representation. View/partition outputs use the logical
+INSERT RETURNING constructs actual named logical target composites for bare
+visible target/OLD/NEW aliases, after same-named column lookup. Absent OLD is SQL
+NULL; present all-NULL/zero-member NEW retains its actual named descriptor and
+canonical `(,)`/`()` representation. View/partition outputs use the logical
 target rowtype, not a physical base/leaf substitute. Member dependencies and
 SELECT rights are retained even for an absent OLD, and eager metadata/values
-remain captured across native replacement. This bounded output provider does
-not add whole-row UPDATE/DELETE expressions or the generic operators below.
+remain captured across native replacement.
 
-ROW constructors, field extraction/expansion/assignment, comparisons/hashing/key
-operations, enum/base-type DROP and other unsupported type lifecycle remain excluded.
+Comparisons/hashing/key operations, enum/base-type DROP and other unsupported
+type lifecycle remain excluded.
 Recognized `DROP TYPE` targeting an enum or base type retains native0A000
 `statement is unsupported` at the statement's character position; accepting the
 bounded composite DROP syntax does not enable enum/base-type DROP.
 Verification selectors (900 seconds per invocation):
 `make check RUN='^TestReferenceComposite'`
 and `make check REFERENCE=1 RUN='^TestReferenceComposite'`.
+
+### Composite expressions — change note
+
+`ROW(...)`, including `ROW()` and a single child, creates an occurrence-owned
+anonymous RECORD (OID2249, lookup-only array2287), with fields `f1`, `f2`, ....
+Parenthesized multi-expression row syntax shares this path. Anonymous shapes may
+have1664 fields; named catalog/storage shapes retain their1600-member limit.
+Nested anonymous shapes share a SQL OID, not a descriptor or catalog identity.
+Named assignment/explicit casts resolve each member using its own destination
+usage, preserving typmods, collations and domain wrappers. Equal-shaped named
+types remain distinct; this adds no scalar cast edges or generic RECORD storage.
+
+Stable member extraction returns the member's declared usage. A NULL base yields
+typed NULL. Nonrecursive `IS NULL` accepts whole NULL or all-NULL immediate fields;
+`IS NOT NULL` requires whole nonNULL and all immediate fields nonNULL. Mixed rows
+make both false, and the present zero-field row makes both true. NULL-count
+functions count a composite as one argument, not as its constituent fields.
+Whole-row references preserve source-occurrence absence independently of cells
+or width: an emitted all-NULL/zero-field source is nonNULL; an absent outer-join
+source is whole NULL. `ROW(source.*)` reconstructs a present row from its fields.
+
+Anonymous outputs export canonical record strings/string ScanType natively and
+raw []byte/interface{} ScanType through pinned pq, with DatabaseTypeName RECORD.
+Their Nullable, Length and DecimalSize are unknown. Named composite transport
+above is unchanged. All children are analyzed/preflighted even when runtime
+field selection avoids an unused constructor child.
+
+Comparisons/hashing/key operations and composite arrays remain excluded.
+Frozen stored expansion emits explicit stable
+members rather than a wildcard, and replacement recursively reowns both runtime
+shapes and occurrence-capture authority.
+Selected smoke (900 seconds each):
+`make check RUN='^TestReferenceCompositeExprFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceCompositeExprFeatureSmoke$'`.
 
 ## Enums — change note
 

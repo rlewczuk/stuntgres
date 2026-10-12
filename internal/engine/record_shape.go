@@ -1,0 +1,91 @@
+package engine
+
+import "stuntgres/internal/sqltype"
+
+// Anonymous record shapes are occurrence authorities, not catalog providers.
+// Every concrete leaf still belongs to the current catalog generation.
+func validExpressionUsage(view CatalogRead, usage sqltype.Usage) bool {
+	if !usage.Valid() || validateUsageCollation(view, usage) != nil {
+		return false
+	}
+	typ := usage.Type
+	if typ.ID() == 2249 && typ.IsComposite() {
+		for i := range typ.CompositeLen() {
+			if !validExpressionUsage(view, typ.CompositeMember(i).Usage) {
+				return false
+			}
+		}
+		return true
+	}
+	current, ok := view.LookupType(typ.ID())
+	return ok && current == typ
+}
+
+// One memoized mapping is shared by a complete tree transformation. Equal OIDs
+// never merge distinct record occurrences, including nested anonymous records.
+func recordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) func(*sqltype.Descriptor) *sqltype.Descriptor {
+	var records map[*sqltype.Descriptor]*sqltype.Descriptor
+	var mapType func(*sqltype.Descriptor) *sqltype.Descriptor
+	mapType = func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if old == nil || old.ID() != 2249 || !old.IsComposite() {
+			return leaf(old)
+		}
+		if mapped, ok := records[old]; ok {
+			return mapped
+		}
+		var members []sqltype.CompositeMember
+		for i := range old.CompositeLen() {
+			member := old.CompositeMember(i)
+			mapped := mapType(member.Usage.Type)
+			mappedCollation := member.Usage.Collation
+			if len(collations) != 0 && collations[0] != nil {
+				var err error
+				mappedCollation, err = collations[0](mappedCollation)
+				if err != nil {
+					return nil
+				}
+			}
+			if mapped != member.Usage.Type || mappedCollation != member.Usage.Collation {
+				if members == nil {
+					members = make([]sqltype.CompositeMember, old.CompositeLen())
+					for j := range members {
+						members[j] = old.CompositeMember(j)
+					}
+				}
+				member.Usage.Type = mapped
+				member.Usage.Collation = mappedCollation
+				members[i] = member
+			}
+		}
+		mapped := old
+		if members != nil {
+			var err error
+			mapped, err = sqltype.RecordShape(members)
+			if err != nil {
+				return nil
+			}
+		}
+		if records == nil {
+			records = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
+		}
+		records[old] = mapped
+		return mapped
+	}
+	return mapType
+}
+
+func sameRecordUsage(left, right sqltype.Usage) bool {
+	if left == right {
+		return true
+	}
+	if left.Type == nil || right.Type == nil || left.Type.ID() != 2249 || right.Type.ID() != 2249 || !left.Type.IsComposite() || !right.Type.IsComposite() || left.Typmod != right.Typmod || left.Collation != right.Collation || left.Type.CompositeLen() != right.Type.CompositeLen() {
+		return false
+	}
+	for i := range left.Type.CompositeLen() {
+		a, b := left.Type.CompositeMember(i), right.Type.CompositeMember(i)
+		if a.Attribute != b.Attribute || a.Name != b.Name || !sameRecordUsage(a.Usage, b.Usage) {
+			return false
+		}
+	}
+	return true
+}

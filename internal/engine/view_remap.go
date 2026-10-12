@@ -55,6 +55,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			return nil, fmt.Errorf("stuntgres: invalid contextual view output")
 		}
 		next = n
+	case rowExpression:
+		n, _, err = mapRowAnalysis(n, func(old BoundExpr) (BoundExpr, bool, error) { next := child(old); return next, true, err })
+		next = n
+	case fieldExpression:
+		n.base = child(n.base)
+		next = n
 	case arrayExpression:
 		n.elements = args(n.elements)
 		next = n
@@ -367,6 +373,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 }
 
 func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+	typ = recordTypeMapper(typ, collations...)
+	return remapViewQueryMapped(view, node, ref, typ, collations...)
+}
+
+func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	var collation collationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
@@ -495,7 +506,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		for i, row := range n.rows {
 			rows[i] = expressions(row)
 		}
-		next = &valuesNode{querySchema: schema, rows: rows, viewOrdinal: n.viewOrdinal, identityOrderDemand: append([]bool(nil), n.identityOrderDemand...)}
+		next = &valuesNode{querySchema: schema, rows: rows, viewOrdinal: n.viewOrdinal, identityOrderDemand: append([]bool(nil), n.identityOrderDemand...), presenceSlot: n.presenceSlot}
 	case *limitNode:
 		copy := &limitNode{querySchema: schema, child: child(n.child), offset: expression(n.offset), count: expression(n.count), withTies: n.withTies, presenceOnly: n.presenceOnly}
 		if err == nil {
@@ -507,9 +518,9 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	case *rowLockNode:
 		next = &rowLockNode{querySchema: schema, child: child(n.child), marks: n.marks, firstMode: n.firstMode}
 	case *sourceNode:
-		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence}
+		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence, presenceSlot: n.presenceSlot}
 	case *joinNode:
-		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal, correlatedRight: n.correlatedRight, frame: n.frame, correlationPrefix: n.correlationPrefix, captures: n.captures}
+		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal, correlatedRight: n.correlatedRight, frame: n.frame, correlationPrefix: n.correlationPrefix, captures: n.captures, presenceSlot: n.presenceSlot}
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
 	case *derivedNode:
@@ -762,6 +773,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 // Ordinary descriptor renaming reowns only consumers of changed type
 // generations; replacement additionally remaps every imported object reference.
 func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+	typ = recordTypeMapper(typ)
 	changed := false
 	expression := func(node BoundExpr) {
 		walkQueryArgumentExpression(node, func(child BoundExpr) {
@@ -786,6 +798,9 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 				changed = changed || queryDescriptorsChanged(condition.presentation.query.Root, typ)
 				for _, usage := range condition.presentation.castUsages {
 					changed = changed || usage.Type != typ(usage.Type)
+				}
+				for _, captured := range condition.presentation.composites {
+					changed = changed || captured.base.Type != typ(captured.base.Type)
 				}
 			}
 		}
@@ -823,6 +838,9 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 	if d.view != nil {
 		for _, usage := range d.view.castUsages {
 			changed = changed || usage.Type != typ(usage.Type)
+		}
+		for _, captured := range d.view.composites {
+			changed = changed || captured.base.Type != typ(captured.base.Type)
 		}
 		for _, literal := range d.view.literals {
 			expression(literal)

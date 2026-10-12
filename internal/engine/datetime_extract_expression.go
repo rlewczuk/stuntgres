@@ -75,7 +75,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		return result
 	}
 	signature := func() (BoundExpr, error) {
-		return nil, functionSignatureErrorForTypes(diagnosticName, raw.Pos, names())
+		return nil, b.functionSignatureErrorForTypes(diagnosticName, raw.Pos, names())
 	}
 	if !visible || raw.Variadic || len(operands) != 2 {
 		return signature()

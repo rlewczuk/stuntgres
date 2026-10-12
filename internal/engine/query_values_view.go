@@ -76,13 +76,18 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog CatalogRead, sourc
 	v.slots[root] = slots
 	rows := make([]string, len(source.Rows))
 	for i, row := range source.Rows {
-		cells := make([]string, len(row))
+		cells := make([]string, 0, len(row))
 		for j, raw := range row {
 			text, err := v.expressionSQL(ctx, catalog, raw, viewLiteralPath{clause: viewValuesCellLiteral, source: occurrence, row: i, target: j})
 			if err != nil {
 				return "", err
 			}
-			cells[j] = text
+			if text != "" {
+				cells = append(cells, text)
+			}
+		}
+		if len(cells) == 0 {
+			cells = append(cells, "(ROW()).*")
 		}
 		rows[i] = "(" + strings.Join(cells, ", ") + ")"
 	}
@@ -133,10 +138,10 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog CatalogRead, sourc
 	return text, nil
 }
 
-func (v *viewDefinition) validateValuesLiterals(catalog CatalogRead, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns *int) error {
+func (v *viewDefinition) validateValuesLiterals(catalog CatalogRead, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns, composites *int) error {
 	validate := func(raw parser.Expr, clause viewLiteralClause, row, column int) error {
 		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, source: occurrence, row: row, target: column}, &ordinal, count, columns)
+		return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, source: occurrence, row: row, target: column}, &ordinal, count, columns, composites)
 	}
 	for i, row := range source.Rows {
 		for j, raw := range row {

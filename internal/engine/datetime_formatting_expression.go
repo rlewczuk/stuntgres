@@ -59,7 +59,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 				names[i] = d.DiagnosticName()
 			}
 		}
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	numeric := func(id sqltype.ID) bool {
 		return id == sqltype.Int2 || id == sqltype.Int4 || id == sqltype.Int8 || id == sqltype.Numeric || id == sqltype.Float4 || id == sqltype.Float8

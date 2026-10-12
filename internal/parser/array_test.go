@@ -97,7 +97,7 @@ func TestArrayExpressionAST(t *testing.T) {
 	}
 	insert := statements[0].(*Insert)
 	update := statements[1].(*Update)
-	if len(insert.Targets[0].Subscripts) != 1 || !insert.Targets[1].Subscripts[0].Slice || len(update.Assignments[0].Subscripts) != 1 || update.Assignments[1].Subscripts[0].Lower != nil {
+	if len(insert.Targets[0].Steps) != 1 || !insert.Targets[1].Steps[0].Subscript.Slice || len(update.Assignments[0].Steps) != 1 || update.Assignments[1].Steps[0].Subscript.Lower != nil {
 		t.Fatal(insert, update)
 	}
 	for _, query := range []string{"SELECT ARRAY[1,2][1] FROM t", "SELECT a[1:] garbage garbage FROM t", "INSERT INTO t(a[1]) VALUES(7) junk"} {

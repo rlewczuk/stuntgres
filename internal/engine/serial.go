@@ -67,11 +67,23 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 	return nil
 }
 
-// Only a fixed nextval leaf and its assignment/cast wrappers may be volatile.
+// Only fixed nextval leaves remain volatile inside constructor/field/cast wrappers.
 func closedSequenceDefault(node BoundExpr) bool {
+	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
+		return false
+	}
 	switch n := node.(type) {
 	case coercionExpression:
 		return closedSequenceDefault(n.child)
+	case rowExpression:
+		for _, field := range n.fields {
+			if field.Properties().Volatility > Stable && !closedSequenceDefault(field) {
+				return false
+			}
+		}
+		return true
+	case fieldExpression:
+		return closedSequenceDefault(n.base)
 	case sequenceCallExpression:
 		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility: Volatile}) {
 			return false
@@ -95,6 +107,15 @@ func closedRegclassDefault(node BoundExpr) bool {
 		return true
 	case coercionExpression:
 		return closedRegclassDefault(n.child)
+	case rowExpression:
+		for _, field := range n.fields {
+			if !closedRegclassDefault(field) {
+				return false
+			}
+		}
+		return true
+	case fieldExpression:
+		return closedRegclassDefault(n.base)
 	case arrayExpression:
 		for _, element := range n.elements {
 			if !closedRegclassDefault(element) {

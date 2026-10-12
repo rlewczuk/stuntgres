@@ -64,7 +64,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		names[i] = functionNamedType(raw, i, names[i])
 	}
 	if !valid || selected == nil {
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	args := make([]BoundExpr, len(operands))
 	switch {

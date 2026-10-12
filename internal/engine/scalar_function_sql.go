@@ -215,6 +215,16 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		} else if n.kind != countNulls {
 			return "", fmt.Errorf("stuntgres: invalid stored null count")
 		}
+		if n.dotBuiltin {
+			if len(n.args) != 1 {
+				return "", fmt.Errorf("stuntgres: invalid stored dot builtin signature")
+			}
+			base, err := r.sql(ctx, view, n.args[0])
+			if err != nil {
+				return "", err
+			}
+			return "(" + base + ")." + pgIdentifier(name), nil
+		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
 	case stringVariadicExpression:
 		parts := make([]string, len(n.args))

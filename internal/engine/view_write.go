@@ -376,8 +376,8 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 	graft := func(root LogicalNode, mapper func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error) {
 		return w.graftQuery(b, auth.catalog, root, mapper)
 	}
-	lower := func(expr BoundExpr) (BoundExpr, error) {
-		next, _, err := rewriteViewExpression(auth.catalog, expr, func(n BoundExpr) (BoundExpr, bool, error) {
+	lowerMapped := func(expr BoundExpr) (BoundExpr, bool, error) {
+		return rewriteViewExpression(auth.catalog, expr, func(n BoundExpr) (BoundExpr, bool, error) {
 			switch n.(type) {
 			case subqueryExpression:
 				b.subqueryDemand = true
@@ -420,7 +420,32 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 			return n, false, nil
 		}, graft)
+	}
+	lower := func(expr BoundExpr) (BoundExpr, error) {
+		next, _, err := lowerMapped(expr)
 		return next, err
+	}
+	// Every bound in a mixed field/array path uses the physical write frame.
+	// Preserve unchanged plans and copy only the ancestry of a lowered bound.
+	var lowerTarget func(*arrayAssignmentTarget) (*arrayAssignmentTarget, error)
+	lowerTarget = func(target *arrayAssignmentTarget) (*arrayAssignmentTarget, error) {
+		if target == nil {
+			return nil, nil
+		}
+		node, changed, err := mapSubscript(target.node, lowerMapped)
+		if err != nil {
+			return nil, err
+		}
+		next, err := lowerTarget(target.next)
+		if err != nil {
+			return nil, err
+		}
+		if !changed && next == target.next {
+			return target, nil
+		}
+		copy := *target
+		copy.node, copy.next = node, next
+		return &copy, nil
 	}
 	var err error
 	if _, inserting := stmt.(*parser.Insert); !inserting {
@@ -451,18 +476,21 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 		}
 		if len(u.arrayTargets) != 0 {
-			u.arrayTargets = append([]*arrayAssignmentTarget(nil), u.arrayTargets...)
+			var replacements []*arrayAssignmentTarget
 			for i, target := range u.arrayTargets {
-				if target == nil {
-					continue
-				}
-				node, _, failure := mapSubscript(target.node, func(x BoundExpr) (BoundExpr, bool, error) { next, err := lower(x); return next, true, err })
+				next, failure := lowerTarget(target)
 				if failure != nil {
 					return failure
 				}
-				copy := *target
-				copy.node = node
-				u.arrayTargets[i] = &copy
+				if next != target {
+					if replacements == nil {
+						replacements = append([]*arrayAssignmentTarget(nil), u.arrayTargets...)
+					}
+					replacements[i] = next
+				}
+			}
+			if replacements != nil {
+				u.arrayTargets = replacements
 			}
 		}
 		u.predicate, err = lower(u.predicate)

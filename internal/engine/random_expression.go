@@ -116,7 +116,7 @@ func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []Bound
 			types[i] = arg.ResultUsage().Type.DiagnosticName()
 		}
 	}
-	return functionResolutionErrorForTypes(raw.Name, raw.Pos, types, ambiguous)
+	return b.functionResolutionErrorForTypes(raw.Name, raw.Pos, types, ambiguous)
 }
 
 func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {

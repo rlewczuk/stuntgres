@@ -121,7 +121,7 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 	var names []string
 	if len(raw.Args) != 0 {
 		var err error
-		names, err = b.functionArgumentTypeNames(raw)
+		names, _, err = b.functionArgumentTypeNames(raw)
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +157,7 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 		return nil, err
 	}
 	if !visible || kind == 0 || len(raw.Args) != 0 || raw.Variadic || len(raw.ArgNames) != 0 {
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	name := transactionTimeName(kind)
 	switch {
@@ -190,7 +190,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return validateTransactionTime(n) == nil
 	case datetimeSleepExpression:
 		return n.validStored() && closedTransactionTimeDefault(n.arg)
-	case posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression, regexpExpression:
+	case rowExpression, fieldExpression, posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression, regexpExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

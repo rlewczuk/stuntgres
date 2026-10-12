@@ -77,6 +77,17 @@ on PostgreSQL. No new harness, physical ABI, constrained-domain feature or
 composite-array storage is implied. Composite controls:
 `make check RUN='^TestReferenceComposite(MixedControls|ControlLifetime)$'`
 and the same command with `REFERENCE=1` (900 seconds each).
+Composite expressions additionally retain occurrence-owned constructor shapes,
+stable field/expansion attributes, genuine dot-builtin markers and exact
+whole-row namespace/source/frame handles. Native definitions emit captured
+expansion members explicitly, never a future widening wildcard; direct whole-row
+sources emit alias.* so a same-named scalar column cannot capture the value.
+Restore reowns capture usages and runtime/retained-analysis trees together.
+Controls exercise two replacement cycles, future writes, held eager output,
+failed/canceled publication and actual emitted SQL replay on pinned PostgreSQL.
+Selected checks (900 seconds each):
+`make check RUN='^TestReferenceCompositeExpr(StoredConsumers|ControlsAndLifetime|ControlRejection)$'`
+and the same selected command with `REFERENCE=1`.
 The two-retained-sequence, second-Dump/Restore regression and independent
 PostgreSQL nested-view consumers run through the same mode-aware definition:
 

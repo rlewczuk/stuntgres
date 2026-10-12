@@ -20,7 +20,13 @@ func (e nullTestExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	result := v.IsNull()
-	if e.not {
+	if !v.IsNull() && v.Type().BaseType().IsComposite() {
+		result = true
+		for i := range v.CompositeLen() {
+			null := v.CompositeField(i).IsNull()
+			if null == e.not { result = false; break }
+		}
+	} else if e.not {
 		result = !result
 	}
 	return sqltype.Boolean(e.usage.Type, result), nil

@@ -6,6 +6,17 @@ func sameStatementUsage(a, b sqltype.Usage) bool {
 	if a.Type == nil || b.Type == nil {
 		return a.Type == b.Type && a.Typmod == b.Typmod && a.Collation == b.Collation
 	}
+	if a.Type.ID() == 2249 && a.Type.IsComposite() || b.Type.ID() == 2249 && b.Type.IsComposite() {
+		if !a.Type.IsComposite() || !b.Type.IsComposite() || a.Type.ID() != b.Type.ID() || a.Type.CompositeLen() != b.Type.CompositeLen() {
+			return false
+		}
+		for i := range a.Type.CompositeLen() {
+			left, right := a.Type.CompositeMember(i), b.Type.CompositeMember(i)
+			if left.Attribute != right.Attribute || left.Name != right.Name || !sameStatementUsage(left.Usage, right.Usage) {
+				return false
+			}
+		}
+	}
 	return a.Type.ID() == b.Type.ID() && a.Typmod == b.Typmod && a.Collation == b.Collation
 }
 
@@ -15,6 +26,13 @@ func statementCatalogType(t *sqltype.Descriptor) bool {
 	}
 	if t.IsUserDefined() || t.IsDomain() {
 		return true
+	}
+	if t.ID() == 2249 && t.IsComposite() {
+		for i := range t.CompositeLen() {
+			if statementCatalogType(t.CompositeMember(i).Usage.Type) {
+				return true
+			}
+		}
 	}
 	return t.IsArray() && statementCatalogType(t.Element())
 }

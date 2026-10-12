@@ -239,7 +239,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 				names[i] = d.DiagnosticName()
 			}
 		}
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	args := make([]BoundExpr, len(operands))
 	var textual [4]bool

@@ -374,16 +374,18 @@ ALTER TABLE target ALTER [COLUMN] column SET DEFAULT default_expression
 ALTER TABLE target ALTER [COLUMN] column DROP DEFAULT
 ALTER TABLE [IF EXISTS] target SET SCHEMA schema
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
-INSERT INTO [schema.]name [AS alias] [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
+INSERT INTO [schema.]name [AS alias] [(assignment_target [, ...])] VALUES (insert_value [, ...]) [, ...]
        [insert_conflict]
-INSERT INTO [schema.]name [AS alias] [(column [, ...])] SELECT [projection_target [, ...]]
+INSERT INTO [schema.]name [AS alias] [(assignment_target [, ...])] SELECT [projection_target [, ...]]
        [FROM from_list [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
         [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]] [query_bounds]
        [insert_conflict]
-INSERT INTO [schema.]name [AS alias] [(column [, ...])] VALUES (value [, ...]) [, ...]
+INSERT INTO [schema.]name [AS alias] [(assignment_target [, ...])] VALUES (value [, ...]) [, ...]
        [ORDER BY ordering_key [, ...]] [query_bounds] [insert_conflict]
 INSERT INTO [schema.]name [AS alias] DEFAULT VALUES [insert_conflict]
 insert_value := value | DEFAULT
+assignment_target := column { . member | [scalar] | [scalar:scalar] }
+update_assignment := assignment_target = (scalar_expression | DEFAULT)
 insert_conflict := ON CONFLICT [conflict_target] DO NOTHING
                  | ON CONFLICT conflict_target DO UPDATE SET update_assignment [, ...]
                    [WHERE logical_predicate]
@@ -465,6 +467,11 @@ delete_predicate := logical_predicate with optional target/alias qualification o
 query_column := column | qualifier.column | schema.table.column
 projection_target := (logical_target | selected_call) [[AS] label]
                    | * | qualifier.* | schema.table.*
+                   | (scalar_expression).* [[AS] label]
+composite_expression := ROW([scalar_expression [, ...]])
+                      | (scalar_expression, scalar_expression [, ...])
+                      | (scalar_expression).member | whole_row
+whole_row := visible_qualifier | visible_qualifier.*
 call_argument := scalar | selected_call
 selected_call := null_count_call | random_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])

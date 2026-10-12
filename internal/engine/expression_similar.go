@@ -152,7 +152,7 @@ func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr
 	}
 	for i := range raw.Args {
 		if !similarTextType(operands[i].descriptor()) {
-			return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+			return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 		}
 	}
 	pattern, err := b.likeOperand(operands[0], b.typ(sqltype.Text))

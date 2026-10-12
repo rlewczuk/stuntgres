@@ -85,6 +85,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				return err
 			}
 			return query(e.Query)
+		case FieldExpr:
+			return expression(e.Base)
 		case RowExpr:
 			return expressions(e.Fields)
 		case OperatorExpr:
@@ -310,7 +312,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		return query(s.Query)
 	case *Insert:
 		for _, target := range s.Targets {
-			for _, bound := range target.Subscripts {
+			for _, step := range target.Steps {
+				if step.Subscript == nil {
+					continue
+				}
+				bound := step.Subscript
 				if err := expression(bound.Lower); err != nil {
 					return err
 				}
@@ -345,7 +351,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				}
 			}
 			for _, assignment := range s.Conflict.Assignments {
-				for _, bound := range assignment.Subscripts {
+				for _, step := range assignment.Steps {
+					if step.Subscript == nil {
+						continue
+					}
+					bound := step.Subscript
 					if err := expression(bound.Lower); err != nil {
 						return err
 					}
@@ -374,7 +384,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				return err
 			}
 			for _, assignment := range arm.Assignments {
-				for _, bound := range assignment.Subscripts {
+				for _, step := range assignment.Steps {
+					if step.Subscript == nil {
+						continue
+					}
+					bound := step.Subscript
 					if err := expression(bound.Lower); err != nil {
 						return err
 					}
@@ -398,7 +412,11 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return err
 		}
 		for _, assignment := range s.Assignments {
-			for _, bound := range assignment.Subscripts {
+			for _, step := range assignment.Steps {
+				if step.Subscript == nil {
+					continue
+				}
+				bound := step.Subscript
 				if err := expression(bound.Lower); err != nil {
 					return err
 				}

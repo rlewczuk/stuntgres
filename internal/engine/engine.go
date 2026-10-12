@@ -73,6 +73,7 @@ type binding struct {
 	subqueryDemand        bool
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
+	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewPosixSubstrings   map[viewLiteralPath]bool
 	viewCollations        map[viewLiteralPath]uint32
@@ -89,6 +90,7 @@ type binding struct {
 	dependencies          []expressionDependency
 	parameters            ParameterInfo
 	expressions           [][]BoundExpr
+	insertRows            [][]parser.Expr
 	createColumns         []ColumnDescriptor
 	createNotNull         []notNullConstraint
 	createColumnIndex     map[string]int
@@ -103,6 +105,7 @@ type binding struct {
 	insertProjection      []int
 	conflict              *boundInsertConflict
 	temporals             []temporalConstant
+	composites            map[preparedCompositeKey]compositeOccurrence
 	predicate             BoundExpr
 	sequenceConstants     []sequenceConstant
 	regclassConcat        bool
@@ -403,7 +406,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, composites: b.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -848,6 +851,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.enumMemberSafe = binder.input.EnumMemberSafe
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
+	b.viewComposites = binder.viewComposites
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
 	b.viewPosixSubstrings = binder.viewPosixSubstrings
 	b.viewCollations = binder.viewCollations
@@ -855,6 +859,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
+	b.composites = binder.composites
 	if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 		return b, err
 	}

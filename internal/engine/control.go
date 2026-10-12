@@ -1338,7 +1338,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore INSERT query sources are unsupported")
 			}
 			for _, target := range s.Targets {
-				for _, bound := range target.Subscripts {
+				for _, step := range target.Steps {
+					if step.Subscript == nil {
+						continue
+					}
+					bound := step.Subscript
 					if bound.Lower != nil {
 						if err := restoreScalar(bound.Lower, false); err != nil {
 							return err
@@ -1539,6 +1543,15 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 		return restoreScalar(r.Child, stored)
 	case parser.RegclassExpr:
 		return restoreScalar(r.Child, stored)
+	case parser.FieldExpr:
+		return restoreScalar(r.Base, stored)
+	case parser.RowExpr:
+		for _, field := range r.Fields {
+			if err := restoreScalar(field, stored); err != nil {
+				return err
+			}
+		}
+		return nil
 	case parser.ArrayExpr:
 		for _, element := range r.Elements {
 			if err := restoreScalar(element, stored); err != nil {

@@ -233,6 +233,98 @@ Existing scalar VALUES column-reference exclusions remain; INSERT RETURNING is s
 Row locking remains unsupported for virtual catalog sources. No timezone SRFs
 or stored rewrite/deparse surface is added.
 
+## Composite expressions — change note
+
+ROW constructors and scoped whole-row references share the existing typed scalar
+binder. `(expression).member` selects a stable attribute; nested selection and
+parenthesized casts/parameters are supported. For a direct whole-row reference,
+field lookup uses exposed namespace labels (including alias column lists);
+duplicate exposed labels are ambiguous. Ordinary unqualified one-positional-
+argument function notation may select a member only after genuine existing
+provider lookup fails. Schema qualification, named/VARIADIC arguments and
+aggregate/window decorations do not gain that fallback. A real builtin wins
+function notation; an actual field wins dot notation. Missing dot members may
+use the existing `num_nulls`/`num_nonnulls` providers, including scalar bases.
+
+`(expression).*` expands in SELECT, supported RETURNING, VALUES, INSERT SELECT
+and constructor lists. Width, output names, metadata, arity and ordinal checks
+use the expanded physical list, including zero-width expansion. Scalar/star
+misuse remains rejected. Constructor field selection can avoid unused runtime
+children; general computed expansion reevaluates its base per selected member.
+Analysis and constant preflight still inspect every constructor child.
+An empty later VALUES expansion reports the ordinary unequal-width error with
+no Position; the reverse mismatch retains its first expanded expression position.
+Generated columns and expression indexes apply immutability admission to the
+surviving physical field provider after that complete preflight. Thus
+`(ROW(i,nextval('s'))).f1` may be stored without advancing s; selecting the
+volatile field still fails. The original analyzed definition retains all
+dependencies and authorization requirements.
+RETURNING distinguishes a whole-row value from member projection of that value.
+On UPDATE, `old.k`, `old.*`, `old::text` and nested `(old.v).i` retain predecessor
+values, but `(old).k`, `(old).*` and eligible `k(old)` project the default output
+row (NEW). On DELETE, `(new).k`, `(new).*` and `k(new)` likewise project the default
+output row (OLD), while `new.k` and scalar `new::text` remain NULL. Explicit
+`ROW(old)`/`ROW(new)` constructors preserve their scalar whole-row operands.
+Child and grandchild scalar subqueries retain the actual RETURNING owner and
+the same whole-value/member distinction, including explicit OLD/NEW aliases.
+Nearer exposed columns or source aliases win; ambiguous columns remain errors,
+and explicitly replaced default aliases do not reappear in child scopes.
+For admitted scalar function sources, a single nonordinal call makes bare
+`f` and scalar `f.*` consume its declared scalar result, including SQL NULL.
+`ROW(f.*)` explicitly constructs a record, and top-level `f.*` expands exposed
+columns. WITH ORDINALITY or multiple-call ROWS FROM makes f a genuine tuple:
+an absent tuple is whole NULL, distinct from a present all-NULL record.
+Nested `(f).*`/member notation rejects scalar aliases rather than manufacturing
+a one-column record. Frozen scalar-star and constructor-list replay retain
+their respective column-slot and namespace-expansion authorities.
+Exposed columns still win before namespace whole-row lookup. A single-call
+alias's default column name can therefore shadow an ordinal tuple namespace;
+explicit column labels such as `f(v,n)` expose the genuine whole tuple.
+Correlated function invocations carry the actual source occurrence flags,
+including nullable inherited prefixes, independently of argument NULL cells.
+
+Held preparation remains quiet for immutable runtime failures: even a discarded
+`1/0` constructor child fails with division by zero at execution. The same
+constant planning precedes runtime NULL-array-bound checks in partial writes;
+row-dependent RHS evaluation still follows bound validation.
+
+INSERT partial member targets start from typed NULL, not the column default.
+UPDATE and MERGE UPDATE use the original target/source frame for every RHS and
+bound while ordered writes compose into private containers. NULL nested records
+initialize unassigned members as typed NULL. Mixed array/member paths reuse
+existing element/slice semantics and domain reapplication. Final generated,
+CHECK/NOT NULL, unique and ACL checks use the completed row; a late failure or
+cancellation publishes no partial command. Implicit old-container reads add no
+SELECT privilege; explicit RHS reads retain ordinary authorization.
+Contextual structural conversion is confined to anonymous RECORD. Equal-shaped
+distinct named composites are rejected through ordinary identity/coercion rules;
+compatible named/domain conversion preserves whole-source NULL. Direct UPDATE
+and INSERT VALUES retain contextual ROW construction, but INSERT SELECT projected
+RECORD requires an explicit named conversion, even for a typed derived whole row.
+Converting an absent anonymous derived row in UPDATE reconstructs a present
+all-NULL named value; it is not the compatible named-source NULL-preservation case.
+Partial member-assignment and invalid subscript diagnostics use the binder's
+current visible-type spelling: quoted visible names remain unqualified, while
+hidden or shadowed named types retain their schema. Source and destination
+identities share that authority; target plans retain no live catalog or binder.
+Invalid assignment subscripting uses the container's expression location:
+plain column targets retain their head Position; selected members report none.
+Every nested target segment contributes its existing execution-bound demand.
+Virtual source columns used only in an array bound retain source occurrence
+authority for UPDATE FROM/MERGE; planned joined-bound errors remain visible on
+zero-row inputs. Updatable-view lowering remaps every bound to the physical
+original frame, retaining logical-column and source-offset semantics.
+
+Whole-row occurrence presence follows filters, cached ordering, bounds, windows,
+DISTINCT ON, correlation and mutation source evaluation. Materialized/derived
+sources establish their own emitted-tuple presence. This metadata is demanded
+only for potentially null-extended references, without forcing row-lock/version
+provenance. VALUES presence belongs to its emitted source beneath transparent
+projection/ordering/bound wrappers, not to a guessed NULL-cell or result-width
+heuristic. MERGE RETURNING, MERGE partial INSERT and generic multi-column SET
+remain outside the existing capability boundary. INSERT RETURNING reuses its
+existing projection and named transition-row authority.
+
 ## MERGE insertion — change note
 
 ```sql
@@ -272,8 +364,9 @@ alias is not banned. UPDATE-only actions do not require INSERT authority.
 Specifying both BY SOURCE and BY TARGET requires FULL-join legality at Execute:
 an effective hash/merge-joinable cross-side key or supported constant condition,
 not merely an equality anywhere in ON. FALSE arms/empty inputs do not waive it.
-Generated values recompute from the completed payload. Existing UPDATE DEFAULT,
-generated/identity restrictions and field/row assignment boundaries remain.
+Generated values recompute from the completed payload. Matched SET includes
+ordered composite member and mixed array/member paths. Existing UPDATE DEFAULT,
+generated/identity restrictions and generic multi-column SET exclusions remain.
 All arms are analyzed and authorized even when false or empty. Separate INSERT
 and UPDATE destination unions, presence of any DELETE action, actual target reads
 and recursive source SELECT govern privileges. Constant DELETE predicates do not
@@ -1829,9 +1922,10 @@ zero-member NEW is `()`. Whole-row reads demand SELECT on every live member, eve
 when OLD is absent. With zero live members, a whole-row reference still requires
 table SELECT; a constant-only projection does not. Zero-row input does not erase
 this requirement. Direct `old.*`/`new.*` are field expansion, not one composite.
-Generic ROW constructors, `(old).field`, `(old).*` and global query whole-row
-resolution are not added. Native compound output is canonical string with blank
-DatabaseTypeName/string ScanType; pq exposes raw []byte/interface{} ScanType.
+ROW construction, member projection and scoped whole-row resolution use the
+composite-expression authority described above. Native compound output is a
+canonical string with blank DatabaseTypeName/string ScanType; pq exposes raw
+[]byte/interface{} ScanType.
 
 Initial and fresh native admission check output SELECT rights for scalar, star,
 whole-row and dead CASE children, including empty/skipped input. Native refreshes
@@ -2147,10 +2241,9 @@ Native retained result values/schema survive rollback, Reset/Restore and later
 generations. Dump serializes committed survivors, descriptors/defaults/NOT NULL,
 comments, views and current sequence state, excluding private deletions and
 output cursors/history. Restore continues to reject DELETE RETURNING scripts.
-Whole-row OLD/NEW records and SRF providers,
-triggers/FKs and rewrite-to-UPDATE (where PostgreSQL NEW can be
+SRF providers, triggers/FKs and rewrite-to-UPDATE (where PostgreSQL NEW can be
 nonnull) remain real PostgreSQL-only controls, not native engine mechanisms.
-PostgreSQL18.0's excluded parenthesized whole-row expansion
+Supported parenthesized whole-row expansion
 `RETURNING (old).*,(new).*` can expand both through the target's ordinary OLD
 namespace: the independent one-column id1 witness returns `(1,1)`, not
 `(1,NULL)`. This record-expansion path is distinct from supported scalar
@@ -2430,10 +2523,10 @@ rows/catalog/sequence state, never private replacement/history/cursors; Restore'
 mutation whitelist is unchanged and rejects UPDATE RETURNING scripts atomically.
 View targets use current public relation/column GRANT/REVOKE authority.
 
-Triggers and whole-row records/parenthesized expansion,
-rewrite rules, partition movement and physical/C/wire tuple metadata
+Triggers, rewrite rules, partition movement and physical/C/wire tuple metadata
 remain external PostgreSQL mechanisms. The reference suite exercises real trigger
-transformation/suppression and whole-row controls, not native successful no-ops.
+transformation/suppression, not native successful no-ops; whole-row records and
+parenthesized expansion use the shared composite-expression contract above.
 DEFAULT/row assignments/top-level WITH UPDATE and recursive inheritance
 remain excluded; leaf inherited-table DML is supported. No new evaluator,
 durability or retry path is introduced.
@@ -2529,8 +2622,8 @@ Retained native output survives rollback and Reset/Restore. Persistence includes
 committed live heads/catalog/sequence state, never source captures or output history.
 
 General LATERAL derived/VALUES sources and unrelated function FROM, top-level
-WITH UPDATE, row assignments and DEFAULT, and whole-row UPDATE/DELETE records
-remain excluded; INSERT RETURNING is supported. Selected string/regexp
+WITH UPDATE, generic row assignments and DEFAULT remain excluded; whole-row
+expressions and INSERT RETURNING are supported. Selected string/regexp
 function FROM sources use the shared binder and query stages.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.

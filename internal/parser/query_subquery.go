@@ -1,6 +1,6 @@
 package parser
 
-// RowExpr is structural comparison syntax, not a public composite datum.
+// RowExpr serves constructor and existing structural row syntax.
 type RowExpr struct {
 	Fields   []Expr
 	Explicit bool
@@ -9,6 +9,19 @@ type RowExpr struct {
 
 func (RowExpr) expression()                {}
 func (r RowExpr) SourcePosition() Position { return r.Pos }
+
+// FieldExpr is expression indirection, distinct from qualified ColumnExpr.
+// Expansion is admitted only by expression-list consumers.
+type FieldExpr struct {
+	Base      Expr
+	Field     Identifier
+	Expansion bool
+	Pos       Position
+	OpenPos   Position // Expansion's opening parenthesis, for list-width diagnostics.
+}
+
+func (FieldExpr) expression()                {}
+func (f FieldExpr) SourcePosition() Position { return f.Pos }
 
 type SubqueryKind uint8
 

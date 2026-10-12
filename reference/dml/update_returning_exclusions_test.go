@@ -6,7 +6,7 @@ import (
 )
 
 func TestReferenceUpdateReturningExcludedMechanisms(t *testing.T) {
-	for _, query := range []string{"UPDATE t SET id=2 RETURNING old", "UPDATE t SET id=2 RETURNING (old).*", "UPDATE t SET id=2 FROM t RETURNING id", "INSERT INTO t VALUES(2) RETURNING id", "CREATE TRIGGER change BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
+	for _, query := range []string{"UPDATE t SET id=2 FROM t RETURNING id", "INSERT INTO t VALUES(2) RETURNING id", "CREATE TRIGGER change BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
 		t.Run(query, func(t *testing.T) {
 			p := fixture.NewScenario(t)
 			for _, backend := range p.Backends() {
@@ -23,9 +23,6 @@ func TestReferenceUpdateReturningExcludedMechanisms(t *testing.T) {
 					case "INSERT INTO t VALUES(2) RETURNING id":
 						run(fixture.Exec(query, 1))
 						want = [][]any{{int64(1)}, {int64(2)}}
-					default:
-						run(fixture.Exec(query, 1))
-						want = [][]any{{int64(2)}}
 					}
 				} else {
 					result, err := backend.DB.Exec(query)

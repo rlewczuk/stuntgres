@@ -26,6 +26,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
 	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
+	definition.composites = b.viewComposites
 	definition.similarSubstrings = b.viewSimilarSubstrings
 	definition.posixSubstrings = b.viewPosixSubstrings
 	definition.collations = b.viewCollations

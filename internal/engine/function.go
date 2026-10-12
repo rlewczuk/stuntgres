@@ -16,10 +16,22 @@ const (
 	countNonnulls
 )
 
+func nullCountFunctionKind(name string) nullCountKind {
+	switch name {
+	case "num_nulls":
+		return countNulls
+	case "num_nonnulls":
+		return countNonnulls
+	default:
+		return 0
+	}
+}
+
 type nullCountExpression struct {
 	expressionInfo
-	kind nullCountKind
-	args []BoundExpr
+	kind       nullCountKind
+	args       []BoundExpr
+	dotBuiltin bool // Admitted field-notation fallback, retained for stored replay.
 }
 
 func (e nullCountExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -31,6 +43,19 @@ func (e nullCountExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	var count int64
 	for _, arg := range e.args {
+		if row, ok := arg.(rowExpression); ok && row.wholeNames != nil {
+			if row.usage.Type == nil || !row.usage.Type.Concrete() || !row.usage.Type.BaseType().IsComposite() || len(row.fields) != row.usage.Type.BaseType().CompositeLen() {
+				return sqltype.Value{}, fmt.Errorf("stuntgres: invalid null-count argument type")
+			}
+			absent, err := row.absent(c)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if absent == (e.kind == countNulls) {
+				count++
+			}
+			continue
+		}
 		value, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -46,7 +71,7 @@ func (e nullCountExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return sqltype.Integer(e.usage.Type, count)
 }
 
-func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundExpr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
@@ -168,11 +193,11 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindRandom(raw, visible)
 	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared":
 		return b.bindAdvisory(raw, visible)
-	case "num_nulls":
-		kind = countNulls
-	case "num_nonnulls":
-		kind = countNonnulls
 	default:
+		kind = nullCountFunctionKind(name)
+		if kind != 0 {
+			break
+		}
 		return nil, b.functionSignatureError(raw)
 	}
 	// Over-limit calls still transform every child before resolution, but never
@@ -335,14 +360,14 @@ func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExp
 		}
 		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	names, err := b.functionArgumentTypeNames(raw)
+	names, _, err := b.functionArgumentTypeNames(raw)
 	if err != nil {
 		return err
 	}
 	if _, err := b.builtinVisible(raw.Name, functionLookup); err != nil {
 		return err
 	}
-	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
 
 // functionSignatureError binds diagnostic operands once, only on a failure path.
@@ -369,28 +394,33 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 			return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 		}
 	}
-	names, err := b.functionArgumentTypeNames(raw)
+	names, composite, err := b.functionArgumentTypeNames(raw)
 	if err != nil {
 		return err
 	}
-	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	if raw.CompositeCandidate && !composite {
+		return expressionError("0A000", "functions are unsupported", raw.Pos)
+	}
+	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
 
 // Diagnostic operands are transformed before selected identity namespace lookup.
-func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([]string, error) {
+func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([]string, bool, error) {
 	names := make([]string, len(raw.Args))
+	composite := false
 	for i, rawArg := range raw.Args {
 		arg, err := b.bind(rawArg, expressionPolicy{context: projectionContext})
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		names[i] = functionArgumentTypeName(rawArg, arg)
 		if typ := arg.ResultUsage().Type; typ != nil && names[i] != "unknown" {
 			names[i] = b.diagnosticTypeName(typ)
+			composite = composite || typ.BaseType().IsComposite()
 		}
 		names[i] = functionNamedType(raw, i, names[i])
 	}
-	return names, nil
+	return names, composite, nil
 }
 
 func functionArgumentTypeName(raw parser.Expr, arg BoundExpr) string {
@@ -406,6 +436,18 @@ func functionArgumentTypeName(raw parser.Expr, arg BoundExpr) string {
 // Reuse transformed argument names when a diagnostic producer already bound them.
 func functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
 	return functionResolutionErrorForTypes(name, pos, names, false)
+}
+
+func (b *expressionBinder) functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
+	return b.functionResolutionErrorForTypes(name, pos, names, false)
+}
+
+func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
+	err := functionResolutionErrorForTypes(name, pos, names, ambiguous)
+	if !ambiguous {
+		b.noteFunctionSignature(name, pos, err)
+	}
+	return err
 }
 
 func functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {

@@ -80,7 +80,6 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 		"SELECT id=1=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
 		"SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
-		"SELECT f(a) AND b FROM t",
 		"CREATE TABLE or(a BOOL)", "SELECT or FROM t", "INSERT INTO t VALUES(1); SELECT TRUE AND FROM t",
 	} {
 		stmts, err := Parse(q)

@@ -20,7 +20,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 	}()
 	var err error
 	for i, a := range assignments {
-		if len(a.Subscripts) != 0 {
+		if len(a.Steps) != 0 {
 			if _, requested := a.Value.(parser.DefaultExpr); requested {
 				return expressionError("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
 			}
@@ -42,11 +42,11 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		expected := sqltype.Usage{}
 		if slot, ok := b.relation.index[a.Target.Text]; ok {
 			expected = b.relation.columns[slot].Usage
-			if len(a.Subscripts) != 0 {
-				expected = arrayTargetUsage(expected, a.Subscripts)
+			if len(a.Steps) != 0 {
+				expected = targetUsage(expected, a.Steps)
 			}
 		}
-		u.assignments[i], err = binder.bind(a.Value, expressionPolicy{context: projectionContext, expected: expected})
+		u.assignments[i], err = binder.bind(a.Value, expressionPolicy{context: projectionContext, expected: expected, mode: sqltype.Assignment})
 		if err != nil {
 			return err
 		}
@@ -64,15 +64,12 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if binder.targetAlias != "" {
 				visible = binder.targetAlias
 			}
-			if len(a.Indirection) != 0 && a.Target.Text == visible {
+			if len(a.Steps) != 0 && a.Steps[0].Field != nil && a.Target.Text == visible {
 				diagnostic.Hint = "SET target columns cannot be qualified with the relation name."
 			}
 			return diagnostic
 		}
-		if len(a.Indirection) != 0 {
-			return expressionError("0A000", "field assignments are unsupported", a.Target.Pos)
-		}
-		partial := len(a.Subscripts) != 0
+		partial := len(a.Steps) != 0
 		if previous, exists := seen[slot]; exists && (!previous || !partial) {
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
@@ -95,7 +92,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		}
 		var target *arrayAssignmentTarget
 		if partial {
-			target, err = binder.bindArrayTarget(dest, a.Subscripts, a.Target.Pos)
+			target, err = binder.bindAssignmentTarget(dest, a.Steps, a.Target.Pos)
 			if err != nil {
 				return err
 			}
@@ -106,6 +103,14 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			dest = target.column(dest)
 		}
 		if source.ResultUsage() != dest.Usage {
+			if row, ok := source.(rowExpression); ok && row.usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
+				source, err = binder.assignCompositeMember(row, dest.Usage, sqltype.Assignment, a.Value.SourcePosition())
+				if err != nil {
+					return err
+				}
+				u.assignments[i] = source
+				continue
+			}
 			input, annotations := domainCoercionInput(source, dest.Usage)
 			info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, a.Value.SourcePosition(), input.Properties()), input)
 			if err != nil {
@@ -114,11 +119,15 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
 			if err != nil {
 				if target != nil {
-					return target.diagnostic(err, source.ResultUsage().Type)
+					return target.diagnostic(binder, err, source.ResultUsage().Type)
 				}
 				var d *sqlstate.Error
 				if errors.As(err, &d) && d.Code == "42804" {
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, dest.Name, dest.Usage.Type.DiagnosticName(), source.ResultUsage().Type.DiagnosticName()), Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(parser.ExpressionStart(a.Value).Character)}
+					pos := parser.ExpressionStart(a.Value)
+					if source.ResultUsage().Type.BaseType().IsComposite() {
+						pos = source.SourcePosition()
+					}
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, dest.Name, binder.diagnosticTypeName(dest.Usage.Type), binder.diagnosticTypeName(source.ResultUsage().Type)), Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(pos.Character)}
 				}
 				return err
 			}

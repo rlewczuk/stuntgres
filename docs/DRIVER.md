@@ -547,6 +547,14 @@ logical wrapper and expose the same physical composite metadata. Native nullable
 columns report true/known; pinned pq returns raw []byte/interface{} ScanType and
 unknown Nullable. Metadata is available before iteration and for empty results.
 
+Anonymous ROW outputs instead report DatabaseTypeName `RECORD`, unknown Nullable/
+Length/DecimalSize, native raw strings/string ScanType and pinned pq raw []byte/
+interface{} ScanType. Constructor/field/expanded-member metadata is available
+before iteration and for empty outputs. Prepared execution imports fresh
+parameter frames, preserving full member usage; stable captured field attributes
+survive permitted preceding-member removal and rename without slot/name retarget.
+Whole NULL, present all-NULL and present zero-field records remain distinct.
+
 Inferred bound parameters and unknown literals use the shared record codec;
 typed TEXT needs an explicit cast. Child conversion failures remain child-owned.
 Enum errors inside records/domains use the input statement's captured search_path

@@ -95,7 +95,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	if b.defaultConsumer {
 		selected := true
 		for _, operand := range operands {
@@ -314,7 +314,7 @@ func (b *expressionBinder) bindBinaryAccess(raw parser.FunctionExpr, visible boo
 		arity = 3
 	}
 	if !visible || len(operands) != arity {
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	candidates := [2]bool{true, name == "bit_count" || name == "get_bit" || name == "set_bit"}
 	exact := [2]int{}
@@ -361,5 +361,5 @@ func (b *expressionBinder) bindBinaryAccess(raw parser.FunctionExpr, visible boo
 	if candidates[1] {
 		return nil, expressionError("0A000", "bit overloads of "+name+" are unsupported", raw.Pos)
 	}
-	return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }

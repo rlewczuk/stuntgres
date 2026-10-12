@@ -57,6 +57,8 @@ type EvalContext struct {
 	queryCurrentRows     [][]sqltype.Value
 	physicalTable        ObjectRef // Existing generated recipe's containing physical row.
 	functionRecheckCache *functionRecheckCache
+	presenceSlots        []int
+	presence             []bool
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks map[*relationDescriptor][]BoundExpr
@@ -370,6 +372,23 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.value, changed = value, changed || did
 		next, simplified, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || simplified, err
+	case rowExpression:
+		next, changed, err := mapRow(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			next, changed, err := simplifyConditional(c, old, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			folded, did, err := preflightCoercionsWithPolicy(c, next, decisiveDefaults)
+			return folded, changed || did, err
+		})
+		return next, changed, err
+	case fieldExpression:
+		base, changed, err := preflightCoercionsWithPolicy(c, e.base, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.base = base
+		return e, changed, nil
 	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range e.elements {
@@ -1271,6 +1290,8 @@ type expressionBinder struct {
 	op                    *Operation
 	expected              *StatementDescription
 	temporals             []temporalConstant
+	composites            map[preparedCompositeKey]compositeOccurrence
+	functionProjection    functionProjectionScope
 	anyParameters         []parameterExpression
 	deleteTarget          bool
 	deleteUsingSources    bool
@@ -1322,6 +1343,8 @@ type expressionBinder struct {
 	cteAnalysisDepth           int
 	cteExecutables             []*BoundQuery
 	resolvedQueryFrame         uint32
+	presenceFrames             map[uint32]int
+	suppressWholePresence      bool
 	queryRowDiagnosticMode     relationLockMode // Clause diagnostics only; tuple authority is queryRowMark.
 	subqueryDemand             bool
 	groupSubquery              bool
@@ -1335,6 +1358,7 @@ type expressionBinder struct {
 	checkLiterals         []literalExpression
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
+	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewPosixSubstrings   map[viewLiteralPath]bool
 	viewColumns           map[viewLiteralPath]viewColumn
@@ -1499,6 +1523,11 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 			}
 			return nil, err
 		}
+		if _, whole := node.(rowExpression); whole {
+			diagnostic := expressionError("42P17", "cannot use whole-row variable in column generation expression", raw.Pos).(*sqlstate.Error)
+			diagnostic.Detail = "This would cause the generated column to depend on its own value."
+			return nil, diagnostic
+		}
 		if column, ok := node.(columnExpression); ok {
 			if _, generated := owner.generations[column.origin.Address.SubID]; generated {
 				diagnostic := expressionError("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
@@ -1638,440 +1667,464 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 	}
 	var node BoundExpr
-	switch r := raw.(type) {
-	case parser.IndexSubqueryExpr:
-		if b.indexPredicateConsumer {
-			return nil, expressionError("0A000", "cannot use subquery in index predicate", r.Pos)
-		}
-		return nil, expressionError("0A000", "cannot use subquery in index expression", r.Pos)
-	case parser.SubqueryExpr:
-		if b.executeParameters {
-			return nil, expressionError("0A000", "cannot use subquery in EXECUTE parameter", r.Pos)
-		}
-		var err error
-		node, err = b.bindSubquery(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.RowExpr:
-		return nil, expressionError("0A000", "record values are unsupported", r.Pos)
-	case parser.IdentityExpr:
-		var err error
-		node, err = b.bindIdentity(r.Name, r.Pos)
-		if err != nil {
-			return nil, err
-		}
-	case parser.CurrentDateTimeExpr:
-		var err error
-		node, err = b.bindCurrentDateTime(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.ForbiddenGenerationExpr:
-		return nil, expressionError(r.Code, r.Message, r.Pos)
-	case parser.GroupingExpr:
-		var err error
-		node, err = b.bindGrouping(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.AggregateExpr:
-		if b.executeParameters {
-			if r.Window != nil {
-				return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
+	if b.functionProjection.matches(raw) {
+		node = b.functionProjection.operand
+	}
+	if node == nil {
+		switch r := raw.(type) {
+		case parser.IndexSubqueryExpr:
+			if b.indexPredicateConsumer {
+				return nil, expressionError("0A000", "cannot use subquery in index predicate", r.Pos)
 			}
-			return nil, expressionError("42803", "aggregate functions are not allowed in EXECUTE parameters", r.Pos)
-		}
-		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
-		if r.Schema != nil {
-			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
-		}
-		if r.Window != nil {
+			return nil, expressionError("0A000", "cannot use subquery in index expression", r.Pos)
+		case parser.SubqueryExpr:
+			if b.executeParameters {
+				return nil, expressionError("0A000", "cannot use subquery in EXECUTE parameter", r.Pos)
+			}
 			var err error
-			node, err = b.bindWindow(r, name)
+			node, err = b.bindSubquery(r)
 			if err != nil {
 				return nil, err
 			}
-			break
-		}
-		parentAggregates, parentWindows := b.aggregates, b.windowCalls
-		defer func() {
-			if bindError != nil {
-				b.aggregates, b.windowCalls = parentAggregates, parentWindows
+		case parser.RowExpr:
+			var err error
+			node, err = b.bindRow(r, policy.expected, policy.mode, r.Pos)
+			if err != nil {
+				return nil, err
 			}
-		}()
-		if r.Name == "row_number" {
-			types := make([]string, len(r.Args))
-			for i, arg := range r.Args {
-				child, err := b.bind(arg, expressionPolicy{context: projectionContext})
+		case parser.FieldExpr:
+			var err error
+			node, err = b.bindField(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.StarExpr:
+			var err error
+			node, err = b.wholeRow(r.Qualifier, r.Pos, true)
+			if err != nil {
+				return nil, err
+			}
+		case parser.IdentityExpr:
+			var err error
+			node, err = b.bindIdentity(r.Name, r.Pos)
+			if err != nil {
+				return nil, err
+			}
+		case parser.CurrentDateTimeExpr:
+			var err error
+			node, err = b.bindCurrentDateTime(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.ForbiddenGenerationExpr:
+			return nil, expressionError(r.Code, r.Message, r.Pos)
+		case parser.GroupingExpr:
+			var err error
+			node, err = b.bindGrouping(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.AggregateExpr:
+			if b.executeParameters {
+				if r.Window != nil {
+					return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
+				}
+				return nil, expressionError("42803", "aggregate functions are not allowed in EXECUTE parameters", r.Pos)
+			}
+			name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
+			if r.Schema != nil {
+				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
+			}
+			if r.Window != nil {
+				var err error
+				node, err = b.bindWindow(r, name)
 				if err != nil {
 					return nil, err
 				}
-				types[i] = functionArgumentTypeName(arg, child)
+				break
 			}
-			if _, err := b.bindAggregateFilter(r); err != nil {
-				return nil, err
-			}
-			if err := b.resolveRowNumberSignature(r, name, types); err != nil {
-				return nil, err
-			}
-			return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-		}
-		parentOwner := b.argumentOwner
-		b.argumentOwner = argumentWindowOwner{active: true}
-		defer func() { b.argumentOwner = parentOwner }()
-		if b.indexPredicateConsumer {
-			return nil, expressionError("42803", "aggregate functions are not allowed in index predicates", r.Pos)
-		}
-		if b.indexConsumer {
-			return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)
-		}
-		if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
-			return nil, expressionError("42803", "aggregate functions are not allowed in VALUES", r.Pos)
-		}
-		if b.checkConsumer {
-			return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
-		}
-		var err error
-		if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
-			node, err = b.bindBooleanAggregate(r, name)
-		} else if r.Name == "avg" {
-			node, err = b.bindAvg(r, name)
-		} else if r.Name == "sum" {
-			node, err = b.bindSum(r, name)
-		} else if r.Name == "any_value" {
-			node, err = b.bindAnyValue(r, name)
-		} else if r.Name == "min" || r.Name == "max" {
-			node, err = b.bindExtrema(r, name)
-		} else if r.Name == "string_agg" {
-			node, err = b.bindStringAggregate(r, name)
-		} else if r.Name == "array_agg" {
-			node, err = b.bindArrayAggregate(r, name)
-		} else if r.Name == "range_agg" || r.Name == "range_intersect_agg" {
-			node, err = b.bindRangeAggregate(r, name)
-		} else {
-			node, err = b.bindCount(r, name)
-		}
-		if err != nil {
-			return nil, err
-		}
-		node, err = b.ownAggregate(node)
-		if err != nil {
-			return nil, err
-		}
-	case parser.CaseExpr:
-		var err error
-		node, err = b.bindCase(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.ConditionalExpr:
-		var err error
-		node, err = b.bindConditional(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.FunctionExpr:
-		if b.executeParameters && r.Window != nil {
-			return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
-		}
-		var err error
-		node, err = b.bindFunction(r)
-		if err != nil {
-			return nil, err
-		}
-		switch inquiry := node.(type) {
-		case commentInquiryExpression:
-			b.catalogSnapshot = true
-		case deparseExpression:
-			// This family retains STRICT nodes rather than folding them; a
-			// known NULL eliminates only this node's own catalog demand.
-			demand := true
-			for _, child := range inquiry.args {
-				if literal, ok := child.(literalExpression); ok && literal.value.IsNull() {
-					demand = false
-					break
+			parentAggregates, parentWindows := b.aggregates, b.windowCalls
+			defer func() {
+				if bindError != nil {
+					b.aggregates, b.windowCalls = parentAggregates, parentWindows
 				}
+			}()
+			if r.Name == "row_number" {
+				types := make([]string, len(r.Args))
+				for i, arg := range r.Args {
+					child, err := b.bind(arg, expressionPolicy{context: projectionContext})
+					if err != nil {
+						return nil, err
+					}
+					types[i] = functionArgumentTypeName(arg, child)
+				}
+				if _, err := b.bindAggregateFilter(r); err != nil {
+					return nil, err
+				}
+				if err := b.resolveRowNumberSignature(r, name, types); err != nil {
+					return nil, err
+				}
+				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
 			}
-			b.catalogSnapshot = b.catalogSnapshot || demand
-		case indexPropertyExpression:
-			b.catalogSnapshot = b.catalogSnapshot || inquiry.kind != accessMethodProperty
-		}
-		if r.Window != nil {
-			return nil, expressionError("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
-		}
-	case parser.CallExpr:
-		var err error
-		node, err = b.bindSequenceCall(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.ArrayExpr:
-		var err error
-		var target sqltype.Usage
-		if policy.mode == sqltype.Explicit {
-			target = policy.expected
-		}
-		node, err = b.bindArray(r, target)
-		if err != nil {
-			return nil, err
-		}
-	case parser.SubscriptExpr:
-		var err error
-		node, err = b.bindSubscript(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.RegclassExpr:
-		var err error
-		node, err = b.bindRegclassCast(r.Child, r.Pos)
-		if err != nil {
-			return nil, err
-		}
-	case parser.ColumnExpr:
-		if b.defaultConsumer {
-			return nil, expressionError("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
-		}
-		if policy.context == assignmentContext {
-			return nil, expressionError("0A000", "column references outside SELECT are unsupported", r.Pos)
-		}
-		var err error
-		node, err = b.column(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.ParameterExpr:
-		if b.checkLiterals != nil {
-			if r.Number <= 0 || r.Number > len(b.checkLiterals) {
+			parentOwner := b.argumentOwner
+			b.argumentOwner = argumentWindowOwner{active: true}
+			defer func() { b.argumentOwner = parentOwner }()
+			if b.indexPredicateConsumer {
+				return nil, expressionError("42803", "aggregate functions are not allowed in index predicates", r.Pos)
+			}
+			if b.indexConsumer {
+				return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)
+			}
+			if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
+				return nil, expressionError("42803", "aggregate functions are not allowed in VALUES", r.Pos)
+			}
+			if b.checkConsumer {
+				return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
+			}
+			var err error
+			if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
+				node, err = b.bindBooleanAggregate(r, name)
+			} else if r.Name == "avg" {
+				node, err = b.bindAvg(r, name)
+			} else if r.Name == "sum" {
+				node, err = b.bindSum(r, name)
+			} else if r.Name == "any_value" {
+				node, err = b.bindAnyValue(r, name)
+			} else if r.Name == "min" || r.Name == "max" {
+				node, err = b.bindExtrema(r, name)
+			} else if r.Name == "string_agg" {
+				node, err = b.bindStringAggregate(r, name)
+			} else if r.Name == "array_agg" {
+				node, err = b.bindArrayAggregate(r, name)
+			} else if r.Name == "range_agg" || r.Name == "range_intersect_agg" {
+				node, err = b.bindRangeAggregate(r, name)
+			} else {
+				node, err = b.bindCount(r, name)
+			}
+			if err != nil {
+				return nil, err
+			}
+			node, err = b.ownAggregate(node)
+			if err != nil {
+				return nil, err
+			}
+		case parser.CaseExpr:
+			var err error
+			node, err = b.bindCase(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.ConditionalExpr:
+			var err error
+			node, err = b.bindConditional(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.FunctionExpr:
+			if b.executeParameters && r.Window != nil {
+				return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
+			}
+			var err error
+			node, err = b.bindFunction(r)
+			if err != nil {
+				return nil, err
+			}
+			switch inquiry := node.(type) {
+			case commentInquiryExpression:
+				b.catalogSnapshot = true
+			case deparseExpression:
+				// This family retains STRICT nodes rather than folding them; a
+				// known NULL eliminates only this node's own catalog demand.
+				demand := true
+				for _, child := range inquiry.args {
+					if literal, ok := child.(literalExpression); ok && literal.value.IsNull() {
+						demand = false
+						break
+					}
+				}
+				b.catalogSnapshot = b.catalogSnapshot || demand
+			case indexPropertyExpression:
+				b.catalogSnapshot = b.catalogSnapshot || inquiry.kind != accessMethodProperty
+			}
+			if r.Window != nil {
+				return nil, expressionError("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
+			}
+		case parser.CallExpr:
+			var err error
+			node, err = b.bindSequenceCall(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.ArrayExpr:
+			var err error
+			var target sqltype.Usage
+			if policy.mode == sqltype.Explicit {
+				target = policy.expected
+			}
+			node, err = b.bindArray(r, target)
+			if err != nil {
+				return nil, err
+			}
+		case parser.SubscriptExpr:
+			var err error
+			node, err = b.bindSubscript(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.RegclassExpr:
+			var err error
+			node, err = b.bindRegclassCast(r.Child, r.Pos)
+			if err != nil {
+				return nil, err
+			}
+		case parser.ColumnExpr:
+			if b.defaultConsumer {
+				return nil, expressionError("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
+			}
+			if policy.context == assignmentContext {
+				return nil, expressionError("0A000", "column references outside SELECT are unsupported", r.Pos)
+			}
+			var err error
+			node, err = b.column(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.ParameterExpr:
+			if b.checkLiterals != nil {
+				if r.Number <= 0 || r.Number > len(b.checkLiterals) {
+					return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
+				}
+				node = b.checkLiterals[r.Number-1]
+				break
+			}
+			if b.noParameters || b.defaultConsumer || r.Number <= 0 {
 				return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 			}
-			node = b.checkLiterals[r.Number-1]
-			break
-		}
-		if b.noParameters || b.defaultConsumer || r.Number <= 0 {
-			return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
-		}
-		u := policy.expected
-		if established := b.updateInputParameters[r.Number]; established.Type != nil {
-			u = established
-		}
-		retained := r.Number <= len(b.formalParameters) && b.formalParameters[r.Number-1].Type != nil
-		if retained {
-			u = b.formalParameters[r.Number-1]
-		}
-		// Retained parameter contracts keep their logical input type, but their
-		// codec must come from the admitted catalog, including private generations.
-		if b.expected != nil && r.Number <= len(b.expected.Parameters.Types) {
-			u = b.expected.Parameters.Types[r.Number-1]
-			retained = u.Type != nil
-		}
-		if retained {
-			catalog := b.bindingCatalog()
-			if b.expected != nil && statementCatalogType(u.Type) && b.expected.catalogOwner != nil &&
-				(b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch()) {
-				return nil, sqlError("0A000", "cached plan must not change parameter type")
+			u := policy.expected
+			if established := b.updateInputParameters[r.Number]; established.Type != nil {
+				u = established
 			}
-			current, _ := catalog.LookupType(u.Type.ID())
-			if current == nil && statementCatalogType(u.Type) {
-				return nil, sqlError("0A000", "cached plan must not change parameter type")
+			retained := r.Number <= len(b.formalParameters) && b.formalParameters[r.Number-1].Type != nil
+			if retained {
+				u = b.formalParameters[r.Number-1]
 			}
-			u.Type = current
-			b.parameters[r.Number] = u
-		}
-		if u.Type == nil {
-			u = b.parameters[r.Number]
-		}
-		if u.Type == nil {
-			b.parameters[r.Number] = sqltype.Usage{}
-			node = parameterExpression{expressionInfo{pos: r.Pos, properties: ExprProperties{ParameterDependent: true}}, r.Number}
-		} else {
-			if err := b.constrain(r.Number, u, r.Pos); err != nil {
-				return nil, err
+			// Retained parameter contracts keep their logical input type, but their
+			// codec must come from the admitted catalog, including private generations.
+			if b.expected != nil && r.Number <= len(b.expected.Parameters.Types) {
+				u = b.expected.Parameters.Types[r.Number-1]
+				retained = u.Type != nil
 			}
-			node = parameterExpression{b.info(u.Type.Usage(), r.Pos, ExprProperties{ParameterDependent: true}), r.Number}
-		}
-	case parser.LiteralExpr:
-		v := r.Value
-		u := policy.expected
-		var value sqltype.Value
-		var err error
-		switch v.Kind {
-		case parser.NullValue:
+			if retained {
+				catalog := b.bindingCatalog()
+				if b.expected != nil && statementCatalogType(u.Type) && b.expected.catalogOwner != nil &&
+					(b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch()) {
+					return nil, sqlError("0A000", "cached plan must not change parameter type")
+				}
+				current, _ := catalog.LookupType(u.Type.ID())
+				if current == nil && statementCatalogType(u.Type) {
+					return nil, sqlError("0A000", "cached plan must not change parameter type")
+				}
+				u.Type = current
+				b.parameters[r.Number] = u
+			}
 			if u.Type == nil {
-				u = b.typ(sqltype.Text).Usage()
+				u = b.parameters[r.Number]
 			}
-			value = sqltype.Null(u.Type)
-		case parser.BitStringValue:
-			value, err = b.inputConstant(v.Text, b.typ(sqltype.Bit).Usage(), v.Pos)
-		case parser.StringValue:
 			if u.Type == nil {
-				u = b.typ(sqltype.Text).Usage()
+				b.parameters[r.Number] = sqltype.Usage{}
+				node = parameterExpression{expressionInfo{pos: r.Pos, properties: ExprProperties{ParameterDependent: true}}, r.Number}
+			} else {
+				if err := b.constrain(r.Number, u, r.Pos); err != nil {
+					return nil, err
+				}
+				node = parameterExpression{b.info(u.Type.Usage(), r.Pos, ExprProperties{ParameterDependent: true}), r.Number}
 			}
-			inputUsage := u.Type.Usage()
-			if u.Type.ID() == sqltype.Interval {
-				inputUsage = u
+		case parser.LiteralExpr:
+			v := r.Value
+			u := policy.expected
+			var value sqltype.Value
+			var err error
+			switch v.Kind {
+			case parser.NullValue:
+				if u.Type == nil {
+					u = b.typ(sqltype.Text).Usage()
+				}
+				value = sqltype.Null(u.Type)
+			case parser.BitStringValue:
+				value, err = b.inputConstant(v.Text, b.typ(sqltype.Bit).Usage(), v.Pos)
+			case parser.StringValue:
+				if u.Type == nil {
+					u = b.typ(sqltype.Text).Usage()
+				}
+				inputUsage := u.Type.Usage()
+				if u.Type.ID() == sqltype.Interval {
+					inputUsage = u
+				}
+				if u.Type.IsDomain() {
+					inputUsage = u.BaseUsage()
+					if inputUsage.Type.ID() != sqltype.Interval {
+						inputUsage = inputUsage.Type.Usage()
+					}
+				}
+				value, err = b.inputConstant(v.Text, inputUsage, v.Pos)
+			case parser.NumericValue:
+				value, err = b.inputConstant(v.Text, b.typ(sqltype.Numeric).Usage(), v.Pos)
+			case parser.IntegerValue:
+				id := sqltype.Int4
+				if v.Integer < -2147483648 || v.Integer > 2147483647 {
+					id = sqltype.Int8
+				}
+				value, err = sqltype.Integer(b.typ(id), v.Integer)
+			case parser.BooleanValue:
+				value = sqltype.Boolean(b.typ(sqltype.Bool), v.Boolean)
+			default:
+				return nil, fmt.Errorf("stuntgres: invalid scalar literal")
 			}
-			if u.Type.IsDomain() {
-				inputUsage = u.BaseUsage()
-				if inputUsage.Type.ID() != sqltype.Interval {
-					inputUsage = inputUsage.Type.Usage()
+			if err != nil {
+				return nil, literalInputError(err, r)
+			}
+			literalUsage := value.Type().Usage()
+			if v.Kind == parser.StringValue && u.Type.BaseType().ID() == sqltype.Interval {
+				literalUsage = u.BaseUsage()
+			}
+			node = literalExpression{b.info(literalUsage, v.Pos, ExprProperties{}), value}
+			if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
+				text, _ := value.Text()
+				oid, err := strconv.ParseUint(text, 10, 32)
+				if err != nil {
+					return nil, err
+				}
+				auth, err := b.bindingAuthorization()
+				if err != nil {
+					return nil, err
+				}
+				address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
+				if descriptor, exists := auth.catalog.Descriptor(address); exists {
+					b.dependency(ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: address}, descriptor.Revision())
 				}
 			}
-			value, err = b.inputConstant(v.Text, inputUsage, v.Pos)
-		case parser.NumericValue:
-			value, err = b.inputConstant(v.Text, b.typ(sqltype.Numeric).Usage(), v.Pos)
-		case parser.IntegerValue:
-			id := sqltype.Int4
-			if v.Integer < -2147483648 || v.Integer > 2147483647 {
-				id = sqltype.Int8
-			}
-			value, err = sqltype.Integer(b.typ(id), v.Integer)
-		case parser.BooleanValue:
-			value = sqltype.Boolean(b.typ(sqltype.Bool), v.Boolean)
-		default:
-			return nil, fmt.Errorf("stuntgres: invalid scalar literal")
-		}
-		if err != nil {
-			return nil, literalInputError(err, r)
-		}
-		literalUsage := value.Type().Usage()
-		if v.Kind == parser.StringValue && u.Type.BaseType().ID() == sqltype.Interval {
-			literalUsage = u.BaseUsage()
-		}
-		node = literalExpression{b.info(literalUsage, v.Pos, ExprProperties{}), value}
-		if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
-			text, _ := value.Text()
-			oid, err := strconv.ParseUint(text, 10, 32)
+		case parser.TypedLiteralExpr:
+			rawType := r.TypeName
+			saved, found, err := b.captureAt(r.Pos.Offset)
 			if err != nil {
 				return nil, err
 			}
-			auth, err := b.bindingAuthorization()
+			if found {
+				rawType.Modifiers = nil
+			}
+			u, err := b.engine.resolveType(rawType, b.op)
 			if err != nil {
 				return nil, err
 			}
-			address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
-			if descriptor, exists := auth.catalog.Descriptor(address); exists {
-				b.dependency(ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: address}, descriptor.Revision())
-			}
-		}
-	case parser.TypedLiteralExpr:
-		rawType := r.TypeName
-		saved, found, err := b.captureAt(r.Pos.Offset)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			rawType.Modifiers = nil
-		}
-		u, err := b.engine.resolveType(rawType, b.op)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			u.Typmod = saved.typmod
-			if saved.typed {
-				u.Typmod = saved.typedTypmod
-			}
-		}
-		inputUsage := u.BaseUsage()
-		if inputUsage.Type.ID() != sqltype.Interval {
-			inputUsage = inputUsage.Type.Usage()
-		}
-		value, err := b.inputConstant(r.Text, inputUsage, r.Pos)
-		if err != nil {
-			return nil, inputErrorAt(err, r.Pos)
-		}
-		if b.collectTemporalConstants() {
-			for i := range b.temporals {
-				if b.temporals[i].offset == r.Pos.Offset && b.temporals[i].typeID == u.Type.ID() {
-					b.temporals[i].typed = true
-					b.temporals[i].typedTypmod = u.Typmod
+			if found {
+				u.Typmod = saved.typmod
+				if saved.typed {
+					u.Typmod = saved.typedTypmod
 				}
 			}
-		}
-		node = literalExpression{b.info(inputUsage, r.Pos, ExprProperties{}), value}
-		if inputUsage != u {
-			plan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
+			inputUsage := u.BaseUsage()
+			if inputUsage.Type.ID() != sqltype.Interval {
+				inputUsage = inputUsage.Type.Usage()
+			}
+			value, err := b.inputConstant(r.Text, inputUsage, r.Pos)
+			if err != nil {
+				return nil, inputErrorAt(err, r.Pos)
+			}
+			if b.collectTemporalConstants() {
+				for i := range b.temporals {
+					if b.temporals[i].offset == r.Pos.Offset && b.temporals[i].typeID == u.Type.ID() {
+						b.temporals[i].typed = true
+						b.temporals[i].typedTypmod = u.Typmod
+					}
+				}
+			}
+			node = literalExpression{b.info(inputUsage, r.Pos, ExprProperties{}), value}
+			if inputUsage != u {
+				plan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
+				if err != nil {
+					return nil, err
+				}
+				info, err := b.coercionInfo(b.info(u, r.Pos, coercionProperties(node, plan)), node)
+				if err != nil {
+					return nil, err
+				}
+				node = coercionExpression{info, node, plan, sqltype.Explicit}
+			}
+		case parser.CollateExpr:
+			child, err := b.bind(r.Child, policy)
 			if err != nil {
 				return nil, err
 			}
-			info, err := b.coercionInfo(b.info(u, r.Pos, coercionProperties(node, plan)), node)
+			name := r.Name
+			name.Parts = append([]parser.Identifier(nil), name.Parts...)
+			name.Parts[0].Pos = r.Pos
+			usage, err := b.engine.resolveColumnCollation(child.ResultUsage(), &name, b.op)
 			if err != nil {
 				return nil, err
 			}
-			node = coercionExpression{info, node, plan, sqltype.Explicit}
-		}
-	case parser.CollateExpr:
-		child, err := b.bind(r.Child, policy)
-		if err != nil {
-			return nil, err
-		}
-		name := r.Name
-		name.Parts = append([]parser.Identifier(nil), name.Parts...)
-		name.Parts[0].Pos = r.Pos
-		usage, err := b.engine.resolveColumnCollation(child.ResultUsage(), &name, b.op)
-		if err != nil {
-			return nil, err
-		}
-		info := b.info(usage, r.Pos, child.Properties())
-		info.collationExplicit = r.Pos
-		node = collationExpression{info, child}
-	case parser.CastExpr:
-		var err error
-		node, err = b.cast(r, policy)
-		if err != nil {
-			return nil, err
-		}
-	case parser.TimeZoneExpr:
-		var err error
-		node, err = b.bindTimeZone(r)
-		if err != nil {
-			return nil, err
-		}
-	case parser.LogicalExpr:
-		var err error
-		node, err = b.bindLogical(r, policy.context)
-		if err != nil {
-			return nil, err
-		}
-	case parser.PredicateExpr:
-		if policy.context == assignmentContext {
-			return nil, fmt.Errorf("stuntgres: predicate in assignment scalar")
-		}
-		var err error
-		node, err = b.bindPredicate(r, policy.context)
-		if err != nil {
-			return nil, err
-		}
-	case parser.OperatorExpr:
-		var err error
-		if r.SQLSimilar {
-			node, err = b.bindSimilar(r)
-		} else if subquery, ok := rowSubqueryComparison(r); ok {
-			node, err = b.bindSubquery(subquery)
-		} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
-			node, err = b.bindStringConcat(r)
-		} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "^@" {
-			node, err = b.bindStringPrefix(r)
-		} else if len(r.Name.Parts) > 0 && likeName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-			node, err = b.bindLike(r)
-		} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && posixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-			node, err = b.bindPosix(r)
-		} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-			node, err = b.bindBitwise(r)
-		} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
-			node, err = b.bindArithmetic(r)
-		} else {
+			info := b.info(usage, r.Pos, child.Properties())
+			info.collationExplicit = r.Pos
+			node = collationExpression{info, child}
+		case parser.CastExpr:
+			var err error
+			node, err = b.cast(r, policy)
+			if err != nil {
+				return nil, err
+			}
+		case parser.TimeZoneExpr:
+			var err error
+			node, err = b.bindTimeZone(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.LogicalExpr:
+			var err error
+			node, err = b.bindLogical(r, policy.context)
+			if err != nil {
+				return nil, err
+			}
+		case parser.PredicateExpr:
 			if policy.context == assignmentContext {
-				return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
+				return nil, fmt.Errorf("stuntgres: predicate in assignment scalar")
 			}
-			node, err = b.bindComparison(r)
+			var err error
+			node, err = b.bindPredicate(r, policy.context)
+			if err != nil {
+				return nil, err
+			}
+		case parser.OperatorExpr:
+			var err error
+			if r.SQLSimilar {
+				node, err = b.bindSimilar(r)
+			} else if subquery, ok := rowSubqueryComparison(r); ok {
+				node, err = b.bindSubquery(subquery)
+			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
+				node, err = b.bindStringConcat(r)
+			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "^@" {
+				node, err = b.bindStringPrefix(r)
+			} else if len(r.Name.Parts) > 0 && likeName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+				node, err = b.bindLike(r)
+			} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && posixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+				node, err = b.bindPosix(r)
+			} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+				node, err = b.bindBitwise(r)
+			} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
+				node, err = b.bindArithmetic(r)
+			} else {
+				if policy.context == assignmentContext {
+					return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
+				}
+				node, err = b.bindComparison(r)
+			}
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 		}
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("stuntgres: unsupported scalar node")
+	}
+	if b.functionProjection.matches(raw) && b.functionProjection.operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
+		b.functionProjection.operand = node
 	}
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.IsDomain() && node.ResultUsage().Type.BaseType().ID() == sqltype.Bool {
 		var err error
@@ -2201,6 +2254,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.
 		return b.bind(raw.Child, outerPolicy)
+	}
+	if row, ok := raw.Child.(parser.RowExpr); ok && target.Type.BaseType().IsComposite() {
+		return b.bindRow(row, target, sqltype.Explicit, raw.Pos)
 	}
 	if target.Type.ID() == sqltype.Regclass {
 		return b.bindRegclassCast(raw.Child, raw.Pos)
@@ -2369,6 +2425,15 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 		bound = coercion.child
 	}
 	switch r := raw.(type) {
+	case parser.RowExpr:
+		return "row", false
+	case parser.FieldExpr:
+		return r.Field.Text, true
+	case parser.StarExpr:
+		if len(r.Qualifier.Parts) != 0 {
+			return r.Qualifier.Parts[len(r.Qualifier.Parts)-1].Text, true
+		}
+		return "?column?", false
 	case parser.SubqueryExpr:
 		if r.Kind == parser.SubqueryExists {
 			return "exists", true
@@ -2710,7 +2775,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
+	case parser.RowExpr, parser.FieldExpr, parser.StarExpr, parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
@@ -2820,6 +2885,9 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 
 func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand) (BoundExpr, error) {
 	lt, rt := left.descriptor(), right.descriptor()
+	if lt != nil && lt.BaseType().IsComposite() || rt != nil && rt.BaseType().IsComposite() {
+		return nil, expressionError("0A000", "composite comparison is unsupported", raw.Pos)
+	}
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
 		return nil, err

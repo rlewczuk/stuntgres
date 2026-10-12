@@ -160,6 +160,23 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					literalTargets = append(literalTargets, -1)
 				}
 			}
+		} else if field, ok := raw.(parser.FieldExpr); ok && field.Expansion {
+			expansion, err := b.expandComposite(field)
+			if err != nil {
+				return nil, err
+			}
+			projection = append(projection, expansion.fields...)
+			targetNames = append(targetNames, expansion.names...)
+			if b.noParameters || b.materializedDefinition {
+				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
+				ordinal := 0
+				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
+					return nil, err
+				}
+				for range expansion.fields {
+					literalTargets = append(literalTargets, -1)
+				}
+			}
 		} else {
 			expr, err := b.bindOutput(raw, contextual && !plainDistinct)
 			if err != nil {
@@ -562,6 +579,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {
 	if raw, ok := expr.(unknownOutput); ok {
 		return b.bind(raw.raw, expressionPolicy{context: assignmentContext, expected: target.Usage, mode: sqltype.Assignment})
+	}
+	if source := expr.ResultUsage().Type; source != nil && source.ID() == 2249 && target.Usage.Type.BaseType().IsComposite() {
+		// A projected RECORD output no longer has direct constructor or
+		// whole-source conversion authority at the destination boundary.
+		return nil, b.rowCoercionError(target.Usage, expr.SourcePosition(), "")
 	}
 	if p, ok := expr.(parameterExpression); ok && p.usage.Type == nil {
 		var err error

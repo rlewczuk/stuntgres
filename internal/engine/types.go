@@ -28,6 +28,7 @@ type StatementDescription struct {
 	// Public signatures stay immutable. Invalidation refreshes temporal-now and
 	// specialized groups atomically, preserving native logical literal identity.
 	temporals        []temporalConstant
+	composites       map[preparedCompositeKey]compositeOccurrence
 	sequences        *sequenceAnalysis
 	regtypes         *regtypeAnalysis
 	analysis         *preparedAnalysis

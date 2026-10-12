@@ -397,6 +397,9 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 		}
 		return true
 	}
+	if callee.keyword.typeFunctionName() {
+		return true // Binding distinguishes a composite projection from excluded calls.
+	}
 	l.call(callee, opener)
 	return false
 }
@@ -439,6 +442,15 @@ func (l *lexer) scalarInput(expr Expr) bool {
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
+	case FieldExpr:
+		return l.scalarInputTree(r.Base)
+	case RowExpr:
+		for _, field := range r.Fields {
+			if !l.scalarInputTree(field) {
+				return false
+			}
+		}
+		return true
 	case ArrayExpr:
 		for _, element := range r.Elements {
 			if !l.scalarInputTree(element) {

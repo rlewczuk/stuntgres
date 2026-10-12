@@ -344,8 +344,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 		if usage.Type == nil {
 			return fmt.Errorf("stuntgres: missing view cast type")
 		}
-		actual, ok := v.LookupType(usage.Type.ID())
-		if !ok || actual != usage.Type || !usage.Valid() {
+		if !validExpressionUsage(v, usage) {
 			return fmt.Errorf("stuntgres: invalid view cast authority")
 		}
 		if err := validateUsageCollation(v, usage); err != nil {
@@ -416,8 +415,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 		if err := validateUsageCollation(catalog, usage); err != nil {
 			return err
 		}
-		typ, ok := catalog.LookupType(usage.Type.ID())
-		if !ok || typ != usage.Type {
+		if !validExpressionUsage(catalog, usage) {
 			return fmt.Errorf("stuntgres: foreign view query type")
 		}
 		return nil

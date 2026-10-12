@@ -65,13 +65,12 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]B
 	owner.Scope, owner.Frame = 1, 1
 	validateTargets := func(targets []*arrayAssignmentTarget) error {
 		for _, target := range targets {
-			if target == nil {
-				continue
-			}
-			var storage [13]BoundExpr
-			for _, child := range subscriptChildren(target.node, &storage) {
-				if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
-					return err
+			for path := target; path != nil; path = path.next {
+				var storage [13]BoundExpr
+				for _, child := range subscriptChildren(path.node, &storage) {
+					if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -515,6 +514,10 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	switch e := expr.(type) {
 	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		return 0, nil
+	case rowExpression:
+		children = e.fields
+	case fieldExpression:
+		return joinExpressionSides(e.base, leftWidth, rightWidth)
 	case arrayExpression:
 		children = e.elements
 	case subscriptExpression:

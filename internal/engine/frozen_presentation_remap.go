@@ -3,6 +3,7 @@ package engine
 import "stuntgres/internal/sqltype"
 
 func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping map[ObjectAddress]ObjectAddress, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
+	typ = recordTypeMapper(typ, collation)
 	definition := *original
 	if collation != nil && len(original.collations) != 0 {
 		definition.collations = make(map[viewLiteralPath]uint32, len(original.collations))
@@ -43,6 +44,20 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 				}
 			}
 			definition.castUsages[path] = usage
+		}
+	}
+	if len(original.composites) != 0 {
+		definition.composites = make(map[viewLiteralPath]compositeOccurrence, len(original.composites))
+		for path, captured := range original.composites {
+			captured.base.Type = typ(captured.base.Type)
+			if collation != nil {
+				var err error
+				captured.base.Collation, err = collation(captured.base.Collation)
+				if err != nil {
+					return nil, err
+				}
+			}
+			definition.composites[path] = captured
 		}
 	}
 	definition.sequenceRefs = make(map[int]ObjectRef, len(original.sequenceRefs))

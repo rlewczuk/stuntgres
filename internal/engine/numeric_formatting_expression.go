@@ -58,7 +58,7 @@ func (b *expressionBinder) numericFormattingSignature(raw parser.FunctionExpr, o
 	for i, o := range operands {
 		names[i] = datetimeFormattingTypeName(o)
 	}
-	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
 
 // Numeric to_char arrives with already-transformed operands from the temporal

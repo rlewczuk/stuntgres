@@ -448,7 +448,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
-						return Result{}, insertValueError(auth.catalog, foldErr, destination.columns[destinationTargets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
+						return Result{}, insertValueError(auth.catalog, foldErr, destination.columns[destinationTargets[j]], b.insertRows[i][j], nil)
 					}
 					if changed {
 						if privateRow == nil {
@@ -826,9 +826,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		var rows [][]sqltype.Value
 		if scope.insertReturning == nil {
-			rows = make([][]sqltype.Value, 0, len(s.Rows))
+			rows = make([][]sqltype.Value, 0, len(b.insertRows))
 		}
-		for i, source := range s.Rows {
+		for i, source := range b.insertRows {
 			if err = ctx.Err(); err != nil {
 				return Result{}, err
 			}
@@ -837,7 +837,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				row[j] = sqltype.Null(c.Usage.Type)
 			}
 			if len(b.insertProjection) != 0 {
-				if err = evaluateIdentityValuesRow(auth.catalog, &b, expressions[i], source, row, len(s.Rows) > 1, &evaluation); err != nil {
+				if err = evaluateIdentityValuesRow(auth.catalog, &b, expressions[i], source, row, len(b.insertRows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
 				schema := auth.catalog.state.descriptors[b.relation.namespace].Name()

@@ -283,7 +283,7 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 		}
 		names = append(names, name)
 	}
-	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	if !visible || raw.Variadic {
 		return missing()
 	}

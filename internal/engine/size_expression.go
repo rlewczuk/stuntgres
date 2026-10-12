@@ -62,7 +62,7 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 			}
 			names = []string{typ}
 		}
-		return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, names, matches > 1)
+		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, matches > 1)
 	}
 	arg, err := b.finalizeOperand(operand, target)
 	if err != nil {

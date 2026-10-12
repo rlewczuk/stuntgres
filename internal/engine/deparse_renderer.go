@@ -434,6 +434,30 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return r.attribute(r.relation, n.origin.Address.SubID)
 	case tableOIDExpression:
 		return "tableoid", nil
+	case rowExpression:
+		parts := make([]string, len(n.fields))
+		for i, field := range n.fields {
+			text, err := child(field)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		text := "ROW(" + strings.Join(parts, ", ") + ")"
+		if n.usage.Type.ID() != 2249 {
+			return r.cast(text, n.usage, true)
+		}
+		return text, nil
+	case fieldExpression:
+		text, err := child(n.base)
+		if err != nil {
+			return "", err
+		}
+		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: retired deparse field")
+		}
+		return "(" + text + ")." + pgIdentifier(n.base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case arrayExpression:
 		parts := make([]string, len(n.elements))
 		for i, element := range n.elements {

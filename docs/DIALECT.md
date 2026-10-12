@@ -1263,9 +1263,18 @@ backing relation. Supported user table/view rows share the concrete codec.
 Unknown literals/inferred parameters, explicit TEXT IO, nested supported scalar/
 plain-domain/composite/scalar-array children, stable source shape generations,
 dependency cascades and mixed native Dump/Restore are supported.
-Table CHECK/NOT NULL constraints remain physical-source-only. Constrained domains,
-composite arrays, builtin/catalog row execution, ROW constructors, field operations,
-comparison/hash/key operations and enum/base-type DROP remain excluded.
+Table CHECK/NOT NULL constraints remain physical-source-only. ROW constructors
+(up to1664 fields), context-typed named row construction, `(expression).member`,
+eligible `member(expression)`, `(expression).*` in expansion contexts and scoped
+whole-row references are supported. INSERT/UPDATE targets and MERGE UPDATE SET
+allow ordered member/array paths; UPDATE RHS retains the original row. Anonymous
+records report RECORD; named types retain identity, typmod and collation.
+Composite NULL tests distinguish whole NULL from all-NULL/mixed records.
+Constrained domains, composite arrays, builtin/catalog row execution and
+comparison/hash/key operations remain excluded.
+MERGE partial INSERT, MERGE RETURNING and generic multi-column SET remain
+excluded; INSERT RETURNING retains its existing output authority.
+See [expression scope and demand](QUERIES.md#composite-expressions--change-note).
 See [complete type/transport/shape contract](TYPES.md#composites--change-note).
 Standalone [typed tables and attribute lifecycle](TABLES.md#typed-tables--change-note)
 add CREATE TABLE OF, ALTER TABLE OF/NOT OF, per-action ALTER TYPE attributes and
@@ -3186,9 +3195,9 @@ fallback, which precedes SET; prepared execution freshly checks ACLs and result
 signature. Output/constraint/cancellation failure publishes no partial replacement
 or output, following existing abort/savepoint rules; sequence draws are not undone.
 Dump/Restore persists committed live data/catalog/sequence state, not output/history;
-its script whitelist is unchanged. Triggers, whole-row records/record expansion,
-rewrite rules/partition movement and physical/C/wire
-tuple metadata are genuine PostgreSQL-only mechanisms, not native no-ops.
+its script whitelist is unchanged. Triggers, rewrite rules/partition movement
+and physical/C/wire tuple metadata are genuine PostgreSQL-only mechanisms,
+not native no-ops. Whole-row records/expansion use the shared expression contract.
 See [UPDATE output details](QUERIES.md#update-returning--change-note).
 Feature smoke: `make check RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)'`; pinned mode: `make check REFERENCE=1 RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)'`.
 

@@ -49,7 +49,7 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 		for i, o := range operands {
 			names[i] = datetimeFormattingTypeName(o)
 		}
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	if !visible || raw.Variadic || len(operands) != 1 {
 		return signature()

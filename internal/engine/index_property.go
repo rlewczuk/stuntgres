@@ -107,7 +107,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 		return nil, err
 	}
 	if !visible || raw.Variadic || len(raw.Args) != kind.count() {
-		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	// Decide signature compatibility before converting unknown literals.
 	var plans [3]sqltype.CoercionPlan
@@ -115,7 +115,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 		if typ := operands[i].descriptor(); typ != nil {
 			plans[i], err = sqltype.PlanCoercion(operands[i].node.ResultUsage(), b.typ(kind.argument(i)).Usage(), sqltype.Implicit)
 			if err != nil {
-				return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+				return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 			}
 		}
 	}

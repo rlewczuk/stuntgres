@@ -28,6 +28,8 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Abort and release statement admission if a later assertion exits early.
+			defer scope.Finish(context.Canceled)
 			var restore func()
 			ctx.visit = func() {
 				if scope.view != nil || len(scope.stage.deletes) != 0 {

@@ -17,12 +17,17 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 		return true
 	}
 	if closedSequenceDefault(node) {
-		for {
-			if wrapper, ok := node.(coercionExpression); ok {
-				node = wrapper.child
-				continue
+		eligible, captured := true, false
+		walkBoundExpression(node, func(child BoundExpr) {
+			if call, ok := child.(sequenceCallExpression); ok {
+				captured = true
+				if !slices.Contains(definition.dependencies, call.ref) {
+					eligible = false
+				}
 			}
-			return slices.Contains(definition.dependencies, node.(sequenceCallExpression).ref)
+		})
+		if captured {
+			return eligible
 		}
 	}
 	if node.Properties() != (ExprProperties{}) {

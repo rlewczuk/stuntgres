@@ -40,6 +40,32 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 	}
 	var err error
 	switch e := expression.(type) {
+	case rowExpression:
+		var did bool
+		e, did, err = mapRow(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || did
+		expression = e
+	case fieldExpression:
+		e.base, err = child(e.base)
+		if err != nil {
+			return nil, false, err
+		}
+		// Simplify every constructor child before narrowing physical demand:
+		// unused immutable failures still precede selected-field execution.
+		// Only genuine ROW constructors can discard their other children;
+		// source rows retain occurrence absence and transition semantics.
+		if row, ok := e.base.(rowExpression); ok && row.raw != nil && e.index >= 0 && e.index < len(row.fields) {
+			shape := row.ResultUsage().Type.BaseType()
+			index, valid := shape.CompositeAttributeIndex(e.attribute)
+			if valid && index == e.index && shape.CompositeMember(index).Usage == e.ResultUsage() &&
+				row.fields[index].ResultUsage() == e.ResultUsage() {
+				return plannedConditionalResult(e.expressionInfo, row.fields[index]), true, nil
+			}
+		}
+		expression = e
 	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range e.elements {

@@ -41,6 +41,7 @@ func (c *EvalContext) bindQueryRow(source *querySource, index int) {
 }
 
 func (c *EvalContext) bindQueryIdentity(source *querySource, index int) {
+	c.setQueryPresence(source, index)
 	if c.query == nil || !c.query.virtualReads {
 		return
 	}

@@ -356,7 +356,7 @@ func (merge *boundMerge) hasVirtualReads() bool {
 				}
 			}
 			for _, target := range arm.input.update.arrayTargets {
-				if target != nil && boundHasVirtualReads(target.node) {
+				if assignmentTargetHasVirtualReads(target) {
 					return true
 				}
 			}

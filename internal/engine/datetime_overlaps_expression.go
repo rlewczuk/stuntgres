@@ -81,7 +81,7 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 		for i, o := range operands {
 			names[i] = datetimeFormattingTypeName(o)
 		}
-		return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
+		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
 	}
 	if !visible || raw.Variadic || len(raw.Args) != 4 {
 		return resolution(false)

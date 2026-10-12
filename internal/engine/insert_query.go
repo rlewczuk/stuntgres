@@ -19,7 +19,7 @@ func bindInsertTargets(relation *relationDescriptor, targets []parser.InsertTarg
 			return insertError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, target.Name, relation.name), target.Pos)
 		}
 		for _, previous := range targets[:i] {
-			if previous.Name == target.Name && (len(previous.Subscripts) == 0 || len(target.Subscripts) == 0) {
+			if previous.Name == target.Name && (len(previous.Steps) == 0 || len(target.Steps) == 0) {
 				return insertError("42701", fmt.Sprintf(`column "%s" specified more than once`, target.Name), target.Pos)
 			}
 		}
@@ -87,7 +87,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		}
 		assigned, err := binder.assignOutput(expr, target)
 		if err != nil && partial != nil {
-			err = partial.diagnostic(err, expr.ResultUsage().Type)
+			err = partial.diagnostic(binder, err, expr.ResultUsage().Type)
 		}
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && s.Source.Select != nil && partial == nil {
@@ -203,34 +203,58 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	}()
 	occurrence := b.viewValuesCount
 	b.viewValuesCount++
-	width := len(source.Rows[0])
+	width := -1
 	nodes := make([][]BoundExpr, len(source.Rows))
-	for i, row := range source.Rows {
+	rawRows := make([][]parser.Expr, len(source.Rows))
+	var lists []expandedExpressionList
+	if b.noParameters || b.materializedDefinition {
+		lists = make([]expandedExpressionList, len(source.Rows))
+	}
+	for i, written := range source.Rows {
+		list, err := b.expandRawList(written)
+		if err != nil {
+			return nil, err
+		}
+		if lists != nil {
+			lists[i] = list
+		}
+		row, expanded := list.raw, list.nodes
+		rawRows[i] = row
 		nodes[i] = make([]BoundExpr, len(row))
 		for j, raw := range row {
 			if _, requested := raw.(parser.DefaultExpr); requested {
 				return nil, expressionError("42601", "DEFAULT is not allowed in this context", raw.SourcePosition())
 			}
-			var err error
-			nodes[i][j], err = b.bindOutput(raw, true)
-			if err != nil {
-				return nil, err
+			if expanded != nil && expanded[j] != nil {
+				nodes[i][j] = expanded[j]
+			} else {
+				nodes[i][j], err = b.bindOutput(raw, true)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
+		if width < 0 {
+			width = len(row)
+		}
 		if len(row) != width {
-			return nil, expressionError("42601", "VALUES lists must all be the same length", parser.ExpressionStart(row[0]))
+			pos := parser.Position{Offset: -1}
+			if len(row) != 0 {
+				pos = parser.ExpressionStart(row[0])
+			}
+			return nil, expressionError("42601", "VALUES lists must all be the same length", pos)
 		}
 	}
 	schema := make([]ColumnDescriptor, width)
 	projection := make([]BoundExpr, width)
 	for j := range width {
-		common, err := commonValuesUsage(nodes, source.Rows, j, b.typ(sqltype.Text).Usage())
+		common, err := commonValuesUsage(nodes, rawRows, j, b.typ(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}
 		info := b.info(common, parser.Position{Offset: -1}, ExprProperties{RowDependent: true})
 		for i := range nodes {
-			node, err := b.coerceConditional(comparisonOperand{raw: source.Rows[i][j], node: nodes[i][j]}, common, "VALUES")
+			node, err := b.coerceConditional(comparisonOperand{raw: rawRows[i][j], node: nodes[i][j]}, common, "VALUES")
 			if err != nil {
 				return nil, err
 			}
@@ -239,15 +263,30 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			if err != nil {
 				return nil, err
 			}
-			if b.noParameters || b.materializedDefinition {
-				if err := b.captureValuesViewLiteral(source.Rows[i][j], node, viewValuesCellLiteral, occurrence, i, j); err != nil {
-					return nil, err
-				}
-			}
 		}
 		common = info.usage
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
 		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: j}
+	}
+	if lists != nil {
+		for i, written := range source.Rows {
+			slot := 0
+			for target, raw := range written {
+				if expansion, expanded := lists[i].expansions[target]; expanded {
+					path := viewLiteralPath{query: b.frameID(), clause: viewValuesCellLiteral, source: occurrence, row: i, target: target}
+					ordinal := 0
+					if err := b.captureCompositeExpansion(raw, expansion, path, &ordinal); err != nil {
+						return nil, err
+					}
+					slot += len(expansion.fields)
+				} else {
+					if err := b.captureValuesViewLiteral(raw, nodes[i][slot], viewValuesCellLiteral, occurrence, i, target); err != nil {
+						return nil, err
+					}
+					slot++
+				}
+			}
+		}
 	}
 	values := &valuesNode{querySchema: schema, rows: nodes, viewOrdinal: occurrence}
 	if identityDiscard && len(nodes) == 1 {

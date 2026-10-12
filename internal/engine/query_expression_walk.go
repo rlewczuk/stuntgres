@@ -23,6 +23,10 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.user)
 	case groupingExpression:
 		args(e.args)
+	case rowExpression:
+		args(e.fields)
+	case fieldExpression:
+		walk(e.base)
 	case arrayExpression:
 		args(e.elements)
 	case subscriptExpression:

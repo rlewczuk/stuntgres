@@ -19,6 +19,7 @@ type viewDefinition struct {
 	sequenceRefs      map[int]ObjectRef
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
+	composites        map[viewLiteralPath]compositeOccurrence
 	similarSubstrings map[viewLiteralPath]bool
 	posixSubstrings   map[viewLiteralPath]bool
 	columns           map[viewLiteralPath]viewColumn
@@ -527,31 +528,10 @@ func (v *viewDefinition) validateNamespaces() error {
 		if project == nil {
 			return fmt.Errorf("stuntgres: missing view namespace frame")
 		}
-		from := viewFromRoot(project)
-		var root LogicalNode
-		switch ns.node {
-		case viewSourceNamespace:
-			root = viewSourceAt(from, ns.ordinal)
-		case viewJoinNamespace:
-			root = viewJoinAt(from, ns.ordinal)
-		case viewValuesNamespace:
-			root = viewValuesAt(from, ns.ordinal)
-		case viewFunctionNamespace:
-			root = viewFunctionFromAt(from, ns.ordinal, false)
-		case viewRegexpNamespace:
-			root = viewFunctionFromAt(from, ns.ordinal, true)
-		case viewDerivedNamespace:
-			if ns.ordinal < 0 {
-				root = viewCTEOrdinal(from, ns.ordinal)
-			} else {
-				child := v.frames[uint32(ns.ordinal)]
-				if child != nil {
-					root = viewDerivedAt(from, child.syntax)
-				}
-			}
-		default:
+		if ns.node < viewSourceNamespace || ns.node > viewRegexpNamespace {
 			return fmt.Errorf("stuntgres: invalid view namespace kind")
 		}
+		root := v.namespaceRoot(ns)
 		if root == nil {
 			return fmt.Errorf("stuntgres: missing view namespace node")
 		}
@@ -626,4 +606,32 @@ func frozenNamespaceNode(root LogicalNode) (uint8, int) {
 		return viewDerivedNamespace, int(node.query.Root.(*projectNode).frame)
 	}
 	return 0, 0
+}
+
+func (v *viewDefinition) namespaceRoot(ns viewNamespace) LogicalNode {
+	project := v.frames[ns.frame]
+	if project == nil {
+		return nil
+	}
+	from := viewFromRoot(project)
+	switch ns.node {
+	case viewSourceNamespace:
+		return viewSourceAt(from, ns.ordinal)
+	case viewJoinNamespace:
+		return viewJoinAt(from, ns.ordinal)
+	case viewValuesNamespace:
+		return viewValuesAt(from, ns.ordinal)
+	case viewFunctionNamespace:
+		return viewFunctionFromAt(from, ns.ordinal, false)
+	case viewRegexpNamespace:
+		return viewFunctionFromAt(from, ns.ordinal, true)
+	case viewDerivedNamespace:
+		if ns.ordinal < 0 {
+			return viewCTEOrdinal(from, ns.ordinal)
+		}
+		if child := v.frames[uint32(ns.ordinal)]; child != nil {
+			return viewDerivedAt(from, child.syntax)
+		}
+	}
+	return nil
 }

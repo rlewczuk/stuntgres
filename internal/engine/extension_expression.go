@@ -66,7 +66,7 @@ func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (Bound
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	proc := procedureInNamespaces(auth.catalog, path, name, unaccentTextSignature)
-	failure := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	failure := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	if proc == nil || len(operands) != 1 || raw.Variadic || len(raw.ArgNames) != 0 || raw.Distinct || raw.All || raw.Star || raw.Window != nil || raw.Filter != nil || len(raw.Order) != 0 {
 		return failure()
 	}
