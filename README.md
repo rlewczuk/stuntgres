@@ -10,7 +10,8 @@ The embedded driver remains process-local. The optional `cmd/stuntgres` executab
 exposes the same engine through PostgreSQL simple-query protocol, with password
 authentication and isolated in-memory databases. Native SQL dumps provide explicit
 save/restore, not WAL or crash durability. Use real PostgreSQL for features outside
-the [supported dialect](docs/DIALECT.md).
+documented [native compatibility limits](docs/DIALECT.md). Consult the
+[PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
 ## Phase 1 server — change note
 
@@ -102,8 +103,8 @@ Other sessions' temporary inheritance branches are excluded without replacing
 their storage or acquiring descendant AX locks; own-session TEMP children remain
 included.
 RESTART IDENTITY, native triggers/FDW and partition foreign keys are not added.
-See [TRUNCATE](docs/SQL.md#truncate-table--change-note) and
-[transaction semantics](docs/TRANSACTIONS.md#truncate-generations--change-note).
+See [TRUNCATE](https://www.postgresql.org/docs/18/sql-truncate.html) and
+[transaction semantics](docs/TRANSACTIONS.md#whole-table-generation-replacement).
 Feature smoke: `make check RUN='^TestReferenceTruncateFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceTruncateFeatureSmoke$'`.
 
@@ -113,7 +114,7 @@ Unary NULL is strict; pi is immutable and row-independent. Gamma poles are
 overflow errors, nonzero tails remain accepted, and erfc tail zero is valid.
 Existing FLOAT8 and exact NUMERIC exp behavior remains unchanged. Finite libm
 accuracy and boundary behavior can vary by platform; see
-[math constants](docs/SQL.md#math-constants-and-special-functions--change-note)
+[math constants](https://www.postgresql.org/docs/18/functions-math.html)
 and [selected proof](reference/numeric/README.md#math-constants-selected-proof).
 Feature smoke: `make check RUN='^TestReferenceMathConstantsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceMathConstantsFeatureSmoke$'`.
@@ -124,7 +125,7 @@ cache tails), NULL when uncalled or lacking SELECT/USAGE. Definitions remain
 visible without schema/sequence privileges; own physical TEMP is included, peer
 TEMP excluded. Every qualifier-admitted row takes transaction-owned sequence RX,
 even definition/count/stored/join reads; FALSE/name-rejected rows do not.
-See [sequence view contract](docs/SQL.md#pg_sequences-view--change-note).
+See [sequence view contract](https://www.postgresql.org/docs/18/catalogs.html).
 
 Change note: individual `ALTER ... OWNER TO`, `REASSIGN OWNED` and
 `DROP OWNED` now operate on represented schemas, relations, user types,
@@ -144,7 +145,7 @@ creators' actual policies and selectively cleans selected recipients in others'
 policies. Tablespace providers remain absent.
 Complete default creator/recipient unions remain atomic natively; the documented
 pinned18.0 stale-default-address defect is not imitated.
-See [ownership and cleanup](docs/AUTHORIZATION.md#object-ownership-and-bulk-cleanup--change-note).
+See [ownership and cleanup](docs/AUTHORIZATION.md#ownership-and-bulk-cleanup).
 Feature smoke: `make check RUN='^TestReferenceRoleOwnershipFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRoleOwnershipFeatureSmoke$'`.
 
@@ -178,7 +179,7 @@ legality and nested source opening share executable output demand while retainin
 the complete frozen authorization and dependency manifests.
 Hashed membership builds its RHS before LHS demand and retains it per actual
 execution/source occurrence across unrelated parent rescans; a new Execute is fresh.
-See [expression collation](docs/DIALECT.md#expression-collation--change-note)
+See [expression collation](https://www.postgresql.org/docs/18/collation.html)
 and [selected proofs](reference/patterns_encoding/README.md#expression-collation-selected-proof).
 Feature smoke: `make check RUN='^TestReferenceExprCollationFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExprCollationFeatureSmoke$'`.
@@ -191,7 +192,7 @@ Empty/NULL inputs, negative indexes, codepoint splitting and null-field markers
 retain distinct scalar, array and set semantics. Target sets zip with NULL
 padding and nest by level; stored read views and native controls retain them.
 General function FROM and lateral derived SELECT/VALUES remain excluded.
-See [string splitting](docs/DIALECT.md#string-splitting--change-note).
+See [string splitting](https://www.postgresql.org/docs/18/functions-string.html).
 Feature smoke: `make check RUN='^TestReferenceStringSplitFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceStringSplitFeatureSmoke$'`.
 
@@ -200,7 +201,7 @@ direct/prepared binds, metadata and native Dump/Restore. INET preserves host
 bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical
 output and prefix-aware ordering distinguish network values from TEXT.
 Network arrays, helper functions and containment/arithmetic operators remain
-outside this scalar feature. See [network types](docs/TYPES.md#inet-and-cidr--change-note).
+outside this scalar feature. See [network types](https://www.postgresql.org/docs/18/datatype-net-types.html).
 Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
 
@@ -211,7 +212,7 @@ Live INHERIT membership supplies real read/write/schema/sequence capabilities;
 owns canonical public, whose historical PUBLIC USAGE|CREATE default is retained.
 Monitoring names do not unlock protected SET, and roles never synthesize missing
 statistics, filesystem/program, checkpoint, subscription or signaling providers.
-See [predefined role capabilities and limits](docs/AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
+See [predefined role capabilities and limits](docs/AUTHORIZATION.md#predefined-role-capabilities)
 and [small dual-mode proof groups](reference/roles/README.md#predefined-role-oracle-first-contracts).
 Public test smokes:
 `make check RUN='^TestReferencePredefined(DataFeatureSmoke|MaintainFeatureSmoke|BoundaryFeatureSmoke)$'`;
@@ -226,7 +227,7 @@ rollbackable dependency cleanup. ALL resets settings/authorization, SQL names,
 cursors, TEMP, sequence memories and session advisory holds, and is prohibited
 inside transaction blocks. Healthy automatic pool reuse is unchanged: issue
 `DISCARD ALL` before returning a borrower when explicit cleanup is required.
-See [cleanup categories](docs/DIALECT.md#discard--change-note) and
+See [cleanup categories](https://www.postgresql.org/docs/18/sql-discard.html) and
 [physical ownership](docs/DRIVER.md#explicit-discard-and-pool-reuse).
 Feature smoke: `make check RUN='^TestReferenceDiscardFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDiscardFeatureSmoke$'`.
@@ -268,7 +269,7 @@ and generated definitions exported before a real ALTER TABLE OF. CREATE requires
 source USAGE; PostgreSQL18 attachment does not. A target-lock wait can select a
 new earlier-path source; attachment retains that actual source's grant and fails
 atomically on source timeout/cancellation.
-See [typed tables](docs/TABLES.md#typed-tables--change-note).
+See [typed tables](https://www.postgresql.org/docs/18/sql-createtable.html).
 Selected native and pinned proofs: `make check RUN='^TestReferenceTypedTable'`
 and `make check REFERENCE=1 RUN='^TestReferenceTypedTable'`.
 
@@ -278,7 +279,7 @@ for currently supported SELECT/VALUES, INSERT, UPDATE, DELETE and MERGE forms.
 Definitions belong to the physical session, independently of Go statement handles
 and transaction rollback; each EXECUTE imports a fresh parameter frame.
 See [SQL prepared lifecycle](docs/DRIVER.md#sql-prepared-statements--change-note)
-and [parameter rules](docs/DIALECT.md#sql-prepared-statements--change-note).
+and [parameter rules](https://www.postgresql.org/docs/18/sql-prepare.html).
 Feature family (900 seconds per invocation):
 `make check RUN='^TestReferenceSQLPrepared'`;
 pinned counterpart:
@@ -299,7 +300,7 @@ children; post-snapshot conflicts are `40001`, including an originally empty
 child root. Action settlement repeats exclusion completion only for newly
 admitted event work, preserving unrelated deferred obligations without a
 redundant pass.
-See [foreign keys](docs/TABLES.md#foreign-key-constraints--change-note).
+See [foreign keys](https://www.postgresql.org/docs/18/ddl-constraints.html).
 Smoke: `make check RUN='^TestReferenceForeignActionsFeatureSmoke'`; pinned oracle:
 `make check REFERENCE=1 RUN='^TestReferenceForeignActionsFeatureSmoke'`.
 
@@ -320,7 +321,7 @@ retirement and a shared child's newly discovered removal through its other paren
 before classifying surviving column, DEFAULT or CHECK mutations.
 Restore also makes imported descriptors yield to retained TEMP definition identities,
 including local EXCLUDE constraints, without changing the retained TEMP graph.
-See [table inheritance](docs/TABLES.md#create-time-inheritance--change-note).
+See [table inheritance](https://www.postgresql.org/docs/18/ddl-inherit.html).
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceInheritanceFeatureSmoke$'`;
 pinned counterpart:
@@ -351,7 +352,7 @@ Named assignments preserve descriptor identity: equal-shaped distinct named
 types are not interchangeable. Direct UPDATE/INSERT VALUES may contextually
 construct anonymous ROW values; projected RECORD in INSERT SELECT requires an
 explicit named conversion. Empty VALUES expansions retain ordinary width errors.
-See [composites](docs/TYPES.md#composites--change-note).
+See [composites](https://www.postgresql.org/docs/18/rowtypes.html).
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceComposite(FeatureSmoke|MixedControls|ControlLifetime)$'`;
 pinned counterpart:
@@ -359,7 +360,7 @@ pinned counterpart:
 Composite-expression smoke (900 seconds each):
 `make check RUN='^TestReferenceCompositeExprFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceCompositeExprFeatureSmoke$'`.
-See [expression behavior](docs/QUERIES.md#composite-expressions--change-note).
+See [expression behavior](https://www.postgresql.org/docs/18/rowtypes.html).
 
 Change note: MONEY (OID790) stores exact signed eight-byte minor units and uses
 captured C/POSIX/empty-as-C monetary policy for dollar output with two fraction
@@ -370,8 +371,8 @@ not a float; monetary I/O/casts are STABLE. Arrays, aggregates, host locales and
 general function-style casts are not added. Native minimum-money/-1 integer
 division safely rejects22003 rather than executing PostgreSQL18.0's unguarded
 release-source division; no backend crash is asserted.
-See [MONEY](docs/TYPES.md#money--change-note) and
-[operators](docs/DIALECT.md#monetary-operators-and-casts--change-note).
+See [MONEY](https://www.postgresql.org/docs/18/datatype-money.html) and
+[operators](https://www.postgresql.org/docs/18/functions-math.html).
 Feature smoke: `make check RUN='^TestReferenceMoneyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceMoneyFeatureSmoke$'`.
 
@@ -381,7 +382,7 @@ cleanup. They share existing SET/LOCAL/function/reset journals, SQL/Go controls,
 savepoint nonrearm rules, fresh CHAIN budgets and timer-free prepared detach.
 Accepted native fatal work is never replayed through ErrBadConn; an expired idle
 pool owner can be discarded before a new command. No delay SQL or network server
-is added. See [timeout behavior](docs/SETTINGS.md#timeout-behavior--change-note).
+is added. See [timeout behavior](https://www.postgresql.org/docs/18/runtime-config.html).
 Feature smoke (900 seconds per invocation):
 `timeout 900s make check RUN='^TestReferenceTimeoutFeatureSmoke$'`;
 pinned counterpart:
@@ -407,7 +408,7 @@ PostgreSQL replay restores definitions unpopulated; explicit refresh computes
 the replayed base. Native CONCURRENTLY and explicit utility transactions remain
 excluded. Logical MV index roots rebuild with refresh; heap/WAL/physical index
 swap, crash durability and pg_dump are server-only.
-See [materialized views](docs/TABLES.md#materialized-views--change-note).
+See [materialized views](https://www.postgresql.org/docs/18/sql-creatematerializedview.html).
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`;
 pinned counterpart:
@@ -422,7 +423,7 @@ stored rows/population and frozen definitions. Existing CREATE INDEX forms also
 accept MVs; owner/schema changes keep attachments coherent, and refresh/storage
 and uniqueness-checked logical roots publish together. Native controls preserve
 current metadata, AUTO_EXTENSION edges and exact stale rows, never ALTER history.
-See [syntax](docs/SQL.md#materialized-views--change-note).
+See [syntax](https://www.postgresql.org/docs/18/sql-creatematerializedview.html).
 Feature smoke: `make check RUN='^TestReferenceMaterializedAlterFeatureSmoke$'`;
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceMaterializedAlterFeatureSmoke$'`.
@@ -436,7 +437,7 @@ PostgreSQL18 compatibility text, not native-executable catalog implementations.
 Index history remains true after dropping the last index; logical SQL Restore
 normalizes history-only flags while real descriptor replacement preserves them.
 No physical metrics or approximations are exposed.
-See [table/view summaries](docs/SQL.md#table-and-view-summaries--change-note).
+See [table/view summaries](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGTableViews(Lifecycle|IndexHistory|FailedIndexHistory|Visibility|Builtins|Definitions|Controls)$'`.
 
@@ -446,7 +447,7 @@ TEXT labels, INTERVAL offsets east of UTC and BOOL daylight flags. Names use the
 captured transaction-start instant; abbreviations use that instant plus the
 execution's TimeZone and Default/Australia/India table. Enumeration uses the
 existing embedded IANA2025b provider, not host files or arbitrary accepted POSIX
-expressions. See [timezone lookup views](docs/DIALECT.md#timezone-lookup-views--change-note).
+expressions. See [timezone lookup views](https://www.postgresql.org/docs/18/sql-createview.html).
 Smoke: `make check RUN='^TestReferenceTimezoneViewsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTimezoneViewsFeatureSmoke$'`.
 
@@ -460,7 +461,7 @@ same-command cardinality, including command-inserted rows. Native hierarchy,
 writable-view, exclusion-arbiter and deferrable UNIQUE DDL
 boundaries remain explicit. Native rechecks current rights after conflict waits;
 pinned PostgreSQL retains its statement-start ACL decision.
-See [conflict update](docs/QUERIES.md#insert-conflict-update--change-note) and
+See [conflict update](https://www.postgresql.org/docs/18/sql-insert.html) and
 [selected proof](reference/dml/README.md#insert-conflict-update-acceptance).
 
 Change note: `INSERT ... RETURNING [WITH (OLD AS o, NEW AS n)] ...` exposes
@@ -475,7 +476,7 @@ ignored output and keeps exact affected counts, never LastInsertId.
 Native Dump/Restore retains persistent objects/data, rejects RETURNING in import
 scripts and preserves already eager output across replacement. Generic ROW/field
 operators, triggers/rules/FDWs, wire tuple metadata and physical durability are
-not added. See [INSERT RETURNING](docs/QUERIES.md#insert-returning--change-note)
+not added. See [INSERT RETURNING](https://www.postgresql.org/docs/18/sql-insert.html)
 and [selected proof](reference/dml/README.md#insert-returning-oracle-first-contracts).
 
 Change note: PostgreSQL18 `MERGE` supports ordered conditional
@@ -493,7 +494,7 @@ Both missing-side families retain MERGE-local constant/parameter ON carriers:
 nonzero integers and non-NULL TEXT match, while zero/NULL do not, including domains.
 This does not relax ordinary JOIN or WHEN Boolean typing.
 BY SOURCE INSERT, DO NOTHING, RETURNING and writable target views remain excluded.
-See [MERGE matching and actions](docs/QUERIES.md#merge-insertion--change-note).
+See [MERGE matching and actions](https://www.postgresql.org/docs/18/sql-insert.html).
 Feature smoke (900 seconds per invocation; run each in both modes):
 `make check RUN='^TestReferenceMerge(Delete|SourceUpdate)FeatureSmoke$'`;
 pinned counterpart:
@@ -508,7 +509,7 @@ Ownership belongs to the physical connection: rollback and borrower/statement
 close do not release it; actual session close does. Native Reset/Restore retain
 held counts, while Dump excludes live ownership. Transaction-level advisory calls
 and lock introspection remain unsupported. See
-[session advisory locks](docs/DIALECT.md#session-advisory-locks--change-note).
+[session advisory locks](https://www.postgresql.org/docs/18/functions-admin.html).
 Feature smoke: `make check RUN='^TestReferenceAdvisorySessionFeatureSmoke'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceAdvisorySessionFeatureSmoke'`.
 
@@ -527,7 +528,7 @@ positions/overlap witnesses by typed bound order. Native mutation, row-locking,
 nonunique virtual-index/REINDEX and unsafe hierarchy alteration boundaries remain explicit.
 Existing schema-wide table GRANT/REVOKE includes virtual roots and intermediates;
 missing-key details use PostgreSQL expression and identifier quoting after privilege checks.
-See [RANGE partitions](docs/TABLES.md#range-partition-definitions--change-note).
+See [RANGE partitions](https://www.postgresql.org/docs/18/ddl-partitioning.html).
 Feature smoke: `make check RUN='^TestReferenceRangePartitionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'`.
 
@@ -547,7 +548,7 @@ Table-level PRIMARY KEY declarations on PARTITION OF use the same local key and
 NOT NULL authorities. Stored scalar and opaque regclass references to renamed
 virtual backings retain their identities through logical replay and byte-stable
 redumps, including views, inherited inline definitions, late defaults and row values.
-See [partitioned keys](docs/TABLES.md#partitioned-keys--change-note).
+See [partitioned keys](https://www.postgresql.org/docs/18/ddl-partitioning.html).
 Feature smoke: `make check RUN='^TestReferencePartitionConstraintsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePartitionConstraintsFeatureSmoke$'`.
 
@@ -557,7 +558,7 @@ Access method appears in CREATE INDEX text, not a sixth field. Native visibility
 requires schema USAGE plus parent table SELECT or any live column SELECT,
 intentionally stricter than PostgreSQL's unfiltered view. Held executions
 refresh definitions/ACLs; eager rows retain their own prior metadata and values.
-See [indexes](docs/SQL.md#indexes).
+See [indexes](https://www.postgresql.org/docs/18/sql-createindex.html).
 Feature smoke: `make check RUN='^TestReferencePGIndexesFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGIndexesFeatureSmoke$'`.
 
@@ -570,7 +571,7 @@ and native catalog replacement. Closed UUID defaults execute per inserted row;
 views, CHECK, prepared calls and native Dump/Restore retain symbolic providers.
 Finite shifts reuse session-zone calendar arithmetic and must fit the exact
 48-bit timestamp guard; native follows PostgreSQL18.6 guards, while the pinned
-18.0 oracle lacks those guards. See [UUID generation](docs/TYPES.md#uuid-generation).
+18.0 oracle lacks those guards. See [UUID generation](https://www.postgresql.org/docs/18/datatype-uuid.html).
 Feature smoke: `make check RUN='^TestReferenceUUIDGenerationFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceUUIDGenerationFeatureSmoke$'`.
 
@@ -581,7 +582,7 @@ consume captured locale policies; SQL float textual consumers capture execution
 precision, while exact native scalar transport and shortest canonical Dump remain
 unchanged. Only lc_messages mutation consults the current role's real superuser
 flag; unrelated privileged settings remain deny-only.
-See [session settings](docs/SETTINGS.md#format-encoding-and-locale-settings--change-note).
+See [session settings](https://www.postgresql.org/docs/18/runtime-config.html).
 Feature smokes: `make check RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceFormatEncoding(Controls|FeatureSmoke)$'`.
 
@@ -595,7 +596,7 @@ Invalid constant masks fail only when execution demands a non-NULL call.
 Closed UUID-generator DEFAULT trees compose through both numeric providers;
 symbolic Dump/Restore keeps them execution-owned, without admitting unrelated
 volatile defaults.
-See [numeric formatting](docs/DIALECT.md#numeric-formatting--change-note).
+See [numeric formatting](https://www.postgresql.org/docs/18/functions-formatting.html).
 Feature smoke: `make check RUN='^TestReferenceNumericFormattingFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceNumericFormattingFeatureSmoke$'`.
 
@@ -606,7 +607,7 @@ conversion pairs, with a fixed UTF8 database. `encode(bytea,text)` and
 the entire source before dispatch; there is no automatic UTF8 pivot for missing
 pairs. All five are strict; convert functions are STABLE, formats IMMUTABLE.
 Existing BYTEA-function DEFAULT exclusion and integer-cast boundaries remain.
-See [binary conversion](docs/DIALECT.md#binary-conversion--change-note).
+See [binary conversion](https://www.postgresql.org/docs/18/functions-binarystring.html).
 Smoke: `make check RUN='^TestReferenceBinaryConversionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBinaryConversionFeatureSmoke$'`.
 
@@ -618,7 +619,7 @@ can establish overlap only from a known endpoint strictly inside a complete
 period. DATE selection, Execute-time zones, stored definitions and native
 Dump/Restore use the existing typed seams. TIME durations are converted only
 inside OVERLAPS, not through a new global cast.
-See [period overlap](docs/DIALECT.md#period-overlap--change-note).
+See [period overlap](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`.
 
@@ -636,7 +637,7 @@ Windows run after WHERE/group/HAVING and before DISTINCT, outer
 ORDER and bounds. Only outer ORDER promises presentation order. Prepared queries,
 INSERT SELECT, captured views and pristine native Dump/Restore share this pipeline.
 Exclusions, window FILTER, count(expr) windows and other providers remain excluded.
-See [window queries](docs/QUERIES.md#selected-windows--change-note-changelog).
+See [window queries](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`.
 GROUPS feature smoke: `make check RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`;
@@ -654,7 +655,7 @@ Creation/drop and actions compose with rollback/savepoints; physical close
 removes TEMP, while returning a connection to its pool does not.
 Native Dump excludes TEMP; Reset/Restore preserves the exact live owner objects.
 Permanent transactional CREATE/DROP and GLOBAL/LOCAL spellings remain excluded.
-See [temporary tables](docs/TABLES.md#temporary-tables--change-note).
+See [temporary tables](https://www.postgresql.org/docs/18/ddl.html).
 Feature smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
 
@@ -667,7 +668,7 @@ UTF8 and reports unsupported conversion even for empty input. `unistr` decodes
 four runtime escape forms and surrogate pairs; assignment uses vendored
 Unicode16 categories rather than the host Unicode version. Stored consumers,
 metadata and native Dump/Restore retain the selected NAME/INT4 overload.
-See [string encoding](docs/DIALECT.md#string-codepoints-encoding-and-unicode--change-note).
+See [string encoding](https://www.postgresql.org/docs/18/functions-string.html).
 Feature smoke: `make check RUN='^TestReferenceStringEncodingFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceStringEncodingFeatureSmoke$'`.
 
@@ -685,7 +686,7 @@ replay keeps inline consumer prerequisites, including opaque array payloads
 inside BOOL defaults without manufacturing DROP dependencies. Failing UPDATE
 RETURNING rows use captured symbolic output without widening privilege
 disclosure. See
-[regclass relation identifiers](docs/TYPES.md#regclass-relation-identifiers--change-note).
+[regclass relation identifiers](https://www.postgresql.org/docs/18/datatype-oid.html).
 Feature smoke (900-second deadline per invocation):
 `make check RUN='^TestReferenceRegclassFeatureSmoke$'`;
 pinned counterpart:
@@ -702,13 +703,13 @@ use the existing typed seams. Oversized outputs report PostgreSQL54000 with
 the two-argument pad wrapper Context preserved.
 Feature smoke: `make check RUN='^TestReferenceStringPadFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceStringPadFeatureSmoke$'`.
-See [padding and reversal](docs/DIALECT.md#string-padding-repetition-and-reversal--change-note).
+See [padding and reversal](https://www.postgresql.org/docs/18/functions-string.html).
 
 Change note: PostgreSQL 18 `age(timestamp[,timestamp])` returns symbolic
 intervals with earlier-month borrowing, BC/AD and infinity semantics;
 `isfinite(date|timestamp|interval)` returns a strict BOOL predicate.
 Unary age uses transaction-current local midnight, not Prepare time.
-See [age and finite predicates](docs/DIALECT.md#age-and-finite-predicates--change-note).
+See [age and finite predicates](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeAgeFiniteFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeAgeFiniteFeatureSmoke$'`.
 
@@ -720,7 +721,7 @@ components independently default to zero. Negative years mean BC, TIME retains
 explicit zone or the Execute-time session zone; output uses the captured session.
 The constructors compose in queries, writes and stored definitions, including
 native Dump/Restore. General named-function binding remains excluded.
-See [datetime constructors](docs/DIALECT.md#datetime-constructors--change-note).
+See [datetime constructors](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeMakeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeMakeFeatureSmoke$'`.
 
@@ -728,7 +729,7 @@ Change note: `justify_days(interval)`, `justify_hours(interval)` and
 `justify_interval(interval)` normalize 30-day months, 24-hour days and combined
 mixed signs respectively. They preserve NULL and return unrestricted INTERVAL;
 checked component overflow reports `22008`. See
-[interval justification](docs/DIALECT.md#interval-justification--change-note).
+[interval justification](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeJustifyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeJustifyFeatureSmoke$'`.
 
@@ -738,7 +739,7 @@ NUMERIC with PostgreSQL display scales and division rounding; date_part returns
 FLOAT8. Calendar/ISO fields, component-preserving intervals, signed infinities,
 strict NULL and Execute-time zone fields share query and stored-definition paths.
 The DATE date_part overload is a midnight TIMESTAMP wrapper, not DATE extraction.
-See [date/time extraction](docs/DIALECT.md#datetime-extraction--change-note).
+See [date/time extraction](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeExtractFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeExtractFeatureSmoke$'`.
 
@@ -748,7 +749,7 @@ from microseconds through millennium. Session/explicit zones preserve each
 fold occurrence for hour truncation and recompute day-or-larger boundaries.
 DATE selects TIMESTAMPTZ; TIME converts to INTERVAL only within this selected
 call (24:00 remains zero days and24hours). See
-[datetime truncation](docs/DIALECT.md#datetime-truncation--change-note) for
+[datetime truncation](https://www.postgresql.org/docs/18/functions-datetime.html) for
 the explicit naive-input timezone boundary and unsupported interval week.
 Feature smoke: `make check RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`.
@@ -759,7 +760,7 @@ microsecond boundaries and exact bins before the origin. Days mean24elapsed
 hours; stored months/years are rejected. Mixed timestamp variants promote to
 TIMESTAMPTZ; DATE/unknown selection follows PostgreSQL's exact/preferred rules.
 Results preserve the selected type without inheriting input precision.
-See [datetime binning](docs/DIALECT.md#datetime-binning--change-note) for strict
+See [datetime binning](https://www.postgresql.org/docs/18/functions-datetime.html) for strict
 NULL, infinity/error precedence, coercion stability and native stored replay.
 Feature smoke: `make check RUN='^TestReferenceDatetimeBinFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeBinFeatureSmoke$'`.
@@ -771,7 +772,7 @@ leading zeroes, empty values and NULL through direct/prepared statements,
 textual parameters, metadata and native Dump/Restore. Raw B/X literals and
 assignment enforce exact fixed widths or varying maxima; no padding/truncation
 or bit casts/operators/arrays are introduced. See
-[bit strings](docs/TYPES.md#bit-strings--change-note).
+[bit strings](https://www.postgresql.org/docs/18/datatype-bit.html).
 Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make check RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`.
 
@@ -807,7 +808,7 @@ resolves the current named incarnation. USING/RETURNING retain their normal
 scopes, metadata and atomic publication. Savepoint rollback restores data without
 rewinding older cursor movement; full transaction end closes ordinary names.
 Exported HOLD has no live physical source and CURRENT OF reports24000.
-See [positioned DELETE](docs/QUERIES.md#positioned-delete--change-note).
+See [positioned DELETE](https://www.postgresql.org/docs/18/sql-delete.html).
 Feature smoke: `make check RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDeleteCurrentOfFeatureSmoke$'`.
 
@@ -820,7 +821,7 @@ publication apply. Rollback restores data without rewinding older cursor motion.
 Committed Dump/Restore preserves changed rows, not cursor/private state.
 Transparent cursor views remain eligible for base targets; CURRENT OF on a view
 UPDATE target rejects with PostgreSQL0A000 at analysis/Prepare.
-See [positioned UPDATE](docs/QUERIES.md#positioned-update--change-note).
+See [positioned UPDATE](https://www.postgresql.org/docs/18/sql-update.html).
 Smoke: `make check RUN='^TestReferenceUpdateCurrentOfFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceUpdateCurrentOfFeatureSmoke$'`.
 
@@ -863,7 +864,7 @@ Selected REGTYPE IO coercions capture symbolic output authority for VARCHAR and
 TEXT/VARCHAR assignment, including domain sources and stored defaults. Unrelated
 role creation/drop does not retarget held literals or repeat their analysis notices;
 qualified schema lookup still enforces current USAGE after ownership changes.
-See [REGTYPE contracts](docs/TYPES.md#regtype--change-note) and
+See [REGTYPE contracts](https://www.postgresql.org/docs/18/datatype-oid.html) and
 [design/inventory](docs/design/PG18-TYPE-REG-TYPE.md).
 Feature smoke: `make check RUN='^TestReferenceRegtypeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'`.
@@ -875,8 +876,8 @@ Corresponding columns resolve common types pairwise, with leftmost output labels
 unordered results have no implicit sequence guarantee. Derived/scalar/EXISTS,
 INSERT sources and stored views share these semantics, including native
 Dump/Restore. TABLE and LATERAL are not added by the set-operation change;
-SELECT CTEs are described in [WITH queries](docs/QUERIES.md#select-ctes--change-note-changelog).
-See [set operations](docs/QUERIES.md#set-operations--change-note-changelog).
+SELECT CTEs are described in [WITH queries](https://www.postgresql.org/docs/18/queries.html).
+See [set operations](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQuerySetOpsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQuerySetOpsFeatureSmoke$'`.
 
@@ -891,8 +892,8 @@ exclusion and early read-only admission precede safe-snapshot acquisition; tempo
 new query providers are not added. Native Dump/Restore reconstructs ordinary
 definitions/data, including already supported catalog output types, without
 exposing additional raw declaration types.
-See [query-created tables](docs/TABLES.md#query-derived-tables--change-note)
-and [query consumer phases](docs/QUERIES.md#query-created-table-consumers).
+See [query-created tables](https://www.postgresql.org/docs/18/sql-createtable.html)
+and [query consumer phases](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryTableCreateFeatureSmoke'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryTableCreateFeatureSmoke'`.
 
@@ -937,7 +938,7 @@ operators, elapsed subtraction, offset-preserving clocks and component-exact
 interval arithmetic/scaling. Zoned calendar arithmetic observes embedded DST
 rules and remains STABLE even for a zero interval. Existing comparisons, metadata,
 prepared execution and native Dump/Restore retain their owning contracts.
-See [date/time arithmetic](docs/DIALECT.md#date-and-time-arithmetic--change-note).
+See [date/time arithmetic](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeArithmeticFeatureSmoke$'`.
 
@@ -947,7 +948,7 @@ from the top-level transaction start, with microsecond precision and session
 TimeZone presentation. Held prepared expressions remain dynamic across transactions;
 savepoints do not restart their clock. Precision0–6 rounds, while unsigned higher
 precision clamps to6 with PostgreSQL's analysis-time warning. Zoned/local result
-types remain distinct. See [current date/time](docs/DIALECT.md#sql-current-date-and-time--change-note).
+types remain distinct. See [current date/time](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeCurrentFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeCurrentFeatureSmoke$'`.
 
@@ -956,7 +957,7 @@ TIMESTAMPTZ providers; `statement_timestamp()` captures each command's start.
 `clock_timestamp()` and TEXT `timeofday()` sample the wall clock when demanded.
 All five are zero-argument calls, with microsecond precision, execution-time
 TimeZone presentation and symbolic DEFAULT/CHECK/view/native replay.
-See [transaction and statement time](docs/DIALECT.md#transaction-and-statement-time--change-note).
+See [transaction and statement time](https://www.postgresql.org/docs/18/functions-datetime.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeTxTimesFeatureSmoke$'`.
 
@@ -970,7 +971,7 @@ no ordinary comparison/grouping/index-key provider, but supports INCLUDE payload
 Missing default classes report42704 even during atomic ALTER TYPE reconstruction.
 Unicode-escape physical EOF reports an invalid token, distinct from present nonhex
 digits. JSON operators/functions and SQL/JSON constructor `json(...)` are excluded.
-See [JSON types](docs/TYPES.md#json-textual-storage--change-note).
+See [JSON types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONFeatureSmoke$'`.
 
@@ -980,7 +981,7 @@ scale. It rejects numeric overflow, zero Unicode escapes and invalid surrogate
 pairs. SQL NULL differs from JSON null. Ordinary comparison, grouping, B-tree
 keys, JSON↔JSONB IO casts, metadata and logical native Dump/Restore share the
 existing typed providers; JSON remains source-preserving and noncomparable.
-See [JSONB types](docs/TYPES.md#jsonb-normalized-storage--change-note).
+See [JSONB types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONBFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONBFeatureSmoke$'`.
 
@@ -991,7 +992,7 @@ remain distinct from omitted unbounded endpoints. Direct/prepared text/byte
 binds, NUMRANGE metadata, full atomic diagnostics and native/domain Dump/Restore
 reuse existing ownership and staging. Constructors/operators/casts/arrays and
 temporal ranges remain outside this feature.
-See [continuous numeric ranges](docs/TYPES.md#continuous-numeric-range-columns--change-note).
+See [continuous numeric ranges](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
@@ -1004,7 +1005,7 @@ Direct/prepared text/byte binds, metadata, nested domains and atomic native
 Dump/Reset/Restore reuse existing ownership; no operators, casts, arrays or SQL
 comparison/index providers are added. Scalar comparisons reject at admission
 with42883, including plain/nested domains; they never treat unequal unions as equal.
-See [multirange columns](docs/TYPES.md#multirange-columns--change-note).
+See [multirange columns](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceMultirangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
@@ -1018,7 +1019,7 @@ Direct/prepared groups, FILTER, admitted integer-key local ORDER, INSERT SELECT
 and stored-view native controls share the typed eager aggregate pipeline.
 No scalar range comparison/order/group provider, DISTINCT support, window provider,
 temporal family, constructor, operator or cast is added.
-See [range aggregates](docs/QUERIES.md#range-set-aggregates--change-note).
+See [range aggregates](https://www.postgresql.org/docs/18/functions-aggregate.html).
 Feature smoke: `make check RUN='^TestReferenceRangeAggregateFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
@@ -1032,7 +1033,7 @@ retained readers and atomic failed replacement. Already-admitted range-backed
 domains replay canonical row text and NULL through their declared destinations.
 No constructors/operators, new casts, range arrays or
 comparison/index providers are added.
-See [integer range columns](docs/TYPES.md#integer-range-columns--change-note).
+See [integer range columns](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$' REFERENCE=1`.
 
@@ -1045,7 +1046,7 @@ Native metadata is JSONPATH/string; lib/pq reports an empty type name and
 interface{} ScanType, with raw bytes. Defaults, views, arrays/domains and native
 Dump/Restore reuse existing providers. JSON query functions/operators, path
 evaluation, regex matching and GIN remain excluded.
-See [JSONPath typed IO](docs/TYPES.md#jsonpath-typed-input--change-note).
+See [JSONPath typed IO](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONPathFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'`.
 
@@ -1057,8 +1058,8 @@ Change note: PostgreSQL 18 datetime templates support `to_char(timestamp,text)`,
 ordinary casts; prepared executions capture the current session zone. The five
 strict STABLE functions compose in queries, writes, DEFAULT/CHECK and views,
 including native Dump/Restore. Epoch `to_timestamp` remains unsupported;
-numeric overloads are covered by [numeric formatting](docs/DIALECT.md#numeric-formatting--change-note).
-See [datetime formatting](docs/DIALECT.md#datetime-formatting--change-note).
+numeric overloads are covered by [numeric formatting](https://www.postgresql.org/docs/18/functions-formatting.html).
+See [datetime formatting](https://www.postgresql.org/docs/18/functions-formatting.html).
 Feature smoke: `make check RUN='^TestReferenceDatetimeFormattingFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeFormattingFeatureSmoke$'`.
 
@@ -1072,7 +1073,7 @@ tablespaces, statistics and concurrent/global rebuild requests remain explicit
 capability boundaries, not no-op successes. Internal coherent metadata uses
 central actual method-specific class identities and key/INCLUDE vectors, including admitted
 explicit providers and enum domains; no new SQL catalog source is added.
-See [maintenance contracts](docs/SQL.md#index-maintenance) and
+See [maintenance contracts](https://www.postgresql.org/docs/18/sql-reindex.html) and
 [the design](docs/design/PG18-INDEX-MAINTENANCE.md).
 Feature smokes:
 `make check RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)'`;
@@ -1104,7 +1105,7 @@ inputs retain REAL. Power is left-associative (`2^3^2=64`) and FLOAT8-selected
 integer power is supported. IEEE specials, checked range/domain diagnostics,
 stored expressions and native replacement use the existing execution seams.
 Floating `%` remains unavailable; exact NUMERIC operators are documented below.
-See [floating arithmetic](docs/DIALECT.md#floating-arithmetic--change-note).
+See [floating arithmetic](https://www.postgresql.org/docs/18/functions-math.html).
 Feature smokes: `make check RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$'`.
 
@@ -1114,7 +1115,7 @@ rounding. Integer and fractional power share guarded decimal computation,
 not binary FLOAT8 results; power remains left-associative. Direct/prepared
 inputs, computed NUMERIC metadata, stored grouping and native Dump/Restore
 reuse existing binding, execution and atomic publication.
-See [numeric arithmetic](docs/DIALECT.md#numeric-arithmetic--change-note) and
+See [numeric arithmetic](https://www.postgresql.org/docs/18/functions-math.html) and
 [the design](docs/design/PG18-FUNC-MATH-ARITHMETIC-NUMERIC.md).
 Feature smoke: `make check RUN='^TestReferenceNumericArithmeticFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceNumericArithmeticFeatureSmoke$'`.
@@ -1145,7 +1146,7 @@ NULL, binding/runtime diagnostics, held execution-time catalog lookup and known
 nullable TEXT metadata reuse existing typed providers. OWNED BY NONE removes
 the association; native Dump/Restore and symbolic views/defaults/CHECK retain
 existing ownership and generator state. No new DDL or pg_get_owned_sequence
-alias is added. See [owned sequence introspection](docs/DIALECT.md#owned-sequence-introspection--change-note).
+alias is added. See [owned sequence introspection](https://www.postgresql.org/docs/18/functions-info.html).
 Feature smoke: `make check RUN='^TestReferenceSerialIdentityFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSerialIdentityFeatureSmoke$'`.
 
@@ -1161,7 +1162,7 @@ Domain publication/drop and native Dump/Restore retain both association halves
 and recursively reown stored identities. Typed constructors and access extend
 this immutable storage through the existing expression consumers, as described
 in the array expression change note below.
-See [arrays](docs/TYPES.md#arrays--change-note).
+See [arrays](https://www.postgresql.org/docs/18/arrays.html).
 Feature smoke: `make check RUN='^TestReferenceArraySmoke$'`;
 independent oracle: `make check REFERENCE=1 RUN='^TestReferenceArraySmoke$'`.
 
@@ -1211,7 +1212,7 @@ real type/column/stored-expression dependencies: CASCADE removes dependent colum
 and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
 qualified declarations, chains, owners and data. Domain DEFAULT/CHECK/NOT NULL,
 ALTER DOMAIN, array operators/functions, type ACL-management
-SQL and transactional domain DDL remain excluded. See [domains](docs/TYPES.md#domains--change-note).
+SQL and transactional domain DDL remain excluded. See [domains](https://www.postgresql.org/docs/18/domains.html).
 Feature smokes:
 `make check RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$'`,
 `make check RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$'`,
@@ -1224,7 +1225,7 @@ exports TIMESTAMPTZ metadata and survives native Dump/Reset/Restore.
 PostgreSQL's inherited `DEFAULT current_timestamp(2)` remains outside native
 support: omitted values use a column default or typed NULL. No sibling-domain,
 implicit `_time_stamp` array storage or general information-schema view support
-is implied. See [domain contracts](docs/TYPES.md#domains--change-note).
+is implied. See [domain contracts](https://www.postgresql.org/docs/18/domains.html).
 Feature smoke: `make check RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`.
 
@@ -1246,13 +1247,13 @@ default deny when no applicable permissive expression can grant the required
 use. DISABLE retains definitions; dropping the last policy retains both flags.
 Applicable expressions (including TRUE/FALSE/NULL) instead raise Execute `0A000`
 `row-security policy expression enforcement is unsupported`, not an invented
-allow/deny result. See the [BASE contract](docs/AUTHORIZATION.md#row-security-enablement-and-default-deny--change-note).
+allow/deny result. See the [BASE contract](docs/AUTHORIZATION.md#row-security-metadata-and-enforcement-limits).
 Release18 accepts `ALTER POLICY IF EXISTS ... RENAME TO ...`, but its rename
 handler still errors on a missing table or policy; selective ALTER has no
 IF EXISTS form. Native policy utilities remain autocommit-only and reject
 read-only execution; PostgreSQL supports transactional policy DDL.
-See [policy contracts](docs/AUTHORIZATION.md#row-security-policy-definitions--change-note)
-and [dialect limits](docs/DIALECT.md#row-security-policy-definitions--change-note).
+See [policy contracts](docs/AUTHORIZATION.md#row-security-metadata-and-enforcement-limits)
+and [dialect limits](https://www.postgresql.org/docs/18/ddl-rowsecurity.html).
 Feature smoke: `make check RUN='^TestReferenceRLSPolicyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRLSPolicyFeatureSmoke$'`.
 
@@ -1291,7 +1292,7 @@ unsupported dependent grant bits, while default/explicit RESTRICT is atomic.
 Independent grants and inherited options survive; PUBLIC option-only revocation
 is legal and owner implicit grant authority remains. Release18.0
 GRANTED BY/current-user and per-ACL dependency semantics are documented in
-[authorization](docs/AUTHORIZATION.md#table-and-column-grants--change-note).
+[authorization](docs/AUTHORIZATION.md#table-and-column-acl-authority).
 Merged column requests follow stable attribute order, including duplicate and
 reversed lists. Enumerating all four column privileges has the same partial-option
 warning suppression as column ALL; zero-option requests still warn.
@@ -1323,7 +1324,7 @@ schema survive actor switches, without bypassing table ACLs or peer isolation.
 Default utilities retain native explicit-transaction boundaries; nonempty
 default policy makes Dump fail before output, Restore rejects the utility, and
 Reset clears policy while retaining roles/membership. See
-[default privilege contracts](docs/AUTHORIZATION.md#default-privileges--change-note).
+[default privilege contracts](docs/AUTHORIZATION.md#creation-time-default-policy).
 Feature smoke: `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
 and the same command with `REFERENCE=1` (900 seconds each).
 
@@ -1362,8 +1363,8 @@ Membership never synthesizes summary flags. Rename, role settings and
 table/column privileges through the existing ACL authority. Native DROP and
 COMMENT retain their existing actual-SUPERUSER gates; broader PostgreSQL DROP
 authority stays a backend-specific diagnostic supplement, not a native permission
-expansion. See the exact [pg_roles](docs/SQL.md#pg_roles-safe-role-view--change-note)
-and [pg_group](docs/SQL.md#pg_group-legacy-group-view--change-note) contracts.
+expansion. See the exact [pg_roles](https://www.postgresql.org/docs/18/catalogs.html)
+and [pg_group](https://www.postgresql.org/docs/18/catalogs.html) contracts.
 Group smoke: `make check RUN='^TestReferencePGGroupFeatureSmoke$'`; repeat with
 `REFERENCE=1` for pinned PostgreSQL18.0, each with an external900-second deadline.
 Observed public smoke exercised creator ADMIN, ALTER USER omission, expired trusted
@@ -1385,7 +1386,7 @@ TRUE and NULL pass; FALSE rejects INSERT/UPDATE with PostgreSQL-style `23514`
 constraint identity and privilege-filtered failing-row details. A late failure
 rolls back all row writes in the statement. Definitions survive native
 Dump/Restore and column/table rename; CHECK does not change declared nullability.
-See [CHECK constraints](docs/TABLES.md#check-constraints--change-note).
+See [CHECK constraints](https://www.postgresql.org/docs/18/ddl-constraints.html).
 Feature smoke: `make check RUN='^TestCheckSmoke$'`.
 
 Constraint and stored-expression introspection supports all four PostgreSQL
@@ -1407,7 +1408,7 @@ Consumer fixtures distinguish conditional NULL/branch behavior, controlled comme
 state, session paths/zones and per-backend seeded random effects. Exact renderer
 strings or one successful insertion alone are not behavioral compatibility proof.
 Native tree output is not PostgreSQL's physical node serialization; non-NULL
-external tree input is rejected. See [deparsing](docs/QUERIES.md#constraint-and-expression-deparsing).
+external tree input is rejected. See [deparsing](https://www.postgresql.org/docs/18/functions-info.html).
 Feature smoke: `make check RUN='^TestReferenceDeparseConstraints'`.
 
 Change note: `pg_catalog.pg_attrdef` exposes `oid OID`, `adrelid OID`,
@@ -1425,8 +1426,8 @@ TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
 `AT TIME ZONE` / `AT LOCAL` and all nine `timezone(...)` overloads.
 Timestamptz stores an instant; timetz retains
 its fixed offset. Rules are embedded from the pinned PostgreSQL 18.0 image,
-not the host timezone installation. See [temporal types](docs/TYPES.md#time-zone-aware-values)
-and [session settings](docs/SETTINGS.md#temporal-settings).
+not the host timezone installation. See [temporal types](https://www.postgresql.org/docs/18/datatype-datetime.html)
+and [session settings](https://www.postgresql.org/docs/18/runtime-config.html).
 Native logical Dump/Restore preserves these values independently of session
 presentation. `date_add` / `date_subtract` accept timestamptz plus interval,
 with an optional explicit zone for calendar months/days; elapsed microseconds
@@ -1453,7 +1454,7 @@ without a delay; positive infinity and huge positive values remain cancellable.
 Existing transaction/table/session advisory locks are **not released by sleep**.
 SQL statement timeout reports57014; native caller cancellation preserves ordinary
 Go context errors and existing transaction rollback/owner cleanup.
-See [delay contracts](docs/DIALECT.md#datetime-delays).
+See [delay contracts](https://www.postgresql.org/docs/18/functions-datetime.html).
 Dual-mode smoke: `make check RUN='^TestReferenceDatetimeSleepFeatureSmoke$'`,
 then the same command with `REFERENCE=1`. The standalone public source and
 root-only materialization/run instructions are in
@@ -1466,7 +1467,7 @@ FROM/column aliases and the special USING alias. Unmatched operands receive
 typed NULLs; ON determines matches before WHERE filters output. Duplicate
 occurrences survive (the documented fixture yields LEFT6/RIGHT6/FULL8).
 Prepared executions freshly bind every source, and eager results survive native
-Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
+Reset/Restore. See [join semantics and limits](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQuery(OuterJoins|JoinsPreservation)'`;
 pinned reference: `make check REFERENCE=1 RUN='^TestReferenceQuery(OuterJoins|JoinsPreservation)'`.
 
@@ -1478,7 +1479,7 @@ duplicates retain positioned ambiguous-column errors, even for distant qualifier
 Output labels stay invisible to sibling targets and WHERE; bare ORDER labels
 prefer outputs while compound/qualified ORDER uses inputs. This corrects
 missing-name diagnostics without changing resolution or physical privileges.
-See [query labels and relation aliases](docs/QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
+See [query labels and relation aliases](https://www.postgresql.org/docs/18/queries.html).
 Public feature smoke: `make check RUN='^TestReferenceQueryAliases'`.
 
 DELETE also accepts the supported query `USING` source trees, including joins,
@@ -1488,7 +1489,7 @@ Each matched physical target is deleted/counts/returns once despite repeated
 source matches; identical target rows remain distinct. Source rows and qualifying
 pair identities stay captured through row waits; only the same target predecessor
 and predicate are refreshed. No arbitrary source winner or output order is promised.
-See [DELETE USING](docs/QUERIES.md#delete-using--change-note).
+See [DELETE USING](https://www.postgresql.org/docs/18/sql-delete.html).
 Feature smoke: `make check RUN='^TestReferenceDeleteUsingSmoke'`;
 pinned mode: `make check REFERENCE=1 RUN='^TestReferenceDeleteUsingSmoke'`.
 
@@ -1500,7 +1501,7 @@ including full metadata for no matches; Exec still evaluates output and reports
 the actual count. Output failure or prepublication cancellation discards all
 transactional deletions, while sequence draws retain their usual nonrollback
 semantics. Native Dump/Restore records surviving objects/data, not result history.
-See [DELETE RETURNING](docs/QUERIES.md#delete-returning--change-note).
+See [DELETE RETURNING](https://www.postgresql.org/docs/18/sql-delete.html).
 Migrated public routes: `make check RUN='^TestReferenceDeleteUsingMigrated'`;
 pinned mode: `make check REFERENCE=1 RUN='^TestReferenceDeleteUsingMigrated'`.
 
@@ -1510,7 +1511,7 @@ predecessor, including after a row wait. Same-value matches and duplicates each
 return one occurrence; no matches retain full metadata. Query owns eager values,
 and Exec still evaluates outputs before reporting its count. Output errors roll
 back staged mutations, not sequence draws, under existing transaction/savepoint
-rules. See [UPDATE RETURNING](docs/QUERIES.md#update-returning--change-note).
+rules. See [UPDATE RETURNING](https://www.postgresql.org/docs/18/sql-update.html).
 Feature smokes: `make check RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)'`; pinned mode: `make check REFERENCE=1 RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)'`.
 
 UPDATE also accepts AS/bare target aliases and the supported inner/outer `FROM` trees using
@@ -1520,7 +1521,7 @@ Multiple eligible source pairs may evaluate SET, but each physical target is
 replaced/counts/returns once with its winning source pair, without a promised
 winner or traversal order. After a row wait only that target predecessor and
 predicate are refreshed; source rows and candidate identities stay frozen.
-See [UPDATE FROM](docs/QUERIES.md#update-from--change-note).
+See [UPDATE FROM](https://www.postgresql.org/docs/18/sql-update.html).
 Feature smoke: `make check RUN='^TestReferenceUpdateFromSmoke$'`.
 Pinned PostgreSQL witnesses: `make check REFERENCE=1 RUN='^TestReferenceUpdateFrom'`.
 
@@ -1541,7 +1542,7 @@ INTEGER/BIGINT/NUMERIC result width, return nonnegative exact results, and retai
 the greater numeric input scale. Trig uses FLOAT8 signatures,
 with exact notable degree angles, direct-function poles and atan2(y,x)
 quadrant/IEEE semantics. See the
-[mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
+[mathematical signatures and limits](https://www.postgresql.org/docs/18/functions-math.html).
 Selected public checks: `make check RUN='^TestReferenceMathScalar'`,
 `make check RUN='^TestReferenceMathTrigDirectFeatureSmoke$'` and
 `make check RUN='^TestReferenceMathGcdLcm'`, each also with `REFERENCE=1`.
@@ -1568,7 +1569,7 @@ Bounds fail with 2202E before new-bit validation (22023). NULL suppresses body
 errors, not input, signature or authority checks. Unknown operands participate
 in PostgreSQL's BYTEA/BIT overload competition; selected BIT overloads remain an
 explicit native capability boundary, not BYTEA reinterpretation.
-See [BYTEA access](docs/DIALECT.md#bytea-bit-and-byte-access--change-note).
+See [BYTEA access](https://www.postgresql.org/docs/18/functions-binarystring.html).
 Feature smoke: `make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
 
@@ -1594,7 +1595,7 @@ Character counts and search positions count Unicode codepoints, not UTF8 bytes.
 Exact CHAR octet counts include padding; its bit counts and search operands use
 the trimmed TEXT conversion. Results are strict INT4, with zero for not found and
 one for an empty needle. Selected string functions compose in DEFAULT/CHECK/views
-and native replay. See [String length and search](docs/DIALECT.md#string-length-and-search--change-note).
+and native replay. See [String length and search](https://www.postgresql.org/docs/18/functions-string.html).
 
 `format(format_text[,arguments...])` supports PostgreSQL `%s`, `%I`, `%L`,
 `%%`, positional arguments, sequential arguments and literal/asterisk widths.
@@ -1609,7 +1610,7 @@ Explicit `VARIADIC` consumes any already-supported typed array or domain over it
 including multidimensional, lower-bound, NULL and empty arrays. It borrows the
 existing immutable array payload; format adds no array types or syntax. The shared expression works in
 query/write/RETURNING, DEFAULT/CHECK/views and native replay.
-See [String formatting](docs/DIALECT.md#string-formatting--change-note).
+See [String formatting](https://www.postgresql.org/docs/18/functions-string.html).
 Feature smoke: `make check RUN='^TestReferenceFormatSmoke$'`;
 the independent pinned PostgreSQL counterpart adds `REFERENCE=1`.
 
@@ -1643,7 +1644,7 @@ Feature smoke: `make check RUN='^TestReferenceStringVariadicFeatureSmoke$'`;
 the independently asserted pinned PostgreSQL counterpart adds `REFERENCE=1`.
 Review-policy smoke: `make check RUN='^TestReferenceStringVariadic(DeparseRelations|BoundFormat|ViewWrites|MergeDefaults|Parameterized)$'`,
 also with `REFERENCE=1`; it independently asserts each backend's planner boundary.
-See [variadic concatenation and quoting](docs/DIALECT.md#variadic-concatenation-and-quoting--change-note).
+See [variadic concatenation and quoting](https://www.postgresql.org/docs/18/functions-string.html).
 
 
 String replacement supports `overlay(text,text,int4[,int4])` and SQL OVERLAY,
@@ -1657,7 +1658,7 @@ its `from` set and deletes characters with no corresponding `to` character.
 operations. All textual arguments use the existing BPCHAR-to-TEXT trim, while
 TEXT/VARCHAR tails remain. These providers compose through queries, writes,
 DEFAULT/CHECK/views and native Dump/Restore, retaining TEXT/BOOL metadata.
-See [replacement and prefix rules](docs/DIALECT.md#string-replacement-and-prefix--change-note).
+See [replacement and prefix rules](https://www.postgresql.org/docs/18/functions-string.html).
 Independent native/reference witnesses:
 `make check RUN='^(TestReferenceStringReplace(Overlay|Replace|Translate|Prefix|Signatures|Diagnostics|Collation|Metadata|Consumers|Atomicity|Stored|Controls|Cancellation)|TestReferenceBinarySliceCapabilityBoundaries)$'`;
 the pinned PostgreSQL counterpart uses the same command with `REFERENCE=1`.
@@ -1678,7 +1679,7 @@ compose in queries, writes, CHECKs and views. Parameter-free calls are admitted
 in native Restore INSERTs; BYTEA hash DEFAULT functions remain excluded, while
 TEXT MD5 DEFAULT is supported. Cryptographic hashes use bounded scratch and
 check cancellation without payload-sized temporary copies. See the
-[hash contract](docs/DIALECT.md#bytea-checksums-and-hashes--change-note).
+[hash contract](https://www.postgresql.org/docs/18/functions-binarystring.html).
 Feature smoke: `make check RUN='^TestReferenceBinaryHashSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBinaryHash'`.
 
@@ -1703,7 +1704,7 @@ fractional scale, and numeric pretty accepts values beyond BIGINT and NaN/infini
 SMALLINT/INTEGER/unknown pretty inputs are ambiguous; cast explicitly.
 Strict NULLs, stored consumers, native controls and symbolic selected overloads
 reuse the existing typed path. See the
-[size contract](docs/DIALECT.md#size-parsing-and-formatting--change-note).
+[size contract](https://www.postgresql.org/docs/18/functions-admin.html).
 Feature smoke in both modes:
 `make check RUN='^TestReferenceSizeFeatureSmoke$'`;
 `make check REFERENCE=1 RUN='^TestReferenceSizeFeatureSmoke$'`.
@@ -1721,7 +1722,7 @@ Explicit-set BYTEA SQL TRIM keeps its special spelling through CHECK replay
 without adding BYTEA DEFAULT or cast support. Parameter-free Restore INSERTs
 accept the selected string functions, and trim checks cancellation during both
 endpoint and set traversal without allocating a replacement string.
-See [syntax and boundaries](docs/DIALECT.md#core-string-functions--change-note).
+See [syntax and boundaries](https://www.postgresql.org/docs/18/functions-string.html).
 Feature smoke: `make check RUN='^TestStringCoreSmoke$'`.
 
 Change note: `lower`, `upper`, `casefold` and `initcap` accept one character
@@ -1736,8 +1737,8 @@ each occurrence retains its own collation without changing the held input type.
 These functions compose through existing query/write/default/CHECK/view paths
 and native Dump/Restore. Native encoding remains read-only UTF8; arbitrary
 libc/ICU locales and Unicode-collation ILIKE remain explicit exclusions.
-See [case rules](docs/DIALECT.md#core-string-functions--change-note) and
-[offline data generation](docs/TYPES.md#unicode16-normalization-data).
+See [case rules](https://www.postgresql.org/docs/18/functions-string.html) and
+[offline data generation](https://www.postgresql.org/docs/18/datatype.html).
 Feature smoke: `make check RUN='^TestReferenceStringCaseSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceStringCaseSmoke$'`.
 
@@ -1759,7 +1760,7 @@ use actual catalog type locks; peers see committed generations only.
 Dump/Restore remaps fresh imported member identities, including same-OID nested
 values and stored literals. DROP TYPE, other ALTER TYPE forms, pg_enum and
 general direct enum[] syntax/storage remain excluded.
-See [enum types](docs/TYPES.md#enums--change-note).
+See [enum types](https://www.postgresql.org/docs/18/datatype-enum.html).
 Feature smoke: `make check RUN='^TestReferenceEnumSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumSmoke$'`.
 Enum alteration proof: `make check RUN='^TestReferenceEnumAlter.*$'`;
@@ -1822,7 +1823,7 @@ Hash rejects UNIQUE, INCLUDE, multiple keys and explicit direction/NULL options.
 Invalid hash reloptions get PostgreSQL diagnostics; valid physical options remain
 positioned Execute-time capability errors after semantic/collision checks.
 Dump/Restore, TYPE, REINDEX and replacement preserve the actual method.
-See [hash contracts](docs/SQL.md#hash-equality-indexes) and
+See [hash contracts](https://www.postgresql.org/docs/18/sql-createindex.html) and
 [the design](docs/design/PG18-INDEX-HASH.md).
 Feature smoke (each invocation has a900-second deadline):
 `make check RUN='^TestReferenceHashIndexFeatureSmoke$'`;
@@ -1895,7 +1896,7 @@ and backing-index identities survive renames and schema moves, rebuild on key
 TYPE, and disappear on DROP CONSTRAINT/key column/table. Dump/Restore emits the
 constraint once and reconstructs its backing index. CREATE deferrability remains
 excluded; ALTER ADD UNIQUE follows the existing-data contract below.
-See [UNIQUE constraints](docs/TABLES.md#unique-constraints--change-note) and
+See [UNIQUE constraints](https://www.postgresql.org/docs/18/ddl-constraints.html) and
 [the design](docs/design/PG18-DDL-UNIQUE.md).
 Feature smoke: `make check RUN='^TestReferenceUniqueFeatureSmoke$'`.
 
@@ -1910,7 +1911,7 @@ drop NOT NULL. Key TYPE changes rebuild affected constraint/index/NOT NULL ident
 ADD COLUMN PRIMARY KEY, CREATE deferrability, WITHOUT OVERLAPS and index
 parameters remain excluded. ALTER ADD key lists and foreign keys follow the
 existing-data constraint contract below.
-See [primary-key constraints](docs/TABLES.md#primary-key-constraints--change-note).
+See [primary-key constraints](https://www.postgresql.org/docs/18/ddl-constraints.html).
 Feature smoke: `make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePrimaryKeyFeatureSmoke$'`.
 
@@ -1923,7 +1924,7 @@ key NOT NULL identities; INCLUDE remains nullable payload. INCLUDE TYPE/DROP,
 LIKE, ownership, prepared consumers and native Dump/Restore use the actual backing
 definition. Immediate ALTER properties are admitted; actual deferred constraints,
 partial/expression indexes and nondefault key behavior are not eligible.
-See [existing-index attachments](docs/TABLES.md#existing-index-uniqueprimary-key-constraints--change-note).
+See [existing-index attachments](https://www.postgresql.org/docs/18/sql-altertable.html).
 Feature smoke: `make check RUN='TestReferenceUsingIndexFeatureSmoke'`;
 pinned counterpart: `make check RUN='TestReferenceUsingIndexFeatureSmoke' REFERENCE=1`.
 
@@ -1939,7 +1940,7 @@ Native Dump emits invalid definitions after ordinary data and Restore replays
 them as real eligible ADD statements; it never bypasses INSERT validation.
 Historical catalog projections are not fresh DML. FK equality suppression uses
 the actual committed predecessor; a prior own version must still be checked.
-See [existing-data ADD constraints](docs/TABLES.md#alter-add-constraints--change-note).
+See [existing-data ADD constraints](https://www.postgresql.org/docs/18/sql-altertable.html).
 Feature smoke: `make check RUN='^TestReferenceAlterAddConstraintFeatureSmoke$'`;
 use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL18.0 oracle.
 
@@ -1959,7 +1960,7 @@ nondeferrable exclusions; unique inference cannot. Selected deferrable arbiters
 fail55000 only when a row is demanded. UNIQUE deferral remains unsupported.
 Native Dump/Reset/Restore preserves definitions and data, not transient modes or
 events. GiST/SP-GiST, range/extension providers, physical indexes/WAL and server
-pg_dump are not introduced. See [the contract](docs/TABLES.md#exclusion-constraints--change-note)
+pg_dump are not introduced. See [the contract](https://www.postgresql.org/docs/18/ddl-constraints.html)
 and [design](docs/design/PG18-DDL-EXCLUSION.md).
 Feature smoke: `make check RUN='^TestReferenceExclusionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExclusionFeatureSmoke$'`.
@@ -1975,7 +1976,7 @@ existing owners. DO UPDATE and RETURNING use their shared action/output contract
 Partial inference preserves nested TRUE/FALSE/NULL values and released conservative
 proof behavior. Stable selected collisions recover visibility through checked
 immutable index/storage positions, without an added per-duplicate storage scan.
-See [the contract](docs/QUERIES.md#insert-conflict-omission--change-note) and
+See [the contract](https://www.postgresql.org/docs/18/sql-insert.html) and
 [design](docs/design/PG18-DML-INSERT-CONFLICT.md).
 Feature smoke: `make check RUN='^TestReferenceInsertConflictFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceInsertConflictFeatureSmoke$'`.
@@ -2009,7 +2010,7 @@ supported; CREATE inheritance works, but graph default ALTER remains an explicit
 Action lists and ALTER TABLE IF EXISTS for SET/DROP DEFAULT, UPDATE DEFAULT and
 explicit-transaction SET/DROP DEFAULT remain excluded. Selected ADD COLUMN/
 TYPE/nullability/DROP COLUMN lists support explicit transactions.
-See [column defaults](docs/TABLES.md#column-defaults).
+See [column defaults](https://www.postgresql.org/docs/18/ddl.html).
 Feature smoke: `make check RUN='^TestAlterDefaultSmoke$'`.
 
 Change note: `ALTER TABLE target ADD [COLUMN] [IF NOT EXISTS] name type`
@@ -2036,7 +2037,7 @@ columns used only by a second source's join condition. Each execution checks
 current privileges for every source, even for empty results. Bounded, queryable
 `pg_class`, `pg_rewrite`, `pg_views` and `pg_indexes` sources expose actual catalog
 state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
-persists definitions, not their result rows. See [views](docs/SQL.md#views).
+persists definitions, not their result rows. See [views](https://www.postgresql.org/docs/18/sql-createview.html).
 CREATE OR REPLACE preserves view/rule identity, ownership, ACLs and dependents,
 allows trailing outputs and rejects changed existing names/types/typmods/collations.
 ALTER VIEW supports relation/column rename, owner/schema changes and security/
@@ -2085,7 +2086,7 @@ remain dynamic with frozen logical result metadata; CREATE never evaluates rows.
 Native Dump excludes TEMP. Reset/Restore retains exact TEMP-only view chains and
 lawful unchanged pinned catalog providers, but atomically rejects invalidated
 persistent providers rather than rebinding names. VIEW utilities remain excluded
-inside explicit transactions. See [temporary views](docs/SQL.md#temporary-views--change-note).
+inside explicit transactions. See [temporary views](https://www.postgresql.org/docs/18/sql-createview.html).
 Feature smoke: `make check RUN='^TestReferenceTemporaryViewFeatureSmoke$'`;
 pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryViewFeatureSmoke$'`.
 
@@ -2102,7 +2103,7 @@ queries and unrelated table functions remain excluded.
 Nonrecursive SELECT CTEs use the same query pipeline.
 Direct/prepared reference cases independently specify scalar NULL-left IN/NOT IN
 on nonempty input and SOME empty/NULL reductions.
-See [subqueries](docs/QUERIES.md#subqueries-and-derived-select--change-note-changelog).
+See [subqueries](https://www.postgresql.org/docs/18/queries.html).
 Shared verification commands:
 `make check RUN='^TestReferenceQuerySubquery'` and
 `make check REFERENCE=1 RUN='^TestReferenceQuerySubquery'`.
@@ -2141,7 +2142,7 @@ fails atomically rather than substituting session authority.
 PostgreSQL ignores native ownership comments and uses ordinary installation
 ownership on SQL replay. General FUNCTION/text-search DDL, regdictionary/internal
 SQL codecs, ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
-excluded. See [registered extensions](docs/DIALECT.md#registered-extensions--change-note)
+excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.html)
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
@@ -2184,9 +2185,9 @@ and the same identity bag after reversal. No pg_namespace query source or
 explicit regclass-to-oid cast is needed.
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views have a
-[bounded supported surface](docs/SQL.md#materialized-views--change-note), without
+[bounded supported surface](https://www.postgresql.org/docs/18/sql-creatematerializedview.html), without
 temporary materializations/sources or concurrent refresh.
-See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
+See [visibility inquiries](https://www.postgresql.org/docs/18/functions-info.html).
 Feature smoke: `make check RUN='^TestReferenceCollationLegacyVisibility$'`.
 Index identity/path/control witnesses:
 `make check RUN='^TestVisibilityInquiryIndexRelations$'`;
@@ -2203,7 +2204,7 @@ Each execution captures immutable comment metadata; held prepared statements
 refresh on their next execution. Views preserve strict constant-NULL inquiry
 syntax without runtime sibling demand. Native builtin namespace/type descriptions
 and explicit namespace removals round-trip through native controls.
-See [semantics and boundaries](docs/SQL.md#object-comment-inquiries--change-note).
+See [semantics and boundaries](https://www.postgresql.org/docs/18/functions-info.html).
 Feature stream: `make check RUN='^TestReferenceCommentInquiry$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCommentInquiry$'`.
 
@@ -2217,7 +2218,7 @@ represented26 scalar types (including JSON114 and PG_NODE_TREE194),7 collations,
 128 conversions and2 bootstrap namespaces. This does not expand COMMENT targets
 or the narrower inquiry catalog routing. Native Reset reseeds163 descriptions;
 logical Restore can remint surviving column numbers after a dropped column.
-See [catalog contract](docs/SQL.md#pg_description-catalog--change-note).
+See [catalog contract](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGDescriptionFeatureSmoke$'`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL.
 **Shared-comment catalog change note:** `pg_catalog.pg_shdescription` now reads
@@ -2229,7 +2230,7 @@ empty/NULL removal, drop and same-name recreation follow existing role effects.
 No bootstrap descriptions, DATABASE/TABLESPACE commands or new role catalog
 are invented; uint64 principals outside uint32 range are never truncated.
 Shared comments survive native Reset/Restore and stay outside local Dump.
-See [shared catalog contract](docs/SQL.md#pg_shdescription-catalog--change-note).
+See [shared catalog contract](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGShDescriptionFeatureSmoke$'`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 **Dependency catalog change note:** `pg_catalog.pg_depend` is a readonly normal
@@ -2240,7 +2241,7 @@ pinned references, automatic rowtypes and enum arrays are not fabricated.
 Scalar REGCLASS constants capture existing relation identities, including dead
 CASE branches; runtime integer-to-REGCLASS casts and array payloads do not invent
 relation edges. Existing feature owners govern rename/drop and native replay.
-See [dependency contract](docs/SQL.md#pg_depend-catalog--change-note).
+See [dependency contract](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGDependFeatureSmoke$'`,
 and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 
@@ -2254,7 +2255,7 @@ definitions without generator access. RC held prepared scans refresh; RR uses
 the existing transaction snapshot plus own DDL overlay, and old cursors remain
 stable through DDL/native controls. The separate `pg_sequences` view adds current
 readable high-water state with different TEMP and lock semantics.
-See [catalog contract](docs/SQL.md#pg_sequence-catalog--change-note).
+See [catalog contract](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGSequenceFeatureSmoke$'`,
 and the same command with `REFERENCE=1`.
 
@@ -2285,7 +2286,7 @@ physical system index or TOAST implementation is implied.
 Registered unaccent CREATE is supported; unavailable providers fail0A000 at
 execution, including after successful Prepare. ALTER/DROP EXTENSION and module
 loading retain their unsupported boundaries.
-See [exact shape, installed authority and errors](docs/SQL.md#pg_extension-catalog--change-note).
+See [exact shape, installed authority and errors](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
 
@@ -2301,7 +2302,7 @@ ordinary relation admission and SQL predicates still apply.
 Both availability views and `pg_extension` share one caller-visible installed-state
 frontier per statement, including joins and recursive inputs; peer publication
 affects the next execution, not later occurrences in the same statement.
-See [fields, visibility and controls](docs/SQL.md#available-extension-views--change-note).
+See [fields, visibility and controls](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned counterpart.
 
@@ -2318,7 +2319,7 @@ overrides implicit Unicode collation and permits ASCII ILIKE. Unavailable
 libc/ICU locales remain excluded; POSIX matching is documented below.
 Collatable wrappers retain identity and demanded conflicts; indeterminate TEXT
 view outputs are rejected before publication, while BOOL matching views replay.
-See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
+See [matching semantics](https://www.postgresql.org/docs/18/functions-matching.html).
 Feature smoke: `make check RUN='^TestReferenceLikeLegacyMigration$'`.
 
 `SIMILAR TO` and `NOT SIMILAR TO` independently implement full-string SQL
@@ -2335,7 +2336,7 @@ positional TEXT substring remain excluded.
 Hostile patterns can consume substantial time and memory. Set a context deadline;
 native execution polls cancellation and checks a 64 MiB IR/scratch/state ceiling,
 not a PostgreSQL-identical complexity threshold or universal linear-time promise.
-See [SQL regex details](docs/DIALECT.md#similar-to-and-sql-regex-substring--change-note).
+See [SQL regex details](https://www.postgresql.org/docs/18/functions-matching.html).
 Feature smoke: `make check RUN='^TestReferenceSimilarFeatureSmoke$'`;
 add `REFERENCE=1` to exercise the same assertions against pinned PostgreSQL18.0.
 POSIX matching: `~`, `~*`, `!~`, `!~*` search anywhere, with default ARE
@@ -2357,7 +2358,7 @@ anchor/lookbehind context. The two set functions compose with `string_to_table`
 through one shared target/FROM owner, including mixed lockstep peers, nested
 expansion, `ROWS FROM`, `WITH ORDINALITY` and implicit/explicit LATERAL.
 Bare scalar attempt timing, typed padding, lexical frames and lock rechecks
-retain their distinct contracts. See [function details](docs/DIALECT.md#regular-expression-functions--change-note-changelog).
+retain their distinct contracts. See [function details](https://www.postgresql.org/docs/18/sql.html).
 `regexp_substr`, SQL XQuery regex functions and general LATERAL derived/VALUES
 sources remain excluded.
 Existing non-regexp array ordering/opclass and constrained-domain DDL limits
@@ -2377,7 +2378,7 @@ share existing binding, execution, metadata and native replay paths. VALUES
 cells are non-lateral and reject DEFAULT and aggregates; lateral VALUES remains
 excluded. The selected string/regexp function sources admit function-only
 LATERAL. Derived SELECT uses the same source pipeline. Ordinary INSERT VALUES retains destination-context
-typing. See [VALUES contracts and change note](docs/QUERIES.md#standalone-and-from-values--change-note-changelog).
+typing. See [VALUES contracts and change note](https://www.postgresql.org/docs/18/queries.html).
 Independent reference: `make check REFERENCE=1 RUN='^TestReferenceQueryFromValues'`.
 
 SELECT, shared INSERT SELECT and decorated VALUES support expression ORDER BY,
@@ -2386,7 +2387,7 @@ Referenced output values are evaluated once before sort and reused. With a
 count decoration, cheap immutable outputs run below Sort; unrelated volatile
 outputs run after Sort but before OFFSET/LIMIT. Unordered queries and complete
 sort peers have no portable relative order. General COLLATE remains excluded.
-See [ordering semantics](docs/QUERIES.md#expression-ordering--change-note-changelog).
+See [ordering semantics](https://www.postgresql.org/docs/18/queries.html).
 Public feature smoke: `make check RUN='^TestReferenceQueryOrder'`.
 
 Change note: ordinary SELECT DISTINCT now eliminates duplicate complete projected
@@ -2397,7 +2398,7 @@ deduplication; ORDER must reference projected outputs, and locking DISTINCT is
 rejected. Views/native replay and INSERT SELECT share source-typed deduplication
 before destination assignment. Ordinary array operators/order and new FROM forms
 remain excluded.
-See [distinct projected rows](docs/QUERIES.md#distinct-projected-rows--change-note-changelog).
+See [distinct projected rows](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryDistinctSmoke$$'`.
 
 Change note: `SELECT DISTINCT ON (keys)` selects the first ordered input occurrence
@@ -2406,7 +2407,7 @@ Resolved ON keys match the initial effective ORDER targets in any permutation;
 proper partial prefixes and repeated targets are supported. Explicit total ordering
 selects deterministic winners; incomplete peers and unordered winners are not pinned.
 Views, held queries, INSERT SELECT and native Dump/Restore retain ON semantics.
-See [distinct on groups](docs/QUERIES.md#distinct-on-groups--change-note-changelog).
+See [distinct on groups](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$'`;
 run the same selector with `REFERENCE=1` for the pinned PostgreSQL contract.
 
@@ -2418,7 +2419,7 @@ without returning that row. Counts use BIGINT assignment conversion; zero
 suppresses producing children without bypassing typing, authorization or bound
 errors. Nonblocking views/filters/joins produce only demanded occurrences;
 sorting/grouping remain blockers. Local rowmarks settle at effect frontiers,
-not across a local count boundary. See [count and demand](docs/QUERIES.md#limit-offset-and-fetch--change-note-changelog).
+not across a local count boundary. See [count and demand](https://www.postgresql.org/docs/18/queries.html).
 Feature checks: `make check RUN='^TestReferenceQueryTies(FeatureSmoke|PersistenceSmoke)$'`
 and `make check RUN='^TestReferenceQueryLimitMigrated(Smoke|LockSmoke)$'`.
 Run these same selectors with `REFERENCE=1` for the pinned PostgreSQL oracle.
@@ -2445,7 +2446,7 @@ values only if no UNIQUE key datum changed since its snapshot. Restoring a key o
 later changing only payload does not erase a committed key transition. Stronger
 modes and deletions fail. UPDATE uses NO KEY UPDATE unless a UNIQUE key datum
 changes, when it uses UPDATE; DELETE uses UPDATE. See
-[row locking](docs/TRANSACTIONS.md#row-locks--change-note) for the compatibility
+[row locking](docs/TRANSACTIONS.md#relation-and-row-resource-manager) for the compatibility
 matrix, privileges, eager execution and bounded syntax.
 Feature smoke: `make check RUN='^TestReferenceQueryLockFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryLockFeatureSmoke$'`.
@@ -2469,7 +2470,7 @@ after their owning table, including retained TEMP collision remaps.
 Stored expression-generated columns support `GENERATED ALWAYS AS (expression) STORED`
 through the normal typed INSERT/UPDATE path. Omission and explicit DEFAULT compute
 the stored value; other explicit generated-column writes fail428C9. See
-[generated columns](docs/TABLES.md#stored-generated-columns). PostgreSQL18 VIRTUAL
+[generated columns](https://www.postgresql.org/docs/18/ddl-generated-columns.html). PostgreSQL18 VIRTUAL
 and omitted-kind generation compute lazily when read, using the same typed binder.
 Virtual definitions admit built-in types/providers only, preserve independent
 column SELECT grants and are evaluated on writes only when constraints demand them.
@@ -2514,7 +2515,7 @@ references to current destination authority; external literals and DEFAULT
 manifests remain unchanged under their existing contextual authority.
 Compression/storage/extended-statistics and other absent providers remain absent;
 an option with no applicable descriptor has no effect. See
-[table definition copies](docs/TABLES.md#ordinary-table-definitions-and-removal).
+[table definition copies](https://www.postgresql.org/docs/18/sql-createtable.html).
 Shared family: `RUN='^TestReference(Table(Like|Core)|SchemaTableIntegration|IdentitySerialAndNativeBoundaries|NotNullExternalInheritance)'` in both modes.
 Feature smoke: `make check RUN='^TestReferenceTableLikeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTableLikeFeatureSmoke$'`.
@@ -2549,7 +2550,7 @@ Identity TYPE also migrates the existing internal sequence to the integral targe
 including same-type AS/cache replacement; plain OWNED BY sequences are unchanged.
 Private sequence state and row changes publish together, while caller currval and
 already-discarded cache tails remain physical-session effects on rollback.
-See [ALTER TYPE semantics and boundaries](docs/DIALECT.md#alter-column-type--change-note).
+See [ALTER TYPE semantics and boundaries](https://www.postgresql.org/docs/18/sql-altertable.html).
 Feature smokes: `make check RUN='^TestAlterType(Smoke|ControlsSmoke|IdentitySmoke|IdentityControlsSmoke)$'`.
 
 
@@ -2569,7 +2570,7 @@ Public feature smoke: `make check RUN='^TestOIDSmoke$'`.
 Integral bitwise `&`, `|`, `#`, unary `~`, `<<` and `>>` support SMALLINT,
 INTEGER and BIGINT in existing scalar consumers, including replayable defaults
 and views. Width, signed results, typed NULL and prepared parameter inference
-are preserved; shifts use an INTEGER count. See [integral bitwise operators](docs/TYPES.md#integral-bitwise-operators).
+are preserved; shifts use an INTEGER count. See [integral bitwise operators](https://www.postgresql.org/docs/18/functions-math.html).
 Catalog-qualified OPERATOR spellings use the same provider and namespace checks,
 including canonical defaults and view replay.
 Public feature smoke: `make check RUN='^TestBitwiseSmoke$'`.
@@ -2577,7 +2578,7 @@ Public feature smoke: `make check RUN='^TestBitwiseSmoke$'`.
 Scalar comparison types also support inclusive `BETWEEN`/`NOT BETWEEN` and
 both `SYMMETRIC` forms in existing expression consumers. Symmetric predicates
 accept reversed bounds; NULL follows SQL three-valued logic rather than a
-strict three-argument rule. See [BETWEEN predicates](docs/QUERIES.md#between-predicates)
+strict three-argument rule. See [BETWEEN predicates](https://www.postgresql.org/docs/18/queries.html)
 for grouped endpoints, contextual prepared typing, replayable grouped/nested
 defaults and bounded syntax. Public feature smoke:
 `make check RUN='^TestBetweenSmoke$'`.
@@ -2601,7 +2602,7 @@ earlier held modes, including incomparable modes, without replacing the ticket.
 Feature checks use the same untagged reference definitions in both modes:
 `make check RUN='^TestReferenceLockModes'` (Docker-free)
 and `make check REFERENCE=1 RUN='^TestReferenceLockModes'` (native and pinned PostgreSQL).
-See the [LOCK TABLE command change note](docs/TRANSACTIONS.md#lock-table-command--change-note).
+See the [LOCK TABLE command change note](docs/TRANSACTIONS.md#relation-and-row-resource-manager).
 
 Selected mathematical functions include `random()`, inclusive INTEGER/BIGINT/
 NUMERIC bounded `random(lower,upper)`, `random_normal([mean[,stddev]])` and
@@ -2609,14 +2610,14 @@ NUMERIC bounded `random(lower,upper)`, `random_normal([mean[,stddev]])` and
 Seeds and draws belong to the physical connection and survive rollback and
 pool return; use a pinned `sql.Conn` for repeatable series. These are
 pseudorandom, not cryptographic, and do not promise PostgreSQL's exact PRNG
-sequence. See [the capability/change note](docs/DIALECT.md#random-functions--change-note).
+sequence. See [the capability/change note](https://www.postgresql.org/docs/18/functions-math.html).
 Public feature smoke: `make check RUN='^TestRandomSmoke$$'`.
 
 Exact scale and rounding functions include `min_scale`, `round`, `scale`,
 `trim_scale`, `trunc`, `sign` and `mod`, with PostgreSQL's selected NUMERIC,
 FLOAT8 and integer overloads. NUMERIC ties round away from zero; negative
 scales and exact remainder never pass through floating point. See
-[the signature and behavior note](docs/DIALECT.md#scale-and-rounding-functions--change-note).
+[the signature and behavior note](https://www.postgresql.org/docs/18/functions-math.html).
 Selected public coverage: `make check RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$'`
 and the same command with `REFERENCE=1`.
 
@@ -2631,7 +2632,7 @@ outside[-1,1], including infinities, with `22003`, `input is out of range`, and
 no execution Position. atan/atand accept infinities. Signed zero and subnormal
 operation order are preserved without an underflow error. Go math and PostgreSQL's
 host C libm can differ in ordinary last bits; these are not arbitrary-precision
-trig overloads. See [the capability/change note](docs/DIALECT.md#inverse-trigonometric-functions--change-note).
+trig overloads. See [the capability/change note](https://www.postgresql.org/docs/18/functions-math.html).
 Public feature smoke: `make check RUN='^TestReferenceMathTrigFeatureSmoke$'`
 and the same command with `REFERENCE=1`; full independent coverage selects
 `RUN='^TestReferenceMathTrig'` in both modes, with900-second external deadlines.
@@ -2652,7 +2653,7 @@ Context. Signed zeros follow PostgreSQL's degree operation order: sind(-0)=-0,
 tand(-0)=+0, cotd(-0)=-Infinity. Tiny degree results may round to zero without
 an underflow error. Go math and PostgreSQL's host C libm can vary in ordinary
 last bits and boundary behavior; no arbitrary-precision or host-errno emulation
-is implied. See [the direct-trig change note](docs/DIALECT.md#direct-trigonometric-functions--change-note).
+is implied. See [the direct-trig change note](https://www.postgresql.org/docs/18/functions-math.html).
 Public feature smoke selects `RUN='^TestReferenceMathTrigDirectFeatureSmoke$'`
 with `make check` and `make check REFERENCE=1`; complete direct and inverse
 regression proof selects `RUN='^TestReferenceMathTrig'` in both modes
@@ -2664,8 +2665,8 @@ INTERVAL retains independent months/days/microseconds, permitted field ranges
 and fractional precision, verbose/SQL/ISO input, SQL comparison/grouping and
 canonical native Dump/Restore. Each physical session owns its IntervalStyle;
 prepared literals freeze input meaning and retained rows capture output style.
-See [interval values](docs/TYPES.md#interval--change-note) and
-[IntervalStyle](docs/SETTINGS.md#intervalstyle--change-note).
+See [interval values](https://www.postgresql.org/docs/18/datatype-datetime.html) and
+[IntervalStyle](https://www.postgresql.org/docs/18/runtime-config.html).
 Public feature smoke: `make check RUN='^TestIntervalSmoke$'`.
 
 
@@ -2914,7 +2915,7 @@ Equal typed keys, including NULL keys, form one group per set occurrence; empty 
 count returns zero. Empty input emits only empty-set groups, not keyed groups. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and
 `INSERT ... SELECT`; public rows never evaluate aggregates during `Next`.
-See [query grouping](docs/QUERIES.md#grouping-and-count--change-note) for examples,
+See [query grouping](https://www.postgresql.org/docs/18/functions-aggregate.html) for examples,
 diagnostics and deliberate exclusions.
 
 Change note: `GROUPING SETS`, `ROLLUP`, `CUBE`, explicit `GROUP BY ()` and
@@ -2931,7 +2932,7 @@ share this contract; adjacent aggregate/window/type restrictions are unchanged.
 ROLLUP/CUBE accept ordinary expression units and indivisible sublists, not empty
 or nested grouping-set children. Supplied parameter identity is structural;
 held non-NULL/NULL reuse preserves included versus omitted indicator bits.
-See [grouping sets](docs/QUERIES.md#grouping-sets-and-grouping--change-note).
+See [grouping sets](https://www.postgresql.org/docs/18/queries.html).
 Smoke: `make check RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'`;
 oracle: `make check REFERENCE=1 RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'`.
 
@@ -2955,7 +2956,7 @@ oracle: `make check REFERENCE=1 RUN='^TestReferenceAggregateModifiersFeatureSmok
 
 - [SQL dialect and compatibility limits](docs/DIALECT.md): check support before
   using PostgreSQL-specific behavior.
-- [SQL reference](docs/SQL.md): topic guides for queries, table definitions,
+- [SQL reference](https://www.postgresql.org/docs/18/sql-commands.html): topic guides for queries, table definitions,
   sequences, expressions, types, identifiers, and literals.
 - [Driver lifecycle and notices](docs/DRIVER.md), [session settings](docs/SETTINGS.md),
   and [transactions and locks](docs/TRANSACTIONS.md).
@@ -3112,7 +3113,7 @@ settlement.
 
 Recursive/SEARCH/CYCLE, modifying CTE bodies, top-level WITH DML, standalone
 VALUES/TABLE bodies and lateral derived queries remain excluded. See
-[WITH query contracts](docs/QUERIES.md#select-ctes--change-note-changelog) and
+[WITH query contracts](https://www.postgresql.org/docs/18/queries.html) and
 [implementation design](docs/design/PG18-QUERY-CTE.md).
 Feature smoke: `make check RUN='^TestReferenceQueryCTEFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryCTEFeatureSmoke$'`.

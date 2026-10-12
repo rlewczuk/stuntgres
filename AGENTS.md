@@ -3,7 +3,9 @@
 ## Navigation and package seams
 
 Read [README.md](README.md) for the consumer contract and [docs/DIALECT.md](docs/DIALECT.md)
-for SQL support, limits and intentional compatibility differences before changing behavior.
+for native limits and intentional compatibility differences before changing behavior.
+Use the [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html)
+as the SQL syntax reference; do not maintain a duplicate syntax guide in `docs/`.
 Design notes live in `docs/design/`; catalog-part workflow lives in `.cswd/`.
 
 **MANDATORY FOR TEST WORK:** Before adding, modifying or migrating any test, read
@@ -11,6 +13,10 @@ and follow [docs/TESTING.md](docs/TESTING.md). It is the authoritative test-plac
 dual-mode fixture and oracle-first implementation guide. Public SQL/API tests MUST
 be dual-mode tests in `reference/`, never in other directories. When working in an
 area with offending tests, migrate them immediately as instructed there.
+Keep `docs/TESTING.md` limited to common testing instructions and shared workflow.
+Package-specific contracts, test selectors, proof notes and smoke instructions
+MUST NOT be added there. Put them in the owning package's `README.md` under
+`## Testing`; create the file or section if absent.
 
 - Root `stuntgres`: public `database/sql` adapters, driver/connector, session settings, notices and native Reset/Dump/Restore APIs.
 - `internal/parser`: AST and parser entry points in `ast.go`/`parser.go`, lexer in `lexer.go`, keyword categories in `keywords.go`. Edit `grammar.y` for grammar changes, then `make generate`; never hand-edit `grammar_gen.go`.

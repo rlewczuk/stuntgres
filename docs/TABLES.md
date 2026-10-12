@@ -1,2490 +1,441 @@
-# Table definitions and object comments
-
-[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
-
-## TRUNCATE hierarchy consumer — change note
-
-TRUNCATE consumes the existing immutable inheritance and RANGE partition graph.
-Default/star targets include ordinary descendants, deduplicating multiple-parent
-children; ONLY on a physical parent changes only that parent's store. Partition
-root/nested-root selection locks the virtual authorities and replaces real leaf
-stores. Direct leaf selection preserves siblings, with canonical ancestor
-membership stabilization. ONLY on any partitioned root, including an empty one,
-rejects42809 rather than fabricating a physical table.
-
-Inheritance expansion skips temporary children owned by another session, including
-their descendant branches, before selecting stores or acquiring AX locks. The
-invoking session's temporary children and persistent children still participate.
-The immutable namespace/session token supplies this boundary; no child ACL or
-namespace-USAGE requirement is added. Grant-time and final graph reconciliation
-retain the same session-specific closure.
-
-Definitions, parent edges, columns, constraint origins, indexes, comments, ACLs,
-defaults, generation expressions, identity ownership and row-security flags are
-preserved. Empty index baselines allow reinsertion of former keys without
-discarding uniqueness/exclusion definitions. Incoming FK closure uses actual
-definition vectors even for empty tables; a table reached solely by FK CASCADE
-does not implicitly add its ordinary inheritance descendants.
-
-Inherited/partition descendants skip their own table ACL check, but an explicit
-occurrence or FK-cascade member needs exact TRUNCATE. Each explicit occurrence
-is checked even when its physical effect was already selected by expansion.
-No recursive UPDATE/DELETE, ALTER INHERIT/NO INHERIT, propagation or native
-partition FK support is added. Inherited SELECT remains its independently
-supported graph consumer. Triggers and FDW callbacks have no native provider.
-See [syntax](SQL.md#truncate-table--change-note) and
-[atomic lifetime](TRANSACTIONS.md#truncate-generations--change-note).
-
-## Row-security table flags — change note
-
-`ALTER TABLE [IF EXISTS] table ENABLE | DISABLE | FORCE | NO FORCE ROW LEVEL SECURITY`
-supports selected action lists and ONLY/ONLY(table)/table* target spellings.
-These are named, nonrecursive, owner-authorized AccessExclusive metadata changes,
-including no-ops; they never rewrite rows or clone retained policy expressions.
-ENABLE/DISABLE and FORCE/NO FORCE control independent bits. Flags are transactional
-and savepoint-aware; failed mixed actions/cancellation leave the old state intact.
-The enabled bit is visible as `pg_tables.rowsecurity`.
-
-Ordinary owner authority bypasses unless FORCE; direct superuser/BYPASSRLS always
-bypass but do not grant ordinary ACLs. Enabled inputs default-deny when no
-applicable permissive relevant policy expression exists. Real applicable
-expressions require unavailable enforcement and raise Execute0A000 rather than
-being treated as constants. DISABLE preserves definitions, and last-policy DROP
-preserves both flags. See [the complete authorization boundary](AUTHORIZATION.md#row-security-enablement-and-default-deny--change-note).
-
-Native controls serialize protected raw rows and policies before nondefault flag
-ALTERs, preserving disabled+forced as well as enabled states. Restore allows only
-the four flag ALTER actions, not arbitrary ALTER; existing ACL export exclusions
-and replacement atomicity remain unchanged.
-
-## DISCARD TEMP
-
-`DISCARD TEMP` / `TEMPORARY` quietly removes the physical owner's temporary
-namespace contents with supported dependency CASCADE, including tables, row/array
-types, indexes, serial/identity/owned sequences, standalone TEMP sequences and
-TEMP collations. Actual surviving dependent projections follow their existing
-provider rules; unrelated durable objects and peer TEMP namespaces remain intact.
-The namespace descriptor is retained, and an unused session does not allocate one.
-New TEMP definitions can be created immediately afterward.
-
-Deletion is transactional and restored by rollback/savepoint. It does not clear
-SQL prepared names or persistent currval/lastval. A retained SQL definition over
-a removed relation fails42P01 rather than26000 and retains original PREPARE source
-positions. TEMP fails55006 before cleanup when a live owner cursor references an
-actual relation in its complete removal closure; exhaustion is not CLOSE. Recover
-with ROLLBACK/ROLLBACK TO as needed, CLOSE the cursor and retry. This guard belongs
-only to DISCARD, not generic DROP or query lifetime rules. ALL also removes TEMP
-contents but cannot execute in an explicit transaction.
-
-## Foreign-key constraints — change note
-
-CREATE TABLE accepts named or generated-name column REFERENCES and ordered
-single/composite table FOREIGN KEY declarations. An omitted referenced list
-selects the primary key; explicit lists require a ready, valid, live, nonpartial
-unique index with exactly those simple key attributes (INCLUDE columns do not
-participate). Reordered composite references preserve their declared pairing.
-Equality belongs to the selected B-tree class/family, not arbitrary predicate
-comparability. Released cross-input family members preserve genuine mixed-width
-keys; otherwise both inputs must implicitly coerce to the unsized class input.
-NUMERIC children cannot reference integer keys; integer children can reference
-NUMERIC keys. TEXT children of BPCHAR keys use that class's space semantics,
-without truncating to the parent's typmod. Domains unwrap only for comparison;
-enums and scalar providers retain actual catalog generation authority. Missing
-keys, incompatible types and duplicate referenced attributes retain PostgreSQL18
-diagnostics. Explicit names share the relation-local inventory of all admitted
-constraint kinds, including named NOT NULL.
-The existing inet_ops provider also owns INET/CIDR supporting-key comparison
-and unique-claim interning through the shared comparator bucket; FK integration
-does not add network GROUP BY/hash equality. Unconstrained domains are admitted;
-domain CHECK/defaults and stored internal `"char"` retain their separate native
-boundaries rather than introducing new column/type capabilities.
-
-MATCH SIMPLE exempts any NULL key; MATCH FULL permits all-NULL but rejects a
-mixture. Default and explicit NO ACTION are immediate at command completion.
-Multirow INSERT, supported query INSERT/MERGE insertion, UPDATE and DELETE see
-the final committed/prior-own/current-command image, including self references,
-replacement keys and deletions. Failure publishes no rows or RETURNING results.
-Existing transaction/savepoint recovery owns all effects and grants.
-Committed parent lookup borrows the selected logical index's ordered root for
-lower-bound/equal-run probes. Own/current-command overlays and deletion/shadow
-identities preserve the final image; there is no separate FK value index/cache.
-Successful iterator visits stop immediately. After a parent row wait, the exact
-physical-version locator is revalidated against refreshed visibility/root state.
-
-ON DELETE and ON UPDATE independently admit NO ACTION, RESTRICT, CASCADE,
-SET NULL and SET DEFAULT. NO ACTION permits an equal final replacement parent;
-RESTRICT rejects a live old-key reference with23001 even when an equal parent
-replacement exists. CASCADE deletes matching physical children or assigns the
-new paired parent key. SET actions assign typed NULL or current defaults; an
-absent default is NULL. DELETE SET NULL/DEFAULT optionally names only selected
-referencing attributes. Duplicate list names normalize to their first occurrence;
-matching always uses the full FK key. Lists are not legal for UPDATE.
-
-Datum-image changes trigger actions even when supporting-index equality still
-considers the keys equal (for example NUMERIC scale). Assignment independently
-performs destination conversion/typmod checks and recomputes stored generated
-non-key columns. Generated referencing keys forbid UPDATE CASCADE/SET actions
-and DELETE SET actions, including a subset omitting the generated attribute.
-DELETE CASCADE on stored generated keys remains legal.
-
-All affected children use the same private statement stage and canonical locks.
-Self references, chains, diamonds and cycles retain actual row/version transitions;
-local NOT NULL/CHECK/unique/exclusion and final FK errors roll back the entire
-command. SET DEFAULT rechecks integrity even for an unchanged assigned datum.
-RowsAffected and RETURNING describe initiating rows, never action counts.
-Prepared Execute consumes current definitions/defaults/providers/authorization;
-Prepare and Dump do not evaluate child defaults.
-Under Repeatable Read/Serializable, action candidates include both current
-matching children (even an insertion into an originally empty child table) and
-retained matching children whose latest key moved away. Canonical row grants
-crosscheck the live physical successor against the transaction frontier before
-matching or changing it; post-snapshot insertions and moved-in/moved-away rows
-raise `40001` with the generated action SQL context. This does not advance the
-transaction snapshot, discard a peer's committed child, or publish partial work.
-
-
-FKs own stable constraint identities and stable child/parent attributes, plus
-the actual supporting index identity; they create no child index. Existing
-pg_constraint projects contype f and NULL conbin, and pg_get_constraintdef
-renders current names. Table/column/schema/constraint renames preserve identity.
-Compatible TYPE rebinds and remints affected attachments and validates final
-rows; RESTRICT/CASCADE includes inbound definitions, never deletes the child
-table/data solely because its FK depends on a removed parent/key. Ordinary
-inheritance does not propagate FKs; checks use physical parent rows only.
-Column retirement consumes FK definition edges from the common read-only
-closure at the existing column frontier. Local CHECK/index/FK AUTO ownership
-and staged prior column actions remain intact; external FK/view/default/CHECK
-diagnostics and cascade notices share the incumbent ordered consumer schedule.
-
-Declaration requires REFERENCES on the parent table or every referenced
-column. Later DML requires only its existing command privileges. Constraint
-disclosure uses the current violating-side SELECT/column rights, not creation
-authority. See [authorization](AUTHORIZATION.md#foreign-key-authority).
-
-Native Dump includes ordinary CREATE declarations without requiring FK
-topological order. Restore captures raw declarations and the original authority,
-but registers pending attachments only for the creator's actual newly minted
-table reference. CREATE IF NOT EXISTS no-ops ignore their FK clauses completely,
-including absent target schemas/relations. Captured namespace/principal authority
-survives later owner directives and trusted replay permission elevation.
-Restore resolves supporting keys and validates every final row under valid definitions before installation;
-it preserves actions/list metadata but never executes cascades to repair import data.
-Forward references and cycles work; invalid empty/populated groups leave the target
-and retained snapshots unchanged. Retained same-owner TEMP FK graphs keep their
-exact identities/data through Reset/Restore and are omitted from Dump;
-permanent/TEMP cross-references are rejected.
-
-Public ALTER ADD FOREIGN KEY is supported; ADD COLUMN REFERENCES remains unsupported.
-MATCH PARTIAL retains PostgreSQL's 0A000 boundary. DEFERRABLE/INITIALLY DEFERRED,
-temporal PERIOD and partition hierarchy FKs are explicit native 0A000 boundaries.
-NOT DEFERRABLE and
-INITIALLY IMMEDIATE are accepted; no deferred mode/event mechanism is added.
-Grammar admits one optional MATCH before the action clauses, at most one ON UPDATE
-and one ON DELETE in either order, then constraint attributes. Compatible repeated
-immediate/nondeferrable attributes remain legal. Repeated/out-of-order MATCH or
-actions are positioned 42601 syntax errors, not accepted or delayed exclusions.
-MERGE MATCHED UPDATE and NOT MATCHED INSERT perform immediate FK checks through
-their admitted write owners. INSERT RETURNING performs the same real immediate
-FK checks through its final-image write owners; failures expose no native output.
-Existing MATCHED DELETE/DO NOTHING boundaries are independent.
-No trigger/catalog expansion, physical PostgreSQL RI executor, pg_dump process,
-wire protocol or disk durability is implied.
-
-Feature smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`;
-the same RUN with REFERENCE=1 exercises pinned PostgreSQL18.
-
-## Typed tables — change note
-
-```sql
-CREATE TYPE pair AS (id integer, note varchar(5));
-CREATE TABLE t OF pair
-  (id WITH OPTIONS DEFAULT 7 NOT NULL,
-   note DEFAULT 'ok', CONSTRAINT positive CHECK (id > 0));
-ALTER TABLE compatible OF pair;
-ALTER TABLE compatible NOT OF;
-ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE;
-ALTER TYPE pair RENAME ATTRIBUTE flag TO enabled CASCADE;
-ALTER TYPE pair ALTER ATTRIBUTE id TYPE bigint CASCADE;
-ALTER TYPE pair DROP ATTRIBUTE note CASCADE;
-DROP TYPE pair CASCADE;
-```
-
-The source must be a standalone named composite, not an ordinary table's row
-type, domain, enum or scalar. Quoted/qualified names, zero-member sources,
-ordinary IF NOT EXISTS precedence and existing TEMP/ON COMMIT controls apply.
-Options may omit WITH OPTIONS, but cannot declare another column type or an
-empty parentheses list. They reuse the existing DEFAULT, NOT NULL, CHECK,
-unique/primary, exclusion and bounded foreign-key binders; identity/generated
-options fail0A000.
-Only live ordered names and concrete type/typmod/collation are copied. Each table
-has independent stable attributes, owner, storage and a distinct own row codec;
-table constraints never constrain the source's composite values.
-Actual persistent and TEMP CREATE retain an AccessShare source-backing grant;
-Prepare does not acquire it. A source mutation serializes concurrent attachment
-creation, and a waited statement cannot adopt a changed captured source generation.
-
-Attachment requires the table owner and an exact live ordered shape. Different
-dropped-attribute histories or local defaults/constraints are immaterial.
-PostgreSQL18 requires source USAGE for CREATE OF, **not** ALTER TABLE OF;
-NOT OF needs only table ownership. Reattachment replaces the old source edge.
-After a target-lock wait, direct and prepared attachment resolve the execution-time
-source, including a newly created earlier-path shadow, and retain AccessShare on
-that actual source backing. Source exclusion honors lock timeout and cancellation
-without publishing an attachment or changing rows/metadata. A waited source grant
-still cannot adopt a different captured source generation.
-Detach preserves rows, defaults, constraints, stable attributes and own row type.
-`pg_class.reloftype` is the source OID, or zero when unattached. The attachment is
-one NORMAL whole-table dependency in pg_depend; LIKE does not copy it.
-Existing exclusion and foreign-key constraints survive attachment with their
-data, definitions and dependencies. Native Dump/Restore preserves their enforcement.
-
-Ordinary identity and stored-generated columns also survive attachment, including
-owned sequence options/counter, generated expressions and subsequent writes.
-Direct CREATE OF identity/generated options remain unsupported, matching
-PostgreSQL18; attachment does not introduce those creation options.
-
-Direct typed-table ADD/DROP/RENAME/ALTER COLUMN TYPE fail42809. Missing columns
-in direct ALTER COLUMN TYPE fail42703 before the typed-table guard. Existing
-admitted default/constraint/nullability changes stay table-local; NOT OF restores
-ordinary alteration capability. A typed root may have children but cannot inherit.
-
-Standalone ALTER TYPE supports ADD/DROP/ALTER ATTRIBUTE lists with per-action
-RESTRICT/default or CASCADE, and separate RENAME ATTRIBUTE with either mode.
-Typed dependents require CASCADE (otherwise2BP01 with the ALTER Hint).
-Propagation maps source attributes to each target's independent attributes and
-then follows actual inheritance origins, including diamonds and local/other-parent
-retention. Source ownership authorizes this propagation, without invented target
-owner checks. Existing leaf INSERT and SELECT remain admitted; recursive parent
-query/DML and general inherited ALTER restrictions stay unchanged.
-Native parent SELECT remains0A000 even with LIMIT0; PostgreSQL ONLY queries are
-supplemental observations, not a new native scan route. Shared leaf values and
-metadata, public pg_class/depend/regtype identities and exact package descriptor
-assertions cover the actual source/root/descendant publication.
-ADD supplies typed NULL; DROP projects stored values; rename preserves data.
-TYPE reuses assignment coercion, default/CHECK/index reconstruction and row
-validation. Stored direct/domain/array/nested-composite consumers block TYPE with
-the actual source-type or table-row0A000 primary, even when empty. Retained
-DEFAULT40000 does not eagerly reject integer-to-smallint ALTER: a later default
-INSERT overflows22003 without adding a row.
-Composite-array SQL column storage remains an existing0A000 capability boundary.
-The array consumer guard is exercised with actual associated-array providers in
-package tests and a PostgreSQL SQL supplement; this does not enable array transport.
-An explicit TYPE action retains semantic admission even for identical concrete
-Usage: a stored consumer of a typed table's distinct own-row codec still blocks
-the propagated action. No-op descriptor/rewrite fast paths do not bypass that guard.
-Final publication observes stored consumers of every propagated root and descendant
-own-row provider, so a late consumer cannot evade an identical-Usage TYPE guard.
-Shared NORMAL-edge inquiries use the fixed pg_type class OID1247, not a missing
-native pg_type relation lookup; reciprocal catalog bags remain PG supplements.
-When a child column survives source DROP through local or other-parent origin,
-its inherited CHECK, NOT NULL and DEFAULT remain effective. Dead authority edges
-are pruned; definitions without a remaining provider become independently
-replayable local declarations. Dump/Restore preserves enforcement and DEFAULT7,
-not merely the surviving name and type.
-
-Grouped standalone DROP TYPE preflights every target before removal, supports
-IF EXISTS and follows RESTRICT/CASCADE dependencies. CASCADE removes entire typed
-tables and their owned row types/indexes/storage, not LIKE or detached copies.
-Typed lifecycle validation releases incidental source/target replacement-read
-admission outside the engine mutex. CREATE releases only newly acquired source
-admission, before acquiring genuine stored-definition providers; pre-existing
-admission and ordinary CREATE/LIKE/sequence-provider reservation policy remain
-unchanged. A genuine DEFAULT provider retains its unpublished-definition hold
-until publication or cancellation. Without that independent hold, callback
-replacement wins and rejects the captured epoch without resurrecting staged
-definitions. Successful user-defined member USAGE checks retain the exact type
-ACL descriptor through final publication.
-Typed CREATE retains its exact consulted source and copied-member descriptors
-through publication, including TEMP's implicit publication or explicit statement
-Finish. Installed providers retain an exact global descriptor fence; an exact
-provider owned by the transaction's existing private catalog instead retains its
-validated installed predecessor. Thus successive TEMP statements can use a
-previously created ordinary or typed table's own row type through `pg_temp`,
-including literal composite values and SQL NULLs, before a successful COMMIT.
-This statement fence does not reauthorize a successful TEMP CREATE at a later
-outer COMMIT; subsequent CREATE still checks the current source USAGE.
-Lifecycle preparation is private and one publication installs the complete
-source/table/inheritance/codec/storage closure; failures and cancellation preserve
-all previous state. Read-only admission precedes name/owner resolution. Native
-type lifecycle and attachment utilities retain the explicit-transaction0A000
-execution boundary. Their Prepare is effect-free; execution rejects read-only
-transactions with25006 before the RW unsupported-utility boundary or lookup.
-Typed CREATE follows ordinary permanent/TEMP CREATE admission.
-
-Native Dump emits qualified CREATE TABLE OF with local WITH OPTIONS declarations,
-ordered after its actual source even for empty/builtin-only composites. Attached
-tables with retained identity/generated definitions instead emit the full ordinary
-CREATE followed by a real qualified ALTER TABLE OF. Restore runs this attachment
-through the normal isolated executor and remaps source identities and reciprocal
-own-row/member/storage generations into the target owner atomically, preserving
-sequence state and generated behavior. Fresh results expose current metadata;
-held eager rows retain old shapes and prepared result-shape changes report0A000.
-Live TEMP typed tables attached to persistent standalone types prevent native
-Reset/Restore with `stuntgres: catalog replacement with live temporary typed tables
-of persistent types is unsupported`. Both preallocation and final installation
-admission reject without changing persistent or TEMP state, including attachment
-created during Restore reader I/O. Replacement never retargets by name or OID.
-Standalone type creation in TEMP schemas remains unsupported; this does not add
-a TEMP-type DDL path.
-Selected proofs (external900s each):
-`make check RUN='^(TestReferenceTypedTable|TestTyped)'` and
-`make check REFERENCE=1 RUN='^TestReferenceTypedTable'`.
-
-## ALTER ADD constraints — change note
-
-The sole ALTER owner admits named or generated CHECK, NOT NULL, UNIQUE, PRIMARY
-KEY, FOREIGN KEY and the existing equality EXCLUDE definitions. Completed-shape
-binding uses stable attribute identities, real providers/REFERENCES rights and
-normal reciprocal index ownership. Index attachments are staged first; their
-physical builds retain index-declaration order and precede historical row scans.
-CHECK historical jobs retain declaration order; ordinary DML retains its
-alphabetical CHECK order. FK can precede or follow a newly added self key.
-
-DROP retires the original UNIQUE/PRIMARY KEY/EXCLUDE backing generation in the
-private catalog before indexed ADD selects names, regardless of textual order.
-Explicit replacement can reuse its vacated name; anonymous replacement reuses
-the available canonical spelling rather than adding a stale-name suffix.
-Unrelated live relations still collide. Replacement gets new constraint/index
-identities; dependency rules and original name/reference publication fences
-remain active. A later failure preserves the old definitions, backing roots,
-rows and held consumers, rather than publishing an intermediate DROP.
-Each indexed DROP retires its backing and classifies its own RESTRICT/CASCADE
-dependencies before retiring the next selected backing. A later CASCADE cannot
-make an earlier independent RESTRICT fail, and an earlier CASCADE cannot authorize
-a later RESTRICT's FK removal. All successful DROP actions still precede indexed
-ADD naming. RESTRICT diagnostics identify the current constraint even when prior
-retirements remain in the shared closure; ordinary dependency consumers retain
-their existing whole-root subject selection, locks and closure rules.
-
-Valid attachments reject old violations without publishing names, indexes,
-flags or rewritten rows. CHECK/NN/FK NOT VALID omit only their historical scan;
-they still check definition/type/key/provider/ACL eligibility, and all genuine
-subsequent write owners enforce them. Repeated eligible validity attributes
-normalize to the same flags. Invalid NN advertises enforced Nullable=false even
-when historical NULL remains. Compatible same-attribute NN ADD preserves its
-original identity/name/validity; it never promotes or downgrades validity.
-Valid ADD over invalid NN fails55000 even after repair. SET NOT NULL performs
-its distinct real scan and can promote the existing identity after success.
-Fresh primary-key and USING INDEX compatibility retain distinct55000 records.
-Fresh PRIMARY KEY preliminary admission reads the original statement's NN
-validity before candidate DROP/SET/TYPE effects. Therefore SET NOT NULL or
-DROP of an invalid NN in the same fresh-PK statement cannot cure its55000
-prerequisite, in either textual order, even with clean data. Repair data and
-perform a separate successful SET NOT NULL first; it validates the original
-NN identity, and a subsequent PK ADD can succeed. This admission does not
-prematurely bind newly added keys or change USING INDEX's distinct route.
-
-Pure ADD FK takes SHARE ROW EXCLUSIVE on the child and distinct parents; mixed
-ALTER takes the strictest child ACCESS EXCLUSIVE grant. Exact external parent,
-supporting key and physical storage are captured before waiting and reopened
-without name retargeting. Prepare creates no definitions or held DDL grants.
-TYPE preserves invalid flags/old violations, binds compatible new operators
-and recreates affected identities; unrelated definitions retain identity.
-Historical catalog/enum/TEMP projections preserve prior own rows rather than
-creating DML. Actual new writes remain checked, including transaction-born FK
-predecessors. A committed orphan's unchanged nonnull FK key can skip a child
-check; a subsequent own update of that version cannot. MATCH FULL partial NULL
-and parent NO ACTION checks remain active. Savepoints restore flags, shapes,
-rows, roots, event state and lock contributions together.
-
-Dump omits invalid local definitions inline and emits qualified, named eligible
-ADD NOT VALID statements after all ordinary rows/supporting keys, under captured
-table owners. Restore uses the ordinary isolated ALTER loop and a narrow
-whitelist: no arbitrary ALTER/VALIDATE, trusted INSERT bypass or automatic flag
-promotion. Cyclic valid CREATE references keep their existing delayed captured
-authority; final historical FK validation skips installed invalid definitions.
-Existing-definition remaps preserve flags; fresh empty LIKE definitions remain
-valid according to CREATE semantics. Successful restore remints permanent
-relationships; failed definition/data/context/I/O work preserves the target.
-Physical pages/WAL, server RI trigger objects, recursive hierarchy ALTER and
-arbitrary PostgreSQL dump archive/wire compatibility are not promised.
-
-Smoke: `make check RUN='^TestReferenceAlterAddConstraintFeatureSmoke$'`;
-use the same RUN with `REFERENCE=1` for the independently specified pinned oracle.
-
-
-
-## Materialized views — change note
-
-`CREATE MATERIALIZED VIEW saved AS SELECT i,label FROM source` creates an owned,
-permanent stored result and an identity-bound definition. Later source writes
-leave saved rows unchanged. WITH DATA/default preserves NULLs, duplicate
-multiplicity and zero-column occurrences. An empty populated result remains
-readable; WITH NO DATA is a distinct state whose demanded reads fail55000.
-The definition's source/attribute/type dependencies survive stale data and source
-renames. Ordinary views over a materialization read its stored rows, not its base.
-Public INSERT/UPDATE/DELETE never populate or modify it.
-
-`REFRESH MATERIALIZED VIEW saved [WITH DATA]` atomically replaces stored rows by
-executing the frozen definition once as its owner. The caller needs MAINTAIN,
-not SELECT on the target or base. WITH NO DATA atomically clears population
-without source queries, source privileges or source locks; empty WITH DATA is
-still readable. Failed/canceled population retains old storage/population.
-Target ACCESS EXCLUSIVE conflicts with readers and refreshes; source reads use
-ACCESS SHARE. Native eager cursors keep immutable captured rows/metadata.
-Native explicit utility transactions remain excluded; PostgreSQL transactional
-refresh and rollback are separately expected server complements.
-
-Selected metadata ALTER retains exact storage/population and immutable identities.
-Owner/schema publication includes attached indexes and owned rowtype/array;
-column labels change without retargeting stable parent attributes. MV indexes use
-the existing logical index providers. DATA refresh builds candidate roots from
-candidate rows and uniqueness checks before the atomic publication. NO DATA
-publishes empty roots; retained rows/root snapshots remain unchanged.
-
-Native queued selected ALTER retains its prewait defining authority. Changed
-owner, name, namespace, frozen producer, rowtype, columns or attributes are
-rejected before handler name lookup even if the actor remains authorized.
-Compatible preceding refreshes may change rows, population and revision; ALTER
-captures their current stored result at lock grant instead of restoring stale rows.
-
-Native Dump writes owner-bearing canonical CREATE MATERIALIZED VIEW ... WITH NO
-DATA in dependency order, then captures exact stored rows at the dump frontier.
-Definition SQL uses the existing identity-bound presentation renderer with
-fully qualified names, preserving the restored public definition presentation
-without adding synthetic source aliases. Ordinary view serialization is unchanged.
-Genuine extension providers precede attached MVs. Immediately after canonical
-creation, Dump emits qualified ALTER MATERIALIZED VIEW ... DEPENDS ON EXTENSION
-for each genuine AUTO_EXTENSION edge within the same owner context. Restore
-allows only those selected dependency ALTER forms, not arbitrary ALTER history,
-and remaps whole extension addresses into its replacement candidate. Missing or
-invalid provider references and unauthorized materialized targets fail atomically.
-Adding or removing an AUTO_EXTENSION edge requires MV ownership, not extension
-ownership or privilege on the extension. Ordinary procedure references remain
-separate from x edges and six genuine unaccent member edges.
-A versioned SQL line comment, `-- stuntgres-matview-v1 <base64>`, carries strict
-JSON fields `schema`, `name`, `populated`, `rows`. The row text uses existing
-canonical scalar codecs; it is converted privately by Restore, never executed
-as public MV INSERT or used to reevaluate the defining query. Empty true/false
-and zero-width row occurrences remain distinct. Ordinary SQL ignores the record.
-
-Restore recognizes only genuine line comments, not marker text in string values,
-identifiers or nested block comments. It rejects malformed/duplicate records,
-wrong targets, invalid shape/type/typmod or effectful row expressions, validating
-in an isolated candidate before one catalog replacement. Read, parse, context
-and late SQL failures leave the destination catalog/data/retained rows unchanged.
-Native second-cycle/fresh-driver Restore preserves stale data, current names,
-owners, typed references and population; caller-owned TEMP objects retain their
-existing replacement contract.
-Snapshot input and every implicit, explicit, nested and assignment coercion must
-preserve the encoded datum. Modifier rounding, truncation or padding is rejected,
-including domain bases and array elements and literals folded during binding.
-Canonical domain/enum/array, temporal and symbolic-reference codecs remain valid.
-This import-only rule does not change ordinary SQL's cast or assignment semantics.
-
-PostgreSQL ignores these comments. Replaying the actual dump script there
-restores schema and frozen definitions with all MVs unpopulated, not native stale
-rows. An explicit subsequent REFRESH recomputes from the replayed base. Native
-Dump/Restore instead retains the last successful refreshed rows even if base
-data subsequently diverged; Restore never reevaluates the query and its SQL
-whitelist still rejects REFRESH. There is no public DML bypass. Heap/relfilenode
-swap, WAL, physical index rebuilding, crash durability and pg_dump are external-only.
-See [syntax and exclusions](SQL.md#materialized-views--change-note).
-
-## CREATE-time inheritance — change note
-
-`CREATE TABLE child (local definitions) INHERITS (parent, ...)` supports ordered
-one/multiple plain-table parents, including schema-qualified and quoted names,
-empty local lists and session-owned TEMP parents/children. IF NOT EXISTS skips
-parent resolution when the destination already exists. Malformed lists, repeated
-clauses and extra tails reject the complete input without prefix effects.
-
-Inherited live columns precede local-only columns. Same-name columns merge only
-with identical type identity, typmod and collation. Explicit local redeclarations
-retain their inherited position. Missing defaults are neutral; specified parent
-defaults must have equal cooked trees unless a local DEFAULT (including NULL)
-resolves the conflict. CREATE and Dump never evaluate definitions.
-LIKE defaults are copied after this conflict check: INCLUDING DEFAULTS can replace
-a nonconflicting inherited default, but cannot resolve conflicting parent defaults.
-An explicit same-name column beside LIKE still rejects42701 as a duplicate.
-
-Inheritable CHECKs remap stable parent attributes to the child row. Equal
-same-name definitions merge; unequal expressions reject. NO INHERIT CHECKs stay
-parent-local. NOT NULL is OR by column, not by parent constraint name, and local
-NULL cannot relax it. Constraints receive fresh child identities. STORED and VIRTUAL
-generated expressions inherit with kind-preserving row remapping; identity ownership does not,
-but its NOT NULL does. SERIAL inherits the original sequence default without
-child ownership. UNIQUE, ordinary indexes, PK and FK do not inherit. Existing
-native PRIMARY KEY support supplies inherited NOT NULL, not a child key;
-foreign-table provider admission retains its independent boundary.
-Generated/base parent kinds conflict. A local ordinary redeclaration retains an
-inherited generated expression; an explicit local generation expression may
-override it or resolve conflicting parent expressions. A local DEFAULT on an
-inherited generated column, or local generation on an inherited base column,
-rejects42611 with the PostgreSQL English primary/hint.
-VIRTUAL/STORED mismatches reject42611 with the release parent/child-kind Detail;
-same-kind child overrides retain the named child's expression.
-Inherited CHECKs read that completed child's logical generated value, including
-an explicit same-kind override, rather than retaining the parent's read recipe.
-INCLUDING GENERATED likewise cannot resolve conflicting inherited generation
-expressions. Copying a LIKE generation expression over an inherited generated
-column rejects2BP01 with PostgreSQL's default-dependency diagnostic; no child is
-published. Plain generated INHERITS and explicit child generation overrides remain
-supported.
-
-Direct child-to-parent normal dependencies are visible in pg_depend. Diamond and
-direct-plus-indirect ancestry are valid; repeated resolved immediate parents are
-not. Leaf DROP retains parents; RESTRICT protects unrequested descendants and
-CASCADE removes the descendant closure with ordinary dependent objects. Whole
-table RENAME/SET SCHEMA preserve graph identities. TEMP cleanup/ON COMMIT DROP
-uses the same closure; ON COMMIT DELETE ROWS clears only the named physical table.
-
-SELECT from a named parent includes its own rows and all admitted descendants;
-`parent*` is explicit default mode, while `ONLY parent` / `ONLY(parent)` are physical.
-Each occurrence scans a diamond or direct-plus-indirect child once by identity,
-without deduplicating equal-valued rows or sharing multiplicity across self-joins.
-Without ORDER BY no row order is promised. Projection and full type/typmod/collation
-metadata belong to the named parent, even when child columns occupy different slots.
-Supported SELECT consumers, prepared statements and stored views share this behavior;
-ONLY remains frozen through rename, schema move and genuine Dump/Restore.
-
-ACL/column ACL and RLS are the named parent's authority, not separate child checks.
-Existing default-deny, owner, BYPASSRLS and FORCE semantics apply; applicable native
-policy-expression enforcement still rejects0A000. Own session TEMP descendants
-participate, other sessions' TEMP branches do not. All physical roots use one
-statement snapshot, including private writes and transaction-retained RR roots.
-STORED generated values are the child's stored payload, whereas VIRTUAL reads use
-the parent's recipe with parent-mapped inputs and actual physical recipe provenance.
-This does not expose the public tableoid system column.
-
-Rowmarks lock the actual descendant relation/storage/row identity and recheck its
-latest values in the parent frame. All supported strengths, OF aliases, NOWAIT,
-SKIP LOCKED, derived/stored-view and absent outer-join rows retain existing semantics.
-Admission waits never retarget a same-name replacement; native reports its ordinary
-exact-identity error. Permanent CREATE in explicit transactions remains unsupported;
-this feature does not add transactional permanent DDL.
-
-Recursive UPDATE/DELETE targets and ordinary LOCK on a parent with children
-reject0A000 `recursive table inheritance is unsupported`. Physical INSERT and
-leaf DML work; LOCK ONLY is physical. COPY table remains physical; COPY(query)
-uses the inherited SELECT path. Foreign-table/partition capabilities are not enlarged.
-Graph column/default/type/nullability/constraint ALTER
-rejects0A000 `ALTER TABLE inheritance operations are unsupported`, except inherited
-column rename/drop/type and inherited NOT NULL removal use PostgreSQL42P16.
-Dependency-driven column, DEFAULT or CHECK removal on a surviving graph
-participant has the same0A000 ALTER boundary. Survival uses the effective staged
-graph after complete whole-relation retirement is staged, including schema-contained
-parents, their outside descendants, and shared children discovered through another
-retiring parent. DROP SCHEMA CASCADE cannot remove
-domain-dependent columns or definitions while an inheritance relationship
-survives: rejection preserves the provider schema/domain, tables, rows and graph.
-If removal of the sole child leaves its parent standalone, ordinary provider
-projection/removal remains supported and preserves independent physical rows and
-definitions. A retiring parent can also be the regclass provider of a retained
-other parent's DEFAULT or CHECK: CASCADE retires their shared child before pruning
-that newly standalone owner's dependent definition. Independent definitions and
-physical rows remain. Whole-table graph closure removal also remains supported.
-ALTER INHERIT/NO INHERIT, recursive UPDATE/DELETE and propagation are not
-added. Inherited SELECT and TRUNCATE are separate supported graph consumers;
-RANGE partition definitions retain their independently documented surface.
-
-Dump topologically emits ordered INHERITS and only local declarations, preserving
-explicit DEFAULT NULL, equal local CHECK/NN merges and actual data. A plain local
-redeclaration of an inherited generated column remains plain in the stream;
-only an actual local generation override is emitted as GENERATED. Restore imports
-the real graph atomically, including relation and constraint-origin identity
-remapping beside unrelated live TEMP objects. TEMP-to-TEMP graphs retain their
-exact relation, constraint and storage identities.
-Imported descriptors yield to retained TEMP definition OIDs as well as descriptor
-OIDs, including child-local EXCLUDE constraints and their exact backing indexes.
-The retained graph remains usable alongside the imported graph and subsequent
-ordinary CREATE/INSERT operations.
-Reset/Restore with any live TEMP-to-persistent parent edge reject the ordinary control error
-`stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported`
-before replacement; drop/close the TEMP owner first. These controls are not pg_dump
-or filesystem/wire durability APIs.
-
-## Query-derived tables — change note
-
-```sql
-CREATE TABLE copy (key) AS SELECT i, label FROM source;
-CREATE TABLE empty_copy AS SELECT i, label FROM source WITH NO DATA;
-SELECT i, label INTO copied_again FROM source;
-```
-
-These create ordinary independent tables, not views or stored query definitions.
-Default population and `WITH DATA` store the complete query result, preserving
-duplicate multiplicities and zero-column occurrences. A supplied column-name list
-renames an output prefix; its remaining labels come from the analyzed query.
-Too many names fail42601, duplicate normalized/clipped labels fail42701, and
-reserved system labels fail42701. Pseudo-types and indeterminate collations cannot
-be stored. Diagnostics belong to destination execution, not returned row metadata.
-
-Column Usage retains resolved type identity, typmod and collation, including
-existing domains, enums, arrays and concrete catalog output types. New attributes
-and origin metadata belong to the destination; stored columns are nullable.
-Source table NOT NULL/default/generated/identity/CHECK/UNIQUE/PRIMARY KEY constraints,
-indexes, comments and ACLs are not copied. A domain retains its own existing type semantics;
-this feature does not add native domain constraints or defaults.
-
-The effective creator owns the destination. Initial population requires schema
-CREATE and the query's ordinary executor source privileges, not destination
-INSERT. Successful creation publishes the definition and all initial rows at one
-catalog/storage frontier; query, cleanup, cancellation or publication failure
-leaves no partial destination. Sequence effects retain ordinary nonrollback
-semantics. Dropping a source does not remove or change the copied table.
-
-SELECT and ordinary writes/drop operate on the resulting table. Native Dump emits
-ordinary definitions and literal rows (DEFAULT VALUES for zero-column rows),
-and Restore remains restricted to its existing replay whitelist, not CTAS/INTO.
-Isolated Restore column reconstruction can recover builtin internal CHAR,
-REGCLASS/its existing arrays and scalar XID already stored by a query. XID retains
-its canonical unsigned scalar codec and nullable shape, without admitting raw XID
-declarations, casts, domains or arrays. Other ordinary raw declaration/cast/domain
-admission is not widened. Named REGCLASS references use
-the existing codec/replacement mapping, not foreign numeric relation identities.
-Generated nonnull REGCLASS row literals use a name-only `CAST('name' AS REGCLASS)`
-and the existing binder resolves the restored identity. Restore admits only that
-literal child, not parameter, column, function, query or effectful reference
-expressions; stored NULL follows the ordinary NULL literal path.
-
-PG_NODE_TREE remains a nonphysical structural catalog carrier, not ordinary
-stored SQL data. Native query-table descriptor admission rejects it with `0A000`
-`query table output type pg_node_tree is unsupported`, including DATA, NO DATA and
-existing domain/array physical wrappers. An existing-target IF NOT EXISTS skip
-still precedes this descriptor check. Its SELECT/catalog/deparser capabilities
-remain unchanged; PostgreSQL can materialize its physical node serialization.
-
-## Temporary tables — change note
-
-`CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] name (...)` uses the ordinary
-ordered table elements, declared types, NULL/NOT NULL, DEFAULT, CHECK, stored
-generation, serial/identity, UNIQUE, PRIMARY KEY and plain LIKE construction path. TEMP
-creation ignores the default persistent creation namespace. Ordinary
-`CREATE TABLE pg_temp.name`, an actual own TEMP namespace, or a leading
-`search_path=pg_temp` also creates an owner-TEMP relation. Qualified persistent
-access bypasses owner shadowing; explicit `public,pg_temp` path order is honored.
-Lookup alone does not allocate a namespace and peers never share TEMP data.
-
-Trailing `ON COMMIT PRESERVE ROWS` is the default; `DELETE ROWS` prepares empty
-storage/deletion/index roots at successful outer commit while preserving
-serial/identity counters; `DROP` removes table, owned sequences and backing/plain/
-expression indexes through the ordinary dependency closure. Autocommit counts:
-CREATE DROP succeeds then the table is absent; INSERT DELETE reports its actual
-affected count then the table is empty. Explicit SQL/driver commit and CHAIN
-apply actions once, not at intermediate statements. Rollback/savepoint rollback
-restores descriptor/action/data roots without rolling back nextval draws.
-
-Owned named IDENTITY sequences using `pg_temp` and same-stage SERIAL-dependent
-DEFAULTs resolve against the table builder's exact owner namespace before CREATE
-publication; this grants no generic persistent sequence alias authority.
-
-TEMP persists through pooled borrowing, but physical-session end removes all
-owned dependencies and aborts private work. Explicit DROP, ON COMMIT DROP and
-physical retirement use the same complete expression dependency closure:
-dependent DEFAULT/CHECK definitions, generated columns and external expression
-indexes are removed while their surviving consumers remain. Removing a generated
-column projects committed rows and pending writes/deletes by stable attribute
-identity, including nested private DDL and savepoint restoration; an ON COMMIT
-DELETE consumer stays empty after this projection. Retained immutable snapshots
-keep their old shape. Unrelated permanent objects and peer TEMP remain unchanged;
-permanent DEFAULTs retain their existing TEMP-provider exclusion.
-Surviving row shapes and affected index roots publish with the catalog at one
-frontier; physical retirement retries obsolete predecessors rather than replacing
-newer rows or index roots.
-If table and owned-sequence discovery reshape the same survivor more than once,
-each expression index evolves from its current immutable staged candidate to the
-latest stable-attribute layout. Already coherent candidates remain unchanged;
-earlier derived trees and original publication predecessors remain retained.
-Dump excludes TEMP definitions/data;
-native Reset/Restore preserves exact live owner descriptors, stores, generators,
-index roots/actions and retained builtin types. Stored DEFAULT/CHECK/generated
-and derived-index references retain their immutable manifests under bounded
-owner-TEMP provenance, including live same-owner table and index providers.
-References retain their original engine, physical namespace token, nonreused
-address and epoch; rendering still requires exact concrete types and row origins.
-Builtin retention walks both definition and execution trees of derived index keys
-and partial predicates, including a predicate that alone carries BOOL. Replacement
-does not remap those retained trees, their concrete type generations or manifests.
-This does not grant sequence runtime authority to tables/indexes, forgive
-foreign-owner or retired/recreated providers, or admit stale persistent consumers.
-Stale active transactions remain fenced by replacement; incompatible live
-user-domain-array dependencies retain their explicit ordinary-error boundary.
-Full index deparse uses `pg_temp` for the current physical owner's TEMP namespace,
-identified by captured namespace authority rather than name matching. Other
-owners retain their physical namespace spelling; context-free Dump stays canonical.
-CASCADE also traverses actual owned-index provider roots, including already-staged
-index removals, before final validation of their consumers. Independent own-row
-generated columns retain their definition identities and remap to the surviving
-dense layout; missing or retired providers never gain reference authority.
-
-Explicit ON COMMIT on a permanent destination fails42P16. TEMP in a persistent
-schema and creation in a foreign TEMP namespace fail42P16 after CREATE authority.
-IF NOT EXISTS does not bypass destination/permission/persistence checks or replace
-an incumbent's shape/data/action. Malformed/trailing clauses fail42601.
-DELETE/PRESERVE policies require the `ROWS` suffix; window frame-unit keywords
-`RANGE` and `GROUPS` are not alternative commit-policy units.
-Explicit identity LOGGED/UNLOGGED options on TEMP fail42P16
-`cannot set logged status of a temporary sequence` at the option.
-TEMP source SET SCHEMA is excluded with0A000
-`cannot move objects into or out of temporary schemas`.
-Views over TEMP relation sources automatically become temporary and participate
-in the real dependency/physical-close closure; see [temporary views](SQL.md#temporary-views--change-note).
-GLOBAL/LOCAL spellings, nested TEMP CREATE SCHEMA elements and permanent
-transactional CREATE/DROP remain excluded.
-CREATE/DROP TABLE driver Prepare is metadata-only, including inside a transaction:
-it creates/resolves no table or TEMP namespace and performs no read-only or
-destination rejection. Execute applies those checks and still excludes permanent
-transactional CREATE/DROP without effects.
-
-Smoke: `make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'`;
-pinned: `make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'`.
-
-## Decompiled definitions — change note
-
-Composite ROW construction and stable member selection are admitted through the
-existing DEFAULT/CHECK/generated/index/policy/view binders. Every child retains
-the existing dependency, parameter, volatility and lifetime fences; selecting a
-field never hides an invalid unused child during analysis/preflight. Generation
-and CHECK validate the completed mutation row, not intermediate partial writes.
-Stored expansion captures its exact ordered members, including zero width.
-Deparse uses explicit frozen members and genuine canonical null-count calls;
-whole-row sources retain their actual occurrence/frame and exposed labels.
-This adds no user function provider, generic RECORD storage or new DDL form.
-
-
-CHECK/default/NOT NULL definitions have generated catalog identities distinct from
-their owning table and stable attributes. CREATE allocates only at execution;
-renames and surviving DROP-column remaps preserve IDs. SET DEFAULT replaces its
-definition with a fresh identity, DROP removes it, and re-add creates another.
-Existing SET NOT NULL remains a no-op retaining identity.
-An actual column-type change that rebuilds a DEFAULT replaces its definition OID
-through the same atomic publication allocator while retaining captured metadata.
-Failed conversion preserves the old identity, default, type and rows; this does not
-change the existing same-Usage no-op boundary.
-
-`pg_get_constraintdef` returns `CHECK (<expression>)` plus ` NO INHERIT` when
-present, or `NOT NULL <current-column>`. Returned CHECK suffixes can be consumed
-by CREATE for the same supported scalar syntax and enforcement semantics; original
-source formatting is not preserved. Rename updates quoted names without rebinding
-the stored types/providers. `pg_get_expr` renders catalog tree expressions.
-Both compact and pretty suffixes preserve nested comparison grouping and provider
-identity under search-path shadowing. Copying a returned default into the same
-destination Usage preserves typed assignment values, not merely its output text.
-NUMERIC(4,2) DEFAULT '1.2' deparses as 1.2 but inserts 1.20; CHARACTER(3) DEFAULT
-'xy' deparses unsized and inserts 'xy '. Temporal precision is likewise applied
-by the stored coercion/assignment tree; INTERVAL retains input field/precision sizing.
-Synthetic comparison casts never inherit an unrelated column's typmod:
-NUMERIC(4,2) n<1000 emits unsized ::numeric, so copying cannot introduce a sizing
-overflow. A real CAST(1000 AS NUMERIC(4,2)) remains sized and erroring.
-Actual-copy fixtures require exact retained row values after rejected batch
-INSERT and UPDATE, not merely unchanged row counts. CHECK is not retroactively
-revalidated when comments, search paths or session TimeZone change; subsequent
-DML observes current provider/session state through held prepared handles.
-
-CREATE DEFAULT NULL and transparent built-in casts such as NULL::integer create
-no pg_attrdef definition; ALTER SET DEFAULT NULL removes one. This narrow producer
-normalization never evaluates CASE, COALESCE, functions or arbitrary expressions
-to infer NULL. Nontrivial NULL-producing definitions remain stored; generated
-NULL expressions also remain stored. Native normalization currently strips domain
-coercions too, so domain-coerced NULL defaults can be pruned where PostgreSQL
-retains them. That DDL/storage limitation is not fixed by pg_attrdef projection.
-Explicit INSERT NULL and NOT NULL/CHECK enforcement use the ordinary typed executor.
-
-
-## Object comments
-
-COMMENT stores one immutable UTF8 text per TABLE, COLUMN, SCHEMA, SEQUENCE or ROLE.
-Another command replaces it; NULL and the empty string remove it, while
-whitespace remains text. It affects zero rows and returns no columns or
-parameters. Names and literals use the ordinary positioned parser, including
-quoted dots, E/dollar/Unicode strings and parse-time string settings. Values
-cannot be expressions or parameters. COMMENT remains an unreserved identifier.
-
-TABLE/COLUMN lookup uses current search_path and schema USAGE. Missing columns
-are resolved before owner checks. Owners and effective superusers may comment
-local objects; ordinary grants do not substitute for ownership. Nonowner TABLE
-uses `must be owner of table t`, COLUMN `must be owner of relation t`, and
-SCHEMA `must be owner of schema s` (42501). ROLE uses real shared role authority:
-ordinary users cannot comment even themselves (CREATEROLE required); a superuser
-target requires SUPERUSER. This native role surface has no CREATEROLE/ADMIN SQL.
-Prepare caches syntax, never target identity or ownership; Execute resolves anew.
-Qualified TABLE/COLUMN targets in a missing schema fail `3F000`,
-`schema "s" does not exist`; a missing relation in an existing schema fails
-`42P01`. Schema-USAGE denial precedes relation/column lookup and has no Position
-field for COMMENT, unlike positioned DML analysis diagnostics.
-Serialized COMMENT waiters refresh immutable metadata at the original captured
-relation identity after lock grant; a prior comment does not count as replacement.
-Reset/Restore and drop/recreate still fence the old epoch/address, never retargeting
-a waiting command to an object with the same name.
-
-CatalogRead.Comment exposes local metadata at stable class/object/SubID addresses;
-RoleRead exposes shared text through RoleDescriptor.Comment. SQL inquiries use
-the same immutable metadata; see [object comment inquiries](SQL.md#object-comment-inquiries--change-note).
-`pg_catalog.pg_description` now projects local descriptions at those same
-`(objoid,classoid,objsubid)` identities, with no empty/NULL description rows.
-Relation/column keys use class1259; schemas2615, types1247, collations3456 and
-conversions2607. Shared ROLE text remains excluded; no `pg_shdescription`
-projection is added. Reading a numeric identity requires no target privilege.
-Legacy whole-object collision results remain consistent within each statement,
-without promising a portable catalog ordering. Persisted inquiry views retain
-typed syntax even when strict constant-NULL inputs eliminate execution demand.
-Dropping/recreating an object clears text, while schema rename/owner transfer
-preserves it. Plain LIKE does not copy comments; INCLUDING COMMENTS copies exact
-column text, not the table comment. COMMENT ON TYPE, DATABASE and
-other unsupported object kinds remain excluded. Table/schema COMMENT in an
-explicit driver transaction returns native 0A000; supported sequence COMMENT
-uses transaction-private metadata. PostgreSQL permits transactional COMMENT.
-
-Dump captures local comments with the same immutable snapshot as rows: schemas
-in name order, then table/column text after CREATE in declaration order. Escape
-literals preserve apostrophes, backslashes, newlines and Unicode independently
-of destination string settings. Fresh native `pg_catalog` and `public` carry
-`system catalog schema` and `standard public schema`, respectively. Unchanged
-bootstrap descriptions add no dump bytes; overrides emit text and explicit
-removals emit `COMMENT ON SCHEMA ... IS NULL`. Reset restores this fresh baseline,
-not overrides or removals. Restore replaces local state atomically and replays
-those differences, including removals. Both retain role comments, which are
-deliberately excluded from database Dump and Restore.
-The readonly projection is derived, not dumped as INSERTs. Its163 fresh native
-rows cover2 namespace,26 scalar type,7 collation and128 conversion release seeds;
-unsupported objects and represented arrays do not acquire invented text.
-Live column comments retain their original attribute numbers through drop,
-rename, supported type changes and schema moves. SCHEMA/SEQUENCE/TABLE owner
-changes retain their description addresses/text. Canonical Dump names surviving columns;
-Restore reconstructs declarations and may remint a historical survivor3 as2
-after middle-column removal. Text and named object relationships round-trip,
-not old allocator OIDs or historical attribute gaps.
-
-### Table ownership groups — change note
-
-`ALTER TABLE ... OWNER TO` transfers the table, parent indexes, row type/array
-and AUTO/INTERNAL owned sequences atomically. Stable columns, ACL provenance,
-comments, defaults, policies, rows and sequence state retain their identity.
-Partition roots, physical leaves and inheritance descendants remain independent:
-changing a parent owner does not recursively change their owners.
-Independent sequences are not swept by similar names. Bulk REASSIGN selects
-exact source-owner roots; DROP OWNED checks the complete union before external
-dependencies and retires real associated identities on success.
-
-
-
-## Column defaults
-
-CREATE TABLE stores structurally immutable, bound column `DEFAULT` definitions;
-this does not require the expression's volatility to be Immutable. Supported
-closed, parameter-free, row-independent Immutable and Stable trees are admitted,
-including temporal casts, `AT TIME ZONE`/`AT LOCAL`, comparisons, CASE and NULLIF.
-Session-dependent temporal operations remain Stable, not folded constants.
-Existing literal/NULL, typed temporal/interval constants, same-type scalar Usage
-CAST/`::` annotations, existing directional numeric and baseline/character/OID/
-temporal casts, bounded function-style casts, INT4/INT8 unary/binary arithmetic,
-scalar comparisons and IS [NOT] DISTINCT FROM are admitted
-at the outer level. Volatile producers remain unsupported except the existing
-fixed early-bound `nextval('sequence')` allowance, closed selected UUID-generator
-trees and closed `clock_timestamp()`/`timeofday()` trees through already admitted
-scalar wrappers. The selected time exception does not admit random, sequence,
-UUID or other unrelated volatile descendants through a mixed tree.
-Row/parameter/execution-stage dependence remains prohibited.
-CREATE DEFAULT Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
-`DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
-parameters are prohibited even inside casts or decisive logical branches.
-General SQL functions, subqueries, arithmetic beyond admitted scalar operators,
-new cast families remain outside this DEFAULT-expression surface.
-ALTER TYPE independently assignment-coerces stored defaults; USING transforms
-existing rows only, never the default expression or future DEFAULT inserts.
-Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
-child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
-The existing null, truth and distinct predicates retain their ordinary typed
-semantics and fully parenthesized unevaluated Dump representation in defaults.
-Named DEFAULT syntax is accepted but does not create a named constraint object.
-Plain LIKE copies shape and NOT NULL, **not defaults**. INCLUDING DEFAULTS copies
-the cooked typed definition without evaluating it or recapturing temporal literals.
-Copied nextval defaults retain the original sequence; this is independent of
-INCLUDING IDENTITY, which creates a new owned sequence.
-
-Runtime INSERT default demand stops at the first completed row failing NOT NULL
-or CHECK, before evaluating later rows. Rows publish only as one atomic batch;
-sequence allocations already demanded by the rejected row are not rolled back.
-
-`ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression` and `DROP DEFAULT`
-change only the selected immutable default descriptor. Existing rows and column
-nullability remain unchanged; future omitted/DEFAULT requests, including held
-prepared INSERTs, use the current definition. Dropping an absent default succeeds
-without a new descriptor revision. No explicit default means implicit typed NULL,
-which still fails a retained NOT NULL constraint when consumed.
-ALTER uses the general supported expression grammar: `TRUE OR FALSE`, `NOT FALSE`
-and `NULL IS NULL` do not require extra parentheses. Assignment binding reuses
-CREATE's type providers without evaluating a value: unknown invalid literal input
-fails immediately; typed conversion, integer narrowing and division by zero can
-fail only on subsequent demand. Failed SET preserves the old definition.
-Semantic ALTER default diagnostics have no source Position; syntax errors retain
-their character positions and CREATE diagnostics retain their existing positions.
-Owner-only execution takes the existing AX grant and publishes one fenced
-metadata-only catalog stage. Qualified/quoted targets, optional COLUMN, ONLY,
-ONLY(...) and trailing `*` work for standalone tables. Ordinary inheritance graph
-participants reject the inheritance ALTER capability boundary above; RANGE
-participants retain their partition-hierarchy ALTER boundary. PostgreSQL-only
-recursive/ONLY witnesses specify behavior without claiming native ALTER parity.
-Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
-Native explicit transactions exclude standalone SET/DROP DEFAULT, not selected
-ADD COLUMN/TYPE/nullability/DROP COLUMN lists; read-only ALTER fails25006 before lookup.
-Dump writes current defaults and explicit old rows. Defaults referencing inline
-identity providers order their owning tables first; legal default cycles instead
-emit ordinary sequence-reference SET DEFAULT statements after all definitions and
-before data. Restore admits these bounded deferred statements through the same
-default binder, not arbitrary ALTER scripts. UPDATE DEFAULT remains unsupported.
-Feature smoke: `make check RUN='^TestAlterDefaultSmoke$'`.
-
-### Adding a column
-
-`ALTER TABLE target ADD [COLUMN] [IF NOT EXISTS] name type` uses the existing
-column type/typmod/collation and NULL/NOT NULL/DEFAULT/CHECK declaration surface.
-Qualified/quoted names, ONLY/ONLY(...) and trailing `*` apply to standalone tables;
-inheritance/partition descendant propagation is outside this feature.
-ADD serial/identity/generated/unique/FK declarations remain excluded.
-
-Schema metadata and stored shapes change atomically under the existing owner-only
-AX grant. Old rows receive typed NULL without a default. Supported Immutable/Stable
-defaults are evaluated once at ADD, even when no old rows exist; admitted volatile
-defaults, including clock_timestamp()/timeofday(), draw once per effective live
-row (never ended/deleted/replaced predecessors). Future INSERT omission/DEFAULT
-evaluates the retained original
-expression. A later standalone SET DEFAULT changes only future requests.
-Structural DEFAULT NULL creates no pg_attrdef definition, subject to the
-domain-coercion NULL pruning limitation described above.
-
-New NOT NULL and CHECK constraints validate completed rows; CHECK NULL passes.
-ALTER errors use contains-null / violated-by-some-row diagnostics, without INSERT's
-failing-row detail. Failed validation leaves the old schema/data intact. Sequence
-draws already demanded are nontransactional and are not promised to rewind.
-IF NOT EXISTS preserves the existing column and emits42701 NOTICE before semantic
-type/default/CHECK binding; system names conflict even with that modifier.
-Syntax still parses completely. DROP/TYPE precede ADD regardless of textual order;
-added CHECKs bind after all new columns exist. Mixed SET/DROP DEFAULT lists remain
-unsupported, and their standalone explicit-transaction exclusion is unchanged.
-
-Fresh direct/prepared results append labels/types/native nullability; held explicit
-survivor SELECTs and targeted INSERTs rebind, but changed-width held SELECT* fails
-0A000 cached-plan result-type validation. Stored view stars retain their old width.
-Private ADD shapes/defaults/CHECKs participate in joint Commit and savepoint rollback.
-Stable attributes never reuse dropped identities in the same relation; pg_class
-relnatts retains the attribute high-water, while pg_attrdef.adnum uses actual IDs.
-Logical Dump writes final CREATE and explicit data, not ADD/DROP history; Restore
-may remint live attribute numbers and subsequent ADD advances its restored ceiling.
-Native eager cursors retain old values/metadata across ADD/Reset/Restore.
-Native Control/context/I/O APIs are host mechanisms, not PostgreSQL control APIs;
-no physical tuple optimization, server/wire protocol, disk durability or pg_dump
-process is implemented. Existing ACL Dump limits remain unchanged.
-Feature smoke:
-`make check RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$'`
-and `make check REFERENCE=1 RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$'`.
-
-
-Each INSERT row evaluates declared defaults for omitted columns or per-cell
-`DEFAULT`; absent declarations yield typed NULL. Explicit supplied values,
-including NULL, bypass defaults. Targetless `DEFAULT VALUES` inserts one all-default row;
-an explicit target list before DEFAULT VALUES is a syntax error (42601).
-Stable defaults use the admitted INSERT's captured TimeZone and DateStyle.
-Changing settings between executions of the same prepared INSERT can therefore
-change actual default values without changing the stored definition. CREATE and
-Dump serialize/validate the expression tree without evaluating it; typed literal
-leaves still freeze at CREATE analysis, while supported session-dependent parent
-operations are evaluated only when consumed by INSERT.
-Ordinary INSERT supplied values retain the existing scalar/cast surface;
-SELECT and ORDER-decorated VALUES sources retain their existing query surface.
-Defaults do not change declared result types, ScanTypes or nullable metadata.
-CREATE resolves each column's type before validating its NULL/NOT NULL and
-DEFAULT declarations in source order, before proceeding to later elements.
-The second DEFAULT fails with 42601 at that token. Earlier type/nullability
-errors still win; all declaration structure and NOT NULL merging complete before
-any default expression is bound, so a later duplicate can precede an earlier
-default-input error. Restore uses the same binder and preserves the existing
-catalog and data on failure.
-Utility Prepare remains semantic-analysis-free; CREATE binds input/type errors
-on execution, while destination narrowing and typmod sizing remain deferred to
-INSERT. For example `INT DEFAULT 2147483648` creates successfully but fails
-on use with 22003. Every INSERT preflights actually consumed declared defaults'
-immutable conversions and closed integer arithmetic at execution, after supplied-value
-or query-source preflight and before executor authorization and capture. For query
-INSERT, even an empty source can report demanded division-by-zero or overflow errors.
-This bounded default-only planning also covers ordinary omissions, per-cell requests,
-undecorated parenthesized VALUES and DEFAULT VALUES; it visits the left
-Boolean operand first.
-A resulting concrete TRUE on OR, or FALSE on AND, makes the whole execution
-expression a private BOOL literal without demanding the discarded right branch.
-Nested closed constant arithmetic/comparisons/predicates and NOT use their existing
-typed operations after required children are handled. NULL/nondecisive left operands
-still demand the right; a bad left operand is not rescued by a decisive right.
-CREATE still analyzes both operands and rejects prohibited references or eager
-input errors. Stored definitions remain unfolded, including discarded casts.
-Explicitly supplied values, including NULL, bypass defaults. A default is
-planned only when some ordinary row requests or omits that destination, or
-a query omits it; a column supplied in every row is never default-planned.
-Mixed rows retain one private schedule but evaluate remaining runtime expressions
-only in cells consuming the default, never for a zero-row source.
-This is not a general runtime short-circuit or broader optimizer guarantee;
-ordinary query/DELETE/UPDATE/supplied-value preflight and logical evaluation are unchanged.
-Relative temporal input
-such as `'now'` captures CREATE's transaction input environment, not a volatile
-per-row SQL function.
-
-Every statement stages complete rows before publication. Later default evaluation,
-conversion, NOT NULL or cancellation failure leaves existing rows unchanged.
-Descriptor owner/comment/NOT NULL changes preserve definitions; dropping a column
-removes only its stable attribute's default. Dump preserves canonical expression
-structure and captured temporal leaves without evaluating defaults; stored data,
-including explicit NULL, remains explicit. Restore uses the same public syntax
-and binder, atomically replacing definitions/data or preserving the target on failure.
-Existing integer arithmetic defaults retain operator structure, grouping and operand
-widths through native controls; CREATE and Dump never evaluate them. Destination
-BIGINT does not widen an INT4 operation to avoid overflow. Explicit character CAST
-typmods retain Unicode truncation and BPCHAR-to-TEXT trimming; destination assignment
-still reports overlength rather than silently truncating. UPDATE DEFAULT remains
-outside this INSERT-only default consumer.
-The rounded finite TIMESTAMP endpoint retains its type-owned `TIMESTAMP(0)`
-encoding exactly once, including temporal leaves inside comparison defaults.
-Explicit casts retain their actual coercion mode and canonical CAST structure.
-Known TEXT children stay typed, so `CAST('oops'::text AS INT)` remains an
-execution-demanded conversion through empty/populated controls rather than
-becoming a CREATE-time unknown-input error. Recursive DATE leaves retain DATE
-introducers, including BC comparisons whose civil ordering differs from TEXT.
-BYTEA defaults reuse the existing canonical hex codec and return raw octets;
-same-type BYTEA annotations add no known-TEXT-to-BYTEA conversion provider.
-
-Feature smoke: `make check RUN='^TestDefaultSmoke$'`.
-Dual-mode defaults: `make check RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$'`.
-Pinned PostgreSQL witnesses: `make check REFERENCE=1 RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$'`.
-General sequence/volatile composition remains unsupported in declared DEFAULT;
-fixed nextval leaves support SERIAL and native replay. Identity instead uses an
-internally owned sequence. PostgreSQL disk/WAL
-durability, wire networking, native ABI extensions and external pg_dump processes
-or custom archives are non-engine mechanisms, not successful no-op promises.
-
-## Identity columns — change note
-
-Integral columns support `GENERATED ALWAYS AS IDENTITY` and `GENERATED BY DEFAULT
-AS IDENTITY`, with independent internally owned sequences and implicit NOT NULL.
-There is no implied uniqueness, nor an ordinary stored nextval DEFAULT.
-Omission/per-cell DEFAULT generates; BY DEFAULT permits explicit values, while
-ALWAYS requires `OVERRIDING SYSTEM VALUE` to keep explicit values. USER overrides
-replace identity inputs only, leaving ordinary columns/defaults unchanged.
-Sequence allocation and session memories survive row failure/rollback; transactional
-RESTART replaces a private generator and rolls back with identity metadata.
-
-Existing sequence calls in CHECK can reference the identity sequence declared
-by the same CREATE TABLE, with automatic or explicit SEQUENCE NAME, including
-nested CREATE SCHEMA elements. Binding uses one private staged catalog for
-namespace lookup, regclass identity and provider stamps; incumbent admission and
-runtime authorization remain live. Failed construction installs neither table,
-sequence nor generator. CREATE and Dump do not evaluate the CHECK. For a fresh
-CACHE 1 sequence, an omitted INSERT
-produces id 1 and its own `CHECK(nextval('i_id_seq') > 0)` consumes 2.
-Own-table CHECK references do not obstruct reciprocal table/sequence cleanup;
-external view/CHECK dependencies retain the ordinary restrictive drop behavior.
-
-ALTER ADD requires NOT NULL and no regular default; it never backfills old rows.
-SET generation/options and RESTART affect future inserts. DROP IDENTITY removes
-only its internal sequence and preserves rows/NOT NULL. Direct sequence DROP and
-OWNED BY reassociation cannot bypass the link. Rename/schema/owner transitions
-preserve stable attribute ownership. Plain LIKE copies NOT NULL but not identity.
-Stored expression-generated columns have a separate current-row expression,
-not an identity sequence or ordinary DEFAULT; see [stored generated columns](#stored-generated-columns).
-
-Identity ALTER diagnostic ordering follows PostgreSQL's utility phases. Repeated
-SET GENERATED clauses are syntactically valid but fail at execution with42601
-`conflicting or redundant options`, without a parser Position. Numeric sequence
-validation precedes that conflict. ADD privately validates/stages its sequence
-before checking existing identity, NOT NULL and regular-default guards: invalid
-CACHE can therefore produce22023 before55000. Nonintegral ADD produces22023
-`identity column type must be smallint, integer, or bigint`. A failed guard or a
-genuinely later action publishes neither the proposed sequence nor partial
-mode/options/restart changes; the old reciprocal link and row backing remain.
-
-The immutable identity definition is keyed by stable column attribute identity and
-holds the exact sequence address; the sequence holds the reciprocal internal-owned
-column address. Catalog validation requires both directions, integral type, NOT NULL,
-no ordinary default and matching owner/schema. Native replacement remaps both links,
-including collisions with retained TEMP sequences, rather than associating by name.
-
-The assigned identity SQL regression scenarios live in untagged external
-`reference/` definitions selected by `^TestReferenceIdentity[A-Za-z0-9_]*$`.
-They merge the 28 former root interaction tests with existing reference
-assertions, including actual held-statement reuse, empty/raw metadata, failure
-demand and session-cache checkpoints. The same definitions run against native
-stuntgres by default and add the pinned PostgreSQL oracle with explicit
-`-reference=true`; see the [development guide](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
-for complete family commands.
-
-Native Dump/Reset/Restore, retained snapshots and repeated owner/TEMP remaps are
-explicit native phases; PostgreSQL independently replays the unchanged SQL
-stream and checks its consumers, owners, comments and persistence. Raw metadata
-and complete backend-specific diagnostics are asserted before normalization.
-Unordered source consumers retain duplicate-preserving payload bags without a
-portable generated-ID/payload association. These test-routing changes do not
-expand SQL support or imply physical durability parity. Unrelated tagged
-catalog, authority and lock witnesses remain separate.
-
-Identity ALTER waits for the exact linked sequence operation lock, then uses its
-grant-time committed options/generator while preserving staged changes and the
-original table/storage fences. A concurrently committed ALTER SEQUENCE must not be
-overwritten by stale options. Cancellation publishes no identity change and cleans
-the waiting operation; subsequent healthy INSERT remains usable. Regression witnesses:
-`TestIdentityAlterSequenceGrantFreshness`, `TestIdentityAlterCanceledPublication`,
-`TestReferenceIdentitySequenceGrantFreshness` (untagged dual-mode) and
-`TestIdentityControlsTemporaryCollision`. The migrated public ALTER lifecycle
-is covered by `TestReferenceAlterIdentityTransitions` and
-`TestReferenceAlterIdentityDropLifecycle`; the complete selected family is
-`^TestReferenceAlterIdentity` in `reference/`. See [test policy](TESTING.md)
-for oracle-first discovery and shared quick/reference execution.
-
-`TestReferenceAlterIdentityTransactionalAtomicity` covers genuinely later SET
-failure and private commit/rollback/savepoint behavior.
-`TestReferenceAlterIdentityWaitCancellation` observes real table/sequence waits
-before cancellation and checks healthy held-command reuse.
-`TestReferenceAlterIdentityControls` captures current state after ALTER, including
-explicitly named links and a removed second identity, rather than serializing
-ALTER history. Native controls retain old snapshots and preserve the altered
-baseline on malformed, reader-failed or canceled Restore. PostgreSQL server
-PID/lock-catalog cancellation probes are external fixture mechanisms; native
-context cancellation remains an ordinary Go error, not a fabricated SQLSTATE.
-
-Integral identity TYPE preserves the exact reciprocal sequence link and mode,
-owner, ACL and comments while using the sequence owner's AS rules for type,
-matching old type-extreme bounds and retained custom options. It also runs AS for
-same-type TYPE. All raw USING expressions bind against the original row before
-these before-statements; nonintegral identity targets fail22023 before row demand,
-even if the same action list drops identity. A separately completed DROP IDENTITY
-removes that restriction. A plain AUTO OWNED BY sequence is not an identity and
-does not change type/options/cache when its column changes.
-
-AS uses a private scalar generator alongside the candidate descriptor. Existing
-USING/CHECK nextval calls see that generator, and successful publication retains
-their advance. Failed TYPE and rollback restore catalog/data/scalar roots, not
-physical-session currval/lastval or the caller's discarded AS cache tail.
-Rollback to a pre-TYPE mark restores the old scalar; a post-TYPE mark retains
-demand in that same private generation. Peer unseen cache tails are not flushed
-by private or failed AS. Grant-time option/state refresh and cancellation use the
-existing identity sequence lock owner.
-Pre-wait dependency observations account for only the exact internal identity
-descriptor captured after that grant. New view/CHECK dependencies, plain AUTO
-ownership changes and later descriptor replacements still conflict; the original
-descriptor fence and final reciprocal-link validation remain mandatory.
-Witnesses: `TestAlterTypeIdentitySequenceGrantFreshness`,
-`TestAlterTypeIdentityCanceledSequencePublication`,
-`TestAlterTypeIdentityStagedSequenceDemand`,
-`TestAlterTypeIdentityPrivateSavepoints` and `TestAlterTypeIdentityControls`.
-Feature smoke: `make check RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$'`.
-
-
-## Ordinary table definitions and removal
-
-`CREATE TABLE z ()` is a real zero-column relation: direct/prepared `SELECT *`
-returns no columns and no rows for the newly created table. `LIKE z` is legal.
-There is no dummy column. Public `INSERT ... DEFAULT VALUES` inserts one row,
-including into a zero-column table; `INSERT ... VALUES ()` is invalid syntax. Ordinary `oid` is a legal column;
-`ctid`, `xmin`, `cmin`, `xmax`, `cmax` and `tableoid` conflict with system names.
-
-LIKE copies live column names, supported full types/typmods/collations and NOT NULL
-at the element's position. Named NOT NULL declarations retain source names, with
-fresh destination definition identities. Multiple/interleaved clauses and existing
-view and composite-type sources are allowed; duplicate expanded names fail `42701`
-atomically. Composite members retain their declared nullable shape; options
-without applicable descriptors have no effect.
-The destination has fresh relation/attribute identities, current-user ownership,
-no source rows or ACL and no automatic parent linkage. A copied expression can
-still retain real external dependencies, including an explicit source REGCLASS.
-Table/view LIKE sources require relation-level SELECT; column-only SELECT is
-insufficient. Composite sources instead require USAGE on the reciprocal type,
-not SELECT on its nonstorage backing relation. Namespace USAGE precedes source-kind
-validation, which precedes the applicable source privilege. Sequences and indexes
-fail `42809`, even when their SELECT privilege is denied. Composite source relation
-and type incarnations are captured through the existing CREATE publication fences.
-
-Qualified LIKE sources use that schema's USAGE checks; unqualified sources follow
-the effective search path independently of the destination. Nested CREATE TABLE
-elements in CREATE SCHEMA support the same ordered elements and zero-column shape.
-They bind against preceding staged tables as the enclosing schema owner, with that
-schema prepended to a local path. The caller's identity and stored path do not
-change; inaccessible sources or missing applicable source privileges fail the
-entire schema construction.
-
-For example:
-
-```sql
-CREATE TABLE source (i INTEGER NOT NULL, s TEXT, f BOOLEAN);
-CREATE TABLE clone (lead BIGINT, LIKE source, tail TEXT);
-DROP TABLE source RESTRICT; -- clone remains independent and writable
-CREATE TABLE empty_shape ();
-```
-
-Each LIKE clause starts with all optional properties excluded. Ordered repeated
-`INCLUDING`/`EXCLUDING` COMMENTS, COMPRESSION, CONSTRAINTS, DEFAULTS, GENERATED,
-IDENTITY, INDEXES, STATISTICS, STORAGE and ALL are accepted; the last option wins.
-ALL changes every option bit, and subsequent exclusions affect only their property.
-NOT NULL is unconditional, including EXCLUDING CONSTRAINTS or EXCLUDING ALL.
-
-DEFAULTS copies ordinary cooked defaults; GENERATED separately copies admitted
-STORED/VIRTUAL expressions and their kind, remapping row references/tableoid to the destination. Explicit
-REGCLASS/REGTYPE constants and external calls are not redirected. CONSTRAINTS
-copies named CHECKs and NO INHERIT, not UNIQUE. Copied CHECK-name collisions use
-`42710` and never merge equal expressions.
-
-TEMP sources are not blanket exclusions. Constant defaults and defaults using
-permanent sequences copy into permanent or same-session TEMP destinations.
-An ordinary default capturing a TEMP sequence requires the destination's same
-physical session token. Copying it into a permanent destination fails native
-`0A000`, `temporary sequence DEFAULT is unsupported`, at Execute without Position;
-PostgreSQL permits that dependency. Excluding DEFAULTS avoids this boundary.
-Same-session TEMP copies retain the original sequence and its contextual
-reference manifest across native Reset/Restore, without evaluating or rebinding
-the default. This does not make generic stale or foreign references valid.
-
-IDENTITY copies mode and numeric configuration into a fresh independently owned
-sequence, initially uncalled at its configured START, not at source current state
-or RESTART value. Fresh sequences follow destination namespace and persistence:
-permanent for permanent destinations, temporary for TEMP destinations, never a
-source token or persistence override.
-INDEXES copies live btree/hash/unique/primary-key/expression/INCLUDE definitions and admitted
-equality EXCLUDE attachments, including their definition-time deferrability,
-partial B-tree/UNIQUE and constraint-local HASH predicates, classes, collations
-and ordering into freshly named ready/valid/live indexes with new roots and
-backing identities only where the source has a backing constraint.
-Both analyzed and execution predicate trees use destination attributes; external
-REGCLASS/REGTYPE constants retain their original dependencies. Only TRUE rows
-enter a partial root, before derived-key evaluation. Live invalid source
-definitions are rebuilt, nonlive ones omitted. COMMENTS copies exact column text,
-never table text
-or source authority. Index-comment SQL/control and constraint-comment providers
-remain absent; a generic descriptor comment field does not promise those APIs.
-
-Compression/storage/extended-statistics descriptors and
-constraint-comment providers are not implemented. Standalone partial HASH
-and partial concurrent index creation retain their existing native exclusions;
-ordinary partial B-tree/UNIQUE and equality EXCLUDE definitions are real providers.
-An option with no applicable admitted descriptor copies nothing, even under ALL;
-accepting its grammar does not add an absent provider.
-
-Source and selected providers are held by exact incarnation through the single
-atomic publication. Inline CREATE SCHEMA uses preceding private staged sources.
-Dump serializes the resulting independent definitions/data, and Restore replays
-them atomically; no retained LIKE history or source-name rebinding is needed.
-Native controls retain existing physical-session TEMP definitions/data separately
-from the permanent emitted stream. New copies from retained TEMP sources give
-mapped local column/tableoid references the fresh destination's current authority,
-including both cooked generation, expression-key and predicate trees and CHECKs.
-External literals and DEFAULT providers retain their original contextual authority;
-this does not admit stale external TEMP references into permanent consumers.
-Actual independent permanent stream replay requires neither the original TEMP
-source nor its private namespace.
-Shared coverage: `RUN='^TestReferenceTable(Like|Core)'`. Feature smoke:
-`make check RUN='^TestReferenceTableLikeFeatureSmoke$'`
-and the same command with `REFERENCE=1` for the pinned PostgreSQL oracle.
-Unknown syntactically valid type names prepare successfully and fail execution
-with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT2/INT4/INT8/NAME/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/TIMETZ/TIMESTAMPTZ/NUMERIC/UUID/BYTEA fail
-execution with `0A000`. Excluded multiword families (BIT VARYING and qualified
-INTERVAL fields), unsupported qualified type names, arrays and modifiers other than FLOAT(p),
-numeric precision/scale, character length, temporal precision and admitted BYTEA/NAME modifiers
-remain parser-level `0A000` boundaries. DATE, BYTEA, TEXT and NAME modifier syntax is admitted only
-to reject it semantically with `42601`, `type modifier is not allowed for type
-"date"`, `"bytea"`, `"text"` or `"name"`, at the type token, before validating modifier operands.
-CREATE Prepare is metadata-only and succeeds; direct or prepared execution rejects
-the modifier without publishing a table. TIME/TIMESTAMP precision has its own bounded integer grammar.
-Even an existing IF NOT EXISTS target cannot bypass excluded syntax forms;
-failure-only guards construct no executable family AST. DOUBLE PRECISION and
-valid FLOAT(p) are supported.
-
-Type keyword aliases are not quoted catalog names: `"smallint"`, `"integer"`,
-`"bigint"` and `"boolean"` fail with `42704`, while `"int2"`, `"int4"`, `"int8"`,
-`"text"` and `"bool"` select the supported concrete types. Quoted case is significant (`"INT2"` or `"INT4"` is
-missing), and diagnostic names retain decoded quotes and backslashes without
-SQL or Go re-escaping. NAME and quoted `"name"` are supported distinct from TEXT;
-quoted `"NAME"` is missing. Six unqualified lowercase serial spellings, including
-quoted lowercase names, are CREATE-only shorthand: smallserial/serial2 → SMALLINT,
-serial/serial4 → INTEGER, bigserial/serial8 → BIGINT. Quoted `"SERIAL"` and
-schema-qualified serial names are missing types, not shorthand.
-SERIAL modifiers are rejected with the lowered integral type's `42601`
-diagnostic at the original type position; no integral typmod support is added.
-
-SERIAL adds NOT NULL, a width-matched sequence and an ordinary fixed nextval
-default, not uniqueness or identity override behavior. Supplied values (including
-duplicates, zero and negative values) bypass allocation; supplied NULL fails
-NOT NULL. Generated names use collision-safe UTF8 truncation in the table schema.
-Sequence privileges apply independently of table INSERT; failed rows/rollback
-can consume values. Width overflow uses checked assignment, not identity wrapping.
-AUTO ownership removes the sequence on owning column/table drop. The independent
-NORMAL default dependency blocks direct sequence RESTRICT; CASCADE removes only
-the default. DROP DEFAULT does not drop the sequence, and OWNED BY NONE does not
-remove the default. Rename/schema move retains the exact default target.
-Dump writes integral columns and separate sequences, preserving names/options/
-state/ownership; Restore uses the same shared fixed-nextval binder.
-An ordinary fixed-nextval default may target an identity-owned sequence without
-becoming an identity column or bypassing sequence ACLs. Native publication protects
-incumbent default providers with AccessShare holds and checks the merged catalog
-root; newly staged generated sequences stay private until atomic publication.
-This is a native catalog-integrity fence, not a claim of identical PostgreSQL
-transaction-lock behavior. Dump orders inline identity providers before consumers,
-and defers sequence-reference defaults when otherwise legal defaults form a cycle.
-Feature smoke: `make check RUN='^TestSerialSmoke$'`.
-
-DROP preflights the entire explicit target group before one atomic catalog
-publication. A later missing or unauthorized target leaves every table intact.
-Duplicate resolved targets such as `a, public.a, a` remove one identity once.
-IF EXISTS emits per-missing-target NOTICE/00000 (`table "name" does not exist,
-skipping`, or `schema "name" does not exist, skipping`). DROP requires table
-owner, schema owner or superuser authority, not ordinary table privileges, and
-preserves current schema lookup/USAGE authorization.
-
-The supported dependency set includes stored views, owned sequences and B-tree/hash indexes.
-Both modes remove the selected tables and their contained columns, storage and
-relation/column ACL records; dependent views retain the RESTRICT/CASCADE policy
-described below. Namespace,
-builtin types, owner roles and unrelated tables survive. Real DROP ROLE ownership
-and ACL blockers disappear with the removed definitions. LIKE clones, prepared
-statements and held cursors are not persistent dependents; held cursors retain old
-rows/metadata, while prepared executions rebind (absent table `42P01`,
-incompatible recreation `42703`). B-tree/hash indexes and column-owned
-sequences disappear automatically with their parent; views retain their existing
-RESTRICT/CASCADE dependency policy, including inbound foreign-key definitions.
-Explicit-transaction CREATE/DROP TABLE remains unsupported.
-
-Dump emits expanded canonical declarations, including `()`, independently of a
-dropped LIKE source. Restore uses the same binder in isolated staging; failed
-LIKE/type/duplicate/option declarations preserve the target. DROP remains
-excluded from Restore scripts. Existing explicit-ACL Dump rejection is unchanged.
-The independent reference recorder preserves genuine zero-column cursor
-metadata as an empty result, distinct from no query result; consumed rows and
-cursor closure are checked for both native and PostgreSQL executions.
-
-## Primary-key constraints — change note
-
-```sql
-CREATE TABLE scalar(id INT PRIMARY KEY);
-CREATE TABLE composite(a INT, b TEXT, CONSTRAINT composite_pk PRIMARY KEY(a, b));
-```
-
-CREATE TABLE supports named or unnamed column and table PRIMARY KEY declarations,
-including table keys before their columns. Keys are ordered lists of 1–32
-distinct ordinary attributes. Missing/repeated columns fail42703/42701 at the
-PRIMARY or CONSTRAINT declaration; a second explicit primary key fails42P16
-before binding its keys. Empty/expression key lists are syntax errors.
-
-Column-local PRIMARY KEY implies NOT NULL at its declaration position:
-`a INT NULL PRIMARY KEY` and `a INT PRIMARY KEY NULL` conflict with42601.
-A table-form key can upgrade a separately declared nullable column. Its missing
-NOT NULL identities are appended in key order after original explicit/inherited
-NOT NULL declarations, rather than physical column order. An explicit NOT NULL
-name remains independent of the primary-key name.
-
-Explicit CREATE index declarations retain the primary key first. Identical
-ordered ordinary UNIQUE keys collapse into it, transferring the first explicit
-UNIQUE name if the primary key is unnamed. Reversed keys and UNIQUE NULLS NOT
-DISTINCT remain separate. Two primary keys never deduplicate. This retention
-rule applies only to explicit declarations: LIKE copies and explicit UNIQUE
-constraints remain independently owned, even on the same keys.
-
-Generated names are `table_pkey`, then numbered suffixes, using existing UTF8-safe
-63-byte clipping. Generation sees existing namespace objects and earlier retained
-backing relations, not future explicit names. Existing backing relation collisions
-fail42P07 before local CHECK/NOT NULL name collisions; otherwise local constraint
-name collisions fail42710. CREATE publishes the table, separate NOT NULL and
-primary constraint identities, and actual enforcing B-tree as one atomic group.
-
-Typed immediate uniqueness and transaction key claims reuse the ordinary UNIQUE
-providers. NULL fails23502 before uniqueness or ON CONFLICT omission. Duplicates
-fail23505 naming the real primary constraint, with typed key Detail only when
-the current caller can SELECT the table or every key column. All existing INSERT
-producers, UPDATE and MERGE retain their whole-statement atomicity.
-`ON CONFLICT ON CONSTRAINT primary_name DO NOTHING` selects this real provider.
-
-`pg_constraint` reports kind `p`, owning table and NULL conbin, with separate
-kind `n` identities for nonnullable keys. Both pg_get_constraintdef signatures
-render PRIMARY KEY using current labels; pg_indexes renders CREATE UNIQUE INDEX.
-Native result metadata knows key columns are nonnullable, including empty and
-prepared cursors; lib/pq does not expose nullable metadata. The backing attachment
-supplies actual conindid and narrow pg_index primary/unique flags; broad immediate
-and deferrability metadata remains internal.
-
-Renames, schema-group moves and REINDEX preserve the primary discriminator and
-reciprocal attachment. Direct backing-index DROP, even CASCADE, fails2BP01;
-backing-index rename updates the constraint name while retaining both identities.
-Dropping a key column removes the primary key/backing, not surviving key NOT NULL
-identities. Unrelated column removal preserves the group and stable attributes.
-Actual key TYPE changes remint affected primary/backing/NOT NULL identities;
-the rebuilt primary identity precedes rebuilt NOT NULL identities. Unaffected
-identities and the table identity remain. Duplicate or NULL conversions leave
-all original descriptors, rows and roots unchanged.
-
-A live primary key prevents ALTER COLUMN DROP NOT NULL and DROP CONSTRAINT
-of its key's NOT NULL identity with42P16. Identity-column ALTER COLUMN DROP NOT
-NULL retains its earlier42601 identity guard; named NOT NULL DROP still reaches
-the primary-key42P16 guard first. Dropping the primary key leaves its NOT NULL
-identities unchanged. Ordered `DROP CONSTRAINT pk, ALTER a DROP NOT NULL` can
-succeed for ordinary keys; reversing those actions fails atomically. Existing
-transaction, savepoint and read-only admission boundaries are unchanged.
-
-Plain LIKE copies NOT NULL but not the primary key. INCLUDING INDEXES or ALL
-copies the primary kind with destination names, fresh identities, remapped keys
-and actual key characteristics, never source rows or roots. Multiple explicit/
-copied primary keys fail42P16 without a source position. Index descriptor comments
-copy under INCLUDING COMMENTS; SQL COMMENT ON INDEX remains PostgreSQL-only,
-with a native package-function copy counterpart rather than invented SQL support.
-For keys without INCLUDE, Dump emits named NOT NULL and the primary declaration
-once in the owning CREATE; INCLUDE groups use the index graph described below.
-Restore rebuilds and enforces populated persistent groups in isolated staging.
-Failed duplicate/NULL replay leaves the destination and held rows unchanged;
-existing TEMP exclusion and retained TEMP groups remain intact.
-
-ALTER ADD PRIMARY KEY key lists and ADD COLUMN PRIMARY KEY, CREATE deferrability
-(including NOT DEFERRABLE/INITIALLY), WITHOUT OVERLAPS and primary index parameter
-tails remain unsupported. Existing-index ALTER attachments are described below.
-Malformed full input fails42601 before deferred capability diagnostics or effects.
-Physical PostgreSQL index/WAL/server mechanisms remain external.
-
-Feature smoke:
-`make check RUN='^TestReferencePrimaryKeyFeatureSmoke$'`;
-use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.0.
-
-## Existing-index UNIQUE/PRIMARY KEY constraints — change note
-
-`ALTER TABLE t ADD [CONSTRAINT name] { UNIQUE | PRIMARY KEY } USING INDEX index`
-turns an existing standalone unique B-tree into a real constraint/backing group.
-The source name is unqualified and resolved in the table's namespace, not by
-search_path. Both scalar and composite keys, semantic parenthesized simple columns,
-explicit default classes/collations/ASC NULLS LAST, and represented INCLUDE work.
-The table and index identities, owner, schema, key/include definitions and index
-roots remain unchanged; only the constraint and missing key NOT NULL identities
-are new. Combined TYPE reconstruction may independently remint an affected index.
-
-Eligibility checks association, parent, validity, uniqueness, expression keys,
-actual partial predicates, method and default key behavior in PostgreSQL order.
-WHERE TRUE can fold away; a real partial predicate is rejected. A rejected index
-remains usable. Native standalone indexes are inherently immediate; associated
-EXCLUDE indexes fail association first. No native deferred-index mechanism or
-unique HASH provider is implied by the PostgreSQL-only later diagnostic branches.
-
-Without a constraint name, the index name is inherited. The same explicit name
-is quiet; a different name emits `ALTER TABLE / ADD CONSTRAINT USING INDEX will
-rename index \"old\" to \"new\"`. Relation-name collisions fail42P07; relation-local
-constraint-name collisions across every admitted kind, including foreign keys,
-report the dynamic pg_constraint23505 diagnostic.
-Notices precede these runtime failures and survive rollback. Eligibility is checked
-after effective DROP/TYPE actions but before SET NOT NULL; attachment runtime
-actions follow in order and the final effective-row NULL scan follows them.
-Two eligible primary attachments therefore report42P16 before a NULL scan, with
-both rename notices. The completed statement publishes no partial group on failure.
-
-PRIMARY KEY preserves existing key NOT NULL identities and creates only missing
-ones. Key NULLs fail23502 in physical table-column order; duplicate keys fail23505.
-INCLUDE is payload only: it is absent from conkey, equality, inference and implicit
-NOT NULL. Current constraint deparsing includes current parent-column labels.
-Backing physical labels can remain old after a column rename until TYPE rebuild.
-An included-column TYPE rebuilds constraint/index identities and payload metadata,
-retaining key NOT NULL identities. Dropping an included column, even RESTRICT,
-retires the group but retains key NOT NULL. LIKE uses fresh reciprocal identities,
-remapped actual keys/include/providers and no source rows or roots.
-In one ALTER containing TYPE and USING INDEX, TYPE remints the affected index
-before attachment in either textual order. Attachment updates that same private
-creation without treating it as a base-existing replacement; original removal
-and destination-name observations still fence atomic publication.
-The selected control witnesses include successful attached same-name Restore
-without Reset and a populated enum-key INCLUDE graph with sequence/provider
-defaults, an index-referencing REGCLASS default and a persistent view. Native
-roundtrip and actual emitted-SQL PostgreSQL replay retain their real dependencies,
-values and held consumers; reset-destination and bad-replay controls are distinct.
-
-Attachments use the existing Execute-time ACCESS EXCLUSIVE table lock, ownership
-authorization, private transaction/savepoint catalog and single Finish authority.
-Peers see the old group until commit; cancellation before publication, later errors,
-rollback and failed replay leave original names, identities, NN, rows and roots.
-Retained prepared consumers rebind after attachment/rename/drop/Restore.
-Utility ALTER Prepare remains syntax-only; INSERT resolves its named ON CONSTRAINT
-target at Prepare in both native and PostgreSQL, rejecting an absent target42704.
-Already materialized native Rows remain immutable.
-
-Immediate ALTER spellings NOT DEFERRABLE and INITIALLY IMMEDIATE, in either order
-or repeated, normalize to ordinary immediate constraints. Actual DEFERRABLE or
-INITIALLY DEFERRED remains native0A000, with the first enabling token's position;
-contradictory properties and malformed full input fail42601 first. CREATE property
-exclusions and general ADD key-list/ADD COLUMN producers are not expanded.
-
-Native Dump preserves the existing definition graph: a represented INCLUDE group
-emits CREATE UNIQUE INDEX and its ADD CONSTRAINT USING INDEX at the index node
-after the owner table definition. Deferred defaults retain their position;
-ordinary data precedes eligible post-data NOT VALID attachments. Restore admits
-these bounded ALTER forms and reconstructs the ownership/constraint graph privately in a new
-catalog generation. A same-name parent may retain its numeric OID; isolated
-Restore allocation and candidate-collision remapping can also reuse an old
-definition number. Fresh owner/epoch/address identity, reconstructed enforcement
-roots and retained-consumer rebinding—not numeric inequality—define replacement.
-Bad replay leaves the destination unchanged. SQL COMMENT ON INDEX remains unsupported; descriptor
-comments survive attachment/TYPE and INCLUDING COMMENTS copies, but native Dump
-does not serialize index comments or claim their public SQL roundtrip.
-
-Feature smoke: `make check RUN='TestReferenceUsingIndexFeatureSmoke'`; run the
-same selector with `REFERENCE=1` for pinned PostgreSQL18.0. Full proof selectors
-and the public standalone smoke contract are in [TESTING](TESTING.md).
-
-
-## Exclusion constraints — change note
-
-Table elements and existing ALTER TABLE ADD CONSTRAINT accept
-`[CONSTRAINT name] EXCLUDE [USING btree|hash] (key WITH operator, ...)`,
-with the existing immutable index-key, class/collation and property grammar.
-Only commutative original-type equality operators belonging to the selected owned
-scalar family are admitted. Binary-compatible class input alone is not membership.
-B-tree supports composite keys, ordering and INCLUDE payload; HASH retains its
-existing single-key/no-INCLUDE limits. Optional `WHERE (predicate)` is TRUE-only
-and runs before keys, including for the constraint-local HASH exception. Ordinary
-HASH CREATE INDEX WHERE remains native0A000. Any NULL key makes a pair nonconflicting.
-INCLUDE never participates in the exclusion operator vector.
-
-Each definition owns a distinct constraint OID and real nonunique integrity index.
-Existing pg_constraint exposes contype x; pg_get_constraintdef renders the current
-symbolic keys/operators/properties. Internal index metadata sets IndIsExclusion,
-not IndIsUnique, and IndImmediate reflects definition-time deferrability.
-Narrow SQL pg_index is available; exclusion-specific flags and
-condeferrable/condeferred columns remain outside native projections.
-Exclusion keys never strengthen KEY SHARE/NO KEY UPDATE row-lock eligibility.
-
-DEFERRABLE and INITIALLY IMMEDIATE/DEFERRED are supported independently of UNIQUE
-deferral and transaction READ DEFERRABLE. Immediate constraints check statement-final
-due events; deferred events run at SET CONSTRAINTS IMMEDIATE, implicit completion,
-SQL/Go COMMIT or PREPARE. Events are enlisted only by actual potential conflicts:
-an uncontested first insertion has no synthetic recheck obligation for a later peer.
-Savepoints restore immutable event/mode/projection snapshots; repair or removal of
-the actual row/version retires its obligation. Prepared owners retain the same
-dirty ticket until COMMIT/ROLLBACK PREPARED. Shared completion resources own waits,
-deadlocks and cancellation, while ordinary reads retain their MVCC view.
-
-Omitted/named ON CONFLICT DO NOTHING selects supported nondeferrable exclusions;
-unique column/expression inference does not infer them. Selected deferrable
-arbiters fail55000 only when a row is demanded; zero-row INSERT succeeds.
-Unselected conflicts still fail23P01 with no partial effects.
-Build errors use `could not create exclusion constraint`; runtime errors use
-`conflicting key value violates exclusion constraint`. Details disclose both keys
-only with table SELECT or SELECT on every simple key column; expression keys require
-table SELECT. Ownership does not bypass revoked SELECT. Unreadable runtime/build
-details are `Key conflicts with existing key.` / `Key conflicts exist.`.
-
-ALTER ADD validates populated/private final rows atomically. DROP CONSTRAINT
-retires its owned index; direct DROP INDEX retains the existing dependency error.
-Supported standalone constraint/backing-index renames preserve identity and update
-both names. Table/column rename and schema move retain the closure; affected TYPE
-remints and validates it, while key/include/predicate column removal retires it.
-Standalone constraint rename supports writable explicit transactions; existing
-CREATE, table/column-rename and ordinary index-utility transaction boundaries
-remain unchanged.
-Native Dump emits the constraint once, Restore validates isolated staging, and
-Reset/foreign/same-owner replacement reowns typed providers and remints actual roots
-without changing retained TEMP objects. Transient modes/events are not serialized.
-GiST/SP-GiST/range/extension providers, physical indexes/WAL and PostgreSQL server
-pg_dump remain outside this native capability.
-
-See [design](design/PG18-DDL-EXCLUSION.md). Shared feature smoke:
-`make check RUN='^TestReferenceExclusionFeatureSmoke$'`;
-`make check REFERENCE=1 RUN='^TestReferenceExclusionFeatureSmoke$'`.
-
-## RANGE partition definitions — change note
-
-```sql
-CREATE TABLE events (tenant INTEGER, stamp INTEGER, payload TEXT)
-  PARTITION BY RANGE (tenant, stamp);
-CREATE TABLE early PARTITION OF events
-  FOR VALUES FROM (1, MINVALUE) TO (2, MAXVALUE);
-CREATE TABLE remaining PARTITION OF events DEFAULT
-  PARTITION BY RANGE (stamp);
-CREATE TABLE remaining_leaf PARTITION OF remaining DEFAULT;
-INSERT INTO events VALUES (1, 20, 'early'), (3, 20, 'default');
-SELECT tenant, stamp, payload FROM events ORDER BY tenant, stamp;
-```
-
-One to 32 column or supported immutable row-dependent expression keys use the
-existing scalar/coercion, collation and B-tree ordering authorities. Bounds are
-typed tuples, compared lexicographically; lower bounds are inclusive and upper
-bounds exclusive. MINVALUE/MAXVALUE are unbounded sentinels, not SQL NULL or
-floating infinity, and each sentinel requires the same sentinel in the remaining
-tuple positions. Any NULL key misses explicit ranges and can reach DEFAULT.
-Bound expressions are closed, parameter-free scalar expressions assigned through
-the existing key-type authority. Both tuple arities preflight before demand.
-Transformation proceeds lower then upper, left-to-right: each finite datum binds,
-coerces, evaluates once and rejects NULL before the next datum is transformed.
-Sentinel suffix validation follows transformation of that entire tuple, before
-the next tuple begins. Thus lower NULL precedes a malformed upper expression, and
-a lower nextval reached before a later failure remains consumed. Binding retains
-the admitted provider/authorization frontier; expression/provider evaluation runs
-outside Engine.mu. Table/catalog publication remains atomic, with no sequence
-rewinding or partially published child/auxiliary.
-An empty or overlapping bound fails before publication. DEFAULT is the live
-complement of explicit siblings; a new sibling validates every physical leaf
-under DEFAULT before installation. Nested members can have their own key.
-Empty-range Position uses the comparison's deciding component: a later differing
-component for reversed bounds, the last component for full finite equality, or the
-terminating component for matching infinity. Overlap diagnostics search a transient
-typed ordered endpoint projection of admitted siblings, not creation order or a
-second mutable hierarchy. Exclusive upper endpoints precede inclusive lower ties.
-The containing lower-endpoint partition, or the next partition in a gap, supplies
-the witness; the final endpoint-search comparison supplies the diagnostic
-component, with first-component Position for an equal lower endpoint.
-
-Explicit and effective key collations use the existing live catalog authority.
-Both produce the same deduplicated dependency on a nondefault provider. RESTRICT
-preserves its dependent hierarchy and data; CASCADE removes that hierarchy,
-indexes and root/descendant-owned sequences. Missing or inconsistent providers
-cannot publish. Native replacement remaps explicit key identity and comparison
-capability together before preserving exact live TEMP descriptors; source catalogs
-remain unchanged. Persistent keys using a TEMP collation reject portable Dump
-before output.
-
-Virtual roots and intermediate members own descriptors, not phantom heaps.
-Physical leaves own ordinary storage, local UNIQUE/PRIMARY KEY/EXCLUDE constraints and indexes.
-Direct and prepared INSERT, including INSERT SELECT, route all rows through one
-write stage. Late CHECK/NOT NULL/UNIQUE/EXCLUDE, bound, or routing failures publish no
-earlier destination rows. Explicit child targets must satisfy every ancestor
-bound. Omitted-column defaults come from the named INSERT target, not whichever
-leaf happens to receive the row. SELECT and stored views capture all physical
-descendant prefixes at one frontier; old cursors retain their captured topology.
-An explicitly named intermediate validates its own ancestor partition constraint
-before descending: failure identifies that actual logical INSERT target, not a
-leaf that was never reached. Ordinary root routing retains real physical-leaf
-constraint diagnostics.
-
-Ancestor, routed physical-leaf and ordinary NOT NULL/CHECK errors use the
-original named INSERT binding's disclosure authority, for VALUES and INSERT SELECT.
-Physical constraint errors retain the actual leaf's schema, table, column and
-constraint identity; unrelated leaf SELECT rights do not reveal omitted defaults.
-Table SELECT on the named target permits a whole-row Detail. Otherwise the
-physical-order union of explicitly supplied columns and named-target column SELECT
-privileges is labelled. Grant admission and permission capture remain protected by
-Engine.mu; effective-authority and provider output callbacks run outside that lock.
-Schema-wide table GRANT/REVOKE reaches current virtual roots, intermediate members
-and physical leaves through the existing ACL authority. It does not include
-sequences or grant subsequently created tables. Revoking root rights denies
-named-root scans and routed INSERT even when leaf rights differ. Missing-key
-expression details use PostgreSQL identifier quoting only after disclosure
-authorization. Destination schema CREATE admission precedes partition-parent
-ownership, retaining current authorization after waits and source positions.
-
-Existing `pg_tables` metadata includes virtual roots and
-intermediates with their genuine schema and owner, alongside physical leaves.
-
-PARTITION OF requires parent ownership and destination schema authority.
-Inherited columns retain their stored type identity, typmod and collation, and
-require fresh user-type USAGE. Cooked inherited defaults and CHECKs are reowned,
-not rendered and rebound through freshly qualified names. This does not require
-fresh type-schema USAGE solely for those inherited identities. Actual child
-defaults/CHECKs, qualified casts, nested keys and bound expressions use ordinary
-named-user binding and authorization. Children can strengthen NOT NULL and add
-inheritable CHECKs or override defaults without changing the row shape.
-An identical, explicitly named inherited CHECK merges with one stored constraint
-and a merging NOTICE; structural differences, including reordered or added
-arithmetic, retain the duplicate-constraint error instead of logical simplification.
-
-`pg_class` reports virtual members as `p` and physical leaves as `r`;
-column metadata, row types, local constraints/indexes and `pg_depend` retain real
-identities and membership dependencies. DROP removes a root's contained subtree
-atomically, or unlinks an explicitly dropped leaf from its surviving parent.
-External RESTRICT/CASCADE dependents retain the ordinary dependency policy.
-Manual sequence OWNED BY can target a live virtual root/intermediate column using
-the existing same-owner, same-schema and stable-attribute checks. This is a real
-AUTO metadata dependency, not a virtual heap or new serial/identity declaration;
-the symbolic ownership, inquiry, remapping and subtree DROP closure are preserved.
-Native UPDATE, DELETE, row marks, explicit hierarchy LOCK inside a transaction,
-unsafe ALTER, virtual nonunique CREATE INDEX and virtual REINDEX fail with explicit0A000 boundaries.
-An outside-transaction LOCK retains its ordinary25P01 admission error.
-ON CONFLICT and MERGE also retain explicit hierarchy boundaries, including direct
-physical members: native0A000 `ON CONFLICT on partition hierarchies is unsupported`
-and `merging partition hierarchies is unsupported`. Normal analysis and target
-rights precede rejection; no omitted-default, source/route demand or write is
-published. Ordinary ON CONFLICT skip/revalidation/affected counts remain unchanged.
-SQL cursor SELECT reuses the same complete hierarchy provider and metadata.
-Virtual EXCLUDE and parsed generated/identity/serial constraint combinations
-fail execution with0A000 `partitioned table constraint combination is unsupported`,
-with optional fields empty. RANGE UNIQUE/PRIMARY KEY and unique virtual indexes
-are supported as described below; physical leaves retain independent local keys.
-LIST/HASH, table-partition ATTACH/DETACH and row movement are not implemented. Existing ordinary
-INHERITS definitions do not permit a partitioned inheritance child or inheritance
-from a virtual partitioned parent or physical partition member.
-Nested partition definitions inside CREATE SCHEMA are an adjacent unsupported
-combination: native execution reports0A000 `partition definitions in CREATE SCHEMA are unsupported`
-at the nested PARTITION token before staging any schema element or demanding bounds.
-Ordinary CREATE SCHEMA elements and top-level RANGE definitions are unchanged.
-Temporary partition definitions are likewise explicitly bounded: native execution
-reports0A000 `temporary partition definitions are unsupported` at the first
-PARTITION token before structural/provider staging. Destination persistence is
-resolved first, so qualified pg_temp forms cannot silently create ordinary heaps.
-This does not change ordinary TEMP table/ON COMMIT behavior or native replacement
-retention of live TEMP table descriptors, stores, generators and index roots.
-Permanent hierarchy CREATE inside an explicit native transaction remains the
-ordinary0A000 utility boundary. Physical TEMP-provider retirement can still remove
-dependent persistent hierarchies through existing scopeless lifecycle staging.
-The whole contained and owned closure is removed atomically, while peer TEMP
-roots and already-retained cursors survive. Outer-COMMIT private staging preserves
-the caller's original write/delete roots until installation and clears removed
-leaf storage, indexes and generators without taking SQL locks through a nil scope.
-
-
-Dump orders parents before children and explicit siblings before DEFAULT, emits
-typed symbolic bounds and local child definition differences, and preserves
-owners, data and scalar dependencies. Restore uses isolated, fenced staging.
-Only that trusted importer may replay whitelisted deferred SET DEFAULT and open
-a differently owned parent through its authenticated bootstrap principal.
-The named child owner and type/expression authority are never elevated; ordinary
-SQL, even from a superuser, cannot use those private exceptions. Failed or canceled
-replay leaves the target unchanged. A same-engine hierarchy catalog replacement
-reowns the complete coupled catalog expression graph before atomic installation.
-Actual emitted SQL is also replayed unmodified on PostgreSQL in the reference
-tests; cross-owner replay explicitly provisions temporary inherited role membership
-and importing schema rights there, then revokes and removes them.
-
-Shared feature smoke: `make check RUN='^TestReferenceRangePartitionFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'`.
-The former table-core smoke now lives in the same dual-mode reference area:
-`RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'`.
-
-## UNIQUE constraints — change note
-
-CREATE TABLE supports `[CONSTRAINT name] UNIQUE [NULLS [NOT] DISTINCT]`
-on a column, and `[CONSTRAINT name] UNIQUE [NULLS [NOT] DISTINCT] (a, b, ...)`
-as a table element. Table elements can precede their columns. Keys are ordered
-lists of 1–32 distinct ordinary attributes. Missing/repeated attributes fail
-42703/42701 at the declaration token; an empty key list is a syntax error.
-Default and explicit NULLS DISTINCT allow any key containing NULL to repeat;
-NULLS NOT DISTINCT compares NULL components as equal.
-
-Equal ordered keys and equal NULL policy among explicit CREATE declarations
-collapse into one retained definition. A later explicit name transfers onto an
-unnamed retained definition; otherwise the first explicit name wins. Independent
-LIKE copies do not participate in this merge. Reversed key order and a different
-NULL policy are separate constraints. Generated `table_columns_key` names use UTF8-safe 63-byte
-identifier clipping and numbered suffixes. Backing relations share the ordinary
-relation namespace; collisions with table or index names fail42P07, while
-collisions with existing CHECK/NOT NULL names on the table fail42710.
-Generated names see existing namespace objects and previously retained backing
-indices, not future explicit UNIQUE names. Consequently,
-`CREATE TABLE t(a INT UNIQUE,b INT CONSTRAINT t_a_key UNIQUE)` fails42P07
-atomically, while reversing those declarations selects `t_a_key1` for `a`.
-Redundancy/name transfer runs before this ordered generation.
-
-Each definition has a distinct generated constraint OID and owns a real logical
-B-tree index relation with ordered stable attributes, table owner and namespace.
-`pg_constraint` projects contype `u`, the parent OID and NULL conbin;
-`pg_class` projects the backing relation as relkind `i`. Both signatures of
-`pg_get_constraintdef` return the canonical suffix with current key names.
-Typed comparison, not output text, defines uniqueness: numeric scale, BPCHAR
-padding, NaN, signed zero and temporal equivalents follow the registered type
-providers. INSERT VALUES/defaults/query sources and UPDATE check each candidate
-after NOT NULL/CHECK and before accepting it. An error exposes no partial rows
-or RETURNING results. Immediate multirow swaps can therefore fail even when the
-desired final set would be unique.
-
-Renaming tables/columns and moving schemas preserve identities and backing
-names. SET SCHEMA preflights the complete closure, including backing names.
-Key TYPE rebuilds affected constraint/index identities, validates converted
-private and committed rows, and atomically rejects new duplicates. Unaffected
-constraints retain their identities. DROP CONSTRAINT or an included column
-removes its backing relation; dropping an unrelated column retains it.
-Transactions, savepoints and catalog replacement preserve the same descriptor/root
-closure, including retained TEMP table/owned-sequence/index lifetimes.
-Dump writes canonical named persistent UNIQUE declarations once;
-Restore reconstructs and validates their backing B-trees in isolated staging.
-Duplicate-write diagnostics disclose key values only with table SELECT or SELECT
-on every key column. The same rule applies to TYPE-build failures even for the
-table owner: unreadable build keys yield `Duplicate keys exist.`, whereas unreadable
-runtime duplicates omit Detail. Ownership does not replace revoked SELECT rights.
-
-ALTER ADD UNIQUE key lists validate existing data. CREATE deferrability (including
-explicit NOT DEFERRABLE) remains unsupported. Foreign-key declarations and constraint renaming
-follow their contracts above. Existing-index attachments and reciprocal RENAME
-CONSTRAINT use the existing ownership group. Standalone CREATE UNIQUE INDEX
-reuses the same enforcing B-tree authority without creating a constraint attachment.
-It supports simple/composite keys and trailing NULLS DISTINCT/NOT DISTINCT:
-all key components must compare equal, and DISTINCT bypasses conflicts whenever
-any component is NULL. Directions/NULL ordering do not change equality; INCLUDE
-is payload only. Failed builds, multirow writes and TYPE conversion are atomic.
-Same-table immutable Boolean WHERE predicates qualify standalone UNIQUE members:
-FALSE/NULL rows remain stored but do not claim or compare unique keys. This also
-filters private/staged rows and accepted prefixes; member leave/delete retains
-its old-key reservation until outcome. Predicate-only TYPE validates final
-rebound membership with projected own writes/deletes before private installation.
-Only effective nonpartial unique keys supply strong UPDATE locks/history.
-Analyzed standalone Boolean TRUE becomes no predicate/no WHERE; execution-folded
-logical/comparison predicates retain partial status and original dependencies.
-Ordinary unique expressions and BPCHAR classes on TEXT/VARCHAR remain explicit0A000,
-while concurrent UNIQUE admits them through the same tuple authority.
-Ordinary nonunique support is unchanged. Standalone rename preserves identity,
-DROP frees enforcement, and Dump/Restore emits/rebuilds the actual index once
-after parent data. Duplicate-build key disclosure uses the same current SELECT
-authority as TYPE/runtime failures, including owners with revoked SELECT.
-UNIQUE does not enable index-planner or physical PostgreSQL storage claims.
-Partial predicates remain B-tree-only. Ordinary nonunique HASH support is
-unchanged and does not admit WHERE, including syntactic WHERE TRUE.
-Permanent CREATE TABLE remains excluded in explicit transactions; owner-TEMP
-CREATE/DROP and rollback use the ordinary private catalog/storage publisher.
-The corresponding PostgreSQL transaction/rollback control is independent.
-Concurrent standalone UNIQUE indexes are independently admitted without a parent
-constraint or fabricated constraint identity; see [concurrent creation](design/PG18-INDEX-CONCURRENT.md).
-See [the design](design/PG18-DDL-UNIQUE.md) and
-[transaction locking](TRANSACTIONS.md#row-locks--change-note).
-Feature smoke: `make check RUN='^TestReferenceUniqueFeatureSmoke$'`.
-Full shared suite: `make check RUN='^TestReferenceUnique'`;
-the same selectors with `make check REFERENCE=1` run the pinned PostgreSQL oracle.
-
-## NOT NULL constraints
-
-Both column `a INT [CONSTRAINT nn] NOT NULL` and table-form
-`[CONSTRAINT nn] NOT NULL a` are supported (the table form has no parentheses).
-Table constraints can precede their columns. `NULL`, including named NULL, is
-nullable syntax, not a stored constraint. Repeated compatible declarations
-merge into one identity; an explicit name replaces a pending generated name.
-Conflicting NULL/NOT NULL declarations within one column definition fail
-`42601` at the conflicting token. Column-local declarations are validated before
-table constraints: differently named column NOT NULL duplicates reproduce the
-pinned PostgreSQL 18.0 `XX000`, even when a table constraint precedes the column.
-Table-level NOT NULL can enforce a column declared NULL in either element order;
-only NOT NULL identities participate in that merge. Different names in that
-merge use `42601`. Duplicate explicit names on different columns fail `42710`.
-Named/unnamed CREATE table constraints targeting a system column, such as ctid,
-fail `0A000`, `cannot add not-null constraint on system column "ctid"`, rather
-than reporting a missing ordinary column.
-
-An unnamed constraint gets a PostgreSQL-style UTF8-safe 63-byte
-`table_column_not_null` name, with numeric suffixes avoiding every constraint
-name in its namespace, including preceding nested CREATE SCHEMA tables and
-already-selected names in the current command. Allocation follows the original
-column/table/LIKE element order after merging later declarations for the same
-column; future explicit names are not reserved. For example,
-`CREATE TABLE t(a INT NOT NULL,b INT CONSTRAINT t_a_not_null NOT NULL)` fails
-`23505` for `pg_constraint_conrelid_contypid_conname_index`, with Schema
-`pg_catalog`, Table `pg_constraint`, and Constraint equal to that index name.
-Detail is `Key (conrelid, contypid, conname)=(OID, 0, t_a_not_null) already exists.`,
-where OID is the actual locally allocated candidate relation ID, not a fixed
-cross-server value. No table is published. Reversing these column declarations
-succeeds and generates `t_a_not_null1` for `a`.
-Explicit names are relation-local and can be reused on another table. Names
-stay attached to stable attribute identities through schema renames and dense
-DROP COLUMN compaction. DROP COLUMN removes only its own NOT NULL identity.
-LIKE copies the names onto fresh destination attributes; source ALTER/DROP
-never weakens the clone.
-
-Single-action SET/DROP NOT NULL and ADD/DROP CONSTRAINT use owner-authorized
-ACCESS EXCLUSIVE execution; Prepare has no locks, validation scans, notices or
-name allocation. SET/ADD validates visible committed rows first. Old NULL gives
-`23502`, `column "a" of relation "t" contains null values`, with schema/table/
-column fields and no failing-row Detail or Constraint field. INSERT NULL gives
-`23502`, `null value in column "a" of relation "t" violates not-null constraint`,
-with a failing-row Detail and the same object fields even for named constraints.
-Multirow failure publishes no rows. Failed ALTER leaves descriptor, names,
-nullability and data intact; successful ALTER changes metadata only, retaining
-row storage and immutable snapshots.
-
-Compatible repeated SET/ADD preserves the original name and is a count-zero
-no-op. DROP NOT NULL is also a no-op when already nullable. DROP CONSTRAINT
-removes that identity and makes its column nullable. Missing names give `42704`;
-IF EXISTS emits `00000` NOTICE `constraint "name" of relation "t" does not exist,
-skipping`, after authorization, without allocating a revision. Every selected
-utility returns zero affected rows. Retained prepared SELECT and parameterized
-INSERT handles use current nullability across SET/ADD/DROP without a
-cached-result-type failure: bound nil fails while enforced and succeeds after
-DROP. Native metadata reports known nullability and INT4's int64 ScanType;
-the pinned pq adapter reports int32 ScanType but no Nullable capability.
-Table/schema owner distinctions, namespace USAGE and final
-context/session/epoch/revision/row-length fences still apply.
-
-Dump emits canonical quoted `CONSTRAINT name NOT NULL` declarations, including
-generated names, not ALTER history. Isolated Restore uses the common CREATE/
-INSERT binder, preserving names/data/nullability/ownership/comments; failed
-declarations or NULL insertion preserve the target. Explicit-ACL Dump rejection
-and ordinary context/I/O errors are unchanged.
-
-CREATE inheritance merges inheritable NOT NULL by column (see above).
-ALTER NOT NULL accepts NOT VALID; public VALIDATE and native NN NO INHERIT remain explicit boundaries, not successful no-ops.
-Scalar UPDATE enforces NOT NULL and CHECK after destination coercion.
-Valid INHERITS lists create the graph above; malformed/repeated clauses and extra
-tails remain42601 complete-input rejections, with no earlier script prefix effects.
-Foreign-table providers, unowned access methods and unrelated ALTER
-actions remain excluded engine capabilities; supported PRIMARY KEY declarations
-do not propagate their uniqueness to inheritance children.
-Concurrent creation inherits the supported B-tree and nonunique hash methods.
-Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
-DROP COLUMN compose atomic comma-separated lists in implicit and explicit
-transactions. PostgreSQL pass order is DROP, TYPE, original SET, transformed
-ADD. All TYPE expressions run in action order against each statement-original
-tuple, including dropped source columns. Dependent CHECK definitions are
-reparsed against the completed TYPE descriptor before row conversion. Each
-completed row passes final NOT NULL checks in physical-column order, then
-affected CHECKs in TYPE discovery/declaration order, before the next row is
-converted. Multicolumn CHECKs enter that queue once, not once per changed
-column. Defaults are independently coerced; dependent views block even same-type
-changes. Fresh grant-time live scans include own
-writes/deletions even in RR, and ignore invalid dead predecessors. Ordinary RR
-queries retain their snapshot; the TYPE owner's private queries instead see its
-captured live rewrite. Savepoints restore descriptors, storage and own DML
-together. Pure nullability changes never rewrite stored values. Native held
-eager results remain immutable; peer future statements retain the native
-replacement fence rather than simulating PostgreSQL's physical rewrite MVCC.
-Shared tests witness inherited OR nullability and inherited-drop rejection;
-PostgreSQL-only phases retain NOT NULL NO INHERIT and deferred validation.
-CHECK unknown acceptance and leaf UPDATE enforcement are shared witnesses.
-
-Public feature smokes:
-
-```sh
-make check RUN='^TestNotNullSmoke$'
-make check RUN='^TestNotNullControlsSmoke$'
-make check RUN='^TestReference(NotNull.*|AlterNullability.*)$'
-make check REFERENCE=1 RUN='^TestReference(NotNull.*|AlterNullability.*)$'
-```
-
-## Identity-preserving table and column renames
-
-`ALTER TABLE [IF EXISTS] t RENAME [COLUMN] old TO new` and
-`ALTER TABLE [IF EXISTS] t RENAME TO new` relabel existing objects without moving
-or rewriting rows. Both table and column targets accept `t*`, `ONLY t` and
-`ONLY(t)` for standalone tables; these markers do not add hierarchy semantics.
-Destinations are one identifier, not schema-qualified. Collisions, including
-renaming to the current name, fail atomically (`42701` column, `42P07` relation).
-Missing columns fail
-`42703`, `column "old" does not exist`; fixed system columns cannot be renamed.
-New names resolve immediately and old names fail with undefined-name diagnostics.
-
-Both forms require the table owner or effective superuser, not merely the schema
-owner. Table rename additionally requires CREATE on its containing schema;
-column rename does not. Execution acquires ACCESS EXCLUSIVE with the existing
-lock timeout, cancellation, grant-time identity and publication fences. Prepare
-does not resolve targets, authorize, lock, emit notices or mutate data. IF EXISTS
-applies only to the relation: missing targets (including absent qualified schemas)
-return count zero and one `00000` NOTICE naming the unqualified relation.
-It does not suppress missing-column or collision errors.
-
-Relation OID/namespace and sparse attribute/origin identities remain stable;
-only the immutable definition revision and selected label/name change. Row
-storage, NOT NULL constraint names and attribute links, ownership, ACLs and
-table/column comments remain attached. Retained Rows preserve original labels
-and values. Retained prepared SQL is reanalyzed, not textually rewritten:
-renamed explicit columns fail `42703`, old table names fail `42P01` with the
-original relation-name character Position (15 in `SELECT * FROM t`), and a
-renamed output label in SELECT star fails `0A000`,
-`cached plan must not change result type`. Unchanged projections and omitted-target
-INSERT survive column relabeling; fresh prepares expose current result labels.
-
-Dump serializes current qualified CREATE/INSERT/COMMENT names and unchanged
-named NOT NULL constraints, never ALTER history. Reset/Restore round trips values,
-metadata and comments through existing native controls; explicit ACL serialization
-remains rejected rather than silently losing grants. These are process-local
-controls, not pg_dump, physical storage durability or network protocol support.
-Stored CHECK constraints and supported views have real descriptors/dependencies;
-views continue to reference stable relation/attribute identities through supported
-renames. B-tree/hash keys also retain stable attribute identities, and Dump
-renders current parent/key names without renaming the index itself. User table/view
-row codecs retain stable identities through supported renames and moves.
-Broader transactional DDL remains excluded; graph column RENAME is protected.
-Native explicit-transaction table/column RENAME remains unsupported. Standalone
-RENAME CONSTRAINT supports represented n/c/u/p/x/f constraints in writable
-transactions; see [constraint rename](design/PG18-DDL-ALTER-CONSTRAINT-RENAME.md).
-
-```sh
-make check RUN='^TestAlterRenameSmoke$'
-make check RUN='^TestReferenceAlterRename.*$'
-make check REFERENCE=1 RUN='^TestReferenceAlterRename.*$'
-```
-
-## Column removal and selected action lists
-
-`ALTER TABLE t DROP [COLUMN] [IF EXISTS] name [RESTRICT | CASCADE]`
-removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
-`ONLY t` and `ONLY(t)` operate on supported standalone tables. DROP COLUMN may
-participate in selected TYPE/nullability/DROP COLUMN/constraint lists in explicit
-transactions. Pass order is DROP, TYPE, SET NOT NULL, ADD NOT NULL. Mixing these
-with standalone DEFAULT, SET SCHEMA or rename is unsupported. Graph shape changes
-and recursive ALTER mutation/propagation through inheritance or partition
-hierarchies remain unsupported; their supported CREATE-time definitions are distinct.
-The table's effective owner or superuser is required; unlike DROP TABLE, schema
-ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
-waits for existing readers/writers; utility Prepare is metadata-only. Cancellation
-removes a waiting request without changing the table. A committed preceding INSERT
-is retained, and later INSERTs use the new dense visible shape.
-Queued SELECT, INSERT and subsequent DROP bind the current definition for the
-exact originally acquired relation reference after their lock grants. A definition
-revision alone is not replacement; actual removal/drop-recreate or Reset/Restore
-still fences the old identity, without substituting another table by name.
-
-Surviving columns keep their catalog attribute/origin identities; visible result
-slots compact without renumbering those identities. Retained Rows keep old values
-and metadata.
-Surviving column grants and role-dependency diagnostics resolve those stable
-attribute identities back to live column names, not dense slot numbers.
-New direct/prepared queries omit the dropped column. Previously
-prepared explicit survivor queries rebind successfully; dropped-column queries
-fail `42703`, and a changed-width prepared star fails the existing `0A000`,
-`cached plan must not change result type` signature boundary. DROP COLUMN,
-including mixed nullability lists, participates in the existing private catalog
-overlay and combined row/catalog Commit. Savepoint and full rollback restore
-the prior width, values and stable identities; no public prefix is installed.
-Missing expression-column diagnostics interpolate decoded quoted identifiers
-literally, including embedded quotes/backslashes, with character-based positions
-when direct or retained/new prepared queries rebind after DROP.
-
-The supported dependent set includes named NOT NULL constraints, defaults,
-column ACL/comments, owner-local CHECKs and supported view dependencies.
-DROP removes local CHECKs referencing the selected stable attribute under both
-RESTRICT and CASCADE, while survivor expressions retain attributes and remap
-dense evaluation slots. Independent columns/tables and plain LIKE clones survive.
-Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
-Canonical Dump renders current names and survivor metadata; Reset/Restore
-preserves definitions/data even though replay allocates fresh attribute IDs.
-B-tree/hash indexes mentioning a dropped attribute, including expression dependencies, are removed automatically,
-even with RESTRICT; unaffected indexes survive dense-slot compaction. Inbound FK
-dependencies enforce RESTRICT/CASCADE and remove only the dependent definitions,
-not child rows. Partition graph column removal retains its separate boundary.
-
-Missing columns fail `42703`, `column "missing" of relation "t" does not exist`;
-IF EXISTS emits a `00000` NOTICE ending `, skipping` with no descriptor or row
-change, after ownership checks. Fixed system names ctid/xmin/cmin/xmax/cmax/tableoid
-fail `0A000`, `cannot drop system column "ctid"`, even with IF EXISTS. Modern `oid`
-is an ordinary user column. All failures leave the original shape and data intact.
-
-Dump serializes the final live CREATE/INSERT shape, never ALTER history. Dropping
-every column retains row multiplicity: CREATE TABLE `()` is followed by one
-canonical `INSERT INTO ... DEFAULT VALUES;` per empty row. Restore and public
-INSERT share this syntax and execution path; nonzero-column relations use their
-declared defaults or typed NULL. `VALUES ()` remains a syntax error.
-ALTER TABLE is not admitted to Restore scripts.
-Explicit ACL Dump rejection remains unchanged.
-
-Owner-bearing feature controls exercise an ordinary owner of both a nonpublic
-schema and its table, direct/prepared DROP, canonical owner directives, restored
-owner authority and replay of the same dump on PostgreSQL. A separate distinct
-schema/table-owner Restore fixture checks preserved ownership and schema-owner
-denial after compaction. An ordinary distinct table owner still needs namespace
-USAGE for qualified public SQL: native GRANT is not added, and Dump does not
-silently discard explicit ACLs. PostgreSQL-only fixture grants provide its real
-destination authority for replaying the distinct-owner dump.
-
-Executable public feature witnesses (Go test reports actual pass/failure):
-
-```sh
-make check RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'
-make check RUN='^TestReferenceAlterDropColumn.*$'
-make check REFERENCE=1 RUN='^TestReferenceAlterDropColumn.*$'
-```
-
-Duplicate-relation `42P07` errors preserve decoded names inside literal outer
-quotes, including embedded quotes and backslashes, both for an existing target
-and for a competing publication. Failed CREATE preserves the winning definition
-and rows; utility preparation succeeds before the execution-time failure.
-
-Executable feature proof (Go test reports actual assertions):
-
-```sh
-make check RUN='^TestTableCore'
-make check RUN='^TestCatalogDrop'
-make check RUN='^TestReferenceTableCore.*$'
-make check REFERENCE=1 RUN='^TestReferenceTableCore.*$'
-make check RUN='^TestTableCoreSmoke$'
-```
-
-The former root SQL-interaction definitions now live in the external dual-mode
-reference package. See [the complete migrated selection](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
-for all table/default/nullability definitions, including held cursors, native
-controls and explicit backend boundaries. Broad family reference selections above
-also retain genuine tagged oracle-only complements; use the exact development
-selector for a tagged Docker-free `-reference=false` run.
-
-## CHECK constraints — change note
-
-```sql
-CREATE TABLE checked (
-  a INT DEFAULT 1 CONSTRAINT only_one CHECK (a=1) NO INHERIT,
-  b INT,
-  CONSTRAINT ordered CHECK (a<b)
-);
-```
-
-Column/table CHECKs bind the complete new row, including later columns.
-`a`, `checked.a` and `public.checked.a` resolve the same stable attribute.
-Every supported scalar expression uses the existing binder and providers.
-TRUE or NULL passes; FALSE rejects with `23514`, the table/constraint identity
-and PostgreSQL English failing-row Detail. CHECK does not declare NOT NULL:
-`CHECK (a IS NOT NULL)` still leaves Nullable metadata true.
-
-For INSERT/UPDATE, NOT NULL runs first, then CHECKs in alphabetical constraint-name
-order. All INSERT routes and UPDATE enforce after defaults/coercions and completed
-simultaneous assignments, before publishing any row write. Failed multirow
-statements retain original rows and consume the existing transaction abort/
-savepoint policy. Supported volatile scalar effects are evaluated once when
-reached and are not rewound by row-write rollback.
-Comment inquiries (`col_description`, either `obj_description` signature and
-`shobj_description`) share the immutable statement-owned catalog/role comment
-snapshot on every INSERT route and UPDATE. A later statement sees committed comment
-changes; capture is not repeated per row or when a query source opens. These
-functions remain excluded from DEFAULT. Table/column COMMENT in explicit transactions
-retains its existing unsupported boundary; PostgreSQL private-comment behavior is
-independently covered as a release-only control.
-
-Names use distinct referenced columns rather than syntactic placement:
-one attribute yields `table_column_check`, otherwise `table_check`, with
-namespace-aware suffixing and UTF8-safe63-byte clipping. Names remain unchanged
-on rename. Named table clauses, actual scalar trees and NO INHERIT survive
-native Dump/Restore; NO INHERIT CHECKs are excluded from child inheritance.
-DROP CONSTRAINT removes a CHECK. DROP COLUMN removes local dependent CHECKs
-and remaps survivors. Plain LIKE copies shape/NOT NULL, not CHECK.
-CHECK removal composes with the selected atomic ALTER action lists. Inside an
-explicit transaction, successful removal and column compaction affect only the
-private descriptor/row roots until Commit; Rollback and savepoints restore
-CHECK enforcement together with the original layout and DML. Peer operations
-retain the existing ACCESS EXCLUSIVE wait rules.
-
-ALTER COLUMN TYPE reparses each surviving affected original CHECK definition
-against the final destination usages and dense layout. Incompatible operators
-fail even on empty/all-NULL tables; an incompatible stored default fails first.
-Identity TYPE and same-type USING still revalidate their affected constraints.
-TYPE's queue follows TYPE action order and retained CHECK declaration order,
-deduplicating multicolumn dependencies, without changing ordinary DML's
-alphabetical order. Each final transformed row passes NOT NULL then this CHECK
-queue before conversion begins on the next row. FALSE returns `23514`,
-`check constraint "NAME" of relation "TABLE" is violated by some row`, with
-Schema/Table/Constraint but no failing-row Detail; evaluator errors retain
-their own diagnostic. Reparse errors have no synthetic SELECT source Position.
-Original CHECK expressions, data and metadata survive failed TYPE; successful
-TYPE publishes rebound expressions/manifests with converted values atomically.
-Transactions/savepoints and native Dump/Restore retain that final checked
-definition, NO INHERIT and future DML enforcement, never TYPE history.
-
-Persistent CHECK creation holds each referenced relation with ACCESS SHARE
-through its single catalog publication; sequence DROP takes ACCESS EXCLUSIVE
-and scans the grant-time dependent set. Current-root publication also fences
-new external CHECK edges against provider removal, including lower-level catalog
-stages. This is a native no-orphan safety boundary, not identical PostgreSQL
-concurrency scheduling: pinned PostgreSQL 18.0 permits CREATE referencing a
-sequence while another session's DROP remains private. Native CREATE instead
-waits; rollback permits the original provider identity, while commit rejects
-its disappearance without publishing a table fragment. Cancellation releases
-the contender's holds through the existing transaction ticket.
-Restrictive sequence diagnostics merge every supported CHECK and view edge by
-relation creation address, with CHECK declaration ordinals within each owner.
-They retain complete ordered Detail, including transitive view dependencies;
-alphabetical row enforcement remains independent. Declaration ordinals are
-nonnegative and unique per table; dropping constraints or columns may leave gaps.
-
-Canonical Dump replays tables and views in common creation-address order among
-objects whose sources are ready, preserving ordinary SQL-created multi-table and
-mixed CHECK/view diagnostics across Restore. Table data and table/column comments
-remain with their CREATE; owner directives switch as needed. The incumbent view
-topology takes precedence when native replacement remaps a source address above
-its dependent: replay remains executable, but that exceptional remapped catalog
-does not promise the original allocator-relative diagnostic ordering. No separate
-persistent ordering authority is maintained.
-
-Sequence CREATE/options precede table definitions in Dump so CHECK bindings can
-resolve real providers; ownership and captured setval follow table data.
-Restore genuinely reevaluates volatile CHECKs while inserting staged rows.
-History-dependent conditions may therefore reject Restore, preserving the
-destination; no CHECK bypass or fake sequence identity is used.
-
-Parameters/aggregate/outside-row references fail before table publication.
-ctid/xmin/cmin/xmax/cmax are forbidden CHECK system references; PostgreSQL permits
-tableoid but native system-column projection remains outside this surface.
-Subqueries/windows/SRFs and other CHECK modifiers remain bounded. ALTER ADD CHECK
-validates existing rows unless NOT VALID is requested; public VALIDATE remains
-unsupported. Subsequent full-successor writes enforce both valid and invalid definitions.
-
-Public feature smoke: `make check RUN='^TestCheckSmoke$'`.
-The 31 root CHECK interaction tests now live as 38 merged/split dual-mode
-definitions in `reference/`. See the [complete CHECK selector](DEVELOPMENT.md#dual-mode-check-constraint-interactions)
-for Docker-free native and pinned PostgreSQL runs, including held frames,
-dependency ordering, cancellation and actual native replay controls.
-
-
-## Ordinary logical index maintenance
-
-CREATE INDEX builds immutable ordered B-tree entries or equality hash buckets
-from committed live rows under Share admission. INSERT VALUES/SELECT/default/
-identity/CHECK writes, UPDATE and DELETE maintain roots at the same Finish/commit
-boundary as rows. Duplicate keys retain distinct RowID/VersionID membership.
-B-tree NULL entries are retained; hash NULL keys are omitted. Hash is one key
-without INCLUDE/ordering, and stores captured physical positions for safe candidate
-translation, never a full-table row-identity recovery map. Its narrow current-view
-strict equality route keeps the original SQL predicate and ordinary fallbacks.
-INCLUDE attributes are stable parent IDs in metadata, separate from logical keys.
-The total key+INCLUDE limit is 32, repetitions count, and included types need storage
-but no ordering provider. Payload-only updates never introduce payload comparisons
-or change uniqueness equality. Explicit ordering queries retain table/query Usage,
-not an index's collation/class comparator or an unordered traversal guarantee.
-Failed multirow statements, rollback and savepoint recovery publish no partial
-index effects. Current-only roots are not substitutes for historical/own-write
-query visibility.
-Expression keys retain both original analyzed definitions for dependencies and
-shared simplified execution trees for computation. INSERT evaluates new derived
-keys before installing either committed rows or explicit-transaction private
-rows: a late failing batch fails at Execute, not COMMIT. Savepoint rollback can
-recover the transaction without retaining any rows from the failed statement.
-Failed evaluation leaves predecessor roots and parent rows intact. Query matching
-expressions still use ordinary snapshots, not current-only index membership.
-Real constraint-backed UNIQUE indexes retain simple-slot enforcing keys.
-Ordinary standalone UNIQUE/NND creation keeps its bounded simple-key/provider
-admission policy. Standalone indexes created concurrently, or reconstructed by
-authenticated Restore, may enforce computed/provider-aware tuples through the
-same shared extraction, comparison and claim paths; INCLUDE is never an enforcing key.
-
-Renames preserve stable key/included attributes and expression dependencies.
-Dependent TYPE reconstructs the whole definition using old parent defaults:
-old-default classes are rebound for the new type; nondefault classes and actual
-collation overrides must remain compatible. Original expression definitions
-reparse against the final shape and rebuild entries. Included TYPE requires only
-storage validity. Unrelated DROP remaps slots; dropping a key dependency or payload
-removes its index. SET SCHEMA moves indexes with table/owned sequences as one
-collision-checked publication. DROP TABLE/schema CASCADE leave no index/root/name
-orphans. Dump captures actual options/current names; Restore/replacement rebuild
-key-only roots with destination identities.
-See [B-tree design](design/PG18-INDEX-BTREE.md) and [clause design](design/PG18-INDEX-CLAUSES.md).
-See [hash design](design/PG18-INDEX-HASH.md) for method-specific providers, captured
-prefix/generation proofs, immutable touched-bucket publication and no range/order/
-NULL-search claim. Native Dump/Restore and real PG replay preserve USING hash
-without B-tree direction decorations; valid physical options remain exclusions.
-
-Ordinary index RENAME preserves its substantive root and stable parent/key
-identities; a UNIQUE backing rename atomically changes its parent constraint
-record and current23505 diagnostic name without rebuilding the root. DROP INDEX
-groups preflight kinds/ownership/dependencies and deduplicate addresses before
-one publication; a backing index is internally owned and cannot be dropped
-directly, including with CASCADE.
-
-REINDEX INDEX rebuilds exactly the selected real root; REINDEX TABLE rebuilds all
-implemented roots atomically from committed live versions, including expression
-and UNIQUE keys. It does not change rows, descriptor/key/OID/version identities or
-unselected sibling roots. No-index TABLE is a NOTICE/no-op, not a synthetic
-definition publication. Failed waits/builds/final publication preserve all prior
-state. Valid physical options remain unsupported rather than simulated.
-Internal detached metadata projects complete flags/vectors, retained analyzed
-expression lists, actual key collations and central actual method-specific class identities
-from one immutable CatalogRead. Total attributes include repeated INCLUDE payload
-attributes; class/collation/direction vectors contain keys only. Maintenance
-preserves every implemented explicit provider and included payload, including
-non-orderable JSON payload. It adds no SQL catalog family.
-See [maintenance design](design/PG18-INDEX-MAINTENANCE.md) and
-[SQL syntax/boundaries](SQL.md#index-maintenance).
-
-
-
-## Stored generated columns
-
-```sql
-CREATE TABLE g(a INTEGER, b INTEGER GENERATED ALWAYS AS (a + 1) STORED);
-INSERT INTO g(a) VALUES(2); -- b = 3
-INSERT INTO g VALUES(4, DEFAULT); -- b = 5
-UPDATE g SET a=8 WHERE a=2; -- b = 9
-UPDATE g SET b=DEFAULT; -- recomputes from the completed new row
-```
-
-Explicit STORED and VIRTUAL are supported. PostgreSQL18's omitted kind means VIRTUAL,
-not STORED. Both kinds use the same retained analyzed and typed planned expressions.
-Expressions use the existing scalar binder, operators, functions and destination
-assignment coercion. They may reference plain current-row columns, including
-later-declared columns and qualified/quoted names. A plain column named like its
-table takes precedence over a bare whole-row reference. References to another
-generated column (including self or unreachable CASE arms) remain forbidden.
-Aggregate/grouping/window, subquery/set-returning, parameter and nonimmutable
-expressions are rejected. The volatility check considers surviving providers
-after constant planning.
-Mixed TEXT concatenation retains its concrete output provider's volatility:
-integer output is eligible, while timestamp/timestamptz and other session- or
-catalog-dependent output is not. Physically pruned volatile CASE arms do not
-make the surviving expression volatile.
-Constant arithmetic errors fail CREATE, while row-dependent arithmetic errors
-occur on writes for STORED and on demanded reads for VIRTUAL. Existing unconstrained
-domains remain eligible for STORED; virtual restrictions are described below.
-
-The STORED generated value is evaluated after all base/default/identity inputs and
-simultaneous UPDATE RHS assignments, before NOT NULL, CHECK, uniqueness and
-RETURNING. NULL input follows ordinary expression semantics. Any supplied
-non-DEFAULT generated value, including NULL, fails428C9 even with no source rows
-or no UPDATE matches. Identity OVERRIDING modes cannot bypass this guard.
-Errors/cancellation publish no partial statement rows. Reading a stored generated
-column does not evaluate its expression or add a SELECT privilege requirement
-on its input columns.
-
-Metadata remains physical declared-column metadata. Existing pg_attrdef and
-pg_get_expr expose stable definition/attribute ownership, including a generated
-NULL expression. Rename and unrelated DROP preserve stable identities and update
-deparse names/row slots. SET/DROP DEFAULT on a generated destination are rejected;
-changing a referenced base column's type is rejected. DROP base RESTRICT reports
-dependent generated columns; CASCADE removes those columns and their definitions.
-Generated destination TYPE USING is rejected; destination TYPE without USING
-remains a native unsupported boundary (PostgreSQL can widen it).
-
-tableoid alone is the admitted system-column reference in generation expressions.
-It retains owning relation identity rather than a cached numeric constant.
-Native Dump writes canonical generated declarations and DEFAULT for generated
-row cells, including all-generated tables, retaining STORED/VIRTUAL kind explicitly.
-Restore recomputes STORED values and remaps stored tableoid cells to the final owner;
-virtual cells remain typed physical NULLs and later reads use the current owner.
-Held eager cursors retain original cells and metadata. INCLUDING GENERATED
-copies either kind with destination row/tableoid remapping.
-Copied CHECKs resolve against the completed destination: excluding generation
-checks the supplied ordinary value, while including it uses the destination's
-recipe and complete row layout, including extra columns and multiple LIKE inputs.
-ADD generated remains outside scope.
-
-### Replace or drop generated expressions — change note
-
-`ALTER TABLE target ALTER [COLUMN] b SET EXPRESSION AS (expression)` replaces an
-existing generated definition, preserving STORED/VIRTUAL kind, declared type,
-ordinal, stable attribute identity and column constraints. A successful SET gets
-a fresh pg_attrdef OID and records only its new dependencies; unrelated definitions
-retain their OIDs. pg_get_expr describes the current cooked recipe.
-
-STORED replacement evaluates each effective live committed or transaction-owned
-row once, skipping ended/deleted rows and replaced predecessors. In mixed action
-lists, TYPE USING reads the original tuple, then ADD fills and the replacement
-generation read the completed tuple. Unchanged stored generations are copied.
-NOT NULL, CHECK, admitted unique/partial/exclusion indexes, nonunique expression
-indexes and incoming/outgoing foreign keys validate the resulting values before
-publication. Native unique expression indexes remain unsupported. Arithmetic errors,
-late action failures, cancellation and catalog/authorization conflicts retain the
-old recipe, values and installed roots. Transactions/savepoints retain existing
-commit, rollback and aborted-state behavior; ALTER retains its exclusive table
-lock until the owning transaction ends.
-
-`ALTER ... DROP EXPRESSION [IF EXISTS]` removes a STORED recipe and dependencies
-without rewriting cells or changing type/nullability. Future omitted/DEFAULT
-writes use ordinary-column semantics, and explicit writes become legal. DROP
-IF EXISTS on an ordinary column is a NOTICE/no-op, not a missing-column waiver.
-SET on an ordinary column is55000. VIRTUAL DROP is0A000 even with IF EXISTS.
-The pinned PostgreSQL18.0 virtual SET boundary is0A000 on tables with any CHECK;
-otherwise replacement remains lazy except that existing NOT NULL validates live
-logical values. Virtual builtin-type/provider security checks the unsimplified
-expression, while immutability checks the surviving plan.
-
-Native ordinary UPDATE DEFAULT remains unsupported after DROP; omission, explicit
-NULL/value writes and the existing single SET DEFAULT followed by omitted INSERT
-use their ordinary supported paths. PostgreSQL UPDATE DEFAULT uses ordinary defaults.
-
-Direct and retained prepared reads/writes use the current recipe. Preexisting
-virtual views resolve the queried logical relation's recipe from their captured
-catalog snapshot by stable attribute identity and evaluate its complete source tuple,
-not the old view projection. Thus ADD c DEFAULT5 plus SET b=a+c can read the new
-input through an old two-column view. Absent operands still return typed NULL;
-correlation, tableoid and held-source recipes retain their captured authority.
-Inheritance retains the parent's recipe and maps physical child inputs to the
-parent layout; actual child identity remains tableoid/lock/provenance authority.
-During row-lock rechecks the matching frame/occurrence borrows its complete latest
-logical tuple, rather than rereading a source and overwriting mapping scratch.
-No live Engine/name lookup, view reparse or new provider is involved. Empty and
-populated results keep the original declared metadata; already returned eager rows
-keep their old values and metadata. Native INT4 ScanType is int64, pinned pq's is
-int32, while scanned generic integer cells are int64 in either backend. Native
-Dump/Reset/Restore persist the final recipe or ordinary column, never ALTER history.
-Existing inheritance/partition hierarchy exclusions, typed-table shape guards,
-SQL user-function/publication boundaries and generated-column/dependency TYPE
-restrictions are unchanged; no propagation, publication or function providers
-are added.
-
-Bounded dual-mode proof: `^TestReferenceAlterGeneratedExpression` families listed
-in docs/TESTING.md. Feature smoke:
-`make check RUN='^TestReferenceAlterGeneratedExpressionFeatureSmoke$'`, also with `REFERENCE=1`.
-
-Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
-`make check RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$'`.
-
-### Virtual generated columns — change note
-
-`GENERATED ALWAYS AS (a + 1) VIRTUAL` (or omitted kind) computes on demand in
-ordinary SELECT, predicates, joins, aggregates, views, correlated frames and
-admitted UPDATE/DELETE RETURNING. UPDATE expressions read the old base row;
-RETURNING reads the appropriate OLD/NEW row, and an absent side is NULL without
-evaluating generation. INSERT RETURNING follows the same demand rule; unqualified
-and NEW output reads the completed row, while absent OLD remains typed NULL.
-For `b AS (1/a) VIRTUAL`, INSERT of a=0 and SELECT a succeed; SELECT b fails22012.
-Only actual NOT NULL/CHECK demands compute virtual values on writes; violations
-render visible generated cells as literal `virtual`, preserving column disclosure.
-VALUES INSERT, INSERT SELECT and supported public COPY FROM enforce virtual
-NOT NULL against logical generated values, not typed physical NULL placeholders.
-Nullable virtual recipes remain undemanded unless another constraint reads them;
-generation errors and late batch violations publish no proposed rows.
-LEFT/RIGHT/FULL joins return typed NULL for generated columns on an absent
-operand without evaluating its recipe. A real row with all-NULL base values
-still evaluates constant/COALESCE/tableoid generation normally; predicates and
-FULL JOIN USING preserve that distinction.
-The same operand identity follows bounded compound SELECT/LIMIT projections,
-filtered or reordered window input and virtual window partition/order keys.
-Correlated scalar reads in admitted UPDATE FROM/DELETE USING, joined-source MERGE,
-and stored scalar-output updatable-view writes keep source absence distinct from
-real NULL-input rows. These compositions do not admit new SQL syntax or joined
-writable views; demanded errors still leave staged writes unpublished.
-Ordinary-column `ALTER COLUMN c TYPE BIGINT USING b` can read virtual b from the
-original physical owner row, including table- and schema-qualified references.
-A real all-NULL owner row still evaluates non-strict recipes such as COALESCE;
-demanded generation errors leave the original column type, rows and definitions
-unchanged. This ordinary TYPE consumer does not alter b's generation definition or
-kind; generated-column or generation-dependency TYPE changes and generation ADD
-remain excluded. Kind-preserving SET EXPRESSION is documented above.
-
-Virtual destinations and unsimplified expressions cannot use user-defined types,
-including domains, enum/composite values and containing arrays, even in dead arms
-or intermediate casts to builtin results. Native represented function/operator/
-cast providers are builtins; SQL CREATE FUNCTION and custom provider definitions
-remain external-only boundaries. Surviving-plan volatility remains separate:
-a pruned random() arm is legal, but dead domain usage is not.
-
-SELECT(b) does not require SELECT on generation input a; explicit a or * still
-requires its own grants, including empty queries and prepared handles after revoke.
-DEFAULT-only write guards and atomic publication remain common to both kinds.
-Simple-view UPDATE of generated b, including DEFAULT, retains the release428C9
-guard; this does not expand view rewriting.
-Virtual UNIQUE/PRIMARY KEY/index keys, expression/predicate indexes and INCLUDE
-uses are rejected0A000. Generated partition CREATE and hierarchy ALTER boundaries
-remain; virtual DROP and PostgreSQL18.0 SET-on-CHECK restrictions are described above.
-
-Actual ColumnTypes and pg_attrdef/pg_get_expr expose declared types and definitions;
-pg_attribute/information_schema.columns are not newly implemented native catalogs.
-Dump/Restore preserves lazy reads across replacement, fresh engines and repeated
-cycles without demanding invalid unread virtual values. This is native logical
-state persistence, not physical heap/WAL durability or PostgreSQL control APIs.
-
-Selected proof (both commands required):
-`make check RUN='^TestReferenceGeneratedVirtual'`;
-`make check REFERENCE=1 RUN='^TestReferenceGeneratedVirtual'`.
-
-
-
-## Partitioned keys — change note
-
-RANGE UNIQUE and PRIMARY KEY constraints must include every simple partition key
-as a key attribute with the same effective collation/equality capability.
-INCLUDE does not cover missing keys; expression partition keys reject these
-constraints. Independent physical leaf keys need not include ancestor keys.
-Real constraint OIDs and backing-index OIDs form immediate-parent ancestry at
-every level. Virtual indexes have no physical storage; physical leaves enforce
-cloned keys, NULLS NOT DISTINCT and primary NOT NULL identities. Future partitions
-clone supported keys even below incomplete ON ONLY indexes.
-
-`CREATE UNIQUE INDEX ... ON ONLY ...` leaves existing children unattached.
-Recursive creation reuses equivalent child indexes, including incomplete virtual
-children without completing their missing descendants. `ALTER INDEX parent ATTACH
-PARTITION child` validates real immediate membership and equivalent definitions,
-preserves identities, is idempotent and propagates validity upward only when every
-immediate child is represented and valid. DESC/NULLS-order differences are
-compatible; key order, INCLUDE, predicate, effective collation/operator family
-and NULL policy differences are not.
-
-Selected attachment and index/constraint-drop operations use transaction-private
-overlays and savepoint rollback. Attached child indexes require dropping their
-parent. A standalone parent with a local constraint-backed child rejects RESTRICT
-with the actual dependent constraint; CASCADE removes that local backing closure.
-Dropping the local attached constraint itself is rejected even with CASCADE.
-Root key-constraint DROP removes inherited key backing, preserving independent
-leaf keys and NOT NULL definitions. Later failing selected actions publish none
-of the preceding actions. Unrelated hierarchy mutation boundaries remain intact.
-
-Readonly `pg_constraint` appends conindid OID, conparentid OID, conislocal BOOL and
-coninhcount INT2. `pg_class` appends relispartition BOOL and reports virtual
-indexes as internal CHAR I. Narrow `pg_index` projects actual backing and validity
-flags; `pg_depend` represents index and inherited key constraint PRIMARY(P)/
-SECONDARY(S) ancestry. Inherited CHECK/NOT NULL retain conparentid0. Explicitly
-repeated inherited CHECK remains nonlocal; explicitly redeclared NOT NULL is
-local=true/count1. Ordinary FK conindid names its referenced supporting index.
-
-Native Dump/Restore preserves renamed/independently named key trees, complete and
-partial manual attachments, nested validity, independent leaf keys and local
-NOT NULL provenance. Collision-safe temporary key names reuse the existing naming
-authority, restore final names and actual relationships, and remap imported OID
-references against retained live TEMP objects. Redump is deterministic. Emitted
-logical SQL is replayable on PostgreSQL; native controls are not PostgreSQL APIs.
-No broad PostgreSQL index schema, optimizer, physical-storage or excluded hierarchy
-mutation support is implied.
-
-See [design](design/PG18-DDL-PARTITION-CONSTRAINTS.md) and
-[selected proofs](../reference/tables/README.md#partitioned-constraints--selected-proof).
-
+# Native table and catalog lifecycle
+
+[README](../README.md) · [Compatibility limits](DIALECT.md)
+
+PostgreSQL 18 documentation is the authority for SQL syntax and standard SQL
+semantics. This page describes native catalog/storage implementation contracts
+and compatibility limits, not a supported-syntax inventory or a claim of complete
+PostgreSQL compatibility.
+
+## Atomic catalog and storage publication
+
+Table utilities stage immutable definitions, storage and dependency closures
+privately and publish through one fenced frontier. Failed binding, validation,
+required cleanup, cancellation or final identity/authorization checks preserve the
+original definitions and rows. Preparation is effect-free; utility preparation can
+be metadata-only rather than semantic execution. Explicit-transaction permanent
+creation/removal and selected standalone utilities retain native exclusions.
+Read-only utility rejection precedes lookup, authorization and lock acquisition.
+
+Relation identities, sparse stable attributes and dense evaluation/result slots
+are distinct. Column compaction does not renumber surviving catalog identities;
+new attributes never reuse retired identities in the same relation. Renames change
+labels/revisions without rewriting rows or changing storage, ACL/comment addresses,
+row-codec identity or stable dependency links. A compatible descriptor revision is
+not replacement. Waiters retain exact original relation authority and refresh
+metadata after grant; removal/recreation and Reset/Restore fence the old address
+rather than retargeting by name or numeric OID.
+
+Held statements rebind current metadata and enforce their cached result signatures.
+Retained eager Rows keep old values, labels and schema across utility changes,
+rollback and Reset/Restore. Zero-column relations and removal of the last column
+retain physical row multiplicity without a dummy column.
+
+Grouped removal preflights every explicit target before publication and deduplicates
+actual addresses. Dependencies use real supported edges, not similar names or
+prepared-handle history. Held rows and independent copied tables are not persistent
+dependents. Catalog replacement reowns concrete descriptor/provider generations;
+numeric inequality is not a replacement proof, since allocators can reuse numbers.
+
+## Constraint staging, validation and ownership
+
+Constraints own distinct stable definitions; index-backed constraints have real
+reciprocal index ownership and enforcing roots. Index attachments are staged first;
+physical builds follow index declaration order before historical CHECK scans.
+Historical CHECK jobs follow declaration order, while ordinary DML enforces NOT
+NULL first and CHECKs in alphabetical constraint-name order. Final rows and all
+required constraints validate before publication.
+
+Selected action lists retire old backing generations before naming indexed
+replacements. Vacated names can be reused without stale suffixes; replacement gets
+new definition/index identities. Each indexed removal classifies its own dependency
+policy before the next retirement, so one later cascading action cannot authorize
+an earlier independent removal. Late failure restores the entire old closure.
+
+Invalid CHECK/NOT NULL/FK attachments skip only historical validation, not definition,
+provider, type, key or authority checks; genuine subsequent writes enforce them.
+Invalid NOT NULL still advertises enforced nonnull metadata despite historical NULLs.
+Compatible same-attribute attachment preserves identity/name/validity. Promoting
+validity requires its actual validation route. Fresh primary-key admission reads
+original NOT NULL validity before same-statement transformations: a separate
+successful repair/validation is required. Savepoints restore flags, shapes, rows,
+roots, event state and lock contributions together.
+
+Type changes bind original transformation expressions against statement-original
+rows, then reconstruct dependent definitions against the completed destination
+shape. Defaults coerce independently. Each transformed row passes final physical-
+column NOT NULL checks and its affected CHECK queue before the next row is converted;
+multicolumn CHECKs enter once. Grant-time live scans include prior own changes even
+under Repeatable Read, without changing ordinary retained query snapshots. Failed
+conversion leaves old identities, defaults, constraints, rows and roots intact.
+Pure nullability changes do not rewrite values.
+
+Primary and unique constraints reuse typed comparison and transaction key claims,
+not rendered text. Real backing indexes cannot be directly removed even by cascading
+removal. Rename retains reciprocal identity; affected type reconstruction can remint
+constraints/backing definitions while preserving unaffected groups. Removing a key
+can retire its backing group without removing surviving key NOT NULL definitions.
+Current SELECT authority controls key disclosure, including for owners with revoked
+SELECT; ownership is not a disclosure bypass. Native deferrable UNIQUE/PRIMARY KEY
+and temporal-key facilities remain compatibility limits.
+
+### Foreign-key final-image ownership
+
+FK definitions retain stable child/parent attributes and the actual supporting-index
+identity; they create no separate child index. Comparison belongs to that index's
+owned family and input authority. Committed parent probes borrow its ordered root
+for lower-bound/equal-run lookup; own/current-command overlays and deleted/shadowed
+identities preserve the final image. There is no independent FK value cache. After
+a parent wait, the exact physical-version locator is revalidated.
+
+Immediate checks and referential actions share the canonical private write stage
+and locks. Chains, diamonds, cycles and self references retain real row/version
+transitions. Destination coercion, generation and local/final integrity checks all
+complete before publication. RowsAffected and mutation output describe initiating
+rows, not action counts; child defaults are never evaluated by Prepare or Dump.
+Stable-isolation action candidates include current and retained matching children;
+row grants crosscheck successors against the transaction frontier before action.
+Post-frontier changes raise serialization failures without advancing the snapshot
+or publishing partial work.
+
+FK column retirement uses the common read-only dependency closure and incumbent
+ordered consumer schedule. Inbound dependency removal removes definitions, not
+child tables or data merely because their key provider disappears. Ordinary
+inheritance does not propagate FK definitions. Definition-time REFERENCES rights
+are separate from later DML privileges and current violation-disclosure authority.
+Deferred, temporal-period and partition-hierarchy FKs remain native limits.
+
+### Exclusion events
+
+Equality exclusion definitions own real nonunique integrity indexes and independent
+constraint identities. They do not strengthen key-share/no-key-update eligibility.
+Deferral events enlist only actual potential conflicts, not synthetic future-peer
+obligations. Savepoints retain immutable event/mode/projection snapshots; repairing
+or removing the actual row/version retires its event. Prepared transaction owners
+retain the same dirty ticket through completion. Completion resources own waits,
+deadlocks and cancellation; reads retain their ordinary MVCC view.
+
+Replacement remaps providers and enforcing roots, but transient modes/events are
+not serialized. GiST/SP-GiST, range/extension exclusion providers and physical
+PostgreSQL RI/index/WAL mechanisms remain outside native capability.
+
+## Default definitions and demand
+
+Stored defaults are structurally immutable bound definitions, not necessarily
+immutable-volatility expressions. They are closed and row/parameter-independent;
+volatile admission is deliberately bounded. Cooked copying retains original
+provider identity and analyzed temporal leaves without evaluation. Definition
+identity is distinct from its owner and stable attribute. Replacing a default
+creates a fresh identity; renames and surviving compaction preserve it.
+
+Changing a default is metadata-only and affects future demand, not existing rows.
+Create and Dump never evaluate dormant runtime errors. Consumed defaults are
+preflighted after supplied/source input preflight and before executor authorization
+and capture, even when a query source is empty. A destination supplied throughout
+the command does not demand its default. One private schedule serves mixed rows,
+but runtime expressions run only where consumed. Runtime default evaluation stops
+at the first completed failing row; already drawn sequence values are not rewound.
+
+Default-only planning can prune a decisive left Boolean constant and retains the
+unfolded stored tree and all original admission checks. It does not create a general
+query/UPDATE/DELETE short-circuit promise. Stable operations use the consuming
+statement's captured settings, whereas typed temporal leaves retain creation-time
+analysis capture. Assignment coercions and presentation remain separate.
+
+Adding a column changes schema/storage atomically. Immutable/Stable defaults are
+evaluated once for addition even without old rows; admitted volatile defaults draw
+once per effective live row, never deleted/replaced predecessors. Future writes
+use the retained expression. Stored view output shapes remain frozen, and native
+eager cursors keep their old schema/data.
+
+Simple structural NULL normalization omits ordinary default definitions without
+evaluating arbitrary expressions; generated NULL definitions remain stored. Native
+normalization currently also prunes domain-coerced NULL defaults where PostgreSQL
+retains them. This producer/storage limit is not repaired by catalog projection.
+
+## Identity and sequence links
+
+An identity definition is keyed by stable column attribute and exact sequence
+address, with a reciprocal internal-owned column address. Validation requires both
+links, integral usage, nonnullability, no ordinary default and matching owner/schema.
+Replacement remaps both links, including TEMP collisions, never associating by name.
+Identity allocation/session memories are independent of transactional row failure;
+private generator restart and metadata instead participate in rollback.
+
+Same-construction sequence dependencies bind in one private catalog with genuine
+namespace/provider stamps; incumbent runtime authorization remains live. Failure
+installs neither table nor generator. Own-table reciprocal cleanup does not weaken
+external view/CHECK dependency protection.
+
+Identity alteration waits for the exact sequence operation lock and refreshes
+committed options/state at grant while preserving staged changes and original table/
+storage fences. Concurrent options cannot be overwritten by stale capture.
+Cancellation leaves the old group usable. Integral type reconstruction preserves
+reciprocal links, owner, ACL/comments and custom options, using the sequence owner's
+conversion rules even for same-type actions. A private scalar generator serves
+transformation/CHECK draws; failed publication restores scalar/catalog/data roots,
+not physical-session memories or discarded cache tails. Peer unseen cache tails
+are not flushed by a failed private conversion.
+
+Prewait observations cover only the exact internal descriptor captured after grant;
+new consumers, ownership changes and replacements still conflict. Ordinary
+AUTO-owned sequence/default links are distinct from identity and are not transformed
+merely because their column type changes. Independent sequences are not swept by
+name during ownership transfer or removal.
+
+## Generated recipe ownership
+
+Stored and virtual generation share immutable analyzed and planned expressions.
+Immutability admission checks surviving providers; virtual security/type admission
+also checks the unsimplified tree. Selecting a member does not hide invalid unused
+children during analysis/preflight. Recipes retain stable definition/attribute and
+provider dependencies rather than cached owner OIDs.
+
+Stored generation runs after completed base/default/identity inputs and simultaneous
+assignments, before constraints and output. Reading stored cells does not reevaluate
+the recipe or require SELECT on its inputs. Virtual storage uses typed physical NULL
+placeholders; logical reads and constraints compute demanded values. Absent source
+occurrences do not run recipes, while real all-NULL rows remain genuine input.
+This presence authority survives joins, windows, bounds, correlation and mutation
+sources rather than being inferred from payload cells.
+
+Recipe replacement preserves kind, declared usage, stable attribute and constraints,
+allocates a fresh definition identity and keeps only new dependencies. Stored
+replacement evaluates each effective live row once, ignoring ended/deleted versions;
+mixed transformations use the original row for type conversion and the completed
+row for replacement generation. All indexes and incoming/outgoing FKs validate
+before publication. Failure preserves recipe, cells and roots; savepoints restore
+all together. Dropping a stored recipe removes dependencies without rewriting cells.
+Virtual recipe removal and some PostgreSQL 18.0 virtual replacement combinations
+retain explicit boundaries.
+
+Preexisting virtual views resolve the logical relation's current captured recipe by
+stable attribute and use its complete source tuple, not the old view projection.
+Inheritance uses the named parent's recipe and mapped child inputs, with actual child
+identity retained for provenance/locking. Rechecks borrow the matching occurrence's
+latest complete tuple without live engine/name lookup or view reparse.
+
+Virtual recipes cannot use user-defined types even in discarded branches. Native
+user-function definitions remain external; virtual index/key/INCLUDE uses are
+unsupported. Generated-column/dependency type changes and generation addition
+retain separate limits. Dump stores explicit recipe kind; Restore recomputes stored
+values and remaps owner-dependent cells while preserving virtual laziness. Unread
+invalid virtual values are not demanded merely by a native roundtrip.
+
+## Temporary namespace and session lifetime
+
+TEMP belongs to a physical session, not a pooled borrower. Lookup does not allocate
+a namespace; peer sessions never share data. Owned generator/default construction
+uses the builder's exact namespace token. Commit actions stage empty roots or retire
+the dependency closure once at outer completion; rollback/savepoints restore
+catalog/action/data roots without rewinding sequence draws.
+
+Physical-session end aborts private work and retires the complete owned closure.
+Surviving expression consumers project committed/private rows by stable attributes,
+with their index candidates evolved from the latest staged layout. Catalog, surviving
+storage and roots publish together. Physical retirement retries obsolete predecessors
+instead of replacing newer state. Unrelated durable objects and peer TEMP remain.
+
+Dump excludes TEMP. Reset/Restore retains exact live owner descriptors, stores,
+generators, roots, commit actions and builtin generations. Contextual TEMP references
+retain their original engine, namespace token, nonreused address and epoch; immutable
+manifests and both analyzed/execution expression trees remain authoritative. Retention
+does not admit stale persistent consumers, foreign owners or retired providers.
+Incompatible live user-type dependencies remain explicit errors. Rendering recognizes
+the current owner's namespace from captured authority, not name matching.
+
+Temporary cleanup retains its namespace descriptor and transactional removal state.
+Its live-cursor guard applies to actual relations in the complete removal closure;
+exhaustion is not Close. It does not silently clear prepared names or persistent
+sequence memories and is not a generic DROP/query-lifetime guard. Temporary views
+participate in the same real dependency/physical-close closure. Moving objects into
+or out of TEMP and broader permanent transactional DDL remain native limits.
+
+## Inheritance, typed attachments and partition graphs
+
+Inheritance stores immutable immediate-parent identities and per-attribute/constraint
+origins. Child definitions remap stable attributes and retain actual local/other-parent
+origins through diamonds. Physical stores remain independent. Parent scan metadata,
+ACL/RLS and virtual recipes belong to the named parent; every physical root shares
+one statement snapshot. Other sessions' TEMP descendant branches are excluded before
+store selection or locking. Rowmarks use actual descendant storage/row identity.
+Recursive modifying targets and propagating hierarchy ALTER remain limits.
+
+Truncation consumes the same graph, replacing selected physical stores and empty
+index baselines without discarding definitions, edges, ownership, ACLs, comments,
+generation or security flags. Virtual partition authorities have no phantom store.
+Incoming FK closure uses actual definitions even for empty tables. Grant-time and
+final graph reconciliation retain the same session-specific TEMP closure. Each
+explicit/FK-cascade member retains its own authorization even if expansion already
+selected its physical effect. Triggers and FDW callbacks have no native provider.
+See [atomic truncation lifetime](TRANSACTIONS.md#whole-table-generation-replacement).
+
+Typed tables own independent stable attributes, storage and row codecs, plus one
+NORMAL source-composite dependency. Attachment retains exact live ordered shape
+and source backing admission; waits cannot adopt changed source generations.
+Detachment preserves rows/local constraints/defaults and own row type. Existing
+identity/generation and enforcing groups survive attachment. Source mutation
+propagates through real origins, not names, with one source/table/inheritance/codec/
+storage publication. Stored consumers of every propagated own-row provider remain
+guards even for identical-usage actions. Surviving origin-backed definitions become
+independently replayable local declarations when dead provider edges disappear.
+
+Typed lifecycle preparation releases incidental replacement-read admission outside
+the mutex while preserving genuine provider holds and exact descriptor fences.
+Successive TEMP construction can use transaction-private predecessors, without
+reauthorizing successful construction at a later outer commit. Live TEMP typed
+attachments to persistent types block Reset/Restore at both preallocation and final
+installation. Live TEMP inheritance edges to persistent parents likewise block
+replacement. Neither route retargets by name/OID; standalone TEMP type creation
+remains unsupported.
+
+Partition virtual roots/intermediates own descriptors; physical leaves own storage
+and local enforcing roots. Typed bounds/providers and comparison authority are
+captured before unlocked evaluation. A transient ordered endpoint projection supplies
+overlap witnesses without becoming a second mutable hierarchy. One write stage
+routes and validates all destinations; late failure publishes no earlier leaf rows.
+Defaults and disclosure authority belong to the named target, while physical errors
+identify the actual leaf. Scans capture all descendant prefixes at one frontier.
+
+Partition key constraints/indexes form real immediate-parent ancestry. Virtual
+indexes have no storage; attachment preserves identities and propagates validity
+only through complete valid immediate membership. Transaction-private attachments
+and removals restore through savepoints; independent leaf groups remain independent.
+Dump/Restore remaps actual ancestry, partial attachments, provenance and retained
+TEMP collisions, not assumed numeric OID relationships. LIST/HASH partitions,
+row movement, hierarchy mutation/conflict DML, TEMP partition construction and
+nested schema partition construction remain explicit native limits.
+
+## Logical indexes and copied definitions
+
+Index roots are immutable ordered entries or equality buckets built from live rows.
+Writes maintain roots at the same Finish/commit frontier as rows, with distinct
+RowID/VersionID membership. Captured physical positions provide safe candidate
+translation without a full-table identity recovery map. Current-only roots are not
+substitutes for historical or own-write query visibility. Payload metadata stays
+separate from enforcing key authority.
+
+Expression indexes retain analyzed dependency trees and simplified execution trees.
+Derived keys evaluate at Execute before committed or private rows are installed;
+failed batches preserve predecessor rows/roots and are recoverable through savepoints.
+Predicate qualification precedes derived-key evaluation. Provider-aware concurrent/
+trusted-import enforcement shares tuple extraction/comparison/claims rather than
+creating a second enforcement path.
+
+Dependent type reconstruction rebinds old-default classes and validates explicit
+providers; included payload requires storage validity, not key comparison. Unrelated
+slot compaction preserves roots and attributes; real dependencies drive retirement.
+Schema moves publish the complete index/owned-sequence closure after collision checks.
+Maintenance rebuilds selected roots atomically without changing rows or definition/
+version identities; failed waits/builds preserve prior roots. Detached CatalogRead
+metadata retains full vectors, provider identity and analyzed expressions. Physical
+index options/storage, WAL and optimizer parity are not implied. See
+[B-tree design](design/PG18-INDEX-BTREE.md), [hash design](design/PG18-INDEX-HASH.md)
+and [maintenance design](design/PG18-INDEX-MAINTENANCE.md).
+
+Copied definitions receive fresh destination attributes, constraint/backing identities
+and roots, not source rows, ACLs or automatic parent attachment. Cooked definitions
+remap local attributes but retain genuine external providers. Copied identity owns
+a fresh generator configuration, not the source's runtime state. Exact source and
+provider incarnations are held through one publication, including private staged
+sources during schema construction. Same-owner TEMP references retain contextual
+provenance; copying them does not legitimize stale or foreign references. Absent
+compression/storage/statistics and constraint-comment providers remain absent,
+not successful simulations of PostgreSQL facilities.
+
+Query-created tables likewise own new attributes/origins and finalized typed values,
+not source constraints, defaults, ACLs, comments or persistent query provenance.
+Native query-table storage rejects PG_NODE_TREE structural carriers. Trusted Restore
+can reconstruct certain already stored catalog scalar usages without widening public
+raw type/cast admission. Symbolic reference remapping never imports foreign numeric
+identities as native authority.
+
+## Row security and metadata
+
+Row-security flags are independent immutable metadata bits, transaction/savepoint
+aware and altered without rewriting rows or cloning policy expressions. Ordinary
+owner bypass, FORCE and direct superuser/BYPASSRLS decisions do not grant ordinary
+ACLs. Default-deny is real; applicable policy expressions requiring unavailable
+native enforcement reject at Execute rather than becoming fabricated constants.
+Disabling or removing the last policy does not discard the flags. Native controls
+serialize protected raw rows/policies before restoring nondefault flags, under a
+narrow replay whitelist. See [authorization](AUTHORIZATION.md#row-security-metadata-and-enforcement-limits).
+
+`CatalogRead.Comment` exposes immutable local metadata at stable class/object/SubID
+addresses; `RoleRead` exposes shared role text separately. The description catalog
+is derived, not dumped as inserted rows. Column comments retain sparse attribute
+numbers through compaction, rename, supported type changes and schema moves.
+Metadata waiters refresh at the captured identity; replacement still fences them.
+Ownership transfer includes exact attached indexes, row codecs and owned sequences
+atomically, preserving ACL provenance, comments, definitions, policy and data.
+Descendant/root/leaf owners remain independent.
+
+Comments, constraint/default deparsing and structural catalog trees never evaluate
+stored expressions. Rendering preserves bound providers, coercion modes and grouping,
+not source whitespace or PostgreSQL's private node bytes. Definitions retain original
+unsized input separately from assignment sizing. Session-setting changes do not
+retroactively revalidate CHECKs; subsequent demanded providers use fresh execution
+capture. Native role/comment and unsupported catalog-object facilities remain
+separate capability limits.
+
+## Native Dump and Restore
+
+Dump captures committed live state, not utility history, private mutation/tombstones,
+mutable constraint/window state or cursors. It emits dependency-ordered definitions,
+current names, explicit ordinary data, owner directives and canonical provider-owned
+literals. Defaults that form legal cycles are deferred after their providers. Restore
+stages through shared binders/codecs and validates the complete candidate before one
+catalog replacement. Its narrow utility whitelist is not arbitrary PostgreSQL dump
+or ALTER acceptance. Context, reader, parse, binding or late validation failure
+preserves the target and already retained snapshots. Explicit ACL serialization
+limits remain errors rather than silent loss.
+
+FK import captures declarations and creator authority only for newly minted actual
+table references; later ownership/elevation does not replace that authority. Pending
+attachments resolve supporting keys and validate final rows without executing
+cascades to repair input. Forward references/cycles work under those constraints.
+Invalid definitions replay through bounded post-data attachments without automatic
+promotion or trusted write bypass. Volatile CHECKs genuinely run during staged data
+insertion and can reject history-dependent replay.
+
+Materialized views keep stored rows/population separately from immutable producer
+identity. Refresh builds candidate rows/index roots once and replaces them atomically;
+failed refresh keeps old storage. Queued metadata changes retain defining authority
+but capture a compatible intervening refresh's current storage at grant. Native
+explicit utility transaction limits differ from PostgreSQL transactional refresh.
+
+Materialized snapshots use genuine versioned line comments with marker
+`-- stuntgres-matview-v1 <base64>` and strict JSON fields `schema`, `name`,
+`populated`, `rows`. Restore recognizes actual comments only, rejects duplicates,
+malformed/incorrect targets and lossy/effectful row conversions, and never populates
+through public DML or reevaluates the producer. Genuine extension dependency edges
+retain owner authority and are remapped with the closure. PostgreSQL ignores snapshot
+comments: actual dump replay restores definitions unpopulated, while native Restore
+retains exact stale refreshed rows. This is deliberate logical persistence, not
+physical heap/index swapping, WAL/crash durability, external pg_dump interchange,
+wire-server APIs or extension ABI support.
+
+Local comments share the same dump frontier as rows. Bootstrap overrides/removals
+are replayed relative to the fresh baseline; role comments are retained separately
+and excluded from database Dump/Restore. Restored live attribute numbers can be
+reminted, so names/relationships and text roundtrip, not historical allocator gaps.
+Inherited/typed/partition closure import similarly reowns real origin/provider links
+beside exact retained TEMP identities. Exceptional remapping can change allocator-
+relative diagnostic order; no separate persistent ordering authority is invented.
+
+## Development and independent coverage
+
+Run existing shared selectors with `make check` and the same `RUN` with `REFERENCE=1`
+for independent pinned PostgreSQL expectations. Useful families include
+`^TestReferenceAlterAddConstraintFeatureSmoke$`, `^TestReferenceForeignKeyFeatureSmoke$`,
+`^TestReferenceTypedTable`, `^TestReferenceTemporaryTableFeatureSmoke$`,
+`^TestReferenceGeneratedVirtual`, `^TestReferenceAlterGeneratedExpressionFeatureSmoke$`,
+`^TestReferenceRangePartitionFeatureSmoke$`, `^TestReferenceUsingIndexFeatureSmoke$`,
+`^TestReferenceExclusionFeatureSmoke$` and `^TestReferenceTable(Like|Core)`.
+These are instructions, not exercised verification claims.
+
+Native controls, retained snapshots, actual manager waits and real emitted-SQL
+PostgreSQL replay are distinct proof phases. Raw adapter metadata and complete
+backend-specific diagnostics are asserted before normalization. Public deadline/
+effect callbacks alone do not prove queue order. See [testing](TESTING.md) and
+[dual-mode development](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition).

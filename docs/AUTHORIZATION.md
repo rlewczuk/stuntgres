@@ -1,1193 +1,328 @@
-# Roles, authorization and schemas
+# Native authorization and principal ownership
 
-[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+[README](../README.md) · [Driver](DRIVER.md) · [Native values](TYPES.md)
 
-Each engine starts with the trusted native `postgres` principal (LOGIN,
-superuser, identity10) and the sixteen PostgreSQL18 predefined roles below.
-`OpenConnector` uses the bootstrap principal. Role identities are opaque,
-engine-owned and never reused after DROP, Reset or Restore. PUBLIC is an ACL
-grantee meaning all existing and future principals, not a role or membership endpoint.
+PostgreSQL 18's [role](https://www.postgresql.org/docs/18/user-manag.html) and
+[privilege](https://www.postgresql.org/docs/18/ddl-priv.html) documentation is the
+SQL authority. Native authorization below describes implemented authority,
+publication and compatibility boundaries, not full PostgreSQL compatibility.
 
-Persistent views retain normal owner/ACL descriptors. At CREATE, the creator
-needs destination CREATE and source-schema lookup USAGE, not source SELECT.
-CREATE OR REPLACE chooses only the creation namespace's target, not a later
-search_path match. Qualified target creation/replacement requires no target
-namespace USAGE; body source schemas still undergo ordinary lookup checks.
-At read, the caller needs named-view SELECT; each ordinary definition checks
-underlying relation columns as that view's current owner. Invoker definitions
-use the original statement invoker, not an outer view owner's substituted
-relation principal. Prepared executions recheck current grants and owners.
-Bound base reads do not repeat name lookup or source-schema USAGE checks; the
-initial named view lookup still requires its schema's USAGE. Relation-principal
-substitution never changes session identity or sequence/function authority.
-Native table and column GRANT/REVOKE use this same central ACL authority.
-The native prepared witness retains an allowed statement description across
-revocation and regrant: the same handle must deny42501 without rows after revoke
-and resume reads after regrant, including an owner view above an invoker view.
+## Trusted admission and principal identity
 
-Replacement and ALTER require view ownership. All ordinary owner and ACL checks
-follow live INHERIT paths transitively, independently of SET authority and role
-attributes. Each hop needs a surviving INHERIT=true grant from some origin;
-SET-only/disabled edges do not grant ownership or object privileges. DROP VIEW
-also accepts the inherited schema owner without granting that actor ALTER or
-replacement rights.
-Replacement needs destination CREATE; relation rename needs containing-schema
-CREATE, while column rename does not. Schema moves need destination CREATE.
-Owner transfer separately follows SET-authorized edges to the target role and
-requires that role's CREATE on the current schema; superusers bypass those
-transfer restrictions. Relation and column ACL owner references are rewritten
-without discarding reader grants or conflating NULL and explicitly empty ACLs.
-Subsequent reads immediately use the new owner or original security invoker.
-
-
-Isolated native Restore uses its validated authenticated-bootstrap lookup
-authority for every CREATE VIEW source occurrence, including aliases and joins,
-both before a relation-lock wait and when revalidating the grant. This requires
-the private import marker and initialized import catalog; ordinary CREATE VIEW
-keeps its normal schema checks. The named directive's owner and session identity
-remain unchanged, and imported views check current owner/invoker read privileges
-rather than retaining bootstrap read authority.
-
-```text
-CREATE {ROLE | USER | GROUP} name [WITH] [attribute ...]
-    [IN {ROLE | GROUP} names] [{ROLE | USER} names] [ADMIN names]
-ALTER {ROLE | USER} {name | CURRENT_ROLE | CURRENT_USER | SESSION_USER}
-    [WITH] [attribute ...]
-GRANT roles TO members [WITH option {TRUE | FALSE | OPTION} [, ...]]
-    [GRANTED BY role]
-REVOKE [{ADMIN | INHERIT | SET} OPTION FOR] roles FROM members
-    [GRANTED BY role] [CASCADE | RESTRICT]
-ALTER GROUP role {ADD | DROP} USER members
-DROP {ROLE | USER | GROUP} name [, ...]
-SET [SESSION] AUTHORIZATION {name | 'exact role name' | DEFAULT}
-RESET SESSION AUTHORIZATION
-SET [SESSION | LOCAL] ROLE {name | 'exact role name' | NONE}
-SET [SESSION | LOCAL] ROLE {TO | =} DEFAULT
-RESET ROLE
-SELECT current_catalog,current_database(),current_role,current_user,session_user,user,system_user
-```
-
-ROLE/GROUP default NOLOGIN; USER defaults LOGIN. Duplicate options fail `42601`
-at execution, duplicate names `42710`, missing DROP targets `42704`. DROP is
-statement-atomic across its list, rejects owner/ACL/persistent dependencies
-(`2BP01`), and removes membership endpoints through the same immutable authority.
-CREATE requires effective SUPERUSER or direct CREATEROLE. ALTER ordinarily requires
-direct CREATEROLE and ADMIN on the target; ADMIN traversal is independent of
-INHERIT and SET. An ordinary creator automatically gets ADMIN=true, INHERIT=false,
-SET=false on its new role, atomically with its attributes and initial memberships.
-PASSWORD-only changes to effective self are allowed without that general authority;
-adding LOGIN or VALID UNTIL requires full ALTER authority. Ordinary actors cannot
-alter superuser targets or either SUPERUSER toggle. Positive CREATEDB, REPLICATION
-and BYPASSRLS on CREATE, and either direction on ALTER, require the actor's matching
-direct attribute. There is no blanket replication-target restriction.
-Native DROP and COMMENT ON ROLE retain their existing actual-SUPERUSER gates.
-CREATEROLE plus creator ADMIN does not authorize native DROP. PostgreSQL's broader
-CREATEROLE/target-ADMIN authority and creator current/session55006 precedence are
-backend-specific supplements, not native parity. Privileged native DROP checks
-every name before pinned or ordinary dependencies. `pg_user` grants
-PUBLIC SELECT on every LOGIN role's direct summary, including unrelated users;
-membership does not synthesize its flags. Its password is always `********`.
-`pg_roles` grants PUBLIC SELECT on every role, including unrelated NOLOGIN,
-privileged, expired and zero-limit roles. All flags are direct stored attributes;
-membership never synthesizes them. The password is always `********` and reachable
-configuration is typed NULL TEXT[]. `pg_authid`/`pg_shadow`, role rename and
-ALTER ROLE SET/RESET remain excluded. Table/column object grants are supported
-separately from membership.
-Membership GRANT/REVOKE and ALTER GROUP aliases use ADMIN authority, with separate
-checks for SUPERUSER targets and explicit grantor provenance.
-Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:
-it fails positioned `0A000` at `IF` before any script statement executes,
-including when every target is absent. Ordinary unquoted or quoted role names
-`if` and `exists` remain valid. Malformed conditional drops and `CASCADE`
-(which is not PostgreSQL role-drop syntax) fail `42601`, not a capability error.
-Role names reuse PostgreSQL's ordinary column-name keyword categories;
-nonreserved `local`, `session` and `role` remain names. Reserved `WITH` is
-only an optional option introducer, not a role name or a repeated option.
-
-### Role attributes
-
-Supported attributes are SUPERUSER/NOSUPERUSER, CREATEDB/NOCREATEDB,
-CREATEROLE/NOCREATEROLE, LOGIN/NOLOGIN, INHERIT/NOINHERIT,
-REPLICATION/NOREPLICATION, BYPASSRLS/NOBYPASSRLS, CONNECTION LIMIT signed_int4,
-PASSWORD string/NULL, ENCRYPTED PASSWORD string and VALID UNTIL string.
-Defaults are all negative flags except INHERIT, limit -1 (unlimited), NULL password
-and absent expiry; USER alone defaults LOGIN. ALTER USER is an ALTER ROLE alias,
-not a LOGIN reset. Every omitted attribute, password verifier, expiry, identity,
-comment and existing membership is retained. Empty options and bare WITH are valid.
-Attributes themselves never follow membership paths; INHERIT edges still supply
-object privileges/owner authority and SET edges still control identity selection.
-
-Plain passwords become SCRAM-SHA-256 verifiers with 4096 iterations, a random
-16-byte salt and derived stored/server keys, using PostgreSQL-style SASLprep or
-original-byte fallback. Recognized preencoded MD5/SCRAM values are retained;
-NULL/empty passwords clear metadata, with corresponding notices/warnings.
-VALID UNTIL uses captured timestamptz input settings and preserves finite/infinite
-values separately from absence. It is password expiry, not role expiry: trusted
-native admission ignores passwords and expiry. No password-verification handshake,
-password_encryption/scram_iterations setting or pg_authid projection is
-introduced. LOGIN and CONNECTION LIMIT still govern new physical admission; see
-[driver admission](DRIVER.md#trusted-role-admission-and-physical-limits).
-CREATE/ALTER and other cluster-role utilities remain native explicit-transaction
-0A000 boundaries; read-only Execute rejects modifying utilities with25006 before
-lookup or authority. Prepared execution resolves fresh authority without caching it.
-
-### Predefined PostgreSQL18 roles — change note
-
-The immutable role authority seeds these exact names/identities. Each has
-INHERIT=true, NOLOGIN, all other attribute flags false, CONNECTION LIMIT -1,
-NULL password/expiry and no comment. Membership never copies SUPERUSER or
-BYPASSRLS attributes onto an ordinary actor.
-
-| Role | Fixed identity | Native capability or boundary |
-|---|---:|---|
-| `pg_checkpoint` | 4544 | CHECKPOINT explicitly fails0A000. |
-| `pg_create_subscription` | 6304 | CREATE SUBSCRIPTION explicitly fails0A000. |
-| `pg_database_owner` | 6171 | Implicit native database owner; canonical public owner. |
-| `pg_maintain` | 6337 | MAINTAIN for eligible relations; real REINDEX/LOCK authority. |
-| `pg_monitor` | 3373 | Ordinary INHERIT/SET membership in the next three roles. |
-| `pg_read_all_settings` | 3374 | Supported settings remain readable; no protected SET authority. |
-| `pg_read_all_stats` | 3375 | Identity/membership only: no native statistics provider. |
-| `pg_stat_scan_tables` | 3377 | Identity/membership only: no native scan extension/provider. |
-| `pg_read_all_data` | 6181 | Schema USAGE and table/view/materialization/column SELECT; sequence SELECT. |
-| `pg_write_all_data` | 6182 | Schema USAGE and table/view/materialization/column INSERT/UPDATE/DELETE; sequence UPDATE. |
-| `pg_read_server_files` | 4569 | No filesystem access; COPY excluded and file functions absent. |
-| `pg_write_server_files` | 4570 | No filesystem writes; COPY excluded. |
-| `pg_execute_server_program` | 4571 | No command execution; COPY PROGRAM excluded. |
-| `pg_signal_autovacuum_worker` | 6392 | No workers/PIDs or signal functions. |
-| `pg_signal_backend` | 4200 | No PostgreSQL PID signaling functions. |
-| `pg_use_reserved_connections` | 4550 | No PostgreSQL reserved-slot tier; ordinary LOGIN/role limits still apply. |
-
-`pg_monitor` starts with three ordinary `(role, member, grantor)` edges:
-settings/stats/scan to monitor, grantor bootstrap10, ADMIN=false,
-INHERIT=true and SET=true. They can be revoked normally and are not reseeded by
-Reset/Restore. All fifteen non-database-owner roles support normal explicit
-membership, options, provenance and SET ROLE.
-
-The single attached database initially belongs to bootstrap10; subsequent
-ownership follows its actual canonical database descriptor. Its implicit MEMBER,
-INHERIT and SET successor is `pg_database_owner`, including ordinary membership
-traversal that reaches the current database owner; no persisted membership row or
-direct ADMIN option is invented. GRANT cannot give `pg_database_owner` explicit
-members or make it a member of any role (0A000), including initial CREATE clauses.
-ALTER GROUP's reserved target guard remains42939. Plain REVOKE retains normal
-member-first absent-grant WARNING01000 diagnostics. CREATE/ALTER reserved role
-guards remain42939. After authorization/name preflight, DROP of any predefined
-role fails2BP01 with primary `cannot drop role NAME because it is required by the database system`
-and empty DETAIL; mixed batches publish nothing.
-
-Capabilities supplement ordinary ACL bits through the same live INHERIT closure,
-including held prepared execution and column requirements. They do not grant
-schema CREATE, TRUNCATE, REFERENCES, TRIGGER, grant options, ownership, owner-only
-ALTER/DDL, or write access to protected catalog/provider relations. Sequence
-UPDATE authorizes nextval/setval but not SELECT/currval by itself; SELECT does
-not authorize nextval/setval. Session-local currval still requires prior nextval.
-MAINTAIN uses actual index-root rebuilding and existing transaction-owned AX LOCK
-exclusion, not an owner bypass or a successful no-op. VACUUM, ANALYZE, CLUSTER and
-REFRESH remain native0A000. The selected missing file/signal/scan functions retain
-the native parser boundary0A000 `functions are unsupported` at position8; PostgreSQL
-missing functions retain independently specified42883 diagnostics and their Hint.
-Absent native statistics relations remain42P01. Granted role names never
-manufacture unavailable mechanisms.
-
-Genuine predefined data-role privileges do not bypass native row security.
-They provide ordinary ACL use rights; enabled/default-denied tables remain
-empty for readers and reject demanded proposals for writers. Protected locale/
-logging SET gates likewise stay unchanged for monitoring roles.
-
-Canonical public namespace ownership and owner/grantor/grantee ACL provenance use
-6171. Native keeps its historical PUBLIC USAGE|CREATE convenience ACL, unlike fresh
-PostgreSQL18's PUBLIC USAGE-only default. pg_catalog/information_schema retain
-bootstrap10 ownership. Dump emits real namespace ownership deltas against those
-baselines, including renamed/cyclic bootstrap schemas; Reset restores canonical
-local metadata but keeps the shared role authority/graph. Restore and independent
-engine catalog imports remap validated predefined owner/ACL identities without
-serializing or importing memberships or regranting revoked monitor edges.
-
-See [selected dual-mode definitions and feature smokes](../reference/roles/README.md#predefined-role-oracle-first-contracts).
-
-
-### Membership options and provenance
-
-Membership identity is `(role, member, grantor)`: independent origins survive
-revocation of another origin. New edges default ADMIN=false, SET=true and INHERIT
-to the member role's current INHERIT attribute (normally true). Explicit edge
-INHERIT overrides that default; changing the role attribute never rewrites old
-edges. Updating an existing origin preserves every omitted option; OPTION
-means true and repeated GRANT options use the last value. Identical GRANT emits
-NOTICE00000; missing attributed REVOKE emits WARNING01000. Utilities affect zero
-rows and protocol Prepare neither resolves roles nor changes authority.
-
-IN ROLE makes the new role a member of each listed role; ROLE/USER makes each
-listed role a member of the new role; ADMIN adds those members with ADMIN=true.
-Distinct CREATE clause categories coexist; repeated categories fail42601 at
-execution. The new role and every initial edge publish atomically.
-
-Ordinary ADMIN holders can delegate without inheriting object privileges or
-being able to SET the granted role. Inferred grantors use the nearest eligible
-INHERIT-reachable direct ADMIN source; actual superusers record bootstrap
-provenance. Explicit GRANT requires actor privileges of the grantor and that
-grantor's direct ADMIN; explicit REVOKE can clean up its grants after ADMIN loss.
-Role/member cycles ignore options. Separate ADMIN support cycles reject
-backgrants without independent support (0LP01); PUBLIC is never a member.
-
-REVOKE INHERIT/SET OPTION only clears that flag. Loss of the last direct ADMIN
-source rejects dependent grants under default RESTRICT (2BP01, CASCADE hint);
-CASCADE removes only recursively unsupported origins. ADMIN-only CASCADE keeps
-the source edge with ADMIN=false. GRANT ADMIN FALSE is an option update, not a
-dependent-revoke request. ALTER GROUP preserves its own authorization diagnostics.
-
-GRANT targets use the current private candidate for authority and grantor
-selection, including preceding targets' option changes. REVOKE instead uses
-statement-entry authority and original rows across the entire target list:
-PostgreSQL's AddRoleMems increments the command counter; DelRoleMems does not.
-The next separate statement sees committed removals. Both operations publish
-their private mutations only once, and failure publishes none.
-For each GRANT target, all recipients' role/member cycles are checked before
-ADMIN support and before same-target notices. REVOKE plans recursive dependencies
-per recipient against immutable original rows with fresh actions per target:
-RESTRICT stops immediately, duplicate members still match, and an unreached
-recipient emits no warning. A later target that updates or deletes an original
-tuple already changed by an earlier target fails XX000, `tuple already updated
-by self`; repeated target names alone do not fail. Missing rows still warn,
-and already-false ADMIN revocation is a quiet no-op. INHERIT/SET revocation
-plans an update even when that flag is already false, matching PostgreSQL.
-Notices legitimately emitted by an earlier completed target or reached recipient
-remain delivered when a later error rolls back the graph.
-
-Inherited owners retain ownership and implicit grant options, but explicitly
-empty object ACLs deny ordinary use. Prepared reads check fresh memberships;
-already returned rows retain their values and metadata. Membership utilities
-remain autocommit-only natively: explicit transactions reject0A000, with
-read-only execution25006 taking precedence. PostgreSQL supports rollback/commit.
-Reset/Restore retain cluster roles/memberships; Dump never serializes them and
-Restore does not import membership DDL.
-
-
-SET/RESET SESSION AUTHORIZATION change session_user and current_user together. Only the **originally
-authenticated** superuser may select another principal (including NOLOGIN);
-an ordinary authenticated role may select itself or reset/default only.
-Failed switches preserve both identities and application_name. Identity
-projections have NAME metadata, exact lowercase labels and one string row;
-prepared projections read execution-time identity. Ordinary NAME columns follow
-the [NAME value contract](TYPES.md#name). Exec of identity SELECT reports one selected row;
-role and authorization commands affect zero rows.
-
-SET ROLE changes only effective current_user/current_role/user. Eligibility is
-checked against session_user: self, a session superuser, or an all-SET path through
-live membership edges. ADMIN/INHERIT alone confer no SET authority.
-NONE selects session_user; RESET (and TO/= DEFAULT) selects the configured startup
-role, or session_user when none is configured. Bare SET ROLE DEFAULT is syntax
-error; quoted/string `default` is a role name. SESSION selection persists on
-commit and restores on rollback; LOCAL selection expires on either boundary.
-SESSION followed by LOCAL retains the SESSION candidate on commit, and savepoint
-rollback restores both current role and its lifetime journal. These commands are
-legal in read-only transactions. Outside a transaction LOCAL warns with25P01
-`SET LOCAL can only be used in transaction blocks`, validates the target and has
-no lasting role effect. Missing targets fail22023 `role "<name>" does not exist`;
-unauthorized selections fail42501 `permission denied to set role "<name>"`.
-RESET and transaction/savepoint restoration use already validated role references,
-not a new membership check: revoking SET blocks fresh selection, not restoration.
-Native public connectors start with current_user=session_user; the special internal
-SessionStart.Defaults role hook validates configured startup/reset identity before
-physical-session publication, but is not a public connector option or generic GUC.
-SET ROLE does not apply the target's session-variable defaults. SECURITY DEFINER
-prohibition remains contingent on a real routine invocation contract, which the
-engine does not yet implement; definer views are not routine frames.
-
-Identity keyword expressions use the common typed scalar pipeline, including
-predicates, aliases, defaults and views. Six identities return NAME; system_user
-returns TEXT SQL NULL because the host assertion is not PostgreSQL authentication.
-Ordinary zero-argument catalog functions exist for current_database, current_user,
-session_user and system_user. Bare identity keywords reject parentheses; qualified
-and quoted catalog calls resolve normally. current_catalog/current_role/user are
-syntax aliases, not catalog functions. Prepared execution captures fresh identity;
-retained rows keep their execution snapshot. Defaults/views preserve syntax and
-observe execution identity, not definition identity. Reset/Restore preserve the
-physical session's naming and authorization; no identity state is dumped.
+Each engine starts with the trusted native `postgres` bootstrap principal
+(identity 10) and sixteen predefined PostgreSQL roles. `OpenConnector` uses that
+bootstrap principal. Principal identities are opaque, engine-owned and never
+reused after role deletion, Reset or Restore. PUBLIC is an ACL grantee, not a
+principal or membership endpoint.
 
 ```go
 d := stuntgres.NewDriver()
-// First create LOGIN roles on the same exact opaque DSN using an admin pool.
+// Provision a login-capable role using an admin pool on the same exact DSN.
 connector, err := d.OpenConnectorAs("my fixture", "application_owner")
 if err != nil { /* handle host assertion error */ }
 ownerPool := sql.OpenDB(connector)
 defer ownerPool.Close()
 ```
 
-`OpenConnectorAs` is a **trusted host identity assertion, not password
-authentication**. It does not parse credentials or change DSN naming. The role
-argument is an exact decoded stored name (no SQL folding or truncation).
-Every physical Connect resolves and LOGIN-validates the requested role;
-empty/missing/NOLOGIN assertions return ordinary Go adapter errors, not
-network SQLSTATE. Healthy borrower reuse retains selected identity/settings;
-physical replacement starts with the connector's requested authenticator and
-fresh settings. Use held `*sql.Conn` handles for principal-specific operations.
-Two connectors with the same Driver/exact DSN share data, never session state.
-
-## Table and column grants — change note
-
-```sql
-GRANT {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
-  ON [TABLE] relation [, ...] TO grantee [, ...]
-  [WITH GRANT OPTION] [GRANTED BY role];
-REVOKE [GRANT OPTION FOR]
-  {privilege [(column, ...)] [, ...] | ALL [PRIVILEGES] [(column, ...)]}
-  ON [TABLE] relation [, ...] FROM grantee [, ...]
-  [GRANTED BY role] [CASCADE | RESTRICT];
-```
-
-`ON ALL TABLES IN SCHEMA schema [, ...]` expands currently existing tables,
-views and materialized views, not sequences, indexes, composite backing relations
-or future objects. A schema owner does not automatically own its tables.
-Grantees include PUBLIC, optional GROUP before a role specification, CURRENT_USER,
-CURRENT_ROLE and SESSION_USER. The decoded exact lowercase spelling `public`
-denotes PUBLIC even when quoted; quoted `"PUBLIC"` is a distinct role name.
-PUBLIC includes future roles but cannot receive grant options (`0LP01`).
-REVOKE GRANT OPTION FOR FROM PUBLIC is legal and preserves its ordinary use.
-Table privileges are SELECT, INSERT, UPDATE, DELETE,
-TRUNCATE, REFERENCES, TRIGGER and MAINTAIN; column privileges are SELECT, INSERT,
-UPDATE and REFERENCES. ALL expands the applicable mask, never ownership.
-
-Absent table ACLs give owners ordinary use rights; absent column ACLs are empty.
-The first authorized table mutation materializes owner defaults, including an
-option-only request with no removable stored options. Repeating an explicit
-effect-free request does not publish a new authorization revision. Revoking an
-owner's ordinary privileges does not remove ownership or implicit grant options.
-Table privileges OR matching column privileges authorize column operations:
-column-only REVOKE cannot negate a table grant. Whole-table checks never combine
-arbitrary column grants into a table grant.
-
-Grants retain independent `(grantor, grantee)` origins. All-INHERIT paths supply
-ordinary rights and grant authority, while SET-only/disabled paths do not.
-Delegation selects one reachable direct option source, never a union of options
-from different roles. A current owner or actual superuser uses the owner origin.
-Otherwise the existing breadth-first INHERIT closure chooses its first full
-requested-option match; a nearer explicit source can precede an inherited owner.
-An inherited owner supplies all options when reached normally. If no full match
-exists, the largest requested-bit subset wins, with nearer roles winning ties.
-PostgreSQL18.0 object
-GRANTED BY must name the exact current user, even for superusers or inherited
-owners; another existing role fails `0A000`, and a missing role fails `42704`
-before object lookup.
-An owner or superuser revoking a delegate-origin grant directly does not remove
-that origin: revoke as the delegate, or revoke its upstream support with CASCADE.
-
-WITH GRANT OPTION grants use plus delegation rights. Partial table requests
-warn `01007`; table ALL silently grants an eligible nonempty subset. Column
-requests merge by stable attribute identity: a final mask containing all four
-column privileges suppresses partial warnings, whether spelled ALL or enumerated
-across separate privilege items. REVOKE applies the same distinction with
-`01006`. A zero-option request still warns even for a full mask. Having ordinary
-rights but no requested options yields a warning and no grant, not a permission
-token. No rights can fail `42501`. Warning masks describe authority, not the
-number of changed ACL entries: fully authorized repeated or wrong-origin
-revocations are quiet.
-
-Plain REVOKE removes the selected source's use and options; GRANT OPTION FOR
-removes only its options, preserving use. Default/explicit RESTRICT protects
-unsupported dependent privileges with `2BP01` and Hint
-`Use CASCADE to revoke them too.` CASCADE recursively removes only the bits
-whose delegation support was lost, preserving other bits, independent origins
-and alternative inherited grant-option support. Ordinary alternate use or PUBLIC
-access does not protect delegation, but can still authorize a downstream reader.
-Circular grant options fail `0LP01`. Dependency checks stay within each table or
-individual column ACL, not a combined graph. Table options participate only in
-column grantor selection: revoking an upstream table option can preserve a
-distinct-origin downstream column grant; a same-column dependent chain is
-protected by RESTRICT and removed by CASCADE. Table REVOKE also processes the
-corresponding SELECT/INSERT/UPDATE/REFERENCES grants to its targeted recipients
-in each column, selecting each source from the original requested mask and
-original table ACL, not its already reduced result.
-
-Utilities affect zero rows. Autocommit Go Prepare resolves no objects/roles and
-emits no notices; Execute resolves fresh identities and publishes one atomic
-catalog candidate. Late missing targets/columns/grantees, option errors,
-RESTRICT failures and native cooperative cancellation publish no earlier ACL
-changes. The native adapter's pre-canceled context guarantee does not imply that
-lib/pq must reject a fast PostgreSQL utility before it completes.
-Reached warnings remain observable before a later failure. Explicit and implicit merged
-column requests traverse ascending signed stable attribute numbers, not textual
-request order or column-name order; duplicate column mentions warn only once.
-Table REVOKE emits its table warning before system attributes
-`tableoid,cmax,xmax,cmin,xmin,ctid`, followed by live columns in attribute order.
-This does not add system-column query support.
-
-Real consumers are SELECT/source expressions, assigned INSERT/UPDATE columns,
-DELETE, RETURNING, row-locking SELECT, explicit LOCK, and MAINTAIN-based REINDEX
-and nonconcurrent REFRESH MATERIALIZED VIEW. REFRESH requires caller MAINTAIN,
-not target SELECT or schema ownership. DATA's frozen producer executes as MV
-owner, including nested security_invoker sources, identity expressions and live
-sequence authority; SESSION_USER remains caller. Owner/current-schema context
-is operation-local and restored on success/failure before caller publication
-fences. Caller source/sequence rights cannot rescue denied owner rights.
-WITH NO DATA needs no producer/source/sequence rights or draws.
-TRUNCATE requires the exact table TRUNCATE bit for TRUNCATE TABLE and also
-supplies an existing LOCK alternative; REFERENCES authorizes real FK declarations
-and TRIGGER is stored/delegated without introducing trigger commands.
-Table INSERT does not
-grant sequence rights: SERIAL defaults can still fail sequence `42501`, whereas
-IDENTITY's internal generation remains supported. Direct sequence grants,
-including TABLE syntax resolving a sequence, remain native `0A000`; direct
-schema/type/routine grants are outside this surface. Creation-time defaults are
-described separately below.
-Object utilities remain unsupported in native explicit read-write transactions.
-Read-only execution first fails `25006` for GRANT/REVOKE, before object lookup.
-Explicit relation/column ACLs make native Dump fail before output; Restore does
-not accept GRANT/REVOKE. Reset replaces persistent objects and their ACLs while
-retaining roles, membership and the existing live-TEMP object/ACL preservation
-contract.
-
-Feature smoke (900 seconds per invocation):
-`make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`
-and
-`make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.
-The revoke counterpart selects `TestReferenceRoleRevokeFeatureSmoke` with the
-same native and `REFERENCE=1` commands. See [testing](TESTING.md) for the bounded
-family selectors and root-owned standalone revoke smoke.
-
-## Default privileges — change note
-
-```sql
-ALTER DEFAULT PRIVILEGES
-  [FOR {ROLE | USER} creator [, ...]]
-  [IN SCHEMA schema [, ...]]
-  GRANT {privilege [, ...] | ALL [PRIVILEGES]}
-  ON {TABLES | SEQUENCES | FUNCTIONS | ROUTINES | TYPES | SCHEMAS | LARGE OBJECTS}
-  TO grantee [, ...] [WITH GRANT OPTION];
-ALTER DEFAULT PRIVILEGES
-  [FOR {ROLE | USER} creator [, ...]]
-  [IN SCHEMA schema [, ...]]
-  REVOKE [GRANT OPTION FOR] {privilege [, ...] | ALL [PRIVILEGES]}
-  ON {TABLES | SEQUENCES | FUNCTIONS | ROUTINES | TYPES | SCHEMAS | LARGE OBJECTS}
-  FROM grantee [, ...] [CASCADE | RESTRICT];
-```
-
-FOR and IN clauses may appear in either order; duplicate clauses fail `42601`
-at the second introducer, while repeated names are legal. Columns fail `0LP01`;
-singular classes, object names, ON ALL TABLES IN SCHEMA and GRANTED BY are not
-default-privilege syntax. IN SCHEMA is invalid for SCHEMAS and LARGE OBJECTS.
-Grantees use the existing PUBLIC/GROUP/current-user/session-user role forms.
-PUBLIC cannot receive grant options; option-only revoke from PUBLIC is legal.
-TABLES has all eight table bits, SEQUENCES has SELECT/UPDATE/USAGE, routines have
-EXECUTE, TYPES has USAGE, SCHEMAS has CREATE/USAGE, and LARGE OBJECTS has
-SELECT/UPDATE. FUNCTIONS and ROUTINES address the same stored class.
-Unquoted privilege names fold to lowercase; quoted names must match the exact
-lowercase recognized spelling, so `"select"` is valid but `"SELECT"`, `"Select"`,
-`"Usage"`, `"TEMP"` and `"TEMPORARY"` fail `42601` with the original spelling in
-the unrecognized-privilege diagnostic. A rejected name publishes no defaults.
-Recognized unquoted or quoted lowercase temp/temporary remain invalid for these
-classes; both report the canonical privilege spelling TEMP in the `0LP01`
-diagnostic.
-
-Omitted creators mean the current effective role. Self, superuser and an
-all-INHERIT privileges-of path may alter a target's defaults; SET-only, ADMIN
-or schema ownership alone are insufficient (`42501`). Altering defaults in an
-existing schema does not require its USAGE or CREATE privilege; actual object
-creation still requires normal namespace authority. Every default origin's
-grantor is the target creator, not the issuing member/superuser. Prepare performs
-syntax/full-input admission only; Execute resolves fresh roles and schemas.
-Duplicate clauses, all grantees and privilege/column validation precede creator
-authority. Each schema is then resolved and its class/PUBLIC-option restrictions
-checked before its private ACL update, before resolving the next schema.
-An invalid action on an existing first schema therefore precedes a missing
-second schema; reversing the list reports the missing schema first. Every
-creator/schema action shares one unpublished candidate. A late error or native
-cooperative cancellation publishes no earlier change. A changed statement
-advances authorization once; canonical no-ops do not.
-
-Defaults are separate immutable catalog policy, never retroactive object grants.
-Global defaults replace the class's hardwired baseline; scoped defaults add
-matching origin bits to the global result. Scoped REVOKE undoes scoped grants
-only: global SELECT plus scoped INSERT still permits SELECT after scoped
-REVOKE SELECT. Ordinary owner bits in the baseline have zero stored options;
-ownership/inherited ownership still supplies implicit grant authority.
-Stored fully empty global ACLs retain creator dependencies. PostgreSQL18.0's
-creation merge of empty global and absent/empty scoped ACL becomes absent,
-restoring hardwired object rights. With nonempty scoped grants it instead
-materializes only those grants, without ordinary owner rights. This creation-only
-normalization does not turn an actual object's explicit REVOKE ALL into owner use.
-
-Existing creation providers consume only their own class: ordinary/TEMP/LIKE/
-inherited/partitioned tables, CTAS/SELECT INTO/materialized views and new views
-consume TABLES; explicit/TEMP/SERIAL/IDENTITY sequences consume SEQUENCES.
-CREATE OR REPLACE VIEW retains the existing view ACL. Standalone enum, simple
-domain and composite bases consume TYPES; dependent table/view/MV rowtypes and
-generated associated arrays instead retain explicit hardwired PUBLIC/owner USAGE,
-without independently consulting TYPES or copying selected named ACL origins.
-Relation ownership transfer remaps both dependent rowtype and array ACL ownership
-origins to the new owner, merging collisions without consulting current TYPES
-defaults. Retained snapshots, unrelated origins and absent versus explicit-empty
-ACLs stay unchanged; stale origins must not prevent the former owner's retirement.
-Array use follows the existing element-authority redirect; enum-array SQL
-storage remains a native 0A000 capability boundary. Explicit/named-owner schemas
-consume SCHEMAS; contained objects use that named owner, not the issuer.
-Automatic TEMP namespaces do not consume SCHEMAS. Ordinary USAGE/CREATE for the
-exact owning physical session's TEMP namespace survives current-role/session-
-authorization switches; it does not grant table rights, namespace ownership or
-delegation, or any peer/private-session namespace authority. Routines/large
-objects have real stored defaults and dependencies, but no new creation providers.
-
-Creator/grantor/recipient dependencies block DROP ROLE even before any object
-exists. Baseline reversal removes the policy dependency, not materialized object
-grants. Schema rename preserves scoped identity; schema drop removes scoped
-policy atomically, retaining globals, and recreation cannot resurrect it.
-Retained messages expose earlier private defaults to later creation and discard
-both on failure. Catalog replacement remaps exact principal and imported schema
-identities privately; persistent projection strips source TEMP-scoped directives,
-while live target TEMP objects retain their materialized ACLs. Physical TEMP
-namespace retirement removes its scoped directives too.
-
-`information_schema.table_privileges` is a bounded genuine source over supported
-ordinary/partitioned tables, views and existing catalog relations. It reports one
-row per stored grantor/grantee/ordinary-bit origin; absent table ACLs show the
-hardwired owner, explicit empty ACLs show no rows. Its seven bits exclude MAINTAIN,
-column-only grants, sequences, materialized views, indexes and composite backing
-relations. Visibility is privileges-of grantor OR grantee OR PUBLIC, not namespace
-USAGE/table SELECT. No inherited-member origin is invented. `is_grantable` is YES
-for stored options or grantee privileges-of owner; `with_hierarchy` is YES only
-for SELECT. Each execution captures one catalog/roles/actor snapshot; held
-statements refresh and already returned rows remain stable.
-
-The first five columns (grantor, grantee, table_catalog, table_schema, table_name)
-use NAME; privilege_type is unsized VARCHAR and is_grantable/with_hierarchy are
-VARCHAR(3), using C collation. This uses existing carriers, not new information-
-schema domains. Native unsized VARCHAR Length is MaxInt64/true; lib/pq's unsized
-character_data transport reports -5/true, while both three-character columns
-report 3/true. The actual current database supplies table_catalog.
-Read these carriers directly; general NAME/VARCHAR-to-TEXT casts are not added.
-
-Default utilities affect zero rows and retain native explicit-transaction
-exclusions: read-only Execute fails `25006` before lookup; read-write utility
-execution remains `0A000` (PostgreSQL supports transactional defaults). Dump
-rejects any nonempty default policy, including stored empty or missing-provider
-records, before output. Restore's whitelist rejects ALTER DEFAULT PRIVILEGES;
-Reset clears all default policy and replaces persistent objects/ACLs while
-retaining roles, membership and live TEMP objects with their materialized ACLs.
-No direct non-table grants, privilege predicates, pg_default_acl/relacl exposure,
-ACLITEM codecs, richer type constraints or routine/large-object providers are added.
-Feature smoke: `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
-and `make check REFERENCE=1 RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`.
-See [testing](TESTING.md) for complete selected proof and standalone smoke.
-
-
-New tables belong to current_user. Without changed creation defaults they have
-owner use rights and no PUBLIC table privileges. Central checks cover schema CREATE/USAGE, all actually used
-SELECT projection/predicate/order columns, assigned INSERT/UPDATE columns, and UPDATE RHS/WHERE reads.
-When a SELECT or INSERT column manifest is empty, table privileges or the
-corresponding privilege on **any live column** suffice. Empty/filtered INSERT
-sources still require source SELECT authorization; grants on dropped columns
-never qualify. UPDATE needs SELECT only on actual RHS/WHERE reads, not on
-columns merely retained.
-
-Conflict UPDATE keeps separate supplied INSERT destinations and SET UPDATE
-destinations. SELECT covers actual target/`excluded`/arbiter reads and source
-expressions, not merely retained columns or implicit partial-assignment container
-copies. Analysis and these rights remain mandatory for empty sources and
-FALSE/NULL action predicates. Native rechecks the complete current binding after
-conflict-key and selected-row waits; an ACL-only descriptor replacement is not a
-physical storage replacement. A late revoke yields42501 with no mixed prefix,
-while pinned PostgreSQL's already admitted command uses its startup ACL decision.
-The next command reevaluates rights on both backends. No synthetic schema/table/
-column diagnostic fields are added to ordinary permission errors.
-
-All four SELECT row-locking clauses additionally need UPDATE privilege on at
-least one live column of each OF-selected physical source (all applicable sources
-when OF is absent), including unprojected targets and empty/filtered results.
-Unselected siblings still need used-column SELECT but no new UPDATE privilege.
-FROM VALUES aliases have no physical UPDATE/grant requirement. Selection is per
-SQL occurrence, including repeated aliases of the same table. This does not
-require UPDATE on projected/predicate columns. Prepare checks namespace/shape;
-Execute reevaluates current authority, including held prepared statements.
-Sequence row marks first require sequence SELECT and UPDATE privileges; a
-SELECT-only actor receives42501 `permission denied for sequence s` before the
-42809 relation-kind error. With both rights (or owner/superuser authority),
-locking a sequence is still prohibited at Execute. No sequence column-ACL
-alternative is invented, and Prepare checks neither executor ACL nor row-mark kind.
-An unselected sequence sibling of a marked query still rejects42809 during
-reference-rowmark kind validation, without an invented UPDATE requirement,
-tuple grant or latest refresh on it. This is distinct from selecting a sequence
-for a physical rowmark. NOWAIT/SKIP do not weaken any ACL or relation-kind check.
-
-For OF-selected marked view descendants, the extra base UPDATE check uses that
-boundary's current owner, or the original invoker for security_invoker definitions
-even below an ordinary owner view. Stored/inherited occurrence targets combine
-without granting UPDATE requirements to unselected siblings. Named-view checks
-remain unchanged; an ordinary read's stored mark does not invent named-view UPDATE.
-An UPDATE grant on an unprojected live base column suffices. Prepare performs no
-executor ACL checks; Execute rechecks before capture and after view preflight.
-CREATE VIEW stores clauses without executing the body or requiring base SELECT/
-UPDATE. These relation principals never change function/sequence evaluation
-identity. Inner qualification still precedes outer error-producing expressions;
-locking adds no predicate pushdown or security-barrier reorder.
-Schema USAGE is checked during relation lookup, including preparation: qualified
-references to an inaccessible schema fail with `42501` / `permission denied for
-schema public` before column/input binding. Unqualified lookup omits inaccessible
-public, so an otherwise unresolved name fails with `42P01`; implicit pg_catalog
-lookup is preserved. Ordinary table/column ACLs remain execution-time checks:
-SELECT/INSERT/UPDATE preparation does not cache permission, and execution reevaluates
-the current principal, returning `42501` / `permission denied for table secret`
-without synthetic diagnostic object fields. Explicit empty ACLs remove ordinary
-owner use rights, not owner authority or implicit grant options.
-
-Explicit LOCK uses table/view-level ANY alternatives: MAINTAIN, UPDATE, DELETE
-or TRUNCATE permits all eight modes; INSERT permits ACCESS SHARE/ROW SHARE/ROW
-EXCLUSIVE; SELECT permits ACCESS SHARE only. Native table ACL values represent
-MAINTAIN/TRUNCATE on tables/views, never columns/sequences. PUBLIC/default owner
-rights apply, but explicit empty owner ACLs deny use; superusers remain allowed.
-Named view denials say `permission denied for view v`. Bound view sources use
-ordinary-view owner or original security_invoker identity without extra schema
-lookup. Direct sequence LOCK rejects kind before ACL. Public SQL table/column
-GRANT/REVOKE is supported; no public direct ACL mutation API is exposed.
-Shared ACL validation rejects grant options for PUBLIC at mutation, staging and
-import boundaries.
-After successful namespace lookup, parse/binding literal type input and typed
-parameter input precede executor table permission checks, as at PostgreSQL's
-Parse/Bind boundaries.
-Immutable integer assignment casts fold during execution planning, after successful preparation
-but before executor permission checks: out-of-range INT4 constants yield
-`22003` (`integer out of range`), and invalid typed input can yield `22P02`
-before permission denial. Valid nonowner input is denied `42501` without
-mutation; executor checks precede protected row reads and runtime constraints.
-
-ALTER COLUMN TYPE retains owner-only table authority and unchanged table/column
-ACLs. Supported CHECKs are rebound to current destination types and provider/
-attribute identities; subsequent INSERT/UPDATE checks the current definition.
-TYPE validation uses the statement's coherent provider/comment snapshot, not
-fresh per-row metadata. An ALTER CHECK violation identifies Schema/Table/Constraint
-without failing-row Detail; it must not acquire DML's privilege-filtered row
-detail. Explicit-ACL native Dump remains rejected rather than losing grants.
-
-DROP dependency DETAIL preserves object and column identities, PostgreSQL
-relation-name quoting, raw decoded column names and object-identity order
-(not alphabetical description order). Failed batches preserve all roles and
-membership endpoints, including when a later target has an object dependency.
-Owned indexes follow their parent table's shared owner dependency; role DROP
-reports the table rather than redundant index ownership entries.
-Retained identity Rows keep their
-original NAME metadata and values across session switches and native Reset/Restore,
-while new execution observes the current session identity.
-NAME identity results use the same catalog-owned typed values and retained
-snapshots as ordinary NAME columns (builtin OID19, C collation950); stored NAME
-values preserve spelling rather than applying role/identifier normalization.
-
-**Bootstrap divergence from fresh PostgreSQL 18:** canonical native public is
-owned by `pg_database_owner` and has an explicit host-convenience PUBLIC
-USAGE|CREATE ACL; pg_catalog has PUBLIC USAGE only. The CREATE default is not
-PostgreSQL's fresh default and not a generic default-allow. The reference harness recreates public, so ordinary-owner
-fixtures explicitly run `GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC` on
-the privileged PostgreSQL setup connection only.
-
-The dual-mode `TestReferenceRole` family checks direct/prepared aliases and
-diagnostics, NAME metadata, held prepared statements across switches,
-owner/nonowner isolation, distinct trusted authenticators, reuse/replacement,
-dependency failures and owner-preserving native controls.
-`TestReferenceRoleMigratedSmokeControls` preserves the former `TestRoleSmoke`
-owner restoration, legacy control acceptance, failed-Restore atomicity and role
-cleanup assertions; creation/authentication/ACL/opaque connector assertions are
-preserved by the corresponding existing reference families. The obsolete SQL
-smoke copy is removed; its command helper remains for unrelated legacy callers.
-
-Focused nonSQL ACL/unit checks use
-`make check RUN='^Test(Role|Authorization)'`.
-Focused role SQL checks use
-`make check RUN='^TestReferenceRole[A-Za-z0-9_]*$'`
-and `make check REFERENCE=1 RUN='^TestReferenceRole[A-Za-z0-9_]*$'`.
-The true-mode family also selects genuine tagged membership/authority companions.
-Native trusted connectors and PostgreSQL SQL authentication are independent
-public routes, not interchangeable login substitutes.
-Trusted connector admission/opaque-key isolation and same-pool physical
-replacement are cohesive separate definitions:
-`TestReferenceRoleTrustedConnectorAdmissionAndOpaqueIsolation` and
-`TestReferenceRoleTrustedConnectorIsolationAndReplacement`. Session identity
-authentication/forms and held freshness likewise remain selected together by
-`^TestReferenceSessionIdentity[A-Za-z0-9_]*$`, including
-`TestReferenceSessionIdentityFormsAndAuthentication` and
-`TestReferenceSessionIdentityFormsAndFreshness`. These splits retain the complete
-original assertion union rather than replacing lifecycle checks with setup.
-
-Source-consumer phases also retain original identifier DB.Exec/Query/Prepare
-and held statements, pinned prepared role setup, QueryRow identity/sentinel
-reads and Tx.Exec schema boundaries beside recorded Context companions.
-PostgreSQL setup grants the source role the required schema USAGE before testing
-input-versus-permission precedence; a missing relation is not an equivalent
-diagnostic. Register tracked native DROP ROLE only after successful CREATE ROLE;
-native DROP ROLE IF EXISTS remains unsupported. PostgreSQL role removal follows
-fixture/schema teardown. These are original route and cleanup witnesses, not
-new authentication or authority capabilities.
-
-
-## TRUNCATE TABLE authority
-
-Named targets require schema visibility/USAGE and the exact table TRUNCATE use
-right, not DELETE, SELECT, MAINTAIN, REFERENCES, ownership alone or any column
-right. Default owner rights and PUBLIC/inherited memberships apply normally;
-an explicit owner revoke removes use rights, while superusers still bypass ACLs.
-Go Prepare discovers no names or privileges. Execute resolves current names and
-reauthorizes after lock grant and again before atomic staging/publication.
-
-An inherited or partition descendant included only by expansion needs no
-separate table privilege or invented schema lookup. A separately named occurrence
-requires its own TRUNCATE right even if already selected as a descendant.
-Every incoming FK CASCADE member also needs TRUNCATE, and its reached NOTICE
-precedes a possible ACL/activity denial; denial preserves all selected rows.
-CONTINUE IDENTITY needs no sequence privilege and changes no sequence definition,
-generator, cache reservation, currval or lastval. RLS/default/CHECK/generated
-expressions do not filter or evaluate this whole-table operation; denying
-TRUNCATE still denies it when SELECT sees no rows under existing RLS default deny.
-Readonly25006 is checked before target/schema/ACL lookup, including TEMP.
-
-## Schemas and search path
-
-`CREATE SCHEMA name [AUTHORIZATION role]`, authorization-only name inference,
-`IF NOT EXISTS`, `ALTER SCHEMA name RENAME TO name`, `ALTER SCHEMA name OWNER TO role`,
-and comma-list `DROP SCHEMA [IF EXISTS] ... [RESTRICT|CASCADE]` are supported.
-CREATE SCHEMA can contain contiguous CREATE TABLE elements (no intervening
-semicolons). All elements publish atomically and belong to the designated
-schema owner. Other nested commands are not supported. Rename preserves
-identities and storage; RESTRICT leaves dependents intact and CASCADE removes
-the selected namespaces and their contained supported tables.
-Conditional schema notices retain PostgreSQL diagnostics: CREATE IF NOT EXISTS
-uses NOTICE 42P06; DROP IF EXISTS for a missing schema uses NOTICE 00000.
-CREATE TABLE destination errors retain the target's one-based AST character
-position, including an empty effective path and schema CREATE denial.
-
-
-Qualified CREATE TABLE, SELECT and INSERT keep quoted name components distinct.
-`search_path` is a physical-session setting, default `"$user", public`, shared
-by SET/SHOW/RESET/current_setting/set_config. Missing and inaccessible entries
-are skipped, decoded `$user` expands current_user, duplicate namespaces are
-ignored, and pg_catalog is implicit first unless explicitly positioned.
-`SELECT current_schema` and `SELECT current_schema()` return one NAME value,
-NULL when no usable explicit namespace exists. Empty paths still permit
-qualified references but unqualified creation fails 3F000. SQL SET renders each
-string list element as a minimally quoted identifier: `SET search_path TO 'sp1,'`
-stores `"sp1,"`, a single schema name, and `SET search_path TO ''` stores `""`,
-an unusable empty name. Raw `set_config('search_path','',false)` instead stores
-an empty path. Malformed raw identifier lists, such as `set_config` input `sp1,`,
-fail 22023 without changing the previous value. Renaming a schema does not
-rewrite stored search_path text.
-
-New schemas have no PUBLIC rights. Owners have schema USAGE/CREATE; relation
-SELECT/INSERT/UPDATE is independently checked. Qualified creation requires CREATE,
-not USAGE. Unqualified creation chooses the first usable explicit namespace,
-then checks CREATE without fallback. The attached database has real CREATE ACL
-grants, including transactional GRANT/REVOKE and grant-option provenance; trusted
-extension installation consumes that authority. Standalone schema provisioning
-and rename still require effective superuser authority.
-Native public retains the existing PUBLIC USAGE|CREATE convenience divergence.
-Owner transfer updates the schema owner and its explicit ACL, not contained table ownership.
-Changed schema ownership requires the actor's effective CREATE privilege on the
-attached database (or superuser authority), independently of the successor
-SET-role check. It does not require successor database CREATE.
-Same-owner schema no-ops retain the pinned family-specific admission order.
-
-Standalone ordinary-table `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
-requires source USAGE, table ownership (not a schema-owner substitute) and
-destination CREATE. Unlike table rename, it does not require source CREATE;
-destination USAGE is not required. Same-schema no-ops still check CREATE.
-Prepare performs no lookup/authorization/locking and emits no notices. Missing
-conditional sources skip before destination checks. Table and all owned sequences
-publish atomically with unchanged owner/ACL/column ACL identities; dependent
-sequences do not introduce synthetic extra owner checks.
-
-Schema owner transfer also substitutes explicit ACL grantor/grantee ownership
-references and merges colliding grants atomically, without changing retained
-snapshots, unrelated grants or absent versus explicit-empty ACL semantics.
-Held INSERT rebinding from INT4 to TEXT retains its original INT4 input
-parameter and assignment-coerces the value into TEXT on both backends
-(held Exec9 succeeds with text `9`). Native Reset/Restore remints provider
-descriptors without changing that immutable SQL input contract.
-
-Prepared handles retain ASTs and frozen result/parameter signatures. Path
-changes re-resolve; incompatible result rebinding fails0A000 before importing
-parameters or publishing writes, while inputs retain their original SQL types.
-This is not PostgreSQL's complete cached-plan
-invalidation model: unchanged-path shadow creation and cached namespace-USAGE
-caveats are not reproduced. Retained Rows keep original values and metadata
-through rename/drop/Reset/Restore. Explicit transactions reject schema utilities
-before effects. Absent pg_temp references do not allocate; a pending temporary
-creation destination fails 0A000 rather than falling through to public.
-
-Within a native SELECT/INSERT/UPDATE or semantic Prepare, current authorized name
-resolution must equal the exact relation whose AS/RX lock was acquired. If an
-earlier search-path schema gains a same-shaped shadow while acquisition waits,
-native rejects with the ordinary `stuntgres: catalog replaced before publication`
-conflict before returning metadata, importing parameters, reading or writing.
-The caller may submit a new statement; the engine does not retry SQL. This is an
-explicit difference from observed pinned PostgreSQL: direct SELECT/INSERT and
-semantic SELECT Prepare reacquire the new shadow's lock; a warmed held SELECT
-continues using the originally locked relation. Native held handles also reject
-the within-statement mismatch; frozen signatures alone do not authorize an
-unlocked relation. No PostgreSQL outcome is asserted here for held INSERT or
-semantic INSERT Prepare in this shadow-creation sequence.
-
-Dump writes every persistent user schema, including empty schemas, before
-owner-grouped qualified tables and rows. Restore preserves independent schema
-and table owners through private stage-only CREATE TABLE destination authority.
-Private Restore INSERT uses validated bootstrap permission authority without
-stamping owners or changing named owner directives/session identity. Trusted
-replay retains a transient pre-elevation namespace principal for `$user`, including
-its existing view/materialized-view/index/policy/comment consumers; ordinary owner
-and nested CREATE SCHEMA path-prefix semantics remain unchanged. Ordinary SQL
-INSERT retains normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
-Unsupported explicit namespace,
-table or column ACLs fail Dump before any output. Invalid Restore leaves the
-target catalog untouched. Bootstrap-only public dump bytes remain unchanged.
-Feature witnesses: `make check RUN='^TestSchemaSmoke$'`,
-`make check RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$'`
-and `make check REFERENCE=1 RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$'`.
-The migrated families retain resolved namespace/OID identities, NAME raw codecs,
-actual held consumers and owner-bearing native control replay. After dropping a
-peer's selected PostgreSQL role, the full invalid-role-OID record and SAME-peer
-authorization reset are distinct from native retained identity semantics.
-
-## Object ownership and bulk cleanup — change note
-
-`ALTER TABLE`, `ALTER VIEW`, `ALTER MATERIALIZED VIEW`, `ALTER SEQUENCE`,
-`ALTER TYPE`, `ALTER DOMAIN`, `ALTER SCHEMA` and `ALTER COLLATION ... OWNER TO`
-support represented user objects. Ordinary ACL grants are not ownership:
-individual changed-owner authority is inherited owner authority plus ability to
-SET the successor and successor CREATE in the containing schema (superusers
-bypass eligibility). Schema uses the separate actor database gate above.
-Table/view/MV/sequence check owner authority even on same-owner requests;
-type/domain/schema/collation retain their pinned earlier same-owner no-op order.
-
-Transfers rewrite old-owner grantor and grantee references, including explicit
-stable-column ACLs, merging collisions without inventing rights. Indexes,
-row types/arrays, standalone-type arrays/composite backing relations and
-column-owned sequences follow canonical associations in one publication.
-Row-type and associated-array synchronization rewrites ACL ownership once when
-the owner changes; an unchanged owner does not allocate a replacement ACL.
-Inheritance and partition children are independent owners, not recursive targets.
-Rows, type codecs, comments, policies and sequence generator state are preserved.
-Direct catalog mutation remains0A000; direct index/composite backing relation
-mutation retains existing42809 kind guards. Their ownership changes through
-supported parent association handlers, not generic ALTER TABLE side effects.
-
-`REASSIGN OWNED BY role [, ...] TO role` requires INHERIT authority over every
-source and target, not SET-only reachability. It changes source-owned roots only;
-other-object grants and membership provenance remain. Schema/collation and
-registered extension/function/dictionary handlers retain their actual class
-eligibility checks. The attached database is also reassigned; extensions and
-their independently owned members are separate roots. Ownerless text-search
-templates are never assigned an owner. `DROP OWNED BY role [, ...]
-[RESTRICT | CASCADE]` resolves the complete owner union before dependencies.
-The collected group also includes actual source-owned sequence descriptors,
-including column-owned sequences, sole-target policy deletions and source-grantor
-membership deletions. A multi-object group uses the plural dependency refusal.
-Column-owned sequence mutation still follows its parent association handler;
-ACL edits and index/row-type associations do not invent collected owner roots.
-RESTRICT refuses atomically; CASCADE removes actual dependents and constraints
-while preserving surviving rows. Surviving database/object/column/type/namespace grants,
-every matching policy target and unsupported source-grantor membership
-provenance are cleaned in the same fenced publication. Roles and endpoint
-memberships are not themselves dropped. Residual ownership, ACL, policy,
-grantor-membership or registered-feature dependencies still block DROP ROLE;
-native DROP ROLE retains its existing superuser-only boundary.
-Received selected-role ACL rights are removed before checking outgoing grantor
-bits against surviving grant options. Inherited owner options or independent
-inherited options preserve supported downstream grants and their grantor
-DROP ROLE blockers; losing membership alone does not rewrite those ACL rows.
-
-REASSIGN preserves default-policy creator/schema/class keys and record identities;
-successor defaults are not reapplied to existing objects. DROP OWNED deletes every
-selected creator's actual default record, including stored-empty global policies.
-In other creators' records it removes selected recipients' ordinary and option
-bits with selective ACL CASCADE, even under outer RESTRICT. A record disappears
-only at its own baseline: hardwired class ACL globally, explicit empty when scoped.
-Namespace AUTO tombstones take precedence; same-name recreation cannot resurrect
-policies. Actual selected-creator records also enter the collected owner group,
-even if their namespace removes them first; recipient normalization and other
-creators' AUTO removals do not. Default-only cleanup uses the same immutable
-candidate, original-key preflight and atomic catalog/role publication as objects.
-
-Complete creator/recipient source unions remain supported and atomic natively.
-Pinned PostgreSQL18.0 has a bounded release defect when an earlier source queues
-its owned default record and a later selected recipient restores that same record
-to baseline: `XX000 could not find tuple for default ACL N`, where N is the actual
-server record OID. The failed server statement rolls back; native cleanup does not
-imitate the stale queued address. Recipient-first baseline cleanup and owner-first
-cleanup with residual nonbaseline rights succeed on both backends.
-
-Canonical public is not pinned: changed ownership or a rename does not exclude
-it from schema reassignment or RESTRICT/CASCADE cleanup. Actual protected catalog
-namespaces remain excluded. Bulk source protection recognizes the initial
-principal's canonical identity separately from predefined flags or role names;
-ordinary familiar-name roles and other superusers are not thereby protected.
-All source resolution/authority and reassignment-target checks precede protected
-source refusal, which precedes any class mutation or same-source no-op.
-
-`ALTER DATABASE name OWNER TO role|CURRENT_ROLE|CURRENT_USER|SESSION_USER`
-changes only the current attachment: no CREATE/DROP DATABASE, remote database,
-tablespace or parameter-ACL provider is added. The target role is
-resolved before the database name; same-owner requests are no-ops. A changed
-owner needs inherited ownership, successor SET authority and the actor's
-CREATEDB attribute (or superuser authority). DROP OWNED never deletes the
-attached database, but cleans its actual CREATE ACL; residual ownership still
-blocks DROP ROLE. DB CREATE grants and direct sequence OWNER remain transactional;
-direct database OWNER and bulk ownership utilities are autocommit-only.
-Database owner refusals use the raw database name; ordinary privilege refusals
-use its canonical quoted identifier. These are distinct PostgreSQL diagnostics.
-
-Registered extension deletion follows its actual canonical member edges and
-stored-expression dependents. An independently owned member cannot be deleted
-without its extension, even with CASCADE; selecting the complete owner union
-allows actual extension/member cleanup. No public function/dictionary OWNER
-grammar or schema/type GRANT is added. Ownership-only Dump/Reset/Restore preserves
-local named owners and extension/member principals, while retaining destination
-database ownership/CREATE ACL and the existing role graph. Explicit local
-namespace/relation/column ACLs still fail Dump before writer I/O.
-
-Each role snapshot carries its matching immutable catalog, including private
-transaction views. Database-owner changes invalidate existing prepared path
-authority through canonical database identity, not a synthetic role revision.
-SQL publication captures the exact committed database predecessor separately
-from private authority. Finish and outer commit veto a changed predecessor,
-including storage-only stages and saved transaction catalog roots.
-Default-ACL candidate validation, role retirement, symbolic principal remapping
-and table-privilege projection use that same exact catalog/role pairing. Private
-preflight captures one immutable combined view for both default and ordinary ACL
-validation; it does not substitute a live role or catalog fallback.
-Retained default utilities also record their exact committed database predecessor
-through the existing catalog-authority preflight before staging policy changes.
-The selected private catalog authorizes the creator; outer message publication
-vetoes a changed committed owner even without role/session revision changes,
-leaving pending policy and role prefixes unpublished and retained reads intact.
-Retained ordinary relation/column GRANT and REVOKE use the same preflight before
-assigning ACL and pending role candidates. Their database predecessor stays in
-candidate originals, not a completed scope authority stamped before the utility's
-own role revision advance. Immediate utilities remain continuously Engine→Session
-locked; no-op, grantor selection, diagnostics and warning order remain unchanged.
-Added-constraint admission, post-wait recapture and historical foreign-key scans
-pair each substituted private/candidate catalog with the same captured role root.
-The partition-constraint DROP early-return handler captures the same entry
-stage authority before unlocking, including selected private DB identity and its
-exact committed predecessor. Recursive key/index deletion, overlay staging and
-outer publication therefore veto owner-only replacement without installed prefixes.
-Manual sequence CREATE, ALTER (including OWNER), DROP and COMMENT candidates,
-and enum CREATE, carry the same captured statement authority into Finish.
-Successful retained Finish exports its exact committed DB predecessor to the
-owning candidate for outer publication; distinct private DB authority stays valid
-while that predecessor is unchanged. Sequence CREATE captures the authority that
-passed namespace CREATE before OWNED BY releases the engine lock to wait for its
-table. The helper's later role/catalog refresh cannot restamp that earlier check.
-ALTER and COMMENT use their checked post-wait authority; multi-root DROP uses
-its saved post-wait authority. Enum CREATE uses its checked entry authority;
-ALTER ENUM retains its existing object-specific guard. Together with retained
-ordinary GRANT/REVOKE above, these six manual producer groups reuse the existing
-publication fences without another publisher, role revision or authority cache.
-Existing no-op/diagnostic ordering, transaction eligibility, sequence generators,
-physical-session currval/cache memories and enum safety bookkeeping are unchanged.
-
-
-
-
-
-## Ordinary CREATE INDEX authority
-
-CREATE INDEX resolves the target under existing namespace USAGE/search_path
-rules and requires table ownership, even if the caller owns its schema or has
-SELECT/INSERT/MAINTAIN privileges. Ownership is checked before the ordinary
-Share wait and revalidated at grant. Namespace CREATE is separately required
-for the initiating effective role. The index inherits parent schema/owner; its
-name is not created in a different first search_path namespace.
-Prepared handles retain no successful authorization or target snapshot.
-These target checks apply after native read-only and explicit-transaction
-eligibility; excluded explicit CREATE INDEX does not resolve a target or request
-Share. Independent PostgreSQL controls use real GRANT/REVOKE and role changes
-to prescribe owner success, data-grantee/schema-owner denial, namespace CREATE
-denial, fresh held-Prepare authority and ownership rejection before writer waits.
-
-Native Restore's private, authenticated-superuser/import-marker-validated
-destination authority also replays index definitions for independent schema and
-table owners, preserving named owner directives. This does not synthesize grants
-or bypass ordinary CREATE INDEX authority.
-
-
-## Row-security policy definitions — change note
-
-Policy definitions are table metadata, not ACL grants or executable policy
-expressions. Names are unique per table; identical names on different tables
-are independent. CREATE defaults to PERMISSIVE, ALL and PUBLIC. SELECT/DELETE
-policies accept USING only; INSERT policies accept WITH CHECK only; ALL/UPDATE
-accept both. Absent conditions stay absent, including an omitted ALL/UPDATE
-WITH CHECK. ALTER replaces only supplied roles or conditions; rename preserves
-identity and all fields. AS/FOR are fixed until drop/recreate.
-
-CREATE, ALTER and rename require table ownership; existing-policy DROP requires
-relation ownership. Superusers and live inherited owner membership qualify.
-Data grants, schema ownership, CREATEROLE and SET-only membership do not.
-The target uses ordinary namespace USAGE/search_path lookup and an
-AccessExclusive lock. Authority is checked again after a lock wait and at
-publication. Prepare caches neither a target nor successful authority and emits
-no notices; held execution resolves current objects, identities and authority.
-Native read-only execution fails `25006` before lookup; explicit transaction
-policy utilities retain the native `0A000` boundary. PostgreSQL policy DDL is
-transactional.
-
-TO accepts named roles, PUBLIC, CURRENT_USER, CURRENT_ROLE and SESSION_USER.
-Identity forms resolve at execution and store the actual role identities, not
-session-dependent syntax. Duplicate named targets are retained, including
-duplicate role-dependency detail lines. PUBLIC short-circuits later targets:
-when mixed with other targets it emits WARNING `22023`,
-`ignoring specified roles other than PUBLIC`, with Hint
-`All roles are members of the PUBLIC role.` An invalid role encountered before
-PUBLIC still fails. ALTER TO or policy DROP releases superseded target
-dependencies; roles are not serialized or created by Dump/Restore.
-
-Conditions must be Boolean under ordinary shared coercion. Scalar supported
-functions, session-dependent expressions and supported subqueries are stored
-without evaluating conditions or scanning source rows. Aggregates owned by the
-policy frame fail `42803`, including calls syntactically inside a subquery whose
-arguments refer only to the policy frame. Child-local aggregates remain valid;
-signature and same-level nesting errors retain their ordinary precedence.
-Policy-level windows fail `42P20`. Parameters, including nested parameters,
-fail `42P02`. Definition errors use the PostgreSQL policy diagnostic context.
-
-DROP IF EXISTS emits NOTICE `00000` for a missing policy, table or schema;
-a missing policy is skipped before owner checking. Existing-policy DROP still
-requires ownership. **Rename differs:** release18 accepts
-`ALTER POLICY IF EXISTS ... RENAME TO ...`, but its handler does not suppress
-missing-table/policy errors or emit a skipping notice. Selective ALTER does
-not accept IF EXISTS. Rename checks ownership and destination conflicts before
-the old-policy lookup.
-
-Policies have outgoing dependencies on their owning table, used columns and
-represented expression providers, plus shared TO-role dependencies. Dropping
-the owning table removes its policies automatically. Dropping a referenced
-column, external relation/view or represented type/domain/collation/provider
-requires RESTRICT/CASCADE handling; CASCADE removes dependent policies, not
-their surviving owner tables. Dropping a policy leaves its providers intact.
-Relation retirement includes its owned row type and array identities: a policy
-referencing either through a REGTYPE value participates in the same captured
-CASCADE closure, while independent sibling policies and owner data survive.
-Dependency-driven policy removal acquires AccessExclusive on each surviving
-owner table before staging removal; a canceled wait preserves providers,
-policies and rows.
-Relation/column rename retains identities and updates exported spelling.
-Changing the type of a referenced column fails `0A000`,
-`cannot alter type of a column used in a policy definition`.
-Policies are not inherited by child tables.
-
-Dump captures coherent persistent definitions before external writer I/O and
-emits owner-grouped policies after their persistent providers. Restore replays
-parameter-free CREATE POLICY through the real binder and atomic private stage.
-Named owners and target roles must already exist; final installation preserves
-principal provenance rather than adopting a recreated same-name role.
-Trusted private creation authority covers ownership and provider access without
-changing policy TO semantics or caller session identity. CURRENT_USER and
-CURRENT_ROLE resolve to the actual effective stage-session role; SESSION_USER
-resolves to its actual session role. A named SET SESSION AUTHORIZATION directive
-therefore makes all three targets that named owner, not the bootstrap importer.
-Reset removes persistent policies and their dependencies while retaining live
-TEMP policies with their tables. Incompatible live TEMP dependencies prevent
-replacement; persistent policies depending on TEMP objects cannot be exported.
-Failed I/O, binding, cancellation or final authority/provenance checks preserve
-the original catalog. Explicit-ACL Dump remains unsupported.
-Provider-only TEMP policies also fence replacement, even without a relational
-subquery. Persistent domain/collation/sequence and REGTYPE identities cannot be
-silently rebound to same-name replacements. Supported TEMP collation, sequence
-and row-type providers retain their identities through Reset/Restore; TEMP
-domain creation remains outside the native surface.
-
-Policy expressions are not evaluated natively. The BASE flag/default-deny
-contract below uses genuine retained metadata without implementing FILTER/CHECK.
-The original PostgreSQL applicable-USING(TRUE) last-drop companion remains;
-shared BASE last-drop coverage independently exercises native default deny.
-
-## Row-security enablement and default deny — change note
-
-ENABLE/DISABLE and FORCE/NO FORCE ROW LEVEL SECURITY alter two independent
-immutable table flags. FORCE alone does not enable; DISABLE does not clear FORCE
-or remove policies. Flags apply to the named ordinary/partitioned table, not
-children. Owner-authorized AccessExclusive ALTER shares the existing transaction,
-savepoint, cancellation, incarnation and publication fences; no-op ALTER still
-requires authority and the lock. `pg_tables.rowsecurity` is the enabled bit.
-
-Ordinary ACL analysis remains separate and first. Disabled tables are unrestricted
-by RLS. Direct effective superuser/BYPASSRLS principals always bypass, even FORCE;
-membership does not inherit special attributes. Live inherited ordinary-owner
-authority bypasses only without FORCE. Each view layer uses its owner or original
-invoker for both ACL and RLS; current_user/session_user expressions still denote
-the original session actor. Automatically updatable writes retain the physical
-target's per-layer authority. Materialized refresh executes its producer as the
-materialized-view owner; already populated storage is not re-filtered. Named
-partition-parent access uses parent flags, while direct-leaf access uses leaf flags.
-
-Otherwise ALL/matching-command, PUBLIC/live INHERIT role applicability is selected
-from actual policy metadata. A permissive relevant expression is required to
-escape default deny. USING selects existing rows; proposed WITH CHECK falls back
-to USING for ALL/UPDATE only, while SELECT proposed checks use USING. Omitted
-conditions contribute nothing; restrictive-only policies cannot grant access.
-Required classes reflect actual reads/rowmarks/arbiter use as well as mutation.
-A metadata-provable denied conjunct empties that input or rejects that demanded
-proposal without evaluating another same-phase conjunct.
-
-Default-denied relation inputs preserve normal empty-input query semantics
-(count0, outer unmatched rows, scalar NULL), not a blanket empty final result.
-The pinned PostgreSQL planner raises22012 for constant `WHERE 1/0>0` even
-with denied input. Native ordinary arithmetic remains row-owned: that empty
-input returns no rows without evaluating arithmetic. This narrow existing
-phase difference does not suppress errors on demanded rows or change ordinary
-analysis, cast/coercion, preflight or ACL precedence.
-Hidden UPDATE/DELETE rows affect0 and do not evaluate row-dependent predicates,
-assignments or RETURNING. Completed INSERT proposals reject42501
-`new row violates row-level security policy for table "t"` before constraints
-and ON CONFLICT skipping. Empty INSERT SELECT succeeds0. Stored generation/value/
-default preparation precedes proposal checks; missing partition routing remains
-23514 and hides key details only for principals actually subject to RLS.
-TRUNCATE, REFERENCES, uniqueness/integrity validation and raw control storage
-are not row-policy operations.
-
-If every needed group has applicable permissive expressions, Execute fails0A000
-`row-security policy expression enforcement is unsupported` (Severity ERROR,
-unlocalized ERROR, all optional fields empty including Position). This is an
-explicit native capability boundary, not PostgreSQL parity. Even TRUE/FALSE/NULL
-requires enforcement; no constant shortcuts or FILTER/CHECK evaluation exists.
-Prepare never caches a bypass decision. Native held execution consults fresh
-roles/membership/ACLs/ownership/flags; the pinned PG18 fixture independently
-observes that its already-denied plan remains denied through the tested direct
-BYPASSRLS and inherited-owner grants, while genuinely new reads use the grants.
-This bounded cached-plan difference is not a general PostgreSQL security claim.
-Native eager retained Rows/cursors keep old captures; PostgreSQL active cursors
-instead prohibit same-session ALTER55006 until released.
-
-Dump serializes raw protected rows, retained policy definitions and canonical
-nondefault flag ALTERs after all row/policy replay under named owners. Restore
-accepts only these flag actions, not arbitrary ALTER, and atomically preserves
-all four flag combinations. Shared roles/membership are not exported; existing
-explicit-ACL export exclusions remain unchanged.
-
-
-## Foreign-key authority
-
-CREATE REFERENCES requires REFERENCES on the parent table or every selected
-parent column, with ordinary schema lookup/USAGE and child CREATE authority.
-Implicit primary-key references use the actual selected attributes; neither
-table SELECT nor UPDATE is a substitute. Later child INSERT/UPDATE and parent
-UPDATE/DELETE do not recheck REFERENCES or require cross-table SELECT rights.
-Revoking REFERENCES therefore prevents new definitions, not enforcement of an
-existing one. Referential checks retain canonical relation/row grants. Internal
-action assignments/deletions/default providers execute as the affected child
-owner and bypass child RLS enforcement, including FORCE, without changing
-session identities or the initiating parent's ordinary ACL/RLS selection.
-
-23503 and RESTRICT23001 fields identify the referencing schema/table/constraint.
-Top-level reporting uses the original invoker. The key values and labels are
-disclosed only with table SELECT or SELECT on every key column of the violating
-side, and only when RLS does not apply. Otherwise Detail omits labels/values but
-retains the referenced/referencing table; MATCH FULL contains no key values.
-In-action NOT NULL/CHECK/unique/provider errors retain the generated SQL Context;
-local row errors disclose the child owner's full row even with FORCE RLS.
-After-event child FK/MATCH FULL/exclusion/deep RESTRICT errors have no SPI Context.
-Nested child FK reporting uses child-owner rights with ordinary reporting RLS
-applicability: an owner can disclose an unforced key, but FORCE redacts it.
-Enforcement bypass must not leak into that after-event disclosure decision.
-ACL/COMMENT changes after a successful staged command do not retroactively
-invalidate that command's FK proof at Commit.
-
-
-Pending FK import attachments retain their original declaring authority rather
-than the final owner directive or replay permission elevation. The exact creator
-reference, not a post-CREATE lookup under a later/current identity, owns attachment.
-Skipped CREATE IF NOT EXISTS clauses trigger no FK target or schema discovery.
+`OpenConnectorAs` is a trusted host identity assertion, not password
+authentication. It does not parse credentials or change DSN naming. Its role
+argument is an exact decoded stored name. Each physical Connect resolves and
+login-validates that role; admission failures are ordinary Go adapter errors,
+not network SQLSTATE diagnostics. Login and physical connection limits apply to
+new admission. Password metadata and expiry do not authenticate native sessions.
+
+Healthy pool reuse retains selected identity and settings; physical replacement
+starts with the connector's authenticator and captured defaults. Hold `*sql.Conn`
+for principal-specific work. Connectors sharing a Driver and exact opaque DSN
+share data, never session state.
+
+## Immutable role authority
+
+Role attributes are direct stored properties, not inherited copies. Membership
+has independent inheritance, identity-selection and administration authority.
+Live inherited paths supply object privileges and owner authority; identity
+selection follows its own eligible paths. Prepared execution resolves current
+authority rather than caching a successful decision.
+
+Native password metadata uses SCRAM-SHA-256 verifiers with 4096 iterations,
+random 16-byte salt and derived stored/server keys, with PostgreSQL-style
+SASLprep or original-byte fallback. Recognized encoded MD5/SCRAM metadata is
+retained. Expiry uses captured temporal input authority and distinguishes absent,
+finite and infinite values. There is no native password handshake or
+password-encryption/iteration configuration provider.
+
+Role and membership utilities remain excluded from genuine native explicit
+transactions (`0A000`); modifying read-only execution rejects with `25006` before
+lookup. Native role deletion and role comments retain actual-superuser gates,
+not PostgreSQL's broader role-administrator eligibility. Conditional role deletion,
+role rename, role-specific setting defaults and `pg_authid`/`pg_shadow` remain
+excluded. Public role summaries expose direct attributes with masked passwords;
+no inherited attribute flags or password verifier projection is synthesized.
+
+## Predefined role capabilities
+
+The role authority seeds fixed identities. Membership never copies superuser or
+row-security-bypass attributes. Capability checks use the same live inherited
+closure as ordinary ACLs, including held prepared execution.
+
+| Role | Identity | Native boundary |
+| --- | ---: | --- |
+| `pg_checkpoint` | 4544 | No checkpoint mechanism |
+| `pg_create_subscription` | 6304 | No subscription provider |
+| `pg_database_owner` | 6171 | Implicit attached-database owner authority |
+| `pg_maintain` | 6337 | Actual represented maintenance and lock authority |
+| `pg_monitor` | 3373 | Ordinary membership in settings/stats/scan roles |
+| `pg_read_all_settings` | 3374 | Reads existing settings; no protected mutation authority |
+| `pg_read_all_stats` | 3375 | Identity only; no statistics provider |
+| `pg_stat_scan_tables` | 3377 | Identity only; no scan extension/provider |
+| `pg_read_all_data` | 6181 | Represented schema/data read authority |
+| `pg_write_all_data` | 6182 | Represented schema/data write authority |
+| `pg_read_server_files` | 4569 | No filesystem access |
+| `pg_write_server_files` | 4570 | No filesystem writes |
+| `pg_execute_server_program` | 4571 | No command execution |
+| `pg_signal_autovacuum_worker` | 6392 | No workers/PIDs or signal functions |
+| `pg_signal_backend` | 4200 | No backend signaling |
+| `pg_use_reserved_connections` | 4550 | No reserved-slot tier |
+
+The monitor's three initial edges record bootstrap provenance and are revocable;
+Reset/Restore does not reseed them. Database-owner authority follows the actual
+attached-database descriptor without a persisted membership row or invented
+administration option. Predefined roles cannot be retired; failed mixed batches
+publish no changes.
+
+Data-role capabilities grant neither ownership nor grant options and do not
+bypass native row security or protected catalog/provider writes. Maintenance
+rebuilds actual index roots under existing transaction-owned exclusion, not a
+successful no-op or an owner bypass. A granted role name never manufactures
+unavailable server mechanisms.
+
+Canonical native public uses owner identity 6171 and a historical PUBLIC
+USAGE|CREATE convenience ACL, unlike fresh PostgreSQL 18's USAGE-only default.
+Catalog namespaces retain bootstrap ownership. Reset restores canonical local
+metadata but retains the shared role graph; validated imports remap predefined
+owner/ACL identities without importing memberships.
+
+## Membership provenance and publication
+
+Membership identity is `(role, member, grantor)`. Independent origins survive
+revocation of another origin. Existing option updates retain omitted fields;
+changing a role attribute does not rewrite historical edge options.
+Administration traversal is independent of inheritance and identity selection.
+Role/member cycles and administration-support cycles are separate checks.
+
+Every statement mutates one private immutable candidate and publishes once, or
+not at all. Grant target authority uses that evolving candidate; revoke planning
+uses statement-entry authority and original rows across the target list. Recursive
+dependency planning gets fresh actions per recipient. A later mutation of an
+already changed original tuple can fail without publishing the graph. Notices
+already reached remain delivered after a later failure.
+
+Prepared reads check fresh memberships; already returned values and metadata do
+not change. Reset/Restore retains cluster roles and memberships. Dump never
+serializes them and Restore does not import membership utilities.
+
+## Session identity lifecycle
+
+Authenticated identity, session identity and effective relation principal are
+separate authorities. Failed identity switches preserve session state.
+Effective-role selection uses a typed principal-reference journal, not generic
+setting strings. Commit, rollback, savepoints and physical teardown share its
+existing lifetime machinery. Restoration uses already validated references;
+revoked eligibility prevents fresh selection, not rollback/reset restoration.
+
+Native public connectors initially align session and effective identity. The
+internal `SessionStart.Defaults` role hook validates configured startup/reset
+identity before physical publication; it is not a public connector option or a
+generic setting. Identity selection does not apply the target's session defaults.
+Routine security-definer invocation frames are not implemented; definer views
+are not routine frames.
+
+Identity projections use the common typed pipeline and execution-time capture.
+Retained rows keep their original NAME metadata and values. Native host assertion
+is not PostgreSQL authentication, so system authentication identity remains NULL.
+Reset/Restore preserves physical-session identity; Dump exports none of it.
+
+## Table and column ACL authority
+
+All represented relation/column consumers use central ACL authority. Catalog
+ACLs distinguish absent from explicitly empty values, retain independent
+`(grantor, grantee)` origins and stable attribute identities, and merge ownership
+collisions without discarding unrelated grants. Ownership and delegation remain
+separate from ordinary use rights.
+
+Delegation selects one reachable direct option source, not a union from different
+roles. Dependency cleanup selectively removes unsupported origin bits while
+retaining independent support. Whole-table checks do not synthesize a table
+privilege from arbitrary column grants. Dropped attributes cannot authorize a
+live consumer. ACL analysis remains mandatory even for empty sources/results.
+
+Go Prepare performs no utility mutation, object lookup or notice delivery.
+Execute resolves current identities and publishes one catalog candidate. Late
+missing objects, dependency refusal, option errors or cooperative cancellation
+publish no ACL prefix. Reached warnings remain observable. Held prepared readers
+must deny after revocation and resume after regrant on the same handle.
+
+Native rechecks complete binding authority after row/conflict waits; an ACL-only
+descriptor replacement is not physical-storage replacement. A late revoke can
+reject the whole statement, unlike PostgreSQL's admitted-command startup ACL
+decision. Successful statement authority remains valid through commit.
+Namespace and input validation retain their existing phase order before executor
+ACL checks; permission errors do not invent diagnostic object fields.
+
+Explicit relation/column ACLs make Dump fail before writer I/O; Restore does not
+accept their mutation utilities. Reset replaces persistent ACLs while retaining
+roles, membership and live TEMP objects/ACLs. Direct sequence/schema/type/routine
+ACL mutation is not implied by represented table/column authority. Trigger
+privilege metadata does not add a trigger executor.
+
+## Creation-time default policy
+
+Defaults are separate immutable catalog policy, not retroactive object grants.
+Creation providers consume their own class, while generated row types and arrays
+follow canonical parent associations. Ownership transfer rewrites dependent ACL
+origins without consulting successor creation defaults.
+
+Default creator/grantor/recipient references are real role dependencies even
+before object creation. Scoped policy uses stable namespace identity; schema
+retirement removes it and same-name recreation cannot resurrect it. Live TEMP
+materialized ACLs survive replacement, while source TEMP-scoped directives are
+stripped from persistent import projection.
+
+Each operation captures one paired catalog/role authority, mutates one private
+candidate and advances authorization only for a changed publication. Retained
+messages expose earlier private policy to later creation and discard both on
+failure. No routine/large-object creation provider is invented by stored defaults.
+
+Default utilities retain native explicit-transaction exclusions. Dump rejects
+nonbaseline stored policy, including stored-empty or missing-provider records,
+before output. Restore excludes default-policy utilities; Reset clears persistent
+policy while retaining live TEMP materialized ACLs. Native bulk cleanup does not
+imitate PostgreSQL 18.0's stale queued-default-record defect.
+
+The bounded table-privilege information-schema provider uses one coherent
+catalog/roles/actor snapshot. It projects stored origins, not invented inherited
+rows; held statements refresh and returned rows remain stable. Its native NAME
+and VARCHAR transport differs from pq's information-schema carriers.
+
+## Views and operation-local principals
+
+Persistent views retain owner and ACL descriptors. Underlying relation checks
+use each ordinary view's current owner or the original invoker for invoker views,
+even below an outer owner view. Bound base reads do not repeat source-schema
+lookup. Principal substitution never changes session identity or sequence/function
+authority. Held prepared executions recheck live grants and owners.
+
+Materialized refresh evaluates its frozen producer under the materialized-view
+owner with operation-local schema context, restored before caller publication
+fences. Caller privileges cannot rescue denied owner rights. An omitted producer
+needs no source authority or runtime draws.
+
+Isolated Restore uses validated authenticated-bootstrap lookup authority and a
+private import marker/catalog for source occurrences, including post-wait
+revalidation. Imported definitions keep named owners/session identity and use
+current owner/invoker authority on later reads, never retained import elevation.
+
+## Namespace resolution and prepared bindings
+
+Physical-session search-path state and current principal determine authorized
+lookup. Prepared handles retain ASTs and frozen input/result signatures, not
+successful authorization or future data views. Path changes re-resolve; an
+incompatible result binding fails before parameter import or writes. This is not
+PostgreSQL's complete cached-plan invalidation model.
+
+Within a native statement or semantic Prepare, current authorized resolution must
+identify the exact relation whose lock was acquired. A shadow introduced while
+waiting causes `stuntgres: catalog replaced before publication`, before metadata,
+input import or data access. Native does not retry SQL or act on an unlocked
+same-shaped shadow; pinned PostgreSQL may reacquire a differently resolved target.
+
+Schema ownership is separate from contained-object ownership. Native standalone
+schema provisioning/rename remains superuser-gated. Table namespace moves publish
+with owned-sequence associations and unchanged owner/ACL identities atomically.
+Restore preserves independent schema/table owners through private validated
+creation/input authority without synthesizing ACLs. Dump rejects unsupported
+explicit namespace ACLs before any output.
+
+## Ownership and bulk cleanup
+
+Ownership transfer follows canonical roots, row types, arrays, backing relations,
+indexes and column-owned sequences in one publication. Unchanged ownership does
+not allocate replacement ACLs. Independent inheritance/partition children retain
+their own owners. Rows, codecs, comments, policies and generator state survive.
+Direct catalog/backing-object mutation remains excluded.
+
+Bulk reassignment and cleanup preflight complete principal unions and dependencies,
+then install catalog/storage and optional membership candidates together.
+Cleanup includes real default records, selected grant origins and policy role
+references, without retiring roles or all endpoint memberships. Independent
+inherited option support preserves downstream grants and their dependencies.
+The canonical bootstrap principal is protected by identity, not a familiar name;
+canonical public is not pinned against supported ownership cleanup.
+
+The attached database has its own ownership and CREATE ACL authority. It is not
+a multi-database cluster and is never deleted by bulk cleanup. Database ownership
+and most ownership utilities remain autocommit-only; sequence ownership and
+database CREATE ACL changes retain their existing transactional behavior.
+Extension cleanup follows actual member/provider edges, not a generic ownership
+shortcut; independently owned members require the complete extension/member union.
+
+Every role snapshot carries its matching immutable catalog. Publication captures
+the exact committed database predecessor separately from private database
+authority. Finish and outer commit veto an owner-only replacement even with no
+role revision or catalog epoch change. Candidate originals and savepoints retain
+that fence. Manual sequence/enum producers reuse checked entry or post-wait
+authority, never restamp an earlier successful check after refreshing metadata.
+
+## Row-security metadata and enforcement limits
+
+Policies are retained table metadata with real provider, stable-column and role
+dependencies. Their expressions are bound but not evaluated natively. Policy
+mutations use owner authority and the existing exclusive relation lock, rechecking
+after waits and before publication; genuine explicit policy utilities remain
+excluded. Dependency removal locks surviving owner tables before staging and
+removes dependent policies without deleting surviving owner data.
+
+Enablement and force flags are independent immutable table metadata with
+transaction/savepoint/publication fences. Ordinary ACL checks remain separate
+and first. Each view layer uses its owner/original invoker for ACL and row-security
+authority without changing expression session identity. Materialized stored rows
+are not re-filtered. Data-role capabilities do not bypass row security.
+
+Native implements metadata-provable default deny, preserving normal empty-input
+query processing and rejecting demanded write proposals before constraints.
+When applicable permissive expressions require actual enforcement, execution
+fails `0A000`, `row-security policy expression enforcement is unsupported`, even
+for constant expressions. There are no constant shortcuts, filter/check evaluator
+or full PostgreSQL row-policy parity. Held execution recaptures current authority
+and flags; eager results retain their old capture.
+
+Dump captures raw protected rows, persistent definitions and flags coherently;
+Restore stages them under validated authority without changing target-role
+provenance. Named owners and target roles must already exist. Live TEMP policies
+and provider identities fence replacement; same-name provider recreation cannot
+silently rebind them. Failed I/O, binding, cancellation or provenance preflight
+leaves the catalog unchanged. Explicit-ACL export exclusions still apply.
+
+## Foreign-key authority and disclosure
+
+Definition admission captures declaring authority; later enforcement does not
+substitute the final import owner or replay elevation. Existing foreign-key proof
+is not invalidated retroactively by later ACL/comment changes.
+
+Internal child actions run under affected child-owner authority and bypass child
+row-security enforcement without changing initiating session identity or parent
+selection authority. That enforcement bypass must not leak into error-detail
+disclosure: reporting uses its own invoker/child-owner visibility and row-security
+applicability. Key labels/values are withheld where required; generated action
+Context is distinct from after-event diagnostics.
+
+## Testing
+
+Role/authorization mechanics use `make check RUN='^Test(Role|Authorization)'`.
+Public role scenarios use `make check RUN='^TestReferenceRole[A-Za-z0-9_]*$'`
+and the same command with `REFERENCE=1`. Session identity, trusted admission,
+opaque-key isolation, pool replacement, ACL revocation/regrant and failed-Restore
+atomicity are distinct witnesses, not interchangeable authentication routes.
+Schema/path scenarios use `^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$` in
+both modes. See [testing](TESTING.md) and
+[predefined-role oracle contracts](../reference/roles/README.md#predefined-role-oracle-first-contracts).

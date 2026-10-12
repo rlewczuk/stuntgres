@@ -1,6 +1,6 @@
 # Native fixture controls
 
-[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+[README](../README.md) · [Native compatibility limits](DIALECT.md)
 
 ```go
 func Reset(ctx context.Context, db *sql.DB) error
@@ -124,31 +124,18 @@ make check RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$'
 make check REFERENCE=1 RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$'
 ```
 
-Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
-defaults and identity definitions, CREATE SEQUENCE, supported parameter-free
-scalar/default-request INSERT (including integer arithmetic and SYSTEM identity
-override), database-local COMMENT, generated sequence OWNED BY associations,
-numeric/persistence configuration of internal identity sequences, SELECT setval(name,value,is_called),
-and named SET SESSION AUTHORIZATION
-owner directives. Parameters are recursively rejected, and other SQL remains
-excluded. Legacy CREATE/INSERT-only scripts remain bootstrap-owned.
+Restore is restricted logical replay, not arbitrary SQL script execution.
+Parameters are recursively rejected. Only the engine's admitted declaration,
+data, owner-directive and sequence-state replay operations are eligible; live
+settings, transaction controls, shared-role mutation and arbitrary expression
+producers remain excluded. Legacy creation/data-only scripts remain
+bootstrap-owned.
 
-Selected parameter-free btrim/ltrim/rtrim, normalize and is_normalized calls,
-including their already-admitted special forms and nested string concatenation,
-share ordinary scalar execution. Restore validates every argument: arbitrary
-FunctionExpr producers (including random/VOID effects) remain excluded. BOOL
-VALUES use the existing ordinary is_normalized function route, not new IS-predicate
-VALUES syntax. Bad normalization forms reach the shared 22023 provider error,
-and failed imports preserve old data/catalogs and held cursors.
-Stored string DEFAULT/CHECK expressions retain special versus ordinary syntax,
-omitted versus explicit normalization forms, and recursive structural/deparse
-carriers through native replay without evaluating definitions during Dump.
-Ordinary string calls display their resolved TEXT conversions without changing
-runtime arguments; special syntax hides implicit conversions. Explicit-set special
-BYTEA TRIM CHECKs preserve direction and spelling, including nested consumers and
-retained carriers. This does not admit BYTEA DEFAULTs or additional public casts.
-Captured NAME literals inside string arguments retain an explicit admitted NAME
-annotation during replay, rather than becoming unknown literals resolved as TEXT.
+Stored expression reconstruction preserves captured type authority and
+structural carriers without evaluating definitions during Dump. Restore
+validates admitted expressions through the ordinary binder/providers; replay
+does not add new public casts, defaults or expression capabilities. Invalid
+expressions and failed imports preserve old data/catalogs and held cursors.
 
 Referenced roles must already exist in the target engine. Restore captures a private role
 snapshot before input I/O, starts an initialized private catalog, executes through
@@ -200,10 +187,9 @@ are retained. Under UTC-2, PostgreSQL resolves the UTC abbreviation to +02;
 the TIMESTAMP/TIMETZ predicates can therefore reject the same held input.
 Etc/UTC retains the intended fixed-zone conversion. These are distinct runtime
 witnesses, not adapter exceptions or substitutions of one zone for the other.
-Plain TIME AT and NAME[] equality/order remain outside the admitted surface.
-Identity consumers cover all admitted keyword/quoted/qualified call forms and
-actual returned DEFAULT/CHECK copies through authority and ordered/missing paths.
 Native NULL SYSTEM_USER and PostgreSQL SCRAM identity are independent expectations.
+Native capability exclusions remain explicit rather than being inferred from
+successful expression reconstruction.
 Native replay fixtures keep context-sensitive CHECK objects empty, retain literal
 rows in separate default-only objects, then exercise symbolic definitions through
 caller-held post-Restore DML. Replay uses its existing isolated context, not the
@@ -213,11 +199,10 @@ Changed-type default fixtures require a fresh own definition OID, unchanged
 relation/attribute identity and absent old live lookup; eager original metadata
 remains usable. Actual copied default text produces the expected BIGINT value,
 while failed conversion preserves the old definition, type and complete rows.
-Additional metadata witnesses retain signed INT4 minimum constants, typed NULL
-arguments, raw explicit TIME(3) precision, and quote/backslash spelling under both
-standard_conforming_strings settings. Actual copied NUMERIC(2,-1) defaults retain
-149/995 before assignment: 149 rounds to 150; 995 overflows at Execute, with no
-partial row prefix. Native replay asserts the same stored structure and behavior.
+Additional metadata witnesses retain integer boundary constants, typed NULL
+arguments, raw temporal precision and quote/backslash spelling under both
+string settings. Copied sized-numeric defaults retain preassignment values and
+must still fail atomically at execution when assignment overflows.
 Derived pg_constraint/pg_attrdef rows and stateless deparse functions are not dumped.
 Index/view deparse functions likewise have no separate serialized state. Dump
 uses current bound descriptors and canonical replay presentation, not pretty

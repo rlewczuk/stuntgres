@@ -1,6 +1,6 @@
 # Development and verification
 
-[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+[README](../README.md) · [Native compatibility limits](DIALECT.md)
 
 ```sh
 make generate   # pinned parser and Unicode generation
@@ -853,7 +853,7 @@ Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/do
 
 ## Selected regexp function extension
 
-`sqltype.RegexpPlan` binds exactly eight names and all released signatures;
+`sqltype.RegexpPlan` binds the registered regexp providers;
 immutable plans carry concrete usages/collation and selected formal roles.
 Engine `regexpCall` preserves written argument evaluation order independently
 from canonical slots, so named calls deparse correctly without changing semantic
@@ -880,8 +880,9 @@ invariant failure. The existing query binder lifts nested/project/group/window/
 order calls into real stages. Function FROM and dependent joins keep the same
 frame, physical lineage, lock/version and eager-detachment protocols; walkers,
 rewriters, retag/remap, stored validation and deparse must cover both expression
-and logical-node variants. Parser grammar is authoritative; root regenerates
-`grammar_gen.go` before verification. Public proof is the intact dual-mode
+and logical-node variants. PostgreSQL 18 documentation is the SQL syntax
+authority; parser changes must regenerate `grammar_gen.go` before verification.
+Public proof is the intact dual-mode
 `TestReferenceRegexp` union, supplemented by genuine provider/parser/bound-node
 and isolated stage units, never native output as an oracle.
 

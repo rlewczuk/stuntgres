@@ -1,6 +1,6 @@
 # Driver and connection lifecycle
 
-[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+[README](../README.md) · [Native compatibility limits](DIALECT.md)
 
 ## Pinned COPY text streams — change note
 
@@ -12,32 +12,22 @@ connection/stream, foreign or wrapped driver, non-COPY/multiple statements,
 direction mismatch and precanceled context fail without reading or writing.
 Streams remain caller-owned and are never closed.
 
-Use table `COPY ... FROM STDIN`, table `COPY ... TO STDOUT`, or
-`COPY (query) TO STDOUT`. Ordinary Exec/Query/Prepare cannot supply a stream and
-report native0A000 `COPY FROM STDIN requires stuntgres.CopyFrom` or
-`COPY TO STDOUT requires stuntgres.CopyTo`; file and PROGRAM endpoints instead
-report their explicit capability boundary. No filesystem or process
-access is performed. SQL arguments are not interpolated into a second statement.
+Ordinary Exec/Query/Prepare cannot supply a stream and report native `0A000`
+directing the caller to the corresponding helper. File and program endpoints
+remain excluded: no filesystem or process access is performed. SQL arguments
+are not interpolated into a second statement.
 
-Text and modern FORMAT csv support ordered columns, DELIMITER, NULL, DEFAULT
-(FROM only) and HEADER Boolean/MATCH. CSV additionally supports QUOTE/ESCAPE,
-TO FORCE_QUOTE and FROM FORCE_NULL/FORCE_NOT_NULL with named columns or `*`.
-Defaults and identities, generated columns, real type input/output, constraints,
-partition routing, ACLs and publication use existing native authorities.
-See [the bounded dialect](DIALECT.md#copy-text-streams--change-note).
-
-Modern `WITH(FORMAT binary)` uses these same pinned stream helpers, ownership,
+Text, CSV and binary transfers share these pinned stream helpers, ownership,
 atomicity and result contracts; no prepared COPY or protocol server is added.
-Caller bytes are PostgreSQL18 binary COPY data, not ordinary SQL parameter
-encoding. For example `COPY t FROM STDIN WITH(FORMAT binary)` imports a genuine
-header/tuple/field/trailer stream; `COPY (SELECT * FROM t ORDER BY id) TO STDOUT
-WITH(FORMAT binary)` emits deterministic network-order bytes. NULL field length-1
-is distinct from empty length0. After trailer, caller EOF is still required.
+Defaults, identities, generated columns, type input/output, constraints,
+partition routing, ACLs and publication use existing native authorities.
+Caller binary bytes are PostgreSQL 18 COPY data, not ordinary SQL parameter
+encoding. After the binary trailer, caller EOF is still required.
 Typed SELECT/ColumnTypes and held statements see the actual imported state,
 and native Dump/Reset/Restore re-exports it through the same binary providers.
 Nullable domain-element arrays retain the logical element OID; discover that
-identity independently through the existing native `regtype::bigint` SQL surface
-or the PostgreSQL catalog, not a previous binary export. Domain scalar metadata
+identity independently through native type lookup or the PostgreSQL catalog,
+not a previous binary export. Domain scalar metadata
 continues to describe the physical base, while native array metadata uses its
 actual associated array name. Binary NUMERIC special values use the same native
 invariant as text input, including inside ranges and multiranges; wire infinity
@@ -68,10 +58,6 @@ pinned `*sql.Conn`: `database/sql` Raw retains that connection's ownership for
 the entire transfer even while engine mutexes are released. Use independent peer
 connections for concurrent SQL and controls.
 
-CSV example: `COPY t FROM STDIN WITH(FORMAT csv,HEADER MATCH)` imports a
-CSV header followed by rows; `COPY (SELECT * FROM t ORDER BY id) TO STDOUT
-WITH(FORMAT csv,HEADER true,FORCE_QUOTE(value))` exports deterministic rows.
-An unquoted empty field is NULL by default; `""` is an empty string.
 Feature smoke: `make check RUN='^TestReferenceCopyCSVFeatureSmoke$'`;
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceCopyCSVFeatureSmoke$'`.
@@ -95,13 +81,10 @@ Retained anonymous Rows and executing subset cursors are not rewound or disposed
 
 ## Direct SQL messages — change note
 
-Parameterless direct `ExecContext` and `QueryContext` accept multiple statements
-in one SQL string, including semicolons inside quoted text and comments. Empty
-segments are ignored. The entire input is parsed before execution: malformed
-suffix syntax cannot leave prefix effects. Syntactically valid multiple commands
-with direct arguments, Go `Prepare`, or SQL `PREPARE` return ERROR `42601`,
-`cannot insert multiple commands into a prepared statement`, without executing a
-prefix. Prepared handles retain their existing one-command typed parameter frame.
+Direct `ExecContext` and `QueryContext` have a parameterless multi-command route.
+The entire input is parsed before execution: malformed suffixes cannot leave
+prefix effects. Direct calls with arguments and prepared handles retain a
+one-command typed parameter frame and reject batches without prefix execution.
 Native empty/comment-only calls retain their zero-count/empty-row behavior; this
 change does not make the lib/pq empty `Exec` route return a native-style count.
 
@@ -210,130 +193,60 @@ refresh. Its repeatable reference selector is
 
 ## SQL cursors — change note
 
-`DECLARE name [NO SCROLL|SCROLL] CURSOR [WITHOUT HOLD|WITH HOLD] FOR query`
-belongs to one physical session, so use a pinned `sql.Conn` or `sql.Tx`.
-The default and WITHOUT HOLD require a transaction block: an explicit block or a
-retained implicit direct message. WITH HOLD also works in autocommit. DECLARE
-analyzes the complete query and captures its data snapshot and owned parameters
-without producing target values.
-FETCH and MOVE accept NEXT/PRIOR/FIRST/LAST, FORWARD/BACKWARD signed count or ALL,
-ABSOLUTE signed count and RELATIVE signed count
-(cursor counts have an int32 lexical magnitude limit).
-Explicit SCROLL retains execution across EOF and permits reverse/seek motion.
-MOVE returns no schema and reports corresponding FETCH cardinality; finite
-discarded traversal still evaluates targets. Rewind rescans node-specific
-volatile WHERE/VALUES demand but preserves ORDER caches. Volatile targets may
-redraw, including transparent derived/view routes; no universal redraw or
-freezing promise applies. Omitted mode remains conservatively forward-only;
-NO SCROLL rejects actual backward demand/rewind, with pristine/zero MOVE exceptions.
-Top-level SCROLL locking clauses are rejected during analysis; nested row marks
-remain legal. Each successful FETCH publishes a fully eager, detached batch with
-the live cursor's complete schema, including
-empty/exhausted and zero-column results. Ordinary SELECT remains fully eager.
-Blocking sorts, aggregates, joins and views may demand input before a batch;
-there is no universal one-expression-draw-per-returned-row promise.
-Retained derived/filter/limit adapters keep their child's next uncaptured demand
-position when rewind preserves cached occurrences. Re-reading the cached prefix
-does not append it again; actual child invalidation still resets generated demand.
+Named cursors belong to one physical session; use a pinned `sql.Conn` or
+`sql.Tx`, not arbitrary pool calls. Native declaration captures the source
+snapshot and owned parameters without producing target values. Ordinary SELECT
+is fully eager; each successful cursor fetch likewise returns an eager detached
+batch with complete schema, including empty and zero-column results.
+Closing Go Rows or Stmt does not close or rewind the named cursor.
 
-The first effective demand (FETCH, MOVE or creating commit's HOLD materialization)
-captures selected stable identity and statement-time expression data; before-first
-FETCH0 does not start demand. Live FETCH/MOVE and commit demand use fresh
-operation/context, current cancellation/notice/lock policy, original transaction
-authority and sequence acquisition. DECLARE's source snapshot is never rebound
-or reopened. Already returned batches remain immutable after SQL CLOSE,
-transaction/session end or native catalog replacement.
+Live execution retains its query tree and uncaptured demand position. Rewind
+can rescan node-specific volatile input while preserving order caches; there
+is no universal target-freezing, redraw or one-expression-draw-per-row promise.
+The first effective demand captures stable identity and statement-time data.
+Subsequent demand uses fresh operation/context and current cancellation, notice
+and lock policy, but original transaction authority and source snapshot.
+Returned batches remain immutable after cursor close, transaction/session end
+or native catalog replacement.
 
-The final successful live-cursor utility/FETCH publication preflight is its
-completion boundary: later cancellation cannot retract a delivered FETCH batch,
-explicit-transaction DECLARE or completed CLOSE/CLOSE ALL in statement Finish.
-Autocommit HOLD installation alone is not completion: draining and canonical
-transaction publication must finish before DECLARE returns success. Demand or
-prepublication errors expose no partial batch and leave a live producer failed,
-not rewound. Finish advances the command and releases statement admission/resources.
-Ordinary statements and implicit HOLD retain required row/catalog publication.
+Successful live-cursor publication preflight is its completion boundary:
+later cancellation cannot retract a delivered batch or completed session
+utility. Autocommit holdable installation still requires draining and canonical
+transaction publication. Demand/prepublication errors expose no partial batch
+and leave the producer failed, not rewound. Runtime type-input notices belong
+to the current demand operation and its captured filter, never a finished
+declaration operation; previously demanded batches are not replayed or re-warned.
 
-Runtime REGTYPE casts route parser notices and modifier warnings through the
-current demand operation (FETCH, SQL/Go COMMIT, or autocommit DECLARE) and its
-captured `client_min_messages` policy, never a finished DECLARE operation.
-Previously demanded batches are not replayed or re-warned. A TEXT `timestamp(7)` cast emits WARNING/22023
-`TIMESTAMP(7) precision reduced to maximum allowed, 6` when that policy permits it.
-Quiet description, non-demanding explicit DECLARE and before-first FETCH0 emit no runtime warning;
-bounded FETCH does not project an extra row's warning, and EOF emits none.
+Creating commit materializes healthy holdable producers before write publication
+and cleanup. Scrollable producers reuse the same retained tree and restore
+their saved position; this demand can redraw volatile targets. Export preserves
+typed values, schema, cardinality and original epoch, not a source pin, lock,
+operation, context or transaction authority. Promotion is per portal: an
+already exported store can survive a later drain or publication failure.
+Stored reads evaluate no targets, draw no sequences and acquire no query locks.
+Current fetch authority renders catalog identifiers and timezone-sensitive
+values; already delivered batches retain their captured spellings.
+Stored values own their codecs, not a retained declaration catalog.
+Physical session end and explicit owner cleanup release stores; pool return does not.
 
-`CLOSE name` and `CLOSE ALL` dispose named execution. COMMIT, ROLLBACK, CHAIN,
-full abort, PREPARE TRANSACTION detach and physical session end dispose nonholdable
-cursors. Unexported HOLD cursors are also removed by creating rollback/abort.
-ROLLBACK TO removes declarations after its mark but does not rewind older cursor
-motion, undo CLOSE or heal an executing failure. Recovered failed cursors report
-55000 `portal "name" cannot be run`; missing names give34000.
+Cursor metadata preserves native column origin and known/unknown nullability.
+Promotion does not synthesize nullable descriptors or convert typed values to
+text; lib/pq independently reports unknown nullability.
 
-Creating SQL/Go COMMIT (including CHAIN) drains each healthy NO SCROLL HOLD
-producer's unfetched remainder before ON COMMIT actions, write publication and
-transaction cleanup. Explicit SCROLL HOLD instead rewinds the same retained tree,
-materializes its entire typed result and restores the saved ordinal and endpoints,
-even after live EOF. This commit demand can redraw volatile targets; subsequent
-stored FETCH/MOVE only reads captured values through the shared motion owner.
-Export preserves typed values, cardinality, schema and original epoch, not a query
-producer, source pin, lock, operation, context or transaction authority.
-Promotion is per portal: an already exported portal survives a later portal's
-drain failure or final serialization/publication failure even though private
-transaction writes roll back. Subsequent transactions/rollback/PREPARE preserve
-exported names and positions. Stored FETCH performs no target evaluation,
-sequence draw or query lock acquisition. Current FETCH catalog, authorization and
-search_path render typed REGCLASS/REGTYPE values recursively, including arrays,
-domains and composites; rename uses the new name and DROP uses the datum's numeric
-OID. Timezone likewise belongs to current FETCH presentation. Typed values/schema
-own their codecs, not a retained DECLARE catalog; already delivered batches keep
-their captured spellings after later catalog changes. CLOSE, DISCARD ALL and
-physical session end release stores; returning a connection to its pool does not.
+Positioned mutations borrow the live physical occurrence, not projected values
+or a Prepare-time incarnation. They use ordinary DML publication; failure
+exposes no partial writes or returning batch. The native occurrence retains no
+operation, context or projected-value copy. Reset/Restore fences old identities
+instead of refreshing them from equal restored tuples. Detached mutation results
+retain their own values/schema.
 
-Cursor descriptors preserve column origin: catalog columns retain native known
-nullability; computed targets (including NEXTVAL) retain unknown `(false,false)`
-nullability. pq reports unknown nullability for both. Promotion does not synthesize
-nullable descriptors or convert typed values to text.
-
-Direct top-level FOR UPDATE/NO KEY UPDATE/SHARE/KEY SHARE is rejected after query
-analysis with0A000 and Detail `Holdable cursors must be READ ONLY.` Nested and
-stored-view row marks remain supported and release their locks at creating end.
-A healthy unexported HOLD cursor created in the current transaction prohibits
-PREPARE with0A000 `cannot PREPARE a transaction that has created a cursor WITH HOLD`;
-closed, rolled-back-to, failed-after-recovery and previously exported entries do not.
-
-`UPDATE/DELETE WHERE CURRENT OF name` borrows the most recently visited physical
-occurrence of the live eligible cursor, including MOVE, not its projected values or a
-Prepare-time incarnation. FETCH FORWARD 2 positions on its second returned row, and an exact
-bounded last row stays positioned until an actual EOF probe. Positioned mutations
-use ordinary DML publication, never the stage-free cursor completion exception;
-cancellation/output failure exposes no partial writes or RETURNING batch.
-Neither mutation moves/fails a healthy cursor. Repeat DELETE counts zero after
-deletion; repeat UPDATE counts one and uses the latest old values, including
-same-value assignments. Cursor lookup is live at Execute, not captured by Prepare.
-RETURNING metadata comes from target/source analysis independently of FETCH schema.
-After a failed FETCH and savepoint recovery, CURRENT OF uses the executor-lifetime
-24000 diagnostic (`cursor "name" is held from a previous transaction`), also used
-for exported HOLD cursors that no longer have a live physical source, distinct
-from FETCH's55000 portal diagnostic. Missing names continue to give34000.
-The native current occurrence retains no operation, context or projected-value
-copy. Reset/Restore fences old identities rather than refreshing them from equal
-restored tuples; detached FETCH/RETURNING results retain their own values/schema.
-
-NO SCROLL effective backward demand and actual rewind give55000
-`cursor can only scan forward` with the SCROLL hint. Negative BACKWARD is
-effective forward; zero MOVE does not refetch and can succeed on-row.
-FETCH0 on-row performs backward-discard then forward-refetch and requires SCROLL.
-
-Preparing DECLARE analyzes parameters/dependencies but installs nothing;
-preparing FETCH/MOVE/CLOSE performs no movement/name-error lookup. A native held
-FETCH always returns the current entry's actual names/types/values, even after
-same-name replacement or missing-at-Prepare declaration. Only FETCH is exempt
-from ordinary immutable prepared SELECT-result signatures. lib/pq independently
-retains its old wire description: absent descriptions can expose zero-width
-occurrences, and same-width replacements can expose old aliases. Type-changing
-replacement can fail in pq's stale binary decoder; native never emulates that
-corruption. Closing Go Rows or Stmt does not close or rewind the named cursor.
-Dump excludes names, positions and retained query execution; successful native
-Reset/Restore fences the next admitted use rather than recapturing sources.
+Preparing a cursor utility installs nothing and performs no movement.
+Native held fetches return the current entry's actual metadata, including after
+same-name replacement, and are exempt from ordinary immutable prepared-result
+signatures. lib/pq can instead retain stale wire descriptions or fail in its
+decoder after type-changing replacement; native never emulates that corruption.
+Dump excludes names, positions and retained execution. Reset/Restore fences the
+next admitted use rather than recapturing sources.
 
 Feature smoke: `make check RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`.
@@ -345,18 +258,15 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorHoldFeat
 SQL `PREPARE`, `EXECUTE` and `DEALLOCATE` own named definitions in the physical
 session. They are neither database/sql statement handles nor `PREPARE TRANSACTION`.
 Hold a `sql.Conn` (or a `sql.Tx` on that owner) for a named lifecycle: an arbitrary
-pool call may use another physical session. Names use normal identifier folding
-and quoted spelling. Returning and reborrowing the same physical connection
-retains definitions; physical close/replacement clears them without deleting
+pool call may use another physical session. Returning and reborrowing the same
+physical connection retains definitions; physical close/replacement clears them without deleting
 committed database data or a peer session's definitions.
 
-`PrepareContext("PREPARE p(int) AS ...")` describes a utility without resolving
-declarations or analyzing/installing its body. Its first Exec installs the SQL
-name; a second valid Exec reports duplicate42P05. Preparing DEALLOCATE has no
-effect until Exec. Preparing EXECUTE describes the current name's result without
-evaluating actual expressions; an absent name can have an empty description,
-then fail26000 on execution. Native EXECUTE returns its current underlying result
-metadata, rather than emulating lib/pq's stale wire-description decoder behavior.
+Go preparation of a named-definition utility describes it without resolving
+declarations or analyzing/installing the body. Installation/removal occurs only
+at Exec. A named-execution utility describes the current name without evaluating
+actual expressions; execution returns current native result metadata rather than
+emulating lib/pq's stale wire-description decoder behavior.
 Go `Stmt.Close` does not deallocate a SQL name; detached eager Rows remain usable
 after deallocation and physical session end.
 The retained-row witness closes the public driver.Conn inside sql.Conn.Raw,
@@ -365,16 +275,12 @@ database/sql's borrowed-connection close via ErrBadConn while those Rows still
 own that wrapper's release; wrapper close/wait/cancellation is a separate API
 lifetime from the detached engine result.
 
-The wrapper has zero outer adapter parameters. `EXECUTE p($1)` does not bind Go
-arguments to the SQL definition: supplied adapter arguments fail as ordinary Go
-count errors; with no supplied arguments a nonzero-formal target reports42P02
-at `$1`. A zero-formal target ignores SQL actual expressions instead.
+SQL named execution has no outer adapter parameter frame. Go arguments are
+checked against the utility handle, not rebound into the named definition.
 
-Named definitions are session effects, not transactional rows: PREPARE survives
-ROLLBACK/ROLLBACK TO, and those commands do not undo DEALLOCATE. EXECUTE runs the
-underlying statement in the same admission, command clock, snapshot/lock and
-Finish boundary; it inherits normal read-only restrictions, permissions,
-cancellation, statement atomicity and explicit-transaction abort behavior.
+Named definitions are native session effects, independent of private row stages.
+Named execution shares the ordinary admission, command clock, snapshot/lock and
+Finish boundary, including permission, cancellation and atomicity authorities.
 Final session publication preflight protects installation/removal against late
 cancellation, just like cursor session effects. Only successful session utilities
 skip private-stage merging; normal EXECUTE writes still publish normally.
@@ -386,7 +292,6 @@ No executable optimizer-plan or query-data cache is introduced.
 
 Feature family: `make check RUN='^TestReferenceSQLPrepared'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLPrepared'`.
-See [parameter and diagnostic rules](DIALECT.md#sql-prepared-statements--change-note).
 
 ### Prepared catalog and path invalidation
 
@@ -423,9 +328,9 @@ supply fresh result metadata, even for empty results; already returned rows reta
 their prior metadata. No-output DML has no result-shape fence, but RETURNING does,
 and a rejected shape publishes no write effects.
 
-Full invalidation refreshes analyzed temporal scalar/temporal-array literals such
-as TIMESTAMP 'now', plus the supported sequence/regtype group, atomically with the
-analysis identities. Native enum/domain/composite logical captures and arrays
+Full invalidation refreshes analyzed temporal scalar/array literal captures and
+the admitted sequence/regtype capture group atomically with analysis identities.
+Native enum/domain/composite logical captures and arrays
 with catalog-owned leaves preserve their existing immutable identity and lifetime
 semantics, including temporal fields inside those logical compounds; this change
 does not rewrite their embedded leaves or re-input renamed enum spellings.
@@ -463,14 +368,13 @@ BeginTx, SQL BEGIN and AND CHAIN obtain fresh transaction starts. Pin a sql.Conn
 or sql.Tx to observe stability across statements and independent physical peers.
 
 Held statements retain analysis/type contracts, not clock samples. Direct and
-held Execute both start a new command scope. Native prepared autocommit has
-now() = transaction_timestamp() = statement_timestamp(); pq may start a
-transaction at Bind before Execute, so portable extended-protocol assertions use
-now() <= statement_timestamp(). Native does not emulate transport phases.
-clock_timestamp()/timeofday() sample only when demanded. Already-open native rows
-retain values and presentation settings across later commands and native controls.
-Four selected temporal providers export time.Time/TIMESTAMPTZ; timeofday exports
-string/TEXT. Its fixed English six-digit layout is independent of DateStyle.
+held Execute both start a new command scope. Native prepared autocommit shares
+transaction and statement clock samples; pq may
+start a transaction at Bind before Execute. Native does not emulate transport
+phases. Demand-time providers sample only when evaluated. Already-open native
+rows retain values and presentation settings across later commands and controls.
+Native temporal clock outputs use time.Time/TIMESTAMPTZ; textual clock output
+uses string/TEXT with a fixed English six-digit layout independent of DateStyle.
 
 
 ## MONEY transport and prepared signatures
@@ -486,13 +390,12 @@ Inferred MONEY parameters use captured monetary textual input for string,
 owned nonnil bytes, int64 and float64. Bytes are currency text, not binary raw
 minor units; nil and typed-nil bytes are NULL. Held executions refresh captured
 session presentation and parameter frames; Go kinds never resolve operators.
-Use `$1::numeric::money` for exact numeric conversion instead of interpreting
-Go float64 as exact decimal data. Literal input errors keep source character
+Go float64 input is not exact decimal data. Literal input errors keep source character
 Position (including Prepare); bound input errors have no query Position and
 carry the actual `unnamed portal parameter $n = '...'` Context. Arithmetic and
 cast execution errors are not relabeled as parameter input failures.
 Native failed writes/Restore publish no partial state; retained eager values and
-metadata remain owned across Reset/Restore. See [MONEY](TYPES.md#money--change-note).
+metadata remain owned across Reset/Restore. See [MONEY](TYPES.md#scalar-go-values).
 
 ## Timeouts and terminal physical owners
 
@@ -521,7 +424,7 @@ Execute can surface ErrConnDone), so those API errors are not portable SQL
 diagnostic fields. Reference tests separately correlate PID, FATAL, SQLSTATE and
 exact message from bounded public real-container logs. No native wire-protocol
 phases, network service or manufactured pq diagnostics are introduced.
-See [settings runtime rules](SETTINGS.md#timeout-behavior--change-note).
+See [settings runtime rules](SETTINGS.md#timeout-behavior).
 
 ## Enum values and prepared signatures
 
@@ -536,7 +439,7 @@ Context, whereas literal failures retain source character Position.
 Reset/Restore cannot retarget old enum parameter/result signatures by name.
 Current source lookup and argument arity still precede cached-contract guards;
 fresh prepares work and eager precontrol rows/metadata remain owned.
-See [enums](TYPES.md#enums--change-note).
+See [enums](TYPES.md#arrays-composites-enums-and-domains).
 
 ## Composite values and retained row shapes
 
@@ -571,7 +474,7 @@ parameter/result generations see the new shape; previously captured literals
 and stored values map retained attributes and append typed NULL members.
 Held eager cursors retain the old shape and metadata. Reset/Restore cannot remap
 old prepared logical IDs by matching a new spelling; use fresh descriptions.
-See [composites](TYPES.md#composites--change-note).
+See [composites](TYPES.md#arrays-composites-enums-and-domains).
 
 ## Domain values and prepared signatures
 
@@ -597,7 +500,7 @@ Missing targets/columns and arity errors preserve their earlier diagnostics.
 After native Restore, use fresh prepared descriptions; retained eager rows still
 own their old values and metadata. PostgreSQL old-OID cache failures are independent
 oracle controls, not a promised native cache implementation.
-See [domains](TYPES.md#domains--change-note).
+See [domains](TYPES.md#arrays-composites-enums-and-domains).
 
 
 ## Notices and warnings
@@ -616,34 +519,11 @@ defer db.Close()
 WithNoticeHandler returns an immutable copy; nil disables delivery. Configuration
 applies to newly created physical connections only, never other connectors sharing
 the same database. Ordinary sql.Open is silent (no default stderr logging).
-CREATE TABLE IF NOT EXISTS emits NOTICE/42P07 when the exact creation destination
-already exists, leaving its definition and data unchanged. Fresh creation is real
-and silent. Semantic column/type/LIKE validation occurs at execution, after the
-existing relation check; malformed syntax still fails during parsing. An existing
-target skips unknown types, missing LIKE sources and valid but unsupported LIKE
-options, without claiming support for the skipped declaration.
-Current schema CREATE authorization is checked before either creation or an
-existing-relation skip, including a skip after a competing publication. A skip
-does not require ownership or ordinary table privileges and never changes the
-existing owner. Denied CREATE emits no skip notice. Session-authorization
-switching and reset preserve `client_min_messages`; notice-handler connector
-copies preserve the asserted authenticated role.
-Cancellation detected before a same-name publication-conflict decision remains
-an ordinary context error, not duplicate-table failure or successful skipping;
-the winning table remains intact and the canceled loser emits no notice.
-Long application_name emits NOTICE/42622 with original and clipped text.
-Ordinary SQL identifier clipping emits lexical NOTICE/42622 records with the
-original and UTF8-boundary-clipped name, without Position or synthetic Context.
-They are produced while parsing direct commands or preparing statements and use
-the same captured notice filter/delivery route. Executing an already prepared
-statement does not repeat lexical clipping notices.
-
-SET/SHOW client_min_messages uses the same physical settings route, default
-notice. Case-insensitive values are debug5, debug4, debug3, debug2, debug1, log,
-notice, warning, error; debug canonicalizes to debug2 and info is also accepted.
-INFO always passes; errors remain returned errors at every threshold, never
-callbacks. Invalid values return 22023 with an available-values Hint without
-changing the setting. DEFAULT restores the captured physical default.
+Native notice producers use the command's captured filter and delivery route.
+Lexical notices occur during direct parsing or preparation and do not repeat
+when an unchanged prepared statement executes. Connector copies preserve the
+asserted authenticated role. Session-authorization changes preserve the notice
+filter. Errors remain returned errors, never callbacks.
 
 Callbacks run synchronously in producer order after all engine locks and the
 operation lease are released, before command return; payload strings are immutable
@@ -699,13 +579,13 @@ Invalid boolean strings retain the original decoded input in the PostgreSQL `22P
 
 Encoding-input failures (`22021`) carry only the actual parameter index, because decoded parameter text is unavailable. Codec errors on decoded empty text retain ` = ''`; other decoded text retains ` = '...'`.
 
-This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `make check RUN='^TestBooleanDiagnosticsSmoke$'` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; Go test reports the result. The independent pinned-reference fixtures use `make check REFERENCE=1 RUN='^TestReferenceBooleanDiagnostics[A-Za-z0-9_]*$'`; the same RUN with `make check` exercises native without Docker.
-
-Unterminated comments and quoted tokens report PostgreSQL-style English primary messages containing the raw input from the offending opener (`at or near "..."`), with a separate one-based character Position. Newline-separated string segments form one token, so an unterminated later segment points to the first literal opener and includes the continued raw suffix. A zero-length delimited identifier instead includes only its raw `""` token, not trailing SQL. Diagnostic text is not escaped as a Go string; multibyte characters do not turn Position into a byte offset.
-
-INSERT target-resolution and assignment diagnostics interpolate decoded identifiers between literal double quotes, matching PostgreSQL diagnostic prose rather than Go escaping or SQL identifier quoting. The feature smoke includes an embedded-quote column mismatch and checks its exact diagnostic and complete sentinel preservation.
-
-Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source; string-family input rejects NUL/malformedUTF8 with22021 byte diagnostics and the actual `unnamed portal parameter $n` Context without a decoded-value suffix. B/X/N strings remain unsupported; `standard_conforming_strings` is configurable as documented in [session settings](SETTINGS.md). Dumps use ordinary strings, preserving decoded controls and literal backslashes.
+Native diagnostic tests retain value transport, failed-write atomicity and
+Dump/Reset/Restore witnesses; they do not redefine PostgreSQL lexical rules.
+Raw SQL NUL/invalid UTF8 retains native positioned `42601` preflight diagnostics,
+distinct from decoded input failures. Bound text is data, not SQL escape source:
+input rejects NUL/malformed UTF8 with `22021` and actual parameter-index Context,
+without inventing a decoded-value suffix. Parameter annotation never changes
+ordinary Go errors or later expression/preflight conversion errors.
 
 The focused public proof is `make check RUN='^TestStringLiteralsSmoke$'`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 
