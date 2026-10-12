@@ -126,7 +126,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			return 0, err
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
-		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
 		namespace := auth.catalog.state.descriptors[parent.namespace].Name()
 		e.mu.Unlock()
@@ -191,7 +191,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			return err
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
-		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)

@@ -1,0 +1,201 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+// This fixture reuses the real partition/key/storage construction, then drives
+// the actual early-return handler rather than publishing a hand-built drop stage.
+func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ObjectRef, Descriptor, *catalogChanges) {
+	t.Helper()
+	e, unused := partitionConstraintDropPublicationStage(t, true)
+	e.DiscardCatalogStage(unused)
+	roles := cloneRoles(e.roles)
+	actor := PrincipalRef{e, 50000}
+	roles.roles[actor] = RoleDescriptor{Ref: actor, Name: "partition_db_actor", Login: true, Inherit: true, ConnectionLimit: -1}
+	roles.names["partition_db_actor"] = actor
+	e.roles = roles
+	root, leaf := roleTableRef(t, e, "root"), roleTableRef(t, e, "leaf")
+	setup := e.BeginCatalogStage(e.CatalogRead())
+	dbOwner := roles.names["pg_database_owner"]
+	for _, ref := range []ObjectRef{root, leaf} {
+		if err := stageOwnership(setup, setup.base.state.descriptors[ref.Address], dbOwner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !private {
+		if err := stageOwnership(setup, setup.base.state.descriptors[currentDatabaseAddress], actor); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ownershipUnitPublish(t, e, setup)
+	e.DiscardCatalogStage(setup)
+	committed := e.state.descriptors[currentDatabaseAddress]
+	var changes *catalogChanges
+	if private {
+		// Honest predecessor plus a different selected private descriptor. This
+		// tests catalog authority, not SQL admission for transactional DB OWNER.
+		changes = newCatalogChanges()
+		database := *committed.(*databaseDescriptor)
+		database.owner, database.revision = actor, database.revision+1
+		changes.descriptors[currentDatabaseAddress] = &database
+		changes.originals[currentDatabaseAddress] = committed
+	}
+	session, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: actor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		session.RequestEnd(CleanClose)
+		if err := session.WaitEnd(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return e, session, root, committed, changes
+}
+
+func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
+	for _, private := range []bool{false, true} {
+		for _, phase := range []string{"during-stage", "outer-message", "healthy"} {
+			name := map[bool]string{false: "committed", true: "private"}[private] + "/" + phase
+			t.Run(name, func(t *testing.T) {
+				e, session, root, committed, changes := ownershipPartitionConstraintFixture(t, private)
+				message := batchUnitStart(t, session, context.Background())
+				defer message.end(context.Canceled)
+				if private {
+					session.transactions.catalog = changes
+				}
+				auth, err := message.op.Authorization()
+				if err != nil {
+					t.Fatal(err)
+				}
+				actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+				if err != nil || actor.Superuser {
+					t.Fatal("fixture is not an ordinary actor", err)
+				}
+				dbRole := auth.roles.state.names["pg_database_owner"]
+				table := auth.catalog.state.descriptors[root.Address].(*relationDescriptor)
+				if table.owner != dbRole || auth.databasePredecessor != committed || auth.roles.catalog != auth.catalog {
+					t.Fatal("fixture did not capture canonical paired DB authority")
+				}
+				if private && auth.catalog.state.descriptors[currentDatabaseAddress] == committed {
+					t.Fatal("private authority is not distinct from committed predecessor")
+				}
+				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
+					t.Fatal("selected DB owner did not authorize actual partition", err)
+				}
+				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.state.epoch
+				before := indexMaintenanceCapture(e)
+				leaf := roleTableRef(t, e, "leaf").Address
+				rows := append([]rowVersion(nil), e.storage[leaf].versions...)
+				for i := range rows {
+					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+				}
+				if len(rows) != 1 || len(table.uniqueConstraints) != 1 || len(e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 2 {
+					t.Fatal("fixture lacks actual rows or recursive/local keys")
+				}
+				rootKey := table.uniqueConstraints[0]
+				selected := map[ObjectAddress]bool{rootKey.Index: true}
+				for _, key := range e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints {
+					if key.Parent == rootKey.OID {
+						selected[key.Index] = true
+					}
+				}
+				if len(selected) != 2 {
+					t.Fatal("fixture lacks canonical child backing-index association")
+				}
+				replaceDatabase := func() {
+					stage := e.BeginCatalogStage(e.CatalogRead())
+					database := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+					if private {
+						database.owner = actor.Ref
+					} else {
+						database.owner = oldRoles.names["postgres"]
+					}
+					database.revision++
+					if err := stage.Replace(&database); err != nil {
+						t.Fatal(err)
+					}
+					ownershipUnitPublish(t, e, stage)
+					e.DiscardCatalogStage(stage)
+					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.state.epoch != epoch {
+						t.Fatal("DB-only replacement changed unrelated authority")
+					}
+					for address, descriptor := range before.catalog.descriptors {
+						if address != currentDatabaseAddress && e.state.descriptors[address] != descriptor {
+							t.Fatal("DB-only replacement changed target or associated identities")
+						}
+					}
+					before = indexMaintenanceCapture(e)
+				}
+				var checkpoint *rangePartitionPhaseContext
+				if phase == "during-stage" {
+					checkpoint = &rangePartitionPhaseContext{Context: message.op.Context(), target: "(*Engine).ValidateCatalogStage", effect: replaceDatabase}
+					message.op.ctx = checkpoint
+				}
+				syntax := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "root"}}}, Actions: []parser.AlterTableAction{{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "root_key"}, Mode: parser.DropRestrict}}}
+				_, executeErr := message.scope.Execute(syntax, 0, nil)
+				if phase == "during-stage" {
+					if !checkpoint.entered.Load() {
+						t.Fatal("actual handler did not reach post-staging validation checkpoint")
+					}
+				} else {
+					if executeErr != nil {
+						t.Fatal("actual drop candidate could not be staged", executeErr)
+					}
+					candidate := message.scope.catalog
+					if candidate == nil || len(candidate.descriptors[root.Address].(*relationDescriptor).uniqueConstraints) != 0 || len(candidate.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 1 {
+						t.Fatal("actual handler did not stage recursive key/index deletion")
+					}
+					for address := range selected {
+						if descriptor, observed := candidate.descriptors[address]; !observed || descriptor != nil {
+							t.Fatal("actual handler did not stage canonical backing-index tombstone")
+						}
+					}
+					if phase == "outer-message" {
+						if err := message.scope.Finish(nil); err != nil {
+							t.Fatal("statement boundary failed before DB replacement", err)
+						}
+						replaceDatabase()
+					}
+				}
+				err = message.end(executeErr)
+				if phase == "healthy" {
+					if err != nil {
+						t.Fatal("unchanged committed predecessor rejected selected authority", err)
+					}
+					if len(e.state.descriptors[root.Address].(*relationDescriptor).uniqueConstraints) != 0 || len(e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 1 || !reflect.DeepEqual(e.storage[leaf].versions, rows) {
+						t.Fatal("healthy drop changed rows or retained selected keys")
+					}
+					for address, descriptor := range before.catalog.descriptors {
+						index, ok := descriptor.(*relationDescriptor)
+						if !ok || index.sqlIndex == nil {
+							continue
+						}
+						if selected[address] {
+							if e.state.descriptors[address] != nil {
+								t.Fatal("healthy drop retained actual selected backing index")
+							}
+						} else if e.state.descriptors[address] != descriptor {
+							t.Fatal("healthy drop changed independent index identity")
+						}
+					}
+					return
+				}
+				var conflict CatalogConflict
+				if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+					t.Fatal("missing partition constraint DB predecessor veto", err)
+				}
+				indexMaintenanceUnchanged(t, e, before)
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || len(table.uniqueConstraints) != 1 || auth.databasePredecessor != committed || auth.catalog.state.descriptors[root.Address] != table || len(auth.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 2 {
+					t.Fatal("veto mutated retained roles, constraints or storage")
+				}
+			})
+		}
+	}
+}

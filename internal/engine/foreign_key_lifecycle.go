@@ -308,6 +308,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address Obje
 		return err
 	}
 	auth.catalog = view
+	auth.roles.catalog = auth.catalog
 	e := s.op.session.Engine()
 	for _, descriptor := range view.state.descriptors {
 		child, ok := descriptor.(*relationDescriptor)
@@ -389,6 +390,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	e := stage.owner
 	e.mu.Lock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	e.mu.Unlock()
 	for address, descriptor := range stage.descriptors {
 		child, ok := descriptor.(*relationDescriptor)

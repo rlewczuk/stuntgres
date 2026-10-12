@@ -25,6 +25,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		}
 		if err == nil {
 			auth.catalog = f.e.stageRead(stage)
+			auth.roles.catalog = auth.catalog
 		}
 		f.e.mu.Unlock()
 		if err != nil {
@@ -96,6 +97,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = CatalogRead{f.e, state}
+	auth.roles.catalog = auth.catalog
 	auth.state.CurrentUser = f.reader
 	ref := ObjectRef{owner: f.e.owner, Epoch: state.epoch, Address: f.schema}
 	for _, privilege := range []Privileges{UsagePrivilege, CreatePrivilege, UsagePrivilege | CreatePrivilege} {
@@ -126,6 +128,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		candidate.descriptors[f.schema] = &invalidNamespace
 		invalid := auth
 		invalid.catalog = CatalogRead{f.e, candidate}
+		invalid.roles.catalog = invalid.catalog
 		invalid.session = &Session{token: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	}
@@ -138,6 +141,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	ordinary.descriptors[f.schema] = &permanent
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = CatalogRead{f.e, ordinary}
+	ordinaryAuth.roles.catalog = ordinaryAuth.catalog
 	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	foreign := ref
 	foreign.owner = New().owner

@@ -169,7 +169,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		}
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for i := range next {

@@ -231,6 +231,7 @@ package parser
 %token <tok> EXECUTE DEALLOCATE DISCARD
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
+%token <tok> REASSIGN
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 %token <tok> ROLE_PASSWORD ROLE_CONNECTION ROLE_VALID ROLE_ENCRYPTED ROLE_UNENCRYPTED
 %token <tok> INDEX REINDEX
@@ -586,6 +587,8 @@ package parser
 %type <defaultOptions> default_privileges_options
 %type <defaultOption> default_privileges_option
 %type <tok> default_privileges_class
+%type <stmt> alter_owner reassign_owned drop_owned
+%type <tok> ownership_name_word
 %type <roleSpec> membership_role_spec membership_role_name
 %type <roleSpecs> membership_role_specs membership_role_names
 %type <membershipOptions> membership_options membership_option_list
@@ -625,6 +628,7 @@ accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqll
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | truncate_table
  | alter_default_privileges
+ | alter_owner | reassign_owned | drop_owned
  | copy
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
@@ -1376,6 +1380,7 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_rename_single { $$=$1 }
+ | ALTER TABLE rename_target OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"table",Name:$3.Name,IfExists:$3.IfExists,Target:$6,Pos:$1.pos} }
  | alter_schema_single { $$=$1 }
  | alter_rename_single ',' {
      if _,ok:=$1.(*AlterTableRenameConstraint);ok {
@@ -1440,7 +1445,7 @@ drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
  | IF EXISTS name { $$=dropTarget{Name:Identifier{Text:$3.text,Pos:$3.pos},IfExists:true} } ;
 /* EXISTS cannot start an ALTER action: retain it for IF EXISTS lookahead,
  * rather than competing with an unqualified relation literally named if. */
-alter_action: generic_word_without_exists | OWNER | SET ;
+alter_action: generic_word_without_exists | SET ;
 column: name type column_collation nullability { $$ = &Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT %prec TYPE_NAME { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=inputColumnType(sqllex,$1) }
@@ -2159,6 +2164,7 @@ fetch_count: scalar_atom { $$=$1 }
  | '-' NUMBER { $$=LiteralExpr{Value:numberValue($2,"-")} } ;
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST
  | GENERATED | ALWAYS | IDENTITY | OVERRIDING | SYSTEM | VALUE ;
+ownership_name_word: REASSIGN ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
@@ -2168,6 +2174,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | COPY
  | MERGE | MATCHED | SOURCE | TARGET | NOTHING | CONFLICT
  | NAMES
+ | ownership_name_word
  | EXCLUDE
  | cursor_word
  | collation_name_word
@@ -2467,4 +2474,9 @@ extension_option_list: /* empty */ { $$=nil } | extension_option_list extension_
 extension_option: SCHEMA name { $$=ExtensionOption{Name:"schema",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | VERSION extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 extension_version: name | STRING ;
+alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"type",Name:$3,Target:$6,Pos:$1.pos} }
+ | ALTER DOMAIN relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"domain",Name:$3,Target:$6,Pos:$1.pos} }
+ | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} } ;
+reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec { $$=&ReassignOwned{Sources:$4,Target:$6,Pos:$1.pos} } ;
+drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;
 %%

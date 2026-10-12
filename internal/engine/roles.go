@@ -28,7 +28,7 @@ func (e *Engine) initialRole(ctx context.Context, authenticated PrincipalRef, pr
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	roles := RoleRead{e, e.roles}
+	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
 	target, ok := roles.Lookup(name)
 	if !ok {
 		return PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
@@ -203,6 +203,10 @@ func descriptorRoleDependencies(d Descriptor, ref PrincipalRef, deps *[]roleDepe
 	}
 	owner, acl, columns := descriptorACL(d)
 	if owner == ref {
+		if typ, array := d.(*typeDescriptor); array && typ.typ.IsArray() {
+			// Associated array ownership is represented by its parent.
+			return false
+		}
 		// The owner's shared ACL dependencies are represented by ownership.
 		return recordRoleDependency(deps, roleDependency{address: d.Address(), kind: 'o'})
 	}
@@ -315,6 +319,9 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	address.SubID = 0
 	d := view.state.descriptors[address]
 	name := dependencyIdentifier(d.Name())
+	if _, ok := d.(*namespaceDescriptor); ok {
+		name = d.Name()
+	}
 	kind := "schema "
 	switch d.(type) {
 	case *databaseDescriptor:
@@ -325,6 +332,10 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = "function "
 	case *tsDictionaryDescriptor:
 		kind = "text search dictionary "
+	}
+	if d.Kind() == ProcedureObject || d.Kind() == TSDictionaryObject {
+		path, _ := auth.engine.referencePath(auth)
+		name = strings.TrimPrefix(dependencyObject(view, d.Address(), path), kind)
 	}
 	if relation, ok := d.(*relationDescriptor); ok {
 		kind = relationDiagnosticKind(relation) + " "
@@ -338,6 +349,11 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 					break
 				}
 			}
+		}
+		if relation.relationKind == compositeRelation {
+			path, _ := auth.engine.referencePath(auth)
+			typ := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}
 	if typ, ok := d.(*typeDescriptor); ok && (typ.typ.IsUserDefined() || typ.typ.IsArray() && typ.typ.Element().IsDomain()) {

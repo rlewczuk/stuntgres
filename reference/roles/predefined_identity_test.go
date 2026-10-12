@@ -1,10 +1,13 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"github.com/lib/pq"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 func TestReferencePredefinedRoleIdentities(t *testing.T) {
@@ -85,6 +88,49 @@ func TestReferencePredefinedDatabaseOwner(t *testing.T) {
 		s.exec("SET ROLE pg_database_owner")
 		predefinedSelect(s, "SELECT id FROM pdef_owner.t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
 		s.exec("RESET ROLE")
+		name := ownershipDatabaseName(s)
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			for _, q := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "ALTER DATABASE " + pq.QuoteIdentifier(name) + " OWNER TO " + pq.QuoteIdentifier(s.bootstrap)} {
+				if _, err := s.c.ExecContext(ctx, q); err != nil {
+					s.t.Error(err)
+				}
+			}
+		}()
+		s.exec("ALTER DATABASE " + pq.QuoteIdentifier(name) + " OWNER TO pdef_actor")
+		s.actor("pdef_actor")
+		s.exec("ALTER TABLE pdef_owner.t ADD COLUMN successor INT")
+		s.exec("SET ROLE pg_database_owner")
+		predefinedSelect(s, "SELECT id FROM pdef_owner.t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
+		s.exec("RESET ROLE")
+		s.actor("")
+		s.exec("ALTER DATABASE " + pq.QuoteIdentifier(name) + " OWNER TO pdef_plain")
+		s.actor("pdef_actor")
+		predefinedDenied(s, "SET ROLE pg_database_owner", `permission denied to set role "pg_database_owner"`, false)
+		predefinedFailure(s, "SELECT id FROM pdef_owner.t", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema pdef_owner", Position: "16"}, true, "prepare")
+		s.actor("pdef_plain")
+		s.exec("ALTER TABLE pdef_owner.t ADD COLUMN final_owner INT")
+		s.exec("SET ROLE pg_database_owner")
+		predefinedSelect(s, "SELECT id FROM pdef_owner.t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
+		s.exec("RESET ROLE")
+		s.actor("")
+		if s.backend.PG {
+			predefinedSelect(s, "SELECT count(*) FROM pg_auth_members WHERE roleid=6171 OR member=6171", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
+			predefinedSelect(s, "SELECT pg_has_role('pdef_plain','pg_database_owner','MEMBER') AS member,pg_has_role('pdef_plain','pg_database_owner','USAGE') AS inherited,pg_has_role('pdef_plain','pg_database_owner','SET') AS settable,pg_has_role('pdef_plain','pg_database_owner','MEMBER WITH ADMIN OPTION') AS admin", []string{"member", "inherited", "settable", "admin"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, false}})
+		}
+		// Database ownership supplies MEMBER/INHERIT/SET, never ADMIN. Give the
+		// actor CREATEROLE so this refusal isolates the absent ADMIN authority.
+		s.exec("ALTER ROLE pdef_plain CREATEROLE")
+		s.actor("pdef_plain")
+		detail := "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles."
+		if s.backend.PG {
+			detail = `Only roles with the CREATEROLE attribute and the ADMIN option on role "pg_database_owner" may drop this role.`
+		}
+		predefinedFailure(s, "DROP ROLE pg_database_owner", fixture.Diagnostic{Code: "42501", Message: "permission denied to drop role", Detail: detail}, false, "execute")
+		predefinedSelect(s, "SELECT id FROM pdef_owner.t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
+		s.actor("")
+		s.exec("ALTER ROLE pdef_plain NOCREATEROLE")
 	})
 }
 

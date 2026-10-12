@@ -93,7 +93,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	changes := cloneCatalogChanges(s.owner.catalog)
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = s.op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, s.op.session)
 	for _, selected := range s.truncateRelations {
 		ref := selected.ref
 		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)

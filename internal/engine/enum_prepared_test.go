@@ -39,7 +39,9 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	e.mu.Lock()
 	err = e.reownStagedTypeGenerationsLocked(stage)
 	e.mu.Unlock()
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	domainUnitPublish(t, e, stage)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -95,6 +97,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	auth.catalog = e.stageRead(stage)
+	auth.roles.catalog = auth.catalog
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &description)
 	b.queryAuth = &auth
 	node, failure := b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext, expected: typ.Usage()})

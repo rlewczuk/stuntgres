@@ -840,12 +840,23 @@ The readonly projection is derived, not dumped as INSERTs. Its163 fresh native
 rows cover2 namespace,26 scalar type,7 collation and128 conversion release seeds;
 unsupported objects and represented arrays do not acquire invented text.
 Live column comments retain their original attribute numbers through drop,
-rename, supported type changes and schema moves. Existing SCHEMA/SEQUENCE owner
-changes retain their description addresses/text; no TABLE OWNER TO syntax is
-added by this catalog. Canonical Dump names surviving columns;
+rename, supported type changes and schema moves. SCHEMA/SEQUENCE/TABLE owner
+changes retain their description addresses/text. Canonical Dump names surviving columns;
 Restore reconstructs declarations and may remint a historical survivor3 as2
 after middle-column removal. Text and named object relationships round-trip,
 not old allocator OIDs or historical attribute gaps.
+
+### Table ownership groups — change note
+
+`ALTER TABLE ... OWNER TO` transfers the table, parent indexes, row type/array
+and AUTO/INTERNAL owned sequences atomically. Stable columns, ACL provenance,
+comments, defaults, policies, rows and sequence state retain their identity.
+Partition roots, physical leaves and inheritance descendants remain independent:
+changing a parent owner does not recursively change their owners.
+Independent sequences are not swept by similar names. Bulk REASSIGN selects
+exact source-owner roots; DROP OWNED checks the complete union before external
+dependencies and retires real associated identities on success.
+
 
 
 ## Column defaults

@@ -77,7 +77,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		}
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	if backing != (ObjectAddress{}) {
 		index, ok := auth.catalog.state.descriptors[backing].(*relationDescriptor)
 		if !ok {
@@ -112,7 +112,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	grantCatalog := e.state
-	scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: auth.revision, roles: auth.roles.state.revision, ref: ref, descriptor: grantCatalog.descriptors[ref.Address]}
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, grantCatalog.descriptors[ref.Address])
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {

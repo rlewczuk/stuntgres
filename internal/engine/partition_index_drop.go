@@ -188,7 +188,7 @@ func partitionConstraintDropActions(table *relationDescriptor, actions []parser.
 // The caller owns Engine.mu; all exits release it before candidate validation.
 func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *relationDescriptor, syntax *parser.AlterTable) (Result, error) {
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
 	for _, observed := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)

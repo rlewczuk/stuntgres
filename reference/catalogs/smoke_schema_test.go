@@ -314,6 +314,10 @@ func TestReferenceSmokeSchemaSmoke(t *testing.T) {
 				_, err = a.ExecContext(ctx, "DROP SCHEMA renamed")
 				state(err, "2BP01")
 				value(a, "SELECT id FROM renamed.t", nil, 7)
+				command(a, "CREATE SCHEMA private_mixed AUTHORIZATION schema_owner", 0)
+				command(a, "CREATE TABLE private_mixed.t(id INT)", 0)
+				command(a, "ALTER TABLE private_mixed.t OWNER TO table_owner", 0)
+				command(a, "INSERT INTO private_mixed.t VALUES(17)", 1)
 				if !backend.PG {
 					var dump bytes.Buffer
 					if err = stuntgres.Dump(ctx, p.Native, &dump); err != nil {
@@ -322,25 +326,12 @@ func TestReferenceSmokeSchemaSmoke(t *testing.T) {
 					if !strings.Contains(dump.String(), `CREATE SCHEMA "empty_schema" AUTHORIZATION "postgres";`) {
 						t.Fatal(dump.String())
 					}
-					privateScript := dump.String() + "SET SESSION AUTHORIZATION 'postgres'; CREATE SCHEMA private_mixed AUTHORIZATION schema_owner; SET SESSION AUTHORIZATION table_owner; CREATE TABLE private_mixed.t(id INT); INSERT INTO private_mixed.t VALUES(17);"
-					if err = stuntgres.Restore(ctx, p.Native, strings.NewReader(privateScript)); err != nil {
-						t.Fatal(err)
-					}
-					dump.Reset()
-					if err = stuntgres.Dump(ctx, p.Native, &dump); err != nil {
-						t.Fatal(err)
-					}
 					if err = stuntgres.Reset(ctx, p.Native); err != nil {
 						t.Fatal(err)
 					}
 					if err = stuntgres.Restore(ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 						t.Fatal(err)
 					}
-				} else {
-					command(a, "CREATE SCHEMA private_mixed AUTHORIZATION schema_owner", 0)
-					command(a, "CREATE TABLE private_mixed.t(id INT)", 0)
-					command(a, "ALTER TABLE private_mixed.t OWNER TO table_owner", 0)
-					command(a, "INSERT INTO private_mixed.t VALUES(17)", 1)
 				}
 				value(a, "SELECT id FROM renamed.t", nil, 7)
 				value(a, "SELECT id FROM s2.t", nil, 9)

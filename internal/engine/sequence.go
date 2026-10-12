@@ -151,6 +151,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 		return ObjectAddress{}, err
 	}
 	fresh.catalog = e.privateCatalogLocked(changes)
+	fresh.roles.catalog = fresh.catalog
 	*auth = fresh
 	// Keep the captured incarnation, not a replacement now found by name.
 	r, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -213,6 +214,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		auth.catalog = e.privateCatalogLocked(changes)
+		auth.roles.catalog = auth.catalog
 		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
 			e.mu.Unlock()
 			return Result{}, err
@@ -257,6 +259,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
 		d.acl = e.creationACLChangesLocked(changes, auth.catalog, d.owner, d.namespace, defaultSequences)
 		d.attributeHighWater = 3
+		// OWNED BY may refresh auth after waiting for its table. Retain the
+		// authority that actually passed the earlier namespace CREATE check.
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
 		for _, option := range s.Options {
 			if option.Name == "owned" {
 				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
@@ -323,6 +328,16 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return Result{}, err
 		}
+		var ownerTarget PrincipalRef
+		if s.Action == "owner" {
+			ownerTarget, err = schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
+			if err != nil {
+				return Result{}, err
+			}
+			if ownerTarget == old.owner {
+				return Result{}, op.Context().Err()
+			}
+		}
 		changes := cloneCatalogChanges(scope.owner.catalog)
 		state := e.sequenceGeneratorLocked(scope, ref.Address)
 		if state == nil {
@@ -368,13 +383,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			options.persistence = s.Action
 		case "owner":
-			target, err := schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
-			if err != nil {
-				return Result{}, err
-			}
-			if target == d.owner {
-				break
-			}
+			target := ownerTarget
 			if options.owned != (ObjectAddress{}) {
 				a := options.owned
 				a.SubID = 0
@@ -383,7 +392,11 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			actor, _ := auth.roles.Descriptor(auth.state.CurrentUser)
 			if !actor.Superuser {
 				role, _ := auth.roles.Descriptor(target)
-				if target != actor.Ref {
+				allowed, err := auth.roles.canSetRole(actor.Ref, target)
+				if err != nil {
+					return Result{}, err
+				}
+				if !allowed {
 					return Result{}, sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
 				}
 				targetAuth := auth
@@ -408,6 +421,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// pg_temp may stage a namespace. Resolve permissions and endpoints
 			// against that same private catalog, without publishing on rejection.
 			auth.catalog = e.privateCatalogLocked(changes)
+			auth.roles.catalog = auth.catalog
 			if err = auth.CheckCreate(ns); err != nil {
 				return Result{}, err
 			}
@@ -447,6 +461,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				m.remaining = 0
 			}
 		}
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
 		scope.catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
@@ -513,7 +528,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	// Every stored-expression owner shares one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.catalog)
-	checkStage.authSession, checkStage.authRevision, checkStage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	checkStage.authorizeLocked(auth, scope.op.session)
 	defer e.DiscardCatalogStage(checkStage)
 	checkStage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {
@@ -589,6 +604,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		targets = append(targets, address)
 	}
 	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.state, targets: targets})
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil

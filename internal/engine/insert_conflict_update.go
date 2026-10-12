@@ -196,6 +196,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ObjectRef, candi
 		return rowVersion{}, nil, "", false, err
 	}
 	auth.catalog = catalog
+	auth.roles.catalog = auth.catalog
 	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return rowVersion{}, nil, "", false, err
 	}

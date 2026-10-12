@@ -245,6 +245,16 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	if err != nil {
 		return err
 	}
+	var ownerTarget PrincipalRef
+	if s.Action == "owner" {
+		ownerTarget, err = schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
+		if err != nil {
+			return err
+		}
+		if ownerTarget == d.owner {
+			return nil
+		}
+	}
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.Address()}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
@@ -291,30 +301,10 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.namespace = dest.Address
 	case "owner":
-		target, err := schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
-		if err != nil {
+		if err = ownershipEligibility(auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-		if err != nil {
-			return err
-		}
-		if !actor.Superuser && target != d.owner {
-			allowed, err := auth.roles.canSetRole(actor.Ref, target)
-			if err != nil {
-				return err
-			}
-			if !allowed {
-				role, _ := auth.roles.Descriptor(target)
-				return sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
-			}
-			targetAuth := auth
-			targetAuth.state.CurrentUser = target
-			if err = targetAuth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: d.Namespace()}); err != nil {
-				return err
-			}
-		}
-		next.owner = target
+		next.owner = ownerTarget
 	}
 	key := descriptorNameKey(&next)
 	if a := stage.lookupName(key); a != (ObjectAddress{}) && a != d.Address() {

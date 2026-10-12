@@ -607,7 +607,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		base := auth.catalog
 		stage := e.BeginCatalogStage(base)
-		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexOutput = scope.output
 		err = stage.Create(d)
 		if err == nil && parent.partition != nil {

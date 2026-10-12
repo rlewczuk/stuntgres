@@ -138,7 +138,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		next.defaults[attr] = definition
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if original == nil {

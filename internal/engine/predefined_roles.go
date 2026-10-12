@@ -46,11 +46,11 @@ func (e *Engine) initializeRoles() {
 	e.nextPrincipal = lastPredefinedRoleID + 1
 }
 
-// This rule is database-local and never materialized as a grantable edge. The
-// bounded single-engine database owner is the bootstrap principal, not a DSN or
-// whichever actor happens to be current_user.
+// The implicit hop belongs to this retained database catalog, never a live
+// Engine lookup or a persisted grantable edge. Explicit traversal may reach it.
 func (r RoleRead) implicitDatabaseOwner(member PrincipalRef) PrincipalRef {
-	if member == (PrincipalRef{r.owner, bootstrapPrincipalID}) {
+	d, ok := r.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	if ok && member == d.owner {
 		return PrincipalRef{r.owner, databaseOwnerRoleID}
 	}
 	return PrincipalRef{}

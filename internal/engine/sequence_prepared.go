@@ -24,6 +24,7 @@ type sequencePathKey struct {
 	epoch                CatalogEpoch
 	temp, prefix         ObjectAddress
 	private              *catalogChanges
+	database             Descriptor
 }
 type sequencePathCache struct {
 	valid       bool
@@ -32,7 +33,7 @@ type sequencePathCache struct {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
-	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roles.state.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix}
+	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roles.state.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.state.descriptors[currentDatabaseAddress]}
 	if auth.session != nil && auth.session.transactions != nil {
 		key.private = auth.session.transactions.catalog
 	}

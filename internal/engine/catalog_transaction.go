@@ -214,7 +214,8 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.roles != nil {
 		roles = c.roles
 	}
-	if err := validateDefaultACLs(RoleRead{e, roles}, e.privateCatalogLocked(c)); err != nil {
+	read := RoleRead{e, roles, e.privateCatalogLocked(c)}
+	if err := validateDefaultACLs(read, read.catalog); err != nil {
 		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {
@@ -286,11 +287,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			roles := e.roles
-			if c.roles != nil {
-				roles = c.roles
-			}
-			if err := validateACL(RoleRead{e, roles}, d); err != nil {
+			if err := validateACL(read, d); err != nil {
 				return err
 			}
 		}

@@ -127,6 +127,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			name := ownedSequenceName(table.name, table.columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
 				auth.catalog = read
+				auth.roles.catalog = auth.catalog
 				ns, err := e.creationNamespace(auth, explicit)
 				if err != nil {
 					return err

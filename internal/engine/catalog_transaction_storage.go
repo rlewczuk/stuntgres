@@ -28,12 +28,18 @@ type catalogDependencyObservation struct {
 }
 
 type catalogAuthority struct {
-	session              *Session
-	authorization, roles uint64
-	ref                  ObjectRef
-	descriptor           Descriptor
+	session                                *Session
+	authorization, roles                   uint64
+	ref                                    ObjectRef
+	descriptor                             Descriptor
+	databaseAuthority, databasePredecessor Descriptor
 	// Immutable consulted providers captured by the statement's catalog stage.
 	observations []Descriptor
+}
+
+// Caller holds Engine.mu; never derive entry authority from a later live view.
+func (v AuthorizationView) catalogAuthorityLocked(ref ObjectRef, descriptor Descriptor) *catalogAuthority {
+	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roles.state.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.state.descriptors[currentDatabaseAddress], databasePredecessor: v.databasePredecessor}
 }
 
 // Statement authority expires at successful Finish, never at outer Commit.
@@ -45,6 +51,17 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 	}
 	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.state.descriptors[a.ref.Address] != a.descriptor {
 		return CatalogConflict{}
+	}
+	if a.databasePredecessor != nil {
+		if e.state.descriptors[currentDatabaseAddress] != a.databasePredecessor {
+			return CatalogConflict{}
+		}
+		if c != nil {
+			if original, ok := c.originals[currentDatabaseAddress]; ok && original != a.databasePredecessor {
+				return CatalogConflict{}
+			}
+			c.originals[currentDatabaseAddress] = a.databasePredecessor
+		}
 	}
 	for _, observed := range a.observations {
 		address := observed.Address()

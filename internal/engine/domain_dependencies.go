@@ -113,7 +113,29 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			if _, removed := stage.removals[a]; removed {
 				continue
 			}
+			if target.ClassID == NamespaceClassID && descriptor.Namespace() == target && ownershipRoot(stage.base, descriptor) {
+				edge := domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(stage.base, a, stage.dependencyPath)}
+				edge.relation, _ = descriptor.(*relationDescriptor)
+				direct = append(direct, edge)
+				continue
+			}
 			switch d := descriptor.(type) {
+			case *extensionDescriptor:
+				if d.targetNamespace == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(stage.base, a, stage.dependencyPath)})
+				}
+			case *procedureDescriptor:
+				if d.extension == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
+				}
+			case *tsDictionaryDescriptor:
+				if d.extension == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
+				}
+			case *tsTemplateDescriptor:
+				if d.extension == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
+				}
 			case *typeDescriptor:
 				if d.typ.IsDomain() && usageDependsOn(d.typ.DomainBase(), target) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(stage.base, d, stage.dependencyPath)})
@@ -265,7 +287,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			seen[edge.address] = true
 			resultSlots[edge.address] = len(result)
 			result = append(result, edge)
-			if edge.address.ClassID == TypeClassID || edge.address.ClassID == RelationClassID {
+			if edge.address.ClassID == TypeClassID || edge.address.ClassID == RelationClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID {
 				if err := visit(edge.address, root); err != nil {
 					return err
 				}
@@ -425,7 +447,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if !slices.Contains(targets, edge.target) {
 			targets = append(targets, edge.target)
 		}
-		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
+		if edge.address.ClassID == TypeClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
 			targets = append(targets, edge.address)
 			if edge.address.ClassID == RelationClassID && edge.address.SubID == 0 {
 				seen[edge.address] = true
@@ -597,7 +619,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	}
 	e.mu.Lock()
 	for _, target := range targets {
-		if target.ClassID == TypeClassID || target.ClassID == CollationClassID {
+		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
 			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
 				break
 			}

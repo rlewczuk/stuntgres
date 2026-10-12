@@ -130,7 +130,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		return Result{}, ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(caller.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, caller.revision, caller.roles.state.revision
+	stage.authorizeLocked(caller, scope.op.session)
 	stage.querySources = scope.materializedSources
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value

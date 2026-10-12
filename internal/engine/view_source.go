@@ -78,6 +78,8 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		default:
 			catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
+		roles := scope.commentRoles
+		roles.catalog = catalog
 		if d.address.ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
@@ -85,16 +87,17 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 				return nil, err
 			}
 			auth.catalog = catalog
+			auth.roles.catalog = auth.catalog
 			source, err := capturePGIndexes(ctx, catalog, auth, ref, d)
 			e.mu.Unlock()
 			return source, err
 		}
 		if d.address.ObjectID == 12006 {
-			source, err := e.captureTableViewSummary(ctx, catalog, scope.commentRoles, ref, d, viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+			source, err := e.captureTableViewSummary(ctx, catalog, roles, ref, d, viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
 			e.mu.Unlock()
 			return source, err
 		}
-		source, err := e.captureCatalogSourceLocked(ctx, catalog, scope.commentRoles, ref, d)
+		source, err := e.captureCatalogSourceLocked(ctx, catalog, roles, ref, d)
 		e.mu.Unlock()
 		return source, err
 	case sequenceRelation:
@@ -151,6 +154,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced

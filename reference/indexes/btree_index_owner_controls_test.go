@@ -37,12 +37,15 @@ func TestReferenceBtreeIndexDistinctOwnerControls(t *testing.T) {
 					}
 					run(fixture.Exec("CREATE USER index_schema_owner", 0))
 					run(fixture.Exec("CREATE USER index_table_owner", 0))
-					const seed = `CREATE SCHEMA s AUTHORIZATION index_schema_owner; SET SESSION AUTHORIZATION index_table_owner; CREATE TABLE s.t(n INT,s TEXT); INSERT INTO s.t VALUES(2,'b'),(NULL,NULL),(2,'b'); CREATE INDEX idx ON s.t(n DESC NULLS LAST,s ASC NULLS FIRST);`
+					for _, query := range []string{"CREATE SCHEMA s AUTHORIZATION index_schema_owner", "CREATE TABLE s.t(n INT,s TEXT)", "CREATE INDEX idx ON s.t(n DESC NULLS LAST,s ASC NULLS FIRST)", "ALTER TABLE s.t OWNER TO index_table_owner"} {
+						run(fixture.Exec(query, 0))
+					}
+					run(fixture.Exec("INSERT INTO s.t VALUES(2,'b'),(NULL,NULL),(2,'b')", 3))
+					if backend.PG {
+						run(fixture.Exec("GRANT USAGE ON SCHEMA s TO index_table_owner", 0))
+					}
 					var dump bytes.Buffer
 					if !backend.PG {
-						if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(seed)); err != nil {
-							t.Fatal("trusted split-owner replay", err)
-						}
 						if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 							t.Fatal(err)
 						}
@@ -53,31 +56,20 @@ func TestReferenceBtreeIndexDistinctOwnerControls(t *testing.T) {
 						}
 					}
 					for round := range 2 {
-						if backend.PG {
-							if round != 0 {
-								run(fixture.Exec("DELETE FROM s.t WHERE n=3", 1))
-							}
-							run(fixture.Exec("DROP SCHEMA IF EXISTS s CASCADE", 0))
+						if backend.PG && round != 0 {
+							run(fixture.Exec("DELETE FROM s.t WHERE n=3", 1))
+							run(fixture.Exec("DROP SCHEMA s CASCADE", 0))
 							run(fixture.Exec("CREATE SCHEMA s AUTHORIZATION index_schema_owner", 0))
-							if round == 0 {
-								// Incoming PG witness creates as bootstrap, then transfers ownership.
-								run(fixture.Exec("CREATE TABLE s.t(n INT,s TEXT)", 0))
-								run(fixture.Exec("INSERT INTO s.t VALUES(2,'b'),(NULL,NULL),(2,'b')", 3))
-								run(fixture.Exec("CREATE INDEX idx ON s.t(n DESC NULLS LAST,s ASC NULLS FIRST)", 0))
-								run(fixture.Exec("ALTER TABLE s.t OWNER TO index_table_owner", 0))
-								run(fixture.Exec("GRANT USAGE ON SCHEMA s TO index_table_owner", 0))
-							} else {
-								// Original PG counterpart creates under the table owner's authority.
-								run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA s TO index_table_owner", 0))
-								run(fixture.Exec("SET SESSION AUTHORIZATION index_table_owner", 0))
-								defer reset(p.Ctx, "RESET SESSION AUTHORIZATION")
-								run(fixture.Exec("CREATE TABLE s.t(n INT,s TEXT)", 0))
-								run(fixture.Exec("INSERT INTO s.t VALUES(2,'b'),(NULL,NULL),(2,'b')", 3))
-								run(fixture.Exec("CREATE INDEX idx ON s.t(n DESC NULLS LAST,s ASC NULLS FIRST)", 0))
-								run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-								run(fixture.Exec("REVOKE ALL ON SCHEMA s FROM index_table_owner", 0))
-							}
-						} else {
+							// Preserve the second-round independent actor/ACL authority.
+							run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA s TO index_table_owner", 0))
+							run(fixture.Exec("SET SESSION AUTHORIZATION index_table_owner", 0))
+							defer reset(p.Ctx, "RESET SESSION AUTHORIZATION")
+							run(fixture.Exec("CREATE TABLE s.t(n INT,s TEXT)", 0))
+							run(fixture.Exec("INSERT INTO s.t VALUES(2,'b'),(NULL,NULL),(2,'b')", 3))
+							run(fixture.Exec("CREATE INDEX idx ON s.t(n DESC NULLS LAST,s ASC NULLS FIRST)", 0))
+							run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
+							run(fixture.Exec("REVOKE ALL ON SCHEMA s FROM index_table_owner", 0))
+						} else if !backend.PG {
 							if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 								t.Fatal(err)
 							}

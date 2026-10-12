@@ -1,0 +1,270 @@
+package engine
+
+import (
+	"context"
+	"database/sql/driver"
+	"errors"
+	"reflect"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+// Reuse the ownership roles and real sequence constructor, not a mock stage.
+// Only the selected database descriptor supplies the source-owner privilege;
+// the separate SET-only edge supplies successor eligibility, not source INHERIT.
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ObjectRef, PrincipalRef, Descriptor, *catalogChanges) {
+	t.Helper()
+	e, bootstrap, actor, target, reader := ownershipUnitRoles()
+	roles := cloneRoles(e.roles)
+	ordinary := roles.roles[actor]
+	ordinary.Login, ordinary.ConnectionLimit = true, -1
+	roles.roles[actor] = ordinary
+	roles.edges = append(roles.edges, Membership{Role: target, Member: actor, Grantor: bootstrap, Set: true})
+	e.roles = roles
+	for _, query := range []string{
+		"CREATE SEQUENCE ownership_fence_seq START 40 CACHE 3",
+		"CREATE SEQUENCE ownership_fence_other START 100",
+		"CREATE TABLE ownership_fence_sentinel(v INT PRIMARY KEY)",
+		"INSERT INTO ownership_fence_sentinel VALUES(7)",
+	} {
+		ownershipUnitExec(t, e, query)
+	}
+	ref := roleTableRef(t, e, "ownership_fence_seq")
+	setup := e.BeginCatalogStage(e.CatalogRead())
+	dbRole := roles.names["pg_database_owner"]
+	sequence := *setup.base.state.descriptors[ref.Address].(*relationDescriptor)
+	sequence.owner = dbRole
+	sequence.acl = ACLValue{Explicit: true, Entries: []ACLEntry{
+		grantUnitEntry(dbRole, dbRole, UsagePrivilege|SelectPrivilege|UpdatePrivilege, 0),
+		grantUnitEntry(dbRole, reader, UsagePrivilege, 0),
+		grantUnitEntry(bootstrap, reader, SelectPrivilege, 0),
+	}}
+	sequence.revision++
+	if err := setup.Replace(&sequence); err != nil {
+		t.Fatal(err)
+	}
+	// The successor genuinely owns the containing namespace. It does not
+	// inherit pg_database_owner, and neither actor nor successor is superuser.
+	if err := stageOwnership(setup, setup.base.state.descriptors[sequence.namespace], target); err != nil {
+		t.Fatal(err)
+	}
+	sentinel := roleTableRef(t, e, "ownership_fence_sentinel")
+	if err := stageOwnership(setup, setup.base.state.descriptors[sentinel.Address], actor); err != nil {
+		t.Fatal(err)
+	}
+	if !private {
+		if err := stageOwnership(setup, setup.base.state.descriptors[currentDatabaseAddress], actor); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ownershipUnitPublish(t, e, setup)
+	e.DiscardCatalogStage(setup)
+	committed := e.state.descriptors[currentDatabaseAddress]
+	var changes *catalogChanges
+	if private {
+		// Honest installed predecessor, distinct selected owner-private authority;
+		// this is the package overlay seam, not new database SQL admission.
+		changes = newCatalogChanges()
+		database := *committed.(*databaseDescriptor)
+		database.owner, database.revision = actor, database.revision+1
+		changes.descriptors[currentDatabaseAddress] = &database
+		changes.originals[currentDatabaseAddress] = committed
+	}
+	session, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: actor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		session.RequestEnd(CleanClose)
+		if err := session.WaitEnd(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return e, session, ref, target, committed, changes
+}
+
+func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
+	for _, private := range []bool{false, true} {
+		for _, phase := range []string{"before-statement-finish", "outer-message", "healthy"} {
+			name := map[bool]string{false: "committed", true: "private"}[private] + "/" + phase
+			t.Run(name, func(t *testing.T) {
+				e, session, ref, target, committed, changes := ownershipSequenceFenceFixture(t, private)
+				message := batchUnitStart(t, session, context.Background())
+				defer message.end(context.Canceled)
+				if private {
+					session.transactions.catalog = changes
+				}
+				auth, err := message.op.Authorization()
+				if err != nil {
+					t.Fatal(err)
+				}
+				actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+				if err != nil || !actor.Login || actor.Superuser || auth.roles.state.roles[target].Superuser {
+					t.Fatal("fixture is not an ordinary login actor and successor", err)
+				}
+				dbRole := auth.roles.state.names["pg_database_owner"]
+				old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				selectedDB := auth.catalog.state.descriptors[currentDatabaseAddress]
+				if old.owner != dbRole || old.owner == actor.Ref || selectedDB.(*databaseDescriptor).owner != actor.Ref || auth.databasePredecessor != committed || auth.roles.catalog != auth.catalog {
+					t.Fatal("fixture lacks canonical paired selected DB ownership authority")
+				}
+				if private && selectedDB == committed {
+					t.Fatal("private authority is not distinct from its exact committed predecessor")
+				}
+				for _, edge := range auth.roles.state.edges {
+					if edge.Role == dbRole && edge.Member == actor.Ref {
+						t.Fatal("explicit membership bypasses implicit database ownership")
+					}
+				}
+				if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+					t.Fatal("selected database owner cannot own actual sequence", err)
+				}
+				if allowed, err := auth.roles.canSetRole(actor.Ref, target); err != nil || !allowed {
+					t.Fatal("successor is not SET eligible", err)
+				}
+				targetAuth := auth
+				targetAuth.state.CurrentUser = target
+				if err := targetAuth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
+					t.Fatal("successor lacks actual namespace CREATE", err)
+				}
+				retainedACL := ACLValue{Explicit: old.acl.Explicit, Entries: append([]ACLEntry(nil), old.acl.Entries...)}
+				retainedOptions := *old.sequence
+				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.state.epoch
+				originalCatalog := e.state
+				// A real nontransactional draw must survive rollback without another
+				// draw, cache reset, generator replacement or currval change.
+				result, err := message.step(statement(t, "SELECT nextval('ownership_fence_seq')"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				values := tuples(result)
+				result.Rows.Close()
+				if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) {
+					t.Fatal("actual sequence draw", values)
+				}
+				generator := e.sequences[ref.Address]
+				generatorValue := *generator
+				memory := session.sequences[ref.Address]
+				memoryValue, lastSequence := *memory, session.lastSequence
+				if !generator.called || generator.last != 42 || !memory.valid || memory.value != 40 || memory.remaining != 2 {
+					t.Fatal("fixture lacks actual reserved counter/currval/cache state")
+				}
+				// A substantive retained prefix proves whole-message veto, not just
+				// omission of the final sequence descriptor.
+				if _, err := message.step(statement(t, "INSERT INTO ownership_fence_sentinel VALUES(9)")); err != nil {
+					t.Fatal(err)
+				}
+				message.scope, err = message.scope.NextStatement()
+				if err != nil {
+					t.Fatal(err)
+				}
+				before := indexMaintenanceCapture(e)
+				sentinel := roleTableRef(t, e, "ownership_fence_sentinel").Address
+				rows := append([]rowVersion(nil), e.storage[sentinel].versions...)
+				for i := range rows {
+					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+				}
+				generators := make(map[ObjectAddress]*sequenceGenerator, len(e.sequences))
+				generatorValues := make(map[ObjectAddress]sequenceGenerator, len(e.sequences))
+				for address, g := range e.sequences {
+					generators[address], generatorValues[address] = g, *g
+				}
+				replaceDatabase := func() {
+					stage := e.BeginCatalogStage(e.CatalogRead())
+					database := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+					if private {
+						// Even equal owner identities cannot excuse replacing the
+						// exact installed predecessor of a distinct private view.
+						database.owner = actor.Ref
+					} else {
+						database.owner = oldRoles.names["postgres"]
+					}
+					database.revision++
+					if err := stage.Replace(&database); err != nil {
+						t.Fatal(err)
+					}
+					ownershipUnitPublish(t, e, stage)
+					e.DiscardCatalogStage(stage)
+					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.state.epoch != epoch {
+						t.Fatal("DB-only replacement changed role/session/epoch authority")
+					}
+					for address, descriptor := range before.catalog.descriptors {
+						if address != currentDatabaseAddress && e.state.descriptors[address] != descriptor {
+							t.Fatal("DB-only replacement changed an unrelated descriptor")
+						}
+					}
+					before = indexMaintenanceCapture(e)
+				}
+				syntax := &parser.AlterSequence{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ownership_fence_seq"}}}, Action: "owner", Target: parser.Identifier{Text: "ownership_target"}}
+				if _, err := message.scope.Execute(syntax, 0, nil); err != nil {
+					t.Fatal("actual OWNER handler failed before publication gate", err)
+				}
+				candidate := message.scope.catalog
+				if candidate == nil {
+					t.Fatal("actual OWNER handler did not stage catalog changes")
+				}
+				staged, ok := candidate.descriptors[ref.Address].(*relationDescriptor)
+				reader, bootstrap := oldRoles.names["ownership_reader"], oldRoles.names["postgres"]
+				wantACL := ACLValue{Explicit: true, Entries: []ACLEntry{
+					grantUnitEntry(target, target, UsagePrivilege|SelectPrivilege|UpdatePrivilege, 0),
+					grantUnitEntry(target, reader, UsagePrivilege, 0),
+					grantUnitEntry(bootstrap, reader, SelectPrivilege, 0),
+				}}
+				if !ok || staged == old || staged.owner != target || !reflect.DeepEqual(staged.acl, wantACL) || *staged.sequence != retainedOptions || candidate.generators[ref.Address] != nil || e.state != originalCatalog {
+					t.Fatal("actual OWNER handler did not stage descriptor/ACL-only transfer without a prefix")
+				}
+				var checkpoint *rangePartitionPhaseContext
+				if phase == "before-statement-finish" {
+					// Installed only after real Execute has returned its candidate.
+					// Finish's operation check holds no engine lock. The independent
+					// native catalog stage has no session authorization callback.
+					checkpoint = &rangePartitionPhaseContext{Context: message.op.Context(), target: "(*StatementScope).Finish", effect: replaceDatabase}
+					message.op.ctx = checkpoint
+				}
+				finishErr := message.scope.Finish(nil)
+				if phase == "before-statement-finish" && !checkpoint.entered.Load() {
+					t.Fatal("actual Statement Finish did not reach context barrier")
+				}
+				if phase == "outer-message" {
+					if finishErr != nil {
+						t.Fatal("retained Statement Finish failed before DB replacement", finishErr)
+					}
+					if e.state != originalCatalog || session.transactions.catalog != candidate || len(session.transactions.writes[sentinel]) != 1 {
+						t.Fatal("retained Finish installed a prefix or lost actual pending effects")
+					}
+					replaceDatabase()
+				}
+				err = message.end(finishErr)
+				if phase == "healthy" {
+					if err != nil || e.state.descriptors[ref.Address] != staged || !reflect.DeepEqual(staged.acl, wantACL) || len(e.storage[sentinel].versions) != 2 {
+						t.Fatal("healthy selected authority did not publish actual transfer and prefix", err)
+					}
+					if private && e.state.descriptors[currentDatabaseAddress] != selectedDB {
+						t.Fatal("healthy private authority did not retain its own DB candidate")
+					}
+				} else {
+					var conflict CatalogConflict
+					if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+						t.Fatal("missing sequence OWNER DB predecessor veto", err)
+					}
+					indexMaintenanceUnchanged(t, e, before)
+					if e.state.descriptors[ref.Address] != old || !reflect.DeepEqual(e.storage[sentinel].versions, rows) {
+						t.Fatal("veto installed sequence owner/ACL or retained row prefix")
+					}
+				}
+				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.state.epoch != epoch || old.owner != dbRole || !reflect.DeepEqual(old.acl, retainedACL) || *old.sequence != retainedOptions || auth.catalog.state.descriptors[ref.Address] != old || auth.catalog.state.descriptors[currentDatabaseAddress] != selectedDB || auth.databasePredecessor != committed || originalCatalog.descriptors[currentDatabaseAddress] != committed {
+					t.Fatal("publication mutated immutable retained authority or sequence roots")
+				}
+				if e.sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {
+					t.Fatal("OWNER publication changed actual nontransactional counter/cache/currval")
+				}
+				for address, g := range generators {
+					if e.sequences[address] != g || *g != generatorValues[address] {
+						t.Fatal("OWNER publication changed unrelated sequence generators")
+					}
+				}
+			})
+		}
+	}
+}

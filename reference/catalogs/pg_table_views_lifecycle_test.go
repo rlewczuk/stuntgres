@@ -101,21 +101,8 @@ func TestReferencePGTableViewsLifecycle(t *testing.T) {
 			for _, q := range []string{"CREATE INDEX pgtv_life_index ON pgtv_life(n)", "DROP INDEX pgtv_life_index", "ALTER TABLE pgtv_life RENAME TO pgtv_renamed", "ALTER TABLE pgtv_renamed RENAME COLUMN n TO renamed_n", "ALTER TABLE pgtv_renamed SET SCHEMA pgtv_moved"} {
 				run(q)
 			}
-			tableOwner := pgTableViewsOwner(b)
-			ownerSQL := "ALTER TABLE pgtv_moved.pgtv_renamed OWNER TO pgtv_owner"
-			if b.PG {
-				run(ownerSQL)
-				tableOwner = "pgtv_owner"
-			} else {
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ImplicitError(ownerSQL, fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE action is unsupported", Position: "37"})
-					s.Prepared = prepared
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-				}
-			}
+			tableOwner := "pgtv_owner"
+			run("ALTER TABLE pgtv_moved.pgtv_renamed OWNER TO pgtv_owner")
 			for _, q := range []string{"ALTER VIEW pgtv_life_view RENAME TO pgtv_renamed_view", "ALTER VIEW pgtv_renamed_view SET SCHEMA pgtv_moved", "ALTER VIEW pgtv_moved.pgtv_renamed_view OWNER TO pgtv_owner"} {
 				run(q)
 			}

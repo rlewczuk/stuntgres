@@ -72,8 +72,10 @@ func TestReferencePGDescriptionLifecycle(t *testing.T) {
 					run("ALTER SCHEMA pgd_lifecycle OWNER TO pgd_lifecycle_owner")
 					fixture.PgDescriptionRows(t, p, backend, schemaBag)
 					fixture.PgDescriptionRows(t, p, backend, fixture.Prepared(schemaBag))
-					// TABLE OWNER TO is outside the current grammar. Exercise the
-					// supported relation-owner authority on a commented sequence.
+					run("ALTER TABLE pgd_lifecycle.pgd_life_renamed OWNER TO pgd_lifecycle_owner")
+					pgDescriptionRelationBag(t, p, backend, oid, [][]any{whole, third})
+					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT tableowner FROM pg_tables WHERE schemaname='pgd_lifecycle' AND tablename='pgd_life_renamed'", []string{"tableowner"}, []string{"NAME"}, [][]any{{"pgd_lifecycle_owner"}}))
+					// Retain the independent sequence comment/owner lifecycle too.
 					run("CREATE SEQUENCE pgd_lifecycle.pgd_life_sequence")
 					run("COMMENT ON SEQUENCE pgd_lifecycle.pgd_life_sequence IS 'owner-stable sequence'")
 					sequenceOID := pgDescriptionRelationID(t, p, backend, "pgd_life_sequence")

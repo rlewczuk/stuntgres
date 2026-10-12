@@ -129,7 +129,7 @@ func TestPredefinedImplicitDatabaseOwner(t *testing.T) {
 	d.Superuser = false // Exercise the implicit rule, not the independent SU bypass.
 	n.roles[bootstrap] = d
 	n.edges = nil
-	r := RoleRead{e, n}
+	r := RoleRead{e, n, CatalogRead{e, e.state}}
 	for _, inherit := range []bool{false, true} {
 		got, err := r.roleClosure(context.Background(), bootstrap, inherit)
 		if err != nil || !reflect.DeepEqual(got, []PrincipalRef{bootstrap, owner}) {

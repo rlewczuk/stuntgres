@@ -38,7 +38,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, tc := range descriptors {
 		state.descriptors[tc.d.Address()] = tc.d
 	}
-	v := AuthorizationView{engine: e, catalog: CatalogRead{e, state}, roles: e.Roles(), state: RoleState{CurrentUser: reader.Ref}}
+	v := AuthorizationView{engine: e, catalog: CatalogRead{e, state}, roles: RoleRead{e, e.roles, CatalogRead{e, state}}, state: RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
 		ref := ObjectRef{e.owner, state.epoch, tc.d.Address()}
 		got, err := v.Effective(ref, false)
@@ -70,6 +70,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	withColumnState := cloneCatalog(state)
 	withColumnState.descriptors[table.address] = &withColumn
 	v.catalog = CatalogRead{e, withColumnState}
+	v.roles.catalog = v.catalog
 	if got, err := v.Effective(column, false); err != nil || got != SelectPrivilege|InsertPrivilege|UpdatePrivilege|ReferencesPrivilege {
 		t.Fatal("ACL plus capability", got, err)
 	}
@@ -82,7 +83,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		roleAttributeApply(t, e, op, revoke)
 	}
 	fresh := v
-	fresh.roles = e.Roles()
+	fresh.roles = RoleRead{e, e.roles, fresh.catalog}
 	if got, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
@@ -156,9 +157,19 @@ func TestPredefinedRoleControls(t *testing.T) {
 	revoke.Revoke = true
 	roleAttributeApply(t, e, op, revoke)
 	roles := e.roles
+	sourceEdges := append([]Membership(nil), roles.edges...)
 	stage := e.restoreStage()
-	if len(stage.Roles().Memberships()) != 0 {
-		t.Fatal("import cloned target graph")
+	expectedEdges := append([]Membership(nil), sourceEdges...)
+	for i := range expectedEdges {
+		expectedEdges[i].Role.owner = stage
+		expectedEdges[i].Member.owner = stage
+		expectedEdges[i].Grantor.owner = stage
+	}
+	if !reflect.DeepEqual(stage.Roles().Memberships(), expectedEdges) {
+		t.Fatal("import lost captured target graph/options/provenance")
+	}
+	if e.roles != roles || !reflect.DeepEqual(sourceEdges, roles.edges) {
+		t.Fatal("import mutated retained target graph")
 	}
 	closure, err := stage.Roles().roleClosure(context.Background(), PrincipalRef{stage, 10}, true)
 	if err != nil || !reflect.DeepEqual(closure, []PrincipalRef{{stage, 10}, {stage, 6171}}) {

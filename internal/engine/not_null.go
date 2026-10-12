@@ -111,7 +111,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	grantCatalog := e.state
 	schema := auth.catalog.state.descriptors[old.namespace].Name()
 	var stage *CatalogStage
-	scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: auth.revision, roles: auth.roles.state.revision, ref: ref, descriptor: e.state.descriptors[ref.Address]}
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(stage) }()
 	prepared, preparedStage, err := e.prepareAlterIdentityTypes(scope, op, auth, old, ref, s.Actions)
@@ -151,7 +151,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
-					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+					stage.authorizeLocked(auth, op.session)
 				}
 				next, err = e.identityCandidate(scope, auth, stage, next, action)
 			} else if action.Action == parser.SetExpression || action.Action == parser.DropExpression {
@@ -163,7 +163,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			} else if action.Action == parser.DropColumn {
 				if _, exists := next.index[action.Column.Text]; exists && stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
-					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+					stage.authorizeLocked(auth, op.session)
 				}
 				next, err = scope.dropColumnCandidate(stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
@@ -198,7 +198,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
-					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+					stage.authorizeLocked(auth, op.session)
 				}
 				copy := *next
 				copy.exclusionConstraints = slices.Clone(next.exclusionConstraints)
@@ -229,7 +229,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if err == nil && len(pendingIndexes) > 0 {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
-					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+					stage.authorizeLocked(auth, op.session)
 				}
 				err = e.rebindAlterTypeIndexes(scope, auth, next, stage, pendingIndexes)
 			}
@@ -363,7 +363,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.catalog)
-		stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+		stage.authorizeLocked(auth, op.session)
 	}
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err
@@ -537,12 +537,15 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 	}
+	// Recapture effective authority after provider waits and row rewriting.
+	// The immutable snapshot is used outside metadata locks for disclosure.
 	e.mu.Lock()
 	err = scope.validateLockedRelation(e)
 	var disclosure AuthorizationView
 	if err == nil {
 		disclosure, err = e.authorizationLocked(op)
 		disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
+		disclosure.roles.catalog = disclosure.catalog
 	}
 	e.mu.Unlock()
 	if err != nil {

@@ -107,7 +107,7 @@ func (s *StatementScope) discardAllPreflight() (RoleState, error) {
 	if reset.ResetRole != (PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
 	}
-	roles := RoleRead{e, e.roles}
+	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
 	for _, principal := range []PrincipalRef{reset.Authenticated, reset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return RoleState{}, err
@@ -125,7 +125,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 	if err := roleRevisionHeadroom(op.session.authorization, 3); err != nil {
 		return err
 	}
-	roles := RoleRead{e, e.roles}
+	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
 	for _, principal := range []PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return err
@@ -191,7 +191,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	}
 	changes := cloneCatalogChanges(s.owner.catalog)
 	stage := e.BeginCatalogStage(base)
-	stage.authSession, stage.authRevision, stage.roleRevision = session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, session)
 	for address := range owned {
 		stage.domainBases = append(stage.domainBases, base.state.descriptors[address].(*namespaceDescriptor))
 	}

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	sqldriver "database/sql/driver"
 	"github.com/ngrok/sqlmw"
-	"strings"
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -73,17 +72,8 @@ func TestReferenceRangePartitionOwnerControls(t *testing.T) {
 		if b.PG {
 			run(fixture.Exec("REVOKE USAGE,CREATE ON SCHEMA public FROM rp_owned_b", 0))
 		}
-		if b.PG {
-			for _, query := range []string{"ALTER TABLE rp_owned_a_schema.rp_owned_root OWNER TO rp_owned_a", "ALTER TABLE rp_owned_b_schema.rp_owned_middle OWNER TO rp_owned_b", "ALTER TABLE rp_owned_c_schema.rp_owned_leaf OWNER TO rp_owned_c"} {
-				run(fixture.Exec(query, 0))
-			}
-		} else {
-			// Real private Restore reconstructs the named owners without granting B
-			// live ownership of A or elevating B's child type/expression authority.
-			script := strings.Join(definitions[:4], "; ") + "; SET SESSION AUTHORIZATION 'rp_owned_a'; " + definitions[4] + "; SET SESSION AUTHORIZATION 'rp_owned_b'; " + definitions[5] + "; SET SESSION AUTHORIZATION 'rp_owned_c'; " + definitions[6] + ";"
-			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(script)); err != nil {
-				t.Fatal(err)
-			}
+		for _, query := range []string{"ALTER TABLE rp_owned_a_schema.rp_owned_root OWNER TO rp_owned_a", "ALTER TABLE rp_owned_b_schema.rp_owned_middle OWNER TO rp_owned_b", "ALTER TABLE rp_owned_c_schema.rp_owned_leaf OWNER TO rp_owned_c"} {
+			run(fixture.Exec(query, 0))
 		}
 		run(fixture.Exec("CREATE SEQUENCE rp_owned_a_schema.rp_owned_mismatch_seq", 0))
 		for _, prepared := range []bool{false, true} {

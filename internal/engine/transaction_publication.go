@@ -155,6 +155,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			disclosure, err = e.authorizationLocked(op)
 			if nextCatalog != nil {
 				disclosure.catalog = CatalogRead{e, nextCatalog}
+				disclosure.roles.catalog = disclosure.catalog
+				if c != nil && c.roles != nil {
+					disclosure.roles.state = c.roles
+				}
 			}
 		}
 		e.mu.Unlock()

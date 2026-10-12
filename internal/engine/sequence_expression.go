@@ -438,6 +438,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	before, beforeErr := scope.writeAuthorizationLocked(e)
 	if beforeErr == nil && scope.catalog != nil {
 		before.catalog = e.privateCatalogLocked(scope.catalog)
+		before.roles.catalog = before.catalog
 	}
 	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
 		ref.Epoch = before.catalog.Epoch()
@@ -472,6 +473,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	if scope.catalog != nil {
 		auth.catalog = e.privateCatalogLocked(scope.catalog)
+		auth.roles.catalog = auth.catalog
 	}
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok {

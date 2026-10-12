@@ -36,7 +36,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	stage.domainBases = append(stage.domainBases, typ)
 	stage.typedSource = typ.Address()
 	stage.typedObserved = typedClosure(auth.catalog, typ.Address())

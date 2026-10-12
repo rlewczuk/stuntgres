@@ -24,6 +24,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		return err
 	}
 	auth.catalog = view
+	auth.roles.catalog = auth.catalog
 	var captures []catalogOverlayIndex
 	for a, d := range view.state.descriptors {
 		index, ok := d.(*relationDescriptor)

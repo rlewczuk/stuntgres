@@ -1058,10 +1058,10 @@ User tables have NULL default tablespace and false rule/trigger flags.
 `rowsecurity` reports the actual enabled bit, independently of FORCE and policies.
 `hasindexes` is sticky publication history:
 UNIQUE backing, ordinary and concurrent initial index publication set it; dropping
-the last index does not clear it. Supported rename/schema/column edits, view-owner
-changes, real descriptor ownership replacement and REINDEX retain it; a newly
-recreated table starts false. TRUNCATE preserves this history and all definitions;
-native ALTER TABLE OWNER remains an0A000 boundary without metadata changes.
+the last index does not clear it. Supported rename/schema/column edits,
+table/view ownership transfers, real descriptor ownership replacement and REINDEX
+retain it; a newly recreated table starts false. TRUNCATE preserves this history
+and all definitions.
 Failed ordinary expression
 index builds before publication leave it unchanged; failed concurrent work after
 initial invalid-index publication retains true. This adds no VACUUM/ANALYZE.
@@ -1679,6 +1679,35 @@ lifetime. Held prepared statements reanalyze and retained captures/metadata stay
 stable. Failed staged Restore publishes nothing.
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.
+
+## Attached database and provider ownership — change note
+
+```sql
+ALTER DATABASE name OWNER TO {role | CURRENT_ROLE | CURRENT_USER | SESSION_USER}
+REASSIGN OWNED BY role [, ...] TO role
+DROP OWNED BY role [, ...] [RESTRICT | CASCADE]
+```
+
+Database OWNER accepts one unqualified attached database name, with ordinary
+identifier quoting; qualified names, name lists and IF EXISTS are not admitted.
+The changed-owner actor requires inherited ownership and CREATEDB; the target
+requires SET-role reachability. Superusers bypass those checks. Same-owner
+requests retain the earlier no-op order. This does not create additional
+databases or interpret DSNs as SQL database names.
+
+Bulk reassignment includes the actual attached database and registered
+extension, function and text-search dictionary owners. Template descriptors
+remain ownerless. Extension and member ownership is independent: reassigning
+an extension alone does not reassign bootstrap-owned members. Actual extension
+membership controls deletion, including independently owned function/dictionary
+refusal even under CASCADE unless the extension is in the complete pending union.
+DROP OWNED never removes the database itself, but cleans supported CREATE ACL
+provenance. Stored defaults, constraints, views, indexes and policies follow
+their actual dependency identities rather than fabricated provider tuples.
+
+See [authorization and cleanup](AUTHORIZATION.md#object-ownership-and-bulk-cleanup--change-note)
+and [native transaction admission](TRANSACTIONS.md#ownership-utility-admission--change-note).
+
 
 ## Available extension views — change note
 

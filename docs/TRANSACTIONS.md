@@ -56,6 +56,26 @@ have released their relation producer references and do not pin this activity
 check. CONTINUE IDENTITY never changes generator/cache/session memory; RESTART,
 native trigger/pending-trigger and FDW providers are outside this change.
 
+## Ownership utility admission — change note
+
+Sequence `OWNER TO` retains existing transaction/savepoint metadata visibility,
+commit and rollback support; transfers do not restart generator or currval state.
+New database/table/type/domain/materialized-view ownership and REASSIGN/DROP OWNED
+are native autocommit-only, as are existing schema/view/collation utilities.
+In writable explicit blocks their0A000 admission error precedes name lookup;
+subsequent commands receive25P02 until recovery. Read-only modifying commands
+receive25006 before lookup. PostgreSQL's transactional utility behavior remains
+independently exercised in reference tests, not implied by native admission.
+Autocommit bulk cleanup installs the complete catalog/storage and optional
+membership candidate together, after context/role/session/reference/counter
+fences; failed restriction, cancellation or stale authorization installs neither.
+SQL catalog and storage-only stages retain the exact committed attached-database
+descriptor separately from private database authority. A database-only trusted
+publication change fences Finish and outer commit even when the role revision
+and catalog epoch are unchanged; savepoint copies preserve that predecessor.
+Database CREATE GRANT/REVOKE retains its existing transactional behavior.
+
+
 ## DISCARD transaction boundaries
 
 `DISCARD ALL` fails25001 `DISCARD ALL cannot run inside a transaction block` in

@@ -535,12 +535,16 @@ type CatalogStage struct {
 	authRevision         uint64
 	roleRevision         uint64
 	extensionNamespace   ObjectAddress
-	extensionDatabase    Descriptor
-	schemaCascadeNames   []string
-	viewCascadeNames     []string
-	dependencyPath       []ObjectAddress
-	domainTargets        []ObjectAddress
-	domainBases          []Descriptor
+	databasePredecessor  Descriptor
+	databaseAuthority    Descriptor
+	// Optional DROP OWNED membership deletions join this publication, not a
+	// separate role installation. Every other catalog caller leaves it nil.
+	roleCandidate      *roleCatalog
+	schemaCascadeNames []string
+	viewCascadeNames   []string
+	dependencyPath     []ObjectAddress
+	domainTargets      []ObjectAddress
+	domainBases        []Descriptor
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
@@ -577,6 +581,14 @@ func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	return s
+}
+
+// Retain selected private authority separately from the committed predecessor
+// already captured by authorizationLocked; building a stage needs no live read.
+func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session) {
+	s.authSession, s.authRevision, s.roleRevision = session, auth.revision, auth.roles.state.revision
+	s.databaseAuthority = auth.catalog.state.descriptors[currentDatabaseAddress]
+	s.databasePredecessor = auth.databasePredecessor
 }
 
 // lookupName resolves the private candidate, including names vacated by a
@@ -878,6 +890,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
+	if err := s.validateRoleCandidate(e.roles); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
 	for address, descriptor := range s.descriptors {
 		typ, ok := descriptor.(*typeDescriptor)
 		if !ok || !typ.typ.IsComposite() {
@@ -940,7 +956,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 		e.mu.Lock()
 		roles := e.sessionRolesLocked(s.authSession)
-		authErr := validateACL(RoleRead{e, roles}, d)
+		authErr := validateACL(s.roleRead(roles, view), d)
 		e.mu.Unlock()
 		if authErr != nil {
 			return nil, authErr
@@ -1306,15 +1322,21 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 		}
 		err := p.ctx.Err()
+		if err == nil && s.databasePredecessor != nil && e.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
+			err = ErrCatalogReplaced
+		}
+		if err == nil {
+			err = s.validateRoleCandidate(e.roles)
+		}
 		if err == nil && op != nil {
 			err = publicationOperationLocked(e, op)
 		}
 		if err == nil {
-			err = validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, next})
+			err = validateDefaultACLs(s.roleRead(e.roles, CatalogRead{e, next}), CatalogRead{e, next})
 		}
 		if err == nil {
 			for _, d := range s.descriptors {
-				if err = validateACL(RoleRead{e, e.roles}, d); err != nil {
+				if err = validateACL(s.roleRead(e.roles, CatalogRead{e, next}), d); err != nil {
 					break
 				}
 			}
@@ -1337,7 +1359,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{engine: e, catalog: CatalogRead{e, e.state}, roles: RoleRead{e, e.roles}, state: s.authSession.authorization.state}
+			auth := AuthorizationView{engine: e, catalog: CatalogRead{e, e.state}, roles: RoleRead{e, e.roles, CatalogRead{e, e.state}}, state: s.authSession.authorization.state}
 			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
@@ -1405,6 +1427,9 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				e.sequences[a] = generator
 			}
 			e.nextRevision = nextRevision
+			if s.roleCandidate != nil {
+				e.roles = s.roleCandidate
+			}
 			s.lifecycle = catalogPublished
 		}
 		if op != nil {
@@ -1554,12 +1579,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, next}); err != nil {
+		if err := validateDefaultACLs(RoleRead{e, e.roles, CatalogRead{e, next}}, CatalogRead{e, next}); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision := e.nextRevision
 		for _, d := range next.descriptors {
-			if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
+			if err := validateACL(RoleRead{e, e.roles, CatalogRead{e, next}}, d); err != nil {
 				return ChangeSet{}, err
 			}
 			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -1626,7 +1651,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err == nil {
 		sequences, err = copySequenceState(replacement.owner, replacement)
 	}
-	sourceRoles := RoleRead{replacement.owner, replacement.owner.roles}
+	sourceRoles := RoleRead{replacement.owner, replacement.owner.roles, replacement}
 	replacement.owner.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1667,12 +1692,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, next}); err != nil {
+	if err := validateDefaultACLs(RoleRead{e, e.roles, CatalogRead{e, next}}, CatalogRead{e, next}); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision := e.nextRevision
 	for _, d := range next.descriptors {
-		if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
+		if err := validateACL(RoleRead{e, e.roles, CatalogRead{e, next}}, d); err != nil {
 			return ChangeSet{}, err
 		}
 		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {

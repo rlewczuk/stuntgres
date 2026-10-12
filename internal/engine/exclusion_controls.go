@@ -91,6 +91,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	}
 	e.mu.Lock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	s.beginExclusionProjectionLocked(e)
 	e.mu.Unlock()
 	candidate := s.exclusionModes

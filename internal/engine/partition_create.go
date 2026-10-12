@@ -73,6 +73,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	child := stage.descriptors[address].(*relationDescriptor)
 	keyAuth := auth
 	keyAuth.catalog = e.stageRead(stage)
+	keyAuth.roles.catalog = keyAuth.catalog
 	partition, err := e.bindPartitionKeys(op, keyAuth, child, syntax.PartitionBy, scope.input)
 	if err != nil {
 		return nil, err

@@ -41,6 +41,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()

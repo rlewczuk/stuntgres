@@ -274,6 +274,24 @@ func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.Truncate:
 		return "TRUNCATE TABLE"
+	case *parser.AlterOwner:
+		s := stmt.(*parser.AlterOwner)
+		switch s.Kind {
+		case "database":
+			return "ALTER DATABASE"
+		case "type":
+			return "ALTER TYPE"
+		case "domain":
+			return "ALTER DOMAIN"
+		case "materialized view":
+			return "ALTER MATERIALIZED VIEW"
+		default:
+			return "ALTER TABLE"
+		}
+	case *parser.ReassignOwned:
+		return "REASSIGN OWNED"
+	case *parser.DropOwned:
+		return "DROP OWNED"
 	case *parser.RefreshMaterializedView:
 		return "REFRESH MATERIALIZED VIEW"
 	case *parser.CreatePolicy:
@@ -431,6 +449,8 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
+	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
+		return true
 	case *parser.RefreshMaterializedView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:

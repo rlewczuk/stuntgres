@@ -186,7 +186,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 	}
 	seen := map[ObjectAddress]bool{}
 	candidate := cloneCatalog(e.state)
-	roles := RoleRead{e, e.roles}
+	roles := RoleRead{e, e.roles, CatalogRead{e, candidate}}
 	ownersChanged := false
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {

@@ -21,7 +21,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		if !ok {
 			return PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
 		}
-		if _, err := (RoleRead{e, e.roles}).Descriptor(target.Ref); err != nil {
+		if _, err := (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(target.Ref); err != nil {
 			return PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
 		}
 		if expected != nil && expected[ref] != target.Ref {
@@ -102,7 +102,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				if _, err = targetSnapshot.Descriptor(n.owner); err != nil {
 					return nil, err
 				}
-				if _, err = (RoleRead{e, e.roles}).Descriptor(n.owner); err != nil {
+				if _, err = (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(n.owner); err != nil {
 					return nil, err
 				}
 			} else {
@@ -183,7 +183,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 		state.defaultACLs = next
 	}
-	if err := validateDefaultACLs(RoleRead{e, e.roles}, CatalogRead{e, state}); err != nil {
+	if err := validateDefaultACLs(RoleRead{e, e.roles, CatalogRead{e, state}}, CatalogRead{e, state}); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -194,9 +194,10 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
+	database := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName)
-	roles := &roleCatalog{revision: sourceRoles.revision, roles: make(map[PrincipalRef]RoleDescriptor, len(sourceRoles.roles)), names: make(map[string]PrincipalRef, len(sourceRoles.names))}
+	roles := &roleCatalog{revision: sourceRoles.revision, roles: make(map[PrincipalRef]RoleDescriptor, len(sourceRoles.roles)), names: make(map[string]PrincipalRef, len(sourceRoles.names)), edges: make([]Membership, len(sourceRoles.edges))}
 	stage.importTargets = make(map[PrincipalRef]PrincipalRef, len(sourceRoles.roles))
 	for target, d := range sourceRoles.roles {
 		ref := PrincipalRef{stage, target.id}
@@ -205,6 +206,23 @@ func (e *Engine) restoreStage() *Engine {
 		roles.names[d.Name] = ref
 		stage.importTargets[ref] = target
 	}
+	for i, edge := range sourceRoles.edges {
+		edge.Role = PrincipalRef{stage, edge.Role.id}
+		edge.Member = PrincipalRef{stage, edge.Member.id}
+		edge.Grantor = PrincipalRef{stage, edge.Grantor.id}
+		roles.edges[i] = edge
+	}
+	retainedDatabase := *database
+	retainedDatabase.owner = PrincipalRef{stage, database.owner.id}
+	retainedDatabase.acl.Entries = append([]ACLEntry(nil), database.acl.Entries...)
+	for i := range retainedDatabase.acl.Entries {
+		entry := &retainedDatabase.acl.Entries[i]
+		entry.Grantor = PrincipalRef{stage, entry.Grantor.id}
+		if !entry.Grantee.Public {
+			entry.Grantee.Role = PrincipalRef{stage, entry.Grantee.Role.id}
+		}
+	}
+	stage.state.descriptors[currentDatabaseAddress] = &retainedDatabase
 	stage.roles = roles
 	stage.nextPrincipal = nextPrincipal
 	return stage

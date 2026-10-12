@@ -330,6 +330,11 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	}
 	if op.session.transactions.retainedMessage {
 		changes := cloneCatalogChanges(op.session.transactions.catalog)
+		// Completed grant utilities retain their consulted DB predecessor in
+		// the candidate, not a scope authority with a pre-advance role revision.
+		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ObjectRef{}, nil), changes); err != nil {
+			return Result{}, err
+		}
 		for address, change := range changed {
 			e.catalogChangeLocked(changes, address, change.relation)
 		}

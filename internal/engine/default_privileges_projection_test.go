@@ -83,6 +83,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = catalog
+	auth.roles.catalog = auth.catalog
 	held, got := defaultUnitProjection(t, catalog, auth)
 	var want [][]string
 	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
@@ -129,7 +130,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 			roles.edges[i].Set = true
 		}
 	}
-	auth.roles = RoleRead{f.e, roles}
+	auth.roles = RoleRead{f.e, roles, auth.catalog}
 	_, setRows := defaultUnitProjection(t, catalog, auth)
 	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(setWant)
@@ -153,7 +154,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	delete(actor.names, "default_reader")
 	actor.names["renamed_reader"] = f.reader
 	auth.catalog = CatalogRead{f.e, changed}
-	auth.roles = RoleRead{f.e, actor}
+	auth.roles = RoleRead{f.e, actor, auth.catalog}
 	auth.state.CurrentUser = f.reader
 	_, fresh := defaultUnitProjection(t, auth.catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}

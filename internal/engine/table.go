@@ -118,9 +118,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		changes = cloneCatalogChanges(scope.owner.catalog)
 	}
 	stage := e.BeginCatalogStage(base)
-	stage.authSession = op.session
-	stage.authRevision = auth.revision
-	stage.roleRevision = auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	path, err := e.referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()

@@ -45,6 +45,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	e.mu.Lock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	childRef, err := e.resolveRelationReference(auth, raw.Name, true)
 	if err != nil {
 		e.mu.Unlock()
@@ -124,6 +125,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	sameName := func(name parser.ObjectName, expected ObjectRef) error {
 		current, resolveErr := e.resolveReference(auth, name)
 		if resolveErr != nil {
@@ -171,6 +173,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 		return err
 	}
 	auth.catalog = view
+	auth.roles.catalog = auth.catalog
 	e := s.op.session.Engine()
 	for _, f := range child.foreignKeys {
 		if f.NotValid || !slices.Contains(added, f.OID) {

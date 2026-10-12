@@ -153,6 +153,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	}
 	e.mu.Lock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.roles.catalog = auth.catalog
 	temporary := raw.Persistence == "temporary" || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == "pg_temp"
 	var destination ObjectAddress
 	if temporary {
@@ -253,6 +254,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		changes = s.catalog
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
+	auth.roles.catalog = auth.catalog
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]

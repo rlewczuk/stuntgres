@@ -52,6 +52,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		return err
 	}
 	auth.catalog = e.stageRead(stage)
+	auth.roles.catalog = auth.catalog
 	predicate, err := e.bindIndexPredicate(op, input, auth, parent, s.Predicate)
 	if err != nil {
 		return err

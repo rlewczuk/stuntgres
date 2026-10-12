@@ -51,7 +51,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		return e.renameRelationLocked(scope, scope.op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, count)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
 	stage.indexParents = make(map[ObjectAddress]*relationDescriptor, len(g.parents))
 	for _, ref := range g.parents {

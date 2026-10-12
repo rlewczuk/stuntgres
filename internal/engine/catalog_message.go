@@ -82,6 +82,19 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		return nil
 	}
+	if s.databasePredecessor != nil {
+		if current.descriptors[currentDatabaseAddress] != s.databaseAuthority || e.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
+			return ErrCatalogReplaced
+		}
+		if original, ok := c.originals[currentDatabaseAddress]; ok && original != s.databasePredecessor {
+			return CatalogConflict{}
+		}
+		c.originals[currentDatabaseAddress] = s.databasePredecessor
+		if authority != nil {
+			authority.databaseAuthority = s.databaseAuthority
+			authority.databasePredecessor = s.databasePredecessor
+		}
+	}
 	for a := range s.descriptors {
 		if err := observe(a, s.base.state.descriptors[a]); err != nil {
 			return err

@@ -165,7 +165,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if authenticated == (PrincipalRef{}) {
 		authenticated = e.roles.names["postgres"]
 	}
-	role, authErr := (RoleRead{e, e.roles}).Descriptor(authenticated)
+	role, authErr := (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(authenticated)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
@@ -240,12 +240,12 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	e.mu.Lock()
 	if err == nil {
-		role, err = (RoleRead{e, e.roles}).Descriptor(authenticated)
+		role, err = (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(authenticated)
 		if err == nil && !role.Login {
 			err = roleLoginError(role.Name)
 		}
 		if err == nil && resetRole != (PrincipalRef{}) {
-			err = validateInitialRole(RoleRead{e, e.roles}, authenticated, resetRole)
+			err = validateInitialRole(RoleRead{e, e.roles, CatalogRead{e, e.state}}, authenticated, resetRole)
 		}
 	}
 	s.mu.Lock()

@@ -6,7 +6,7 @@ import "fmt"
 // stage only metadata: no storage clone, row scan, policy copy or definition OID
 // reminting. The ordinary StatementScope owns transaction merge/publication.
 func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old, next *relationDescriptor) (Result, error) {
-	scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: auth.revision, roles: auth.roles.state.revision, ref: scope.lockedRef, descriptor: e.state.descriptors[old.address]}
+	scope.catalogAuthority = auth.catalogAuthorityLocked(scope.lockedRef, e.state.descriptors[old.address])
 	if next == old {
 		e.mu.Unlock()
 		return Result{}, op.Context().Err()

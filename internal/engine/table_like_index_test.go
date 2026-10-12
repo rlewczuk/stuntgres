@@ -114,6 +114,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		candidate.descriptors[ref.Address] = &copy
 	}
 	auth.catalog = CatalogRead{owner: e, state: candidate}
+	auth.roles.catalog = auth.catalog
 	stage := e.BeginCatalogStage(auth.catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)
 	err = e.schemaTableLocked(op, auth, stage, syntax, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)

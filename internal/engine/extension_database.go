@@ -123,7 +123,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, err
 	}
 	if available == 0 && aclRights(db.acl, db.owner, principals, CreatePrivilege, false) == 0 {
-		return Result{}, sqlError("42501", "permission denied for database "+db.name)
+		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.name))
 	}
 	grantWarning(op, db.name, "", CreatePrivilege, available, false, s.Revoke)
 	if available == 0 {
@@ -145,6 +145,6 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.catalogChangeLocked(changes, db.address, &next)
 	scope.catalog = changes
-	scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: v.revision, roles: v.roles.state.revision, ref: ObjectRef{Address: db.address}, descriptor: e.state.descriptors[db.address]}
+	scope.catalogAuthority = v.catalogAuthorityLocked(ObjectRef{Address: db.address}, e.state.descriptors[db.address])
 	return Result{}, nil
 }

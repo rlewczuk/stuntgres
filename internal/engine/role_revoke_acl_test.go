@@ -12,7 +12,7 @@ import (
 
 func TestObjectRevokeOptionOnly(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	old := ACLValue{Explicit: true, Entries: []ACLEntry{
 		grantUnitEntry(owner, a, SelectPrivilege|UpdatePrivilege, SelectPrivilege|UpdatePrivilege),
 		grantUnitEntry(b, a, SelectPrivilege, 0),
@@ -36,7 +36,7 @@ func TestObjectRevokeOptionOnly(t *testing.T) {
 
 func TestObjectRevokeNoopDefaults(t *testing.T) {
 	owner, a, _, _ := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	public := ACLGrantee{Public: true}
 	old := materializeRelationACL(ACLValue{}, owner)
 	old.Entries = append(old.Entries, ACLEntry{Grantor: owner, Grantee: public, Privileges: SelectPrivilege})
@@ -54,7 +54,7 @@ func TestObjectRevokeNoopDefaults(t *testing.T) {
 	if err != nil || !changed || next.Entries[0].Privileges != tableGrantPrivileges || next.Entries[0].GrantOptions != 0 || next.Entries[2].Privileges != SelectPrivilege {
 		t.Fatal("owner implicit options lost", next, changed, err)
 	}
-	options, err := scopedACLGrantOptions(context.Background(), roles, next, owner, owner)
+	options, err := scopedACLGrantOptions(context.Background(), roles, next, owner, owner, tableGrantPrivileges)
 	if err != nil || options != tableGrantPrivileges || next.Entries[1].GrantOptions != 0 {
 		t.Fatal("implicit owner/PUBLIC options", options, err, next)
 	}
@@ -62,7 +62,7 @@ func TestObjectRevokeNoopDefaults(t *testing.T) {
 
 func TestObjectRevokeCascade(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	old := ACLValue{Explicit: true, Entries: []ACLEntry{
 		grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege),
 		grantUnitEntry(a, b, SelectPrivilege, SelectPrivilege),
@@ -89,7 +89,7 @@ func TestObjectRevokeCascade(t *testing.T) {
 
 func TestObjectRevokeAlternateSupport(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	for _, options := range []Privileges{0, SelectPrivilege} {
 		old := ACLValue{Explicit: true, Entries: []ACLEntry{
 			grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege),
@@ -127,7 +127,7 @@ func TestObjectRevokeAlternateSupport(t *testing.T) {
 
 func TestObjectRevokeSelectiveBits(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	both := SelectPrivilege | UpdatePrivilege
 	old := ACLValue{Explicit: true, Entries: []ACLEntry{
 		grantUnitEntry(owner, a, both, both),
@@ -157,7 +157,7 @@ func TestObjectRevokeSelectiveBits(t *testing.T) {
 
 func TestObjectRevokeCancellation(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	old := ACLValue{Explicit: true, Entries: []ACLEntry{
 		grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege),
 		grantUnitEntry(a, b, SelectPrivilege, SelectPrivilege),
@@ -186,7 +186,7 @@ func TestObjectRevokeCancellation(t *testing.T) {
 
 func TestObjectRevokeOriginalTableSource(t *testing.T) {
 	owner, a, b, reader := grantUnitRoles()
-	roles := RoleRead{owner.owner, owner.owner.roles}
+	roles := owner.owner.Roles()
 	table := ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, a, SelectPrivilege, SelectPrivilege)}}
 	column := ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(a, reader, SelectPrivilege, 0)}}
 	next, changed, err := changeObjectACL(context.Background(), roles, table, owner, owner, []ACLGrantee{{Role: a}}, SelectPrivilege, false, true, true, true)

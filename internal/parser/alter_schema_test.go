@@ -65,7 +65,7 @@ func TestAlterSchemaWholeInput(t *testing.T) {
 
 func TestAlterSchemaUnsupportedActionGuard(t *testing.T) {
 	for _, target := range []string{"t", "s1.t", "ONLY t", "ONLY(t)", "t*", "IF EXISTS t", "IF EXISTS ONLY(t)"} {
-		for _, action := range []string{"SET", "OWNER"} {
+		for _, action := range []string{"SET"} {
 			q := "ALTER TABLE " + target + " " + action
 			statements, err := Parse(q)
 			var got *sqlstate.Error

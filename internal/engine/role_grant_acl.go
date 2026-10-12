@@ -20,19 +20,22 @@ func materializeRelationACL(acl ACLValue, owner PrincipalRef) ACLValue {
 // Choose one direct source, never a union of independently inherited sources.
 // Closure order is breadth-first, providing the nearest source on equal masks.
 func objectGrantSource(ctx context.Context, owner PrincipalRef, table, column ACLValue, principals []PrincipalRef, super bool, requested Privileges) (PrincipalRef, Privileges, error) {
-	for _, role := range principals {
+	source := principals[0]
+	if super || source == owner {
 		if err := ctx.Err(); err != nil {
 			return PrincipalRef{}, 0, err
 		}
-		if super || role == owner {
-			return owner, requested, nil
-		}
+		return owner, requested, nil
 	}
-	source := principals[0]
 	var available Privileges
 	for _, role := range principals {
 		if err := ctx.Err(); err != nil {
 			return PrincipalRef{}, 0, err
+		}
+		// An inherited owner is a full candidate at its actual closure position,
+		// not a shortcut ahead of a nearer role's explicit grant options.
+		if role == owner {
+			return owner, requested, nil
 		}
 		var options Privileges
 		for _, acl := range []ACLValue{table, column} {
@@ -58,17 +61,17 @@ func objectGrantSource(ctx context.Context, owner PrincipalRef, table, column AC
 	return source, available, nil
 }
 
-func scopedACLGrantOptions(ctx context.Context, roles RoleRead, acl ACLValue, owner, role PrincipalRef) (Privileges, error) {
+func scopedACLGrantOptions(ctx context.Context, roles RoleRead, acl ACLValue, owner, role PrincipalRef, mask Privileges) (Privileges, error) {
 	principals, err := roles.roleClosure(ctx, role, true)
 	if err != nil {
 		return 0, err
 	}
 	for _, principal := range principals {
 		if principal == owner {
-			return tableGrantPrivileges, nil
+			return mask, nil
 		}
 	}
-	return aclRights(acl, PrincipalRef{}, principals, tableGrantPrivileges, true), nil
+	return aclRights(acl, PrincipalRef{}, principals, mask, true) & mask, nil
 }
 
 // Recursive removal checks remaining support within this ACL only. Circularity
@@ -77,7 +80,7 @@ func cascadeACLBits(ctx context.Context, roles RoleRead, acl *ACLValue, owner, r
 	if role == owner {
 		return nil
 	}
-	options, err := scopedACLGrantOptions(ctx, roles, *acl, owner, role)
+	options, err := scopedACLGrantOptions(ctx, roles, *acl, owner, role, lost)
 	if err != nil {
 		return err
 	}
@@ -122,7 +125,7 @@ func checkACLGrantCycle(ctx context.Context, roles RoleRead, acl ACLValue, owner
 	if err := cascadeACLBits(ctx, roles, &candidate, owner, grantee.Role, removed); err != nil {
 		return err
 	}
-	options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, source)
+	options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, source, mask)
 	if err != nil {
 		return err
 	}
@@ -198,7 +201,7 @@ func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, s
 						return old, false, err
 					}
 				} else {
-					options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, grantee.Role)
+					options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, grantee.Role, removed)
 					if err != nil {
 						return old, false, err
 					}

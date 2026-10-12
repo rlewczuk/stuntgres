@@ -24,7 +24,7 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
 		ref := PrincipalRef{owner: e, id: uint64(20001 + i)}
 		refs[i] = ref
-		roles.roles[ref] = RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true}
+		roles.roles[ref] = RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1}
 		roles.names[name] = ref
 	}
 	roles.edges = append(append([]Membership(nil), roles.edges...), Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.names["postgres"], Inherit: true, Set: true})

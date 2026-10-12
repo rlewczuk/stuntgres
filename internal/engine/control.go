@@ -99,10 +99,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
 	originalCatalog := catalog
+	originalRoles := RoleRead{e, e.roles, originalCatalog}
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalog, constraintReplay := partitionConstraintDumpCatalog(catalog)
-	domainRoles := RoleRead{e, e.roles}
+	domainRoles := RoleRead{e, e.roles, catalog}
 	if err := e.validateTemporaryCollationDump(ctx, catalog); err != nil {
 		e.mu.Unlock()
 		return err
@@ -148,7 +149,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		ns := d.(*namespaceDescriptor)
-		role, err := (RoleRead{e, e.roles}).Descriptor(ns.owner)
+		role, err := domainRoles.Descriptor(ns.owner)
 		if err != nil {
 			e.mu.Unlock()
 			return err
@@ -297,7 +298,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
 					}
-					role, err := (RoleRead{e, e.roles}).Descriptor(ns.owner)
+					role, err := domainRoles.Descriptor(ns.owner)
 					if err != nil {
 						e.mu.Unlock()
 						return err
@@ -324,7 +325,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
 		}
-		principal, err := (RoleRead{e, e.roles}).Descriptor(r.owner)
+		principal, err := domainRoles.Descriptor(r.owner)
 		if err != nil {
 			e.mu.Unlock()
 			return err
@@ -616,7 +617,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
-	policyGroups, err := policyDumpGroups(ctx, originalCatalog, domainRoles)
+	policyGroups, err := policyDumpGroups(ctx, originalCatalog, originalRoles)
 	if err != nil {
 		return err
 	}

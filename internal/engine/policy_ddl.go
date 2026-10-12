@@ -131,7 +131,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	for _, p := range next.policies {
 		for _, expression := range []*policyExpression{p.using, p.check} {
 			if expression == nil {

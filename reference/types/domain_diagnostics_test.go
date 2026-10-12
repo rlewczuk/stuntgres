@@ -89,7 +89,7 @@ func TestReferenceDomainDiagnostics(t *testing.T) {
 			run(fixture.Exec("ALTER DOMAIN domain_s.altered SET DEFAULT 7", 0))
 			run(fixture.Select("SELECT 9::domain_s.altered AS v FROM public.one", []string{"v"}, []string{"INT4"}, [][]any{{int64(9)}}))
 		} else {
-			run(fixture.Error("ALTER DOMAIN domain_s.di SET DEFAULT 7", "0A000"))
+			run(fixture.ImplicitError("ALTER DOMAIN domain_s.di SET DEFAULT 7", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "SET"`, Position: "26"}))
 			run(fixture.Select("SELECT NULL::domain_s.di AS v FROM public.one", []string{"v"}, []string{"INT4"}, [][]any{{nil}}))
 		}
 		// The parser must not publish a valid prefix when a suffix is malformed.

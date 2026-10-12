@@ -1512,6 +1512,149 @@ configured defaults are internal-unit evidence, not a public connector capabilit
 Pre-canceled owner preservation is a native adapter guarantee, not a portable pq
 guarantee: fast pq utilities may finish and retire the owner asynchronously.
 
+Ownership proofs use complete direct/prepared scenarios in `reference/roles/`
+and native-only canonical descriptor/publication units. The new supported
+families and six migrated table-owner callers require selected checks in both
+modes; selected race proof supplements, never replaces, real PostgreSQL:
+
+```sh
+make check RUN='^TestReferenceRoleOwnership(Families|Authority|Associations|SameOwner|DiagnosticsAndFreshness)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(Families|Authority|Associations|SameOwner|DiagnosticsAndFreshness)$'
+make check RUN='^TestReferenceRoleOwnership(ReassignAuthority|ReassignFamilies|ReassignPreservation|ReassignClassEligibility|DefaultsBoundary)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(ReassignAuthority|ReassignFamilies|ReassignPreservation|ReassignClassEligibility|DefaultsBoundary)$'
+make check RUN='^TestReferenceRoleOwnership(RestrictAtomicity|RestrictSchemaUnion|Cascade|Cleanup|DropRole)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(RestrictAtomicity|RestrictSchemaUnion|Cascade|Cleanup|DropRole)$'
+make check RUN='^TestReferenceRoleOwnership(Transactions|Lifecycle|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(Transactions|Lifecycle|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceRoleOwnership(Database|SharedDatabase|DatabaseCleanup)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(Database|SharedDatabase|DatabaseCleanup)$'
+make check RUN='^TestReferenceRoleOwnership(ExtensionReassign|ExtensionDrop|ProviderControls)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(ExtensionReassign|ExtensionDrop|ProviderControls)$'
+make check RUN='^TestReferenceRoleOwnership(TypedTables|TypedDependencyCleanup)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(TypedTables|TypedDependencyCleanup)$'
+make check RUN='^TestReferenceRoleOwnership(InheritedGrantSupport|DeleteGroupCounts)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(InheritedGrantSupport|DeleteGroupCounts)$'
+make check RUN='^TestReferenceRoleOwnership(DefaultCleanup|DefaultRestrictAtomicity)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(DefaultCleanup|DefaultRestrictAtomicity)$'
+make check RUN='^TestReferenceRoleOwnership(DefaultSchemaCleanup|DefaultGrantSupport|DefaultDatabaseAuthority)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(DefaultSchemaCleanup|DefaultGrantSupport|DefaultDatabaseAuthority)$'
+make check RUN='^TestReferenceRoleOwnershipDefaultCreatorRecipientUnion$'
+make check REFERENCE=1 RUN='^TestReferenceRoleOwnershipDefaultCreatorRecipientUnion$'
+make check RUN='^TestReferenceAlterAddConstraint(ExistingData|Provenance|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceAlterAddConstraint(ExistingData|Provenance|FeatureSmoke)$'
+make check RUN='^(TestDropOwnedDefaultCanonicalCleanup|TestRoleOwnershipDefaultMessageDatabaseFence)$'
+make check RACE=1 RUN='^(TestDropOwnedDefaultCanonicalCleanup|TestRoleOwnershipDefaultMessageDatabaseFence)$'
+make check RUN='^TestRoleOwnershipObjectGrantMessageDatabaseFence$'
+make check RACE=1 RUN='^TestRoleOwnershipObjectGrantMessageDatabaseFence$'
+make check RUN='^TestReferenceRoleGrant(InheritedOwner|SourceProvenance|Transactions|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceRoleGrant(InheritedOwner|SourceProvenance|Transactions|FeatureSmoke)$'
+make check RUN='^TestRoleOwnershipPartitionConstraintDatabaseFence$'
+make check RACE=1 RUN='^TestRoleOwnershipPartitionConstraintDatabaseFence$'
+make check RUN='^(TestRoleOwnershipSequenceDatabaseFence|TestRoleOwnershipManualUtilityDatabaseFence|TestRoleOwnershipSequenceOwnedCreationDatabaseFence)$'
+make check RACE=1 RUN='^(TestRoleOwnershipSequenceDatabaseFence|TestRoleOwnershipManualUtilityDatabaseFence|TestRoleOwnershipSequenceOwnedCreationDatabaseFence)$'
+make check RUN='^TestReferenceSequence(CreateRestart|TransactionalRestartDDL|PreparedDropRecreate|OwnedTableLock)$'
+make check REFERENCE=1 RUN='^TestReferenceSequence(CreateRestart|TransactionalRestartDDL|PreparedDropRecreate|OwnedTableLock)$'
+make check RUN='^TestReferenceEnum(NamespaceOwnership|PreparedLifecycle|AlterSavepointProvenance)$'
+make check REFERENCE=1 RUN='^TestReferenceEnum(NamespaceOwnership|PreparedLifecycle|AlterSavepointProvenance)$'
+make check RUN='^TestReferenceSequenceNativeDumpPostgresRestore$'
+make check REFERENCE=1 RUN='^TestReferenceSequenceNativeDumpPostgresRestore$'
+make check RUN='^TestReferencePartitionConstraints(Drops|Transactions|Cancellation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionConstraints(Drops|Transactions|Cancellation|FeatureSmoke)$'
+make check RUN='^(TestRoleOwnership|TestReassignOwned|TestDropOwned|TestDropRole)'
+make check RUN='^(TestRoleOwnershipMaterializedGrammar|TestDropOwnedCollectedCleanupPrimary|TestDropOwnedCleanupPolicyDeletionUnion)$'
+make check RUN='^(TestDropOwnedACLGrantorSupport|TestRoleOwnershipDatabaseDiagnosticNouns)$'
+make check RUN='^(TestObjectGrantSourceNearestFullMatch|TestDropOwnedSQLGrantorProvenance)$'
+make check RACE=1 RUN='^(TestRoleOwnershipPublication|TestRoleOwnershipDatabase|TestDropOwnedUnion|TestReassignOwnedPublication)'
+```
+
+Use external900-second deadlines. Shared schema/type assertions use actual
+successor authority and data/control outcomes; absent native pg_namespace/pg_type
+SQL providers are not invented. PG supplements and native descriptor units
+prove reciprocal associations independently. Schema ACL Dump guard coverage is
+an ordinary Go error with zero writer calls. Preserve sequence OWNER transaction
+coverage and explicit native utility boundaries. Remove discovery filters before
+native red, final proof and review; whole-project Docker-free proof is quickcheck.
+Attached-database and registered extension proofs use actual canonical descriptors
+and independently owned members. Foreign-extension member refusal is isolated
+per member, not pinned to incidental catalog-index tie order. Dependency Detail
+assertions retain complete independently specified line multiplicities where
+PostgreSQL supplies no independent-dependent tie ordering contract; every other
+diagnostic field and notice list remains exact. Internal database tests cover
+immutable role/catalog pairing and committed/private predecessor fences.
+The materialized-owner parser unit covers the integrated ALTER VIEW AST,
+conditional heads, keyword/literal role identity and operand positions without
+a competing ownership grammar. Collected-cleanup units distinguish genuine
+membership/whole-policy deletions from partial policy and ACL edits, including
+policies on already doomed tables, and retain every catalog/role/storage
+predecessor after RESTRICT refusal. Standalone smoke uses supported owner,
+SET and denied membership-GRANT operations rather than absent native catalog
+inquiries; its expected outcome is quiet exit zero, not verification evidence.
+The additional grant-support unit independently covers inherited owner versus
+SET-only authority, partial independent grant options, received-first cleanup
+with outgoing-first ACL order, and unsupported provenance after membership loss.
+Database diagnostics independently distinguish raw owner nouns from quoted
+privilege nouns, including an opaque name containing literal quotes. Sequence
+collection uses actual source ownership, without changing mutation roots.
+Grantor selection units cover current/nearer full options versus inherited owner,
+same-source table/column option merging, partial fallback and owner/superuser fast
+paths. The engine-private SQL seam inspects actual GRANT-origin ACL entries,
+their immutable cleanup replacement and the complete retained-grantor role-drop
+refusal. It complements the independent public PostgreSQL witness rather than
+substituting a constructed ACL fixture for SQL-created provenance.
+
+The retained-default message regression exercises the actual utility path with
+paired private policy/role/catalog roots. An owner-only committed DB replacement
+must veto final publication without a policy, role, catalog or storage prefix;
+cancellation is independent and retained authority roots remain immutable.
+The ObjectGrant message regression executes a real SELECT WITH GRANT OPTION
+candidate under ordinary pg_database_owner-derived table authority. DB-only
+replacement after utility statement completion must veto outer ACL/role
+publication, leaving committed reader access denied and retained private access
+valid. Distinct private DB authority, unchanged-predecessor success and independent
+cancellation retain data, ACLs, constraints and index/storage roots.
+The partition-constraint predecessor regression drives the actual early-return
+handler using canonical pg_database_owner-derived ownership. It replaces only
+the committed DB descriptor at post-staging validation and after the retained
+statement boundary, preserving role/session revisions and target identities.
+Distinct private DB authority and healthy unchanged predecessors are separate
+cases; vetoes retain recursive constraints, backing indexes, independent local
+indexes, rows and all catalog/index/storage roots without a publication prefix.
+The actual sequence OWNER and manual-utility regressions exercise sequence
+CREATE/DROP/COMMENT and enum CREATE through their real AST handlers, alongside
+the retained ordinary GRANT/REVOKE witness above. Each distinguishes committed
+from honest distinct-private DB authority, tests replacement before Statement
+Finish and after retained Finish, and includes healthy actual-effect controls.
+Creation uses a pg_database_owner-owned namespace with no PUBLIC CREATE.
+Vetoes retain old descriptors/ACLs, enum/array and name roots, rows/index/storage
+roots and genuine nontransactional generator/cache/currval state, without the
+retained INSERT prefix or a new descriptor/generator prefix.
+The OWNED BY creation regression admits a real table reader before upgrading its
+ticket to a blocker AX, observes the CREATE worker's pending request on that
+exact table, replaces only the DB descriptor and then releases/joins the worker.
+The actual helper's fresh table-owner checks still allow its valid candidate,
+while fresh namespace CREATE is denied after committed-owner loss. Publication
+must therefore fence the original pre-wait CREATE authority, not recapture the
+refreshed role/catalog view. Healthy and private wait cases remain independent.
+Selected shared sequence/enum definitions above preserve existing direct/prepared
+DDL, transaction, dependency, enum safety and native-control/replay expectations;
+both modes supplement, rather than replace, the deterministic private race proof.
+The existing ADD CONSTRAINT definitions retain their full23503 expectations:
+candidate catalog substitution must also pair its captured RoleRead, including
+pre-wait admission, post-wait name revalidation and historical FK disclosure.
+
+`DefaultCreatorRecipientUnion` independently checks complete source unions:
+recipient-first baseline removal and owner-first residual-policy cleanup succeed
+in both modes. The owner-first baseline-only case records pinned18.0's actual
+XX000 with the queried real creator-record OID and full diagnostics, then proves
+statement rollback of IDs, owners, rows, policies, memberships and generators.
+Native instead performs complete atomic cleanup; no fabricated OID/default inquiry
+provider, generic unsupported boundary or imitation of stale internal addresses.
+Witness-specific cleanup restores DB authority/closes held handles and performs
+real creator-only DROP OWNED phases before the unchanged aggregate helper, including
+fatal paths. This prevents the release defect from masking assertion failures;
+it does not serialize or weaken extension/member or default union acceptance.
+
+
 Selected role proofs (external deadline900s each):
 
 ```sh

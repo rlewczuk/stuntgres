@@ -177,7 +177,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	pgRolesUnitRole(e, state, 20001, "second")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []RoleRead{{owner: e, state: &roleCatalog{roles: map[PrincipalRef]RoleDescriptor{}}}, {owner: e, state: state}} {
+	for _, roles := range []RoleRead{{owner: e, state: &roleCatalog{roles: map[PrincipalRef]RoleDescriptor{}}, catalog: CatalogRead{e, e.state}}, {owner: e, state: state, catalog: CatalogRead{e, e.state}}} {
 		source, err := capturePGRoles(canceled, roles, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
@@ -185,7 +185,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	}
 	for _, at := range []int{2, 3, len(state.roles) + 2} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := capturePGRoles(ctx, RoleRead{owner: e, state: state}, ref, d)
+		source, err := capturePGRoles(ctx, RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -193,7 +193,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	invalid := *d
 	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 	invalid.columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := capturePGRoles(context.Background(), RoleRead{owner: e, state: state}, ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGRoles(context.Background(), RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
@@ -234,7 +234,7 @@ func TestPGRolesProjection(t *testing.T) {
 			role.ConnectionLimit = 9
 			role.HasValidUntil, role.ValidUntil, role.Password = expiry.has, expiry.stamp, password
 			state.roles[low] = role
-			source, err := capturePGRoles(context.Background(), RoleRead{owner: e, state: state}, ref, d)
+			source, err := capturePGRoles(context.Background(), RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -292,7 +292,7 @@ func TestPGRolesProjection(t *testing.T) {
 				t.Fatal("retained role changed")
 			}
 			delete(updated.roles, low)
-			fresh, err := capturePGRoles(context.Background(), RoleRead{owner: e, state: updated}, ref, d)
+			fresh, err := capturePGRoles(context.Background(), RoleRead{owner: e, state: updated, catalog: CatalogRead{e, e.state}}, ref, d)
 			if err != nil || pgRolesUnitRows(t, fresh)[20000] != nil {
 				t.Fatal("high identity aliased removed role", err)
 			}

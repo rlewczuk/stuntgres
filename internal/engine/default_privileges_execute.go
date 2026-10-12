@@ -130,7 +130,9 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	candidate := *v.catalog.state
 	candidate.defaultACLs = overlayDefaultACLs(v.catalog.state.defaultACLs, updates)
-	if err := validateDefaultACLs(v.roles, CatalogRead{e, &candidate}); err != nil {
+	candidateRoles := v.roles
+	candidateRoles.catalog = CatalogRead{e, &candidate}
+	if err := validateDefaultACLs(candidateRoles, candidateRoles.catalog); err != nil {
 		return Result{}, err
 	}
 	if v.roles.state.revision == ^uint64(0) {
@@ -144,6 +146,11 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	if op.session.transactions.retainedMessage {
 		changes := cloneCatalogChanges(op.session.transactions.catalog)
+		// Default utilities use the selected private DB authority, but their
+		// retained effects must fence its exact committed predecessor.
+		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ObjectRef{}, nil), changes); err != nil {
+			return Result{}, err
+		}
 		for key, record := range updates {
 			e.defaultACLChangeLocked(changes, key, record)
 		}

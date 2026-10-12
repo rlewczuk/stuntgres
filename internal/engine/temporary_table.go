@@ -23,6 +23,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, creationError(err, s.Name)
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
+	auth.roles.catalog = auth.catalog
 	if op.restoreTableDestination {
 		bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
 		if er != nil || !bootstrap.Superuser || e.importTargets == nil {
@@ -52,6 +53,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		// Permanent CREATE does not need the TEMP namespace overlay. Preserve
 		// its admitted catalog identity for the existing importer/publication fences.
 		auth.catalog = originalCatalog
+		auth.roles.catalog = auth.catalog
 	}
 	if !temporary && s.OnCommit != parser.OnCommitUnspecified {
 		e.mu.Unlock()
@@ -77,7 +79,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	base := auth.catalog
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	var partition *pendingPartitionDefinition
 	if s.PartitionBy != nil || s.PartitionOf != nil {
 		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
@@ -117,7 +119,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 			// them through Finish without copying them into the outer transaction.
 			scope.catalogAuthority = &catalogAuthority{
 				session: stage.authSession, authorization: stage.authRevision,
-				roles: stage.roleRevision, observations: stage.domainBases,
+				roles: stage.roleRevision, observations: stage.domainBases, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor,
 			}
 		}
 		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {

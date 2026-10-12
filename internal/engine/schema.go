@@ -47,11 +47,13 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ObjectAddre
 
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ObjectRef) error {
 	auth.catalog = stage.base
+	auth.roles.catalog = auth.catalog
 	if namespace, ok := auth.catalog.state.descriptors[ns].(*namespaceDescriptor); ok && auth.session != nil && namespace.temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
+		auth.roles.catalog = auth.catalog
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
@@ -75,6 +77,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
+		auth.roles.catalog = auth.catalog
 	}
 	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil, nil)
 	if err != nil {
@@ -123,6 +126,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
 	auth.catalog = e.stageRead(stage)
+	auth.roles.catalog = auth.catalog
 	// Preserve operation safety, but resolve diagnostic names lazily against
 	// the staged catalog that owns these defaults, generations and CHECKs.
 	input.TypeDiagnosticName = nil
@@ -339,9 +343,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession = op.session
-	stage.authRevision = auth.revision
-	stage.roleRevision = auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
 		if !actor.Superuser {
 			return sqlError("42501", "permission denied for database stuntgres")
@@ -483,10 +485,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = own(old); err != nil {
 				return nil, err
 			}
-			if !actor.Superuser && target != actor.Ref {
-				return nil, sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, s.Owner))
+			if err = ownershipSuccessor(auth, target); err != nil {
+				return nil, err
 			}
-			if err = databaseGate(); err != nil {
+			if err = ownershipDatabaseCreate(auth); err != nil {
 				return nil, err
 			}
 			next.owner = target

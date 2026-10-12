@@ -46,7 +46,7 @@ func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 // must not forbid a later supported removal of an owner's own dependencies.
 func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catalogState) error {
 	for ref := range c.retiredRoles {
-		if defaultRoleDependencies(CatalogRead{e, catalog}, RoleRead{e, c.roles}, ref, nil) {
+		if defaultRoleDependencies(CatalogRead{e, catalog}, RoleRead{e, c.roles, CatalogRead{e, catalog}}, ref, nil) {
 			return ErrCatalogReplaced
 		}
 		for _, descriptor := range catalog.descriptors {

@@ -235,7 +235,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		if err != nil {
 			return Result{}, err
 		}
-		candidate := RoleRead{e, n}
+		candidate := RoleRead{e, n, v.catalog}
 		ownedEdges := !actor.Superuser
 		// Preserve PostgreSQL's category order and stage every initial clause
 		// in the same private root as attributes and the creator ADMIN grant.

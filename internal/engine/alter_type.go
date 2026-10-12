@@ -68,7 +68,7 @@ func (e *Engine) prepareAlterIdentityTypes(scope *StatementScope, op *Operation,
 	}
 	e.mu.Unlock()
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	index := 0
 	for _, action := range actions {
 		if action.Action != parser.AlterColumnType {

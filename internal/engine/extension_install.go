@@ -71,9 +71,9 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	for key, original := range stage.touched {
 		changes.names[key] = original
 	}
-	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.state.descriptors[stage.extensionNamespace], database: stage.extensionDatabase})
+	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.state.descriptors[stage.extensionNamespace], database: stage.databasePredecessor})
 	scope.catalog = changes
-	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.extensionDatabase}
+	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
 	return Result{}, nil
 }
@@ -177,11 +177,8 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	ext := &extensionDescriptor{address: ObjectAddress{ClassID: ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, version: version, targetNamespace: namespace, owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession = op.session
-	stage.authRevision = auth.revision
-	stage.roleRevision = auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
-	stage.extensionDatabase = e.state.descriptors[currentDatabaseAddress]
 	if err := stage.Create(ext); err != nil {
 		return nil, err
 	}
@@ -236,6 +233,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	// search path, under the actual script execution principal. In particular,
 	// unqualified function lookup excludes the installer's own TEMP namespace.
 	auth.catalog = e.stageRead(stage)
+	auth.roles.catalog = auth.catalog
 	auth.state.CurrentUser = owner
 	if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ext.targetNamespace}); err != nil {
 		return err

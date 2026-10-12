@@ -163,9 +163,10 @@ INHERIT=true and SET=true. They can be revoked normally and are not reseeded by
 Reset/Restore. All fifteen non-database-owner roles support normal explicit
 membership, options, provenance and SET ROLE.
 
-The fixed single-engine database owner is bootstrap10. Its implicit MEMBER,
-INHERIT and SET successor is `pg_database_owner`, including when an ordinary
-membership traversal reaches the database owner; no persisted membership row or
+The single attached database initially belongs to bootstrap10; subsequent
+ownership follows its actual canonical database descriptor. Its implicit MEMBER,
+INHERIT and SET successor is `pg_database_owner`, including ordinary membership
+traversal that reaches the current database owner; no persisted membership row or
 direct ADMIN option is invented. GRANT cannot give `pg_database_owner` explicit
 members or make it a member of any role (0A000), including initial CREATE clauses.
 ALTER GROUP's reserved target guard remains42939. Plain REVOKE retains normal
@@ -358,9 +359,13 @@ arbitrary column grants into a table grant.
 
 Grants retain independent `(grantor, grantee)` origins. All-INHERIT paths supply
 ordinary rights and grant authority, while SET-only/disabled paths do not.
-Delegation selects one reachable direct option source, maximizing the requested
-bits rather than fabricating a union across multiple source roles. Actual
-superuser/inherited-owner grants use the owner origin. PostgreSQL18.0 object
+Delegation selects one reachable direct option source, never a union of options
+from different roles. A current owner or actual superuser uses the owner origin.
+Otherwise the existing breadth-first INHERIT closure chooses its first full
+requested-option match; a nearer explicit source can precede an inherited owner.
+An inherited owner supplies all options when reached normally. If no full match
+exists, the largest requested-bit subset wins, with nearer roles winning ties.
+PostgreSQL18.0 object
 GRANTED BY must name the exact current user, even for superusers or inherited
 owners; another existing role fails `0A000`, and a missing role fails `42704`
 before object lookup.
@@ -765,15 +770,16 @@ rewrite stored search_path text.
 New schemas have no PUBLIC rights. Owners have schema USAGE/CREATE; relation
 SELECT/INSERT/UPDATE is independently checked. Qualified creation requires CREATE,
 not USAGE. Unqualified creation chooses the first usable explicit namespace,
-then checks CREATE without fallback. Database CREATE grants are not implemented:
-standalone schema provisioning and rename require effective superuser authority.
-The fixed native error label `stuntgres` in `permission denied for database
-stuntgres` is diagnostic-only, not an attached database or DSN interpretation.
+then checks CREATE without fallback. The attached database has real CREATE ACL
+grants, including transactional GRANT/REVOKE and grant-option provenance; trusted
+extension installation consumes that authority. Standalone schema provisioning
+and rename still require effective superuser authority.
 Native public retains the existing PUBLIC USAGE|CREATE convenience divergence.
 Owner transfer updates the schema owner and its explicit ACL, not contained table ownership.
-Pinned PostgreSQL 18.0 permits superuser transfer to ordinary NOLOGIN roles
-without database CREATE and same-owner no-ops; this observed behavior takes
-precedence over the ALTER SCHEMA manual's destination-CREATE wording.
+Changed schema ownership requires the actor's effective CREATE privilege on the
+attached database (or superuser authority), independently of the successor
+SET-role check. It does not require successor database CREATE.
+Same-owner schema no-ops retain the pinned family-specific admission order.
 
 Standalone ordinary-table `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
 requires source USAGE, table ownership (not a schema-owner substitute) and
@@ -834,6 +840,145 @@ The migrated families retain resolved namespace/OID identities, NAME raw codecs,
 actual held consumers and owner-bearing native control replay. After dropping a
 peer's selected PostgreSQL role, the full invalid-role-OID record and SAME-peer
 authorization reset are distinct from native retained identity semantics.
+
+## Object ownership and bulk cleanup — change note
+
+`ALTER TABLE`, `ALTER VIEW`, `ALTER MATERIALIZED VIEW`, `ALTER SEQUENCE`,
+`ALTER TYPE`, `ALTER DOMAIN`, `ALTER SCHEMA` and `ALTER COLLATION ... OWNER TO`
+support represented user objects. Ordinary ACL grants are not ownership:
+individual changed-owner authority is inherited owner authority plus ability to
+SET the successor and successor CREATE in the containing schema (superusers
+bypass eligibility). Schema uses the separate actor database gate above.
+Table/view/MV/sequence check owner authority even on same-owner requests;
+type/domain/schema/collation retain their pinned earlier same-owner no-op order.
+
+Transfers rewrite old-owner grantor and grantee references, including explicit
+stable-column ACLs, merging collisions without inventing rights. Indexes,
+row types/arrays, standalone-type arrays/composite backing relations and
+column-owned sequences follow canonical associations in one publication.
+Row-type and associated-array synchronization rewrites ACL ownership once when
+the owner changes; an unchanged owner does not allocate a replacement ACL.
+Inheritance and partition children are independent owners, not recursive targets.
+Rows, type codecs, comments, policies and sequence generator state are preserved.
+Direct catalog mutation remains0A000; direct index/composite backing relation
+mutation retains existing42809 kind guards. Their ownership changes through
+supported parent association handlers, not generic ALTER TABLE side effects.
+
+`REASSIGN OWNED BY role [, ...] TO role` requires INHERIT authority over every
+source and target, not SET-only reachability. It changes source-owned roots only;
+other-object grants and membership provenance remain. Schema/collation and
+registered extension/function/dictionary handlers retain their actual class
+eligibility checks. The attached database is also reassigned; extensions and
+their independently owned members are separate roots. Ownerless text-search
+templates are never assigned an owner. `DROP OWNED BY role [, ...]
+[RESTRICT | CASCADE]` resolves the complete owner union before dependencies.
+The collected group also includes actual source-owned sequence descriptors,
+including column-owned sequences, sole-target policy deletions and source-grantor
+membership deletions. A multi-object group uses the plural dependency refusal.
+Column-owned sequence mutation still follows its parent association handler;
+ACL edits and index/row-type associations do not invent collected owner roots.
+RESTRICT refuses atomically; CASCADE removes actual dependents and constraints
+while preserving surviving rows. Surviving database/object/column/type/namespace grants,
+every matching policy target and unsupported source-grantor membership
+provenance are cleaned in the same fenced publication. Roles and endpoint
+memberships are not themselves dropped. Residual ownership, ACL, policy,
+grantor-membership or registered-feature dependencies still block DROP ROLE;
+native DROP ROLE retains its existing superuser-only boundary.
+Received selected-role ACL rights are removed before checking outgoing grantor
+bits against surviving grant options. Inherited owner options or independent
+inherited options preserve supported downstream grants and their grantor
+DROP ROLE blockers; losing membership alone does not rewrite those ACL rows.
+
+REASSIGN preserves default-policy creator/schema/class keys and record identities;
+successor defaults are not reapplied to existing objects. DROP OWNED deletes every
+selected creator's actual default record, including stored-empty global policies.
+In other creators' records it removes selected recipients' ordinary and option
+bits with selective ACL CASCADE, even under outer RESTRICT. A record disappears
+only at its own baseline: hardwired class ACL globally, explicit empty when scoped.
+Namespace AUTO tombstones take precedence; same-name recreation cannot resurrect
+policies. Actual selected-creator records also enter the collected owner group,
+even if their namespace removes them first; recipient normalization and other
+creators' AUTO removals do not. Default-only cleanup uses the same immutable
+candidate, original-key preflight and atomic catalog/role publication as objects.
+
+Complete creator/recipient source unions remain supported and atomic natively.
+Pinned PostgreSQL18.0 has a bounded release defect when an earlier source queues
+its owned default record and a later selected recipient restores that same record
+to baseline: `XX000 could not find tuple for default ACL N`, where N is the actual
+server record OID. The failed server statement rolls back; native cleanup does not
+imitate the stale queued address. Recipient-first baseline cleanup and owner-first
+cleanup with residual nonbaseline rights succeed on both backends.
+
+Canonical public is not pinned: changed ownership or a rename does not exclude
+it from schema reassignment or RESTRICT/CASCADE cleanup. Actual protected catalog
+namespaces remain excluded. Bulk source protection recognizes the initial
+principal's canonical identity separately from predefined flags or role names;
+ordinary familiar-name roles and other superusers are not thereby protected.
+All source resolution/authority and reassignment-target checks precede protected
+source refusal, which precedes any class mutation or same-source no-op.
+
+`ALTER DATABASE name OWNER TO role|CURRENT_ROLE|CURRENT_USER|SESSION_USER`
+changes only the current attachment: no CREATE/DROP DATABASE, remote database,
+tablespace or parameter-ACL provider is added. The target role is
+resolved before the database name; same-owner requests are no-ops. A changed
+owner needs inherited ownership, successor SET authority and the actor's
+CREATEDB attribute (or superuser authority). DROP OWNED never deletes the
+attached database, but cleans its actual CREATE ACL; residual ownership still
+blocks DROP ROLE. DB CREATE grants and direct sequence OWNER remain transactional;
+direct database OWNER and bulk ownership utilities are autocommit-only.
+Database owner refusals use the raw database name; ordinary privilege refusals
+use its canonical quoted identifier. These are distinct PostgreSQL diagnostics.
+
+Registered extension deletion follows its actual canonical member edges and
+stored-expression dependents. An independently owned member cannot be deleted
+without its extension, even with CASCADE; selecting the complete owner union
+allows actual extension/member cleanup. No public function/dictionary OWNER
+grammar or schema/type GRANT is added. Ownership-only Dump/Reset/Restore preserves
+local named owners and extension/member principals, while retaining destination
+database ownership/CREATE ACL and the existing role graph. Explicit local
+namespace/relation/column ACLs still fail Dump before writer I/O.
+
+Each role snapshot carries its matching immutable catalog, including private
+transaction views. Database-owner changes invalidate existing prepared path
+authority through canonical database identity, not a synthetic role revision.
+SQL publication captures the exact committed database predecessor separately
+from private authority. Finish and outer commit veto a changed predecessor,
+including storage-only stages and saved transaction catalog roots.
+Default-ACL candidate validation, role retirement, symbolic principal remapping
+and table-privilege projection use that same exact catalog/role pairing. Private
+preflight captures one immutable combined view for both default and ordinary ACL
+validation; it does not substitute a live role or catalog fallback.
+Retained default utilities also record their exact committed database predecessor
+through the existing catalog-authority preflight before staging policy changes.
+The selected private catalog authorizes the creator; outer message publication
+vetoes a changed committed owner even without role/session revision changes,
+leaving pending policy and role prefixes unpublished and retained reads intact.
+Retained ordinary relation/column GRANT and REVOKE use the same preflight before
+assigning ACL and pending role candidates. Their database predecessor stays in
+candidate originals, not a completed scope authority stamped before the utility's
+own role revision advance. Immediate utilities remain continuously Engine→Session
+locked; no-op, grantor selection, diagnostics and warning order remain unchanged.
+Added-constraint admission, post-wait recapture and historical foreign-key scans
+pair each substituted private/candidate catalog with the same captured role root.
+The partition-constraint DROP early-return handler captures the same entry
+stage authority before unlocking, including selected private DB identity and its
+exact committed predecessor. Recursive key/index deletion, overlay staging and
+outer publication therefore veto owner-only replacement without installed prefixes.
+Manual sequence CREATE, ALTER (including OWNER), DROP and COMMENT candidates,
+and enum CREATE, carry the same captured statement authority into Finish.
+Successful retained Finish exports its exact committed DB predecessor to the
+owning candidate for outer publication; distinct private DB authority stays valid
+while that predecessor is unchanged. Sequence CREATE captures the authority that
+passed namespace CREATE before OWNED BY releases the engine lock to wait for its
+table. The helper's later role/catalog refresh cannot restamp that earlier check.
+ALTER and COMMENT use their checked post-wait authority; multi-root DROP uses
+its saved post-wait authority. Enum CREATE uses its checked entry authority;
+ALTER ENUM retains its existing object-specific guard. Together with retained
+ordinary GRANT/REVOKE above, these six manual producer groups reuse the existing
+publication fences without another publisher, role revision or authority cache.
+Existing no-op/diagnostic ordering, transaction eligibility, sequence generators,
+physical-session currval/cache memories and enum safety bookkeeping are unchanged.
+
 
 
 

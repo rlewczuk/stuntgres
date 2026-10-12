@@ -114,6 +114,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	fresh := *f.context.statementScope
 	fresh.commentCatalog = CatalogRead{owner: f.engine, state: f.engine.state}
 	fresh.deparseAuth.catalog = fresh.commentCatalog
+	fresh.deparseAuth.roles.catalog = fresh.deparseAuth.catalog
 	value, err = f.node.Eval(&EvalContext{Context: context.Background(), statementScope: &fresh})
 	if err != nil || !value.IsNull() {
 		t.Fatal("fresh snapshot ignored NONE", value, err)

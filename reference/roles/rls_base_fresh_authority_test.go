@@ -51,14 +51,6 @@ func TestReferenceRLSBaseFreshAuthority(t *testing.T) {
 		read("revoked_owner_membership", nil)
 		fixture.RunStep(s.t, s.p.Ctx, s.c, s.record, fixture.Select(held.SQL, []string{"id"}, []string{"INT4"}, nil))
 		s.actor("")
-		if !s.backend.PG {
-			predefinedFailure(s, "ALTER TABLE t OWNER TO rls_reader", fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE action is unsupported", Position: "15"}, false, "prepare")
-			rlsBaseRows(s, rlsBaseSeedRows())
-			predefinedSelect(s, "SELECT tableowner,rowsecurity FROM pg_tables WHERE schemaname='public' AND tablename='t'", []string{"tableowner", "rowsecurity"}, []string{"NAME", "BOOL"}, [][]any{{"rls_owner", true}})
-			s.actor("rls_reader")
-			read("unsupported_owner_transfer_preserves_deny", nil)
-			return
-		}
 		s.exec("ALTER TABLE t OWNER TO rls_reader")
 		s.actor("rls_reader")
 		read("new_direct_owner", rlsBaseSeedRows())

@@ -157,6 +157,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		name, mode, ownerOnly = v.Name, accessExclusive, true
 		viewReplacement = true
 		rename = true
+	case *parser.AlterOwner:
+		if !execute || v.Kind == "type" || v.Kind == "domain" || v.Kind == "database" {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
+		rename, ifExists = true, v.IfExists
 	case *parser.AlterView:
 		if !execute {
 			return nil
@@ -286,6 +292,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			ns := s.viewCreationNamespace
 			if s.viewChanges != nil {
 				auth.catalog = e.privateCatalogLocked(s.viewChanges)
+				auth.roles.catalog = auth.catalog
 			}
 			err = auth.CheckCreate(ns)
 			if err == nil {
@@ -542,6 +549,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		ns := s.viewCreationNamespace
 		if s.viewChanges != nil {
 			auth.catalog = e.privateCatalogLocked(s.viewChanges)
+			auth.roles.catalog = auth.catalog
 		}
 		if auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
 			return ErrCatalogReplaced

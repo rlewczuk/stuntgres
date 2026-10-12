@@ -12,6 +12,7 @@ import (
 func alterViewAuthority(auth AuthorizationView, ref ObjectRef, s *parser.AlterView) error {
 	d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	kind, label := viewRelation, "view"
+	ownerChecked := false
 	if s.Materialized {
 		kind, label = materializedViewRelation, "materialized view"
 		if s.Action == "column" {
@@ -21,10 +22,14 @@ func alterViewAuthority(auth AuthorizationView, ref ObjectRef, s *parser.AlterVi
 			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 				return err
 			}
+			ownerChecked = true
 		}
 	}
 	if d.relationKind != kind {
 		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.name, label))
+	}
+	if ownerChecked {
+		return nil
 	}
 	return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 }
@@ -108,38 +113,6 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				copy(next.autoExtensions[slot+1:], old.autoExtensions[slot:])
 			}
 		}
-	case "owner":
-		target, err := schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
-		if err != nil {
-			return fail(err)
-		}
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-		if err != nil {
-			return fail(err)
-		}
-		if !actor.Superuser && target != old.owner {
-			allowed, err := auth.roles.canSetRole(actor.Ref, target)
-			if err != nil {
-				return fail(err)
-			}
-			if !allowed {
-				role, _ := auth.roles.Descriptor(target)
-				return fail(sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name)))
-			}
-			targetAuth := auth
-			targetAuth.state.CurrentUser = target
-			if err := targetAuth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
-				return fail(err)
-			}
-		}
-		next.owner = target
-		next.acl = schemaACLOwner(old.acl, old.owner, target)
-		if old.columnACL != nil {
-			next.columnACL = make(map[int32]ACLValue, len(old.columnACL))
-			for attribute, acl := range old.columnACL {
-				next.columnACL[attribute] = schemaACLOwner(acl, old.owner, target)
-			}
-		}
 	case "set", "reset":
 		definition := *old.view
 		if s.Action == "set" {
@@ -187,39 +160,8 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			return fail(err)
 		}
 	}
-	var attachments []*relationDescriptor
-	if s.Materialized && s.Action == "owner" {
-		for _, descriptor := range auth.catalog.state.descriptors {
-			r, ok := descriptor.(*relationDescriptor)
-			if ok && r.sqlIndex != nil && r.sqlIndex.parent == old.address {
-				attachments = append(attachments, r)
-			}
-		}
-		sort.Slice(attachments, func(i, j int) bool { return attachments[i].address.ObjectID < attachments[j].address.ObjectID })
-		e.mu.Unlock()
-		for _, r := range attachments {
-			err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: r.address}, accessExclusive, false)
-			if err != nil {
-				return Result{}, err
-			}
-		}
-		e.mu.Lock()
-		fresh, freshErr := e.statementAuthorizationLocked(scope.op, s)
-		if freshErr != nil {
-			return fail(freshErr)
-		}
-		if fresh.catalog.state.descriptors[ref.Address] != old || fresh.revision != auth.revision || fresh.roles.state != auth.roles.state {
-			return fail(ErrCatalogReplaced)
-		}
-		for _, r := range attachments {
-			if fresh.catalog.state.descriptors[r.address] != r {
-				return fail(ErrCatalogReplaced)
-			}
-		}
-		auth = fresh
-	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, scope.op.session)
 	if extension != nil {
 		stage.querySources = []Descriptor{extension}
 	}
@@ -229,18 +171,6 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		scope.replacementRead = false
 	}
 	defer e.DiscardCatalogStage(stage)
-	for _, r := range attachments {
-		replacement := *r
-		if replacement.revision == DefinitionRevision(^uint64(0)) {
-			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
-		}
-		replacement.revision++
-		replacement.owner = next.owner
-		replacement.acl = schemaACLOwner(r.acl, r.owner, next.owner)
-		if err = stage.Replace(&replacement); err != nil {
-			return Result{}, err
-		}
-	}
 	if changed {
 		err = stage.Replace(&next)
 	}
@@ -371,7 +301,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		}
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, scope.op.session)
 	stage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()

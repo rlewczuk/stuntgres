@@ -47,7 +47,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeIndexMaintenance(scope, stmt, count)
 	case *parser.CreateView:
 		return e.executeCreateView(scope, stmt.(*parser.CreateView), count)
+	case *parser.AlterOwner:
+		return e.executeOwnership(scope, stmt.(*parser.AlterOwner), count)
+	case *parser.ReassignOwned, *parser.DropOwned:
+		return e.executeOwned(scope, stmt, count)
 	case *parser.AlterView:
+		if owner := stmt.(*parser.AlterView); owner.Action == "owner" {
+			kind := "view"
+			if owner.Materialized {
+				kind = "materialized view"
+			}
+			return e.executeRelationOwnership(scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count)
+		}
 		return e.executeAlterView(scope, stmt.(*parser.AlterView), count)
 	case *parser.DropView:
 		return e.executeDropView(scope, stmt.(*parser.DropView), count)

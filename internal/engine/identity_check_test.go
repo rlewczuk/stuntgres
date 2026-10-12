@@ -272,6 +272,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = e.stageRead(stage)
+	auth.roles.catalog = auth.catalog
 	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	binder.queryAuth = &auth
 	if _, err := binder.bindSequenceCall(ast.Targets[0].(parser.CallExpr)); err != nil {

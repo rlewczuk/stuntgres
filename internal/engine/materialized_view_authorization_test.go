@@ -37,6 +37,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	}
 	d.acl = ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: d.owner, Grantee: ACLGrantee{Role: reader}, Privileges: SelectPrivilege}}}
 	auth.catalog, auth.state.CurrentUser = e.stageRead(stage), reader
+	auth.roles.catalog = auth.catalog
 	baseRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: base.address}
 	mvRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
 	d.view.sources = []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1}}}

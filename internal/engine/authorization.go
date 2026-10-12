@@ -36,8 +36,9 @@ type roleCatalog struct {
 	edges    []Membership
 }
 type RoleRead struct {
-	owner *Engine
-	state *roleCatalog
+	owner   *Engine
+	state   *roleCatalog
+	catalog CatalogRead
 }
 
 func (r RoleRead) Lookup(name string) (RoleDescriptor, bool) {
@@ -52,7 +53,7 @@ func (r RoleRead) Lookup(name string) (RoleDescriptor, bool) {
 	return d, ok
 }
 func (r RoleRead) validatePrincipal(ref PrincipalRef) error {
-	if r.owner == nil || r.state == nil || ref.owner != r.owner || ref.id == 0 {
+	if r.owner == nil || r.state == nil || r.catalog.owner != r.owner || r.catalog.state == nil || ref.owner != r.owner || ref.id == 0 {
 		return fmt.Errorf("stuntgres: foreign or zero principal")
 	}
 	return nil
@@ -173,7 +174,7 @@ func (r RoleRead) adminOfRole(actor, target PrincipalRef) (bool, error) {
 func (e *Engine) Roles() RoleRead {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return RoleRead{e, e.roles}
+	return RoleRead{e, e.roles, CatalogRead{e, e.state}}
 }
 func (e *Engine) ResolveLogin(name string) (PrincipalRef, error) {
 	d, ok := e.Roles().Lookup(name)
@@ -210,7 +211,7 @@ func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []P
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, ref := range refs {
-		if _, err := (RoleRead{e, e.roles}).Descriptor(ref); err != nil {
+		if _, err := (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(ref); err != nil {
 			return err
 		}
 	}
@@ -357,7 +358,10 @@ type AuthorizationView struct {
 	engine  *Engine
 	catalog CatalogRead
 	roles   RoleRead
-	state   RoleState
+	// Committed predecessor captured under Engine.mu, distinct from private
+	// database authority retained by catalog/roles.
+	databasePredecessor Descriptor
+	state               RoleState
 	// Actual session identities remain distinct from trusted import authority.
 	sessionRoleState RoleState
 	revision         uint64
@@ -466,7 +470,11 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if a == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: missing authorization")
 	}
-	r := RoleRead{e, e.operationRolesLocked(op)}
+	view := CatalogRead{e, e.state}
+	if s.transactions != nil {
+		view = e.privateCatalogLocked(s.transactions.catalog)
+	}
+	r := RoleRead{e, e.operationRolesLocked(op), view}
 	if _, err := r.Descriptor(a.state.Authenticated); err != nil {
 		return AuthorizationView{}, err
 	}
@@ -477,10 +485,6 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 			return AuthorizationView{}, err
 		}
 	}
-	view := CatalogRead{e, e.state}
-	if s.transactions != nil {
-		view = e.privateCatalogLocked(s.transactions.catalog)
-	}
 	identity := a.state
 	if op.materializedOwner != (PrincipalRef{}) {
 		if _, err := r.Descriptor(op.materializedOwner); err != nil {
@@ -488,7 +492,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	authorization := AuthorizationView{engine: e, catalog: view, roles: r, state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	authorization := AuthorizationView{engine: e, catalog: view, roles: r, databasePredecessor: e.state.descriptors[currentDatabaseAddress], state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
 	if _, exists := r.state.roles[identity.CurrentUser]; !exists {
 		authorization.missingCurrent = identity.CurrentUser
 	}
@@ -534,7 +538,7 @@ func classPrivileges(d Descriptor) Privileges {
 	return tableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.state == nil || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || v.roles.owner != v.engine || v.roles.catalog != v.catalog || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -673,6 +677,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "schema"
 		} else if d.Kind() == CollationObject {
 			kind = "collation"
+		} else if d.Kind() == DatabaseObject {
+			kind = "database"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 			kind = "sequence"
 		}
@@ -691,7 +697,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if req.OwnerNoun != "" {
 			kind = req.OwnerNoun
 		}
-		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, d.Name()))
+		name := d.Name()
+		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, name))
 	}
 	mask := classPrivileges(d)
 	if req.Object.Address.SubID > 0 {
@@ -714,6 +721,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	if d.Kind() == NamespaceObject {
 		kind = "schema"
+	} else if d.Kind() == DatabaseObject {
+		kind = "database"
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		kind = "sequence"
 	}
@@ -723,7 +732,11 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
 		kind = "materialized view"
 	}
-	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
+	name := d.Name()
+	if d.Kind() == DatabaseObject {
+		name = dependencyIdentifier(name)
+	}
+	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, name))
 }
 func (v AuthorizationView) CanUse(ref ObjectRef) error {
 	return v.Check(AccessRequirement{Object: ref, Privileges: UsagePrivilege})
@@ -1045,7 +1058,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 	default:
 		return fmt.Errorf("stuntgres: unsupported ACL object")
 	}
-	if err := validateACL(RoleRead{e, e.roles}, next); err != nil {
+	if err := validateACL(RoleRead{e, e.roles, CatalogRead{e, e.state}}, next); err != nil {
 		return err
 	}
 	if e.roles.revision == ^uint64(0) {

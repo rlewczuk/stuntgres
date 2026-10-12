@@ -245,7 +245,7 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$
 
 Sixteen fixed PostgreSQL18 role identities share the existing immutable role
 authority, reserved-name/pinned-dependency diagnostics and normal membership/
-SET ROLE behavior. Database owner bootstrap10 implicitly reaches
+SET ROLE behavior. The canonical live attached-database owner implicitly reaches
 `pg_database_owner`6171 without an ADMIN row; explicit membership in either
 direction is forbidden. Canonical public is owned by6171 but retains the native
 PUBLIC USAGE|CREATE convenience ACL, not PostgreSQL18's fresh CREATE default.
@@ -1520,11 +1520,11 @@ native rows/descriptors remain stable while held executions refresh. Supported
 own transaction overlays participate; native's latest committed catalog frontier
 still differs from PostgreSQL repeatable-read MVCC. TEMP tables/views, partitioning,
 tablespace DDL, rules, triggers, RLS and VACUUM remain outside this change.
-Native ALTER TABLE OWNER retains its existing0A000 boundary without changing
-summary state. TRUNCATE preserves sticky hasindexes; supported ALTER VIEW OWNER
-refreshes view ownership.
-Table owners come from real authenticated creation, control replay or internal
-immutable descriptor replacement, not a new table-owner SQL command.
+Native ALTER TABLE OWNER updates real table and associated-object ownership
+without changing index-history state; ALTER VIEW OWNER refreshes view ownership.
+TRUNCATE preserves sticky hasindexes and object definitions. Owners are canonical
+principals, not summary-only labels. See [ownership and cleanup](AUTHORIZATION.md#object-ownership-and-bulk-cleanup--change-note)
+for supported families, bulk authority, cleanup and provider boundaries.
 See [exact schemas and provenance](SQL.md#table-and-view-summaries--change-note).
 
 Index/view introspection has seven strict STABLE TEXT signatures:
@@ -3321,6 +3321,29 @@ diagnostic at final publication rather than publishing a partial member set.
 Only current attachment `GRANT/REVOKE CREATE ON DATABASE name` is admitted,
 including PUBLIC, inherited roles, grant options and grantor dependencies.
 It does not add CREATE DATABASE, DSN interpretation or general database privileges.
+Attached `ALTER DATABASE name OWNER TO` is also admitted as an autocommit-only
+ownership utility. It changes the canonical shared descriptor, not an owner
+overlay or a separate database registry. REASSIGN includes this shared owner;
+DROP OWNED retains the database while selectively cleaning its CREATE ACL.
+Default privileges remain keyed to their original creator/schema/class under
+REASSIGN. DROP OWNED removes selected creators' actual records and selectively
+revokes selected recipients in other policies, retaining nonbaseline global
+empty records, unrelated recipients and existing materialized object provenance.
+Scoped namespace cleanup uses canonical AUTO tombstones, not schema-name scans.
+Complete multi-source creator/recipient cleanup is supported natively. A pinned
+PostgreSQL18.0 owner-first baseline collision can instead reportXX000 for an
+actual queued default ACL OID and roll back the statement; native does not emulate
+that internal release defect. Recipient-first cleanup and owner-first policies
+with residual nonbaseline rights retain shared successful semantics.
+The implicit `pg_database_owner` hop uses each retained matching role/catalog
+pair, and SQL publication fences the exact committed database predecessor.
+Registered extensions, functions and dictionaries retain separate owners and
+canonical extension-member deletion edges; ownerless templates stay ownerless.
+Canonical public is a non-pinned bulk schema root after owner changes or renaming;
+protected catalog namespaces are not. The canonical initial principal and
+predefined source roles receive the protected-source refusal before bulk effects.
+Protection does not depend on a familiar role name or ordinary superuser flags.
+No public routine/dictionary OWNER, CREATE DATABASE or tablespace surface is added.
 
 Read-only pg_extension exposes all eight logical columns; pg_proc exposes the
 bounded installed-provider oid/name/namespace/owner/arity/result/volatility/

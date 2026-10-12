@@ -181,7 +181,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	}
 	next.revision++
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	if next.ofType != (ObjectAddress{}) {
 		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[next.ofType])
 	}

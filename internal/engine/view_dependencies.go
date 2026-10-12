@@ -86,6 +86,12 @@ func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *
 func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAddress) string {
 	base := target
 	base.SubID = 0
+	if d, ok := catalog.state.descriptors[base].(*namespaceDescriptor); ok {
+		return "schema " + dependencyIdentifier(d.name)
+	}
+	if d, ok := catalog.state.descriptors[base].(*databaseDescriptor); ok {
+		return "database " + dependencyIdentifier(d.name)
+	}
 	if d, ok := catalog.state.descriptors[base].(*extensionDescriptor); ok {
 		return "extension " + dependencyIdentifier(d.name)
 	}
@@ -109,15 +115,32 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 		case unaccentTextSignature:
 			arguments = "text"
 		case unaccentDictionarySignature:
-			arguments = "regdictionary, text"
+			arguments = "regdictionary,text"
 		case unaccentInitSignature:
 			arguments = "internal"
 		case unaccentLexizeSignature:
-			arguments = "internal, internal, internal, internal"
+			arguments = "internal,internal,internal,internal"
 		default:
 			panic("stuntgres: invalid installed procedure signature")
 		}
 		return "function " + name + "(" + arguments + ")"
+	}
+	if d, ok := catalog.state.descriptors[base].(*tsDictionaryDescriptor); ok {
+		name := dependencyIdentifier(d.name)
+		visible := path == nil
+		for _, ns := range path {
+			if n, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
+				continue
+			}
+			if address, ok := catalog.state.names[NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]; ok {
+				visible = address == d.address
+				break
+			}
+		}
+		if !visible {
+			name = dependencyIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + name
+		}
+		return "text search dictionary " + name
 	}
 	if t, ok := catalog.state.descriptors[base].(*typeDescriptor); ok {
 		return "type " + typeDiagnosticNameAt(catalog, t, path)

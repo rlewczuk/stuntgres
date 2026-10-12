@@ -61,6 +61,25 @@ pg_prepared_xacts.transaction supply nonempty XID output. The latter SELECT
 carrier remains native decimal bytes versus pinned pgx int64. Constrained-domain
 DDL exclusions are asserted separately from those supported consumers.
 
+## User-type ownership — change note
+
+`ALTER TYPE name OWNER TO role` supports enums and free-standing composites;
+`ALTER DOMAIN name OWNER TO role` supports domains. Named and current/session
+identity successors use the same inherited-owner/SET-role/schema-CREATE gates
+as other individual transfers. Associated arrays and composite backing relations
+follow the root without rebuilding codecs or value signatures. REASSIGN and
+DROP OWNED use these canonical identities, not underscore naming conventions.
+Direct array or table-row-type ownership alteration fails42809 with the
+corresponding ALTER TYPE/ALTER TABLE hint; a non-domain ALTER DOMAIN fails42809.
+Builtin-type ownership remains an explicit native0A000 boundary.
+Typed tables remain independent owners from their OF composite type. Their
+canonical type attachment, distinct table row type and arrays survive ownership
+transfer/reassignment and local control replay. DROP OWNED RESTRICT retains a
+foreign-owned typed consumer atomically; CASCADE deletes the actual dependent
+typed table and its associations, not unrelated sentinel objects.
+Ownership transfer does not extend existing TYPE/DOMAIN rename boundaries or the
+bounded standalone composite DROP TYPE eligibility documented below.
+
 
 Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/money/date, time/timestamp with or without time zone, interval, uuid, inet, cidr, bytea, json, bit, varbit, int4range, int8range, numrange, int4multirange, int8multirange and nummultirange. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, monetary MONEY, canonical UUID/INET/CIDR, exact JSON source, canonical BIT/VARBIT digits and canonical ranges/multiranges), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 

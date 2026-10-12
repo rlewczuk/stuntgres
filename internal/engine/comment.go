@@ -169,9 +169,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		updated = &n
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession = op.session
-	stage.authRevision = auth.revision
-	stage.roleRevision = auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	if err := stage.Replace(updated); err != nil {
 		return nil, err
 	}

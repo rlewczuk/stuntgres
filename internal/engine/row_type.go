@@ -144,7 +144,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 	if staged, ok := stage.descriptors[address].(*typeDescriptor); ok {
 		row = staged
 	}
-	same := row.Namespace() == relation.namespace && row.owner == relation.owner && row.Name() == relation.name
+	same := row.Namespace() == relation.namespace && row.Name() == relation.name
 	if row.typ.IsComposite() {
 		same = same && row.typ.CompositeLen() == len(relation.columns)
 		if same {
@@ -157,7 +157,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 			}
 		}
 	}
-	if same {
+	if same && row.owner == relation.owner {
 		return nil
 	}
 	next := *row
@@ -165,7 +165,10 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 		next.acl = schemaACLOwner(row.acl, row.owner, relation.owner)
 	}
 	next.namespace, next.owner, next.revision = relation.namespace, relation.owner, relation.revision
-	if row.typ.IsComposite() {
+	if same {
+		// Ownership is metadata, not a new codec or composite signature.
+		next.typ = row.typ
+	} else if row.typ.IsComposite() {
 		ns := stage.descriptors[relation.namespace]
 		if ns == nil {
 			ns = stage.base.state.descriptors[relation.namespace]
@@ -195,7 +198,9 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 		if row.Name() != relation.name {
 			arrayName = associatedArrayName(stage, relation.namespace, relation.name)
 		}
-		copy.typ = sqltype.LookupArray(array.typ.ID(), arrayName, next.typ)
+		if !same {
+			copy.typ = sqltype.LookupArray(array.typ.ID(), arrayName, next.typ)
+		}
 		return stage.Replace(&copy)
 	}
 	return nil

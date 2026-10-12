@@ -427,7 +427,7 @@ var keywords = [...]keyword{
 	{"range", Unreserved, true, FRAME_UNIT},
 	{"read", Unreserved, true, READ},
 	{"real", ColumnName, true, 0},
-	{"reassign", Unreserved, true, 0},
+	{"reassign", Unreserved, true, REASSIGN},
 	{"recursive", Unreserved, true, 0},
 	{"ref", Unreserved, true, 0},
 	{"references", Reserved, true, REFERENCES},

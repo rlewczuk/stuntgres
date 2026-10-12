@@ -237,6 +237,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
+	auth.roles.catalog = auth.catalog
 	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
 		return err
 	}
@@ -266,6 +267,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	ns := scope.viewCreationNamespace
 	if scope.viewChanges != nil {
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
+		auth.roles.catalog = auth.catalog
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)
@@ -360,7 +362,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	base := auth.catalog
 	stage := e.BeginCatalogStage(base)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	stage.authorizeLocked(auth, op.session)
 	defer e.DiscardCatalogStage(stage)
 	if old == nil {
 		available, displacementErr := e.displaceAssociatedArrayLocked(stage, ns.Address, name)

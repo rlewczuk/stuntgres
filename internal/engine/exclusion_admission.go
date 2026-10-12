@@ -305,6 +305,7 @@ func (s *StatementScope) captureExclusionScan(ref ObjectRef, binding *uniqueWrit
 		auth = foreignActionOwner(auth, admission.relation.owner)
 	}
 	auth.catalog = view
+	auth.roles.catalog = auth.catalog
 	root := e.indexRoots[index.address]
 	if s.owner.catalog != nil {
 		if private, ok := s.owner.catalog.uniqueRoots[index.address]; ok {

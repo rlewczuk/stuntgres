@@ -103,6 +103,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if err := e.stageCreateEnumLocked(op, auth, stage, create); err != nil {
 			return Result{}, err
 		}
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
 		if len(scope.owner.savepoints) == 0 {
 			if changes.enumCreated == nil {
 				changes.enumCreated = make(map[ObjectAddress]bool)
@@ -122,7 +123,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if ref != locked {
 			return Result{}, ErrCatalogReplaced
 		}
-		scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: auth.revision, roles: auth.roles.state.revision, ref: ref, descriptor: e.state.descriptors[ref.Address]}
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
 		members := old.typ.EnumMembers()
 		oldIndex, newIndex := -1, -1
 		for i, m := range members {

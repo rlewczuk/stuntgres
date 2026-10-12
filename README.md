@@ -45,6 +45,28 @@ TEMP excluded. Every qualifier-admitted row takes transaction-owned sequence RX,
 even definition/count/stored/join reads; FALSE/name-rejected rows do not.
 See [sequence view contract](docs/SQL.md#pg_sequences-view--change-note).
 
+Change note: individual `ALTER ... OWNER TO`, `REASSIGN OWNED` and
+`DROP OWNED` now operate on represented schemas, relations, user types,
+collations, the attached database and registered extension/function/dictionary
+roots. Individual transfer uses inherited ownership and SET-role successor
+authority; bulk source/target authority uses INHERIT. Associated indexes, row
+types/arrays and owned sequences follow their canonical parent. Cleanup really
+removes objects, dependent definitions and selected grant provenance atomically.
+Canonical public remains a transferable/droppable bulk schema root, even after
+renaming. Catalog namespaces remain protected. Bulk sources reject the canonical
+initial principal and predefined roles before effects; a familiar role name or
+ordinary superuser attribute is not initial-principal protection.
+Sequence OWNER retains its existing transaction support; new ownership utilities
+are autocommit-only. DROP OWNED preserves the database but cleans its CREATE ACL.
+REASSIGN preserves creator-keyed default privileges; DROP OWNED removes selected
+creators' actual policies and selectively cleans selected recipients in others'
+policies. Tablespace providers remain absent.
+Complete default creator/recipient unions remain atomic natively; the documented
+pinned18.0 stale-default-address defect is not imitated.
+See [ownership and cleanup](docs/AUTHORIZATION.md#object-ownership-and-bulk-cleanup--change-note).
+Feature smoke: `make check RUN='^TestReferenceRoleOwnershipFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRoleOwnershipFeatureSmoke$'`.
+
 Change note: native `CopyFrom` and `CopyTo` on a pinned `*sql.Conn` stream
 PostgreSQL text, CSV and binary COPY through real type codecs and atomic DML staging.
 CSV preserves quoted empty strings versus unquoted NULL, embedded separators/
@@ -104,7 +126,7 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$
 Change note: all sixteen PostgreSQL18 predefined role identities are seeded.
 Live INHERIT membership supplies real read/write/schema/sequence capabilities;
 `pg_maintain` uses substantive REINDEX and transaction-owned LOCK exclusion.
-`pg_database_owner` is implicit for the fixed native bootstrap database owner and
+`pg_database_owner` is implicit for the live canonical attached-database owner and
 owns canonical public, whose historical PUBLIC USAGE|CREATE default is retained.
 Monitoring names do not unlock protected SET, and roles never synthesize missing
 statistics, filesystem/program, checkpoint, subscription or signaling providers.

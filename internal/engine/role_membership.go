@@ -287,7 +287,7 @@ func planMembership(op *Operation, r RoleRead, state RoleState, s *parser.RoleMe
 			// AddRoleMems exposes preceding GRANT changes to the next target.
 			candidate := *r.state
 			candidate.edges = edges
-			targetRead = RoleRead{r.owner, &candidate}
+			targetRead = RoleRead{r.owner, &candidate, r.catalog}
 		}
 		role, err := membershipRole(targetRead, state, spec)
 		if err != nil {
