@@ -1,0 +1,1002 @@
+# reference/tables
+
+## Testing
+
+Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
+fixture usage, and oracle-first workflow. Run the commands below from the
+repository root.
+
+### Partitioned constraints — selected proof
+
+The untagged `reference/tables/partition_constraints_*_test.go` definitions use
+the shared case/direct-or-prepared/backend matrix. Native and genuine pinned
+PostgreSQL18.0 execute the same definitions; independently observed PostgreSQL
+diagnostics, catalog types and control replay witnesses are not native-derived.
+Keep each group small, with an external900-second command deadline:
+
+```sh
+make check RUN='^TestReferencePartitionConstraints(Coverage|CoveragePrecedence|CompoundAdmission|Clones|Values|NestedValues|TypedEquality|PreparedMetadata)$'
+make check RUN='^TestReferencePartitionConstraints(Attachment|AttachmentDiagnostics|AttachmentEquivalence|Admission|HeldCurrentRole|Atomicity)$'
+make check RUN='^TestReferencePartitionConstraints(Drops|DropPrecedence|Transactions|Authorization|Privacy|Cancellation|IndexCancellation)$'
+make check RUN='^TestReferencePartitionConstraints(Controls|ControlCollision|FeatureSmoke|NonuniqueCatalog|IncompleteReuse|CatalogMetadata)$'
+make check RUN='^TestReferencePartitionConstraintsMultiKey(Collision|NestedOrder)'
+make check RUN='^TestReferencePartitionConstraintsRegclass(References|Controls)$'
+```
+
+Repeat each command with `REFERENCE=1` before review/integration of changed
+reference definitions. Retained generated/identity/serial/exclusion RANGE boundary
+witnesses remain selected by `TestReferenceRangePartitionConstraintBoundaries`;
+UNIQUE/PRIMARY KEY are positive partitioned-constraint witnesses, not boundaries.
+Catalog OIDs are compared relationally; coninhcount is INT2 and virtual index kind
+is internal CHAR I. Actual P/S edges and raw empty/nonempty metadata are asserted.
+The Regclass definitions cover renamed root UNIQUE, inherited intermediate UNIQUE
+and local intermediate PRIMARY KEY identities, actual local primary NULL errors,
+scalar/opaque/whole-NULL stored arrays, raw metadata, inline and inherited definitions,
+future defaults, two exact native redumps and unmodified PostgreSQL replay. Opaque
+identity checks use every scalar OID subscript and NULL position; general array
+comparison remains excluded. Selected race proof uses the same Regclass selector
+with `RACE=1`.
+
+
+Private structural and immutable-publication tests use the real catalog stage,
+physical key roots, admitted locking and transaction owners. Include the selected
+`TestPartitionConstraints` family in native proof. Race proof is separately:
+
+```sh
+make check RACE=1 RUN='^TestPartitionConstraints(AdmittedCancellation|TransactionOverlay|PublicationFences|PreservesNewestPhysicalRoot|FinalPublicationCancellation|DropFinalPublicationCancellation|RecursiveBuildFailure|IncompleteReplacementAdmission|OwnedProviderReplay)$'
+```
+
+For canonical scheduling remedies, retain the exact byte assertion in
+ControlCollision and select the private source-priority/dependency regressions:
+
+```sh
+make check RUN='^(TestPartitionConstraintsDump(LogicalOrder|PriorityLifecycle|CollisionProvenance|MultiKeyNames|IndexDeclarationOrder|CollisionDefinitionReservation)|TestIndexPropertyDumpRemappedTopology|TestInheritanceControlsTopology|TestInheritanceControlsRetainedTemporaryCollision)$'
+```
+
+The private order witness remints only one root above unrelated graph nodes.
+Sparse replay provenance retains that root's original priority while every dependency
+continues to precede its consumer; unchanged addresses retain their original order.
+MultiKeyCollision independently checks DISTINCT/NND keys sharing a generated stem,
+actual selective earlier-backing TEMP remapping, unchanged noncolliding identities,
+current-name NULL-duplicate diagnostics, two exact redumps and future cloning.
+MultiKeyNestedOrder pins inherited DISTINCT before nested local NND. Both public
+definitions require fresh selected native and pinned proof; their native controls
+also replay the actual unmodified emitted SQL. DumpMultiKeyNames privately checks
+whole-sibling generated-name reservation and parent-identity matching;
+DumpIndexDeclarationOrder checks inherited/local/prebuilt categories and sparse
+standalone priority without mutating captured constraint slices.
+DumpCollisionDefinitionReservation exercises actual TEMP preservation with the
+replacement allocator positioned at an imported leaf constraint OID, requiring
+unchanged noncolliding definition identities, backing/parent synchronization and
+immutable source/retained TEMP authority.
+
+Blocked cancellation tests establish an actual wait before cancellation; measured
+final-publication cancellation reaches the last genuine veto boundary rather
+than entering with an already canceled context. Failed actions preserve graph,
+rows and actual physical roots, followed by healthy retry. Controls cover renamed/
+manual/partial/nested trees, local provenance, reminted references, live TEMP
+collisions, deterministic repeated redump, retained cursors and failed/canceled
+replacement. The separate public executable additionally replays the actual
+unmodified emitted SQL into a clean isolated pinned PostgreSQL database.
+
+Executable smoke source is the session evidence artifact
+`local://partition-constraints-smoke.go`, not a staged package executable.
+Materialize it outside repository package roots and launch from the worktree:
+The executable retains both same-stem cases and the original PK/manual/partial/
+rollback/metadata baseline. It measures actual TEMP sequence collisions with only
+the earlier backing, preserves all noncolliding and TEMP identities, checks two
+byte-equal redumps and future clones. Stored references cover all three renamed
+UNIQUE/PRIMARY root/intermediate backings, inline/inherited definitions, late
+defaults/data, populated native materialized rows and policy definitions. Native
+policy-expression execution explicitly retains its0A000 boundary; PostgreSQL
+independently checks actual filtering. PostgreSQL ignores native snapshot comments,
+so replay explicitly REFRESHes the emitted materialized definition before checking
+its rows. The actual collision-destination stream is submitted unmodified; these
+instructions do not substitute for recorded executable observations.
+
+```sh
+go run /absolute/session/path/partition-constraints-smoke.go -mode native -dump /tmp/partition-constraints-smoke.sql
+go run /absolute/session/path/partition-constraints-smoke.go -mode replay -dump /tmp/partition-constraints-smoke.sql -dsn "$PG_DSN"
+```
+
+Expected terminal observations, only after all assertions, are
+`partition constraints native smoke passed` and
+`partition constraints PostgreSQL replay smoke passed`. Root-observed selected
+source/replay proof authorizes support documentation; these commands are
+verification instructions, not claims that every listed group was exercised.
+Reserve quickcheck for whole-project Docker-free verification. Root owns generation,
+checks, review and integration; agents do not invoke refcheck.
+
+### Typed-table selected proofs
+
+Shared-body `TestReferenceTypedTable` covers creation/options, exact metadata and
+diagnostics, attachment/dependencies, source/inherited lifecycle, authorization,
+prepared signatures, failure/cancellation and independently specified native
+Dump/Restore with actual emitted SQL replay on pinned PostgreSQL. Stage A's
+temporary oracle-discovery filter was removed before production implementation.
+Package-function `TestTyped` supplements identity mappings, provider validation,
+source topology, target remapping and final publication/dependency/storage fences.
+`TestTypedSameUsageStoredOwnRowPublicationGuard` executes actual same-usage source
+TYPE against empty/populated own-row consumers and rejects before publication.
+Public `TestReferenceTypedTableOwnRowStoredTypeGuard` keeps the identical-Usage
+and widening cases on every route. Shared dependency proofs retain NORMAL edges
+and distinct regtype identities; PG reciprocal metadata supplements package
+provider authority without adding native pg_type/pg_class.reltype surfaces.
+`TestReferenceTypedTableConstraintRetention` asserts surviving child CHECK/NOT NULL/
+DEFAULT enforcement and native round trips. `TestReferenceTypedTableTemporary`
+shares TEMP creation/attachment and literal state assertions with PostgreSQL;
+native branches exercise rejected Reset/Restore, held results/prepares and the
+attachment-during-reader-I/O final fence. Package TEMP-provider identity tests do
+not introduce a TEMP standalone-type SQL feature.
+The inherited propagation witness shares populated diamond leaf rows/metadata,
+retains native recursive-parent0A000 observations and PG ONLY supplements.
+`TestTypedInheritedParentAttributePublication` executes the real source lifecycle
+and checks source/root/child names, concrete types and independent stable attributes.
+`TestTypedStoredAssociatedCompositeArrayGuard` uses the actual associated provider;
+public composite-array column creation retains its known native capability error.
+`TestTypedAttributeDependencyModeTerminators` checks generic type names and grouped
+CASCADE/RESTRICT grammar without consuming dependency modes as a second type word.
+
+Review-regression definitions exercise actual CREATE source grants (persistent
+and TEMP), callback replacement during CREATE/ALTER/DROP in a bounded child test process,
+late root/descendant own-row consumers, and immutable member/source type ACLs.
+`TestTypedAuthorizationProviderACL` supplies actual native revoked-source CREATE,
+attach-without-USAGE, foreign-owner CASCADE, member denial/grant and grouped owner
+preflight scenarios; session/role revision tests alone are not their substitute.
+`TestTypedAdmissionCreateSourceRevisionConflict` rejects a coherent source generation
+change published while actual persistent/TEMP CREATE waits, then proves fresh
+execution can use the new shape. Shared
+`TestReferenceTypedTableAtomicityCreateSourceAdmission` runs without discovery
+filters. Its retained reader and bounded AccessShare probe establish a queued writer,
+then CREATE must time out without publishing an attachment. Cleanup cancels,
+rolls back and joins the worker; recovery CREATE observes the completed source shape.
+`TestReferenceTypedTableAttachmentSourceAdmission` independently pins ALTER OF's
+execution-time source selection when an earlier-path shadow appears during a
+target-lock wait. Shared direct/prepared selection, timeout and cancellation
+phases prove the actual shadow's source exclusion, exact NORMAL attachment edge,
+retained provider identities, unchanged rows/metadata after failure, and healthy
+qualified retry followed by CASCADE and detach. Its public fairness probes use
+retained readers rather than sleeps or an unsupported lock catalog.
+`TestTypedPublicationCallbackReplacement/attachment` supplements that public
+witness with real provider replacement during attachment validation in the
+existing bounded child process, proving the incidental source reservation does
+not strand callbacks or survive rejected publication.
+Root-selected proof (external900-second deadlines):
+`make check RUN='^TestReferenceTypedTableAttachmentSourceAdmission$'`,
+the same command with `REFERENCE=1`, and
+`make check RUN='^TestTypedPublicationCallbackReplacement$'`.
+`TestTypedPublicationDefinitionProviderReservation` separately exercises persistent
+and TEMP typed CREATE with a real incumbent sequence DEFAULT. Replacement must
+queue behind its genuine unpublished-definition hold, then complete after canceled
+publication drains the reservation. This existing provider policy is distinct from
+the simple typed-source-only callback replacement cases; ordinary CREATE/LIKE/
+serial reservation authority is not globally released.
+`TestTypedPublicationCreateACLConflict` exercises descriptor-only source/member
+ACL replacement in actual provider validation, with persistent CREATE as a control
+and implicit/explicit TEMP statement Finish as distinct publication boundaries.
+Its expected result retains the winning ACL and unchanged codec/backing/epoch/
+role/session authority, with no candidate relation, attachment or store.
+Fresh source OF and ordinary member declarations independently assert complete
+42501 diagnostics; copied members do not acquire a new CREATE OF USAGE gate.
+`TestTypedPublicationTemporaryAuthorityExpiresAtFinish` requires a successful
+TEMP statement to survive later source revocation at outer COMMIT.
+Root-observed regression-only proof reproduced TEMP publication after revocation;
+historical H4 passing-after evidence does not replace fresh proof after changes.
+`TestReferenceTypedTableTemporaryPrivateProviderComposition` covers ordinary and
+typed TEMP roots created earlier in one explicit transaction, followed by direct
+or prepared CREATE of a consumer of `pg_temp.root`. Exact root rows and literal
+composite values `(7,x)`, SQL NULL and the non-NULL all-NULL-fields value `(,)`,
+populated/empty metadata, own-row ownership, column-provider dependencies and
+typed attachment identities must survive successful COMMIT unchanged.
+Pinned PostgreSQL18.0 verified these expectations before the correction; the same
+native body then failed all four root/route combinations with catalog publication
+conflict. The correction uses the existing validated owner-private candidate and
+its recorded installed predecessors without relaxing installed source/member ACL
+identity fences or extending statement authority through outer COMMIT.
+
+`TestReferenceTypedTableExclusionAttachmentControls` and
+`TestReferenceTypedTableForeignKeyControls` cover retained local constraints on
+attached tables, exact rows/metadata/definitions/identities/dependencies and full
+23P01/23503 diagnostics. The matching `ExclusionCreate` and `ForeignKeyCreate`
+definitions cover direct/prepared OF syntax and effect-free Prepare. The control
+scenarios replay actual unmodified native OF dumps against PostgreSQL and assert
+fresh native Restore, Reset/Restore and failed-Restore atomicity. PostgreSQL18.0
+passed before the correction; the identical native bodies failed at EXCLUDE or
+FOREIGN before reusing those existing table-element productions.
+
+`TestReferenceTypedTableIdentityAttachmentControls` and
+`TestReferenceTypedTableGeneratedAttachmentControls` independently verify retained
+ordinary definitions through direct/prepared attachment, including sequence
+options/counter/ownership, generated expressions, metadata and source/own-row
+identities. Actual unmodified native dumps replay on PostgreSQL as ordinary CREATE
+plus real ALTER TABLE OF; native fresh Restore and Reset/Restore retain future
+default16 and generated9→18 behavior. Late failed imports assert full23502/428C9,
+sentinel91, captured identities and unchanged state. Identity import uses the
+existing required OVERRIDING SYSTEM VALUE, not a relaxed reconstruction guard.
+Direct typed identity/generated creation retains its independent0A000 boundary.
+
+```sh
+make check RUN='^(TestReferenceTypedTable|TestTyped)'
+make check REFERENCE=1 RUN='^TestReferenceTypedTable'
+make check RACE=1 RUN='^(TestReferenceTypedTable(Atomicity|Temporary|Exclusion|ForeignKey|Identity|Generated)|TestTyped.*(Publication|Admission|Authorization|Remap|Retention))'
+make check RUN='^(TestReferenceComposite(Declarations|DeclarationDiagnostics|TableShape|HeldShape|TypmodShape|Dependencies|CatalogRelationships|MixedControls|ControlLifetime|Authority)|TestReferenceTableLikeComposite(SourceACL|Sources)|TestTableLikeCompositeSourceACL|TestAlterDropColumnProviderCancellationAndReset|TestAlterNullabilityReviewOwnedSequenceReplacement)$'
+make check REFERENCE=1 RUN='^(TestReferenceComposite(Declarations|DeclarationDiagnostics|TableShape|HeldShape|TypmodShape|Dependencies|CatalogRelationships|MixedControls|ControlLifetime|Authority)|TestReferenceTableLikeComposite(SourceACL|Sources))$'
+make check RUN='^(TestSerialDefaultPublicationReplacementCancellation|TestSerialDefaultUnpublishedProviderHold|TestTypedPublication(DefinitionProviderReservation|CallbackReplacement)|TestTypedAdmissionCreateSourceRevisionConflict)$'
+make check RUN='^TestTypedPublication(CreateACLConflict|TemporaryAuthorityExpiresAtFinish)$'
+make check RACE=1 RUN='^TestTypedPublication(CreateACLConflict|TemporaryAuthorityExpiresAtFinish)$'
+make check RUN='^TestReferenceTypedTableTemporaryPrivateProviderComposition$'
+make check REFERENCE=1 RUN='^TestReferenceTypedTableTemporaryPrivateProviderComposition$'
+make check RUN='^TestReferenceTypedTable(Exclusion(AttachmentControls|Create)|ForeignKey(Controls|Create))$'
+make check REFERENCE=1 RUN='^TestReferenceTypedTable(Exclusion(AttachmentControls|Create)|ForeignKey(Controls|Create))$'
+make check RUN='^TestReferenceTypedTable(Identity|Generated)AttachmentControls$'
+make check REFERENCE=1 RUN='^TestReferenceTypedTable(Identity|Generated)AttachmentControls$'
+```
+
+Use external900s per command. Whole-project Docker-free proof is `make quickcheck`;
+selected native/real modes remain mandatory. The root runs the temporary standalone
+public Go typed-table smoke from its OMP session file using `go run <absolute-file>`
+(external120s). Expected final line: `typed table lifecycle and native round-trip OK`.
+The smoke independently asserts rows/metadata/source-versus-own-row identity,
+detach, guarded direct changes, source propagation, native fresh+Reset/Restore,
+failed Restore atomicity and real source DROP dependencies. It also composes a
+prepared consumer of a transaction-private TEMP typed own-row provider and checks
+literal composite/NULL values, rows, metadata and identities before/after COMMIT.
+It is not a test wrapper or committed scaffold, and never substitutes for these
+selected proofs.
+
+Separate session-only public smokes exercise retained exclusion and bounded
+foreign-key attachments, real OF dumps, fresh/ResetRestore, direct/prepared
+CREATE OF and 23P01/23503 enforcement. Their expected final lines are
+`retained typed exclusion and native round-trip OK` and
+`retained typed foreign key and native round-trip OK`.
+
+The fourth session-only public smoke independently completes both retained identity
+and stored-generation native round-trips and subsequent writes. Expected final line:
+`retained typed identity and generation round-trip OK`.
+
+The fifth session-only public smoke, `local://typed-attachment-source-smoke.go`,
+independently creates a shadow during a demonstrated target-lock wait. Qualified
+CREATE OF probes the shadow's source exclusion before attachment timeout and
+cancellation; ordinary rows/metadata/attachment survive, workers drain, and fresh
+direct/prepared attachment, subsequent rows and detach succeed. Run its absolute
+session path with `go run` from the worktree, external120s. Expected final line:
+`typed attachment actual shadow source exclusion cancellation and fresh execution OK`.
+
+### Inheritance creation and query coverage
+
+CREATE inheritance coverage lives in the untagged `TestReferenceInheritance`
+family. It independently asserts merges, diagnostics/notices, direct/prepared
+metadata, nonpropagating keys, dependency/drop lifecycle, generated/serial/identity
+composition, recursive modifying-target/ALTER boundaries and actual native controls.
+Controls use native Dump output, including persistent graph replay beside observed
+live TEMP address collisions and exact live TEMP-to-persistent replacement refusal.
+The controls have no invented PostgreSQL API counterpart; PostgreSQL independently
+executes shared SQL and consumes native emitted streams where applicable.
+
+Inherited SELECT has untagged shared `TestReferenceInheritanceQuery` definitions.
+Each body independently specifies direct/prepared bags, projection/full metadata,
+supported consumers and frozen ONLY, parent ACL/RLS, generated mapping, physical
+rowmarks/recheck, snapshot/TEMP, optimization safety and genuine native controls.
+CTE ONLY/star forms retain ordinary CTE resolution (a/INT4,row1). No discovery
+filter or deliberately failing PG observation remains.
+
+Run each bounded expression below with both `make check RUN='<expression>'` and
+`make check REFERENCE=1 RUN='<expression>'`, external 900-second deadlines:
+
+|Group|Expression|
+|---|---|
+|Forms/bags|`^TestReferenceInheritanceQuery(Forms\|Diagnostics\|BagDiamond)$`|
+|Consumers/views|`^TestReferenceInheritanceQuery(Consumers\|PreparedViews)$`|
+|Authority|`^TestReferenceInheritanceQuery(Authorization\|RLS)$`|
+|Recipes/eligibility|`^TestReferenceInheritanceQuery(Generated\|Optimization)$`|
+|Physical rowmarks|`^TestReferenceInheritanceQuery(RowMarks\|LockRecheck)$`|
+|Snapshots/TEMP|`^TestReferenceInheritanceQuery(Snapshots\|TemporaryVisibility)$`|
+|Admission wait|`^TestReferenceInheritanceQueryRelationWait$`|
+|Controls/smoke|`^TestReferenceInheritanceQuery(Controls\|FeatureSmoke)$`|
+|Migrated scan boundaries|`^TestReferenceInheritance(Boundaries\|HeldPreparedBoundary\|BoundaryNoEffects\|OnCommitDeletePhysical)$`|
+|Migrated COPY query|`^TestReferenceCopyTextQueryAndColumns$`|
+|Migrated typed-parent scan boundaries|`^TestReferenceTypedTable(InheritedPropagation\|InheritedCollisionAtomicity\|OtherParentRetention)$`|
+
+The typed-parent group retains its genuine ALTER TYPE propagation, collision
+atomicity and other-parent/local-column retention assertions. Default inherited
+scans and ONLY now have shared positive values/empty-row metadata expectations;
+there is no native SELECT rejection or new typed-table production capability.
+Run this changed group against pinned PostgreSQL first, then the same native definitions.
+
+The wait definition retains real PG DROP/recreate with in-flight parent10 and no
+replacement9, followed by fresh10,9. Native explicitly asserts its permanent
+CREATE-in-transaction0A000 capability boundary, atomic rollback and recovery,
+not an unreachable fake replacement. `TestInheritanceQueryAdmissionReplacement`
+uses actual descendant grant admission and validated catalog Remove/Create with
+allocated identities/distinct storage; the original waiter returns ErrCatalogReplaced
+and a fresh retained scan sees sentinel9.
+`TestInheritanceQueryAdmissionGrowth` adds a real late child while the scanner
+waits on its original descendant, then proves both exact grants and one retained
+snapshot containing10,20,9. This is graph reconciliation, not SQL replay or a
+synthetic snapshot.
+
+`TestInheritanceQueryStoredViewAdmission` uses real catalog publication, frozen
+view binding and transaction tickets. Ordinary/ONLY/default-inherited/local and
+outer-marked/overlapping occurrences assert exact physical grants and parent bags.
+An actually queued peer Exclusive grant proves RowShare strength; an AccessShare-only
+base permits that peer. A genuinely weaker admitted base is upgraded, and cleanup
+releases both tickets without replacing logical view-source authority.
+
+Root-run supplements:
+
+```sh
+timeout 900s make check RUN='^TestInheritanceQuery(Closure|Layout|Locator|Visibility|ScanMode)$'
+timeout 900s make check RUN='^TestInheritanceQueryAdmissionReplacement$'
+timeout 900s make check RUN='^TestInheritanceQueryAdmissionGrowth$'
+timeout 900s make check RUN='^TestInheritanceQueryStoredViewAdmission$'
+timeout 900s make check RUN='^TestGeneratedTableOIDStructuralEquality$'
+timeout 900s make check RUN='^TestInheritanceGuards$'
+timeout 900s make check RUN='^Test(MaterializedViewAuthorization|TemporaryViewRetainedSourceFrontier|UpdateFrom(FramesOriginsAndPhysicalTargets|LosingPairsDemandAndFailureCleanup|ImmediateGrantFreezesSource))$'
+timeout 900s make check RACE=1 RUN='^TestReferenceInheritanceQuery(RowMarks|LockRecheck|RelationWait)$'
+timeout 900s make check RACE=1 RUN='^TestInheritanceQueryAdmissionReplacement$'
+timeout 900s make check RACE=1 RUN='^TestInheritanceQueryAdmissionGrowth$'
+timeout 900s make check RACE=1 RUN='^TestInheritanceQueryStoredViewAdmission$'
+```
+
+`TestGeneratedTableOIDStructuralEquality` uses the real row-reference mapper:
+equal mapped physical owner/full Usage compares equal; different owner, epoch,
+address, subobject, Usage or expression kind does not. It never evaluates recipes.
+The generated and locked-postwait reference expectations remain unchanged.
+MERGE source consumer counts use the incumbent native actual-modification count
+versus lib/pq's zero export; independent sink rows prove the same modifications.
+
+The root materializes `local://inherit-query-smoke.go` as
+`.inherit-query-smoke/main.go`, runs `timeout 60s go run ./.inherit-query-smoke`,
+records stdout/stderr/exit and removes only that temporary source directory.
+It must prove five-row mapped bags versus physical two, exact metadata, prepared
+and frozen ONLY modes, parent authority/RLS, real child row locking and genuine
+Dump/Reset/Restore with held Rows, not Ping or a synthetic stream.
+The smoke's parent ACL/default-deny phase uses a separate disposable five-row
+hierarchy, actually dropped CASCADE before Dump. REVOKE alone leaves explicit ACL
+metadata outside native serialization. The original diamond/data/views used for
+physical rowlocks and genuine controls are never rebuilt or replaced as cleanup.
+Whole-project Docker-free `make quickcheck` and post-integration `make finalcheck` remain separate.
+
+The retained-exclusion collision regression observes an actual imported parent
+descriptor OID equal to a live TEMP child's local EXCLUDE constraint OID before
+native Restore. Its bounded native-only fixture uses at most 64 real sequence
+allocations and existing regclass OID queries, not allocator constants or an
+unsupported catalog projection. Shared direct/prepared PostgreSQL SQL independently
+asserts graph/default/CHECK/EXCLUDE behavior. After Restore, native assertions
+retain exact TEMP relation/index/constraint identities and rows/enforcement, and
+ordinary CREATE with DEFAULT/NOT NULL/CHECK plus INSERT/query returns INT4 row42.
+The descriptor unit additionally asserts all inheritance-origin remapping, source
+immutability, retained storage and complete combined definition-identity validity.
+Run the completed body in both modes with no discovery filter (900 seconds each):
+```sh
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$'
+timeout 900s make check RUN='^TestReferenceInheritanceRetainedExclusionDefinitionCollision$'
+timeout 900s make check RUN='^TestInheritanceControlsRetainedExclusionDefinitionCollision$'
+```
+
+Root-run selective gates (900 seconds each, after edits and generation finish):
+```sh
+timeout 900s make check RUN='^TestReference(Inheritance|NotNull|Check|TableLike)'
+timeout 900s make check REFERENCE=1 RUN='^TestReference(Inheritance|NotNull|Check|TableLike)'
+timeout 900s make check RUN='^(TestInheritance|TestNotNull|TestTableLike|TestAlterDefault)'
+timeout 900s make check RACE=1 RUN='^TestInheritance(Admission|Graph|Controls)'
+timeout 900s make check RUN='^TestReferenceInheritanceFeatureSmoke$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceFeatureSmoke$'
+```
+The standalone public API smoke is supplied as temporary session material, not
+committed scaffolding. Neither selected gates nor smoke replace full quickcheck
+and the post-integration1800-second finalcheck.
+
+The dependency-shape review regressions independently assert PostgreSQL provider
+CASCADE column/definition removal and native atomic inheritance ALTER rejection,
+including consumer recovery and graph enforcement. Run the same completed bodies
+in both modes (900 seconds per invocation):
+```sh
+make check RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDependency(Shape|Definition)Boundary$'
+```
+
+Retirement authority regressions cover provider schemas containing the sole child
+or the parent, each with typed-column, DEFAULT and CHECK dependencies. Both routes
+assert retained standalone physical rows/metadata/enforcement or complete outside
+descendant retirement, without weakening the surviving-graph boundary above:
+```sh
+timeout 900s make check RUN='^TestReferenceInheritanceRetirementAuthority$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceRetirementAuthority$'
+timeout 900s make check RUN='^TestInheritanceDependencyAuthority$'
+```
+
+Prospective retirement regressions use a parent that is also a regclass provider
+for the retained other parent's DEFAULT or CHECK. CASCADE discovers their shared
+child; the retained parent becomes standalone before its definition is pruned.
+Both direct/prepared routes assert removed relations/edges, retained rows and
+metadata, consumed provider definitions and independent local definitions; native
+held eager child results retain actual original values and metadata. The real-stage
+units use the same q root with actual admission, not a pre-removed child:
+```sh
+timeout 900s make check RUN='^TestReferenceInheritanceProspectiveRetirement$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceInheritanceProspectiveRetirement$'
+timeout 900s make check RUN='^TestInheritanceProspectiveRetirement$'
+```
+
+`TestReferenceInheritanceLocalExclusionReplay` covers a child with only inherited
+columns and a first local EXCLUDE declaration. It consumes the actual native dump
+through Reset/Restore and pinned PostgreSQL replay, then asserts rows, default
+enforcement and graph edges. Native replacement also retains a live TEMP-to-TEMP
+inheritance graph, its exclusion constraint OID, physical data and enforcement.
+Include `Inheritance|Exclusion` when verifying this integrated composition; do not
+replace these consumer outcomes with dump-string or canonical-byte assertions.
+
+### Table definition copying
+
+Table definition-copy coverage uses
+`RUN='^TestReference(Table(Like|Core)|SchemaTableIntegration|IdentitySerialAndNativeBoundaries|NotNullExternalInheritance)'`
+in both modes; feature smoke uses `RUN='^TestReferenceTableLikeFeatureSmoke$'`.
+Oracle-first discovery fixes complete diagnostics/index-name expectations before
+the native failing regression. Actual native Dump output is replayed on pinned
+PostgreSQL with independent expected rows and future writes, not SQL-substring or
+no-LIKE assertions. PostgreSQL-only structural inquiries for absent native catalog
+sources/columns are paired with native descriptor proofs and shared pg_indexes,
+pg_sequence/pg_depend inquiries and actual enforcement. Table/column GRANT/REVOKE
+is now a shared public authority control; package-function ACL units supplement
+those witnesses without duplicating public SQL tests outside reference.
+Predicate-only `pg_depend` projection remains outside the bounded native catalog:
+mixed key/INCLUDE/predicate inquiries independently expect native attributes2,3
+versus PostgreSQL2,3,4, and predicate-only external counts0 versus1. Exact native
+analyzed/execution manifests and shared real DROP/column lifecycle/controls prove
+the underlying predicate dependencies; this inquiry boundary never skips a scenario.
+The partial-copy subfamily is `RUN='^TestReferenceTableLikePartial'`; run
+`make check RUN='^TestReferenceTableLikePartial'`
+and `make check REFERENCE=1 RUN='^TestReferenceTableLikePartial'`.
+Private cooked-tree, stable/dense attribute, fresh membership-root and actual
+provider-admission witnesses use
+`make check RUN='^TestTableLikePartial'`.
+The expanded existing feature smoke includes actual partial-index Dump/Restore
+and PostgreSQL replay with future membership, uniqueness and predicate-first
+errors. The complete shared union also retains CoreNativeControlRoundTrip's
+standalone typed/direct and quoted/prepared MAXINT8/O'Brien/TRUE rows and metadata
+after actual Restore, plus CoreSemanticSkipNotices' quoted unknown `"integer"`
+IF NOT EXISTS notice and unchanged-data witnesses. Each selected check invocation
+has its own 900-second deadline.
+TEMP composition uses `RUN='^TestReferenceTableLikeTemporary'` in both modes and
+`RUN='^TestTableLikeTemporary'` for native engine units. Shared SQL covers
+same-session cooked defaults, constant/permanent-sequence defaults from TEMP
+sources, DEFAULT mask precedence, fresh destination-owned identity sequences,
+and exact native0A000/PG-success permanent TEMP-provider differential. Native
+control phases exercise actual Reset/Restore, retained rows/provider identity,
+new copies from retained sources, failed/canceled replacement and actual permanent
+stream replay on PostgreSQL. These phases have no PostgreSQL control API substitute.
+The existing feature smoke includes both TEMP default and identity lifecycles.
+
+Composite LIKE sources use `RUN='^TestReferenceTableLikeComposite'`, with ordinary
+and pinned reference gates below. Plain/ALL/per-LIKE masks, nullable fields,
+interleaved type usage, empty composites, source-type removal through the existing
+dedicated-schema `DROP SCHEMA ... CASCADE` route, duplicate atomicity and actual
+independent-table controls/replay share the existing fixtures. Native DROP TYPE
+syntax is not expanded; all public copies must survive actual source retirement.
+PostgreSQL GRANT/REVOKE setup verifies type USAGE rather than backing-relation
+SELECT; `TestTableLikeCompositeSourceACL` exercises that distinction through the
+native ACL seam, including namespace-first errors and reciprocal source captures.
+Pinned PostgreSQL composite discovery expectations are encoded; the temporary
+scenario-local backend filter is removed before the native regression.
+
+```sh
+make check RUN='^TestReferenceTableLikeComposite'
+make check REFERENCE=1 RUN='^TestReferenceTableLikeComposite'
+make check RUN='^TestTableLikeComposite'
+```
+
+The retained row-expression regression family is
+`RUN='^TestReferenceTableLikeTemporaryRetained'`. Its SQL witnesses cover
+GENERATED, CHECK, expression keys and partial predicates copied into permanent
+and same-owner TEMP destinations, and a separate same-owner TEMP external-literal
+fixture. Native phases perform actual persistent replacement before CREATE and
+again after source removal: restored permanent and retained TEMP copies must
+preserve full rows/metadata and future generation, CHECK and partial-index
+enforcement even without Docker. Optional PostgreSQL replay consumes that actual
+permanent Dump stream; it does not replace the second native Reset/Restore.
+PostgreSQL exercises shared SQL without a fabricated control API.
+`RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)'` supplies descriptor
+authority and real lock-manager contention witnesses: local row/tableoid refs
+receive current destination authority, external stored references remain old,
+and queued admission must preserve those manifests while canceling, rolling back,
+publishing or rejecting a dead/recreated/same-address revised provider.
+`TestTableLikeDefinitionDependencyOrder` additionally exercises the common DROP
+dependency formatter through ordinary CREATE, not a LIKE special case: an earlier
+view, generated column, two CHECKs whose definition-OID order opposes declaration
+order, and a later index retain the exact report schedule. The shared retained
+literal fixture asserts the full six-line PostgreSQL dependency diagnostic.
+Pinned PostgreSQL discovery expectations are encoded and the scenario-local
+backend filters removed. The native-red and final dual-mode gates use the
+complete scenarios. Each invocation below has a900-second deadline:
+
+```sh
+make check RUN='^TestReferenceTableLikeTemporaryRetained'
+make check REFERENCE=1 RUN='^TestReferenceTableLikeTemporaryRetained'
+make check RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)'
+make check RACE=1 RUN='^TestTableLike(TemporaryRetained|CookedRowRemap)'
+make check RUN='^TestTableLikeDefinitionDependencyOrder'
+```
+
+### Temporary tables
+
+Temporary-table shared definitions cover physical owner isolation and shadowing,
+pg_temp creation/resolution, direct/prepared metadata and complete diagnostics,
+all commit policies, SQL/driver/CHAIN commit, rollback/savepoints, read-only DML,
+dependency counters/index membership, physical close, completed utility invariants
+and native persistent controls with exact retained stored-reference provenance.
+Migrated sequence TEMP-table authority/control scenarios retain sequence memories,
+held statements, peer ownership and persistent-control atomicity.
+`TestReferenceTemporaryTableClosePermanentCheck` asserts actual permanent CHECK
+enforcement/dependency identity, physical owner exit, removed constraint/provider,
+surviving rows, held prepared peer INSERT and same-basename peer TEMP isolation.
+The expression lifecycle family uses actual pg_class/pg_attrdef/pg_depend OIDs and
+independent prospective rows for automatic, immediate, explicit committed/private
+and physical cascades. It checks generated-column projection, surviving dense-slot
+indexes, retained snapshots, pending writes/deletes, savepoint rollback, composed
+ON COMMIT DELETE and native Dump/Restore. Package invariants cover late catalog and
+row/index predecessor reprepare, unrelated current heads, genuine private absence,
+terminal combined descriptor/store/index maxima, concurrent ready-invalid/not-ready
+flags and unchanged ordinary counter-exhaustion rejection.
+The index-composition definitions use a SERIAL TEMP owner, table/owned-sequence
+generated dependencies and an expression index created before BEGIN. Immediate
+and transactional/savepoint/full-rollback witnesses retain the actual index OID,
+independent key definition, original/restored rows and coherent subsequent DML.
+Their package supplement verifies original/intermediate/final derived layouts
+and stable slots, immutable earlier candidates, genuine rebuilt key/row identity,
+original publication predecessors, idempotent validation, ordinary second-pass
+overflow and physical-terminal saturation.
+The same fixtures retain an admitted B-tree partial expression index created
+outside BEGIN, exact full `pg_temp` key/predicate rendering and positive→negative→positive
+UPDATE membership. Actual `pg_tables.hasindexes=true` remains through compaction
+and rollback; the narrower native `pg_class` projection is not expanded.
+Genuine package deparse checks distinguish current physical owner from peer
+same-name indexes and context-free canonical Dump.
+The controlled sibling-provider cascade supplements this with actual table/index
+generated consumers and an independent own-row `z+1` generation across Reset/Restore.
+It asserts removed siblings, stable surviving definition/dependency identities,
+dense rows, held INSERT/UPDATE and nonreused same-name provider recreation.
+The package supplement also discovers the actual owned-index subtree after its
+removal is already staged, asserting exact once-only sibling edges and unchanged
+catalog/store/vector/end/index predecessors before the real SQL cascade.
+The live-provider controls retain an actual same-owner TEMP table and index
+through native Reset/Restore, then run unrelated CREATE, held INSERT, independent
+ALTER, UPDATE and catalog-expression consumers. Shared direct/prepared SQL
+witnesses assert exact provider/definition OIDs, dependency edges, independent
+rows and peer same-name isolation; Dump excludes the retained TEMP objects.
+The package supplement uses real sessions and catalog replacement, preserving
+captured manifests, descriptors, stores and roots while rejecting foreign engine
+or physical owner, future/zero epochs, invalid attributes, concrete type/row-origin
+mismatches, user-domain/array-domain types and retired/same-name recreated providers.
+`TestReferenceTemporaryTablePredicateOnlyControls` isolates a plain INT-key partial
+index without another BOOL-bearing TEMP definition that could mask predicate-type
+retention. Direct/prepared bodies assert exact identities/full definition and
+positive/negative membership before and after native Reset/Restore plus held DML.
+Its package supplement compares both predicate trees' concrete builtin generations
+and exact unchanged descriptors, manifests, stores, vectors, ends and index roots.
+The close witness also roundtrips native persistent output without the removed
+CHECK/provider while retaining the peer TEMP serial counter and stored rows.
+
+```sh
+make check RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
+make check REFERENCE=1 RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
+make check RUN='^Test(TemporaryTable|TemporaryRelation|CatalogTemporary|SchemaSearchPathSessionDefaultsAndSpecials|SerializableEvidenceActualTemporaryNamespaceAndSequenceProviders|PGDependDefaultReplay)'
+make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'
+```
+
+Both selected modes use the same completed definitions under900-second deadlines;
+ordinary quickcheck and the post-merge1800-second finalcheck remain required.
+
+### RANGE partition reference coverage
+
+`reference/tables/range_partition_*_test.go` uses one shared scenario body in both modes.
+Rebase consumer witnesses include genuine direct/prepared ON CONFLICT and MERGE
+hierarchy boundaries (root/intermediate/physical member), full independently
+expected errors, unchanged rows and undemanded defaults. A plain-table conflict
+positive control retains skipped-row and affected-count authority. Genuine
+transactional DECLARE/FETCH/CLOSE consumes the complete hierarchy provider.
+Literal expectations cover scalar and multikey tuple boundaries, sentinels/NULL,
+DEFAULT and nested routing, expression keys/coercion, exact errors and positions,
+catalog identities/dependencies, ACLs, late multi-leaf atomicity, and controls.
+Utility supplied-argument stages preserve zero slots and independently expected
+adapter errors. Complete diagnostic records retain every optional field.
+`TestReferenceRangePartitionACL` runs its entire named-target/leaf authorization
+and missing-key disclosure matrix in both modes and both genuine direct/prepared
+routes, including simple column SELECT, expression-key suppression/table SELECT
+and qualified destination-schema precedence. SchemaGrantExpansion independently
+covers current root/nested/leaf/table/view/materialized-view schema-wide grants,
+explicit virtual grants removed by schema-wide REVOKE, denied subsequent writes,
+future-table and sequence exclusion, complete errors and unchanged stored rows.
+QuotedKeyPrivacy additionally covers mixed-case/space-containing, embedded-quote
+and reserved-word simple keys at root and nested routing failures. Public
+INSERT-only, column SELECT and revoked column SELECT transitions independently
+assert hidden, correctly quoted and hidden-again complete diagnostics, payload
+access denial and unchanged physical rows in direct/prepared execution.
+`TestReferenceRangePartitionConstraintPrivacy` independently covers direct and
+genuine prepared leaf/intermediate errors under INSERT-only, supplied-value,
+column SELECT, all-column SELECT and table SELECT manifests. Both backends use the
+existing public table/column GRANT routes; package ACL units supplement them. Errors
+retain the actual named target, complete optional fields, correct labelled/full
+row disclosure and unchanged data, through one shared ordinary NN/CHECK policy.
+`TestReferenceRangePartitionPhysicalConstraintPrivacy` extends that independent
+matrix to root, intermediate, leaf and ordinary NOT NULL/CHECK producers, with
+single/batch VALUES and direct/prepared INSERT SELECT. It distinguishes named-target
+SELECT authority from physical-leaf diagnostic identity and checks that omitted
+secret defaults remain private, supplied values remain visible, and late failures
+leave every affected leaf unchanged.
+`TestReferenceCollationNativeCollision` additionally uses explicit RANGE-key user
+collation under a real imported-provider/live-TEMP OID collision. Independent
+parent/leaf bags, source immutability, retained TEMP authority, exact dependency
+targets and direct/prepared routing are checked before and after replacement.
+Real mode replays the actual emitted SQL on PostgreSQL and routes further values.
+`TestReferenceRangePartitionCollationDependencies` covers key-only, effective and
+combined collation authority with exact RESTRICT diagnostics, intact rows, normal
+metadata edges and complete CASCADE hierarchy/owned closure. TemporaryDependencies
+checks zero-output nonportable Dump rejection, physical provider cleanup, retained
+rows, peer sentinels and fresh portable Restore.
+`TestReferenceRangePartitionProviderRetirement` exercises full physical-close
+retirement in both backends, with bounded PostgreSQL server-exit acknowledgement
+before unchanged absence assertions. PostgreSQL also executes the full ON COMMIT
+DROP composition; native explicitly asserts its existing transactional permanent
+CREATE boundary and rollback atomicity. Private Retirement units exercise actual
+nil-scope staging and COMMIT preparation/installation from validated owned catalog
+state, two real leaf write roots and a committed provider deletion. They require
+unchanged original roots and complete root/leaf-owned storage/index/generator cleanup.
+`TestReferenceRangePartitionLeafExclusion` and the existing Controls body reuse
+ordinary physical exclusion producers, enforcing exact direct/prepared conflicts,
+late cross-leaf atomicity and genuine Dump/Restore/SQL replay. Virtual exclusions
+retain the explicit execution boundary; no adjacent constraint rollout is inferred.
+`TestReferenceRangePartitionFailureOrder` composes both arity preflights, lower
+NULL, lower/later volatile demand, malformed upper expressions and finite
+transformation failures after MIN/MAX. Complete diagnostics, nonrewinding sequence
+state/next draw, child/type/index/constraint absence and DEFAULT data are asserted.
+`TestReferenceRangePartitionOrderedDiagnostics` deliberately reverses sibling
+creation order and covers later-component reversal, full finite equality-last,
+equal-lower overlap-first and spanning gap/inside overlaps. Witness and Position
+follow the actual typed ordered endpoint search's last comparison; unchanged
+topology/data and subsequent gap/sibling routing remain asserted.
+PRIMARY KEY syntax now uses the integrated ordinary producer: virtual declarations
+fail the execution-time constraint-combination boundary in both routes, not an
+obsolete positioned parser/Prepare rejection. Physical leaf constraints use the
+existing local construction/enforcement authority.
+Named inherited CHECK cases distinguish structural equality, commuted operands,
+added arithmetic, NO INHERIT conflicts and duplicate actual child declarations.
+Inherited enum/domain USAGE and revoked type-schema USAGE are separate witnesses;
+fresh qualified child expressions retain normal namespace denial.
+Discovery uses admitted equality/OR predicates and explicit OID coercion, not
+adjacent IN/operator capabilities. Inherited domain authority uses a plain domain;
+its fresh USAGE and stored namespace identity are independent of domain constraints.
+Schema and owner discovery uses the existing `pg_tables` provider (including
+virtual roots/intermediates) with `pg_class`, without requiring the public
+`pg_roles` view or the still-unavailable native `pg_namespace` catalog. Manual ownership combines
+`pg_get_serial_sequence(...,'payload')` with exact `pg_depend.refobjsubid = 2`,
+plus a separate manually owned root key sequence with stable subID1 and matching
+column inquiry. This avoids ambiguous multiple sequences on the same column
+without changing production lookup semantics. Exact schema/table identities
+remain asserted; discovery does not require an unowned `pg_attribute`.
+Internal catalog character fields are projected directly with CHAR metadata,
+not unsupported internal-char-to-TEXT casts. Window context uses admitted
+ROW_NUMBER with PARTITION BY/ORDER BY and independent ordinals1,2; standalone SUM
+remains in the aggregate consumer witnesses.
+Failed embedded CREATE SCHEMA additionally proves namespace absence by successful
+recreation of that exact name, followed by cleanup.
+Adjacent CREATE SCHEMA partition definitions assert PostgreSQL success versus native
+positioned0A000 before any schema/table publication or bound sequence demand, on
+both direct and genuinely prepared utility execution routes.
+Manual root/intermediate sequence ownership independently asserts live column
+inquiry, AUTO dependencies, routed defaults, actual unmodified Dump replay,
+deterministic redump and complete subtree/owned-sequence DROP closure.
+
+Native Reset/Dump/Restore phases use the public control APIs, guarded only because
+PostgreSQL has no corresponding API. The actual emitted stream is consumed
+unmodified by the real PostgreSQL connection, with typed rows, owners, dependencies
+and current defaults asserted afterward. Cross-owner replay provisions only
+temporary inherited role membership and importing namespace rights in PostgreSQL;
+ordinary ownership denials execute before that provisioning. Deferred hierarchy
+defaults exercise importer-only replay and failed replay preserving the old target.
+The deferred graph is a genuine cycle of REGCLASS defaults on the virtual parent
+and an ordinary table, using the existing ordinary SET DEFAULT producer rather
+than unsupported ALTER ADD CHECK syntax. Mixed-owner schema setup is performed
+under the genuine bootstrap principal with explicit AUTHORIZATION owners.
+`TestReferenceRangePartitionSelfRestoreControls` additionally restores directly
+into the same open database without Reset: held statements, retained cursors,
+expression/nested keys, local UNIQUE, views, inherited CHECK, sequence ownership
+and ordinary coupled defaults must retain their semantic contracts. Internal
+self-catalog replacement also retains exact live TEMP sequence/table/index
+descriptors, stores, index roots, generator/cache and held demand. Existing
+TEMP DEFAULT/CHECK/generated/partial-index definitions retain their own authority;
+the permanent candidate is fully remapped before the existing exact TEMP overlay.
+The TEMP regression keeps both a supported column partial UNIQUE index (with
+duplicate enforcement) and a separate ordinary expression/predicate index (with
+exact descriptor/root retention). Childless and populated hierarchy sources pin
+the same real catalog/data-view authority as ordinary retained query sources.
+Cancellation/reset observers wrap the actual leased operation context: Acquire's
+WithCancel wrapper does not forward the original caller's Err callbacks.
+All temporary roles/schema rights are cleaned up under bounded deadlines.
+Every actual native SQL replay on PostgreSQL registers bounded same-session
+RESET ROLE / RESET SESSION AUTHORIZATION / RESET search_path cleanup before
+replay, ahead of schema recreation or role-grant teardown. The shared PostgreSQL
+body therefore retains its authenticated fixture owner, not the stream's final
+named owner.
+
+The former `smoke/table_test.go` behavioral/API union is now
+`TestReferenceRangePartitionMigratedTableCoreSmoke`, not a native-only duplicate.
+Integrated LIKE INCLUDING ALL / EXCLUDING CONSTRAINTS now share their successful
+copy, empty typed/NOT NULL metadata, enforcement, DROP and absence assertions in
+both modes. Actual native Dump must exist before the PostgreSQL replay lifecycle;
+an earlier native failure is never treated as an empty successful replay stream.
+The cohesive `TestReferenceRangePartitionFeatureSmoke` includes ordinary table
+definitions, real routing, nested/default bounds, metadata and persistent controls.
+No discovery filters belong in final definitions.
+Raw sentinel scenarios cover mixed-case keywords, quoted lowercase names and
+redundant parentheses; quoted uppercase, qualified/cast/operator wrappers retain
+the independent column-reference bound error. Finite TEXT casts stay finite.
+TEMP hierarchy definitions are a separately positioned native0A000 boundary,
+including implicit qualified pg_temp destinations; ordinary TEMP/ON COMMIT
+capabilities retain their integrated baseline implementation.
+
+Run the same completed reference definitions in both modes, with a separate
+900-second deadline for every invocation:
+
+```sh
+make check RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)'
+make check REFERENCE=1 RUN='^TestReference(RangePartition|CollationNativeCollision|TableCore|AlterDropColumnExternalHierarchy)'
+make check RUN='^TestReferenceRangePartitionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'
+make check RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRangePartitionMigratedTableCoreSmoke$'
+make check RUN='^TestRangePartition'
+make check RACE=1 RUN='^TestRangePartition(Concurrency|Publication|Capture|Remap)'
+make check RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceRangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|FailureOrder|OrderedDiagnostics)$'
+make check RUN='^Test(CheckInsertPrivilegeDisclosure|RangePartition(ConstraintPrivacy|PhysicalConstraintPrivacy|Retirement|RemapExplicitCollation))'
+```
+
+Package-function witnesses inspect owned descriptors, cooked type/row identities,
+private importer provenance, real lock queues, multi-leaf transaction stages and
+complete self-catalog expression remapping with retained old cursors. They supplement
+the shared public reference routes. The root generates/formats the parser and runs
+verification only after all edits pause; the post-integration finalcheck runs once
+under a single 1800-second deadline, with actual failures remedied separately.
+
+### Foreign-key proof selection — change note
+
+Shared independently specified references use the same bodies for native and
+pinned PostgreSQL, including all migrated FK boundary callers. Run each selected
+group with `make check RUN='...'` and again with REFERENCE=1:
+
+* `^TestReferenceForeignKey(Definition|DefinitionNames|DefinitionIneligibleKeys|DefinitionTypes|DefinitionProviders|NetworkSupportingKeys|Diagnostics|Values|Metadata|Boundaries|BoundariesModes|BoundariesPartition|BoundariesTemporal|BoundariesTemporary)$`
+* `^TestReferenceForeignKey(Atomicity|Transactions|Producers|Authorization|Concurrent|ConcurrentCancellation)$`
+* `^TestReferenceForeignKey(Lifecycle|RetainedStatements|NativeControls|NativeControlsTemporary|FeatureSmoke|DeleteReturningCaller|DropColumnCaller|SchemaCaller)$`
+* `^(TestReferenceDeleteCoreForeignKeyBoundary|TestReferenceAlterTypeForeignKeyBoundary|TestReferenceAlterRenameExternal|TestReferenceInheritanceKeyBoundaries|TestReferenceTableCoreExternalDependencyBoundary)$`
+
+The affected tagged remainder definitions are
+TestReferenceDeleteReturningBoundaries,
+TestReferenceAlterDropColumnExternalDependencies and
+TestReferenceAlterSchemaPostgresClosure. Their unrelated PostgreSQL-only
+assertions remain selected with REFERENCE=1; their extracted FK assertions are
+now in the untagged caller definitions above. No discovery filter remains.
+Native controls do not run on PostgreSQL; the permanent shared bodies retain
+complete SQL assertions around their native-only Reset/Dump/Restore phases.
+
+Internal `^TestForeignKey` exercises the real canonical K/U row requests,
+non-key compatibility, queued cancellation/replacement, private row overlays,
+definition/index authority and immutable TYPE identities. Race proof uses
+`make check RACE=1 RUN='^TestForeignKey'`. Keep the shared concurrent references
+selected too: internal manager evidence complements, not substitutes for, the
+real PostgreSQL observed behavior.
+The migrated parser witness is selected by
+`make check RUN='^TestObjectGrantReferencesAndForeignKeyGrammar$'`.
+The comment-only role-grant consumer remains
+`make check RUN='^TestReferenceRoleGrantKinds$'` and its REFERENCE=1 counterpart;
+its delegated privilege assertions are unchanged.
+
+Feature smoke: `make check RUN='^TestReferenceForeignKeyFeatureSmoke$'`, plus
+the identical selector with REFERENCE=1. Every external check invocation uses
+a 900-second deadline. Quickcheck remains whole-project Docker-free proof.
+
+Foreign action selections use64 independently expected public definitions:
+
+```sh
+make check RUN='^TestReferenceForeignActions(Definition|Values|Equality|Metadata)'
+make check RUN='^TestReferenceForeignActions(Defaults|Constraints|Diagnostics|Authorization)'
+make check RUN='^TestReferenceForeignActions(Graphs|Atomicity|Transactions|Producers)'
+make check RUN='^TestReferenceForeignActions(Concurrent|Cancellation)'
+make check RUN='^TestReferenceForeignActions(Prepared|Lifecycle|Temporary|FeatureSmoke)'
+```
+
+Run each identical selector with `REFERENCE=1` for real pinned PostgreSQL18.0.
+The changed `TestReferenceForeignKeyBoundariesModes` retains its deferred
+native capability boundary and real PostgreSQL assertions, while its admitted
+actions now share positive/error effects. Sequence owner transitions provide
+shared owner-sensitive DEFAULT proof without requiring native sequence GRANT.
+Constrained domains retain the exact native0A000 boundary and PG23514; real
+unconstrained-domain assignment plus table CHECK proves shared composition.
+No new-only oracle discovery filter remains.
+The inheritance action witness preserves native UPDATE ONLY/recursive-DML
+boundaries and real PostgreSQL ONLY behavior, then exercises shared leaf-parent
+UPDATE/DELETE while descendant children survive. SELECT ONLY remains supported.
+Domain provider assignment uses a plain domain; the separate constrained-domain
+declaration checks the complete positioned native boundary.
+Captured-authority Restore uses named owner directives. Replacement proof uses
+positive current catalog IDs and an actual pre-replacement transaction's prepared
+statement/read epoch fence, not numeric OID inequality. Idle held analysis may
+legitimately rebind afterward; both idle-held and newly prepared current action
+effects are asserted. Allocator numbers may repeat after replacement.
+PostgreSQL concurrent DDL uses a dedicated physical connection and real
+`lock_timeout`, not pool exhaustion or caller-context timeout as a lock witness.
+Ordinary native DROP has no AX admission and is not claimed to produce55P03.
+Its explicit-transaction DROP capability diagnostic is asserted with savepoint
+recovery; actual child RX, row waits, cancellation and Reset/Restore no-retarget
+have deterministic private/public witnesses. Both modes retain the genuine
+post-action DROP/recreate and held current-action checks. No general DROP
+admission or adjacent partition/lock capability is added.
+
+Private `^TestForeignActions(Definition|Equality|Admission|Closure|Defaults|Diagnostics|Prepared)`
+checks canonical immutable metadata, physical predecessor/successor lineage,
+unspoofed child admission, ordinal default demand and reporting authority.
+`^TestForeignActions(Locks|Cancellation)` checks exact RX/read and row modes,
+wait mutex release, latest payload/version and replacement/cancel cleanup.
+`TestForeignActionsLocksTwoPhase` proves detached child grants and deletion
+ownership through both prepared outcomes. `TestForeignActionsLocksSnapshot`
+checks moved-child40001 from an admitted stable image even when its successor
+commits before action discovery. The owner/FORCE reporting unit installs an
+immutable owner descriptor through the existing validated catalog-stage API;
+it does not imply public ALTER TABLE OWNER support.
+Keep incumbent late-postpublication cancellation and conflict UPDATE regression
+bodies unchanged and select
+`make check RUN='^(TestDeleteCorePublicationCancellation|TestDeleteReturningCancellation|TestUpdateReturningCancellation|TestInsertConflictUpdateIdentity|TestInsertConflictUpdateDistinctStage|TestInsertConflictUpdateCursorFailure)'`.
+Race proof selects the private groups and
+`^TestReferenceForeignActions(Concurrent|Cancellation)` with `RACE=1`; shared
+concurrent definitions also require `REFERENCE=1`. Parser proof remains
+`^TestForeignKeyGrammar`. Feature smoke selects
+`^TestReferenceForeignActionsFeatureSmoke` in both modes.
+Native Dump/Reset/Restore phases are genuine public controls, not simulated PG
+APIs; shared SQL assertions surround them. These selections describe proof
+obligations, not recorded passing results.
+
+Stable-isolation insertion/move-into-key regressions select
+`make check RUN='^TestReferenceForeignActionsConcurrentNewRows$'` and the
+identical `REFERENCE=1` command. These sixteen DELETE/UPDATE × insertion/move ×
+RR/Serializable × direct/prepared schedules assert complete `40001` action
+context, retained snapshots, aborted state/savepoint recovery and the peer's
+committed child. The private empty-root crosscheck selects
+`make check RUN='^TestForeignActionsLocksNewRows$'`.
+
+Select the allocation/behavior complement explicitly:
+`make check RUN='^TestForeignActionsExclusionCompletion$'`.
+It is not covered by the older private prefix groups above. Real completion
+with retained deferred events may add at most the incumbent remaining-event
+vector allocation relative to a settled control; unrelated SELECT and unchanged
+parent-key UPDATE must not add a second pass. Subsequent SET IMMEDIATE still
+raises the genuine retained `23P01`. No production instrumentation or checker
+call counter supplies that proof. Complete private coverage is
+`make check RUN='^TestForeignActions'`; race proof additionally selects
+`make check RACE=1 RUN='^TestForeignActionsLocksNewRows$'` and the public
+ConcurrentNewRows command with `RACE=1` in native and real reference modes.
+
+
+FK regression remediation keeps incumbent keyword and consumer semantics:
+INITIALLY remains usable by EXCLUDE/PRIMARY KEY/UNIQUE controls, and FOREIGN
+retains its keyword-label behavior. Supporting-index and referenced-column
+RESTRICT retain complete dependency diagnostics; CASCADE prunes definitions,
+not child data. The internal `TestForeignKeyQueuedNonKeyCompatibility` observes
+the actual pending DELETE and compatible non-key grant on the same parent RowID.
+`TestForeignKeyPrivateFinalImage` covers parent keys born in a prior own INSERT,
+not merely replacements with a committed predecessor.
+
+`TestReferenceForeignKeyNetworkSupportingKeys` independently checks primary
+and standalone inet_ops providers, equivalent INET/CIDR spellings, duplicate
+parent rejection, missing child rejection and unchanged typed rows. Its
+supporting-key consumer reuses the existing comparator bucket, not a new
+network grouping/hash provider. Select the following existing consumer
+definitions in both native and real modes as well:
+`make check RUN='^TestReferenceUnique(TypedEquality|IndexTypedEquality|IndexProviderBoundaries|IndexDeclaredTypes|IndexBuild|IndexAtomicity|IndexContention|IndexSupportedControlsPreserveState)$'`
+and the identical command with REFERENCE=1.
+
+Parser/internal regression selection:
+`make check RUN='^(TestMappedKeywordLabels|TestExclusionSyntax|TestPrimaryKeyCapabilityRecords|TestUniqueDeferrabilityCapabilityBoundary|TestObjectGrantReferencesAndForeignKeyGrammar)$'`;
+canonical lock compatibility selection: `make check RUN='^TestRowLock'`.
+Existing reference controls remain selected in both modes with
+`make check RUN='^(TestReferenceExclusion|TestReferencePrimaryKeyBoundaries|TestReferenceUniqueExcludedControls|TestReferenceInsertConflictProviderBoundaries|TestReferenceInsertConflictExcludedActions)'`.
+All changed FK definitions above require fresh native and pinned evidence.
+The expression-index, stored internal `"char"` and INSERT suffix witnesses
+assert existing native capability diagnostics versus real PostgreSQL behavior;
+they do not weaken the admitted FK consumer checks. Schema GRANT is only
+PostgreSQL fixture setup; the table/column REFERENCES and redaction assertions
+remain shared. No discovery filter or executable discovery scaffold is added.
+
+The positioned DELETE FK caller is shared in
+`TestReferenceDeleteCurrentOfUsingReturningAndConstraints`: its FK failure
+preserves the parent row and positioned cursor, and removing the child permits
+deleting that same physical parent occurrence. The unrelated USING/RETURNING,
+constraint and cursor eligibility phases remain intact. Select the complete
+definition with
+`make check RUN='^TestReferenceDeleteCurrentOfUsingReturningAndConstraints$'`
+and the identical command with REFERENCE=1.
+
+DROP COLUMN regression selection preserves incumbent AUTO ownership, immutable
+staged owners and exact default/CHECK/policy notice schedules. The shared
+`TestReferenceForeignKeyDropColumnCaller` additionally observes mixed FK/view
+ordered RESTRICT and CASCADE, child-data survival and local self-FK AUTO
+retirement. `TestReferenceForeignKeyProducers` shares real23503 for the incoming
+admitted MERGE MATCHED UPDATE; it keeps independent INSERT suffix boundaries.
+Required fresh native and pinned selections (not observed passes):
+
+```sh
+make check RUN='^TestReferenceForeignKey(DropColumnCaller|DefinitionTypes|Producers)$'
+make check REFERENCE=1 RUN='^TestReferenceForeignKey(DropColumnCaller|DefinitionTypes|Producers)$'
+make check RUN='^(TestCheckReview2OrderOrdinalInvariants|TestRegclassDropColumnStagedOwnerDefinitions|TestTemporaryTableRetainedLiveRelationProviders)$'
+make check RUN='^TestReference(RegclassDropColumnDependencies|RegclassFeatureSmoke|RLSPolicyDependencies|AlterNullabilityReviewRemainingDependency|AlterTypeCheckDependencies|HashIndexLifecycle|PartialIndexLifecycle|PartialIndexUniqueCurrentNames|PartialIndexUniqueDependencyClosure|ExpressionIndexLifecycle|LikeStoredDependencies|LikeStoredPatternEscapeDependencyRestrictionsSourceConsumerRoutes|CheckAlterOwnedSequenceAutoConstraint|CheckControls|CheckLifecycle|TableLikePartialProviders)'
+make check REFERENCE=1 RUN='^TestReference(RegclassDropColumnDependencies|RegclassFeatureSmoke|RLSPolicyDependencies|AlterNullabilityReviewRemainingDependency|AlterTypeCheckDependencies|HashIndexLifecycle|PartialIndexLifecycle|PartialIndexUniqueCurrentNames|PartialIndexUniqueDependencyClosure|ExpressionIndexLifecycle|LikeStoredDependencies|LikeStoredPatternEscapeDependencyRestrictionsSourceConsumerRoutes|CheckAlterOwnedSequenceAutoConstraint|CheckControls|CheckLifecycle|TableLikePartialProviders)'
+make check RUN='^TestReferenceTemporaryTableExpressionCommitDrop$'
+make check REFERENCE=1 RUN='^TestReferenceTemporaryTableExpressionCommitDrop$'
+```
+
+The session-only public smoke uses finite context, a real prepared composite
+child INSERT, exact nullable INT4/TEXT rows, full23503 fields, atomic parent
+UPDATE/DELETE, savepoint recovery, actual Reset before persistent Restore,
+SIMPLE NULL, cyclic replay/redump, invalid final import preserving sentinel91
+and held Rows, and retained TEMP identity through Reset and Restore. Successful
+stdout is empty; mismatches exit nonzero. It is not a staged deliverable.
+
+Independent FK review remedies require these exact completed selectors in native
+and real pinned PostgreSQL modes (external900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceForeignKeySupportingFamily'
+make check REFERENCE=1 RUN='^TestReferenceForeignKeySupportingFamily'
+make check RUN='^TestReferenceForeignKey(ClauseStructure|NotNullNameCollision|TypeAtomicity)'
+make check REFERENCE=1 RUN='^TestReferenceForeignKey(ClauseStructure|NotNullNameCollision|TypeAtomicity)'
+make check RUN='^TestReferenceForeignKeyRestore(SkippedCreate|CapturedAuthority)'
+make check REFERENCE=1 RUN='^TestReferenceForeignKeyRestore(SkippedCreate|CapturedAuthority)'
+make check RUN='^TestForeignKey'
+make check RACE=1 RUN='^TestForeignKey'
+```
+
+The eight new shared definitions are SupportingFamilyAdmission,
+SupportingFamilyCoercion, SupportingFamilyRestore, ClauseStructure,
+NotNullNameCollision, TypeAtomicity, RestoreSkippedCreate and RestoreCapturedAuthority
+(each prefixed TestReferenceForeignKey). They independently assert full diagnostics,
+metadata, stable/reminted identities, complete typed bags, recovery and failed
+publication. All eight temporary PostgreSQL-only discovery returns are removed
+from the four foreign_key_review_* reference files; native-control-only phases
+remain backend-specific inside otherwise complete shared definitions.
+
+Package seams TestForeignKeyIndexProbeVisitBounds, SelectedFamilyAuthority,
+TypeFailedSnapshotAuthority, TrustedReplayNamespacePrincipal and CreateOutcomeIdentity
+(each prefixed TestForeignKey) complement the shared observations. Count proof wraps
+the actual selected-family ordered comparator and actual entry visitor over a
+4096-entry native logical index; it asserts bounded lower-bound work, first-match
+stop, exact source version locators and unchanged borrowed entries, not wiring counts.
+Snapshot proof retains original metadata/storage/index authority through failed and
+successful TYPE; namespace proof separates transient replay permissions from semantics.
+The name_ops class uses its released text_ops family identity without adding a new
+type/index capability; existing unique-index typed/provider/catalog assertions must
+also run in both modes:
+
+```sh
+make check RUN='^TestReferenceUnique(TypedEquality|IndexTypedEquality|IndexProviderBoundaries|IndexDeclaredTypes|IndexBuild|IndexAtomicity|IndexContention|IndexSupportedControlsPreserveState)'
+make check REFERENCE=1 RUN='^TestReferenceUnique(TypedEquality|IndexTypedEquality|IndexProviderBoundaries|IndexDeclaredTypes|IndexBuild|IndexAtomicity|IndexContention|IndexSupportedControlsPreserveState)'
+```
+
+These are required proof commands, not observed passes. Existing FK families,
+migrated callers, parser controls and standalone session-only public smoke above
+remain selected. Whole-project Docker-free verification remains quickcheck.
+
+Post-rebase FK fixture remedies preserve raw NUMERIC transport and held pid INT4
+metadata/nullability/content after failed Restore. Incoming ON CONFLICT target
+DO UPDATE is admitted: Producers asserts its no-RETURNING23503 and unchanged
+complete bags in both modes; only RETURNING supplies the positioned native suffix
+exclusion for the combined query. Required fresh selections (900 seconds each):
+
+```sh
+make check RUN='^TestReferenceForeignKey(SupportingFamilyAdmission|RestoreSkippedCreate|Producers)$'
+make check REFERENCE=1 RUN='^TestReferenceForeignKey(SupportingFamilyAdmission|RestoreSkippedCreate|Producers)$'
+make check RUN='^TestEnum(GenerationPublicationAtomicity|OperationSafetyCapture)$'
+```
+
+Incoming enum staged-table fixture callers pass the empty FK reference-grant
+inventory explicitly; their original provenance/publication/safety assertions
+are unchanged.

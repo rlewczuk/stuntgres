@@ -20,7 +20,7 @@ account is a local administrator of its independently owned in-memory databases.
 Only UTF8/UNICODE client encoding is admitted; there is no wire transcoder.
 Native dumps preserve their existing exclusions and do not provide WAL/crash
 recovery or arbitrary pg_dump import. See [commands and security](../README.md#phase-1-server--change-note)
-and [selected proof](TESTING.md#phase-1-server-selected-proof).
+and [selected proof](../reference/sessions/README.md#phase-1-server-selected-proof).
 
 
 ### TRUNCATE TABLE — change note
@@ -49,7 +49,7 @@ Native trigger/pending-trigger and FDW providers, partition foreign keys, wire
 storage and durability are not introduced. Existing RLS does not filter this
 whole-table operation. See [SQL forms](SQL.md#truncate-table--change-note),
 [snapshot and cursor distinctions](TRANSACTIONS.md#truncate-generations--change-note)
-and [selected proof](TESTING.md#truncate-selected-proof).
+and [selected proof](../reference/dml/README.md#truncate-selected-proof).
 
 ### COPY text streams — change note
 
@@ -156,7 +156,7 @@ Operation state; PostgreSQL server cancellation uses its own supported functions
 
 
 See [the public API](DRIVER.md#pinned-copy-text-streams--change-note) and
-[selected proof](TESTING.md#copy-text-selected-proof).
+[selected proof](../reference/dml/README.md#copy-text-selected-proof).
 
 ### Expression collation — change note
 
@@ -235,7 +235,7 @@ operands and local CASE/COALESCE operands reject SRFs before dead/NULL folding.
 Ordinary single INSERT VALUES uses real target expansion and atomic publication.
 General table functions and lateral derived SELECT/VALUES are not admitted.
 See [query staging](QUERIES.md#string-set-expansion--change-note) and
-[bounded proof groups](TESTING.md#string-split-selected-proof).
+[bounded proof groups](../reference/strings/README.md#string-split-selected-proof).
 
 ### INET and CIDR — change note
 
@@ -277,7 +277,7 @@ CHECKPOINT and CREATE SUBSCRIPTION explicitly fail0A000 rather than succeeding
 as no-ops. Reset/Restore retain the shared roles and deliberately revoked monitor
 edges; local public ownership/ACL references remap by validated identity.
 See [the exact role table and boundaries](AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
-and [selected proofs](TESTING.md#predefined-role-oracle-first-contracts).
+and [selected proofs](../reference/roles/README.md#predefined-role-oracle-first-contracts).
 
 ### DISCARD — change note
 
@@ -1092,7 +1092,7 @@ outer-join absence through reverse seeks and after-EOF revisits without adding
 a new physical system-column provider.
 Omitted mode remains conservatively forward-only.
 See [driver ownership and transport distinctions](DRIVER.md#sql-cursors--change-note).
-Selected dual-mode groups and motion smoke: [testing](TESTING.md#cursor-motion-selected-proof).
+Selected dual-mode groups and motion smoke: [testing](../reference/sessions/README.md#cursor-motion-selected-proof).
 HOLD smoke: `RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'` in both modes.
 
 ### Positioned DELETE — change note
@@ -4730,7 +4730,7 @@ boundary behavior. Native uses Go's standard library plus scaled gamma
 reflection, not C linkage, and does not promise bit-for-bit finite libm parity.
 Reference tests independently assert signs, NULL, metadata and full diagnostics;
 ordinary finite targets allow a small documented ULP bound.
-See [selected proof](TESTING.md#math-constants-selected-proof).
+See [selected proof](../reference/numeric/README.md#math-constants-selected-proof).
 
 
 Table SELECT projection/WHERE admit `IS [NOT] NULL`, `ISNULL`/`NOTNULL`,

@@ -2486,5 +2486,5 @@ No broad PostgreSQL index schema, optimizer, physical-storage or excluded hierar
 mutation support is implied.
 
 See [design](design/PG18-DDL-PARTITION-CONSTRAINTS.md) and
-[selected proofs](TESTING.md#partitioned-constraints--selected-proof).
+[selected proofs](../reference/tables/README.md#partitioned-constraints--selected-proof).
 

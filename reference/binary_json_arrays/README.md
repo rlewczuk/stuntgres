@@ -1,0 +1,183 @@
+# reference/binary_json_arrays
+
+## Testing
+
+Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
+fixture usage, and oracle-first workflow. Run the commands below from the
+repository root.
+
+### Array aggregation
+
+Array aggregation uses `RUN='^TestReferenceArrayAgg'` with both
+`make check` and
+`make check REFERENCE=1` (900 seconds each).
+Feature smoke uses `RUN='^TestReferenceArrayAggFeatureSmoke$'` in both modes.
+These shared scenarios independently assert scalar NULL inclusion, array rank
+and bounds, metadata/domain identity, complete diagnostics, direct/prepared
+frames, source ACLs and INSERT atomicity; native controls remain explicit phases.
+Public source-authority scenarios use actual table/column GRANT and the same
+consumer identity in both modes; owner substitutions are not positive ACL proof.
+
+### JSONPath typed-input reference contracts
+
+The JSONPath family uses cohesive, independently expected case tables for
+canonical grammar output, input-time regular-expression syntax, complete logical
+diagnostics and their direct/prepared literal-versus-bind phases. Consumer
+scenarios cover held inferred INSERT/UPDATE/CAST parameters, repeated slots,
+owned bytes, SQL NULL versus path `null`, recovery and failed-write atomicity.
+Character IO asserts TEXT/VARCHAR canonical output, explicit VARCHAR/BPCHAR
+truncation, multibyte character sizing, BPCHAR padding and SQL NULL. Encoding
+errors assert the full protocol diagnostic, including portal Context without a
+parameter value; malformed paths assert the measured slot-specific Context.
+
+Catalog OIDs are checked separately from driver metadata: lib/pq exposes blank
+type names and interface{} ScanType for JSONPath results, whereas native results
+must expose JSONPATH (or _JSONPATH) and string ScanType. The shared helper asserts
+each backend's metadata and raw representation before normalization. Composition
+also retains native-only Dump/Restore phases and emitted-SQL replay on PostgreSQL.
+These are input/representation contracts, not path or regex evaluation claims.
+
+JSONPath fixture IDs are unconstrained INT values made unique by the scenarios;
+these tests do not exercise primary-key syntax or constraint enforcement.
+Scalar/array catalog and attribute identities use separate equality-filtered
+queries on PostgreSQL, retaining every independently expected OID, typmod,
+collation and domain-base field without relying on unsupported IN expressions.
+Native explicitly asserts that the two named relations `pg_catalog.pg_type` and
+`pg_catalog.pg_attribute` remain absent (42P01, exact English message and original
+relation Position), in both direct and prepared representation setup. Other
+implemented catalog views do not imply these inquiry relations exist. Exact native
+descriptor4072/4073 and reciprocal array identities remain covered by provider
+units; all shared native JSONPATH/_JSONPATH metadata, IO, composition and controls
+remain asserted without a skip. Equality, ordering and grouping
+must reject rather than compare canonical output; grouping diagnostics retain
+the declared scalar, array or domain name and original SQL source position.
+
+Run all changed definitions in both modes, with a 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceJSONPath'
+make check REFERENCE=1 RUN='^TestReferenceJSONPath'
+make check RUN='^TestReferenceJSONPathFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'
+```
+
+The feature smoke expects inferred repeated-slot insertion, strict indexed-path
+and regex-flag canonicalization, exact regex diagnostics, unchanged data after
+bad UPDATE/late bad INSERT, subsequent valid recovery, and distinct NULL/path-null
+rows. No discovery filter, success logging or observation fallback is retained.
+Change note: JSONPath oracle-discovery envelopes are replaced with quiet shared
+reference assertions; quick-mode failure precedes production implementation.
+
+### Binary conversion
+
+Binary conversion uses independent pinned18.0 goldens for all128 directed pairs,
+all42 identities, format/padding boundaries, complete diagnostics, held statements,
+volatility and late-write atomicity. Native lifecycle phases retain readers and
+metadata across replacement and failed/canceled imports, and replay actual emitted
+SQL on PostgreSQL. Select the whole affected family and smoke in both modes,
+each invocation under900 seconds:
+
+```sh
+make check RUN='^TestReferenceBinaryConversion'
+make check REFERENCE=1 RUN='^TestReferenceBinaryConversion'
+make check RUN='^TestReferenceBinaryConversionFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryConversionFeatureSmoke$'
+make check RUN='^TestBinary(Conversion|Encoding|Format)'
+make check RUN='^TestBinaryConversion'
+make check RUN='^TestBinaryConversion'
+```
+
+The shared hex/escape cores also serve BYTEA input; run existing
+`^TestReferenceBytea` regressions selectively in both modes before review.
+
+Stored-view metadata uses the established native declared nullable contract
+`true,true`; pq reports unknown `false,false`. Computed conversion expressions
+continue to require unknown nullability. Actual emitted-SQL replay uses the pq
+contract explicitly, not metadata captured from the native backend.
+Replay objects have bounded deferred cleanup before the next backend body,
+including failure exits; the shared scenario resets schemas per test, not backend.
+
+`TestReferenceBinaryConversionActiveCancellation` separately exercises admitted
+aggregate encode reads and ordered staged convert writes on a32MiB LATIN1 source.
+Native observes the worker's actual provider stack before canceling its context;
+PostgreSQL observes the actual query active on the held backend PID and uses
+server cancellation, preserving the same session. Workers have bounded joins on
+every exit. Assertions require no successful cursor/result, unchanged sentinel,
+ordinary native context cancellation or the complete PostgreSQL57014 diagnostic,
+then independently expected read sum4 and write count2/UTF8 bytes through the
+same pre-held read/write statements. No pg_sleep substitute or production delay
+is used. Existing precanceled/expired contexts remain separate coverage.
+
+```sh
+make check RUN='^TestReferenceBinaryConversionActiveCancellation$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryConversionActiveCancellation$'
+```
+
+The no-bind direct repeated-parameter witness asserts an explicit inherited
+transport boundary (PG42P02 Position16 versus native42P08 Position19/Detail
+`bytea versus name`); genuine Prepare remains shared42P08. See DIALECT's binary
+conversion note. Codec diagnostics and all independent pair/identity goldens
+remain unchanged.
+
+### BYTEA access completed definitions
+
+`TestReferenceBinaryAccess*` covers zero-based LSB orientation, raw count and
+reversal, setter truncation/immutability, bounds and input diagnostics, overload
+resolution, authority, empty/NULL metadata, held frames, consumers and native
+symbolic controls with actual emitted SQL replay on PostgreSQL. PostgreSQL
+expectations are independent; BIT execution is asserted only there, with the
+native capability error asserted separately. Portal Context and pq/native BYTEA
+metadata/empty-buffer differences remain explicit, not normalized goldens.
+
+Run each selective quickcheck under a 900-second deadline:
+
+```sh
+make check RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check REFERENCE=1 RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccessFeatureSmoke$'
+```
+
+StringPad protects the reused reverse provider and shared parser/binder.
+Feature smoke exercises the released six-function projection, held frames,
+bounds/new-bit failure and recovery, retained source, empty/NULL metadata and
+controls replay. These gates do not replace root quickcheck or post-merge
+finalcheck (one 1800-second deadline).
+
+### BYTEA access oracle-first contract
+
+`TestReferenceBinaryAccess` defines the BYTEA `bit_count`, `get_bit`,
+`get_byte`, `set_bit`, `set_byte` and existing `reverse` contract. Independent
+release/manual and raw-octet goldens precede comparison: LSB-first bit offsets,
+INT8 bit indexes/counts versus INT4 byte indexes/getters, low-eight-bit byte
+replacement, strict NULL, source ownership, complete errors, overload boundaries,
+authorization, metadata, statement/savepoint atomicity and stored consumers.
+The existing StringPad reverse definitions remain unchanged.
+
+During initial discovery only, the shared scenario helper temporarily excludes
+native backends. This is not native support or passing verification: remove that
+filter after pinned PostgreSQL observations and before the native failing proof,
+and never integrate the filter. Body-error stages, portal input Context,
+ambiguous overloads, diagnostic precedence and complete metadata flags require
+root observations before production implementation. Native controls are defined
+now but are not exercised by the PostgreSQL-only discovery phase.
+
+Run each command with a separate 900-second deadline, in this order:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccess.*$'
+# After removing the temporary filter: establish native failing proof.
+make check RUN='^TestReferenceBinaryAccess.*$'
+# After implementation: both completed shared definitions and reverse regression union.
+make check RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check REFERENCE=1 RUN='^TestReference(BinaryAccess|StringPad).*$'
+make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccessFeatureSmoke$'
+```
+
+The composed smoke asserts the six-function released projection, orientation and
+wrapping, raw held frames and unchanged storage, exact bounds/newbit errors with
+recovery, empty/NULL metadata before iteration and symbolic native controls with
+actual emitted SQL replay on PostgreSQL. Control replacement failures must leave
+the destination dump byte-for-byte unchanged; parameters in every new argument
+slot remain rejected. Quiet test success alone is not a discovery transcript.

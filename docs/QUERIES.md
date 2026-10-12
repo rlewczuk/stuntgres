@@ -1942,7 +1942,7 @@ Fresh restored statements resolve reminted rowtype identities; held eager values
 and metadata keep their captured generations. Server trigger transformation and
 suppression are genuine PostgreSQL-only controls, not native successful no-ops.
 
-Selected proof: [INSERT RETURNING contracts](TESTING.md#insert-returning-oracle-first-contracts).
+Selected proof: [INSERT RETURNING contracts](../reference/dml/README.md#insert-returning-oracle-first-contracts).
 Feature smoke: `make check RUN='^TestReferenceInsertReturningFeatureSmoke$'`,
 and the identical command with `REFERENCE=1`, each under an external900-second deadline.
 
@@ -4386,7 +4386,7 @@ remain unsupported. Hierarchy conflict UPDATE rejects0A000 after analysis and
 rights, before provider/default/routing admission. Native deferrable UNIQUE/PRIMARY
 KEY DDL remains bounded rather than simulated; INSERT RETURNING is supported. The shared
 `TestReferenceInsertConflictUpdate` family has independently specified native and
-pinned PostgreSQL expectations; [testing](TESTING.md#insert-conflict-update-acceptance)
+pinned PostgreSQL expectations; [testing](../reference/dml/README.md#insert-conflict-update-acceptance)
 separates public capture markers from actual native manager-pending proof.
 
 ## Regular-expression function sources — change note (changelog)
@@ -4438,5 +4438,5 @@ owner, and expanding function-source lock rechecks reuse its closed cursor cache
 Selected dual-mode evidence: `make check RUN='^TestReferenceRegexpSet'` and the
 same command with `REFERENCE=1`. See
 [function semantics](DIALECT.md#regular-expression-functions--change-note-changelog)
-and [verification](TESTING.md#regular-expression-function-oracle-and-feature-checks).
+and [verification](../reference/patterns_encoding/README.md#regular-expression-function-oracle-and-feature-checks).
 

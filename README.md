@@ -89,7 +89,7 @@ are explicit capability errors, not fake successes. Engine-supported SQL
 `server_version=18.0` is negotiation metadata, not a full PostgreSQL18 claim.
 Dual-mode `TestReferenceServer*` definitions use real subprocesses, actual psql
 and sqlmw-wrapped pq alongside pinned PostgreSQL18.0; see
-[server verification](docs/TESTING.md#phase-1-server-selected-proof).
+[server verification](reference/sessions/README.md#phase-1-server-selected-proof).
 
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,
@@ -114,7 +114,7 @@ overflow errors, nonzero tails remain accepted, and erfc tail zero is valid.
 Existing FLOAT8 and exact NUMERIC exp behavior remains unchanged. Finite libm
 accuracy and boundary behavior can vary by platform; see
 [math constants](docs/SQL.md#math-constants-and-special-functions--change-note)
-and [selected proof](docs/TESTING.md#math-constants-selected-proof).
+and [selected proof](reference/numeric/README.md#math-constants-selected-proof).
 Feature smoke: `make check RUN='^TestReferenceMathConstantsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceMathConstantsFeatureSmoke$'`.
 
@@ -179,7 +179,7 @@ the complete frozen authorization and dependency manifests.
 Hashed membership builds its RHS before LHS demand and retains it per actual
 execution/source occurrence across unrelated parent rescans; a new Execute is fresh.
 See [expression collation](docs/DIALECT.md#expression-collation--change-note)
-and [selected proofs](docs/TESTING.md#expression-collation-selected-proof).
+and [selected proofs](reference/patterns_encoding/README.md#expression-collation-selected-proof).
 Feature smoke: `make check RUN='^TestReferenceExprCollationFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExprCollationFeatureSmoke$'`.
 
@@ -212,7 +212,7 @@ owns canonical public, whose historical PUBLIC USAGE|CREATE default is retained.
 Monitoring names do not unlock protected SET, and roles never synthesize missing
 statistics, filesystem/program, checkpoint, subscription or signaling providers.
 See [predefined role capabilities and limits](docs/AUTHORIZATION.md#predefined-postgresql18-roles--change-note)
-and [small dual-mode proof groups](docs/TESTING.md#predefined-role-oracle-first-contracts).
+and [small dual-mode proof groups](reference/roles/README.md#predefined-role-oracle-first-contracts).
 Public test smokes:
 `make check RUN='^TestReferencePredefined(DataFeatureSmoke|MaintainFeatureSmoke|BoundaryFeatureSmoke)$'`;
 add `REFERENCE=1` for the same pinned PostgreSQL definitions. Executable smoke
@@ -256,7 +256,7 @@ metadata. Native logical typed compounds retain their existing identity fences.
 Statement-boundary retention does not bypass native ErrCatalogReplaced when a
 new shadow changes original-name resolution during an admission wait.
 See [prepared invalidation](docs/DRIVER.md#prepared-catalog-and-path-invalidation)
-and [selected proof](docs/TESTING.md#prepared-rebind-selected-proof).
+and [selected proof](reference/sessions/README.md#prepared-rebind-selected-proof).
 
 Change note: `CREATE TABLE ... OF standalone_composite` copies live column names
 and concrete types while keeping local defaults/constraints and a distinct row
@@ -461,7 +461,7 @@ writable-view, exclusion-arbiter and deferrable UNIQUE DDL
 boundaries remain explicit. Native rechecks current rights after conflict waits;
 pinned PostgreSQL retains its statement-start ACL decision.
 See [conflict update](docs/QUERIES.md#insert-conflict-update--change-note) and
-[selected proof](docs/TESTING.md#insert-conflict-update-acceptance).
+[selected proof](reference/dml/README.md#insert-conflict-update-acceptance).
 
 Change note: `INSERT ... RETURNING [WITH (OLD AS o, NEW AS n)] ...` exposes
 ordinary direct/prepared query rows and fixed metadata for every successful
@@ -476,7 +476,7 @@ Native Dump/Restore retains persistent objects/data, rejects RETURNING in import
 scripts and preserves already eager output across replacement. Generic ROW/field
 operators, triggers/rules/FDWs, wire tuple metadata and physical durability are
 not added. See [INSERT RETURNING](docs/QUERIES.md#insert-returning--change-note)
-and [selected proof](docs/TESTING.md#insert-returning-oracle-first-contracts).
+and [selected proof](reference/dml/README.md#insert-returning-oracle-first-contracts).
 
 Change note: PostgreSQL18 `MERGE` supports ordered conditional
 `WHEN MATCHED THEN UPDATE SET` or `DELETE`,
@@ -1457,7 +1457,7 @@ See [delay contracts](docs/DIALECT.md#datetime-delays).
 Dual-mode smoke: `make check RUN='^TestReferenceDatetimeSleepFeatureSmoke$'`,
 then the same command with `REFERENCE=1`. The standalone public source and
 root-only materialization/run instructions are in
-[testing](docs/TESTING.md#datetime-delay-selected-proof).
+[testing](reference/datetime/README.md#datetime-delay-selected-proof).
 
 
 SELECT and INSERT SELECT support comma products, CROSS JOIN and inner or
@@ -2142,7 +2142,7 @@ PostgreSQL ignores native ownership comments and uses ordinary installation
 ownership on SQL replay. General FUNCTION/text-search DDL, regdictionary/internal
 SQL codecs, ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
 excluded. See [registered extensions](docs/DIALECT.md#registered-extensions--change-note)
-and [selected proof](docs/TESTING.md#registered-extension-selected-proof).
+and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and
@@ -3085,7 +3085,7 @@ not generated parser output, and run `make generate` after grammar changes.
 Keep production dependencies limited to the standard library and this module.
 Run the relevant public scenario and full verification before submitting changes.
 The [development guide](docs/DEVELOPMENT.md) documents the pinned reference image,
-additional targets, and verification conventions; [design notes](docs/design/)
+additional targets, and verification conventions; [design notes](docs/design)
 provide architectural background.
 
 ## Support and issues

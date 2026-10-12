@@ -503,7 +503,7 @@ Direct Query returns no cursor; prepared SELECT fails at Prepare, not evaluation
 Representation identity and private normalization comparators do not grant SQL
 comparison. The permanent public boundary independently asserts PostgreSQL's
 supported unequal/equal/NULL comparison rows and native's excluded-provider error.
-Selected dual-mode proof and standalone smoke: [testing](TESTING.md#multirange-selected-proof).
+Selected dual-mode proof and standalone smoke: [testing](../reference/types/README.md#multirange-selected-proof).
 
 
 

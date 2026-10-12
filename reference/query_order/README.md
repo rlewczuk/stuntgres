@@ -1,0 +1,241 @@
+# reference/query_order
+
+## Testing
+
+Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
+fixture usage, and oracle-first workflow. Run the commands below from the
+repository root.
+
+### RANGE window coverage
+
+RANGE window coverage selects the complete `^TestReferenceQueryWindow` family
+in both `make check RUN='^TestReferenceQueryWindow'`
+and `make check REFERENCE=1 RUN='^TestReferenceQueryWindow'`
+(900 seconds each). Feature smoke uses `^TestReferenceQueryWindowRangeFeatureSmoke$` in both modes.
+Named volatile-offset identity is covered by
+`^TestReferenceQueryWindowRangeNamedOffsetIdentity` in both modes: same name
+advances nextval once; distinct names advance it twice and give the final pair
+{2,3}, without assuming evaluation order. The stored-view witness cycles offsets
+1/2 to retain independent membership through repeated export/replay and native
+Dump/Restore. Actual clone/remap units preserve query-local named identity while
+checking shared sort groups. Successful support binding performs neither source
+diagnostic formatting nor class-input diagnostic lookup.
+Provider units use ` RUN='^TestWindowRange'`;
+parser/stage units use `RUN='^TestQueryWindow'` in their respective packages.
+Independent membership/type/English diagnostic constants are asserted before
+comparison. Pinned discovery establishes that count inside EXISTS still demands
+its frame, row_number/LIMIT0/unused frames eliminate runtime offsets, NULL fails
+on empty input, and negative/NaN can avoid support demand on empty/all-NULL input.
+Constant input division errors retain22012 before NULL frame validation.
+RANGE offset diagnostics use the binder's coherent visible-type policy: visible
+domains are unqualified and hidden/shadowed domains retain their required schema
+spelling; descriptor SQL declarations are not diagnostic goldens. Relation ACL
+failures occur at Execute in both native and PostgreSQL, including freshly
+prepared SELECTs; do not broaden native Prepare authority to fit a wrong stage.
+The public persistent-definition and four-row2/4/3/2 overlay witnesses migrated
+from native window units; actual staged cancellation/descriptor mechanics remain
+package units. Native Dump/Restore phases have no invented PostgreSQL API.
+
+### GROUPS window coverage
+
+GROUPS coverage uses `make check RUN='^TestReferenceQueryWindowGroups'` and
+`make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroups'` (900 seconds each).
+Focused smoke selects `^TestReferenceQueryWindowGroupsFeatureSmoke$` in both modes.
+Shared scenarios independently specify complete peer rows/types, bigint coercion,
+start/end diagnostics/stages/carets, empty/all-NULL demand, volatile named identity,
+authorization, prepared recovery, atomicity and cancellation. GROUPS negatives
+raise22013 even for empty/all-NULL demanded frames; do not reuse RANGE's relaxed
+support-demand expectations. Native-control phases use actual pristine Dump/Restore
+and retained cursors, not PostgreSQL script replay as a substitute. Native units
+select `^TestQueryWindowGroups` (also `RACE=1`) for safe peer endpoints, actual
+offset/validation/sort/peer/group/count/output/prepublication cancellation,
+immutable graph remap/identity, exact descriptors and INSERT Finish veto.
+Because the shared representation also carries RANGE, final selected proof includes
+`^TestReferenceQueryWindow` in both modes and `^TestQueryWindow` native units.
+
+### ROWS window coverage
+
+ROWS coverage selects `^TestReferenceQueryWindowRows` in both native and real
+pinned modes, with `^TestReferenceQueryWindowRowsFeatureSmoke$` for focused smoke.
+Independent constants cover physical endpoints/empty frames, no-order bags,
+shared tie order, bigint assignment typing, exact diagnostic fields/carets,
+demand on empty/all-NULL/EXISTS, named volatile identity, metadata, ACLs and write
+atomicity. Actual native controls reuse pristine Dump/Restore and retained-cursor
+assertions. Internal `^TestQueryWindowRows` units (also `RACE=1`) cover MaxInt64
+safe physical endpoint clamping, graph/domain remap, source authority, actual
+offset/validation/sort/physical-frame/count/output/prepublication cancellation,
+descriptor lifetime/release and Finish veto. Do not issue overflow-inducing
+MaxInt64 FOLLOWING endpoints to PostgreSQL; moderate100 endpoints are portable.
+Because sorting/offset storage is shared, final selected proof includes
+`^TestReferenceQueryWindow` in both modes and `^TestQueryWindow` native units.
+
+### Set operations
+
+The set-operation feature smoke exercises all nine operator/modifier bags and
+Exec counts, NULL multiplicities, precedence/parentheses, VALUES, local/global
+bounds, pairwise unknown/REAL typing, SAME held parameters, derived/scalar/EXISTS
+and correlated consumers, dedup-before-INSERT assignment, width/UTF8/ORDER/lock
+diagnostics, stored views, foreign Restore and retained results. It executes the
+actual native Dump stream on PostgreSQL; it never substitutes reconstructed SQL.
+Native controls explicitly cover invalid trailing and EOF-canceled set-view
+restoration, two foreign restores, destination-owned enum/domain/array grouping
+after source Reset, and retained rows/schema across destination Reset/Restore.
+
+```sh
+make check RUN='^TestReferenceQuerySetOpsFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySetOpsFeatureSmoke$'
+make check RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySetOps(Consumers|ViewsControls|SourceDependencies|Lifecycle|DemandAdmission|FeatureSmoke)$'
+```
+
+Each invocation has a900-second deadline. The complete family selector is
+`RUN='^TestReferenceQuerySetOps'` in both modes; smoke does not replace it or
+ordinary quickcheck/post-merge finalcheck. Lifecycle checks row-dependent late
+source/assignment failures, zero-demand runtime suppression with all-arm analysis
+and argument admission, ordinary native pre-cancellation, genuine observed
+PostgreSQL server admission/cancellation, and SAME owner/preheld set recovery.
+PostgreSQL cancellation uses the existing admitted pg_sleep helper, not a new
+native function or a timing-only assertion that a fast set query was interrupted.
+Pinned PostgreSQL18.0 observations ground the additional consumer rows, exact
+late source/assignment diagnostics and all-arm zero-demand analysis positions.
+Successful discovery does not replace completed dual-mode acceptance runs.
+
+Stored set-view lock-boundary regression smoke covers all four modes on catalog
+and sequence sources, reader-owned security_invoker/nested catalog views, and
+inline-derived rejection. PostgreSQL fixture-only GRANT controls additionally
+exercise ordinary SELECT-only base readers, local stored marks and revoked SELECT
+under LIMIT0; native private ACL units exercise the same authority boundary
+alongside shared public table/column grants. Run each command within900 seconds:
+
+```sh
+make check RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySetOpsStoredLockBoundaries$'
+make check RUN='^TestQuerySetStored(InheritedMarks|LockAuthority|ReferenceKinds|RelationModes)$'
+```
+
+The private units retain local wait/strength/diagnostic recipes, ordinary-view
+inheritance, all-arm admission, sequence reference-kind checks and actual acquired
+relation modes. They do not duplicate public adapter scenarios. The stored-set
+barrier changes inherited marks only, never ordinary SELECT/dependency traversal.
+
+### Grouping sets regression-first contract
+
+The shared untagged `TestReferenceGroupingSets` families independently assert
+ROLLUP/CUBE/nested expansion, ALL/DISTINCT multiplicities, placeholder NULLs and
+GROUPING bits, query ownership, EXISTS, limits, full diagnostics, consumers,
+metadata, statement atomicity, cancellation and stored-definition/native controls.
+`TestReferenceCountExpressionCapabilityBoundaries` now treats grouping constructs
+as shared success contracts; `TestReferenceQueryAggregateExclusionPrefixEffects`
+uses malformed grouping suffixes while retaining the unrelated window boundary.
+The pinned tests-only contract and native-red checkpoints precede production.
+The original discovery filter was removed; final scenarios must visit both backends.
+Final family selectors (900 seconds each):
+
+```sh
+make check REFERENCE=1 RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$'
+make check RUN='^TestReference(GroupingSets.*|CountExpressionCapabilityBoundaries|QueryAggregateExclusionPrefixEffects)$'
+make check REFERENCE=1 RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'
+make check RUN='^TestReferenceGroupingSets(FeatureSmoke|ReviewFeatureSmoke)$'
+```
+
+Root removed the initial PostgreSQL-only discovery loop before native red.
+Pinned discovery supplies positions, prepared phases and raw descriptor flags;
+new or changed witnesses remain unobserved until their next pinned run. Full
+exposed diagnostics are asserted rather than stripped. Discovery established
+position8 for an ungrouped `a` projection with legal `GROUP BY ()`, and absent
+positions for explicit-empty rowmarks and over-limit CUBE Cartesian products.
+
+An empty-call syntax-position override applies only to malformed42601 calls,
+not a legal empty grouping clause. Atomicity Query witnesses divide by zero on
+every group, while INSERT retains late-failing expressions and unchanged-state
+assertions. An original late SELECT returning from `QueryContext` successfully
+does not establish completed SQL success or NULL results: pq may return a
+cursor before a subsequent server error. Native eager late SELECTs separately
+assert the stronger nil-cursor contract; it is not fabricated as pq parity.
+
+Grouped-query PostgreSQL cancellation prepares before an ACCESS EXCLUSIVE peer
+lock, observes the actual relation waiter/blocker and exact active query, server
+cancels, joins with a deadline, asserts nil cursor/full57014, then reruns the
+same held owner. This proves admitted-query cancellation, not interruption of
+group execution loops. Native precancellation likewise only proves publication
+and recovery. Package units cover structural AST/source traversal/whole input,
+canonical expansion/raw limits, masks/outer frames/no argument evaluation,
+occurrence state/modifier evaluation, actual fanout/family/finalization/merge
+cancellation, column ACL manifests, physical output origins and Restore whitelist.
+No production hook or pg_sleep substitute satisfies active-loop obligations.
+
+Internal selectors for root verification:
+`make check RUN='^Test(GroupingSets|QueryAggregate|AggregateModifiers)'`.
+Native control branches remain in shared public scenarios. The typed lifecycle
+uses admitted unconstrained domains; illegal RETURNING grouping uses the admitted
+UPDATE route; INSERT RETURNING independently enforces the same clause restriction.
+
+#### Blocking-review regression contracts
+
+`TestReferenceGroupingSetsReview.*` supplies illegal producer-child syntax and
+whole-input mutation-prefix rejection, ordinary nested unreserved function-name
+ownership, typed supplied keys, compound parameter keys, equal-value distinct
+parameter identities, held non-NULL/NULL reuse, grouped INSERT counts and
+NOT NULL atomicity with same-owner held recovery. Exact bags, types and metadata
+are independent expectations. Root's pinned Review checkpoint passed these new
+diagnostics, character positions, supplied-parameter rows and metadata.
+
+The temporary new-family-only PG discovery helper was removed and every caller
+migrated to `groupingSetsScenario` before native red. No grouping discovery filter
+remains. Native red found the producer-child/function admission bug; parameter,
+identity and INSERT scenarios passed. The grammar remedy uses expression-only
+ROLLUP/CUBE units, preserving implicit sublists and recursive GROUPING SETS.
+Root must freshly validate the completed definitions in both modes, under a
+separate900-second deadline per invocation:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceGroupingSetsReview.*$'
+# Both backends execute shared definitions; no temporary discovery helper.
+make check RUN='^TestReferenceGroupingSetsReview.*$'
+```
+
+Final complete-family selectors above include every changed/new definition.
+The review smoke adds a valid composite producer, forbidden empty/SETS children
+with prefix atomicity, supplied held7/NULL/7 masks and metadata, and a prepared
+parameterized grouped INSERT. Ordinary nested cube/rollup calls retain the
+existing native generic-call0A000 boundary versus PostgreSQL42883 with Hint;
+this does not admit new scalar functions or syntactically reject their names.
+Parser units supplement public contracts with positioned expression-unit ASTs,
+legal nested SETS/producers and bare names, full malformed-child diagnostics,
+whole-input zero-statement publication and inner ordinary-call capability ownership.
+These new units and the final grammar remedy require root verification; the
+historical oracle pass/native red are not final passing evidence.
+
+### DISTINCT ON reference contracts and feature smoke
+
+The untagged `reference/query_order/query_distinct_on_*_test.go` family shares fixture/public
+API bodies in both modes. Latest-row/NULL grouping, visible/hidden metadata,
+direct/fresh/held routes, resolved-prefix diagnostics, typed hidden keys,
+group/window/FETCH/subquery consumers, INSERT source typing, physical authority,
+real cancellation and actual ON view/native-control replay have independent
+expectations. No oracle-discovery backend filter remains.
+
+The pinned18.0 oracle distinguishes analysis target identity from physical output
+sharing: ON(y) random x/y yields four shared draws and continuation5; ON(1,2)
+requires eight interleaved draws and continuation9. Cheap immutable losing
+payloads still fail22012. The unrelated volatile sequence payload executes only
+for winner2, returns INT8 payload1 and leaves nextval2 after independent resequencing.
+Do not replace these expectations with ordinary DISTINCT's eager paired golden.
+
+Run the complete family and executable feature smoke in both modes, each command
+under its own900-second deadline:
+
+```sh
+timeout 900s make check RUN='^TestReferenceQueryDistinctOn'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceQueryDistinctOn'
+timeout 900s make check RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceQueryDistinctOnFeatureSmoke$$'
+```
+
+Smoke requires seven events→ids3/5/7, hidden payload metadata, NULL grouping,
+empty/nil/repeated held frames, ordinal/duplicate ORDER first-policy resolution,
+bounds→id5, complete42P10 original ON caret, INSERT count3/exact winners and actual
+ON view export/native successful/invalid/canceled Restore with sentinel17 and
+retained nonempty results. Broader typed/window/volatile/ACL/cancellation witnesses
+live in the complete family. Internal key/cache/collision/pin/manifest probes
+supplement these public scenarios; they are not substitute PostgreSQL evidence.

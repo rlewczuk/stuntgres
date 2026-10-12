@@ -319,6 +319,6 @@ The root owns selected native/real/race proof and independent review. Root repor
 actual standalone native smoke and actual unmodified emitted PostgreSQL18.0 UTF8/C
 replay passing (tests27), then authorized this documentation cutover. Source is
 local://partition-constraints-smoke.go; launch and selected proof instructions are
-in [TESTING](../TESTING.md#partitioned-constraints--selected-proof). The smoke checks
+in [TESTING](../../reference/tables/README.md#partitioned-constraints--selected-proof). The smoke checks
 row/metadata/backing/ancestry/kind/validity/dependency/duplicate and healthy-write
 observations on both sides, not merely acceptance of emitted SQL.

@@ -203,7 +203,7 @@ local metadata but keeps the shared role authority/graph. Restore and independen
 engine catalog imports remap validated predefined owner/ACL identities without
 serializing or importing memberships or regranting revoked monitor edges.
 
-See [selected dual-mode definitions and feature smokes](TESTING.md#predefined-role-oracle-first-contracts).
+See [selected dual-mode definitions and feature smokes](../reference/roles/README.md#predefined-role-oracle-first-contracts).
 
 
 ### Membership options and provenance

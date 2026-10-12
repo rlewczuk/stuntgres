@@ -1,6 +1,6 @@
 # SQL reference
 
-[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference]()
 
 ## TRUNCATE TABLE — change note
 
@@ -46,7 +46,7 @@ native boundary, not a successful no-op; trailing malformed syntax is42601.
 See [atomic generations and non-MVCC snapshots](TRANSACTIONS.md#truncate-generations--change-note),
 [hierarchy authority](TABLES.md#truncate-hierarchy-consumer--change-note),
 [exact grants](AUTHORIZATION.md#truncate-table-authority) and
-[both-mode proof](TESTING.md#truncate-selected-proof).
+[both-mode proof](../reference/dml/README.md#truncate-selected-proof).
 
 ## Math constants and special functions — change note
 
@@ -60,7 +60,7 @@ stored views/generated expressions/indexes
 retain `pg_catalog.pi()` through native Dump/Restore and descriptor remapping;
 generic function defaults remain excluded. NUMERIC exp is unchanged.
 See [IEEE/range/platform contract](DIALECT.md#math-constants-and-special-functions)
-and [selected reference proof](TESTING.md#math-constants-selected-proof).
+and [selected reference proof](../reference/numeric/README.md#math-constants-selected-proof).
 
 ## DISCARD
 
@@ -1603,7 +1603,7 @@ Restore preserve destination exact TEMP identity/state. Invalid or canceled
 Restore remains atomic. No disk/WAL/standby emulation is provided.
 
 Feature proof: `make check RUN='^TestReferencePGSequences'` and the identical
-selector with `REFERENCE=1`; see [test contract](TESTING.md#sequence-value-view).
+selector with `REFERENCE=1`; see [test contract](../reference/catalogs/README.md#sequence-value-view).
 
 ## pg_extension catalog — change note
 
@@ -1757,7 +1757,7 @@ Invalid columns bind even for FALSE/absent-package predicates and expose full427
 English diagnostics before Query/Prepare returns any handle.
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for pinned PostgreSQL18.0. See
-[selected proof](TESTING.md#available-extension-views-selected-proof).
+[selected proof](../reference/catalogs/README.md#available-extension-views-selected-proof).
 
 ## pg_depend catalog — change note
 
