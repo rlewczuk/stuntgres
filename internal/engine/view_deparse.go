@@ -1427,6 +1427,14 @@ func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, erro
 			unit = "ROWS"
 		}
 		parts = append(parts, unit+" BETWEEN "+start+" AND "+end)
+		switch spec.Frame.Exclusion {
+		case parser.ExcludeCurrentRow:
+			parts = append(parts, "EXCLUDE CURRENT ROW")
+		case parser.ExcludeGroup:
+			parts = append(parts, "EXCLUDE GROUP")
+		case parser.ExcludeTies:
+			parts = append(parts, "EXCLUDE TIES")
+		}
 	}
 	return strings.Join(parts, " "), nil
 }

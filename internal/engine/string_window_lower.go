@@ -1,11 +1,16 @@
 package engine
 
-func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boundWindowSpec, companions [][]BoundExpr) (LogicalNode, error) {
+func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boundWindowSpec, calls []windowCall, companions [][]BoundExpr) (LogicalNode, error) {
 	var requests []BoundExpr
 	for _, spec := range specs {
 		requests = append(requests, spec.partition...)
 		for _, key := range spec.order {
 			requests = append(requests, key.expression)
+		}
+	}
+	for _, call := range calls {
+		if call.argument != nil {
+			requests = append(requests, call.argument)
 		}
 	}
 	originalWidth := len(requests)
@@ -22,6 +27,12 @@ func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boun
 		specs[i].order = append([]sortKey(nil), specs[i].order...)
 		for j := range specs[i].order {
 			specs[i].order[j].expression = requests[offset]
+			offset++
+		}
+	}
+	for i := range calls {
+		if calls[i].argument != nil {
+			calls[i].argument = requests[offset]
 			offset++
 		}
 	}

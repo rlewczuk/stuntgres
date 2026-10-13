@@ -147,7 +147,7 @@ func TestReferenceQueryWindowReview3ValidExclusions(t *testing.T) {
 			queryWindowReviewScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				q := "SELECT " + tc.call + " OVER () AS n"
 				s := fixture.Select(q, []string{"n"}, []string{tc.typ}, [][]any{{tc.value}})
-				if !b.PG {
+				if !b.PG && tc.call != "sum(1)" {
 					s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "window function provider is unsupported", Position: "8"})
 					s.SelectRows = true
 				}

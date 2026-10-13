@@ -213,6 +213,21 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		}
 	case *windowNode:
 		input := child(n.child)
+		var calls []windowCall
+		for i, call := range n.calls {
+			if call.argument == nil || err != nil {
+				continue
+			}
+			next, different, failure := rewrite(call.argument)
+			err = failure
+			if different {
+				if calls == nil {
+					calls = append([]windowCall(nil), n.calls...)
+				}
+				calls[i].argument = next
+				changed = true
+			}
+		}
 		var specs []boundWindowSpec
 		for i, spec := range n.specs {
 			partition := args(spec.partition)
@@ -260,6 +275,9 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		if changed && err == nil {
 			copy := *n
 			copy.child = input
+			if calls != nil {
+				copy.calls = calls
+			}
 			if specs != nil {
 				copy.specs = specs
 			}

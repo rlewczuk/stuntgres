@@ -207,7 +207,30 @@ omit those extra grants. Recursive and modifying CTEs remain excluded.
 Window offsets, partitions, permutations and overlays are execution-private.
 Named definitions retain independent volatile identity while equivalent key sorts
 can share work; no mutable window state enters prepared plans or catalogs.
-Frame exclusions and additional window providers remain compatibility limits.
+ROWS/RANGE/GROUPS determine membership independently; EXCLUDE then removes the
+current occurrence, its peers, or its other peers. TIES never inserts an absent
+current row. Peers use all window ORDER keys; without ORDER the entire partition
+is one peer group even for ROWS. count(*) returns0 for an empty masked frame;
+sum(expr) returns NULL. Native direct count(*) and row_number() results are known
+nonnullable, while SUM results are known nullable. Stored view columns retain the
+existing known-nullable relation metadata contract, including count outputs.
+Without a real exclusion, SUM retains transition state while the frame head is
+unchanged, appending entering members and reusing full/growing-frame results.
+Moving heads restart the existing no-inverse providers. Real exclusions restart
+for every current occurrence, evaluating admitted members member-major across
+separate SUM calls, without subtracting excluded totals. Semantic target equality
+allows matching ORDER expressions and duplicate labels, including typed scalar
+child queries in registered SUM arguments. Binding-local comparison pairs child
+query frames and source occurrences while retaining exact outer correlation
+coordinates; ordinary grouping remains conservative, without global normalization
+or CSE. Equal targets do not share selected SUM execution slots or volatile
+argument occurrences. A matched ORDER call does not execute again, but its
+analyzed child graph retains authorization and dependency ownership.
+Integer inputs widen to bigint (smallint/integer) or numeric (bigint);
+numeric/real/double retain their existing SUM result types.
+Arguments participate in authorization, grouping, capture and descriptor remap
+even when runtime membership is empty. General window providers, INTERVAL SUM,
+count(expr), FILTER, DISTINCT and call-local aggregate ORDER remain excluded.
 Native array/tree aggregate ordering and distinct capability limits are separate
 from their represented structural equality. Range aggregation does not add general
 range comparison, grouping or temporal-range providers.

@@ -103,6 +103,7 @@ package parser
  sequence *CreateSequence
  alterSequence *AlterSequence
  integer int64
+ frameExclusion FrameExclusion
  joinKind JoinKind
  persistence string
  onCommit onCommitClause
@@ -312,7 +313,7 @@ package parser
 %type <tok> window_name
 %type <windowFrame> window_frame
 %type <frameBound> frame_bound
-%type <tok> window_exclusion
+%type <frameExclusion> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> truncate_table
 %type <tok> truncate_identity
@@ -1916,11 +1917,11 @@ window_frame: FRAME_UNIT frame_bound window_exclusion {var ok bool;$$,ok=makeWin
 frame_bound: FRAME_START FRAME_EDGE {kind:=FrameUnboundedPreceding;if $2.text=="following"{kind=FrameUnboundedFollowing};$$=FrameBound{Kind:kind,Pos:$1.pos}}
  | KW_U ROW {if $1.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=FrameBound{Kind:FrameCurrentRow,Pos:$1.pos}}
  | scalar_projection FRAME_EDGE {kind:=FrameOffsetPreceding;if $2.text=="following"{kind=FrameOffsetFollowing};$$=FrameBound{Kind:kind,Offset:$1,Pos:$<tok>1.pos}} ;
-window_exclusion: /* empty */ {$$=lexeme{}}
- | EXCLUDE KW_U {if $2.text!="ties" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
- | EXCLUDE GROUP {$$=$1}
- | EXCLUDE KW_U ROW {if $2.text!="current" {sqllex.(*lexer).syntax($1);return 1};$$=$1}
- | EXCLUDE NO KW_U {if $3.text!="others" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+window_exclusion: /* empty */ {$$=ExcludeNoOthers}
+ | EXCLUDE KW_U {if $2.text!="ties" {sqllex.(*lexer).syntax($2);return 1};$$=ExcludeTies}
+ | EXCLUDE GROUP {$$=ExcludeGroup}
+ | EXCLUDE KW_U ROW {if $2.text!="current" {sqllex.(*lexer).syntax($2);return 1};$$=ExcludeCurrentRow}
+ | EXCLUDE NO KW_U {if $3.text!="others" {sqllex.(*lexer).syntax($3);return 1};$$=ExcludeNoOthers} ;
 window_parent: /* empty */ %prec NAME_LIST { $$=nil } | window_name { $$=&Identifier{Text:$1.text,Pos:$1.pos} } | BETWEEN { $$=&Identifier{Text:$1.text,Pos:$1.pos} } ;
 window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY row_fields { $$=$3 } ;
 window_order: /* empty */ %prec NAME_LIST { $$=nil } | ORDER BY order_keys { $$=$3 } ;

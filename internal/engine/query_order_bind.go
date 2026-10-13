@@ -84,6 +84,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 		if output >= 0 {
 			expression, err = b.orderOutput(projection[output])
 		} else {
+			firstWindowCall := len(b.windowCalls)
 			expression, err = b.bind(raw.Expr, expressionPolicy{context: projectionContext})
 			if err == nil {
 				expression, err = b.finalizeProjection(expression)
@@ -93,6 +94,9 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 					if b.sameGroupExpression(expression, candidate) {
 						output = j
 						expression = candidate
+						for k := firstWindowCall; k < len(b.windowCalls); k++ {
+							b.windowCalls[k].analysisOnly = true
+						}
 						break
 					}
 				}

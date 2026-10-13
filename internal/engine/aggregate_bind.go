@@ -113,6 +113,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		if !ok || !comparison.sameFrame(e.frame, o.frame) {
 			return false
 		}
+		if e == o {
+			return true
+		}
 		if comparison != nil {
 			return e.slot == o.slot
 		}

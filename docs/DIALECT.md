@@ -196,8 +196,9 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
   resolution and custom/generic optimizer-plan switching are not implemented.
 - Recursive CTEs, modifying CTE bodies, top-level CTE DML and general lateral
-  derived sources are excluded. Window providers remain limited; frame
-  exclusions, expression-count windows and window aggregate filters are excluded.
+  derived sources are excluded. Window providers are row_number(), count(*) and
+  existing integer/numeric/floating sum(expr); INTERVAL SUM, expression-count
+  windows, DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.
 - MERGE supports RETURNING expressions, source/target rows, OLD/NEW aliases and
   lexical `merge_action()` output. Plain star is source-first; target defaults
   to NEW for INSERT/UPDATE and OLD for DELETE, with absent sides SQL NULL.

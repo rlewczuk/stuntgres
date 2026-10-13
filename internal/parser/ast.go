@@ -1253,8 +1253,18 @@ type FrameBound struct {
 	Pos    Position
 }
 
+type FrameExclusion uint8
+
+const (
+	ExcludeNoOthers FrameExclusion = iota
+	ExcludeCurrentRow
+	ExcludeGroup
+	ExcludeTies
+)
+
 type WindowFrame struct {
 	Unit       FrameUnit
+	Exclusion  FrameExclusion
 	Start, End FrameBound
 	Pos        Position
 }

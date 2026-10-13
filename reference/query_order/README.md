@@ -69,6 +69,70 @@ MaxInt64 FOLLOWING endpoints to PostgreSQL; moderate100 endpoints are portable.
 Because sorting/offset storage is shared, final selected proof includes
 `^TestReferenceQueryWindow` in both modes and `^TestQueryWindow` native units.
 
+### EXCLUDE window coverage
+
+The shared `^TestReferenceQueryWindowExclude` family covers all four modes after
+ROWS/RANGE/GROUPS membership, three-row peer count/SUM vectors, partial peers,
+absent current rows, orderless/NULL/multikey partitions, empty0/NULL identities,
+typed nullable SUM results, grouped/volatile argument ownership, direct/prepared
+and held recovery, exact English diagnostics/Unicode carets, child-column ACLs,
+late failure/write atomicity, cancellation and native persisted-view controls.
+Native Dump/Restore uses a fresh public Driver and preserves exported cursors;
+PostgreSQL streaming errors do not promise native eager cursor publication.
+The remedy regressions distinguish retained no-exclusion transitions from real
+exclusion replay, semantic SUM target equality from independent execution slots,
+and member-major volatile evaluation from call-major replay.
+Scalar-target regressions cover repeated DISTINCT/ORDER expressions and equal
+duplicate labels, unequal child literals, equal correlated children, and
+child-local versus outer-correlated coordinates. Child allocation identities are
+not target semantics; outer correlation ownership is not normalized away.
+
+Run each selected check with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceQueryWindowExclude(NoOthersTransition|SumTargetResolution|VolatileReplaySchedule)$'
+make check RUN='^TestReferenceQueryWindowExclude(NoOthersTransition|SumTargetResolution|VolatileReplaySchedule)$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowExcludeScalar(DistinctOrder|DuplicateLabel|UnequalTargets|CorrelationCoordinates)$'
+make check RUN='^TestReferenceQueryWindowExcludeScalar(DistinctOrder|DuplicateLabel|UnequalTargets|CorrelationCoordinates)$' REFERENCE=1
+make check RUN='^TestReferenceQueryDistinctOnDuplicateSubqueryLabels$'
+make check RUN='^TestReferenceQueryDistinctOnDuplicateSubqueryLabels$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindow'
+make check RUN='^TestReferenceQueryWindow' REFERENCE=1
+make check RUN='^TestReferenceRegexpSetPlacement$'
+make check RUN='^TestReferenceRegexpSetPlacement$' REFERENCE=1
+make check RUN='^TestQueryWindow'
+make check RUN='^TestExclusion'
+make check RUN='^TestQueryWindowExclude' RACE=1
+make check RUN='^TestSumProviders$'
+make check RUN='^TestReferenceNumericSum(Arithmetic|EmptyAndMetadata)$'
+make check RUN='^TestReferenceNumericSum(Arithmetic|EmptyAndMetadata)$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowExclude(FeatureSmoke|NoOthersTransition|SumTargetResolution|VolatileReplaySchedule|Scalar(DistinctOrder|DuplicateLabel|UnequalTargets|CorrelationCoordinates))$'
+make check RUN='^TestReferenceQueryWindowExclude(FeatureSmoke|NoOthersTransition|SumTargetResolution|VolatileReplaySchedule|Scalar(DistinctOrder|DuplicateLabel|UnequalTargets|CorrelationCoordinates))$' REFERENCE=1
+```
+
+Smoke independently expects full-fixture CURRENT sums50/40/30, GROUP30/30/30,
+TIES40/50/60 and NO OTHERS60/60/60; current-only GROUP gives count0/SUMNULL.
+It also exercises metadata, held NULL/negative offset failure and recovery,
+malformed/missing-bound/ACL diagnostics and actual native view Dump/Restore.
+Expanded smoke starts a sequence at1: no-exclusion full frames return6/6/6 and
+growing frames1/3/6, consuming only3 values (held second executions return
+15/15/15 and4/9/15). Repeated SUM ORDER targets resolve legally without another
+executing occurrence; volatile full TIES returns6/15/24 with last_value9.
+Two independent full TIES SUM calls return unordered pairs9/12,27/30,45/48,
+consuming18 values; held second pairs63/66,81/84,99/102 consume through36.
+Scalar smoke expects repeated DISTINCT sum((SELECT 1)) to return one INT8 row1
+and equal duplicate labels to return three(1,1) rows. Different child literals
+retain42P10/42702 with exact Unicode carets and independently return three(1,2)
+rows under distinct labels. Equal correlated arguments return10/20/30 or their
+duplicate pairs; child-local versus outer-correlated arguments retain42P10/42702
+and separately return(10,10),(10,20),(10,30). Matching ORDER occurrences stay
+nonexecuting while their analyzed child graphs retain authorization/dependencies.
+Internal mechanics units supplement the public contracts; quickcheck remains
+whole-project Docker-free verification, not a substitute for selected real proof.
+SUM is limited to existing integer/numeric/floating providers. count(expr),
+FILTER, DISTINCT, call-local aggregate ORDER, INTERVAL SUM and other window
+providers retain their exclusions.
+
 ### Set operations
 
 The set-operation feature smoke exercises all nine operator/modifier bags and

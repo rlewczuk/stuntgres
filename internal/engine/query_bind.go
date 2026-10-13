@@ -361,8 +361,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			result.NullabilityKnown = true
 			result.Nullable = b.aggregates[aggregate.slot].operation != aggregateCount
 		}
-		if _, ok := expr.(*windowExpression); ok {
-			result.Nullable, result.NullabilityKnown = false, true
+		if window, ok := expr.(*windowExpression); ok {
+			result.Nullable, result.NullabilityKnown = window.nullable, true
 		}
 		if _, ok := expr.(currentSchemasExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true
@@ -555,6 +555,24 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		results = append([]ColumnDescriptor(nil), results...)
 	}
 	analysis := stringAnalysis
+	for _, call := range b.windowCalls {
+		if !call.analysisOnly {
+			continue
+		}
+		if call.argument != nil {
+			analysis = append(analysis, call.argument)
+		}
+		analysis = append(analysis, call.spec.partition...)
+		for _, key := range call.spec.order {
+			analysis = append(analysis, key.expression)
+		}
+		if call.spec.frame.start.offset != nil {
+			analysis = append(analysis, call.spec.frame.start.offset)
+		}
+		if call.spec.frame.end.offset != nil {
+			analysis = append(analysis, call.spec.frame.end.offset)
+		}
+	}
 	if (b.noParameters || b.materializedDefinition) && len(on) != 0 {
 		// Raw captured occurrences can own independently analyzed subquery
 		// frames even when SQL99 resolution shares their physical datum.

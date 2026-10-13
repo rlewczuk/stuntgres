@@ -66,13 +66,18 @@ func TestExclusionSetConstraintsSyntax(t *testing.T) {
 			t.Fatal("EXCLUDE token displaced its existing keyword use", query, err)
 		}
 	}
-	for _, unit := range []string{"ROWS", "RANGE"} {
-		for _, exclusion := range []string{"NO OTHERS", "CURRENT ROW", "GROUP", "TIES"} {
-			query := "SELECT sum(v) OVER(" + unit + " CURRENT ROW EXCLUDE " + exclusion + ") FROM t"
-			statements, err := Parse(query)
-			var diagnostic *sqlstate.Error
-			if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "explicit window frames are unsupported" || diagnostic.Position != "20" {
-				t.Fatal("EXCLUDE changed the owning window-frame capability boundary", query, statements, err)
+	for _, unit := range []string{"ROWS", "RANGE", "GROUPS"} {
+		for mode, exclusion := range []string{"NO OTHERS", "CURRENT ROW", "GROUP", "TIES"} {
+			for _, extent := range []string{"CURRENT ROW", "BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"} {
+				query := "SELECT sum(v) OVER(ORDER BY v " + unit + " " + extent + " EXCLUDE " + exclusion + ") FROM t"
+				statements, err := Parse(query)
+				if err != nil || len(statements) != 1 {
+					t.Fatal(query, statements, err)
+				}
+				frame := statements[0].(*Select).Targets[0].(AggregateExpr).Window.Frame
+				if frame == nil || frame.Exclusion != FrameExclusion(mode) {
+					t.Fatal("missing frame exclusion", query, frame)
+				}
 			}
 		}
 	}

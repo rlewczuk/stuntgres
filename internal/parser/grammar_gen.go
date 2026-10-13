@@ -106,6 +106,7 @@ type sqlSymType struct {
 	sequence           *CreateSequence
 	alterSequence      *AlterSequence
 	integer            int64
+	frameExclusion     FrameExclusion
 	joinKind           JoinKind
 	persistence        string
 	onCommit           onCommitClause
@@ -16817,7 +16818,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.windowFrame, ok = makeWindowFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[2].frameBound, FrameBound{Kind: FrameCurrentRow, Pos: sqlDollar[2].frameBound.Pos}, sqlDollar[3].tok, false)
+			sqlVAL.windowFrame, ok = makeWindowFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[2].frameBound, FrameBound{Kind: FrameCurrentRow, Pos: sqlDollar[2].frameBound.Pos}, sqlDollar[3].frameExclusion, false)
 			if !ok {
 				return 1
 			}
@@ -16826,7 +16827,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.windowFrame, ok = makeWindowFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[3].frameBound, sqlDollar[5].frameBound, sqlDollar[6].tok, true)
+			sqlVAL.windowFrame, ok = makeWindowFrame(sqllex.(*lexer), sqlDollar[1].tok, sqlDollar[3].frameBound, sqlDollar[5].frameBound, sqlDollar[6].frameExclusion, true)
 			if !ok {
 				return 1
 			}
@@ -16861,39 +16862,39 @@ sqldefault:
 	case 1382:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.tok = lexeme{}
+			sqlVAL.frameExclusion = ExcludeNoOthers
 		}
 	case 1383:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			if sqlDollar[2].tok.text != "ties" {
-				sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}
-			sqlVAL.tok = sqlDollar[1].tok
+			sqlVAL.frameExclusion = ExcludeTies
 		}
 	case 1384:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.tok = sqlDollar[1].tok
+			sqlVAL.frameExclusion = ExcludeGroup
 		}
 	case 1385:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			if sqlDollar[2].tok.text != "current" {
-				sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}
-			sqlVAL.tok = sqlDollar[1].tok
+			sqlVAL.frameExclusion = ExcludeCurrentRow
 		}
 	case 1386:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			if sqlDollar[3].tok.text != "others" {
-				sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				sqllex.(*lexer).syntax(sqlDollar[3].tok)
 				return 1
 			}
-			sqlVAL.tok = sqlDollar[1].tok
+			sqlVAL.frameExclusion = ExcludeNoOthers
 		}
 	case 1387:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

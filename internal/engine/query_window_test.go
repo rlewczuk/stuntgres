@@ -485,7 +485,8 @@ func TestQueryWindowReview3SignatureAnalysisNoRegistration(t *testing.T) {
 			}
 			before := append([]aggregateCall(nil), b.aggregates...)
 			name := parser.ObjectName{Parts: []parser.Identifier{{Text: raw.Name, Pos: raw.Pos}}}
-			_, err := b.resolveWindowAggregateSignature(raw, name)
+			var argument BoundExpr
+			_, err := b.resolveWindowAggregateSignature(raw, name, &argument)
 			var diagnostic *sqlstate.Error
 			if tc.code == "" {
 				if err != nil {

@@ -22,7 +22,7 @@ func TestReferenceQueryWindowCapabilityBoundaries(t *testing.T) {
 				rows[i] = []any{v}
 			}
 			s := fixture.Select(tc.q, []string{tc.name}, []string{tc.typ}, rows)
-			if !b.PG {
+			if !b.PG && tc.marker != "sum" {
 				s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: tc.message, Position: fixture.Position(strings.Index(tc.q, tc.marker) + 1)})
 				s.SelectRows = true
 			}

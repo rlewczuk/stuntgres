@@ -108,10 +108,10 @@ func TestReferenceRegexpSetPlacement(t *testing.T) {
 		} {
 			regexpRoutes(t, p, b, regexpBindError(c.q, "0A000", c.msg, c.hint, "regexp_split_to_table"))
 		}
-		// Keep unsupported adjacent window routes as exact native boundaries,
-		// alongside the admitted RETURNING/window proofs above.
+		// SUM now reaches the shared window-definition placement diagnostic.
+		// The adjacent first_value provider remains an exact native boundary.
 		for _, c := range []struct{ q, pgMessage, pgHint, nativeMessage, nativeToken string }{
-			{`SELECT /* é🙂 */ sum(n) OVER (ROWS regexp_split_to_table('1',' ')::int PRECEDING) FROM placement`, "set-returning functions are not allowed in window definitions", "", "window function provider is unsupported", "sum"},
+			{`SELECT /* é🙂 */ sum(n) OVER (ROWS regexp_split_to_table('1',' ')::int PRECEDING) FROM placement`, "set-returning functions are not allowed in window definitions", "", "set-returning functions are not allowed in window definitions", "regexp_split_to_table"},
 			{`SELECT first_value(regexp_split_to_table('a b',' ')) OVER ()`, "window function calls cannot contain set-returning function calls", lateralHint, "functions are unsupported", "first_value"},
 		} {
 			s := regexpBindError(c.q, "0A000", c.pgMessage, c.pgHint, "regexp_split_to_table")

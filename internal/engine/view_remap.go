@@ -672,6 +672,18 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.calls = append([]windowCall(nil), n.calls...)
 		for i, call := range copy.calls {
 			copy.calls[i].expression = expression(call.expression).(*windowExpression)
+			copy.calls[i].argument = expression(call.argument)
+			switch p := call.provider.(type) {
+			case integralSumProvider:
+				p.input, p.usage = typ(p.input), usage(p.usage)
+				copy.calls[i].provider = p
+			case numericSumProvider:
+				p.input, p.usage = typ(p.input), usage(p.usage)
+				copy.calls[i].provider = p
+			case floatSumProvider:
+				p.input, p.usage = typ(p.input), usage(p.usage)
+				copy.calls[i].provider = p
+			}
 		}
 		next = &copy
 	case *aggregateNode:

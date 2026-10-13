@@ -781,8 +781,8 @@ See [period overlap](https://www.postgresql.org/docs/18/functions-datetime.html)
 Feature smoke: `make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`.
 
-Change note: selected PostgreSQL18 windows support `row_number()` and `count(*)`
-with default or explicit RANGE/GROUPS/ROWS frames, typed offsets, partition/order keys
+Change note: selected PostgreSQL18 windows support `row_number()`, `count(*)`
+and `sum(expr)` with default or explicit RANGE/GROUPS/ROWS frames, typed offsets, partition/order keys
 and inherited named `WINDOW` definitions. GROUPS requires window ORDER BY and
 measures bigint offsets in complete peer groups: keys1,1,2,3,3 with1PRECEDING
 give counts2,2,3,3,3. Bounds are inclusive and preserve NULL peers; numbering
@@ -794,7 +794,12 @@ coercion and reject demanded NULL/negative values, even on empty input.
 Windows run after WHERE/group/HAVING and before DISTINCT, outer
 ORDER and bounds. Only outer ORDER promises presentation order. Prepared queries,
 INSERT SELECT, captured views and pristine native Dump/Restore share this pipeline.
-Exclusions, window FILTER, count(expr) windows and other providers remain excluded.
+All four EXCLUDE modes mask completed membership: CURRENT ROW removes the current
+occurrence, GROUP its ORDER peers, TIES its other peers, and NO OTHERS removes none.
+Without window ORDER all partition rows are peers, including for ROWS masks.
+Empty count is nonnullable bigint0; empty SUM is nullable NULL. SUM reuses existing
+integer/numeric/real/double providers; INTERVAL, window FILTER, count(expr),
+DISTINCT, call-local aggregate ORDER and other window providers remain excluded.
 See [window queries](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`.
@@ -802,6 +807,9 @@ GROUPS feature smoke: `make check RUN='^TestReferenceQueryWindowGroupsFeatureSmo
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowGroupsFeatureSmoke$'`.
 ROWS feature smoke: `make check RUN='^TestReferenceQueryWindowRowsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowRowsFeatureSmoke$'`.
+EXCLUDE feature smoke: `make check RUN='^TestReferenceQueryWindowExcludeFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowExcludeFeatureSmoke$'`.
+
 
 Change note: `CREATE TEMP` / `CREATE TEMPORARY TABLE` creates physical-session
 owned tables using the ordinary table/type/default/CHECK/identity/index path.
@@ -3144,7 +3152,8 @@ ordering only orders result groups. Each call can use different source-key order
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
 Dump/Restore use the same eager pipeline. All existing aggregates admit
 FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. Window execution
-is restricted to row_number() and unmodified count(*).
+is restricted to row_number(), count(*) and existing integer/numeric/floating SUM;
+window FILTER, DISTINCT and call-local aggregate ORDER BY remain excluded.
 Feature smoke: `make check RUN='^TestReferenceStringAggSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceStringAgg'`.
 

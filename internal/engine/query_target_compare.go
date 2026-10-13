@@ -91,7 +91,7 @@ func (c *queryTargetComparison) order(b *expressionBinder, a, d []sortKey) bool 
 	return true
 }
 func (c *queryTargetComparison) window(b *expressionBinder, a, d boundWindowSpec) bool {
-	return len(a.grouping) == len(d.grouping) && c.expressions(b, a.partition, d.partition) && c.order(b, a.order, d.order)
+	return a.definition == d.definition && a.explicit == d.explicit && a.frame.unit == d.frame.unit && a.frame.exclusion == d.frame.exclusion && a.frame.start.kind == d.frame.start.kind && a.frame.end.kind == d.frame.end.kind && b.sameGroupExpressionIn(a.frame.start.offset, d.frame.start.offset, c) && b.sameGroupExpressionIn(a.frame.end.offset, d.frame.end.offset, c) && len(a.grouping) == len(d.grouping) && c.expressions(b, a.partition, d.partition) && c.order(b, a.order, d.order)
 }
 
 // Match logical policies and typed semantic expressions, not presentation ASTs,
@@ -265,7 +265,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 		}
 		for i, call := range n.calls {
 			other := o.calls[i]
-			if call.number != other.number || !same(call.expression, other.expression) || !c.window(b, call.spec, other.spec) {
+			if call.operation != other.operation || !same(call.argument, other.argument) || !same(call.expression, other.expression) || !c.window(b, call.spec, other.spec) {
 				return false
 			}
 		}

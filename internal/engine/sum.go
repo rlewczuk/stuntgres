@@ -54,17 +54,8 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 	if err != nil {
 		return nil, err
 	}
-	typ := arg.ResultUsage().Type
-	var provider aggregateProvider
-	var operation aggregateOperation
-	switch typ.ID() {
-	case sqltype.Int2, sqltype.Int4:
-		provider, operation = integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum
-	case sqltype.Int8, sqltype.Numeric:
-		provider, operation = numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum
-	case sqltype.Float4, sqltype.Float8:
-		provider, operation = floatSumProvider{typ, typ.Usage()}, aggregateFloatSum
-	case sqltype.Interval:
+	provider, operation := b.sumProvider(arg.ResultUsage().Type)
+	if provider == nil {
 		if err := b.argumentOwner.nestingError(); err != nil {
 			return nil, err
 		}
@@ -76,6 +67,18 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
 	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
+}
+
+func (b *expressionBinder) sumProvider(typ *sqltype.Descriptor) (aggregateProvider, aggregateOperation) {
+	switch typ.ID() {
+	case sqltype.Int2, sqltype.Int4:
+		return integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum
+	case sqltype.Int8, sqltype.Numeric:
+		return numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum
+	case sqltype.Float4, sqltype.Float8:
+		return floatSumProvider{typ, typ.Usage()}, aggregateFloatSum
+	}
+	return nil, aggregateCount
 }
 
 // Resolve/coerce SUM's existing callable without constructing a provider or

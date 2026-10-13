@@ -1,6 +1,6 @@
 package parser
 
-func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lexeme, between bool) (*WindowFrame, bool) {
+func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion FrameExclusion, between bool) (*WindowFrame, bool) {
 	message := ""
 	pos := end.Pos
 	switch {
@@ -25,17 +25,13 @@ func makeWindowFrame(l *lexer, unit lexeme, start, end FrameBound, exclusion lex
 		l.failAt("0A000", "explicit window frames are unsupported", unit.pos.Offset)
 		return nil, false
 	}
-	if exclusion.text != "" {
-		l.failAt("0A000", "explicit window frames are unsupported", unit.pos.Offset)
-		return nil, false
-	}
 	frameUnit := FrameRange
 	if unit.text == "groups" {
 		frameUnit = FrameGroups
 	} else if unit.text == "rows" {
 		frameUnit = FrameRows
 	}
-	return &WindowFrame{Unit: frameUnit, Start: start, End: end, Pos: unit.pos}, true
+	return &WindowFrame{Unit: frameUnit, Exclusion: exclusion, Start: start, End: end, Pos: unit.pos}, true
 }
 
 // Offsets is a fixed-size borrowed expression view for every parser visitor.
