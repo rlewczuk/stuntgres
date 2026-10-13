@@ -48,8 +48,8 @@ var specialCastMetadata = [...]CastMetadata{
 // per definition and remain stable regardless of baseline provider order.
 var castMetadata = initializeCastMetadata()
 
-func initializeCastMetadata() [69]CastMetadata {
-	var rows [69]CastMetadata
+func initializeCastMetadata() [70]CastMetadata {
+	var rows [70]CastMetadata
 	install := func(row CastMetadata) {
 		if row.OID < 20000 || row.OID >= 20000+uint32(len(rows)) || rows[row.OID-20000].OID != 0 {
 			panic("sqltype: invalid fixed cast catalog identity")

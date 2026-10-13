@@ -19,7 +19,7 @@ var copyBinaryScalarExpected = map[string]copyBinaryProviderExpected{
 	"char_ff":                   {text: "\\\\377\n", databaseType: "CHAR", rawKind: "string", raw: "\\377"},
 	"char_empty":                {diagnostic: &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "08P01", Message: "no data left in message", Detail: "", Hint: "", Position: "", InternalPosition: "", InternalQuery: "", Context: "COPY copy_binary_probe, line 1, column v", Schema: "", Table: "", Column: "", DataType: "", Constraint: ""}},
 	"oid":                       {text: "4294967295\n", databaseType: "OID", rawKind: "int64", raw: int64(4294967295)},
-	"xid":                       {text: "42\n", databaseType: "XID", rawKind: "int64", raw: int64(42)},
+	"xid":                       {text: "42\n", databaseType: "XID", rawKind: "xid", raw: int64(42)},
 	"regclass_raw":              {text: "42\n", databaseType: "$regclass", rawKind: "string", raw: "42"},
 	"regtype_int4":              {text: "integer\n", databaseType: "$regtype", rawKind: "string", raw: "integer"},
 	"float4":                    {text: "1.5\n", databaseType: "FLOAT4", rawKind: "float64", raw: float64(1.5)},

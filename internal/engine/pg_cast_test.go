@@ -81,7 +81,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 func pgCastUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
 	t.Helper()
 	bag, pairs := map[uint32][]any{}, map[[2]uint32]bool{}
-	if len(rows.anonymous) != 69 {
+	if len(rows.anonymous) != 70 {
 		t.Fatal("cast count", len(rows.anonymous))
 	}
 	for _, row := range rows.anonymous {

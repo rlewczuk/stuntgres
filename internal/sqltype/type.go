@@ -27,6 +27,8 @@ const (
 	Text           ID = 25
 	Oid            ID = 26
 	Xid            ID = 28
+	Cid            ID = 29
+	Xid8           ID = 5069
 	JSON           ID = 114
 	PgNodeTree     ID = 194
 	Cidr           ID = 650
@@ -128,8 +130,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 		return 1
 	case Int2:
 		return 2
-	case Int4, Oid, Xid, Regclass, Regtype, Regproc, Date, Float4, Void,
-		29,       // cid
+	case Int4, Oid, Xid, Cid, Regclass, Regtype, Regproc, Date, Float4, Void,
 		269, 325, // table_am_handler, index_am_handler
 		2202, 2203, 2204, // regprocedure, regoper, regoperator
 		2276, 2279, 2280, 2283, // any, trigger, language_handler, anyelement
@@ -140,8 +141,8 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 		return 4
 	case 27, 829: // tid, macaddr
 		return 6
-	case Int8, Float8, Money, Time, Timestamp, Timestamptz,
-		774, 3220, 5069: // macaddr8, pg_lsn, xid8
+	case Int8, Float8, Money, Time, Timestamp, Timestamptz, Xid8,
+		774, 3220: // macaddr8, pg_lsn
 		return 8
 	case 32, 2281: // pg_ddl_command, internal: SIZEOF_POINTER
 		return int16(strconv.IntSize / 8)
@@ -225,6 +226,8 @@ func Builtins() []*Descriptor {
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
 		{id: Xid, name: "xid", sql: "XID", database: "XID"},
+		{id: Cid, name: "cid", sql: "CID", database: "CID"},
+		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: JSONPath, name: "jsonpath", sql: "JSONPATH", database: "JSONPATH", associatedArray: 4073},
@@ -587,7 +590,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.jsonInput(ctx, text)
 	case JSONPath:
 		return d.jsonpathInput(ctx, text)
-	case Oid, Xid:
+	case Oid, Xid, Cid, Xid8:
 		return d.oidInput(text)
 	case Char:
 		if len(text) == 4 && text[0] == '\\' && text[1] >= '0' && text[1] <= '7' && text[2] >= '0' && text[2] <= '7' && text[3] >= '0' && text[3] <= '7' {
@@ -821,8 +824,10 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return v.tree.value.StructuralOutput(ctx)
 	case Void:
 		return "", nil
-	case Oid, Xid:
+	case Oid, Xid, Cid:
 		return strconv.FormatUint(uint64(v.oid), 10), nil
+	case Xid8:
+		return strconv.FormatUint(uint64(v.integer), 10), nil
 	case Bytea:
 		return byteaOutput(v.text, env.ByteaOutput)
 	case UUID:
@@ -1002,7 +1007,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
-	case Oid, Xid, Float4, Float8, Numeric:
+	case Oid, Xid, Cid, Xid8, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
 			return "", err
@@ -1050,6 +1055,7 @@ const (
 	arrayConversion
 	networkConversion
 	networkTextConversion
+	xid8Conversion
 )
 
 type CoercionPlan struct {
@@ -1128,6 +1134,7 @@ var baselineCasts = [...]castSpec{
 	{VarChar, Regclass, Implicit, viaIO, castCatalogFact{}},
 	{Oid, Int4, Assignment, oidConversion, castCatalogFact{20033, 0, 'a', 'b'}},
 	{Oid, Int8, Assignment, oidConversion, castCatalogFact{20034, 1288, 'a', 'f'}},
+	{Xid8, Xid, Explicit, xid8Conversion, castCatalogFact{20069, 5071, 'e', 'f'}},
 	{Regtype, Oid, Implicit, oidConversion, castCatalogFact{}},
 	{Oid, Regtype, Implicit, oidConversion, castCatalogFact{}},
 	{Int2, Regtype, Implicit, oidConversion, castCatalogFact{}},
@@ -1198,7 +1205,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case Bool, Int2, Int4, Int8, Oid, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
+	case Bool, Int2, Int4, Int8, Oid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Inet, Cidr:
 		return true
 	}
@@ -1256,6 +1263,20 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if IsTransactionIdentifier(source.Type.id) || IsTransactionIdentifier(target.Type.id) {
+		switch {
+		case source.Type == target.Type:
+			return p, nil
+		case context == Explicit && source.Type.id == Xid8 && target.Type.id == Xid:
+			p.method = xid8Conversion
+		case context == Explicit && IsCharacter(source.Type.id) && IsTransactionIdentifier(target.Type.id),
+			context >= Assignment && IsTransactionIdentifier(source.Type.id) && IsCharacter(target.Type.id):
+			p.method = viaIO
+		default:
+			return p, failure("42804", "incompatible source and destination types")
+		}
+		return p, nil
+	}
 	if source.Type.id == Regproc || target.Type.id == Regproc {
 		switch {
 		case source.Type == target.Type:
@@ -1469,6 +1490,8 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case xid8Conversion:
+		return XIDValue(p.target.Type, uint32(v.integer))
 	case networkConversion:
 		v.typ = p.target.Type
 		if v.typ.id == Cidr {
@@ -1577,9 +1600,8 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		if err != nil {
 			return Value{}, err
 		}
-		if p.context == Explicit && (p.source.Type.id == Float4 || p.source.Type.id == Float8) && IsCharacter(p.target.Type.id) {
-			// Selected float character casts apply the target's explicit typmod
-			// semantics after captured presentation, rather than input sizing.
+		if p.context == Explicit && (p.source.Type.id == Float4 || p.source.Type.id == Float8 || IsTransactionIdentifier(p.source.Type.id)) && IsCharacter(p.target.Type.id) {
+			// Explicit character casts size the captured output with cast semantics.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
 		if p.source.Type.id == JSONPath && IsCharacter(p.target.Type.id) {
@@ -1619,14 +1641,14 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
-	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath {
+	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath || u.Type.BaseType().id == Xid || u.Type.BaseType().id == Cid {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Text, VarChar, Time,
-			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr:
+			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8:
 		case Void:
 			message := "could not identify an ordering operator for type void"
 			return Comparison{}, &sqlstate.Error{
@@ -1655,6 +1677,23 @@ func (p Comparison) SessionDependent() bool {
 func CheckComparisonTypes(left, right *Descriptor) error {
 	_, err := bindComparisonTypes(left, right)
 	return err
+}
+
+// CheckComparisonOperator separates SQL operator admission from datum providers.
+func CheckComparisonOperator(operator ComparisonOperator, left, right *Descriptor) error {
+	if left == nil || right == nil {
+		return CheckComparisonTypes(left, right)
+	}
+	l, r := left.BaseType().id, right.BaseType().id
+	if IsTransactionIdentifier(l) || IsTransactionIdentifier(r) {
+		admitted := l == Xid8 && r == Xid8 ||
+			l == Xid && (r == Xid || r == Int4) && (operator == CompareEqual || operator == CompareNotEqual) ||
+			l == Cid && r == Cid && operator == CompareEqual
+		if !admitted {
+			return failure("42883", "incompatible comparison operands")
+		}
+	}
+	return CheckComparisonTypes(left, right)
 }
 
 func BindComparison(left, right *Descriptor, collation CollationRef, indeterminate bool) (Comparison, error) {
@@ -1690,7 +1729,13 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == Xid || right.id == Xid || isMultirange(left.id) || isMultirange(right.id) {
+	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || isMultirange(left.id) || isMultirange(right.id) {
+		return p, failure("42883", "incompatible comparison operands")
+	}
+	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {
+		if left == right || left.id == Xid && right.id == Int4 {
+			return p, nil
+		}
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if IsNetwork(left.id) && IsNetwork(right.id) {
@@ -1799,6 +1844,24 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		return 0, nil
 	}
 	switch p.left.id {
+	case Xid, Cid:
+		right := b.oid
+		if p.right.id == Int4 {
+			right = uint32(b.integer)
+		}
+		if a.oid < right {
+			return -1, nil
+		}
+		if a.oid > right {
+			return 1, nil
+		}
+	case Xid8:
+		if uint64(a.integer) < uint64(b.integer) {
+			return -1, nil
+		}
+		if uint64(a.integer) > uint64(b.integer) {
+			return 1, nil
+		}
 	case Inet, Cidr:
 		return compareNetwork(a.network, b.network), nil
 	case Regclass, Regtype, Regproc:
@@ -1897,6 +1960,9 @@ func (p ComparisonPredicate) DemandCollation(ctx context.Context) error {
 func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor, collation CollationRef, indeterminate bool) (ComparisonPredicate, error) {
 	if operator > CompareGreaterEqual || result == nil || result.id != Bool || !result.Concrete() {
 		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")
+	}
+	if err := CheckComparisonOperator(operator, left, right); err != nil {
+		return ComparisonPredicate{}, err
 	}
 	operands, err := BindComparison(left, right, collation, indeterminate)
 	if err != nil {

@@ -216,13 +216,32 @@ encoding overrides and error-skipping remain explicit capability boundaries.
 Nullable constraint-free domain scalars/element arrays are actual receive/export
 paths, distinct from excluded constraint DDL. Canonical numeric infinity bounds
 retain valid native range/multirange values through typed reads and Dump/Restore.
-Catalog CHAR and existing query-derived XID carriers supply real binary output
-without enabling raw CHAR/XID table declarations.
+Catalog CHAR and transaction identifier scalars supply real binary output.
+Raw internal CHAR table declarations remain excluded.
 See [COPY streams](docs/DRIVER.md#pinned-copy-text-streams--change-note).
 Binary feature smoke: `make check RUN='^TestReferenceCopyBinaryFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyBinaryFeatureSmoke$'`.
 Review-regression proof: `make check RUN='^TestReferenceCopyBinaryReviewRegressions$'`
 and `make check REFERENCE=1 RUN='^TestReferenceCopyBinaryReviewRegressions$'`.
+
+Change note: externally supplied XID/CID unsigned32 and XID8 unsigned64 scalars now
+support direct/held prepared values, typed NULL, fresh canonical decimal byte
+results and distinct metadata. XID has equality/inequality (also INT4 on its
+right), CID equality only, and XID8 unsigned comparisons/order. Explicit XID8→XID
+retains low32 bits; string I/O casts do not add numeric/OID conversion edges.
+Native Dump/Restore preserves scalar data, defaults, CHECKs and views; the shared
+reference scenario replays the actual native dump on pinned PostgreSQL.
+Existing NULLIF/simple CASE, unsigned XID8 GREATEST/LEAST and public default/CHECK
+deparsing retain identifier authority. XID/CID extrema reject at execution rather
+than borrowing their internal equality comparator as SQL ordering permission.
+Identifier arrays remain lookup-only. These values do not synthesize epochs,
+allocate PostgreSQL transaction/WAL/MVCC IDs, populate xmin/xmax/cmin/cmax/ctid or
+add crash durability. Existing native transaction/prepared providers retain their
+owned behavior. See [type contracts](docs/TYPES.md) and
+[identifier reference proof](reference/type_resolution/README.md#transaction-and-command-identifiers).
+Feature smoke: `make check RUN='^TestReferenceXIDFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceXIDFeatureSmoke$' REFERENCE=1`.
+
 
 Change note: expression comparisons retain their resolved collation capability,
 including hidden inputs of BOOL results and native stored-expression remapping.

@@ -88,6 +88,7 @@ func TestDatetimeAgeFiniteResolutionFailures(t *testing.T) {
 		{datetimeMakeRaw("age", datetimeMakeString("2004-06-01"), datetimeMakeString("2004-04-30")), "0A000", "age with time zone is unsupported", ""},
 		{datetimeMakeRaw("isfinite", ageFiniteTyped("timestamptz", "infinity")), "0A000", "isfinite with time zone is unsupported", ""},
 		{datetimeMakeRaw("isfinite", ageFiniteTyped("time", "12:00")), "0A000", "time to interval conversion is unsupported", ""},
+		{datetimeMakeRaw("age", ageFiniteTyped("xid", "0")), "0A000", "age with xid is unsupported", ""},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		_, err := b.bindDatetimeAgeFinite(tc.raw, true)

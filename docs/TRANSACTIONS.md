@@ -204,9 +204,11 @@ unexported healthy holdable cursor also prohibits detach; ordinary Go Rows/Stmt
 handles do not. Detached entries have no session timers. Unsupported notification
 and snapshot-export mechanisms do not become native preparation restrictions.
 
-The prepared catalog provider owns coherent registry snapshots. Its narrow XID
-carrier exports decimal bytes, distinct from OID's int64. Dropped owners project
-NULL without changing completion authority. The registry is shared by exact DSN
+The prepared catalog provider owns coherent registry snapshots. Its XID carrier
+uses the same distinct scalar identity and fresh decimal bytes as public XID
+values, not OID's int64. Public XID/CID/XID8 input does not fabricate registry IDs
+or system columns and does not change the existing preparation authority.
+Dropped owners project NULL without changing completion authority. The registry is shared by exact DSN
 within one Driver, isolated across Engines/Drivers. Native has no capacity setting,
 cluster emulation, replication, WAL or crash persistence.
 

@@ -311,8 +311,11 @@ setup boundaries. It includes pinned canonical NUMERIC infinity/NaN range and
 multirange bytes, raw/direct-prepared consumers, real persistence controls,
 complete-first UTF8 versus later missing array length, declared member truncation,
 and canonical character/temporal/array OID mismatch records. Actual catalog CHAR
-and admitted query-derived XID outputs supplement raw table-DDL exclusions;
-pgx XID int64 and native decimal byte carriers are asserted separately.
+output retains its raw table-DDL exclusion. Public XID scalar declarations now
+exercise genuine binary population, canonical four-byte export and text output;
+the independently pinned short/trailing diagnostics remain 08P01/22P03 with full
+COPY context. pgx XID int64 and native canonical decimal byte results are asserted
+separately before normalization; existing query-derived carrier witnesses remain.
 
 Each command has an external900-second deadline. Run every shared group in both
 native and real pinned modes; race proof remains a separate native invocation:

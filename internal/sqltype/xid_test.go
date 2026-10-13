@@ -65,8 +65,11 @@ func TestXIDScalarAuthorityAndGrouping(t *testing.T) {
 	if _, err := OIDValue(xid, 1); err == nil {
 		t.Fatal("XID accepted as OID descriptor")
 	}
-	if _, err := BindComparison(xid, xid, CollationRef{}, false); err == nil {
-		t.Fatal("narrow XID enabled ordering provider")
+	if _, err := BindComparison(xid, xid, CollationRef{}, false); err != nil {
+		t.Fatal("XID equality provider rejected", err)
+	}
+	if _, err := BindOrdering(xid.Usage()); err == nil {
+		t.Fatal("XID enabled ordering provider")
 	}
 	if _, err := PlanCoercion(xid.Usage(), oid.Usage(), Explicit); err == nil {
 		t.Fatal("narrow XID enabled OID casts")

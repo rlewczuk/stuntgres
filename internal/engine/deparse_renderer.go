@@ -232,7 +232,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			return text + "::" + typ, nil
 		}
 		return text, nil
-	case sqltype.Int2, sqltype.Int8, sqltype.Oid:
+	case sqltype.Int2, sqltype.Int8, sqltype.Oid, sqltype.Xid, sqltype.Cid, sqltype.Xid8:
 		return quote(text) + "::" + typ, nil
 	case sqltype.Float4, sqltype.Float8:
 		return quote(text) + "::" + typ, nil
@@ -511,6 +511,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return "(" + text + ")", nil
 	case coercionExpression:
+		// Identifier leaves already retain their scalar annotation. A transparent
+		// relabel must not duplicate it around a genuine enclosing conversion.
+		if n.child != nil && sqltype.IsTransactionIdentifier(n.usage.Type.ID()) && n.child.ResultUsage() == n.usage {
+			return r.sql(ctx, n.child, parent)
+		}
 		if literal, ok := n.child.(literalExpression); ok && n.mode == sqltype.Explicit &&
 			literal.usage.Type == n.usage.Type && n.usage.Typmod >= 0 {
 			literal.usage = n.usage

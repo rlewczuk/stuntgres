@@ -61,9 +61,9 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		size = 1
 	case Int2:
 		size = 2
-	case Int4, Oid, Xid, Regclass, Regtype, Float4, Date:
+	case Int4, Oid, Xid, Cid, Regclass, Regtype, Float4, Date:
 		size = 4
-	case Int8, Float8, Money, Time, Timetz, Timestamp, Timestamptz:
+	case Int8, Xid8, Float8, Money, Time, Timetz, Timestamp, Timestamptz:
 		size = 8
 	case UUID, Interval:
 		size = 16
@@ -87,9 +87,9 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		v.integer = int64(int16(binary.BigEndian.Uint16(p)))
 	case Int4:
 		v.integer = int64(int32(binary.BigEndian.Uint32(p)))
-	case Int8, Money:
+	case Int8, Xid8, Money:
 		v.integer = int64(binary.BigEndian.Uint64(p))
-	case Oid, Xid, Regtype:
+	case Oid, Xid, Cid, Regtype:
 		v.oid = binary.BigEndian.Uint32(p)
 		if d.id == Regtype {
 			v.integer = 1
@@ -240,7 +240,7 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary16(dst, uint16(v.integer)), nil
 	case Int4:
 		return binary32(dst, uint32(v.integer)), nil
-	case Int8, Money, Time, Timestamp, Timestamptz:
+	case Int8, Xid8, Money, Time, Timestamp, Timestamptz:
 		return binary64(dst, uint64(v.integer)), nil
 	case Date:
 		n := v.integer
@@ -254,7 +254,7 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary32(binary64(dst, uint64(v.integer)), uint32(v.west)), nil
 	case Interval:
 		return binary32(binary32(binary64(dst, uint64(v.integer)), uint32(v.days)), uint32(v.months)), nil
-	case Oid, Xid, Regtype, Regproc:
+	case Oid, Xid, Cid, Regtype, Regproc:
 		return binary32(dst, v.oid), nil
 	case Regclass:
 		n, err := strconv.ParseUint(v.text, 10, 32)

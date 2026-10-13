@@ -299,3 +299,18 @@ Do not commit a smoke test, temporary executable directory or session source.
 Whole-project Docker-free verification remains `make quickcheck`; post-merge
 proof is `make finalcheck` with its external1800-second deadline. Neither
 finalcheck nor parity alone replaces both selected public modes.
+
+### Transaction-identifier age boundary
+
+Public XID scalar admission does not implement PostgreSQL's transaction counter
+or `age(xid)`. `TestReferenceDatetimeAgeFiniteResolutionDiagnostics` retains the
+real PostgreSQL integer-result-type witness while native direct/prepared calls
+reject the separately owned overload with 0A000 `age with xid is unsupported` at
+function Position8. The diagnostic-only candidate must never reach a temporal
+age/isfinite executable plan. Other resolution and temporal cases remain intact.
+Run this changed definition in both modes, with external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceDatetimeAgeFiniteResolutionDiagnostics$'
+make check RUN='^TestReferenceDatetimeAgeFiniteResolutionDiagnostics$' REFERENCE=1
+```

@@ -148,8 +148,14 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   operators/functions, comparison/index providers or bit arrays. Unordered BIT
   aggregate DISTINCT retains the absent equality-provider error; BIT/VARBIT
   local ordering and bitwise windows remain excluded. Ordering by an independent
-  integer key does not require bit comparison. Raw internal CHAR/XID declarations
+  integer key does not require bit comparison. Raw internal CHAR declarations
   remain excluded even where real catalog/query-derived values have codecs.
+- XID/CID/XID8 are externally supplied scalar identifiers, not generated system
+  attributes or integer/OID aliases. XID supports equality/inequality (including
+  INT4 only on its right); CID only equality; XID8 unsigned comparisons/order.
+  Explicit XID8→XID retains low32 bits. String I/O is admitted, not numeric/OID
+  casts. Identifier companion arrays remain lookup-only; no system-column
+  population, transaction-ID allocation or epoch synthesis is implied.
 - JSONPath storage does not implement SQL/JSON query execution or GIN. JSON has
   no equality provider. Catalog type identities do not imply executable codecs.
 - Scalar `IN`/`NOT IN` lists and scalar operators with array-expression

@@ -80,7 +80,7 @@ func TestReferenceDatetimeAgeFiniteResolutionDiagnostics(t *testing.T) {
 			// xid age is a transaction counter, not the selected symbolic interval function.
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT pg_typeof(age('0'::xid))::text AS result", []string{"result"}, []string{"TEXT"}, [][]any{{"integer"}}))
 		} else {
-			datetimeAgeFiniteFailure(t, p, b, c, "SELECT age('0'::xid)", "0A000", "unsupported column type", "", 17)
+			datetimeAgeFiniteFailure(t, p, b, c, "SELECT age('0'::xid)", "0A000", "age with xid is unsupported", "", 8)
 		}
 	})
 }

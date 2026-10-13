@@ -37,7 +37,7 @@ func (e datetimeAgeFiniteExpression) Eval(c *EvalContext) (sqltype.Value, error)
 }
 
 // The candidates are only this PG18 function family's homogeneous signatures.
-// XID is diagnostic-only: it has no native descriptor or executable overload.
+// XID is diagnostic-only for age: scalar admission does not add an age overload.
 const ageDiagnosticXid sqltype.ID = 28
 
 func ageFiniteCategory(id sqltype.ID) byte {
@@ -177,6 +177,9 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		err := expressionError("42725", fmt.Sprintf("function %s(%s) is not unique", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
 		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
 		return nil, err
+	}
+	if selected == ageDiagnosticXid {
+		return nil, expressionError("0A000", "age with xid is unsupported", raw.Pos)
 	}
 	if selected == sqltype.Timestamptz {
 		return nil, expressionError("0A000", name+" with time zone is unsupported", raw.Pos)

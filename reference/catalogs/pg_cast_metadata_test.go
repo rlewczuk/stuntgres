@@ -82,6 +82,7 @@ func pgCastFacts() [][]any {
 		{int64(23), int64(790), int64(3811), "a", "f"},
 		{int64(790), int64(1700), int64(3823), "a", "f"},
 		{int64(1700), int64(790), int64(3824), "a", "f"},
+		{int64(5069), int64(28), int64(5071), "e", "f"},
 	}
 }
 
@@ -137,7 +138,7 @@ func pgCastIdentities(t *testing.T, p *fixture.Pair, b fixture.Backend) map[[2]i
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if index != 69 {
+	if index != 70 {
 		t.Fatal("complete supported cast count", index)
 	}
 	return ids
@@ -158,6 +159,7 @@ func pgCastHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, ids map[[2]int
 		{int64(23), int64(20), []any{int64(23), int64(20), int64(481), "i", "f"}},
 		{int64(23), int64(23), nil}, {nil, int64(20), nil}, {int64(23), nil, nil},
 		{int64(26), int64(23), []any{int64(26), int64(23), int64(0), "a", "b"}},
+		{int64(5069), int64(28), []any{int64(5069), int64(28), int64(5071), "e", "f"}},
 	} {
 		want := [][]any{}
 		if tc.facts != nil {

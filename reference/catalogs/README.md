@@ -773,7 +773,8 @@ isolation from the old generic basename.
 ### Cast metadata catalog discovery and smoke
 
 The shared `TestReferencePGCast` family asserts the complete independently
-specified69-row supported boundary, exact six-column shape and raw codecs,
+specified70-row supported boundary, including explicit xid8→xid (function5071),
+exact six-column shape and raw codecs,
 fixed type/function identities, generated row identity invariants, direct/
 prepared/held consumers, full diagnostics, omissions versus automatic coercion,
 PUBLIC SELECT and native retained-row/Reset/Restore controls. PostgreSQL reads

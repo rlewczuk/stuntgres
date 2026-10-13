@@ -70,6 +70,18 @@ func copyBinaryRawProvider(t *testing.T, c copyTextConnection, want copyBinaryPr
 		t.Fatal(err)
 	}
 	switch want.rawKind {
+	case "xid":
+		if c.pg {
+			if _, ok := actual.(int64); !ok {
+				t.Fatalf("pgx raw XID=%T want=int64", actual)
+			}
+		} else {
+			value, ok := actual.([]byte)
+			if !ok || value == nil || string(value) != strconv.FormatInt(want.raw.(int64), 10) {
+				t.Fatalf("native raw XID=%T %#v want canonical decimal bytes", actual, actual)
+			}
+			actual = want.raw
+		}
 	case "date":
 		expected := want.raw.(time.Time)
 		if c.pg {

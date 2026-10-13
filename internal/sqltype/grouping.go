@@ -53,7 +53,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		g.prepare = true
 		return g, nil
 	}
-	if base.id == Xid {
+	if IsTransactionIdentifier(base.id) {
 		return g, nil
 	}
 	switch base.id {
@@ -165,8 +165,10 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 		return groupingTextEqual(ctx, a.text, b.text)
 	}
 	switch a.typ.BaseType().id {
-	case Xid, Regtype, Regproc:
+	case Xid, Cid, Regtype, Regproc:
 		return a.oid == b.oid, ctx.Err()
+	case Xid8:
+		return a.integer == b.integer, ctx.Err()
 	case Text, VarChar, Name:
 		return g.usage.Collation.EqualText(ctx, a.text, b.text)
 	case Bytea, Regclass, Char:
@@ -258,7 +260,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 			integerHash(uint64(hi))
 			integerHash(lo)
 		}
-	case Oid, Xid, Regtype, Regproc:
+	case Oid, Xid, Cid, Regtype, Regproc:
 		integerHash(uint64(v.oid))
 	case Bool:
 		if v.boolean {
@@ -266,7 +268,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		} else {
 			byteHash(0)
 		}
-	case Int2, Int4, Int8, Money, Date, Time, Timestamp, Timestamptz:
+	case Int2, Int4, Int8, Xid8, Money, Date, Time, Timestamp, Timestamptz:
 		integerHash(uint64(v.integer))
 	case Timetz:
 		integerHash(uint64(v.integer))

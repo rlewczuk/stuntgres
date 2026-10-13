@@ -26,11 +26,11 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		if mode == "isolated" {
 			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 		}
-		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}} {
+		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}, {Name: "cid"}, {Name: "xid8"}} {
 			e.mu.Lock()
 			usage, err := e.resolveTableColumnType(raw, op)
 			e.mu.Unlock()
-			if mode == "isolated" || raw.Name == "regclass" {
+			if mode == "isolated" || raw.Name != "char" {
 				if err != nil {
 					t.Fatal(mode, raw, err)
 				}
@@ -39,6 +39,10 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 					id = sqltype.Char
 				} else if raw.Name == "xid" {
 					id = sqltype.Xid
+				} else if raw.Name == "cid" {
+					id = sqltype.Cid
+				} else if raw.Name == "xid8" {
+					id = sqltype.Xid8
 				}
 				if len(raw.ArrayBounds) == 0 && usage.Type != testUsage(e, id).Type || len(raw.ArrayBounds) != 0 && (!usage.Type.IsArray() || usage.Type.Element() != testUsage(e, id).Type) {
 					t.Fatal(mode, raw, usage)
@@ -64,7 +68,14 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		_, xidArrayErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
 		_, xidModifierErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
 		e.mu.Unlock()
-		for _, err := range []error{castErr, domainErr, arrayErr, xidCastErr, xidDomainErr, xidArrayErr, xidModifierErr} {
+		if xidCastErr != nil || xidDomainErr != nil {
+			t.Fatal(mode, xidCastErr, xidDomainErr)
+		}
+		var modifier *sqlstate.Error
+		if !errors.As(xidModifierErr, &modifier) || modifier.Code != "42601" || modifier.Message != `type modifier is not allowed for type "xid"` {
+			t.Fatal(mode, xidModifierErr)
+		}
+		for _, err := range []error{castErr, domainErr, arrayErr, xidArrayErr} {
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
 				t.Fatal(mode, err)
@@ -177,11 +188,22 @@ func TestQueryTableCreateRestoreReferenceLiteralBoundary(t *testing.T) {
 }
 
 func TestQueryTableCreateXIDScalarReownership(t *testing.T) {
+	for _, id := range []sqltype.ID{sqltype.Xid, sqltype.Cid, sqltype.Xid8} {
+		identifierScalarReownership(t, id)
+	}
+}
+
+func identifierScalarReownership(t *testing.T, id sqltype.ID) {
+	t.Helper()
+	max := "4294967295"
+	if id == sqltype.Xid8 {
+		max = "18446744073709551615"
+	}
 	source, target := New(), New()
-	sourceType := testUsage(source, sqltype.Xid).Type
-	targetType := testUsage(target, sqltype.Xid).Type
+	sourceType := testUsage(source, id).Type
+	targetType := testUsage(target, id).Type
 	var rows [][]sqltype.Value
-	for _, text := range []string{"0", "4294967295"} {
+	for _, text := range []string{"0", max} {
 		value, err := sourceType.Input(context.Background(), text, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -218,7 +240,7 @@ func TestQueryTableCreateXIDScalarReownership(t *testing.T) {
 		if i < 2 {
 			text, err := targetType.Output(context.Background(), value)
 			literal, literalErr := targetType.SQLLiteral(context.Background(), value)
-			want := []string{"0", "4294967295"}[i]
+			want := []string{"0", max}[i]
 			if err != nil || literalErr != nil || text != want || literal != "'"+want+"'" {
 				t.Fatal("XID codec changed unsigned payload", text, literal, err, literalErr)
 			}

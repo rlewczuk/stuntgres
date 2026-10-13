@@ -340,6 +340,9 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 		return "NULL::unknown", nil
 	}
 	literal, err := u.Type.SQLLiteral(ctx, n.value)
+	if err == nil && sqltype.IsTransactionIdentifier(u.Type.ID()) {
+		return "CAST(" + literal + " AS " + u.Type.SQLName() + ")", nil
+	}
 	if err == nil && u.Type.ID() == sqltype.Oid {
 		return "CAST(" + literal + " AS OID)", nil
 	}

@@ -381,7 +381,7 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
-	case "date", "timestamptz", "timetz", "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "array_agg", "min", "max", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "row_number":
+	case "date", "timestamptz", "timetz", "oid", "xid", "cid", "xid8", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "array_agg", "min", "max", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "row_number":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		return callee.keyword == nil // Quoted alias diagnostics belong to binding.

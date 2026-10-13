@@ -22,6 +22,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Int2: {"-32768", "32767"}, sqltype.Int4: {"-2147483648", "2147483647"}, sqltype.Int8: {"-9223372036854775808", "9223372036854775807"}, sqltype.Text: {"", "x'y"},
 		sqltype.Oid: {"0", "4294967295"}, sqltype.BPChar: {"x   ", "    "}, sqltype.VarChar: {"", "xy"}, sqltype.Float4: {"-0", "NaN", "Infinity"}, sqltype.Float8: {"-0", "NaN", "-Infinity"},
 		sqltype.Xid:   {"0", "4294967295"},
+		sqltype.Cid:   {"0", "4294967295"},
+		sqltype.Xid8:  {"0", "9223372036854775808", "18446744073709551615"},
 		sqltype.Money: {"-92233720368547758.08", "92233720368547758.07", "0", "1.235"},
 		sqltype.Date:  {"2000-02-29", "infinity"}, sqltype.Time: {"24:00:00", "12:34:56.123456"}, sqltype.Timetz: {"12:34:56.123456+02"},
 		sqltype.Timestamp: {"2000-02-29 12:34:56.123456", "-infinity"}, sqltype.Timestamptz: {"2000-02-29 12:34:56.123456+02", "infinity"},

@@ -339,6 +339,9 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 	case caseExpression:
 		return simplifyConditional(c, expression, decisiveDefaults)
 	case conditionalExpression:
+		if err := e.extremaError(); err != nil {
+			return nil, false, err
+		}
 		if e.kind == parser.Coalesce {
 			return simplifyConditional(c, expression, decisiveDefaults)
 		}
@@ -2314,7 +2317,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			return nil, err
 		}
 	}
-	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "oid" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
+	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "oid" && raw.Callee != "xid" && raw.Callee != "cid" && raw.Callee != "xid8" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
 		source := "unknown"
 		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
 			child, err := b.bind(raw.Child, expressionPolicy{context: projectionContext})
@@ -2424,7 +2427,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		// A rejected cast from an existing stored scalar to an existing array is
 		// a type mismatch, not an unimplemented scalar provider. This only
 		// selects the diagnostic below; it adds no coercion capability.
-		if !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -2903,7 +2906,7 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 // semantics and volatility; the comparison provider remains homogeneous.
 func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (BoundExpr, BoundExpr, error) {
 	lt, rt := left.ResultUsage().Type, right.ResultUsage().Type
-	wantLeft, wantRight := comparisonCoercionTypes(lt, rt)
+	wantLeft, wantRight := b.comparisonCoercionTypes(lt, rt)
 	var child BoundExpr
 	var target sqltype.Usage
 	switch {

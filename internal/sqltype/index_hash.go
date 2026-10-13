@@ -69,7 +69,9 @@ func LookupHashIndexClass(name string) (IndexClass, bool) {
 		c.input, c.oid, c.Family = 28, 10051, name
 	case "cid_ops":
 		c.input, c.oid, c.Family = 29, 10054, name
-	case "record_ops", "network_ops", "range_ops", "multirange_ops", "jsonb_ops", "pg_lsn_ops", "xid8_ops":
+	case "xid8_ops":
+		c.input, c.oid, c.Family = Xid8, 10052, name
+	case "record_ops", "network_ops", "range_ops", "multirange_ops", "jsonb_ops", "pg_lsn_ops":
 		c.Family = name // Released, but no owned concrete scalar provider.
 	default:
 		return IndexClass{}, false

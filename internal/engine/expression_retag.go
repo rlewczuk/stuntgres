@@ -763,7 +763,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 				left, right = n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type
 			}
 			if n.kind == parser.Greatest || n.kind == parser.Least {
-				n.comparison, err = bindExtremaComparison(info.usage, conflict)
+				n.comparison, n.missingOrdering, err = bindExtremaComparison(info.usage, conflict)
 			} else {
 				n.comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}

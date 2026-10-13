@@ -70,3 +70,19 @@ func TestCompositeExprParser(t *testing.T) {
 		t.Fatal("lost format failure-only context", child)
 	}
 }
+
+func TestIdentifierConstructorSyntax(t *testing.T) {
+	statements, err := Parse(`SELECT xid('1'),cid('1'::text),xid8('18446744073709551615'),pg_catalog.xid8(NULL)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"xid", "cid", "xid8", "xid8"} {
+		cast, ok := statements[0].(*Select).Targets[i].(CastExpr)
+		if !ok || cast.Syntax != FunctionCast || cast.Callee != name || cast.TypeName.Name != name {
+			t.Fatal("identifier constructor identity", i, cast)
+		}
+		if i == 3 && (cast.TypeName.Schema == nil || cast.TypeName.Schema.Text != "pg_catalog") {
+			t.Fatal("qualified identifier constructor", cast)
+		}
+	}
+}

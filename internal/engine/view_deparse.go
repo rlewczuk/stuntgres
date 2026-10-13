@@ -834,10 +834,10 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
-			if literal, ok := v.literals[literalPath]; ok && (literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || literal.ResultUsage().Type.ID() == sqltype.Regtype && rawLiteral.Value.Kind == parser.StringValue) {
-				// The binder types these literal children directly as the cast
-				// target. REGTYPE string output supplies its owning typed leaf,
-				// but NULL still needs the explicit source cast.
+			if literal, ok := v.literals[literalPath]; ok && (sqltype.IsTransactionIdentifier(literal.ResultUsage().Type.ID()) || literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || literal.ResultUsage().Type.ID() == sqltype.Regtype && rawLiteral.Value.Kind == parser.StringValue) {
+				// These typed leaves already retain their cast target; identifier
+				// NULL also renders its own scalar authority. REGTYPE string
+				// output is typed, but REGTYPE NULL still needs the source cast.
 				return text, nil
 			}
 		}

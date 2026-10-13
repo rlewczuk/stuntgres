@@ -508,6 +508,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil || n.mode != sqltype.Explicit {
 			return child, err
 		}
+		// Identifier literals already render with their scalar authority. A
+		// transparent relabel must not grow another CAST on each Restore.
+		if r.checkLiterals == nil && sqltype.IsTransactionIdentifier(u.Type.ID()) && n.child.ResultUsage() == u {
+			return child, nil
+		}
 		// Bare quoted TEXT becomes unknown on replay and can move a deferred
 		// conversion into CREATE-time input decoding. Keep that child typed.
 		if n.child.ResultUsage().Type.ID() == sqltype.Text {

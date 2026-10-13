@@ -20,9 +20,9 @@ func (v Value) OID() (uint32, error) {
 	return v.oid, nil
 }
 
-// oidInput reproduces the 64-bit strtoul(base 0) used by PostgreSQL's
-// uint32in_subr, including negative unsigned-long conversion and error order.
-func (d *Descriptor) oidInput(text string) (Value, error) {
+// unsignedInput reproduces PostgreSQL's unsigned strtoul(base 0) scanner,
+// retaining the original input for diagnostics and overflow-before-junk order.
+func (d *Descriptor) unsignedInput(text string) (uint64, error) {
 	s := trim(text)
 	negative := false
 	if len(s) > 0 && (s[0] == '+' || s[0] == '-') {
@@ -53,13 +53,24 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 		i++
 	}
 	if overflow {
-		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, d.name))
+		return 0, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, d.name))
 	}
 	if i == 0 || trim(s[i:]) != "" {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", d.name, text))
+		return 0, failure("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", d.name, text))
 	}
 	if negative {
 		n = -n
+	}
+	return n, nil
+}
+
+func (d *Descriptor) oidInput(text string) (Value, error) {
+	n, err := d.unsignedInput(text)
+	if err != nil {
+		return Value{}, err
+	}
+	if d.id == Xid8 {
+		return XID8Value(d, n)
 	}
 	low := uint32(n)
 	if n != uint64(low) && n != uint64(int64(int32(low))) {
@@ -67,6 +78,9 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 	}
 	if d.id == Xid {
 		return XIDValue(d, low)
+	}
+	if d.id == Cid {
+		return CIDValue(d, low)
 	}
 	return OIDValue(d, low)
 }

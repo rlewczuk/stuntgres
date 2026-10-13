@@ -109,6 +109,10 @@ func comparisonOperator(name string) (sqltype.ComparisonOperator, bool) {
 // comparisons. Unknown occurrences are not finalized or mutated by this probe.
 func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor, error) {
 	originalLeft, originalRight := lt, rt
+	operator, ok := comparisonOperator(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	if !ok {
+		return nil, nil, fmt.Errorf("stuntgres: invalid comparison operator")
+	}
 	if lt != nil && lt.BaseType().IsComposite() || rt != nil && rt.BaseType().IsComposite() {
 		return nil, nil, expressionError("0A000", "composite comparison is unsupported", raw.Pos)
 	}
@@ -120,7 +124,7 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 		return nil, nil, b.comparisonError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
 	if lt != nil && rt != nil && (lt.BaseType().IsEnum() || rt.BaseType().IsEnum()) {
-		if err := sqltype.CheckComparisonTypes(lt, rt); err != nil {
+		if err := sqltype.CheckComparisonOperator(operator, lt, rt); err != nil {
 			return nil, nil, b.comparisonError(err, lt, rt, raw)
 		}
 	}
@@ -139,8 +143,8 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 	if lt == nil {
 		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
 	}
-	wantLeft, wantRight := comparisonCoercionTypes(lt, rt)
-	if err := sqltype.CheckComparisonTypes(wantLeft, wantRight); err != nil {
+	wantLeft, wantRight := b.comparisonCoercionTypes(lt, rt)
+	if err := sqltype.CheckComparisonOperator(operator, wantLeft, wantRight); err != nil {
 		return nil, nil, b.comparisonError(err, originalLeft, originalRight, raw)
 	}
 	return lt, rt, nil
@@ -148,11 +152,13 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 
 // Comparison's existing implicit cross-family edges apply equally to array
 // elements. Numeric width comparisons otherwise retain their exact providers.
-func comparisonCoercionTypes(lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor) {
+func (b *expressionBinder) comparisonCoercionTypes(lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor) {
 	integer := func(t *sqltype.Descriptor) bool {
 		return t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8
 	}
 	switch {
+	case lt.ID() == sqltype.Xid && rt.ID() == sqltype.Int2:
+		rt = b.typ(sqltype.Int4)
 	case lt.ID() == sqltype.Inet && rt.ID() == sqltype.Cidr,
 		lt.ID() == sqltype.Oid && integer(rt),
 		lt.ID() == sqltype.Timetz && rt.ID() == sqltype.Time:
@@ -211,7 +217,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	lt, rt = comparisonCoercionTypes(lt, rt)
+	lt, rt = b.comparisonCoercionTypes(lt, rt)
 	l, err := b.coerceConditional(left, lt.Usage(), name)
 	if err != nil {
 		return nil, err
@@ -343,7 +349,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			if err != nil {
 				return nil, err
 			}
-			leftTarget, _ = comparisonCoercionTypes(leftTarget, common.Type.BaseType())
+			leftTarget, _ = b.comparisonCoercionTypes(leftTarget, common.Type.BaseType())
 			l, err := b.coerceConditional(left, leftTarget.Usage(), name)
 			if err != nil {
 				return nil, err

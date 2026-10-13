@@ -35,12 +35,12 @@ func TestArrayBuiltinAuthority(t *testing.T) {
 		}
 	}
 	// Catalog identity is not executable array authority.
-	for _, id := range []ID{Unknown, Char, Void, PgNodeTree, Xid} {
+	for _, id := range []ID{Unknown, Char, Void, PgNodeTree, Xid, Cid, Xid8} {
 		if _, err := Array(90000, "_boundary", types[id]); err == nil {
 			t.Fatal("unsupported scalar admitted to stored array", id)
 		}
 	}
-	for _, id := range []ID{1002, 1011} {
+	for _, id := range []ID{1002, 1011, 1012, 271} {
 		if _, err := ArrayValue(types[id], nil, nil); err == nil {
 			t.Fatal("lookup-only array admitted an empty value", id)
 		}

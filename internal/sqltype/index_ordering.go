@@ -70,6 +70,9 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 	case "oid_ops":
 		c.input = Oid
 		c.oid = 1981
+	case "xid8_ops":
+		c.input = Xid8
+		c.oid = 10053 // Observed on the pinned PostgreSQL 18.0 oracle.
 	case "float4_ops":
 		c.input = Float4
 		c.Family = "float_ops"
@@ -134,7 +137,7 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 		c.input = 27 // Diagnostic identity only; no tid descriptor/provider.
 	// Released classes without an owned input/comparator. They cannot authorize
 	// an implemented scalar just because their spelling exists in pg_catalog.
-	case "record_ops", "record_image_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops", "xid8_ops":
+	case "record_ops", "record_image_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops":
 	default:
 		return IndexClass{}, false
 	}
@@ -202,6 +205,8 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "inet_ops"
 	case JSONB:
 		name = "jsonb_ops"
+	case Xid8:
+		name = "xid8_ops"
 	case NameArray:
 		name = "array_ops"
 	case 27:

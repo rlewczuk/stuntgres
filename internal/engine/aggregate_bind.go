@@ -271,7 +271,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return true
 	case conditionalExpression:
 		o, ok := other.(conditionalExpression)
-		if !ok || e.kind != o.kind || e.comparison != o.comparison || len(e.args) != len(o.args) {
+		if !ok || e.kind != o.kind || e.missingOrdering != o.missingOrdering || e.comparison != o.comparison || len(e.args) != len(o.args) {
 			return false
 		}
 		for i := range e.args {

@@ -71,9 +71,10 @@ func (e caseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 
 type conditionalExpression struct {
 	expressionInfo
-	kind       parser.ConditionalKind
-	args       []BoundExpr
-	comparison sqltype.Comparison
+	kind            parser.ConditionalKind
+	missingOrdering bool
+	args            []BoundExpr
+	comparison      sqltype.Comparison
 }
 
 func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -82,6 +83,9 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	if e.usage.Type == nil || !e.usage.Type.Concrete() || len(e.args) == 0 || e.kind > parser.Least || e.kind == parser.NullIf && len(e.args) != 2 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid conditional expression")
+	}
+	if err := e.extremaError(); err != nil {
+		return sqltype.Value{}, err
 	}
 	if e.kind == parser.NullIf {
 		left, err := e.args[0].Eval(c)
@@ -135,6 +139,19 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	return best, nil
 }
+
+// Missing ordering is an executable initialization failure, not an equality
+// provider or an analysis error: prepared result descriptions remain available.
+func (e conditionalExpression) extremaError() error {
+	if !e.missingOrdering {
+		return nil
+	}
+	if e.kind != parser.Greatest && e.kind != parser.Least {
+		return fmt.Errorf("stuntgres: invalid extrema capability")
+	}
+	return sqlError("42883", "could not identify a comparison function for type "+e.usage.Type.DiagnosticName())
+}
+
 func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
 	if b.Volatility > a.Volatility {
 		a.Volatility = b.Volatility
@@ -289,13 +306,20 @@ func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, po
 	return l, r, comparison, err
 }
 
-// Extrema use ordering, not scalar equality, for enum-based logical types.
-// Preserve the original Usage so domain datum ownership remains checked.
-func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Comparison, error) {
-	if usage.Type.BaseType().IsEnum() {
-		return sqltype.BindOrdering(usage)
+// Extrema retain ordering authority separately from scalar equality. Identifier
+// types without ordering remain describable, but never acquire a fake comparator.
+func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Comparison, bool, error) {
+	if usage.Type.BaseType().IsEnum() || sqltype.IsTransactionIdentifier(usage.Type.BaseType().ID()) {
+		comparison, err := sqltype.BindOrdering(usage)
+		if err != nil && (usage.Type.BaseType().ID() == sqltype.Xid || usage.Type.BaseType().ID() == sqltype.Cid) {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
+				return sqltype.Comparison{}, true, nil
+			}
+		}
+		return comparison, false, err
 	}
-	return sqltype.BindComparison(usage.Type, usage.Type, usage.Collation, indeterminate)
+	comparison, err := sqltype.BindComparison(usage.Type, usage.Type, usage.Collation, indeterminate)
+	return comparison, false, err
 }
 
 func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExpr, error) {
@@ -318,6 +342,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	args := make([]BoundExpr, len(operands))
 	var usage sqltype.Usage
 	var comparison sqltype.Comparison
+	missingOrdering := false
 	var err error
 	if raw.Kind == parser.NullIf {
 		args[0], args[1], comparison, err = b.conditionalEquality(operands[0], operands[1], raw.Pos)
@@ -349,12 +374,12 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 		return nil, err
 	}
 	if raw.Kind == parser.Greatest || raw.Kind == parser.Least {
-		comparison, err = bindExtremaComparison(info.usage, info.collationConflict)
+		comparison, missingOrdering, err = bindExtremaComparison(info.usage, info.collationConflict)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return conditionalExpression{info, raw.Kind, args, comparison}, nil
+	return conditionalExpression{info, raw.Kind, missingOrdering, args, comparison}, nil
 }
 
 // CASE compares the once-saved test datum through an implicit CaseTestExpr.

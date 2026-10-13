@@ -312,3 +312,50 @@ func TestDomainIntervalParameterInputFieldsAndIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestIdentifierAdapterOwnership(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	for _, id := range []sqltype.ID{sqltype.Xid, sqltype.Cid, sqltype.Xid8} {
+		target, ok := e.CatalogRead().LookupType(id)
+		if !ok || scanType(target) != reflect.TypeFor[[]byte]() {
+			t.Fatal("identifier metadata", id)
+		}
+		max := "4294967295"
+		if id == sqltype.Xid8 {
+			max = "18446744073709551615"
+		}
+		raw := []byte(max)
+		normalized, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: raw}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw[0] = '0'
+		v, err := importParameter(ctx, normalized[0], target.Usage(), sqltype.InputEnvironment{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
+		if err != nil || string(first.([]byte)) != max {
+			t.Fatal(first, err)
+		}
+		first.([]byte)[0] = '0'
+		second, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
+		if err != nil || string(second.([]byte)) != max {
+			t.Fatal("aliased identifier output", second, err)
+		}
+		for _, raw := range []driver.Value{nil, []byte(nil)} {
+			null, err := importParameter(ctx, raw, target.Usage(), sqltype.InputEnvironment{})
+			if err != nil || !null.IsNull() || null.Type() != target {
+				t.Fatal(null, err)
+			}
+			result, err := exportValue(ctx, null, sqltype.OutputEnvironment{})
+			if err != nil || result != nil {
+				t.Fatal("SQL NULL export", result, err)
+			}
+		}
+		if _, err := importParameter(ctx, "", target.Usage(), sqltype.InputEnvironment{}); err == nil {
+			t.Fatal("empty identifier accepted")
+		}
+	}
+}

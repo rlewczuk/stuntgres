@@ -172,6 +172,9 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		return expression, false, nil
 	case conditionalExpression:
+		if err := e.extremaError(); err != nil {
+			return nil, false, err
+		}
 		var args []BoundExpr
 		for i, old := range e.args {
 			node, err := child(old)

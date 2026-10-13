@@ -28,12 +28,13 @@ func castCatalogExpected() []CastMetadata {
 		{20063, 114, 3802, 0, 'a', 'i'}, {20064, 3802, 114, 0, 'a', 'i'},
 		{20065, 790, 1700, 3823, 'a', 'f'}, {20066, 1700, 790, 3824, 'a', 'f'},
 		{20067, 23, 790, 3811, 'a', 'f'}, {20068, 20, 790, 3812, 'a', 'f'},
+		{20069, 5069, 28, 5071, 'e', 'f'},
 	}
 }
 
 func TestCastCatalogMetadata(t *testing.T) {
 	want := castCatalogExpected()
-	if CastMetadataCount() != 69 || len(want) != 69 {
+	if CastMetadataCount() != 70 || len(want) != 70 {
 		t.Fatal("cast count", CastMetadataCount(), len(want))
 	}
 	ids, pairs := map[uint32]bool{}, map[[2]ID]bool{}
@@ -56,7 +57,7 @@ func TestCastCatalogMetadata(t *testing.T) {
 			t.Fatal("mutable metadata escaped", i, again)
 		}
 	}
-	for _, i := range []int{-1, 69, 70} {
+	for _, i := range []int{-1, 70, 71} {
 		if got, ok := CastMetadataAt(i); ok || got != (CastMetadata{}) {
 			t.Fatal("out of range", i, got, ok)
 		}

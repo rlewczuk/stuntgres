@@ -162,9 +162,9 @@ func TestIndexClausesSystemIdentity(t *testing.T) {
 	if class.AcceptsID(27) {
 		t.Fatal("integer class accepted tid")
 	}
-	// TID/CID have catalog identities, but never executable storage providers.
+	// TID retains diagnostic-only identity; public identifiers do not gain ordering.
 	for _, d := range Builtins() {
-		if d.ID() == 27 || d.ID() == 29 {
+		if d.ID() == 27 {
 			if d.Concrete() || d.Usage().Valid() {
 				t.Fatal("system diagnostic added a storage type", d)
 			}
@@ -176,9 +176,17 @@ func TestIndexClausesSystemIdentity(t *testing.T) {
 				t.Fatal("system diagnostic admitted an executable index key", d)
 			}
 		}
-		if d.ID() == Xid {
+		if d.ID() == Xid || d.ID() == Cid {
+			if !d.Concrete() || !d.Usage().Valid() {
+				t.Fatal("identifier lost scalar admission", d)
+			}
 			if _, exists := DefaultIndexClassID(d.ID()); exists {
-				t.Fatal("narrow catalog XID acquired a storage operator class")
+				t.Fatal("identifier acquired a btree storage operator class", d)
+			}
+			_, err := BindOrdering(d.Usage())
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != "could not identify an ordering operator for type "+d.Name() {
+				t.Fatal("identifier lost SQL ordering boundary", d, err)
 			}
 		}
 	}

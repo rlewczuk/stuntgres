@@ -230,11 +230,34 @@ references retain actual relation dependencies, independently of opaque array
 payloads or numeric input.
 
 Internal CHAR catalog output uses string transport, not BPCHAR semantics or a
-physical ABI. High-byte output is printable escaped text. The narrow XID carrier
-in `pg_prepared_xacts` exports fresh decimal bytes, not OID's int64; it does not
-supply general XID storage, casts, arrays or ordering. Nonnull VOID result output
-is an empty string with VOID metadata, not a TEXT alias; VOID storage/input and
-arbitrary binary receive remain excluded.
+physical ABI. High-byte output is printable escaped text. Nonnull VOID result
+output is an empty string with VOID metadata, not a TEXT alias; VOID storage/input
+and arbitrary binary receive remain excluded.
+
+XID and CID are distinct unsigned32 scalars; XID8 carries unsigned64 bits, including
+epoch information supplied by the caller. They are not OID or integer aliases.
+Direct/prepared binds accept canonical text or bytes, contextual signed Go integer
+input, and NULL. Native results export fresh canonical decimal `[]byte` with
+XID/CID/XID8 metadata and `[]byte` ScanType; SQL NULL is untyped nil. Use text or
+bytes for XID8 above MaxInt64: the native default driver converter rejects larger
+Go uint64 values as ordinary adapter errors. The pinned pq adapter reports an
+empty DatabaseTypeName for XID8; native retains its real XID8 name.
+
+XID admits `=` and `<>` with XID, and with INT4 only when XID is on the left.
+CID admits only `=` with CID. XID8 admits all six scalar comparisons and unsigned
+ORDER BY. XID/CID have no SQL ordering provider, even for empty or all-NULL data.
+Existing NULLIF and simple CASE consume the same directional equality signatures,
+including contextual unknown inputs and XID/INT4. GREATEST/LEAST use unsigned
+XID8 ordering; XID/CID instead reject with PostgreSQL's comparison-function
+diagnostic at execution, even for empty/all-NULL sources, after successful Prepare.
+Only XID8→XID is an explicit identifier conversion, retaining the low32 bits.
+Explicit TEXT/VARCHAR/BPCHAR I/O and assignment to those strings are supported;
+numeric/OID and other identifier conversions are not. Companion array identities
+remain lookup-only, including arrays of identifier domains. Supplied values do
+not allocate transaction IDs, compute snapshots or populate system columns.
+Existing public `pg_get_expr`/`pg_get_constraintdef` render canonical identifier
+constants with explicit scalar annotations, including typed NULL and retained
+XID8→XID conversion trees. Their native post-Restore text remains type-owned.
 
 `pg_cast` reflects complete-context edges declared by the existing coercion
 owner, not a second execution graph. Function OIDs are metadata references and
@@ -262,10 +285,11 @@ NUMERIC receive normalizes unused finite state only after full header/digit
 validation. `pg_node_tree` sends the deterministic native semantic tree, not
 PostgreSQL heap-Datum serialization, and rejects arbitrary receive.
 
-Stream codecs do not add table admission for raw internal CHAR/XID, enum arrays
-or the lookup-only MONEY array. Private descriptor tests are independent of
-public table admission. These helpers are not protocol serving or disk/WAL
-persistence.
+Stream codecs do not add public table admission for raw internal CHAR, identifier
+companion arrays, enum arrays or the lookup-only MONEY array. XID/CID binary fields
+are unsigned four-byte network-order values; XID8 is eight bytes. Private descriptor
+tests are independent of public table admission. These helpers are not protocol
+serving or disk/WAL persistence.
 
 ## Logical persistence and testing
 

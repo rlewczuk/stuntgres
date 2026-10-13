@@ -32,10 +32,14 @@ continues to describe the physical base, while native array metadata uses its
 actual associated array name. Binary NUMERIC special values use the same native
 invariant as text input, including inside ranges and multiranges; wire infinity
 display scale32 does not become native special-value scale.
-An unsupported raw CHAR/XID declaration is not an output exclusion: existing
-catalog CHAR fields and query-derived XID table carriers export real binary
-values. XID SELECT remains native canonical decimal bytes versus pgx int64;
-COPY output itself is the same four-byte unsigned network-order field.
+An unsupported raw CHAR declaration is not an output exclusion: existing catalog
+CHAR fields export real binary values. Public XID/CID/XID8 scalars use fresh
+canonical decimal `[]byte` results and `[]byte` ScanType, distinct from OID int64.
+COPY preserves four-byte unsigned XID/CID and eight-byte unsigned XID8 network
+fields. Full-width XID8 input uses text or bytes; native Go uint64 above MaxInt64
+fails at the ordinary driver converter boundary. Typed-nil bytes are SQL NULL,
+while nonnil empty bytes are invalid identifier input. Native XID8 metadata stays
+XID8 even though pinned pq reports an empty name. Companion arrays remain excluded.
 
 
 COPY is one admitted command on the physical session. Explicit transactions must

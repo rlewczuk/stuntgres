@@ -222,9 +222,9 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 	return u, nil
 }
 
-// Query-derived schemas can store builtin CHAR/XID without admitting new raw
-// declaration owners. Only the isolated Restore caller reconstructs those
-// private declarations; regclass uses ordinary public type admission.
+// Query-derived schemas can store builtin CHAR without admitting raw declarations.
+// Only the isolated Restore caller reconstructs those private declarations;
+// transaction identifiers and regclass use ordinary public type admission.
 func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
 	u, err := e.resolveType(raw, op)
 	privateScalar := sqltype.ID(0)
@@ -234,8 +234,6 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 	if err != nil && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
 		if raw.Name == "char" && raw.Quoted {
 			privateScalar = sqltype.Char
-		} else if raw.Name == "xid" {
-			privateScalar = sqltype.Xid
 		}
 	}
 	if privateScalar == 0 {
@@ -265,7 +263,7 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 
 func storedArrayElement(typ *sqltype.Descriptor) bool {
 	physical := typ.BaseType()
-	if sqltype.IsNetwork(physical.ID()) {
+	if sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}
 	if physical.IsArray() {
@@ -350,7 +348,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void || d.ID() == sqltype.Xid {
+	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
@@ -407,6 +405,9 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		}
 	}
 	if len(raw.ArrayBounds) > 0 {
+		if sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
+			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
+		}
 		array, ok := view.LookupArray(d)
 		if !ok || d.IsEnum() {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported array element type")
