@@ -843,10 +843,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == SELECTED_FUNC && strings.EqualFold(token.lexeme.text, "json_object") {
 		token.code = CHECK_FUNC
 	}
-	if token.code == IDENT && enumFunctionName(token.lexeme.text) {
-		token.code = SELECTED_FUNC
+	if token.code == IDENT && JSONFunctionName(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = CHECK_FUNC
+		}
 	}
-	if token.code == IDENT && (jsonArrayLengthFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
+	if token.code == IDENT && (enumFunctionName(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
 	if token.lexeme.text == "lateral" && token.lexeme.keyword != nil {
@@ -1030,7 +1034,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	// Selected time, enum and delay calls reuse failure-only decorations;
 	// their binder rejects aggregate modifiers after resolving the operands.
-	if token.code == CHECK_FUNC && (TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
+	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1459,14 +1463,22 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // Selected string/raw-octet calls and LIKE escape normalization use the existing
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
-	if jsonArrayLengthFunction(name) {
-		return true
-	}
 	switch name {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object":
 		return true
 	}
 	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name)
+}
+
+// JSONFunctionName admits only the six selected ordinary JSON processing calls.
+// Case-insensitive syntax admission does not change quoted resolution spelling.
+func JSONFunctionName(name string) bool {
+	for _, selected := range [...]string{"json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys"} {
+		if strings.EqualFold(name, selected) {
+			return true
+		}
+	}
+	return false
 }
 
 func stringVariadicFunction(name string) bool {
@@ -1531,11 +1543,6 @@ func binaryHashFunction(name string) bool {
 			strings.EqualFold(name, "sha256") || strings.EqualFold(name, "sha384") || strings.EqualFold(name, "sha512")
 	}
 	return false
-}
-
-// Admission preserves quoted spelling; resolution remains exact.
-func jsonArrayLengthFunction(name string) bool {
-	return strings.EqualFold(name, "json_array_length") || strings.EqualFold(name, "jsonb_array_length")
 }
 
 func binaryAccessFunction(name string) bool {

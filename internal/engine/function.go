@@ -91,6 +91,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if jsonCreateKind(name) != 0 {
 		return b.bindJSONCreate(raw)
 	}
+	if parser.JSONFunctionName(name) {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindJSONFunction(raw, visible)
+	}
 	if sqltype.RegexpFunctionKind(name) != 0 {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
@@ -139,8 +146,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	switch name {
 	case "json_object":
 		return b.bindJSONObjectFunction(raw, visible)
-	case "json_array_length", "jsonb_array_length":
-		return b.bindJSONArrayLengthFunction(raw, visible)
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
 	case "gen_random_uuid", "uuidv4", "uuidv7":

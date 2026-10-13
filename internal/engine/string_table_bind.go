@@ -12,7 +12,8 @@ func isStringSet(expr BoundExpr) bool {
 	return ok && e.plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
-	if _, ok := expr.(regexpSetExpression); ok {
+	switch expr.(type) {
+	case regexpSetExpression, jsonKeysExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -23,6 +24,10 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case regexpSetExpression:
 		return call.plan.ReturnsSet()
+	case jsonKeysExpression:
+		return true
+	case binaryExpression:
+		return parser.JSONFunctionName(call.plan.Name())
 	case regexpExpression:
 		return !call.plan.ReturnsSet()
 	default:
@@ -34,6 +39,10 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 	case stringExpression:
 		return call.args
 	case regexpSetExpression:
+		return call.args
+	case jsonKeysExpression:
+		return call.args
+	case binaryExpression:
 		return call.args
 	case regexpExpression:
 		return call.args
@@ -49,17 +58,21 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 	case regexpSetExpression:
 		call.args = args
 		return call, nil
+	case jsonKeysExpression:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("stuntgres: invalid JSON keys arguments")
+		}
+		call.args = args
+		return call, nil
+	case binaryExpression:
+		call.args = args
+		return call, nil
 	case regexpExpression:
 		call.args = args
 		return call, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid closed function call")
 	}
-}
-func hasStringSet(expr BoundExpr) bool {
-	found := false
-	walkBoundExpression(expr, func(e BoundExpr) { found = found || isStringSet(e) })
-	return found
 }
 
 func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {

@@ -578,6 +578,12 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		call, changed, err := preflightRegexpCall(c, e.regexpCall, decisiveDefaults)
 		e.regexpCall = call
 		return e, changed, err
+	case jsonKeysExpression:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.args[0], decisiveDefaults)
+		if changed {
+			e.args = []BoundExpr{arg}
+		}
+		return e, changed, err
 	case likeExpression:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {

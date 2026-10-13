@@ -434,6 +434,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return child(r.Else, n.otherwise)
 		}
 	case parser.FunctionExpr:
+		if n, ok := bound.(jsonKeysExpression); ok {
+			return children(r.Args, n.args)
+		}
 		var regexp *regexpCall
 		switch n := bound.(type) {
 		case regexpExpression:

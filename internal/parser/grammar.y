@@ -2060,7 +2060,8 @@ from_atom: from_base { $$=$1 }
  | from_base AS from_alias '(' using_columns type ')' {if _,ok:=$1.(*FunctionTable);!ok {sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1};sqllex.(*lexer).failAt("42601","a column definition list is only allowed for functions returning \"record\"",$5[0].Pos.Offset);return 1} ;
 function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
- | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos} ;
+ | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | transaction_time_call {$$=$1} ;
 function_table_calls: function_table_call {$$=[]FunctionExpr{$1}}
  | function_table_calls ',' function_table_call {$$=append($1,$3)} ;
 function_table_base: function_table_call {$$=&FunctionTable{Calls:[]FunctionExpr{$1},Pos:$1.Pos}}

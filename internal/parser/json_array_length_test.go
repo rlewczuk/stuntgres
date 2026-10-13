@@ -60,12 +60,12 @@ func TestJSONArrayLengthParserIdentifierBoundaries(t *testing.T) {
 		if _, err := Parse("CREATE TABLE " + name + "(" + name + " int)"); err != nil {
 			t.Fatal(err)
 		}
-		if !jsonArrayLengthFunction(strings.ToUpper(name)) || jsonArrayLengthFunction(name+"_other") {
+		if !JSONFunctionName(strings.ToUpper(name)) || JSONFunctionName(name+"_other") {
 			t.Fatal("unbounded name admission", name)
 		}
 	}
 	for _, name := range []string{"json_array_elements", "jsonb_array_elements", "json_array", "jsonb_array"} {
-		if jsonArrayLengthFunction(name) {
+		if JSONFunctionName(name) {
 			t.Fatal("adjacent function admitted", name)
 		}
 	}

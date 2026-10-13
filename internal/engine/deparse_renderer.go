@@ -646,6 +646,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}, pgIdentifier)
 	case scalarArrayComparisonExpression:
 		return renderScalarArrayComparison(n, child, r.identifier)
+	case jsonKeysExpression:
+		argRenderer := r
+		argRenderer.showImplicit = true
+		arg, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
+		if err != nil {
+			return "", err
+		}
+		return pgIdentifier(n.plan.Name()) + "(" + arg + ")", nil
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:

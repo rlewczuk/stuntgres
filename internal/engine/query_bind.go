@@ -400,7 +400,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if b.queryRowDiagnosticMode != 0 {
 		suffix := ""
 		for _, expression := range projection {
-			if containsRegexpSet(expression) {
+			if querySetDepth(expression) != 0 {
 				suffix = "set-returning functions in the target list"
 				break
 			}

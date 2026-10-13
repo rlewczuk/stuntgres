@@ -117,6 +117,16 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case regexpSetExpression:
 		n.regexpCall, err = n.regexpCall.mapChildren(view, info, child)
 		rebound = n
+	case jsonKeysExpression:
+		n.args = children(n.args)
+		if err != nil {
+			return node, false, err
+		}
+		if changed {
+			n.plan, err = sqltype.BindJSONKeys(n.plan.Name(), n.args[0].ResultUsage(), info.usage)
+		}
+		n.expressionInfo = info
+		rebound = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
 		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)

@@ -117,6 +117,76 @@ make check RUN='^TestJSONObjectParserConsumersAndBoundaries$'
 These component units supplement the shared public definitions; they do not
 replace either selected reference mode or the actual feature smoke.
 
+### JSON kind, array length and object keys
+
+The twelve `TestReferenceJSONType` definitions specify the six selected
+`json`/`jsonb` kind, immediate-array-length and object-key functions. Expectations
+distinguish SQL NULL from JSON null, preserve JSON duplicate/source-order keys
+and JSONB canonical UTF8-byte-length order, and check TEXT/INT4 results and
+INT8 ordinality. Shared direct/prepared and same-held-statement bodies cover
+complete diagnostics, signature resolution, SRF zip/padding/lateral stages,
+computed metadata, actual column authorization, stored consumers and atomic
+late failures. Native-only control phases retain cursors across replacement and
+replay actual emitted SQL on PostgreSQL.
+
+The same scenario body runs on every available backend. Metadata expectations
+remain independent: native's type-owned unbounded TEXT contract and pinned pq
+both expose Length `(9223372036854775807, true)`, including empty/all-NULL results.
+INT4/INT8 Length and DecimalSize remain absent; backend ScanTypes stay separate.
+Computed projections retain unknown nullability. Native column-derived outputs
+retain their source declarations (including nullable view columns); pq Nullable
+remains unknown. Retained control cursors assert these distinct contracts before
+and after replacement, using explicit source-column expectations. Fresh native
+restored readers and actual PostgreSQL emitted-SQL replay readers also attach
+full metadata hooks on direct/prepared stored scalar and JSON/JSONB key-view
+selections. Representative empty stored/view selections and newly evaluated
+default/generated columns retain the same descriptor assertions before iteration.
+Prepared DDL placement errors occur at execution, unlike SELECT analysis errors.
+ACL setup makes the schema visible using real PostgreSQL USAGE or native schema
+ownership without changing the bootstrap-owned table or granting SELECT.
+The pinned reader identity is asserted directly as NAME from `current_user`,
+without requiring an adjacent NAME-to-TEXT cast.
+
+Select these small groups in both modes, each under an external 900-second
+deadline:
+
+```sh
+make check RUN='^TestReferenceJSONType(Kinds|Lengths|Keys)$' REFERENCE=1
+make check RUN='^TestReferenceJSONType(Diagnostics|Typing)$' REFERENCE=1
+make check RUN='^TestReferenceJSONType(Parameters|Metadata|ACL)$' REFERENCE=1
+make check RUN='^TestReferenceJSONType(SRF|Consumers|Controls|FeatureSmoke)$' REFERENCE=1
+```
+
+Run the identical selectors without `REFERENCE=1` for native coverage.
+Every completed changed definition requires both modes before review. Feature smoke:
+
+```sh
+make check RUN='^TestReferenceJSONTypeFeatureSmoke$'
+make check RUN='^TestReferenceJSONTypeFeatureSmoke$' REFERENCE=1
+```
+
+Smoke asserts kinds/nulls, nested lengths, ordered duplicate-vs-canonical keys,
+held error/recovery frames, SRF wrappers/zip/lateral/placement, metadata,
+authorization, unchanged sentinel after late decoding failure and native
+replacement/emitted-SQL replay. Success is quiet package success with every
+independent assertion satisfied.
+No adjacent JSON operators, constructors or generic catalog enumeration are
+asserted by this family.
+
+Supplementary provider/engine/parser units assert concrete ownership, strict
+typed NULLs, eager key validation without JSONB numeric conversion, immutable
+payload retention, bounded token/nested-scan and prepublication cancellation,
+single child evaluation, real zip/padding and complete map/retag/deparse traversal.
+They call internal providers/nodes directly; public SQL remains in the twelve
+reference definitions.
+
+```sh
+make check RUN='^TestJSON(Type|Keys)'
+make check RUN='^TestJSONFunction'
+make check RUN='^TestJSONLexerEscapedStringCancellation$'
+make check RUN='^TestReferenceJSONType(Parameters|SRF)$' RACE=1
+```
+
 ### JSON text-array object construction
 
 The `TestReferenceJSONObject` families cover exactly the one- and two-text-array

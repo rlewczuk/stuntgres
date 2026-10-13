@@ -345,7 +345,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		return &singletonNode{}, queryNamespace{}, nil
 	case *parser.FunctionTable:
 		for _, raw := range n.Calls {
-			if sqltype.RegexpFunctionKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text) != 0 {
+			if sqltype.RegexpFunctionKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text) != 0 || parser.JSONFunctionName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 				return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal)
 			}
 		}
@@ -924,6 +924,23 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 			}
 			if !isStringSet(expr) {
 				return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
+			}
+			var nested BoundExpr
+			boundExpressionChildren(expr, func(arg BoundExpr) {
+				walkBoundExpression(arg, func(e BoundExpr) {
+					if isQuerySet(e) && (nested == nil || e.SourcePosition().Offset < nested.SourcePosition().Offset) {
+						nested = e
+					}
+				})
+			})
+			if nested != nil {
+				return nil, queryNamespace{}, expressionError("0A000", "set-returning functions must appear at top level of FROM", nested.SourcePosition())
+			}
+			calls[i] = expr
+		} else if parser.JSONFunctionName(name) {
+			expr, err := b.bindFunction(raw)
+			if err != nil {
+				return nil, queryNamespace{}, err
 			}
 			var nested BoundExpr
 			boundExpressionChildren(expr, func(arg BoundExpr) {

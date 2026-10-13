@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// BinaryPlan implements selected octet, text conversion and JSON signatures.
+// BinaryPlan implements the closed selected typed scalar signatures.
 type BinaryPlan struct {
 	name   string
 	args   [4]Usage
@@ -20,6 +20,12 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	p := BinaryPlan{name: name, result: result, arity: len(args)}
 	ids, arity, id := [4]ID{Bytea, Bytea}, 2, Bytea
 	switch name {
+	case "json_typeof", "jsonb_typeof":
+		input := JSON
+		if name == "jsonb_typeof" {
+			input = JSONB
+		}
+		ids, arity, id = [4]ID{input}, 1, Text
 	case "json_object":
 		ids, arity, id = [4]ID{1009, 1009}, len(args), JSON
 		if arity < 1 || arity > 2 {
@@ -136,6 +142,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	}
 	a := values[0]
 	switch p.name {
+	case "json_typeof", "jsonb_typeof":
+		return p.jsonScalar(ctx, a)
 	case "json_object":
 		return p.jsonObject(ctx, values)
 	case "json_array_length":
@@ -152,6 +160,9 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		case jsonbObject:
 			return Value{}, failure("22023", "cannot get array length of a non-array")
 		case jsonbArray:
+			if err := ctx.Err(); err != nil {
+				return Value{}, err
+			}
 			return Integer(p.result.Type, int64(len(a.jsonb.root.items)))
 		case jsonbNull, jsonbString, jsonbNumber, jsonbBoolean:
 			return Value{}, failure("22023", "cannot get array length of a scalar")

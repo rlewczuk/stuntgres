@@ -143,6 +143,17 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   operators, new element providers or general §9.19 array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
+- Selected JSON processing is limited to `json_typeof`, `jsonb_typeof`,
+  `json_array_length`, `jsonb_array_length`, `json_object_keys` and
+  `jsonb_object_keys`, each taking its matching JSON family. Kinds/keys return
+  TEXT; immediate array lengths return INT4. SQL NULL is strict (NULL scalars,
+  empty key sets), distinct from JSON null. JSON keys preserve decoded duplicates
+  and source order; JSONB keys use canonical UTF8-byte-length then byte order.
+  Wrong-root length/keys use PostgreSQL English 22023 diagnostics with absent
+  runtime Position. Key sets reuse target zip/padding and lateral FROM stages;
+  scalar stored consumers and query key views retain symbolic calls on replay.
+  Adjacent operators/functions/constructors, generic JSON equality and SQL/JSON
+  execution remain excluded.
 - General array operators/functions and NAME-array comparison/order remain
   bounded. Aggregate DISTINCT/order on arrays and private `pg_node_tree`, and
   NAME-array/private-tree extrema, retain native capability exclusions.

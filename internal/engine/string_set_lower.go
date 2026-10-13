@@ -24,7 +24,19 @@ func querySetDepth(expr BoundExpr) int {
 	return depth
 }
 func sameQuerySetOccurrence(a, b BoundExpr) bool {
-	return isQuerySet(a) && isQuerySet(b) && isStringSet(a) == isStringSet(b) && a.SourcePosition() == b.SourcePosition()
+	if !isQuerySet(a) || !isQuerySet(b) || a.SourcePosition() != b.SourcePosition() {
+		return false
+	}
+	switch first := a.(type) {
+	case jsonKeysExpression:
+		second, ok := b.(jsonKeysExpression)
+		return ok && first.plan.Name() == second.plan.Name()
+	case regexpSetExpression:
+		_, ok := b.(regexpSetExpression)
+		return ok
+	default:
+		return isStringSet(a) && isStringSet(b)
+	}
 }
 
 // Requests identify this clause's required occurrences. Companions share only

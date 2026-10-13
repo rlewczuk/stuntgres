@@ -21,27 +21,12 @@ func (e regexpSetExpression) EvalSet(c *EvalContext) ([]sqltype.Value, error) {
 	return e.evaluateSet(c)
 }
 
-// Lexical traversal deliberately stops at expression-owned query boundaries.
-func regexpSetDepth(expr BoundExpr) int {
-	depth := 0
-	boundExpressionChildren(expr, func(child BoundExpr) {
-		if d := regexpSetDepth(child); d > depth {
-			depth = d
-		}
-	})
-	if _, ok := expr.(regexpSetExpression); ok {
-		depth++
-	}
-	return depth
-}
-func containsRegexpSet(expr BoundExpr) bool { return regexpSetDepth(expr) != 0 }
-
 // Placement checks run on analyzed expressions, even inside dead branches.
 // Nested subqueries own their own placement checks and are not entered here.
 func rejectRegexpSets(expr BoundExpr, context string, lateralHint bool) error {
 	var first BoundExpr
 	walkBoundExpression(expr, func(node BoundExpr) {
-		if _, ok := node.(regexpSetExpression); ok && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
+		if isQuerySet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
 			first = node
 		}
 	})

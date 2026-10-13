@@ -68,10 +68,12 @@ const (
 	functionStringCursor functionCursorKind = iota
 	functionRegexpCursor
 	functionScalarCursor
+	functionJSONKeysCursor
 )
 
 type functionSetCursor struct {
 	cursor                 sqltype.StringFieldCursor
+	keys                   sqltype.JSONKeyCursor
 	owned                  []sqltype.Value
 	position               int
 	scalar                 sqltype.Value
@@ -83,6 +85,9 @@ type functionSetInvocation struct{ cursors []functionSetCursor }
 func (s *functionSetCursor) close() {
 	if s.initialized && s.kind == functionStringCursor {
 		s.cursor.Close()
+	}
+	if s.initialized && s.kind == functionJSONKeysCursor {
+		s.keys.Close()
 	}
 	s.owned = nil
 	s.exhausted = true
@@ -107,6 +112,31 @@ func openFunctionInvocation(c *EvalContext, calls []BoundExpr) (functionSetInvoc
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
+	case jsonKeysExpression:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if len(call.args) != 1 {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON keys arguments")
+		}
+		value, err := call.args[0].Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		cursor, err := call.plan.Open(c.Context, value)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{keys: cursor, kind: functionJSONKeysCursor, initialized: true}, nil
+	case binaryExpression:
+		if !validFunctionSourceCall(call) {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
+		}
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case regexpSetExpression:
 		values, err := call.evaluateSet(c)
 		if err != nil {
@@ -188,7 +218,14 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 		s.exhausted = true
 		return sqltype.Null(typ), false, nil
 	}
-	value, present, err := s.cursor.Next(ctx)
+	var value sqltype.Value
+	var present bool
+	var err error
+	if s.kind == functionJSONKeysCursor {
+		value, present, err = s.keys.Next(ctx)
+	} else {
+		value, present, err = s.cursor.Next(ctx)
+	}
 	if err != nil {
 		return sqltype.Value{}, false, err
 	}

@@ -105,6 +105,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case regexpSetExpression:
 		args(e.args)
+	case jsonKeysExpression:
+		args(e.args)
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)

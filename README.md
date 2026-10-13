@@ -1042,7 +1042,7 @@ the existing typed seams, including generic JSON arrays and domains. JSON has
 no ordinary comparison/grouping/index-key provider, but supports INCLUDE payloads.
 Missing default classes report42704 even during atomic ALTER TYPE reconstruction.
 Unicode-escape physical EOF reports an invalid token, distinct from present nonhex
-digits. JSON operators, other JSON functions and SQL/JSON constructors remain excluded.
+digits. JSON operators, unselected JSON functions and SQL/JSON constructors remain excluded.
 See [JSON types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONFeatureSmoke$'`.
@@ -1090,6 +1090,24 @@ existing typed providers; JSON remains source-preserving and noncomparable.
 See [JSONB types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONBFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONBFeatureSmoke$'`.
+
+Change note: `json_typeof(json)` / `jsonb_typeof(jsonb)` return top-level kind
+TEXT, and `json_array_length(json)` / `jsonb_array_length(jsonb)` return immediate
+array counts as INT4. SQL NULL yields SQL NULL; JSON null yields nonnull kind
+`null` and is rejected as a scalar by length/key functions.
+`json_object_keys(json)` / `jsonb_object_keys(jsonb)` return SETOF TEXT:
+JSON retains decoded duplicate names in source order, while JSONB emits
+deduplicated canonical keys ordered by UTF8 byte length then bytes. SQL NULL and
+empty objects produce zero rows. WITH ORDINALITY exposes INT8 positions;
+target-list sets zip and NULL-pad through the existing query stages.
+Wrong-root arguments use exact PostgreSQL shape diagnostics without a runtime
+Position. Scalar stored consumers and key query views retain symbolic calls
+through native Dump/Restore; existing namespace and actual-column authorization
+rules still apply. No adjacent JSON operators, constructors, general SQL/JSON
+execution or generic callable catalog is added.
+See [JSON processing](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
+Feature smoke: `make check RUN='^TestReferenceJSONTypeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
 
 Change note: numrange columns extend the common range representation with exact
 continuous NUMERIC endpoints. `(4,5)` remains nonempty; `[1.0,1.00]` preserves

@@ -137,7 +137,7 @@ func TestJSONLexerEscapedStringCancellation(t *testing.T) {
 				for _, prefix := range []string{"", " \t "} {
 					text := prefix + `"` + strings.Repeat(tc.escape, 4096) + `"`
 					cancel := &groupingCancelContext{Context: context.Background(), at: 2}
-					l := jsonLexer{ctx: cancel, text: text, line: 1, jsonb: jsonb}
+					l := jsonLexer{ctx: cancel, text: text, line: 1, decode: jsonb}
 					err := l.next()
 					if !errors.Is(err, context.Canceled) || cancel.calls != 2 || l.offset < 8192 || l.offset >= len(text)-1 || l.decoded != "" {
 						t.Fatal("escape scanning did not cancel during bounded progress", l.offset, len(text), len(l.decoded), cancel.calls, err)
@@ -147,7 +147,7 @@ func TestJSONLexerEscapedStringCancellation(t *testing.T) {
 					if l.offset >= 8192+12 {
 						t.Fatal("escape scanning exceeded cancellation work budget", l.offset)
 					}
-					complete := jsonLexer{ctx: context.Background(), text: text, line: 1, jsonb: jsonb}
+					complete := jsonLexer{ctx: context.Background(), text: text, line: 1, decode: jsonb}
 					if err := complete.next(); err != nil || complete.kind != 's' || complete.offset != len(text) || complete.start != len(prefix) || complete.end != len(text) {
 						t.Fatal("successful token endpoints changed", complete.start, complete.end, err)
 					}
@@ -166,7 +166,7 @@ func TestJSONLexerEscapedStringCancellation(t *testing.T) {
 			// Cancellation must occur before consuming the following low surrogate.
 			text := `"` + strings.Repeat("x", 4092) + `\uD83D\uDE04"`
 			cancel := &groupingCancelContext{Context: context.Background(), at: 1}
-			l := jsonLexer{ctx: cancel, text: text, line: 1, jsonb: jsonb}
+			l := jsonLexer{ctx: cancel, text: text, line: 1, decode: jsonb}
 			err := l.next()
 			if !errors.Is(err, context.Canceled) || cancel.calls != 1 || l.offset != 4099 || l.end != 4099 || l.decoded != "" {
 				t.Fatal("surrogate continuation skipped crossed threshold", l.offset, l.end, cancel.calls, err)

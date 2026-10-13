@@ -284,7 +284,7 @@ func viewHasFunctionSource(item parser.FromItem) bool {
 	switch n := item.(type) {
 	case *parser.FunctionTable:
 		for _, call := range n.Calls {
-			if parser.RegexpFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
+			if parser.RegexpFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) || parser.JSONFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
 				return true
 			}
 		}

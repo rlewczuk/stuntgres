@@ -327,6 +327,13 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		})
 		changed = changed || replaced
 		expression = e
+	case jsonKeysExpression:
+		arg, failure := child(e.args[0])
+		err = failure
+		if changed {
+			e.args = []BoundExpr{arg}
+		}
+		return e, changed, err // Cardinality belongs to its query stage.
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {

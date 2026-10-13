@@ -37,18 +37,25 @@ type jsonLexer struct {
 	text                                               string
 	offset, start, end, line, lineStart, checkedOffset int
 	kind                                               byte
-	jsonb                                              bool
+	decode                                             bool
 	decoded                                            string
 }
 
 func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) {
-	l := jsonLexer{ctx: ctx, text: text, line: 1, jsonb: d.id == JSONB}
+	return d.scanJSON(ctx, text, nil)
+}
+
+// scanJSON is the shared iterative grammar for input and selected processing.
+// Processing decodes only when collecting keys, without building a JSONB tree.
+func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanResult) (Value, error) {
+	build := scan == nil && d.id == JSONB
+	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil}
 	var local [32]jsonState
 	stack := local[:1]
 	stack[0] = jsonValue
 	var frames [32]jsonbFrame
 	builder := jsonbBuilder{}
-	if l.jsonb {
+	if build {
 		builder.frames = frames[:0]
 	}
 	var pendingNumber string
@@ -70,8 +77,17 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 			pendingNumber = ""
 		}
 		state := stack[len(stack)-1]
+		if scan != nil && state == jsonValue {
+			scan.root = l.kind
+			if err := scan.checkRoot(); err != nil {
+				return Value{}, err
+			}
+		}
 		if state == jsonEnd && l.kind == 0 {
-			if l.jsonb {
+			if scan != nil {
+				return Value{}, ctx.Err()
+			}
+			if build {
 				payload := &jsonbPayload{root: builder.root}
 				output, err := jsonbOutput(ctx, &payload.root)
 				if err != nil {
@@ -89,7 +105,7 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 			return Value{}, l.expected("end of input")
 		case jsonArrayFirst:
 			if l.kind == ']' {
-				if l.jsonb {
+				if build {
 					if err := builder.close(ctx); err != nil {
 						return Value{}, err
 					}
@@ -99,7 +115,7 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 			}
 		case jsonArrayNext:
 			if l.kind == ']' {
-				if l.jsonb {
+				if build {
 					if err := builder.close(ctx); err != nil {
 						return Value{}, err
 					}
@@ -114,7 +130,7 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 			continue
 		case jsonObjectFirst, jsonObjectKey:
 			if state == jsonObjectFirst && l.kind == '}' {
-				if l.jsonb {
+				if build {
 					if err := builder.close(ctx); err != nil {
 						return Value{}, err
 					}
@@ -128,7 +144,10 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 				}
 				return Value{}, l.expected("string")
 			}
-			if l.jsonb {
+			if scan != nil && len(stack) == 2 {
+				scan.keys = append(scan.keys, l.decoded)
+			}
+			if build {
 				builder.frames[len(builder.frames)-1].key = l.decoded
 			}
 			stack[len(stack)-1] = jsonObjectColon
@@ -141,7 +160,7 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 			continue
 		case jsonObjectNext:
 			if l.kind == '}' {
-				if l.jsonb {
+				if build {
 					if err := builder.close(ctx); err != nil {
 						return Value{}, err
 					}
@@ -166,29 +185,29 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 		}
 		switch l.kind {
 		case '{':
-			if l.jsonb {
+			if build {
 				builder.open(jsonbObject)
 			}
 			stack = append(stack, jsonObjectFirst)
 		case '[':
-			if l.jsonb {
+			if build {
 				builder.open(jsonbArray)
 			}
 			stack = append(stack, jsonArrayFirst)
 		case 'n':
-			if l.jsonb {
+			if build {
 				pendingNumber = l.text[l.start:l.end]
 			}
 		case 's':
-			if l.jsonb {
+			if build {
 				builder.add(jsonbNode{kind: jsonbString, text: l.decoded})
 			}
 		case 't', 'f':
-			if l.jsonb {
+			if build {
 				builder.add(jsonbNode{kind: jsonbBoolean, boolean: l.kind == 't'})
 			}
 		case 'z':
-			if l.jsonb {
+			if build {
 				builder.add(jsonbNode{kind: jsonbNull})
 			}
 		default:
@@ -354,8 +373,8 @@ func (l *jsonLexer) next() error {
 	}
 }
 
-// Both modes use the same grammar and diagnostic endpoints. JSONB additionally
-// decodes each escape while lexing, before later syntax or discarded duplicates.
+// All consumers share grammar and diagnostic endpoints. Decoding consumers
+// validate every escape before later syntax, even in nested/discarded values.
 func (l *jsonLexer) stringToken() error {
 	var b strings.Builder
 	segment := l.offset
@@ -376,11 +395,11 @@ func (l *jsonLexer) stringToken() error {
 		l.offset++
 		l.end = l.offset
 		if c != '\\' {
-			if l.jsonb && high != 0 {
+			if l.decode && high != 0 {
 				return l.fail("Unicode low surrogate must follow a high surrogate.")
 			}
 			if c == '"' {
-				if l.jsonb {
+				if l.decode {
 					if escaped {
 						b.WriteString(l.text[segment : l.offset-1])
 						l.decoded = b.String()
@@ -391,7 +410,7 @@ func (l *jsonLexer) stringToken() error {
 				return nil
 			}
 		} else {
-			if l.jsonb {
+			if l.decode {
 				b.WriteString(l.text[segment : l.offset-1])
 				escaped = true
 			}
@@ -440,7 +459,7 @@ func (l *jsonLexer) stringToken() error {
 						decoded += rune(c - 'a' + 10)
 					}
 				}
-				if l.jsonb {
+				if l.decode {
 					if decoded >= 0xd800 && decoded <= 0xdbff {
 						if high != 0 {
 							return l.fail("Unicode high surrogate must not follow a high surrogate.")
@@ -465,7 +484,7 @@ func (l *jsonLexer) stringToken() error {
 				}
 				return l.fail(fmt.Sprintf(`Escape sequence "\%s" is invalid.`, l.text[start:l.end]))
 			}
-			if l.jsonb {
+			if l.decode {
 				if high != 0 {
 					return l.fail("Unicode low surrogate must follow a high surrogate.")
 				}
