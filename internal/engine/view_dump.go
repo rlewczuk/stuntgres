@@ -88,14 +88,51 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 // Ready declarations retain source allocation order. Only collision-remapped
 // imports need captured priorities; other declarations keep their actual OIDs.
 
+type dumpPhase uint8
+
+const (
+	dumpDeclaration dumpPhase = iota
+	dumpRename
+	dumpDefaults
+	dumpRows
+	dumpInvalidConstraints
+	dumpIndexAttachment
+	dumpTableAttachment
+	dumpTableCompletion
+)
+
+type dumpEventKey struct {
+	oid   OID
+	phase dumpPhase
+}
+
+func dumpDeclarationEvents(ids []OID) []dumpEventKey {
+	events := make([]dumpEventKey, len(ids))
+	for i, oid := range ids {
+		events[i] = dumpEventKey{oid: oid}
+	}
+	return events
+}
+
+func dumpDeclarationIDs(events []dumpEventKey) []OID {
+	ids := make([]OID, 0, len(events))
+	for _, event := range events {
+		if event.phase == dumpDeclaration {
+			ids = append(ids, event.oid)
+		}
+	}
+	return ids
+}
+
 type viewDumpReady struct {
-	ids        []OID
+	ids        []dumpEventKey
 	priorities map[OID]OID
 }
 
 func (h viewDumpReady) Len() int { return len(h.ids) }
 func (h viewDumpReady) Less(i, j int) bool {
-	a, b := h.ids[i], h.ids[j]
+	left, right := h.ids[i], h.ids[j]
+	a, b := left.oid, right.oid
 	if priority := h.priorities[a]; priority != 0 {
 		a = priority
 	}
@@ -105,10 +142,13 @@ func (h viewDumpReady) Less(i, j int) bool {
 	if a != b {
 		return a < b
 	}
-	return h.ids[i] < h.ids[j]
+	if left.oid != right.oid {
+		return left.oid < right.oid
+	}
+	return left.phase < right.phase
 }
 func (h viewDumpReady) Swap(i, j int)   { h.ids[i], h.ids[j] = h.ids[j], h.ids[i] }
-func (h *viewDumpReady) Push(value any) { h.ids = append(h.ids, value.(OID)) }
+func (h *viewDumpReady) Push(value any) { h.ids = append(h.ids, value.(dumpEventKey)) }
 func (h *viewDumpReady) Pop() any {
 	last := len(h.ids) - 1
 	value := h.ids[last]
@@ -118,10 +158,10 @@ func (h *viewDumpReady) Pop() any {
 
 // This sorts the captured dump graph, without reading a possibly replaced
 // catalog after unlock. Cyclic replacement graphs, including self edges, fail.
-func viewDumpOrder(ctx context.Context, predecessors map[OID][]OID, priorities map[OID]OID) ([]OID, error) {
-	indegree := make(map[OID]int, len(predecessors))
-	dependents := make(map[OID][]OID, len(predecessors))
-	ready := viewDumpReady{ids: make([]OID, 0, len(predecessors)), priorities: priorities}
+func viewDumpOrder(ctx context.Context, predecessors map[dumpEventKey][]dumpEventKey, priorities map[OID]OID) ([]dumpEventKey, error) {
+	indegree := make(map[dumpEventKey]int, len(predecessors))
+	dependents := make(map[dumpEventKey][]dumpEventKey, len(predecessors))
+	ready := viewDumpReady{ids: make([]dumpEventKey, 0, len(predecessors)), priorities: priorities}
 	for oid, sources := range predecessors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -138,12 +178,12 @@ func viewDumpOrder(ctx context.Context, predecessors map[OID][]OID, priorities m
 		}
 	}
 	heap.Init(&ready)
-	order := make([]OID, 0, len(predecessors))
+	order := make([]dumpEventKey, 0, len(predecessors))
 	for ready.Len() > 0 {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		oid := heap.Pop(&ready).(OID)
+		oid := heap.Pop(&ready).(dumpEventKey)
 		order = append(order, oid)
 		for _, dependent := range dependents[oid] {
 			indegree[dependent]--

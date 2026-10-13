@@ -429,21 +429,20 @@ type querySource struct {
 	ref  ObjectRef
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
-	storedRef            ObjectRef
-	committed, own       []rowVersion
-	partialMask          *logicalIndexRoot
-	singleton            bool
-	rlsDenied            bool
-	needsBirthFilter     bool // Current TRUNCATE vector at a retained older frontier.
-	anonymous            [][]sqltype.Value
-	pgSequences          *pgSequencesSource
-	visible              []int
-	hashIndexes          []capturedHashIndex
-	scope                *StatementScope
-	authority            *queryAuthority
-	sources              []*querySource
-	partitions           []*querySource
-	partitionEnds        []int
+	storedRef        ObjectRef
+	committed, own   []rowVersion
+	partialMask      *logicalIndexRoot
+	singleton        bool
+	rlsDenied        bool
+	needsBirthFilter bool // Current TRUNCATE vector at a retained older frontier.
+	anonymous        [][]sqltype.Value
+	pgSequences      *pgSequencesSource
+	visible          []int
+	hashIndexes      []capturedHashIndex
+	scope            *StatementScope
+	authority        *queryAuthority
+	sources          []*querySource
+	// Both inheritance and partition trees use named-layout physical prefixes.
 	inheritance          []inheritanceQuerySegment
 	inheritanceEnds      []int
 	flat                 []sqltype.Value
@@ -517,12 +516,6 @@ func (s *querySource) count() int {
 		}
 		return s.inheritanceEnds[len(s.inheritanceEnds)-1]
 	}
-	if s.partitions != nil {
-		if len(s.partitionEnds) == 0 {
-			return 0
-		}
-		return s.partitionEnds[len(s.partitionEnds)-1]
-	}
 	return len(s.committed) + len(s.own)
 }
 func (s *querySource) row(i int) []sqltype.Value {
@@ -579,9 +572,6 @@ func (s *querySource) row(i int) []sqltype.Value {
 		segment, index := s.inheritanceSegment(i)
 		return segment.mapValues(segment.prefix.row(index))
 	}
-	if s.partitions != nil {
-		return s.partitionRow(i)
-	}
 	return s.versionAt(s.rawIndex(i)).values
 }
 func (s *querySource) rawIndex(i int) int {
@@ -600,9 +590,6 @@ func (s *querySource) versionAt(i int) rowVersion {
 	if s.inheritance != nil {
 		segment, index := s.inheritanceSegment(i)
 		return segment.prefix.versionAt(segment.prefix.rawIndex(index))
-	}
-	if s.partitions != nil {
-		return s.partitionVersion(i)
 	}
 	if i < len(s.committed) {
 		return s.committed[i]
@@ -628,10 +615,6 @@ func (s *querySource) close() {
 			child.close()
 		}
 	}
-	for _, child := range s.partitions {
-		child.close()
-	}
-	s.partitions, s.partitionEnds = nil, nil
 	for _, segment := range s.inheritance {
 		segment.prefix.close()
 	}

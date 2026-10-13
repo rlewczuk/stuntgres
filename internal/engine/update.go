@@ -496,6 +496,9 @@ func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
+	if s != nil && s.partitionInsert != nil && b != nil && b.relation.address == s.partitionInsert.target.address {
+		row = s.partitionInsert.namedRow
+	}
 	return e.rowDiagnosticDetail(s, b, row, false)
 }
 

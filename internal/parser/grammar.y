@@ -1411,6 +1411,10 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
  | alter_rename_single { $$=$1 }
  | ALTER TABLE rename_target OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"table",Name:$3.Name,IfExists:$3.IfExists,Target:$6,Pos:$1.pos} }
  | alter_schema_single { $$=$1 }
+ | ALTER TABLE rename_target KW_U PARTITION relation_name partition_bound {
+     if $4.text!="attach" {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset);return 1}
+     $$=&AlterTableAttachPartition{Name:$3.Name,Partition:$6,Bound:$7,IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos,AttachPos:$4.pos}
+   }
  | alter_rename_single ',' {
      if _,ok:=$1.(*AlterTableRenameConstraint);ok {
        sqllex.(*lexer).failAt("42601","syntax error at or near \",\"",$2.pos.Offset)

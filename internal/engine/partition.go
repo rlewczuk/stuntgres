@@ -119,11 +119,17 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 	}
 	if membership := d.membership; membership != nil {
 		parent, ok := catalog.state.descriptors[membership.parent].(*relationDescriptor)
-		if !ok || parent.partition == nil || !slices.Contains(parent.partition.children, d.address) || len(parent.columns) != len(d.columns) || !slices.Equal(parent.attributes, d.attributes) {
+		if !ok || parent.partition == nil || !slices.Contains(parent.partition.children, d.address) || len(parent.columns) != len(d.columns) {
 			return invalid()
 		}
-		for i, c := range parent.columns {
-			if c.Name != d.columns[i].Name || c.Usage != d.columns[i].Usage || !c.Nullable && d.columns[i].Nullable {
+		parentNamespace, parentExists := catalog.state.descriptors[parent.namespace].(*namespaceDescriptor)
+		childNamespace, childExists := catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+		if !parentExists || !childExists || parentNamespace.temporary != childNamespace.temporary {
+			return invalid()
+		}
+		for _, c := range parent.columns {
+			slot, exists := d.index[c.Name]
+			if !exists || !samePartitionColumnUsage(c.Usage, d.columns[slot].Usage) || !c.Nullable && d.columns[slot].Nullable {
 				return invalid()
 			}
 		}

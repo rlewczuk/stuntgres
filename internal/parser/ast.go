@@ -428,6 +428,16 @@ type PartitionParent struct {
 	Pos   Position
 }
 
+// ATTACH consumes an existing relation rather than declaring a new child.
+type AlterTableAttachPartition struct {
+	Name, Partition ObjectName
+	Bound           PartitionBound
+	IfExists, Only  bool
+	Pos, AttachPos  Position
+}
+
+func (*AlterTableAttachPartition) statement() {}
+
 func (*CreateTable) statement() {}
 
 type QueryTableForm uint8

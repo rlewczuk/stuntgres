@@ -614,7 +614,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			if s.Only {
 				definition.valid = len(parent.partition.children) == 0
 			} else {
-				err = e.stagePartitionIndexChildren(scope.op, stage, parent, d)
+				err = e.stagePartitionIndexChildren(scope.op, stage, parent, d, true)
 			}
 		}
 		e.mu.Unlock()

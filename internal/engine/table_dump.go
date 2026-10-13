@@ -62,6 +62,16 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 			continue
 		}
 		line.WriteString("INSERT INTO " + qualified)
+		if t.descriptor.membership != nil {
+			line.WriteString(" (")
+			for i, column := range t.columns {
+				if i != 0 {
+					line.WriteString(", ")
+				}
+				line.WriteString(quoteIdentifier(column.Name))
+			}
+			line.WriteString(")")
+		}
 		if len(t.identities) != 0 {
 			line.WriteString(" OVERRIDING SYSTEM VALUE")
 		}
@@ -94,6 +104,30 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 		line.WriteString(");\n")
 		if err := emit(line.String()); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// Stored regclass values need the actual replay name, not merely the table's
+// type declaration. Reuse the ordinary scalar reference walker for arrays and
+// opaque owned values, and the same captured visibility frontier as emitRows.
+func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog CatalogRead, add func(ObjectAddress) error) error {
+	for _, version := range t.versions {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !liveVersion(version, t.frontier, t.ends, nil) {
+			continue
+		}
+		for i, column := range t.columns {
+			if !column.Usage.Type.ContainsRegclass() {
+				continue
+			}
+			literal := literalExpression{expressionInfo: expressionInfo{usage: column.Usage}, value: version.values[i]}
+			if err := regclassReplayReferences(catalog, literal, add); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

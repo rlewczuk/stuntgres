@@ -1,67 +1,49 @@
 package engine
 
 import (
-	"context"
 	"errors"
-	"sort"
 	"stuntgres/internal/sqltype"
 )
 
-// A hierarchy source owns only physical retained prefixes and a compact row
-// offset manifest. Rows and row identities remain in their original storage.
+// Partition reads reuse the mapped physical-prefix source used by inheritance.
+// Row identities and versions always retain their original physical storage.
 func capturePartitionQueryPrefix(catalog CatalogRead, view *VisibilityView, ref ObjectRef, parent *relationDescriptor) (*querySource, error) {
+	// The visibility capture retains the statement's admitted topology, not a
+	// live descriptor that may have gained children while a leaf lock waited.
+	if captured, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
+		parent = captured
+	}
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{ref: ref, view: pin, partitions: make([]*querySource, 0)}
+	source := &querySource{ref: ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
 	err := partitionPhysicalDescendants(catalog, parent, func(leaf *relationDescriptor) error {
 		childRef := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: leaf.address}
+		layout, err := inheritanceQueryLayout(parent, leaf)
+		if err != nil {
+			return err
+		}
 		child, err := captureQueryPrefix(view, childRef)
 		if err != nil {
 			return err
 		}
-		source.partitions = append(source.partitions, child)
+		segment := inheritanceQuerySegment{leaf: queryLeaf{ref: childRef, relation: leaf}, prefix: child, layout: layout}
+		if layout != nil {
+			segment.scratch = make([]sqltype.Value, len(layout))
+		}
+		source.inheritance = append(source.inheritance, segment)
 		return nil
 	})
 	if err != nil {
 		source.close()
 		return nil, err
 	}
-	source.partitionEnds = make([]int, len(source.partitions))
+	source.inheritanceEnds = make([]int, len(source.inheritance))
 	total := 0
-	for i, child := range source.partitions {
-		total += child.count()
-		source.partitionEnds[i] = total
+	for i, segment := range source.inheritance {
+		total += segment.prefix.count()
+		source.inheritanceEnds[i] = total
 	}
 	return source, nil
-}
-
-func (s *querySource) selectPartitionPrefixes(ctx context.Context) error {
-	total := 0
-	for i, child := range s.partitions {
-		data := child.view.read()
-		if _, err := selectQuerySource(ctx, child, data.frontierAt(child.ref.Address), data.ends[child.ref.Address], data.deleted[child.ref.Address]); err != nil {
-			return err
-		}
-		total += child.count()
-		s.partitionEnds[i] = total
-	}
-	return ctx.Err()
-}
-
-func (s *querySource) partitionRow(i int) []sqltype.Value {
-	at := sort.SearchInts(s.partitionEnds, i+1)
-	if at > 0 {
-		i -= s.partitionEnds[at-1]
-	}
-	return s.partitions[at].row(i)
-}
-func (s *querySource) partitionVersion(i int) rowVersion {
-	at := sort.SearchInts(s.partitionEnds, i+1)
-	if at > 0 {
-		i -= s.partitionEnds[at-1]
-	}
-	child := s.partitions[at]
-	return child.versionAt(child.rawIndex(i))
 }

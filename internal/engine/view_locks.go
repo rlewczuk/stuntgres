@@ -165,9 +165,6 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 		if unsupported {
 			return sqlError("0A000", "row locking partition hierarchies is unsupported")
 		}
-		if err := s.acquirePartitionAncestors(ref); err != nil {
-			return err
-		}
 		mode := accessShare
 		if modes[ref] != 0 {
 			mode = relationRowShare

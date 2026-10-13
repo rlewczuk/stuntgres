@@ -6,6 +6,86 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### RANGE table ATTACH — selected proof
+
+The untagged `partition_attach_*_test.go` definitions share direct/prepared bodies
+across native and pinned PostgreSQL. Diagnostics include eligibility, named
+schema, IF EXISTS/ONLY, bounds and reached sequence effects. Values/Schema cover
+reordered surviving columns, defaults, mapped checks, metadata and named-target
+disclosure. Atomicity/Indexes/Transactions retain old rows/keys/topology on failure,
+including current validation under an unchanged ordinary stable snapshot.
+
+```sh
+make check RUN='^TestReferencePartitionAttach(Diagnostics|Proof|Values|Schema|Atomicity)$'
+make check RUN='^TestReferencePartitionAttach(Indexes|Locks|Transactions|Controls|FeatureSmoke)$'
+make check RUN='^TestReferencePartitionAttachDefaultCreation$'
+make check RUN='^TestPartitionAttach(Layout|Schema|Proof|IndexBuild|PublicationFences|Growth|TransactionOverlay|CheckReplayAuthority|Eligibility|PersistenceInvariant|NotNullValidity)$'
+```
+
+Repeat each reference command with `REFERENCE=1` for genuine pinned PostgreSQL
+before review/integration of changed definitions. Apply an external900-second
+deadline to check commands. Race proof selects the lock/publication families with
+`RACE=1`; quickcheck remains the whole-project Docker-free check.
+
+`TestReferencePartitionAttachPrivacy` independently covers restricted actors on
+reordered and sparse attached candidates, direct and held prepared failures,
+VALUES and INSERT SELECT. Named-target column grants and revocation govern
+supplied-column/default disclosure; parent SELECT does not authorize physical
+unique-index key disclosure. Leaf RLS suppresses routed index details, while
+direct and parent-targeted default-deny routes reject without modifying data.
+Applicable policy expressions retain the explicit native `0A000` boundary;
+PostgreSQL checks actual policy-authorized constraint-detail suppression.
+Run its focused smoke/proof selector in oracle-first order:
+
+```sh
+make check RUN='^TestReferencePartitionAttachPrivacy$' REFERENCE=1
+make check RUN='^TestReferencePartitionAttachPrivacy$'
+```
+
+Expected observations are complete physical diagnostic identities, named-target
+logical detail ordering, inaccessible omitted defaults hidden, physical key ACL
+transitions and unchanged parent/child bags after every failure. These expectations
+require both completed-mode runs; staging a fixture is not passing evidence.
+
+Proof observes scans separately from locks. PostgreSQL physical-session sequence
+scan counters are calibrated against no-proof ATTACH, flushed and snapshots
+cleared on that session without intervening row reads. Native has no invented
+statistics view. PostgreSQL uses actual pg_locks; native relies on the actual
+admission manager and shared contention schedules. Candidate descendants retain
+AX even when a validated proof skips scans; sufficient DEFAULT exclusion skips
+descendant admission. Nullable bounds-only CHECK is not a candidate non-NULL proof;
+NOT VALID cannot prove old rows, while valid local NO INHERIT can.
+
+Feature smoke: `make check RUN='^TestReferencePartitionAttachFeatureSmoke$'` and
+the same command with `REFERENCE=1`. Expected observations after all assertions:
+attach0, root rows `(1,one),(2,two),(3,three)` in root order, candidate rows in
+original physical order, routed inserts, genuine populated unique backings and
+atomic rejection. Native controls perform actual Dump/Reset/Restore and replay the
+complete unchanged emitted SQL on PostgreSQL; no hand-written substitute stream.
+These are proof commands/expected outcomes, not claims that every final check ran.
+The integer-array values case keeps genuine PostgreSQL attachment/routing and
+an explicit native42704 missing-btree-provider diagnostic. Numeric bounds/data
+use target-typed unknown inputs, not unrelated explicit-cast expansion.
+Physical tableoid SQL remains a PostgreSQL-positive/native42703 boundary, limited
+to those two query steps. Shared candidate pg_class OID preservation, complete
+root/child values/layout/metadata and private capture provenance independently
+prove retained identity; the boundary does not replace the portable assertions.
+Controls include `TestReferencePartitionAttachControlIndexDependencies`: incomplete
+ONLY indexes must remain incomplete after actual native Restore, including
+reordered independently owned members and regclass data dependencies.
+
+`TestReferencePartitionAttachDefaultCreation` covers the affected subsequent
+CREATE PARTITION OF consumer after attaching a reordered or sparse DEFAULT.
+Regular and nested layouts exercise scalar, expression and lexicographic keys
+through direct execution and actual held prepared utilities. A logical conflict
+must reject23514 with the pinned deciding relation identity; the inverse
+payload-conflict/logical-key-outside case must succeed. Root/default bags, physical
+layout, original OIDs, membership and absent new table/row-type are asserted after
+rejection, followed by healthy creation and routing. Repeat its selected command
+with `REFERENCE=1` before review; oracle discovery is not final dual-mode proof.
+The pinned nested CREATE diagnostic identifies the DEFAULT root, not its scanned
+leaf; this differs from ATTACH validation and is asserted with full diagnostic fields.
+
 ### Partitioned constraints — selected proof
 
 The untagged `reference/tables/partition_constraints_*_test.go` definitions use

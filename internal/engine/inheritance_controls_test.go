@@ -80,8 +80,8 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	order, err := viewDumpOrder(context.Background(), map[OID][]OID{child.address.ObjectID: {predecessor}, mapped.ObjectID: nil}, nil)
-	if err != nil || !reflect.DeepEqual(order, []OID{mapped.ObjectID, child.address.ObjectID}) {
+	order, err := viewDumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: child.address.ObjectID}: {{oid: predecessor}}, {oid: mapped.ObjectID}: nil}, nil)
+	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{mapped.ObjectID, child.address.ObjectID}) {
 		t.Fatal(order, err)
 	}
 }

@@ -239,69 +239,6 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 	}
 }
 
-func TestRoleControlsOwnersAndCancellation(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
-	defer done()
-	roleExecute(t, e, op, "CREATE USER owner")
-	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
-	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	retained := roleExecute(t, e, op, "SELECT id FROM secret")
-	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	before := e.roles
-	roleError(t, e, op, "DROP ROLE owner", "2BP01", `role "owner" cannot be dropped because some objects depend on it`, "owner of table secret")
-	if e.roles != before {
-		t.Fatal("dependent role mutated")
-	}
-	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
-		t.Fatal(err)
-	}
-	want := "SET SESSION AUTHORIZATION 'owner';\nCREATE TABLE \"public\".\"secret\" (\"id\" INTEGER);\nINSERT INTO \"public\".\"secret\" VALUES (7);\n"
-	if dump.String() != want {
-		t.Fatalf("dump %q", dump.String())
-	}
-	roles := e.roles
-	identity := op.RoleState()
-	if err := e.Reset(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if e.roles != roles || op.RoleState() != identity {
-		t.Fatal("reset roles or live identity")
-	}
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
-		t.Fatal(err)
-	}
-	roleError(t, e, op, "DROP ROLE owner", "2BP01", `role "owner" cannot be dropped because some objects depend on it`, "owner of table secret")
-	stateBefore := e.state
-	if err := e.Restore(context.Background(), strings.NewReader("SET SESSION AUTHORIZATION 'absent'; CREATE TABLE bad(id INT);")); err == nil {
-		t.Fatal("unknown owner restore")
-	}
-	if e.state != stateBefore {
-		t.Fatal("failed restore published")
-	}
-	values := tuples(retained)
-	if !reflect.DeepEqual(values, [][]driver.Value{{int64(7)}}) {
-		t.Fatal(values)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := e.Reset(ctx); !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
-	}
-	if e.state != stateBefore {
-		t.Fatal("canceled reset")
-	}
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE legacy(id INT); INSERT INTO legacy VALUES(8);")); err != nil {
-		t.Fatal(err)
-	}
-	d := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "legacy"}]].(*relationDescriptor)
-	if d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
-		t.Fatal("legacy owner")
-	}
-}
-
 func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

@@ -220,6 +220,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		mode = alterTableLockMode(v)
 		ownerOnly = true
 		rename, ifExists = true, v.IfExists
+	case *parser.AlterTableAttachPartition:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, shareUpdateExclusive, true
+		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableOf:
 		if !execute {
 			return nil
@@ -267,6 +273,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	parentAuth := auth
 	if err == nil {
 		err = policyPreflight(s.op, auth, stmt, true)
+	}
+	if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching && err == nil {
+		parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
 	}
 	if creation, ok := stmt.(*parser.CreateTable); ok && err == nil {
 		parentAuth, err = e.partitionParentAuthorization(s.op, auth, creation)
@@ -358,7 +367,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
 			materializedAlterAuthority = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		}
-		if source || preparableBody(stmt) {
+		_, attaching := stmt.(*parser.AlterTableAttachPartition)
+		if source || preparableBody(stmt) || attaching {
 			lexical := ref
 			if retained {
 				lexical, err = e.admissionNameReference(auth, name)
@@ -407,8 +417,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 	}
-	if err = s.acquirePartitionAncestors(ref); err != nil {
-		return err
+	if _, reading := stmt.(*parser.Select); !reading {
+		if err = s.acquirePartitionAncestors(ref); err != nil {
+			return err
+		}
 	}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
@@ -581,6 +593,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return err
 			}
 		}
+		if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching {
+			parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
+			if err != nil {
+				return err
+			}
+		}
 		if err := parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
 			return err
 		}
@@ -616,7 +634,8 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		}
 	}
 	for address, captured := range s.partitionRelations {
-		if catalog.state.descriptors[address] != captured {
+		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		if current != captured && !partitionAppendCompatible(captured, current) {
 			return ErrCatalogReplaced
 		}
 	}

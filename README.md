@@ -656,6 +656,22 @@ See [RANGE partitions](https://www.postgresql.org/docs/18/ddl-partitioning.html)
 Feature smoke: `make check RUN='^TestReferenceRangePartitionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'`.
 
+Change note: RANGE `ALTER TABLE ... ATTACH PARTITION` retains an existing ordinary
+or partitioned candidate's rows, physical column order, defaults and local keys.
+Named schema, typed bounds, existing candidate/default rows and populated index
+backings are validated before atomic membership publication. Parent SHARE UPDATE
+EXCLUSIVE and candidate/default ACCESS EXCLUSIVE use the existing lock authority;
+validated CHECK/NOT NULL proof can elide scans and proven DEFAULT descendant locks.
+Explicit transactions/savepoints retain private topology. Validation observes
+current committed rows without advancing a transaction's ordinary stable snapshot;
+an already admitted waiting SELECT keeps its old branch topology.
+Native controls preserve mapped layouts and provenance through ordinary CREATE
+plus genuine ATTACH when PARTITION OF is insufficient, with unchanged logical
+SQL replay on PostgreSQL. Other hierarchy mutation and external storage mechanisms
+remain excluded. See [partition graphs](docs/TABLES.md#inheritance-typed-attachments-and-partition-graphs).
+Feature smoke: `make check RUN='^TestReferencePartitionAttachFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePartitionAttachFeatureSmoke$'`.
+
 Change note: RANGE UNIQUE/PRIMARY KEY constraints cover every simple partition key;
 real immediate-parent constraint/index ancestry connects virtual, storage-free
 indexes to enforced physical leaf keys. UNIQUE NULLS NOT DISTINCT, primary NOT NULL,

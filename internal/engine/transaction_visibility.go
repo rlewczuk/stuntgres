@@ -87,6 +87,16 @@ func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*Visib
 }
 
 func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*VisibilityView, error) {
+	return s.captureDataViewsLocked(e, refs, false)
+}
+
+// ATTACH validates the grant-time committed frontier plus this owner's earlier
+// commands. It does not change the RR/Serializable owner's ordinary snapshot.
+func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ObjectRef) (*VisibilityView, error) {
+	return s.captureDataViewsLocked(e, refs, true)
+}
+
+func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ObjectRef, latest bool) (*VisibilityView, error) {
 	if s.txRef.epoch != e.state.epoch {
 		return nil, ErrCatalogReplaced
 	}
@@ -101,8 +111,12 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			return nil, errors.New("stuntgres: relation storage is missing")
 		}
 	}
-	if s.view != nil {
-		data := s.view.data.Load()
+	existing := s.view
+	if latest {
+		existing = s.partitionValidationView
+	}
+	if existing != nil {
+		data := existing.data.Load()
 		if data == nil {
 			return nil, errors.New("stuntgres: visibility view is released")
 		}
@@ -125,18 +139,21 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 				return nil, err
 			}
 		}
-		return s.view, nil
+		return existing, nil
 	}
-	if _, err := e.visibilitySnapshotLocked(s.txRef, false); err != nil {
-		return nil, err
+	if !latest {
+		if _, err := e.visibilitySnapshotLocked(s.txRef, false); err != nil {
+			return nil, err
+		}
 	}
 	frontier := e.commitSeq
-	if stableIsolation(s.owner.isolation) {
+	if !latest && stableIsolation(s.owner.isolation) {
 		frontier = s.owner.frontier
 	}
+	catalog := e.privateCatalogLocked(s.owner.catalog)
 	data := &visibilityData{
 		tx: s.txRef, command: s.command, frontier: frontier,
-		catalog:   e.privateCatalogLocked(s.owner.catalog),
+		catalog:   catalog,
 		committed: make(map[ObjectAddress][]rowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
@@ -150,7 +167,7 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 		if s.owner.catalog != nil {
 			rewrite = s.owner.catalog.storage[ref.Address]
 		}
-		if stableIsolation(s.owner.isolation) && !rewrite.rewritten {
+		if !latest && stableIsolation(s.owner.isolation) && !rewrite.rewritten {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
@@ -182,7 +199,7 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 				versions, ends = nil, nil
 			}
 		}
-		if rewrite.rewritten && stableIsolation(s.owner.isolation) {
+		if !latest && rewrite.rewritten && stableIsolation(s.owner.isolation) {
 			if data.rewrittenFrontiers == nil {
 				data.rewrittenFrontiers = make(map[ObjectAddress]CommitSeq)
 			}
@@ -233,8 +250,13 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			return nil, err
 		}
 	}
-	s.view = newVisibilityView(data)
-	return s.view, nil
+	captured := newVisibilityView(data)
+	if latest {
+		s.partitionValidationView = captured
+	} else {
+		s.view = captured
+	}
+	return captured, nil
 }
 
 func (v *VisibilityView) Retain() *VisibilityView {

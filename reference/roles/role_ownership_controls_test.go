@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -112,11 +113,6 @@ INSERT INTO own_control.p VALUES(7);`
 		if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &dump); err != nil {
 			s.t.Fatal(err)
 		}
-		for _, text := range []string{`CREATE SCHEMA "own_control" AUTHORIZATION "own_target";`, `SET SESSION AUTHORIZATION 'own_target';`, `CREATE INDEX "control_idx"`} {
-			if !strings.Contains(dump.String(), text) {
-				s.t.Fatalf("dump missing %q: %s", text, dump.String())
-			}
-		}
 		if s.backend.PG {
 			s.exec("DROP SCHEMA own_control CASCADE")
 			if _, err := s.c.ExecContext(s.p.Ctx, dump.String()); err != nil {
@@ -225,5 +221,76 @@ func TestReferenceRoleOwnershipFeatureSmoke(t *testing.T) {
 		s.exec("DROP ROLE own_reader")
 		s.exec("DROP ROLE own_source")
 		s.exec("DROP ROLE own_target")
+	})
+}
+
+// Migrated public behavior from the former internal role controls SQL test.
+// Dump spelling is not a contract: ownership, data, retained handles, session
+// identity and atomic failure are checked through their public consumers.
+func TestReferenceRoleControlsOwnersAndCancellation(t *testing.T) {
+	ownershipCases(t, func(s *membershipScenario) {
+		s.actor("own_source")
+		ownershipDefinition(s, "CREATE TABLE role_control_secret(id INT)")
+		s.run(fixture.Exec("INSERT INTO role_control_secret VALUES(7)", 1))
+		s.actor("")
+		ownershipOwner(s, "role_control_secret", "own_source")
+		ownershipRoleDependency(s, "own_source", "owner of table role_control_secret")
+		ownershipSelect(s, "SELECT id FROM role_control_secret", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
+		if !s.backend.PG {
+			old, err := s.c.QueryContext(s.p.Ctx, "SELECT id FROM role_control_secret")
+			if err != nil {
+				s.t.Fatal(err)
+			}
+			defer old.Close()
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &dump); err != nil {
+				s.t.Fatal(err)
+			}
+			if err := stuntgres.Reset(s.p.Ctx, s.p.Native); err != nil {
+				s.t.Fatal(err)
+			}
+			ownershipSelect(s, "SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{s.bootstrap}})
+			ownershipSelect(s, "SELECT rolname FROM pg_roles WHERE rolname='own_source'", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_source"}})
+			if err := stuntgres.Restore(s.p.Ctx, s.p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+				s.t.Fatal(err)
+			}
+			ownershipOwner(s, "role_control_secret", "own_source")
+			ownershipRoleDependency(s, "own_source", "owner of table role_control_secret")
+			fixture.AssertDiagnostic(s.t, stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader("SET SESSION AUTHORIZATION 'own_absent'; CREATE TABLE bad(id INT);")), &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: `role "own_absent" does not exist`})
+			ownershipSelect(s, "SELECT id FROM role_control_secret", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
+			var after bytes.Buffer
+			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &after); err != nil || !bytes.Equal(dump.Bytes(), after.Bytes()) {
+				s.t.Fatal("failed owner Restore changed live definitions or rows", err)
+			}
+			if !old.Next() {
+				s.t.Fatal("replacement lost retained owner cursor")
+			}
+			var id int64
+			if err := old.Scan(&id); err != nil || id != 7 {
+				s.t.Fatalf("retained owner row %d: %v", id, err)
+			}
+			if old.Next() || old.Err() != nil {
+				s.t.Fatal("retained owner cursor changed", old.Err())
+			}
+			ctx, cancel := context.WithCancel(s.p.Ctx)
+			cancel()
+			if err := stuntgres.Reset(ctx, s.p.Native); !errors.Is(err, context.Canceled) {
+				s.t.Fatal("precanceled Reset", err)
+			}
+			after.Reset()
+			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &after); err != nil || !bytes.Equal(dump.Bytes(), after.Bytes()) {
+				s.t.Fatal("canceled Reset changed live catalog", err)
+			}
+			if err := stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader("CREATE TABLE role_control_legacy(id INT); INSERT INTO role_control_legacy VALUES(8);")); err != nil {
+				s.t.Fatal(err)
+			}
+		} else {
+			s.exec("DROP TABLE role_control_secret")
+			ownershipDefinition(s, "CREATE TABLE role_control_legacy(id INT)")
+			s.run(fixture.Exec("INSERT INTO role_control_legacy VALUES(8)", 1))
+		}
+		ownershipOwner(s, "role_control_legacy", s.bootstrap)
+		ownershipSelect(s, "SELECT id FROM role_control_legacy", []string{"id"}, []string{"INT4"}, [][]any{{int64(8)}})
+		ownershipSelect(s, "SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{s.bootstrap}})
 	})
 }

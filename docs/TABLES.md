@@ -297,14 +297,58 @@ routes and validates all destinations; late failure publishes no earlier leaf ro
 Defaults and disclosure authority belong to the named target, while physical errors
 identify the actual leaf. Scans capture all descendant prefixes at one frontier.
 
+RANGE ATTACH preserves an existing candidate's storage, own row type, surviving
+column order/stable attributes, defaults, local constraints and index identities.
+Compatibility is by column name/type/typmod/collation, required NOT NULL and
+same-name cooked CHECK definition, not physical slot equality. Capture-owned
+layouts translate reads, nested routing, ancestor bounds and leaf constraints;
+identity layouts borrow rows. Violation identity is the physical leaf, while
+failing-row disclosure follows the named target's completed tuple and privileges.
+The same captured mappings are used by subsequent CREATE PARTITION OF validation
+of an attached incumbent DEFAULT: a leaf-to-parent vector and reusable scratch
+translate each physical tuple before the existing cooked key evaluator runs.
+Identity layouts borrow the tuple. Storage, visibility and scan/publication fences
+are unchanged, and CREATE's violation diagnostic identifies the DEFAULT root.
+Required NOT NULL constraints match by mapped attribute, not constraint name.
+A validated parent requirement rejects a matching NOT VALID child constraint,
+even when the candidate is empty; attachment neither validates that constraint
+nor replaces its identity. Rejection preserves local provenance and historical
+rows, while a valid differently named match becomes inherited.
+A permanent parent rejects an ordinary temporary candidate using its existing
+session-owned namespace identity. Partition membership cannot mix permanent and
+temporary relations or temporary relations belonging to different sessions;
+this does not enable temporary partition definitions.
+
+The parent retains SHARE UPDATE EXCLUSIVE; candidate and incumbent DEFAULT roots
+retain ACCESS EXCLUSIVE. Candidate descendants always receive ACCESS EXCLUSIVE.
+Validated CHECK/NOT NULL facts can elide scans; sufficient DEFAULT exclusion also
+elides descendant admission. Nullable CHECK comparisons alone do not establish an
+explicit range's non-NULL key premise; DEFAULT complements already accept NULL.
+NOT VALID facts do not prove historical rows. Local valid NO INHERIT facts remain
+usable for scan proof. All unproven leaves share a current validation capture;
+store, provider, end-root and catalog predecessors fence atomic publication.
+
+An already admitted SELECT waiting on an old descendant retains its captured
+branch topology across compatible ATTACH growth. A fresh SELECT sees the new
+member. This is not a general INSERT, COPY or index-admission snapshot policy.
+
 Partition key constraints/indexes form real immediate-parent ancestry. Virtual
 indexes have no storage; attachment preserves identities and propagates validity
 only through complete valid immediate membership. Transaction-private attachments
 and removals restore through savepoints; independent leaf groups remain independent.
 Dump/Restore remaps actual ancestry, partial attachments, provenance and retained
-TEMP collisions, not assumed numeric OID relationships. LIST/HASH partitions,
-row movement, hierarchy mutation/conflict DML, TEMP partition construction and
-nested schema partition construction remain explicit native limits.
+TEMP collisions, not assumed numeric OID relationships. When PARTITION OF cannot
+preserve physical column order, distinct NOT NULL names, default absence or NOT
+VALID facts, export uses ordinary CREATE plus genuine ATTACH. The existing logical
+dependency scheduler orders definitions, named-column physical rows, memberships,
+incomplete ONLY indexes, saved index edges and NOT VALID facts by their real phase
+dependencies, not a second synthetic graph. When a late index referenced by row
+data requires membership first, the leased private importer may replay NOT VALID
+CHECK on the exact captured physical member through the ordinary ALTER validators
+and publication authority. Public hierarchy ADD CHECK remains excluded.
+Gaps are logically reminted, not a physical backup. Unchanged SQL replays on PostgreSQL.
+LIST/HASH partitions, row movement, hierarchy mutation/conflict DML, TEMP partition
+construction and nested schema partition construction remain explicit native limits.
 
 ## Logical indexes and copied definitions
 

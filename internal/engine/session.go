@@ -136,6 +136,8 @@ type Operation struct {
 	materializedPopulation  bool                       // Operation-local execution path, never session settings.
 	materializedOwner       authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
 	restoreDefaultReplay    bool
+	restorePartitionAttach  bool
+	restorePartitionCheck   *relationDescriptor     // Exact leased private-import physical CHECK target.
 	discardRoleReset        authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
 }
 

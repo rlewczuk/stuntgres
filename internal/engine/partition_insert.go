@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
@@ -14,6 +15,9 @@ type partitionInsertState struct {
 	auth        AuthorizationView
 	target      *relationDescriptor
 	destination *relationDescriptor
+	layouts     map[ObjectAddress]*inheritanceQuerySegment
+	physicalRow []sqltype.Value
+	namedRow    []sqltype.Value
 	groups      map[ObjectAddress]*partitionInsertGroup
 	order       []*partitionInsertGroup
 }
@@ -28,6 +32,43 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		return nil
 	}
 	state := &partitionInsertState{catalog: auth.catalog, auth: auth, target: target}
+	var captureLayouts func(*relationDescriptor) error
+	captureLayout := func(d *relationDescriptor) error {
+		layout, err := inheritanceQueryLayout(d, target)
+		if err != nil {
+			return err
+		}
+		if layout != nil {
+			if state.layouts == nil {
+				state.layouts = make(map[ObjectAddress]*inheritanceQuerySegment)
+			}
+			state.layouts[d.address] = &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, len(layout))}
+		}
+		return nil
+	}
+	captureLayouts = func(d *relationDescriptor) error {
+		if err := captureLayout(d); err != nil {
+			return err
+		}
+		if d.partition != nil {
+			for _, address := range d.partition.children {
+				if err := captureLayouts(auth.catalog.state.descriptors[address].(*relationDescriptor)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := captureLayouts(target); err != nil {
+		return err
+	}
+	for child := target; child.membership != nil; {
+		parent := auth.catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+		if err := captureLayout(parent); err != nil {
+			return err
+		}
+		child = parent
+	}
 	if err := partitionPhysicalDescendants(auth.catalog, target, func(leaf *relationDescriptor) error {
 		if err := e.captureCheckCommentSnapshotLocked(s, leaf); err != nil {
 			return err
@@ -42,6 +83,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 
 func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value, evaluation *EvalContext) error {
 	state := s.partitionInsert
+	state.namedRow = row
 	if state.target.partition != nil {
 		if err := s.validateTargetPartitionConstraint(b, row, evaluation); err != nil {
 			return err
@@ -50,7 +92,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	destination := state.target
 	for destination.partition != nil {
 		var values [32]partitionDatum
-		key, null, err := partitionRowKey(destination, row, evaluation, values[:0])
+		key, null, err := partitionRowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
 		if err != nil {
 			return err
 		}
@@ -86,7 +128,8 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	leafBinding := b
 	leafBinding.relation, leafBinding.ref = destination, ref
 	schema := state.catalog.state.descriptors[destination.namespace].Name()
-	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, row, evaluation); err != nil {
+	physicalRow := state.rowFor(destination, row)
+	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
 		return err
 	}
 	if state.target.partition == nil {
@@ -95,6 +138,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 	}
 	state.destination = destination
+	state.physicalRow = physicalRow
 	return nil
 }
 
@@ -102,7 +146,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 	state := s.partitionInsert
 	for child := state.target; child.membership != nil; {
 		parent := state.catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
-		accepts, err := partitionAccepts(state.catalog, parent, child, row, evaluation)
+		accepts, err := partitionAccepts(state.catalog, parent, child, state.rowFor(parent, row), evaluation)
 		if err != nil {
 			return err
 		}
@@ -187,6 +231,28 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	return err
 }
 
+func (state *partitionInsertState) rowFor(d *relationDescriptor, row []sqltype.Value) []sqltype.Value {
+	if segment := state.layouts[d.address]; segment != nil {
+		return segment.mapValues(row)
+	}
+	return row
+}
+
+// Input tuples already own their payload. Identity layouts borrow them. A
+// reordered tuple can reuse that payload when there is no logical RETURNING
+// consumer; otherwise storage must own a separate immutable physical tuple.
+func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value {
+	state := s.partitionInsert
+	if state.layouts[state.destination.address] == nil {
+		return row
+	}
+	if s.insertReturning != nil {
+		return slices.Clone(state.physicalRow)
+	}
+	copy(row, state.physicalRow)
+	return row
+}
+
 func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, row []sqltype.Value, prefix [][]sqltype.Value) error {
 	state := s.partitionInsert
 	if state == nil {
@@ -203,6 +269,7 @@ func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, row []sqltype.Value
 		state.order = append(state.order, group)
 	}
 	s.uniqueBinding = group.unique
+	row = s.partitionStoredRow(row)
 	if err := s.checkUniqueRow(group.ref, row, nil, group.rows); err != nil {
 		return err
 	}

@@ -46,9 +46,11 @@ func (e *Engine) queryTableRefsLocked(catalog CatalogRead, leaves []queryLeaf, r
 				}
 			}
 		}
-		if relation.partition != nil {
+		if relation.partition != nil && !only {
 			for _, address := range relation.partition.children {
-				if err := collect(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}, true); err != nil {
+				child, ok := catalog.state.descriptors[address].(*relationDescriptor)
+				if !ok { return ErrCatalogReplaced }
+				if err := collect(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}, child.partition == nil); err != nil {
 					return err
 				}
 			}

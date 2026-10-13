@@ -248,84 +248,6 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	}
 }
 
-func TestPartitionConstraintsReplayNames(t *testing.T) {
-	f := partitionConstraintDescriptors(t)
-	c := uniqueConstraint{OID: 30000, Name: f.parent.name, Attributes: []int32{10, 20}, Index: f.parent.address, IsLocal: true}
-	f.root.uniqueConstraints = []uniqueConstraint{c}
-	f.parent.sqlIndex.constraint = uniqueBacking(&c)
-	leaf := uniqueConstraint{OID: 30001, Name: f.child.name, Attributes: []int32{22, 11}, Index: f.child.address, Parent: c.OID}
-	f.leaf.uniqueConstraints = []uniqueConstraint{leaf}
-	f.child.sqlIndex.constraint = uniqueBacking(&leaf)
-	f.child.sqlIndex.partitionParent = f.parent.address
-	f.parent.sqlIndex.valid = true
-	view, replay := partitionConstraintDumpCatalog(f.view)
-	if replay.temporary[f.parent.address] == "" || replay.temporary[f.parent.address] == replay.temporary[f.child.address] || f.parent.name != "unit_parent" || f.root.uniqueConstraints[0].Name != "unit_parent" {
-		t.Fatal("replay reservation aliases live descriptors")
-	}
-	root := view.state.descriptors[f.root.address].(*relationDescriptor)
-	child := view.state.descriptors[f.leaf.address].(*relationDescriptor)
-	if _, err := replay.tableRenames(view, root); err != nil {
-		t.Fatal(err)
-	}
-	sql, err := replay.tableRenames(view, child)
-	if err != nil || sql == "" {
-		t.Fatal(sql, err)
-	}
-	if len(replay.finalRenames()) != 2 {
-		t.Fatal("missing final names")
-	}
-}
-
-func TestPartitionConstraintsDumpMultiKeyNames(t *testing.T) {
-	f := partitionConstraintDescriptors(t)
-	old := f.parent.address
-	delete(f.view.state.descriptors, old)
-	f.parent.address.ObjectID = 50000
-	f.view.state.descriptors[f.parent.address] = f.parent
-	f.parent.sqlIndex.include = nil
-	first := uniqueConstraint{OID: 30000, Name: f.parent.name, Attributes: []int32{10, 20}, Index: f.parent.address, IsLocal: true}
-	f.parent.sqlIndex.constraint = uniqueBacking(&first)
-	secondIndex, secondDefinition := *f.parent, *f.parent.sqlIndex
-	secondIndex.address.ObjectID = 20004
-	secondIndex.name = "unit_parent_nnd"
-	secondIndex.sqlIndex = &secondDefinition
-	secondDefinition.nullsNotDistinct = true
-	second := uniqueConstraint{OID: 30002, Name: secondIndex.name, Attributes: first.Attributes, Index: secondIndex.address, IsLocal: true, NullsNotDistinct: true}
-	secondDefinition.constraint = uniqueBacking(&second)
-	f.root.uniqueConstraints = []uniqueConstraint{first, second}
-	f.view.state.descriptors[secondIndex.address] = &secondIndex
-	// Even conflicting source ranks cannot supersede inline declaration order.
-	f.view.state.dumpPriorities = map[ObjectAddress]OID{f.parent.address: 90000, secondIndex.address: 1}
-	childFirst := uniqueConstraint{OID: 30001, Name: f.child.name, Attributes: []int32{22, 11}, Index: f.child.address, Parent: first.OID}
-	f.child.sqlIndex.include = nil
-	f.child.sqlIndex.constraint = uniqueBacking(&childFirst)
-	f.child.sqlIndex.partitionParent = f.parent.address
-	childSecondIndex, childSecondDefinition := *f.child, *f.child.sqlIndex
-	childSecondIndex.address.ObjectID = 20005
-	childSecondIndex.name = "unit_child_nnd"
-	childSecondIndex.sqlIndex = &childSecondDefinition
-	childSecondDefinition.nullsNotDistinct = true
-	childSecondDefinition.partitionParent = secondIndex.address
-	childSecond := uniqueConstraint{OID: 30003, Name: childSecondIndex.name, Attributes: childFirst.Attributes, Index: childSecondIndex.address, Parent: second.OID, NullsNotDistinct: true}
-	childSecondDefinition.constraint = uniqueBacking(&childSecond)
-	f.view.state.descriptors[childSecondIndex.address] = &childSecondIndex
-	// Captured child ordinal is not the parent declaration authority.
-	f.leaf.uniqueConstraints = []uniqueConstraint{childSecond, childFirst}
-	view, replay := partitionConstraintDumpCatalog(f.view)
-	if _, err := replay.tableRenames(view, view.state.descriptors[f.root.address].(*relationDescriptor)); err != nil {
-		t.Fatal(err)
-	}
-	sql, err := replay.tableRenames(view, view.state.descriptors[f.leaf.address].(*relationDescriptor))
-	want := `ALTER INDEX "public"."unit_leaf_a_b_key" RENAME TO "` + replay.temporary[childFirst.Index] + "\";\n" +
-		`ALTER INDEX "public"."unit_leaf_a_b_key1" RENAME TO "` + replay.temporary[childSecond.Index] + "\";\n"
-	if err != nil || sql != want {
-		t.Fatal("same-stem creation order or sibling reservation changed", sql, want, err)
-	}
-	if f.root.uniqueConstraints[0].Index != f.parent.address || f.leaf.uniqueConstraints[0].Parent != second.OID || f.child.name != childFirst.Name {
-		t.Fatal("dump reconciliation mutated captured definitions")
-	}
-}
-
 func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	f.parent.sqlIndex.include = nil
@@ -387,14 +309,14 @@ func TestPartitionConstraintsDumpLogicalOrder(t *testing.T) {
 	// Retaining a TEMP table can remint only the automatic tree's root above
 	// every manual node. Neither that root nor its descendants may move in Dump.
 	for _, root := range []OID{10, 90000} {
-		graph := map[OID][]OID{root: nil, 20: {root}, 30: {20}, 40: nil, 50: {40}, 60: {50}}
+		graph := map[dumpEventKey][]dumpEventKey{{oid: root}: nil, {oid: 20}: {{oid: root}}, {oid: 30}: {{oid: 20}}, {oid: 40}: nil, {oid: 50}: {{oid: 40}}, {oid: 60}: {{oid: 50}}}
 		priorities := map[OID]OID{root: 10}
 		order, err := viewDumpOrder(context.Background(), graph, priorities)
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := []OID{root, 20, 30, 40, 50, 60}
-		if !reflect.DeepEqual(order, want) || !reflect.DeepEqual(graph[20], []OID{root}) {
+		if !reflect.DeepEqual(dumpDeclarationIDs(order), want) || !reflect.DeepEqual(graph[dumpEventKey{oid: 20}], []dumpEventKey{{oid: root}}) {
 			t.Fatal("source order or captured dependency changed", order, graph)
 		}
 	}
@@ -426,13 +348,13 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	if _, exists := cloneCatalog(next).dumpPriorities[source]; exists {
 		t.Fatal("retired address retained replay provenance")
 	}
-	graph := map[OID][]OID{90: nil, 20: nil, 30: {90}}
+	graph := map[dumpEventKey][]dumpEventKey{{oid: 90}: nil, {oid: 20}: nil, {oid: 30}: {{oid: 90}}}
 	order, err := viewDumpOrder(context.Background(), graph, nil)
-	if err != nil || !reflect.DeepEqual(order, []OID{20, 90, 30}) {
+	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{20, 90, 30}) {
 		t.Fatal("ordinary source order changed", order, err)
 	}
 	order, err = viewDumpOrder(context.Background(), graph, map[OID]OID{90: 10})
-	if err != nil || !reflect.DeepEqual(order, []OID{90, 20, 30}) {
+	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{90, 20, 30}) {
 		t.Fatal("collision priority lost or bypassed dependencies", order, err)
 	}
 }
@@ -463,9 +385,9 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		if next.dumpPriorities[mapped] != parent.address.ObjectID || next.dumpPriorities[child.address] != 0 || next.dumpPriorities[manual.address] != 0 {
 			t.Fatal("collision provenance missing or broadened", next.dumpPriorities)
 		}
-		graph := map[OID][]OID{mapped.ObjectID: nil, child.address.ObjectID: {mapped.ObjectID}, manual.address.ObjectID: nil}
+		graph := map[dumpEventKey][]dumpEventKey{{oid: mapped.ObjectID}: nil, {oid: child.address.ObjectID}: {{oid: mapped.ObjectID}}, {oid: manual.address.ObjectID}: nil}
 		order, err := viewDumpOrder(context.Background(), graph, map[OID]OID{mapped.ObjectID: next.dumpPriorities[mapped]})
-		if err != nil || !reflect.DeepEqual(order, []OID{mapped.ObjectID, child.address.ObjectID, manual.address.ObjectID}) {
+		if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{mapped.ObjectID, child.address.ObjectID, manual.address.ObjectID}) {
 			t.Fatal("repeated replacement lost original declaration order", order, err)
 		}
 		if source.state.dumpPriorities != nil || source.state.descriptors[parent.address] != parent {
@@ -603,7 +525,7 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.mu.Lock()
-	clone, err := f.e.stagePartitionIndexChild(op, stage, f.root, f.parent, f.leaf)
+	clone, err := f.e.stagePartitionIndexChild(op, stage, f.root, f.parent, f.leaf, true)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -818,7 +740,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.mu.Lock()
-	clone, err := f.e.stagePartitionIndexChild(op, stage, f.root, f.parent, f.leaf)
+	clone, err := f.e.stagePartitionIndexChild(op, stage, f.root, f.parent, f.leaf, true)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

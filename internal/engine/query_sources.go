@@ -257,7 +257,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		refs = make([]ObjectRef, 0, len(leaves))
 	}
 	var collectErr error
-	refs, collectErr = e.queryTableRefsLocked(scope.inheritanceRead(scope.commentCatalog), leaves, refs, scope.op.session.token)
+	refs, collectErr = e.queryTableRefsLocked(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.commentCatalog)), leaves, refs, scope.op.session.token)
 	if collectErr != nil {
 		return nil, collectErr
 	}
@@ -333,8 +333,17 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				if mark.mode != 0 {
 					source = nil
 					err = sqlError("0A000", "row locking partition hierarchies is unsupported")
+				} else if leaf.only {
+					// Empty virtual prefixes retain the same visibility authority
+					// as ordinary hierarchy sources, without opening descendants.
+					pin := view.Retain()
+					if pin == nil {
+						err = fmt.Errorf("stuntgres: visibility view is released")
+					} else {
+						source = &querySource{ref: leaf.ref, view: pin, inheritance: []inheritanceQuerySegment{}}
+					}
 				} else {
-					source, err = capturePartitionQueryPrefix(scope.commentCatalog, view, leaf.ref, leaf.relation)
+					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.commentCatalog), view, leaf.ref, leaf.relation)
 				}
 			case tableRelation:
 				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.commentCatalog), view, leaf, scope.op.session.token)
@@ -397,9 +406,6 @@ func selectQuerySources(ctx context.Context, source *querySource) error {
 	selectOne := func(source *querySource) error {
 		if source.inheritance != nil {
 			return source.selectInheritancePrefixes(ctx)
-		}
-		if source.partitions != nil {
-			return source.selectPartitionPrefixes(ctx)
 		}
 		if source.view == nil {
 			return ctx.Err()

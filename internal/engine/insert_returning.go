@@ -59,23 +59,25 @@ func (s *StatementScope) acceptInsertReturning(ref ObjectRef, row []sqltype.Valu
 	if s.insertConflict != nil && s.insertConflict.update != nil {
 		return false, s.admitInsertConflictUpdate(ref, row, evaluation)
 	}
+	proposal := row
 	if s.partitionInsert != nil {
 		group := s.partitionReturningGroup(ref)
 		ref = group.ref
+		proposal = s.partitionStoredRow(row)
 		defer func() { group.unique = s.uniqueBinding }()
 	}
 	for {
 		admitted := true
 		var err error
 		if s.partitionInsert != nil {
-			err = s.checkUniqueRow(ref, row, nil, nil)
+			err = s.checkUniqueRow(ref, proposal, nil, nil)
 		} else {
 			admitted, err = s.admitInsertRow(ref, row, nil, evaluation)
 		}
 		if err != nil || !admitted {
 			return false, err
 		}
-		accepted, retry, err := s.Writes().appendAcceptedInsert(ref, row)
+		accepted, retry, err := s.Writes().appendAcceptedInsert(ref, proposal)
 		if err != nil {
 			return false, err
 		}

@@ -52,6 +52,13 @@ lock wait or predicate recheck. Results survive native commit/rollback/replaceme
 `database/sql` can nevertheless close Tx-owned Rows at transaction end, so public
 Tx Rows must not be retained past end.
 
+RANGE table ATTACH is a scoped transactional utility. Existing-row validation
+captures current committed rows after its ACCESS EXCLUSIVE grants, plus the same
+owner's prior writes/deletes. This dedicated visibility view does not advance a
+REPEATABLE READ or SERIALIZABLE transaction's ordinary retained snapshot. Catalog
+membership, populated index roots and new locks follow the existing overlay,
+commit, rollback and savepoint authorities; failed validation publishes none.
+
 ## Retained direct-message transactions
 
 A parameterless multi-command direct call retains an implicit segment until

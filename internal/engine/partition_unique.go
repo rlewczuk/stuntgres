@@ -179,7 +179,7 @@ func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error 
 	return stage.Replace(d)
 }
 
-func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor) (*relationDescriptor, error) {
+func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor, allowIncompleteVirtual bool) (*relationDescriptor, error) {
 	view := e.stageRead(stage)
 	if stage.base.state.descriptors[parentIndex.address] != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
@@ -212,6 +212,12 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		return 0
 	})
 	for _, candidate := range candidates {
+		// Recursive CREATE retains a reusable incomplete virtual tree. Table
+		// ATTACH requires valid existing backings and must not heal an invalid
+		// physical index left by a failed concurrent build.
+		if !candidate.sqlIndex.ready || !candidate.sqlIndex.live || !candidate.sqlIndex.valid && (child.partition == nil || !allowIncompleteVirtual) {
+			continue
+		}
 		if parentIndex.sqlIndex.constraint != nil && (candidate.sqlIndex.constraint == nil || candidate.sqlIndex.constraint.kind != uniqueBackingKind || candidate.sqlIndex.constraint.Primary != parentIndex.sqlIndex.constraint.Primary) {
 			continue
 		}
@@ -299,20 +305,20 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		return nil, err
 	}
 	if child.partition != nil {
-		if err = e.stagePartitionIndexChildren(op, stage, child, index); err != nil {
+		if err = e.stagePartitionIndexChildren(op, stage, child, index, allowIncompleteVirtual); err != nil {
 			return nil, err
 		}
 	}
 	return index, nil
 }
 
-func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor) error {
+func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor, allowIncompleteVirtual bool) error {
 	if stage.base.state.descriptors[table.address] != nil {
 		stage.domainBases = append(stage.domainBases, table)
 	}
 	for _, address := range table.partition.children {
 		child := e.stageRead(stage).state.descriptors[address].(*relationDescriptor)
-		if _, err := e.stagePartitionIndexChild(op, stage, table, index, child); err != nil {
+		if _, err := e.stagePartitionIndexChild(op, stage, table, index, child, allowIncompleteVirtual); err != nil {
 			return err
 		}
 	}

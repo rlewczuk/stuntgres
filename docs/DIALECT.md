@@ -87,11 +87,27 @@ remain explicit in [driver contracts](DRIVER.md).
 
 ## Tables, hierarchies and materializations
 
-Partition hierarchy update, delete, row locking, alteration and explicit hierarchy
-locking remain excluded. Conflict arbitration and MERGE cannot target partition
+RANGE `ALTER TABLE ... ATTACH PARTITION` accepts an existing ordinary or
+partitioned relation, with `FOR VALUES` or `DEFAULT`, including explicit
+transactions and savepoints. Other partition hierarchy alteration, update,
+delete, row locking and explicit hierarchy locking remain excluded.
+Conflict arbitration and MERGE cannot target partition
 hierarchies. Temporary partition definitions and partition definitions nested in
 schema creation are unavailable. Nonunique virtual partition indexes and partition
 reindexing are unavailable; partition key/constraint combinations remain bounded.
+RANGE keys require an admitted btree ordering provider. Native integer-array
+keys currently retain the existing missing-default-operator-class boundary;
+ordinary array storage does not add a partition ordering provider.
+SQL tableoid reads retain the existing native missing-column boundary; physical
+identity remains represented by catalog relations and capture provenance. The
+private logical importer can replay NOT VALID CHECK on an exact captured physical
+member when dependency ordering requires it; public hierarchy ADD CHECK remains
+excluded, and other hierarchy alteration is not enabled by that capability.
+A permanent partitioned parent cannot attach an ordinary temporary candidate;
+existing temporary namespace/session authority remains the persistence boundary.
+A NOT VALID child NOT NULL constraint cannot satisfy a validated parent
+requirement, regardless of constraint names or whether the candidate has rows.
+ATTACH rejects the mismatch rather than validating or replacing the child fact.
 Recursive inheritance update/delete/locking and graph-shape alterations remain
 excluded. Copying a temporary-sequence default into a permanent table is unavailable.
 

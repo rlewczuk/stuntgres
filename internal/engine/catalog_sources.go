@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
@@ -391,9 +392,16 @@ func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescripto
 				}
 			}
 		} else {
-			for _, constraint := range parent.notNullConstraints {
-				if constraint.Name == name {
-					return false, 1
+			slot := slices.Index(table.attributes, attribute)
+			if slot >= 0 {
+				parentSlot, exists := parent.index[table.columns[slot].Name]
+				if exists {
+					parentAttribute := parent.attributes[parentSlot]
+					for _, constraint := range parent.notNullConstraints {
+						if constraint.Attribute == parentAttribute {
+							return false, 1
+						}
+					}
 				}
 			}
 		}

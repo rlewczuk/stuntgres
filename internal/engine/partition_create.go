@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // A pending definition is private to one catalog stage. Raw bound datums are
@@ -155,22 +156,8 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if err := p.evaluateBounds(scope, &evaluation); err != nil {
 			return err
 		}
-		order, deciding, err := comparePartitionTuple(ctx, p.parent.partition.keys, p.bound.lower, p.bound.upper, scope.input)
-		if err != nil {
+		if err := p.validateBounds(scope); err != nil {
 			return err
-		}
-		if order >= 0 {
-			lower, err := partitionTupleSQL(ctx, p.bound.lower)
-			if err != nil {
-				return err
-			}
-			upper, err := partitionTupleSQL(ctx, p.bound.upper)
-			if err != nil {
-				return err
-			}
-			d := expressionError("42P17", fmt.Sprintf(`empty range bound specified for partition "%s"`, p.child.name), p.bound.lower[deciding].pos).(*sqlstate.Error)
-			d.Detail = fmt.Sprintf("Specified lower bound (%s) is greater than or equal to upper bound (%s).", lower, upper)
-			return d
 		}
 		catalog := p.stage.base
 		if err := p.checkOverlap(scope); err != nil {
@@ -180,13 +167,25 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			return sqlError("0A000", "partitioned table constraint combination is unsupported")
 		}
 		for _, ref := range p.defaultLeaves {
+			leaf, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			if !ok {
+				return ErrCatalogReplaced
+			}
+			layout, err := inheritanceQueryLayout(p.parent, leaf)
+			if err != nil {
+				return err
+			}
+			mapping := inheritanceQuerySegment{layout: layout}
+			if layout != nil {
+				mapping.scratch = make([]sqltype.Value, len(layout))
+			}
 			source, err := captureQuerySource(ctx, p.view, ref)
 			if err != nil {
 				return err
 			}
 			for i := range source.count() {
 				var values [32]partitionDatum
-				key, null, err := partitionRowKey(p.parent, source.row(i), &evaluation, values[:0])
+				key, null, err := partitionRowKey(p.parent, mapping.mapValues(source.row(i)), &evaluation, values[:0])
 				if err != nil {
 					source.close()
 					return err
@@ -229,7 +228,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	defer e.mu.Unlock()
 	for _, index := range partitionIndexDeclarationOrder(p.stage.base, p.parent) {
 		child := e.stageRead(p.stage).state.descriptors[p.child.address].(*relationDescriptor)
-		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child); err != nil {
+		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child, true); err != nil {
 			return err
 		}
 	}
@@ -274,6 +273,34 @@ func (e *Engine) partitionReadsValidLocked(stage *CatalogStage) bool {
 		}
 	}
 	return true
+}
+
+// Both CREATE and ATTACH use the same typed deciding-component diagnostic.
+// ATTACH transforms datums before opening its candidate, then invokes this
+// validation after that existing relation's eligibility/schema checks.
+func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error {
+	if p.bound.defaultBound {
+		return nil
+	}
+	ctx := scope.op.Context()
+	order, deciding, err := comparePartitionTuple(ctx, p.parent.partition.keys, p.bound.lower, p.bound.upper, scope.input)
+	if err != nil {
+		return err
+	}
+	if order >= 0 {
+		lower, err := partitionTupleSQL(ctx, p.bound.lower)
+		if err != nil {
+			return err
+		}
+		upper, err := partitionTupleSQL(ctx, p.bound.upper)
+		if err != nil {
+			return err
+		}
+		d := expressionError("42P17", fmt.Sprintf(`empty range bound specified for partition "%s"`, p.child.name), p.bound.lower[deciding].pos).(*sqlstate.Error)
+		d.Detail = fmt.Sprintf("Specified lower bound (%s) is greater than or equal to upper bound (%s).", lower, upper)
+		return d
+	}
+	return nil
 }
 
 // partitionBoundary is a statement-local projection of the one immutable child

@@ -93,7 +93,7 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 			used[c.Name] = true
 		}
 	}
-	if table.membership == nil {
+	if table.membership == nil || partitionDumpNeedsAttach(view, table) {
 		return "", nil
 	}
 	parent := r.original.state.descriptors[table.membership.parent].(*relationDescriptor)
@@ -141,7 +141,7 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 	return sql.String(), nil
 }
 
-func (r *partitionConstraintReplay) finalRenames() []string {
+func (r *partitionConstraintReplay) finalRenameOrder() []*relationDescriptor {
 	var indexes []*relationDescriptor
 	for address := range r.temporary {
 		indexes = append(indexes, r.original.state.descriptors[address].(*relationDescriptor))
@@ -149,49 +149,22 @@ func (r *partitionConstraintReplay) finalRenames() []string {
 	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
 		return strings.Compare(r.original.state.descriptors[a.namespace].Name()+"."+a.name, r.original.state.descriptors[b.namespace].Name()+"."+b.name)
 	})
-	result := make([]string, 0, len(indexes))
-	for _, index := range indexes {
-		schema := quoteIdentifier(r.original.state.descriptors[index.namespace].Name())
-		result = append(result, "ALTER INDEX "+schema+"."+quoteIdentifier(r.temporary[index.address])+" RENAME TO "+quoteIdentifier(index.name)+";\n")
-	}
-	return result
+	return indexes
 }
 
-func partitionIndexDumpAttachments(view CatalogRead) []string {
-	var indexes []*relationDescriptor
-	for _, descriptor := range view.state.descriptors {
-		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.partitionParent == (ObjectAddress{}) {
-			continue
-		}
-		parent := view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
-		if parent.sqlIndex.constraint != nil {
-			continue
-		}
-		indexes = append(indexes, index)
+func (r *partitionConstraintReplay) finalRenameSQL(index *relationDescriptor) string {
+	used := r.occupied[index.namespace]
+	if used == nil {
+		used = make(map[string]bool)
+		r.occupied[index.namespace] = used
 	}
-	depth := func(index *relationDescriptor) int {
-		n := 0
-		for index.sqlIndex.partitionParent != (ObjectAddress{}) {
-			n++
-			index = view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
-		}
-		return n
-	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
-		left, right := depth(a), depth(b)
-		if left > right {
-			return -1
-		}
-		if left < right {
-			return 1
-		}
-		return strings.Compare(view.state.descriptors[a.namespace].Name()+"."+a.name, view.state.descriptors[b.namespace].Name()+"."+b.name)
-	})
-	result := make([]string, 0, len(indexes))
-	for _, index := range indexes {
-		parent := view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
-		result = append(result, "ALTER INDEX "+quoteIdentifier(view.state.descriptors[parent.namespace].Name())+"."+quoteIdentifier(parent.name)+" ATTACH PARTITION "+quoteIdentifier(view.state.descriptors[index.namespace].Name())+"."+quoteIdentifier(index.name)+";\n")
-	}
-	return result
+	delete(used, r.temporary[index.address])
+	used[index.name] = true
+	schema := quoteIdentifier(r.original.state.descriptors[index.namespace].Name())
+	return "ALTER INDEX " + schema + "." + quoteIdentifier(r.temporary[index.address]) + " RENAME TO " + quoteIdentifier(index.name) + ";\n"
+}
+
+func partitionIndexDumpAttachmentSQL(view CatalogRead, index *relationDescriptor) string {
+	parent := view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
+	return "ALTER INDEX " + quoteIdentifier(view.state.descriptors[parent.namespace].Name()) + "." + quoteIdentifier(parent.name) + " ATTACH PARTITION " + quoteIdentifier(view.state.descriptors[index.namespace].Name()) + "." + quoteIdentifier(index.name) + ";\n"
 }

@@ -173,6 +173,10 @@ func (s *StatementScope) Finish(err error) error {
 		s.view.Release()
 		s.view = nil
 	}
+	if s.partitionValidationView != nil {
+		s.partitionValidationView.Release()
+		s.partitionValidationView = nil
+	}
 	s.stage.rows = nil
 	s.stage.deletes = nil
 	s.ownDeletes = nil

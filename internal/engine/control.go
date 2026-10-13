@@ -120,7 +120,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var views []dumpView
 	var materialized []dumpRelation
 	var indexes []dumpView
-	viewDependencies := make(map[OID][]OID)
+	viewDependencies := make(map[dumpEventKey][]dumpEventKey)
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
 	indexIndices := make(map[OID]int)
@@ -269,7 +269,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 				text := "CREATE EXTENSION " + quoteIdentifier(t.name) + " WITH SCHEMA " + quoteIdentifier(ns.name) + " VERSION '" + strings.ReplaceAll(t.version, "'", "''") + "';\n" + metadata
-				viewDependencies[t.address.ObjectID] = nil
+				viewDependencies[dumpEventKey{oid: t.address.ObjectID}] = nil
 				viewIndices[t.address.ObjectID] = len(views)
 				views = append(views, dumpView{principal.Name, text})
 				continue
@@ -357,7 +357,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		if r.relationKind == compositeRelation {
 			composites[r.address.ObjectID] = r
-			viewDependencies[r.address.ObjectID] = nil
+			viewDependencies[dumpEventKey{oid: r.address.ObjectID}] = nil
 			continue
 		}
 		if r.sqlIndex != nil {
@@ -378,7 +378,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				sql += "ALTER TABLE " + quoteIdentifier(ns.name) + "." + quoteIdentifier(parent.name) + " ADD CONSTRAINT " + quoteIdentifier(r.name) + " " + kind + " USING INDEX " + quoteIdentifier(r.name) + ";\n"
 			}
-			viewDependencies[oid] = []OID{r.sqlIndex.parent.ObjectID}
+			event := dumpEventKey{oid: oid}
+			viewDependencies[event] = []dumpEventKey{{oid: r.sqlIndex.parent.ObjectID}}
 			for _, key := range r.sqlIndex.keys {
 				if key.derived == nil {
 					continue
@@ -389,8 +390,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-					if predecessor != 0 && !slices.Contains(viewDependencies[oid], predecessor) {
-						viewDependencies[oid] = append(viewDependencies[oid], predecessor)
+					source := dumpEventKey{oid: predecessor}
+					if predecessor != 0 && !slices.Contains(viewDependencies[event], source) {
+						viewDependencies[event] = append(viewDependencies[event], source)
 					}
 				}
 			}
@@ -479,9 +481,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			oid := r.address.ObjectID
-			viewDependencies[oid] = make([]OID, 0, len(predecessors))
+			event := dumpEventKey{oid: oid}
+			viewDependencies[event] = make([]dumpEventKey, 0, len(predecessors))
 			for predecessor := range predecessors {
-				viewDependencies[oid] = append(viewDependencies[oid], predecessor)
+				viewDependencies[event] = append(viewDependencies[event], dumpEventKey{oid: predecessor})
 			}
 			viewIndices[oid] = len(views)
 			views = append(views, dumpView{principal.Name, sql})
@@ -539,6 +542,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		for _, check := range r.checkConstraints {
+			if check.NotValid {
+				continue // Its providers belong to the later ADD NOT VALID event.
+			}
 			if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, check.expression, func(address ObjectAddress) error {
 				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, address, r.address)
 				if err == nil && predecessor != 0 {
@@ -614,7 +620,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		viewDependencies[oid] = predecessors
+		viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
 		if len(deferredPredecessors) != 0 && !deferDefaults {
 			if inlinePredecessors == nil {
 				inlinePredecessors = make(map[OID][]OID)
@@ -626,7 +632,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					combined = append(combined, predecessor)
 				}
 			}
-			viewDependencies[oid] = combined
+			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(combined)
 		}
 		tableIndices[oid] = len(tables)
 		linked := make(map[ObjectAddress]dumpSequence, len(r.identities))
@@ -654,27 +660,28 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, d := range domains {
 		id := d.Address().ObjectID
 		domainNodes[id] = d
-		viewDependencies[id] = nil
+		viewDependencies[dumpEventKey{oid: id}] = nil
 		if d.typ.IsDomain() {
 			predecessor, err := dumpPredecessor(catalog, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.DomainBase().Type.ID())}, d.Address())
 			if err != nil {
 				return err
 			}
 			if predecessor != 0 {
-				viewDependencies[id] = []OID{predecessor}
+				viewDependencies[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
 			}
 		}
 	}
-	for id, predecessors := range viewDependencies {
+	for event, predecessors := range viewDependencies {
+		id := event.oid
 		relation, ok := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: id}].(*relationDescriptor)
 		if !ok {
 			continue
 		}
-		columns, err := dumpColumnPredecessors(catalog, relation, predecessors)
+		columns, err := dumpColumnPredecessors(catalog, relation, dumpDeclarationIDs(predecessors))
 		if err != nil {
 			return err
 		}
-		viewDependencies[id] = columns
+		viewDependencies[event] = dumpDeclarationEvents(columns)
 		if inline, ok := inlinePredecessors[id]; ok {
 			inline, err = dumpColumnPredecessors(catalog, relation, inline)
 			if err != nil {
@@ -701,28 +708,36 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	if deferDefaults {
 		for oid, predecessors := range inlinePredecessors {
-			viewDependencies[oid] = predecessors
+			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
 		}
 	}
 	// Capture collision-remap provenance from the same immutable snapshot as
 	// the graph, before any dump-private naming substitutions.
 	var priorities map[OID]OID
 	for address, priority := range originalCatalog.state.dumpPriorities {
-		if _, emitted := viewDependencies[address.ObjectID]; emitted {
+		if _, emitted := viewDependencies[dumpEventKey{oid: address.ObjectID}]; emitted {
 			if priorities == nil {
 				priorities = make(map[OID]OID)
 			}
 			priorities[address.ObjectID] = priority
 		}
 	}
-	viewOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
+	declarationOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil && !deferDefaults && ctx.Err() == nil && len(inlinePredecessors) != 0 {
 		for oid, predecessors := range inlinePredecessors {
-			viewDependencies[oid] = predecessors
+			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
 		}
-		viewOrder, err = viewDumpOrder(ctx, viewDependencies, priorities)
+		declarationOrder, err = viewDumpOrder(ctx, viewDependencies, priorities)
 		deferDefaults = err == nil
 	}
+	if err != nil {
+		return err
+	}
+	viewOrder := dumpDeclarationIDs(declarationOrder)
+	if err := partitionDumpEvents(ctx, originalCatalog, viewDependencies, declarationOrder, tables, indexIndices, constraintReplay, deferDefaults); err != nil {
+		return err
+	}
+	eventOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil {
 		return err
 	}
@@ -801,7 +816,61 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
-	for _, oid := range viewOrder {
+	setOwner := func(owner string) error {
+		if currentOwner == owner {
+			return nil
+		}
+		if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(owner, "'", "''") + "';\n"); err != nil {
+			return err
+		}
+		currentOwner = owner
+		return nil
+	}
+	for _, event := range eventOrder {
+		oid := event.oid
+		if event.phase != dumpDeclaration {
+			if event.phase == dumpTableCompletion {
+				continue
+			}
+			if event.phase == dumpRename || event.phase == dumpIndexAttachment || event.phase == dumpTableAttachment {
+				if err := setOwner("postgres"); err != nil {
+					return err
+				}
+				descriptor := originalCatalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+				var text string
+				switch event.phase {
+				case dumpRename:
+					text = constraintReplay.finalRenameSQL(descriptor)
+				case dumpIndexAttachment:
+					text = partitionIndexDumpAttachmentSQL(originalCatalog, descriptor)
+				case dumpTableAttachment:
+					text, err = partitionAttachDumpSQL(ctx, originalCatalog, descriptor)
+					if err != nil {
+						return err
+					}
+				}
+				if err := emit(text); err != nil {
+					return err
+				}
+				continue
+			}
+			t := tables[tableIndices[oid]]
+			if err := setOwner(t.owner); err != nil {
+				return err
+			}
+			switch event.phase {
+			case dumpDefaults:
+				err = t.emitDeferredDefaults(ctx, originalCatalog, emit)
+			case dumpRows:
+				err = t.emitRows(ctx, originalCatalog, emit)
+			case dumpInvalidConstraints:
+				err = t.emitInvalidConstraints(ctx, originalCatalog, emit)
+			}
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		if declaration, exists := declarations[oid]; exists {
 			if declaration.owner != currentOwner {
 				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
@@ -858,7 +927,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		// Reconstruct their ordinary definitions, then attach through ALTER OF.
 		attachAfterCreate := t.descriptor.ofType != (ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.generations) != 0)
 		var line strings.Builder
-		if t.descriptor.membership == nil {
+		if t.descriptor.membership == nil || partitionDumpNeedsAttach(catalog, t.descriptor) {
 			typed := t.descriptor.ofType != (ObjectAddress{}) && !attachAfterCreate
 			hasElements := !typed || len(t.columns) != 0 || len(t.descriptor.checkConstraints) != 0 || len(t.descriptor.uniqueConstraints) != 0 || len(t.descriptor.exclusionConstraints) != 0 || len(t.descriptor.foreignKeys) != 0
 			line.WriteString("CREATE TABLE " + qualified)
@@ -1084,81 +1153,6 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 	}
-	for _, sql := range constraintReplay.finalRenames() {
-		if currentOwner != "postgres" {
-			if err := emit("SET SESSION AUTHORIZATION 'postgres';\n"); err != nil {
-				return err
-			}
-			currentOwner = "postgres"
-		}
-		if err := emit(sql); err != nil {
-			return err
-		}
-	}
-	for _, sql := range partitionIndexDumpAttachments(originalCatalog) {
-		if currentOwner != "postgres" {
-			if err := emit("SET SESSION AUTHORIZATION 'postgres';\n"); err != nil {
-				return err
-			}
-			currentOwner = "postgres"
-		}
-		if err := emit(sql); err != nil {
-			return err
-		}
-	}
-	if deferDefaults {
-		for _, oid := range viewOrder {
-			index, isTable := tableIndices[oid]
-			if !isTable {
-				continue
-			}
-			t := tables[index]
-			if t.owner != currentOwner {
-				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
-					return err
-				}
-				currentOwner = t.owner
-			}
-			if err := t.emitDeferredDefaults(ctx, originalCatalog, emit); err != nil {
-				return err
-			}
-		}
-	}
-	for _, oid := range viewOrder {
-		index, isTable := tableIndices[oid]
-		if !isTable {
-			continue
-		}
-		t := tables[index]
-		if t.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
-				return err
-			}
-			currentOwner = t.owner
-		}
-		if err := t.emitRows(ctx, originalCatalog, emit); err != nil {
-			return err
-		}
-	}
-	for _, oid := range viewOrder {
-		index, isTable := tableIndices[oid]
-		if !isTable {
-			continue
-		}
-		t := tables[index]
-		if !t.hasInvalidConstraints() {
-			continue
-		}
-		if t.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
-				return err
-			}
-			currentOwner = t.owner
-		}
-		if err := t.emitInvalidConstraints(ctx, catalog, emit); err != nil {
-			return err
-		}
-	}
 	for _, line := range sequenceCompletion {
 		if err := emit(line); err != nil {
 			return err
@@ -1266,7 +1260,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	defer op.Done()
-	defer func() { op.restoreDefaultReplay = false }()
+	defer func() {
+		op.restoreDefaultReplay = false
+		op.restorePartitionAttach = false
+		op.restorePartitionCheck = nil
+	}()
 	var pendingForeignKeys []restoredForeignKeys
 	for _, stmt := range statements {
 		var pending restoredForeignKeys
@@ -1346,6 +1344,19 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.AlterTableOf:
 			if s.Type == nil {
 				return sqlError("0A000", "restore accepts only typed-table attachments")
+			}
+		case *parser.AlterTableAttachPartition:
+			if s.IfExists {
+				return sqlError("0A000", "restore accepts only unconditional partition attachments")
+			}
+			for _, tuple := range [2][]parser.PartitionDatum{s.Bound.Lower, s.Bound.Upper} {
+				for _, datum := range tuple {
+					if datum.Kind == 0 {
+						if err := restoreScalar(datum.Expression, true); err != nil {
+							return err
+						}
+					}
+				}
 			}
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {
@@ -1452,9 +1463,17 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		}
 		_, replayDefault := stmt.(*parser.AlterTableDefault)
 		op.restoreDefaultReplay = replayDefault
+		_, op.restorePartitionAttach = stmt.(*parser.AlterTableAttachPartition)
+		if alteration, ok := stmt.(*parser.AlterTable); ok {
+			if err := stage.beginPartitionCheckReplay(op, alteration); err != nil {
+				return err
+			}
+		}
 		var result Result
 		result, err = stage.Execute(op, stmt, 0, nil)
 		op.restoreDefaultReplay = false
+		op.restorePartitionAttach = false
+		op.restorePartitionCheck = nil
 		if result.Rows != nil {
 			closeErr := result.Rows.Close()
 			if err == nil {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -36,6 +37,9 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 			return nil
 		}
 		if partitionConstraintDropActions(d, s.Actions) {
+			return nil
+		}
+		if partitionCheckReplayAllowed(op, auth, s, d) {
 			return nil
 		}
 		for _, action := range s.Actions {
@@ -138,6 +142,7 @@ func (s *StatementScope) acquirePartitionLock(ref ObjectRef, mode relationLockMo
 	e := s.op.session.Engine()
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext})
 	if request != nil {
+		s.admissionWaited = true
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
@@ -152,18 +157,18 @@ func (s *StatementScope) acquirePartitionLock(ref ObjectRef, mode relationLockMo
 	return s.observePartitionRelationLocked(e, ref)
 }
 
-// SQL hierarchy locks stabilize membership; this identity fence also rejects
-// metadata replacement through public control APIs that do not take SQL locks.
+// A SELECT's admitted topology is immutable even though AS permits ATTACH SUE.
+// Accept only same-authority append growth; all replacement/decrease fences stay.
 func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ObjectRef) error {
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.owner != e.owner || ref.Epoch != catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
-	if old := s.partitionRelations[ref.Address]; old != nil && old != d {
+	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {
 		return ErrCatalogReplaced
 	}
-	if hierarchyRelation(d) {
+	if hierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
 		if s.partitionRelations == nil {
 			s.partitionRelations = make(map[ObjectAddress]*relationDescriptor)
 		}
@@ -203,8 +208,8 @@ func (s *StatementScope) acquirePartitionAncestors(ref ObjectRef) error {
 	return nil
 }
 
-// Each opened parent prevents membership mutation while its children are
-// discovered. Prefix captures therefore retain one coherent hierarchy shape.
+// Discover the topology once after the parent grant. Descendant waits must not
+// broaden an already admitted SELECT to newly attached branches.
 func (s *StatementScope) acquirePartitionDescendants(ref ObjectRef, mode relationLockMode) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
@@ -220,6 +225,9 @@ func (s *StatementScope) acquirePartitionDescendants(ref ObjectRef, mode relatio
 	}
 	var children []ObjectAddress
 	if d.partition != nil {
+		if captured := s.partitionRelations[ref.Address]; captured != nil {
+			d = captured
+		}
 		children = d.partition.children
 	}
 	e.mu.Unlock()
@@ -260,4 +268,45 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ObjectRef) err
 		return err
 	}
 	return s.acquirePartitionDescendants(child, accessExclusive)
+}
+
+// The stored defining arrays/key providers remain identical. Only an appended
+// child manifest may cross the read admission fence; no name/shape retargeting.
+func partitionAppendCompatible(old, current *relationDescriptor) bool {
+	if old == nil || current == nil || old.partition == nil || current.partition == nil ||
+		!relationDefiningAuthorityCompatible(old, current) || old.relationKind != current.relationKind ||
+		old.membership != current.membership || old.inheritance != current.inheritance ||
+		len(old.partition.keys) != len(current.partition.keys) ||
+		len(current.partition.children) <= len(old.partition.children) ||
+		&old.partition.keys[0] != &current.partition.keys[0] ||
+		!slices.Equal(old.partition.children, current.partition.children[:len(old.partition.children)]) {
+		return false
+	}
+	return old.partition.defaultChild == (ObjectAddress{}) || old.partition.defaultChild == current.partition.defaultChild
+}
+
+// One existing visibility capture owns the admitted descriptors. Copy metadata
+// only when actual concurrent append growth occurred, never on the normal path.
+func (s *StatementScope) partitionCaptureCatalog(catalog CatalogRead) CatalogRead {
+	changed := false
+	for address, captured := range s.partitionRelations {
+		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		if current != captured && partitionAppendCompatible(captured, current) {
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		return catalog
+	}
+	state := *catalog.state
+	state.descriptors = maps.Clone(catalog.state.descriptors)
+	for address, captured := range s.partitionRelations {
+		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		if current != captured && partitionAppendCompatible(captured, current) {
+			state.descriptors[address] = captured
+		}
+	}
+	catalog.state = &state
+	return catalog
 }

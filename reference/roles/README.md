@@ -26,6 +26,16 @@ and native-only canonical descriptor/publication units. The new supported
 families and six migrated table-owner callers require selected checks in both
 modes; selected race proof supplements, never replaces, real PostgreSQL:
 
+`TestReferenceRoleControlsOwnersAndCancellation` migrates the former internal SQL
+owner/control witness to a shared public definition. It preserves actual ownership,
+native Dump/Restore and canceled-replacement behavior rather than synthesized dump
+excerpts. Run its selected native and real modes:
+
+```sh
+make check RUN='^TestReferenceRoleControlsOwnersAndCancellation$'
+make check REFERENCE=1 RUN='^TestReferenceRoleControlsOwnersAndCancellation$'
+```
+
 ```sh
 make check RUN='^TestReferenceRoleOwnership(Families|Authority|Associations|SameOwner|DiagnosticsAndFreshness)$'
 make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(Families|Authority|Associations|SameOwner|DiagnosticsAndFreshness)$'

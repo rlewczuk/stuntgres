@@ -108,6 +108,67 @@ func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *relationDescri
 	return text.String(), nil
 }
 
+// PARTITION OF inherits physical column order, defaults and NOT NULL names.
+// Existing-table attachment need not have any of those properties. Decide from
+// captured definitions, not a historical CREATE/ATTACH flag, so logical replay
+// remains canonical after stable attribute numbers have been reminted.
+func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
+	if d.membership == nil {
+		return false
+	}
+	parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+	for i, column := range d.columns {
+		if column.Name != parent.columns[i].Name {
+			return true
+		}
+		attribute, parentAttribute := d.attributes[i], parent.attributes[i]
+		if _, exists := parent.defaults[parentAttribute]; exists {
+			if _, exists := d.defaults[attribute]; !exists {
+				return true
+			}
+		}
+		for _, child := range d.notNullConstraints {
+			if child.Attribute != attribute {
+				continue
+			}
+			if child.NotValid {
+				return true
+			}
+			for _, inherited := range parent.notNullConstraints {
+				if inherited.Attribute == parentAttribute && child.Name != inherited.Name {
+					return true
+				}
+			}
+		}
+	}
+	for _, check := range d.checkConstraints {
+		if check.NotValid || check.NoInherit {
+			return true
+		}
+	}
+	return false
+}
+
+func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor) (string, error) {
+	parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+	qualified := func(table *relationDescriptor) string {
+		return quoteIdentifier(catalog.state.descriptors[table.namespace].Name()) + "." + quoteIdentifier(table.name)
+	}
+	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
+	if d.membership.defaultBound {
+		return text + " DEFAULT;\n", nil
+	}
+	lower, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.lower)
+	if err != nil {
+		return "", err
+	}
+	upper, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.upper)
+	if err != nil {
+		return "", err
+	}
+	return text + " FOR VALUES FROM (" + lower + ") TO (" + upper + ");\n", nil
+}
+
 // PARTITION OF names no new column types. Inherited definitions are supplied
 // by the parent; only local default/nullability/check differences are emitted.
 func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor, qualified string, deferred map[int32]bool) (string, error) {
