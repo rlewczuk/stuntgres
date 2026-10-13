@@ -205,6 +205,8 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 						frame = n.frame
 					case returningWholeRowExpression:
 						frame = n.frame
+					case mergeActionExpression:
+						frame = n.frame
 					case groupExpression:
 						frame = n.frame
 					case aggregateExpression:

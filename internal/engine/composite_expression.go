@@ -18,6 +18,7 @@ type rowExpression struct {
 	wholeSource    wholeRowSource
 	presenceSlot   int
 	presenceFrame  uint32
+	mergeSource    bool
 	returningWhole bool // Direct whole-row member projection uses the RETURNING output frame.
 	returningNull  bool // DELETE's scalar NEW whole row is NULL, independently of projection.
 	expansions     map[int]compositeExpansionBinding
@@ -239,6 +240,10 @@ func (b *expressionBinder) compositeFieldAt(base BoundExpr, index int, pos parse
 		var column columnExpression
 		switch value := field.(type) {
 		case returningColumnExpression:
+			if value.merge {
+				value.pos = pos
+				return value
+			}
 			if value.value != nil {
 				value.old, value.absent = false, false
 				value.pos = pos
@@ -398,7 +403,10 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 			return nil, err
 		}
 	}
-	return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, wholeNames: names, wholeName: q.name, wholeSource: source, presenceSlot: slot, presenceFrame: frame}, nil
+	// A mutation target has no FROM producer; actual source qualifiers retain
+	// their producer even with zero members or the same name in another schema.
+	mergeSource := b.mergeReturningFrame(frame) && q.sourceRoot != nil
+	return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, wholeNames: names, wholeName: q.name, wholeSource: source, presenceSlot: slot, presenceFrame: frame, mergeSource: mergeSource}, nil
 }
 
 func mapRow(row rowExpression, child func(BoundExpr) (BoundExpr, bool, error)) (rowExpression, bool, error) {

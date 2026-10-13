@@ -884,12 +884,13 @@ func (*Insert) statement() {}
 
 // Merge uses the ordinary query and mutation expression machinery.
 type Merge struct {
-	Name   ObjectName
-	Alias  Identifier
-	Source FromItem
-	On     Expr
-	Arms   []MergeArm
-	Pos    Position
+	Name      ObjectName
+	Alias     Identifier
+	Source    FromItem
+	On        Expr
+	Arms      []MergeArm
+	Returning *Returning
+	Pos       Position
 }
 
 type MergeMatch uint8
@@ -907,6 +908,12 @@ const (
 	MergeUpdateAction
 	MergeDeleteAction
 )
+
+// MergeActionExpr is special SQL syntax, not an ordinary catalog function.
+type MergeActionExpr struct{ Pos Position }
+
+func (MergeActionExpr) expression()                {}
+func (e MergeActionExpr) SourcePosition() Position { return e.Pos }
 
 type MergeArm struct {
 	Match          MergeMatch

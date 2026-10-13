@@ -43,6 +43,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		}
 	case returningWholeRowExpression:
 		args(e.members)
+	case mergeActionExpression:
+		// A lexical owner leaf has no expression children.
 	case coercionExpression:
 		walk(e.child)
 	case collationExpression:
@@ -259,6 +261,8 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(BoundExpr))) (uint3
 		case columnExpression:
 			frame = n.frame
 		case returningWholeRowExpression:
+			frame = n.frame
+		case mergeActionExpression:
 			frame = n.frame
 		case aggregateExpression:
 			frame = n.frame

@@ -6,6 +6,87 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### MERGE RETURNING contracts
+
+The untagged `merge_returning_*_test.go` definitions share direct/prepared SQL
+and independent PostgreSQL18.0 expectations with native execution. Mixed actions
+produce an unordered bag with one row per accepted INSERT/UPDATE/DELETE, none
+for candidates with no selected arm. Plain star expands source before target;
+qualified stars retain their own column order. Default target values are NEW
+for INSERT/UPDATE and OLD for DELETE. Explicit OLD/NEW aliases hide the replaced
+implicit names. Missing OLD, NEW or source whole rows are SQL NULL, while a
+present all-NULL composite remains present.
+
+`merge_action()` is zero-argument special syntax, lexical to MERGE RETURNING
+and its expression subqueries. It is row-dependent TEXT, not a catalog overload
+or statement-global action cache. Wrong arity gives42601 at the unexpected
+argument. Quoted/qualified calls retain PostgreSQL42883 versus the native
+generic-call capability boundary0A000; no new generic function provider is
+implied. The absent SRF boundary likewise retains native `functions are
+unsupported` versus PostgreSQL's RETURNING placement diagnostic.
+
+Output is evaluated after each action's constraint/cardinality/unique admission,
+before the next proposal, privately until the sole Finish. Late output errors
+discard every mutation and expose no native cursor/count; PostgreSQL may stream
+a prefix before rows.Err, which the fixture drains. Exec evaluates ignored
+output too. Native affected counts are exact; lib/pq's MERGE result reports0.
+Prepare is quiet; held execution imports fresh parameters, retains analyzed
+output-only relation identities while valid, checks current grants and preserves
+fixed result metadata. Adding a RETURNING-star column gives cached-result-type
+0A000; invalidating SET's destination independently gives42703 first.
+SQL PREPARE/EXECUTE inferred-parameter values are shared public proof.
+`pg_prepared_statements.parameter_types` is a PostgreSQL-only oracle inspection;
+the adjacent catalog view is not implemented natively by MERGE RETURNING.
+
+All referenced output columns require SELECT, including absent sides, false
+CASE, zero input and zero-member target whole rows. Constants/action-only output
+invent no read demand. Source membership/provenance freezes before waits;
+OLD uses the current predecessor after a row grant. Native public timeout/retry
+proves recovery only; `TestMergeReturningRowRecheck` observes the actual private
+pending resource, freezes source7 despite peer99 and requires OLD40/NEW47.
+
+Matched-action order is unspecified: the failing matched volatility witness
+permits next106 or107, not a PostgreSQL ordering promise. It then explicitly
+restarts at107; the separate source-only ordered INSERT proposal witness requires
+accepted output107 before the later NULL constraint failure and next108.
+Native precancellation is precise; pq precancellation/session-health is not
+asserted. Actual private pending cancellation checks retirement and atomicity.
+
+Run each narrow group in native mode and again with `REFERENCE=1`, using an
+external900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceMergeReturningCore$'
+make check RUN='^TestReferenceMergeReturning(Stars|Aliases|WholeRows)$'
+make check RUN='^TestReferenceMergeReturningExpressions$'
+make check RUN='^TestReferenceMergeReturning(Metadata|Parameters)$'
+make check RUN='^TestReferenceMergeReturning(Diagnostics|ActionPlacement)$'
+make check RUN='^TestReferenceMergeReturning(Atomicity|Volatility)$'
+make check RUN='^TestReferenceMergeReturning(Prepared|Privileges|Concurrency)$'
+make check RUN='^TestReferenceMergeReturningControls$'
+make check RUN='^TestReferenceMergeInsertBoundaries$'
+make check RUN='^TestReferenceCompositeExprBoundaries$'
+make check RUN='^TestMergeReturning(Frames|Publication|RowRecheck|Cancellation|OutputDemand)$'
+make check RUN='^TestMergeReturning(Grammar|QuerySources)$'
+make check RUN='^TestReferenceMergeReturningFeatureSmoke$'
+make check RUN='^TestReferenceMergeReturningFeatureSmoke$' REFERENCE=1
+```
+
+Use `RACE=1` for the private mechanism group and, in both modes, the selected
+public `^TestReferenceMergeReturning(Concurrency|Privileges|Controls)$` group.
+Whole-project Docker-free verification is `make quickcheck`. Commands establish
+verification; this capability description is not passing evidence.
+
+Controls exercise actual Dump/Reset/Restore objects/data/defaults/generated
+values/identity continuation, clone/canonical redump, failed/cancelled restore,
+retained completed output and held reexecution. Enabled real mode also replays
+the actual emitted dump SQL on PostgreSQL, not an invented PG Restore API.
+Restore continues to reject MERGE. The migrated insertion/composite boundaries
+now assert real RETURNING rows and final stored bags, preserving DO NOTHING,
+partial insertion and unrelated composite exclusions. Source views remain
+supported; writable target views, hierarchy writes, triggers/rules/FDWs,
+writable CTEs, procedural functions and COPY(MERGE) remain outside this feature.
+
 ### INSERT RETURNING oracle-first contracts
 
 The untagged `reference/dml/insert_returning_*_test.go` definitions specify

@@ -377,6 +377,8 @@ func expressionUsesFrame(expr BoundExpr, frame uint32) bool {
 			found = found || e.frame == frame
 		case returningWholeRowExpression:
 			found = found || e.frame == frame
+		case mergeActionExpression:
+			found = found || e.frame == frame
 		case aggregateExpression:
 			found = found || e.frame == frame
 		case groupingExpression:

@@ -376,6 +376,9 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		if err := expression(s.On); err != nil {
 			return err
 		}
+		if err := returning(s.Returning); err != nil {
+			return err
+		}
 		for _, arm := range s.Arms {
 			if err := expression(arm.Condition); err != nil {
 				return err

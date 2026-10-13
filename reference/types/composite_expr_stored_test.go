@@ -213,7 +213,6 @@ func TestReferenceCompositeExprBoundaries(t *testing.T) {
 			{`SELECT ROW(1,'x')::domain_pair=ROW(1,'x')::domain_pair AS same`, fixture.Select(`SELECT ROW(1,'x')::domain_pair=ROW(1,'x')::domain_pair AS same`, []string{"same"}, []string{"BOOL"}, [][]any{{true}}), fixture.CompositeReferenceDiagnostic("0A000", "composite comparison is unsupported"), "="},
 			{`MERGE INTO holder h USING (VALUES(3,30)) s(k,i) ON h.k=s.k WHEN NOT MATCHED THEN INSERT(k,v.i) VALUES(s.k,s.i)`, fixture.Exec(`MERGE INTO holder h USING (VALUES(3,30)) s(k,i) ON h.k=s.k WHEN NOT MATCHED THEN INSERT(k,v.i) VALUES(s.k,s.i)`, 0), fixture.CompositeReferenceDiagnostic("0A000", "MERGE partial insertion targets are unsupported"), "v.i"},
 			{`UPDATE holder SET (k,v)=(1,ROW(7,'z')::pair) WHERE k=1`, fixture.Exec(`UPDATE holder SET (k,v)=(1,ROW(7,'z')::pair) WHERE k=1`, 1), fixture.CompositeReferenceDiagnostic("0A000", "row assignments are unsupported"), "(k"},
-			{`MERGE INTO holder h USING (VALUES(1,40)) s(k,i) ON h.k=s.k WHEN MATCHED THEN UPDATE SET v.i=s.i RETURNING (v).*`, fixture.Select(`MERGE INTO holder h USING (VALUES(1,40)) s(k,i) ON h.k=s.k WHEN MATCHED THEN UPDATE SET v.i=s.i RETURNING (v).*`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(40), "z"}}), fixture.CompositeReferenceDiagnostic("0A000", "MERGE RETURNING is unsupported"), "RETURNING"},
 		} {
 			t.Run(x.q, func(t *testing.T) {
 				if b.PG {
@@ -228,13 +227,14 @@ func TestReferenceCompositeExprBoundaries(t *testing.T) {
 				}
 			})
 		}
+		compositeExprBoth(t, p, b, c, `MERGE INTO holder h USING (VALUES(1,40)) s(k,i) ON h.k=s.k WHEN MATCHED THEN UPDATE SET v.i=s.i RETURNING (v).*`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(40), "z"}})
 		// INSERT RETURNING is provided by the synchronized integration base;
 		// composite expansion reuses that existing projection owner.
 		compositeExprBoth(t, p, b, c, `INSERT INTO holder(k,v) VALUES(2,ROW(2,'new')) RETURNING (v).*`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(2), "new"}})
 		d := fixture.CompositeReferenceDiagnostic("42P16", `column "v" has pseudo-type record`)
 		fixture.CompositeReferenceError(t, p, c, `CREATE TYPE generic_record AS (v record)`, "execute", d)
 		if !b.PG {
-			compositeExprBoth(t, p, b, c, `SELECT k,v FROM holder ORDER BY k`, []string{"k", "v"}, []string{"INT4", ""}, [][]any{{int64(1), "(7,z)"}, {int64(2), "(2,new)"}, {int64(2), "(2,new)"}})
+			compositeExprBoth(t, p, b, c, `SELECT k,v FROM holder ORDER BY k`, []string{"k", "v"}, []string{"INT4", ""}, [][]any{{int64(1), "(40,z)"}, {int64(2), "(2,new)"}, {int64(2), "(2,new)"}})
 		}
 	})
 }

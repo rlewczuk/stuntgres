@@ -504,8 +504,27 @@ all selected actions contribute to the native count.
 Both missing-side families retain MERGE-local constant/parameter ON carriers:
 nonzero integers and non-NULL TEXT match, while zero/NULL do not, including domains.
 This does not relax ordinary JOIN or WHEN Boolean typing.
-BY SOURCE INSERT, DO NOTHING, RETURNING and writable target views remain excluded.
-See [MERGE matching and actions](https://www.postgresql.org/docs/18/sql-insert.html).
+MERGE also supports `RETURNING` output expressions, source and target rows,
+PostgreSQL18 OLD/NEW aliases and `merge_action()` (`INSERT`, `UPDATE`, `DELETE`).
+Only accepted actions emit rows. Unqualified target values use NEW for INSERT/
+UPDATE and OLD for DELETE; OLD is absent on INSERT and NEW on DELETE. Absent
+whole rows are SQL NULL, not present composites with all-NULL members.
+Plain `RETURNING *` expands source columns before target columns. Action text
+is lexical to MERGE RETURNING, including its expression subqueries, and is not
+an ordinary callable function. Output is eagerly completed after each accepted
+action, before the next proposal, and exposed only after atomic publication.
+Ignored Exec output is still evaluated; native affected counts remain exact,
+while lib/pq reports zero for MERGE. Prepared output metadata is fixed even
+when no arm is selected. Source/default/generated/identity values, current
+predecessors, output-only SELECT demand and native Dump/Restore use the
+existing mutation authorities.
+BY SOURCE INSERT, DO NOTHING and writable target views remain excluded.
+Triggers, rules, FDWs, target hierarchy writes, writable CTEs, procedural
+functions and COPY(MERGE) remain external or adjacent mechanisms.
+See [MERGE matching and actions](https://www.postgresql.org/docs/18/sql-merge.html).
+MERGE RETURNING feature smoke (900 seconds per invocation; both modes):
+`make check RUN='^TestReferenceMergeReturningFeatureSmoke$'`;
+`make check REFERENCE=1 RUN='^TestReferenceMergeReturningFeatureSmoke$'`.
 Feature smoke (900 seconds per invocation; run each in both modes):
 `make check RUN='^TestReferenceMerge(Delete|SourceUpdate)FeatureSmoke$'`;
 pinned counterpart:

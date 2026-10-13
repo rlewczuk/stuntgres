@@ -508,7 +508,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if err == nil && b.returning != nil {
 			b.returning, err = preflightReturning(&evaluation, b.returning)
 		}
-		if err == nil && b.subqueryDemand && (inserting || b.update != nil || deleting) {
+		if err == nil && b.subqueryDemand && (inserting || b.update != nil || deleting || b.merge != nil) {
 			err = validateMutationJoinExecution(&evaluation, &b, expressions, auth.catalog)
 		}
 		if err != nil {
@@ -689,7 +689,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch s := stmt.(type) {
 	case *parser.Merge:
-		if err := e.captureCheckCommentSnapshotLocked(scope, b.relation); err != nil {
+		err := e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		if err == nil && b.returning != nil {
+			err = e.captureCommentSnapshotLocked(scope)
+		}
+		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

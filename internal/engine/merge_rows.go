@@ -19,6 +19,7 @@ type mergeRows struct {
 	values       [][]sqltype.Value
 	predecessors []rowVersion
 	actions      []mergeActionRow
+	returning    *finalRows
 }
 
 func (rows *mergeRows) stage(w *WriteStage, ref ObjectRef) error {
@@ -169,13 +170,23 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		}
 	}
 	var nullSource []sqltype.Value
-	if b.merge.hasBySource && b.merge.hasInsert {
+	if b.merge.hasBySource && (b.merge.hasInsert || b.returning != nil) {
 		nullSource = make([]sqltype.Value, width)
 		for i, column := range sourceSchema {
 			nullSource[i] = sqltype.Null(column.Usage.Type)
 		}
 	}
 	result := &mergeRows{}
+	output := newMergeReturningOutput(b, scope)
+	if output != nil {
+		result.returning = output.rows
+	}
+	complete := false
+	defer func() {
+		if !complete && result.returning != nil {
+			result.returning.Close()
+		}
+	}()
 	var accepted map[RowID]bool
 	if len(b.merge.updateTargets) != 0 || b.merge.hasDelete {
 		accepted = make(map[RowID]bool)
@@ -195,6 +206,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 		} else {
 			evaluation.presence = nil
+			evaluation.queryProvenance = nil
 		}
 		old, class := candidate.rowVersion, candidate.class
 		setFrame := func() {
@@ -283,6 +295,19 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				if err := e.appendMergeAction(scope, b, result, &evaluation, schema, unique, arm, old, candidate.deletion, accepted, &excluded); err != nil {
 					return nil, err
 				}
+				if output != nil {
+					actualOld := old.values
+					var row []sqltype.Value
+					if arm.action != parser.MergeDeleteAction {
+						row = result.values[len(result.values)-1]
+					}
+					if arm.action == parser.MergeInsertAction {
+						actualOld = nil
+					}
+					if err := output.project(b, &evaluation, arm.action, actualOld, row, source, candidate.sourceIndex >= 0); err != nil {
+						return nil, err
+					}
+				}
 			}
 			if !sourceAfter {
 				break
@@ -296,7 +321,11 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 		}
 	}
-	return result, ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	complete = true
+	return result, nil
 }
 
 func mergeCardinalityError() error {

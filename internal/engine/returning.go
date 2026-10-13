@@ -14,6 +14,7 @@ const (
 	returningInsert returningMode = iota
 	returningUpdate
 	returningDelete
+	returningMerge
 )
 
 // RETURNING adds projection namespaces, not additional physical sources.
@@ -36,6 +37,8 @@ type boundReturning struct {
 type returningColumnExpression struct {
 	columnExpression
 	old, absent bool
+	merge       bool
+	side        mergeReturningSide
 	// A lowered logical view column can be an arbitrary physical expression.
 	value BoundExpr
 }
@@ -57,7 +60,10 @@ func (e returningColumnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.absent || e.old && parent.OldRow == nil {
+	if e.merge && mergeReturningAbsent(parent, e.side) {
+		return sqltype.Null(e.usage.Type), nil
+	}
+	if e.absent || !e.merge && e.old && parent.OldRow == nil {
 		return sqltype.Null(e.usage.Type), nil
 	}
 	value := BoundExpr(e.columnExpression)
@@ -140,11 +146,16 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			} else {
 				descriptor = b.relation.columns[column.slot]
 			}
-		case returningColumnExpression:
-			descriptor = b.relation.columns[column.slot]
-			if column.absent || column.old && mode == returningInsert {
+			if column.mergeSource {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
+		case returningColumnExpression:
+			descriptor = b.relation.columns[column.slot]
+			if mode == returningMerge || column.absent || column.old && mode == returningInsert {
+				descriptor.Nullable, descriptor.NullabilityKnown = true, true
+			}
+		case mergeActionExpression:
+			descriptor.Nullable, descriptor.NullabilityKnown = false, true
 		case currentSchemasExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case identityExpression:
@@ -175,8 +186,21 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 						}
 						columns = qualifier.columns
 					}
-					for _, column := range columns {
-						appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+					if mode == returningMerge && len(star.Qualifier.Parts) == 0 {
+						for _, column := range columns {
+							if column.leaf != queryTargetLeaf {
+								appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+							}
+						}
+						for _, column := range columns {
+							if column.leaf == queryTargetLeaf {
+								appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+							}
+						}
+					} else {
+						for _, column := range columns {
+							appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+						}
 					}
 				}
 				continue
@@ -265,6 +289,13 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) BoundExpr {
 	column := b.columnAt(slot, pos).(columnExpression)
+	if b.returningAliases.mode == returningMerge {
+		side := mergeOldSide
+		if newValues {
+			side = mergeNewSide
+		}
+		return returningColumnExpression{columnExpression: column, old: !newValues, merge: true, side: side}
+	}
 	if !newValues && b.returningAliases.mode != returningDelete {
 		return returningColumnExpression{columnExpression: column, old: true}
 	}
@@ -399,6 +430,13 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) BoundExpr {
 	column := b.columnAtOf(scope.relation, slot, pos).(columnExpression)
 	column.frame = scope.frame
+	if scope.returning.mode == returningMerge {
+		side := mergeOldSide
+		if newValues {
+			side = mergeNewSide
+		}
+		return returningColumnExpression{columnExpression: column, old: !newValues, merge: true, side: side}
+	}
 	if !newValues && scope.returning.mode != returningDelete {
 		return returningColumnExpression{columnExpression: column, old: true}
 	}
@@ -411,7 +449,7 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 // Scalar transition values and their default-row member projections share the
 // same saved column wrappers and owning frame as correlated qualified columns.
 func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos parser.Position, newValues bool) (BoundExpr, error) {
-	if scope.returning.mode == returningInsert {
+	if scope.returning.mode == returningInsert || scope.returning.mode == returningMerge {
 		name := scope.returning.old
 		if newValues {
 			name = scope.returning.new

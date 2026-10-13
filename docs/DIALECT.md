@@ -145,9 +145,14 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
 - Recursive CTEs, modifying CTE bodies, top-level CTE DML and general lateral
   derived sources are excluded. Window providers remain limited; frame
   exclusions, expression-count windows and window aggregate filters are excluded.
-- MERGE retains exclusions for returning rows, no-op actions, query/multiple-row
-  insertion actions, partial insertion targets and writable target views.
-  Positioned mutation of a view is unavailable.
+- MERGE supports RETURNING expressions, source/target rows, OLD/NEW aliases and
+  lexical `merge_action()` output. Plain star is source-first; target defaults
+  to NEW for INSERT/UPDATE and OLD for DELETE, with absent sides SQL NULL.
+  Output is eagerly evaluated per accepted action and published atomically.
+  No-op actions, query/multiple-row insertion actions, partial insertion targets
+  and writable target views remain excluded. Triggers/rules/FDWs, target
+  hierarchy writes, writable CTEs, procedural functions and COPY(MERGE) are not
+  supplied by this feature. Positioned mutation of a view is unavailable.
 - Catalog sources are bounded projections, not complete `pg_type`,
   `pg_attribute`, `pg_index`, `information_schema` or authentication catalogs.
   Native virtual catalog mutation and row locking are unavailable. Installed

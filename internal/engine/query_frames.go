@@ -125,6 +125,7 @@ func (b *expressionBinder) outerQualifiers() []queryQualifier {
 func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) BoundExpr {
 	expr := b.queryColumnAt(c, pos).(columnExpression)
 	expr.frame = frame
+	expr.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(frame)
 	return expr
 }
 

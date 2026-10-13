@@ -38,21 +38,23 @@ type BoundExpr interface {
 	Eval(*EvalContext) (sqltype.Value, error)
 }
 type EvalContext struct {
-	Context          context.Context
-	Scope, Frame     uint32
-	Row              []sqltype.Value
-	OldRow           []sqltype.Value
-	Parameters       []sqltype.Value
-	orderValues      []sqltype.Value
-	statementScope   *StatementScope
-	Input            sqltype.InputEnvironment
-	Output           sqltype.OutputEnvironment
-	Outer            *EvalContext
-	query            *queryState
-	catalog          CatalogRead // Current imported request/view authority for local lowering.
-	queryOccurrences []int
-	queryProvenance  []int
-	queryRowSource   *querySource
+	Context                            context.Context
+	Scope, Frame                       uint32
+	Row                                []sqltype.Value
+	OldRow                             []sqltype.Value
+	mergeReturning, mergeSourcePresent bool
+	mergeAction                        parser.MergeAction
+	Parameters                         []sqltype.Value
+	orderValues                        []sqltype.Value
+	statementScope                     *StatementScope
+	Input                              sqltype.InputEnvironment
+	Output                             sqltype.OutputEnvironment
+	Outer                              *EvalContext
+	query                              *queryState
+	catalog                            CatalogRead // Current imported request/view authority for local lowering.
+	queryOccurrences                   []int
+	queryProvenance                    []int
+	queryRowSource                     *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
 	queryCurrentRows     [][]sqltype.Value
 	physicalTable        ObjectRef // Existing generated recipe's containing physical row.
@@ -127,6 +129,7 @@ type columnExpression struct {
 	rowStart, rowWidth int
 	// Zero denotes an owner-row read; SQL occurrence IDs are encoded plus one.
 	queryOccurrence int
+	mergeSource     bool // Missing MERGE source tuples short-circuit virtual recipes.
 }
 
 func (e columnExpression) rowContext(c *EvalContext) (*EvalContext, error) {
@@ -150,6 +153,9 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	row, err := e.rowContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if e.mergeSource && !row.mergeSourcePresent {
+		return sqltype.Null(e.usage.Type), nil
 	}
 	if e.virtual == nil {
 		return row.Row[e.slot], nil
@@ -1672,6 +1678,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	}
 	if node == nil {
 		switch r := raw.(type) {
+		case parser.MergeActionExpr:
+			var err error
+			node, err = b.bindMergeAction(r)
+			if err != nil {
+				return nil, err
+			}
 		case parser.IndexSubqueryExpr:
 			if b.indexPredicateConsumer {
 				return nil, expressionError("0A000", "cannot use subquery in index predicate", r.Pos)
@@ -2470,6 +2482,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 		return "case", false
 	case parser.ColumnExpr:
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
+	case parser.MergeActionExpr:
+		return "merge_action", true
 	case parser.FunctionExpr:
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.CallExpr:
@@ -2778,6 +2792,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 	}
 	switch raw.(type) {
 	case parser.RowExpr, parser.FieldExpr, parser.StarExpr, parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
+	case parser.MergeActionExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

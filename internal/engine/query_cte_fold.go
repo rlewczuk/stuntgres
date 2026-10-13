@@ -132,7 +132,7 @@ func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate BoundExpr, 
 				} else {
 					found = true
 				}
-			case returningWholeRowExpression, subqueryExpression, groupExpression, aggregateExpression, groupingExpression, *windowExpression, cachedOrderExpression:
+			case mergeActionExpression, returningWholeRowExpression, subqueryExpression, groupExpression, aggregateExpression, groupingExpression, *windowExpression, cachedOrderExpression:
 				safe = false
 			}
 		})
@@ -199,6 +199,8 @@ func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame
 				unsafe = true
 			}
 		case returningWholeRowExpression:
+			unsafe = unsafe || n.frame != frame
+		case mergeActionExpression:
 			unsafe = unsafe || n.frame != frame
 		}
 	})

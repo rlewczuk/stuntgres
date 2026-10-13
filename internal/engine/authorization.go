@@ -900,7 +900,7 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 				return err
 			}
 		}
-		if len(b.usedColumns) != 0 {
+		if len(b.usedColumns) != 0 || b.returning != nil && b.returning.readRequired {
 			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
 				return err
 			}

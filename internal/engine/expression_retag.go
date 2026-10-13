@@ -343,6 +343,9 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
+	case mergeActionExpression:
+		n.expressionInfo = info
+		rebound = n
 	case groupExpression:
 		n.expressionInfo = info
 		rebound = n

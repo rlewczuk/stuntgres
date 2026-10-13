@@ -338,7 +338,7 @@ var keywords = [...]keyword{
 	{"materialized", Unreserved, true, MATERIALIZED},
 	{"maxvalue", Unreserved, true, MAXVALUE},
 	{"merge", Unreserved, true, MERGE},
-	{"merge_action", ColumnName, true, 0},
+	{"merge_action", ColumnName, true, MERGE_ACTION},
 	{"method", Unreserved, true, 0},
 	{"minute", Unreserved, false, MINUTE},
 	{"minvalue", Unreserved, true, MINVALUE},

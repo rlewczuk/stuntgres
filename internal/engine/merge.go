@@ -106,10 +106,32 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		return expressionError("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
 	}
 	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms)), targetWidth: len(target.frame), sourceWidth: len(source.frame)}
+	var outputParameters map[int]sqltype.Usage
+	if s.Returning != nil {
+		wasUpdateParameters := binder.updateParameters
+		binder.updateParameters = true
+		out.returning, err = binder.bindReturning(s.Returning, returningMerge)
+		binder.updateParameters = wasUpdateParameters
+		if err != nil {
+			return err
+		}
+		out.returning.readRequired = binder.returningReadRequired
+		for number, usage := range binder.parameters {
+			if usage.Type != nil {
+				if binder.updateInputParameters == nil {
+					binder.updateInputParameters = make(map[int]sqltype.Usage, len(binder.parameters))
+				}
+				binder.updateInputParameters[number] = usage
+			}
+		}
+		outputParameters = binder.updateInputParameters
+		defer func() { binder.updateInputParameters = nil }()
+	}
 	var unconditional [3]bool
 	hidden := binder.queryHidden
 	var sourceHidden []queryQualifier
 	for i, raw := range s.Arms {
+		binder.updateInputParameters = outputParameters
 		if unconditional[raw.Match] {
 			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
 		}
@@ -383,6 +405,11 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 		return Result{}, err
 	}
 	state := &queryState{source: inputs, parameters: parameters, input: scope.input, output: scope.output, locking: inputs.locks != nil, virtualReads: b.merge.hasVirtualReads()}
+	if b.returning != nil {
+		for _, expr := range b.returning.expressions {
+			state.virtualReads = state.virtualReads || boundHasVirtualReads(expr)
+		}
+	}
 	defer state.releaseMemberships()
 	cursor, err := openQueryNode(ctx, state, b.merge.source)
 	if err != nil {
@@ -392,11 +419,30 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err != nil {
 		return Result{}, err
 	}
+	complete := false
+	defer func() {
+		if !complete && rows.returning != nil {
+			rows.returning.Close()
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	if err := rows.stage(scope.Writes(), b.ref); err != nil {
 		return Result{}, err
 	}
-	return Result{Count: int64(len(rows.actions))}, nil
+	if rows.returning != nil && b.returning.regclassOutput && rows.returning.count != 0 {
+		if err := e.captureRegclassOutput(scope.op, rows.returning); err != nil {
+			return Result{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	complete = true
+	result := Result{Count: int64(len(rows.actions))}
+	if rows.returning != nil {
+		result.Rows = rows.returning
+	}
+	return result, nil
 }

@@ -91,6 +91,8 @@ func firstQueryBoundFrameVariable(expr BoundExpr, frame uint32) parser.Position 
 				matched = e.frame == frame
 			case returningWholeRowExpression:
 				matched = e.frame == frame
+			case mergeActionExpression:
+				matched = e.frame == frame
 			case groupExpression:
 				matched = e.frame == frame
 			case aggregateExpression:

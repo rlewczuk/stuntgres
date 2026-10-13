@@ -139,6 +139,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case returningWholeRowExpression:
 		n.members = args(n.members)
 		next = n
+	case mergeActionExpression:
+		next = n
 	case columnExpression:
 		n.origin = rowRef(n.origin)
 		if ref == nil && slots != nil {

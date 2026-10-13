@@ -59,6 +59,9 @@ func (n rowExpression) absent(c *EvalContext) (bool, error) {
 	if c == nil {
 		return false, fmt.Errorf("stuntgres: missing whole-row source frame")
 	}
+	if n.mergeSource && !c.mergeSourcePresent {
+		return true, nil
+	}
 	if n.presenceSlot == 0 {
 		return false, nil
 	}

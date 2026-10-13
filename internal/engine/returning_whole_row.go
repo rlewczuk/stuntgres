@@ -6,13 +6,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// This provider is confined to INSERT RETURNING, with an actual named catalog
-// descriptor. It does not introduce generic ROW or composite field syntax.
+// Named transition rows retain their lexical target owner and actual presence.
+// This does not introduce generic ROW or composite field syntax.
 type returningWholeRowExpression struct {
 	expressionInfo
 	members      []BoundExpr
 	scope, frame uint32
 	old          bool
+	merge        bool
+	side         mergeReturningSide
 }
 
 func (e returningWholeRowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -20,7 +22,7 @@ func (e returningWholeRowExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.old && parent.OldRow == nil {
+	if e.merge && mergeReturningAbsent(parent, e.side) || !e.merge && e.old && parent.OldRow == nil {
 		return sqltype.Null(e.usage.Type), nil
 	}
 	fields := make([]sqltype.Value, len(e.members))
@@ -33,15 +35,18 @@ func (e returningWholeRowExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	return sqltype.OwnedCompositeValue(e.usage.Type, fields)
 }
 func (b *expressionBinder) returningWholeRow(name string, relation *relationDescriptor, frame uint32, aliases *returningAliases, pos parser.Position) (BoundExpr, bool, error) {
-	if aliases == nil || aliases.mode != returningInsert {
+	if aliases == nil || aliases.mode != returningInsert && aliases.mode != returningMerge {
 		return nil, false, nil
 	}
 	old := false
+	side := mergeDefaultSide
 	switch {
 	case name == aliases.target:
 	case aliases.old != "" && name == aliases.old:
 		old = true
+		side = mergeOldSide
 	case aliases.new != "" && name == aliases.new:
+		side = mergeNewSide
 	default:
 		return nil, false, nil
 	}
@@ -54,8 +59,14 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 	members := make([]BoundExpr, len(relation.columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
-		members[i] = b.outerReturningColumnAt(scope, i, pos, !old)
+		if aliases.mode == returningMerge && side == mergeDefaultSide {
+			column := b.columnAtOf(relation, i, pos).(columnExpression)
+			column.frame = frame
+			members[i] = column
+		} else {
+			members[i] = b.outerReturningColumnAt(scope, i, pos, !old)
+		}
 	}
 	info := b.info(sqltype.Usage{Type: descriptor.typ, Typmod: -1}, pos, ExprProperties{RowDependent: true})
-	return returningWholeRowExpression{expressionInfo: info, members: members, scope: 1, frame: frame, old: old}, true, nil
+	return returningWholeRowExpression{expressionInfo: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
 }

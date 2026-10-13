@@ -91,6 +91,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) Bou
 		}
 	}
 	column := columnExpression{expressionInfo: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
+	column.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(b.frameID())
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, c.physical, c.slot-c.physical)
 		if column.virtual != nil && c.leaf >= 0 {

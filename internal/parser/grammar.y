@@ -192,6 +192,7 @@ package parser
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> GROUPING SETS ROLLUP CUBE
+%token <tok> MERGE_ACTION
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> AT
 %token <tok> INTERVAL HOUR MINUTE SECOND DAY MONTH YEAR
@@ -1587,10 +1588,9 @@ conflict_open: '(' {sqllex.(*lexer).indexExpression=true;$$=$1} ;
 conflict_predicate: /* empty */ {$$=nil}
  | WHERE target_or {$$=$2} ;
 insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER VALUE { $$=OverrideUser } ;
-merge: MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms {
-   $$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos}
- }
- | MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms RETURNING returning_aliases projection { sqllex.(*lexer).deferUnsupported($10,"MERGE RETURNING is unsupported");$$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Pos:$1.pos} } ;
+merge: MERGE INTO relation_name update_alias USING joined_table ON target_or merge_arms returning {
+   $$=&Merge{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Source:$6,On:$8,Arms:$9,Returning:$10,Pos:$1.pos}
+ } ;
 merge_arms: merge_arm { $$=[]MergeArm{$1} }
  | merge_arms merge_arm { $$=append($1,$2) } ;
 merge_target_class: /* empty */ { $$=lexeme{} } | BY TARGET { $$=$2 } ;
@@ -1722,6 +1722,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | column_reference array_subscripts { $$=SubscriptExpr{Base:$1,Subscripts:$2,Pos:$1.SourcePosition()} }
  | PARAM array_subscripts { $$=SubscriptExpr{Base:ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos},Subscripts:$2,Pos:$1.pos} }
  | string_function { $$=$1 }
+ | MERGE_ACTION '(' ')' { $$=MergeActionExpr{Pos:$1.pos} }
  | CURRENT_CATALOG { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_ROLE { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
@@ -2178,7 +2179,7 @@ fetch_count: scalar_atom { $$=$1 }
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST
  | GENERATED | ALWAYS | IDENTITY | OVERRIDING | SYSTEM | VALUE ;
 ownership_name_word: REASSIGN ;
-conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
+conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
