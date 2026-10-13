@@ -18,6 +18,8 @@ package parser
  objectNames []ObjectName
  dropMode DropMode
  typ TypeName
+ jsonFormat *JSONFormat
+ jsonOptions JSONArrayAggregateOptions
  types []TypeName
  constraints []ColumnConstraint
  constraint ColumnConstraint
@@ -176,6 +178,7 @@ package parser
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> FILTER
+%token <tok> JSON_ARRAYAGG JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING JSON_ABSENT JSON_NULL
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
 %token <tok> FOREIGN REFERENCES MATCH PERIOD INITIALLY
@@ -517,6 +520,10 @@ package parser
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
 %type <expr> aggregate_call aggregate_application
+%type <tok> json_arrayagg_head
+%type <jsonFormat> json_format
+%type <jsonOptions> json_null_policy json_returning
+%type <typ> json_return_type
 %type <tok> like_operator
 %type <expr> target_escape
 %type <expr> conditional conditional_call case_test case_else conditional_value
@@ -2192,7 +2199,19 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType(
  | cast_function function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),append([]Expr{$2},$4...),false,false,false,false,$7) }
  | qualified_call_head function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
  | cast_function VARIADIC target_or ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$3},false,false,false,true,nil) }
+ | json_arrayagg_head target_or json_format aggregate_order json_null_policy json_returning ')' { options:=$6;options.Input=$3;options.Absent=$5.Absent;options.NullPos=$5.NullPos;$$=AggregateExpr{Name:"json_arrayagg",Args:[]Expr{$2},Order:$4,JSON:&options,Pos:$1.pos} }
  | qualified_call_head VARIADIC target_or ')' { $$=modifiedOrdinaryCall($1,[]Expr{$3},false,false,false,true,nil) } ;
+/* Declaration names followed by '(' are not SQL/JSON call scopes. */
+json_arrayagg_head: JSON_ARRAYAGG '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
+json_format: /* empty */ { $$=nil }
+ | JSON_FORMAT JSON_FORMAT_TYPE { $$=&JSONFormat{Pos:$1.pos} }
+ | JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING name { f,ok:=jsonEncoding(sqllex,$1,$4);if !ok{return 1};$$=f } ;
+json_null_policy: /* empty */ { $$=JSONArrayAggregateOptions{Absent:true} }
+ | JSON_ABSENT ON NULL { $$=JSONArrayAggregateOptions{Absent:true,NullPos:$1.pos} }
+ | JSON_NULL ON NULL { $$=JSONArrayAggregateOptions{NullPos:$1.pos} } ;
+json_returning: /* empty */ { $$=JSONArrayAggregateOptions{} }
+ | RETURNING json_return_type json_format { typ:=$2;$$=JSONArrayAggregateOptions{Returning:&typ,Output:$3} } ;
+json_return_type: type { $$=$1 } | SETOF_TYPE type { $$=$2;$$.Setof=true } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | aggregate_application { $$=$1 }
@@ -2236,6 +2255,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
+ | JSON_ARRAYAGG %prec NAME_LIST { $$=$1 }
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;

@@ -117,14 +117,14 @@ func sumSignatureError(name parser.ObjectName, pos parser.Position, types []stri
 	return d
 }
 
-// Inspect SUM/bitwise scalar composition without crossing a child query's frame.
+// Inspect selected SUM/bitwise/JSON scalar composition without crossing a child query's frame.
 // Only failed analysis (nil bound source) uses this check; assignment failures
 // with an actual source retain the destination's ordinary diagnostic.
 func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 	var children []parser.Expr
 	switch e := raw.(type) {
 	case parser.AggregateExpr:
-		if e.Name == "sum" || e.Name == "bit_and" || e.Name == "bit_or" || e.Name == "bit_xor" {
+		if e.Name == "sum" || e.Name == "bit_and" || e.Name == "bit_or" || e.Name == "bit_xor" || jsonArrayAggregateName(e.Name) {
 			return true
 		}
 		for _, key := range e.Order {

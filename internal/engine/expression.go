@@ -1860,6 +1860,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindSum(r, name)
 			} else if r.Name == "any_value" {
 				node, err = b.bindAnyValue(r, name)
+			} else if jsonArrayAggregateName(r.Name) {
+				node, err = b.bindJSONArrayAggregate(r, name)
 			} else if r.Name == "min" || r.Name == "max" {
 				node, err = b.bindExtrema(r, name)
 			} else if r.Name == "string_agg" {
@@ -1876,9 +1878,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if err != nil {
 				return nil, err
 			}
-			node, err = b.ownAggregate(node)
-			if err != nil {
-				return nil, err
+			if !jsonArrayAggregateName(r.Name) {
+				node, err = b.ownAggregate(node)
+				if err != nil {
+					return nil, err
+				}
 			}
 		case parser.CaseExpr:
 			var err error

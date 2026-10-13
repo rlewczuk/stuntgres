@@ -997,6 +997,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				text = "DISTINCT " + text
 			}
 		}
+		if e.JSON!=nil {text+=jsonAggregateFormatSQL(e.JSON.Input)}
 		if len(e.Order) > 0 {
 			text += " ORDER BY "
 			for i, key := range e.Order {
@@ -1018,6 +1019,18 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				} else if key.Nulls == parser.NullsLast {
 					text += " NULLS LAST"
 				}
+			}
+		}
+		if e.JSON!=nil {
+			if e.JSON.NullPos.Character>0 {
+				if e.JSON.Absent {text+=" ABSENT ON NULL"} else {text+=" NULL ON NULL"}
+			}
+			if e.JSON.Returning!=nil {
+				usage,ok:=v.castUsages[path]
+				if !ok {return "",fmt.Errorf("stuntgres: missing SQL/JSON returning usage")}
+				declaration,err:=catalogTypeDeclaration(catalog,usage)
+				if err!=nil {return "",err}
+				text+=" RETURNING "+declaration+jsonAggregateFormatSQL(e.JSON.Output)
 			}
 		}
 		text = name + "(" + text + ")"

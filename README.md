@@ -121,6 +121,20 @@ See [selected array comparison proof](reference/binary_json_arrays/README.md#sca
 Feature smoke: `make check RUN='^TestReferenceArrayCompareFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArrayCompareFeatureSmoke$'`.
 
+Change note: `json_agg`, `jsonb_agg`, `json_agg_strict`, `jsonb_agg_strict`
+and SQL/JSON `json_arrayagg` collect values through the ordinary aggregate
+pipeline. Local ORDER BY fixes element order; ordinary variants include SQL NULL,
+strict variants omit it, and JSON null remains an element. Strict/default-ABSENT
+all-NULL input yields `[]`; zero admitted rows yield SQL NULL.
+`json_arrayagg` supports NULL/ABSENT ON NULL, formatted JSON input and applicable
+RETURNING JSON/JSONB, UTF8 BYTEA, existing strings and unconstrained domains,
+including assignment length checks. JSON retains embedded source representation;
+JSONB canonicalizes objects without reordering aggregate arrays. Stored views,
+held statements and native dumps retain the symbolic clauses. Existing domain
+constraint/default/NOT NULL and aggregate-window capability boundaries remain.
+Feature smoke: `make check RUN='^TestReferenceJSONArrayAggregateFeatureSmoke$'`
+and `make check RUN='^TestReferenceJSONArrayAggregateFeatureSmoke$' REFERENCE=1`.
+
 Change note: `json_array_length(json)` and `jsonb_array_length(jsonb)` return
 the top-level array element count as INTEGER. Nested arrays/objects count as
 one element, JSON null elements count, and SQL NULL inputs produce SQL NULL.

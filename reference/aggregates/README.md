@@ -6,6 +6,110 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSON array aggregate oracle-first definitions
+
+The untagged `json_array_aggregate_*_test.go` definitions specify independently
+reasoned PostgreSQL 18.0 contracts for `json_agg`, `jsonb_agg`,
+`json_agg_strict`, `jsonb_agg_strict` and `json_arrayagg`. Root observed both
+selected oracle groups passing after correcting release-specific hypotheses.
+The temporary PG-only discovery filter has been removed; the shared loop now
+visits every available backend. This oracle checkpoint does not establish
+native support or final dual-mode verification.
+
+| Scenario | Contract |
+| --- | --- |
+| `Values` | All five names, independent operation slots, local/multikey/reverse order, DISTINCT, SQL NULL versus JSON null, strict/default omission, all-NULL versus no-input/FILTER, empty grouped/HAVING, recursive arrays/composites/domains and representative scalar conversion; actual PostgreSQL ordered-window results versus explicit existing native provider boundary. |
+| `Returning` | Default JSON/JSONB/domain/unknown inference, input FORMAT, UTF8 BYTEA, NULL policies and empty output for each family, JSON intermediate to JSONB, applicable character/name/unconstrained-domain outputs and assignment length. Constrained-domain phase retains real PostgreSQL validation but independently asserts native CREATE DOMAIN0A000/no publication; it does not implement prerequisite domain constraints. |
+| `Diagnostics` | Complete English SQLSTATE/portable fields, Unicode character positions, direct/prepared Query/Exec stages, arity/star/unknown, child/FILTER/nesting/namespace/order/DISTINCT, special grammar and FORMAT/ENCODING/RETURNING, malformed literal/bound JSON and JSONB overwritten-member errors. |
+| `Parameters` | SAME held value/NULL/value and formatted valid/error/NULL/recovery, JSON null parameters, retained old cursor versus fresh execution, plain and Context Query/QueryRow routes, live TimeZone/bytea/float output and identifier scope. |
+| `Metadata` | Before-Next populated/global-empty/grouped-empty/FILTER names, aliases, type/ScanType/Length/DecimalSize/Nullable, typmods/domains and NOT NULL source; stored-view ColumnTypes plus private fixed JSON OID/typmod/noncollation/zero-origin descriptor assertions, without adjacent executable catalogs. |
+| `Consumers` | CTE/derived/HAVING, INSERT SELECT including global/grouped empty, CTAS/materialized view, late-group atomicity, forbidden contexts/no prefix effects, source/order/FILTER ACL and held revoke/grant, ordinary precancellation. |
+| `Controls` | Symbolic stored view after publication, actual native Dump/Reset/Restore/redump and failed/canceled replacement, retained cursor/held refresh, independent Driver restore and actual emitted native SQL replay on PostgreSQL. |
+| `FeatureSmoke` | Shared core/null/order/metadata/RETURNING/FORMAT/diagnostic/held/consumer witnesses plus controls-first actual dump replay. |
+
+Root executes from the worktree with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONArrayAggregate(Values|Returning|Diagnostics|Parameters|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceJSONArrayAggregate(Consumers|Controls|FeatureSmoke)$' REFERENCE=1
+```
+
+Root's first pinned oracle round failed and supplied concrete corrections:
+JSON DISTINCT requires equality with no Detail/Hint; invalid RETURNING casts
+have absent Position without FORMAT and FORMAT Position when explicitly supplied;
+FORMAT XML rejects FORMAT; malformed literal FORMAT has no Position;
+input UTF16/UTF32 raises 22023 `invalid source encoding name`, unlike output
+encoding0A000; pq BYTEA Length is MaxInt64/known; DEFAULT diagnoses say
+`DEFAULT expressions`. Open-cursor metadata checks now precede exhaustion,
+not incidental closed-Rows behavior. Subsequent oracle rounds confirmed
+literal FORMAT and input UTF16/UTF32 errors occur at Execute after successful
+Prepare, with the explicitly pinned full diagnostic fields.
+The oracle-discovery checkpoint exercised portable stored-view/reader behavior,
+not native controls or a native dump. Final Controls and FeatureSmoke now require
+the actual native dump for PostgreSQL replay and fail if that artifact is absent.
+The same two selectors without `REFERENCE=1` must establish native red before
+production work. Final proof repeats both selectors in both modes, and runs smoke:
+
+```sh
+make check RUN='^TestReferenceJSONArrayAggregateFeatureSmoke$'
+make check RUN='^TestReferenceJSONArrayAggregateFeatureSmoke$' REFERENCE=1
+```
+
+Expected quiet success requires exact independently specified rows/types/counts,
+metadata and complete diagnostics, held error recovery, unchanged destination
+after failure and actual native control/replay observations.
+Additional window, constrained-domain and malformed UTF8 formatted-BYTEA witnesses require fresh root
+selected proof in both modes; the earlier oracle checkpoint does not cover
+those changed definitions.
+
+Private `TestJSONArrayAggregate...` units in parser/engine/sqltype supplement
+the public definitions: positioned syntax and generation restrictions, sealed
+per-group state/NULL presence, original generations and remapping, recursive
+conversion and SQL/JSON assignment/input plans, live output environments,
+symbolic RETURNING replay and deterministic cancellation reached in actual
+conversion/tree/output/eager INSERT paths with no partial publication.
+
+JSON aggregate projections expose computed/unknown Nullable metadata, not a
+source-column assertion. Quoted case variants do not alias lowercase builtin
+aggregates: scalar inputs retain complete absent-signature diagnostics, while
+normal unqualified one-argument resolution permits an exact composite-field
+projection. The independently pinned `QuotedFieldCollision` definition covers upper/mixed
+variants of all four ordinary names, distinct fixed fields, NULL and bound
+composites, direct/prepared routes, and scalar/missing-field absence.
+The parser retains exact ordinary FunctionExpr identity without ResolutionOnly;
+its CompositeCandidate diagnostic flag does not prohibit field fallback.
+RETURNING BYTEA constructs a real raw-octet value, not a string-tagged substitute. Private units
+read JSON through its descriptor output API, use the real BYTEA constructor,
+and retain the admitted execution context for reached-path cancellation.
+
+Stored views deliberately normalize their source schema to nullable/known in
+native mode (`bindViewOutput`); pq reports false/unknown. This is asserted
+separately from computed aggregate projections and retained before cursor
+exhaustion, after native restore, and through an independent restored Driver.
+Failed constrained declarations are witnessed by subsequent type-resolution
+42704, not an unavailable pg_type query. Range conversion uses existing typed
+table storage and INSERT input, not an excluded explicit range cast.
+
+`json_arrayagg` retains its existing non-reserved column-name category, including
+table declarations, column references and aliases. FORMAT/ENCODING lexer scope
+begins only after the grammar confirms an actual aggregate call head; a
+declaration such as `CREATE TABLE json_arrayagg (format JSON)` does not start
+SQL/JSON clause parsing. Focused parser regressions retain genuine and nested
+formatted calls alongside these identifier contexts.
+
+The stored-view metadata witness uses aggregate-local `ORDER BY id` for all five
+calls, so its exact array values do not invent a portable unordered scan order.
+
+```sh
+make check RUN='^TestJSONArrayAggregate'
+make check RUN='^TestReferenceJSONArrayAggregate(Parameters|Consumers|Controls)$' RACE=1
+make check RUN='^TestReferenceJSONArrayAggregate(Parameters|Consumers|Controls)$' REFERENCE=1 RACE=1
+```
+
+Root regenerates the parser through the selected targets. Agents have not run
+generation, builds, tests or formatters; these edits are not verification.
+
+
 ### Bitwise aggregate selected proof
 
 The untagged `bitwise_aggregate_*_test.go` scenarios use one shared backend

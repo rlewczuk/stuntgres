@@ -277,16 +277,16 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unkno
 }
 
 func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
-	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false)
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false, false)
 }
 
 // String roles admit internal CHAR without admitting it as a column or a
 // general cast target. Lookup, permissions and modifier checks stay type-owned.
 func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
-	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true)
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true, false)
 }
 
-func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput bool) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput, jsonReturning bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		switch name {
@@ -342,6 +342,9 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
+	if jsonReturning && jsonReturningPseudoType(d) {
+		return sqltype.Usage{},sqlError("0A000","returning pseudo-types is not supported in SQL/JSON functions")
+	}
 	if domainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void || d.ContainsRegproc()) {
 		return sqltype.Usage{}, typeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
 	}

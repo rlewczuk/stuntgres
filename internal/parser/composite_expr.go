@@ -1,5 +1,7 @@
 package parser
 
+import "strings"
+
 // ordinaryCall preserves existing aggregate/cast identities; other names are
 // candidates for the ordinary function resolver's composite-field fallback.
 func ordinaryCall(l sqlLexer, typ TypeName, args []Expr, callee lexeme) Expr {
@@ -29,7 +31,7 @@ func ordinaryCall(l sqlLexer, typ TypeName, args []Expr, callee lexeme) Expr {
 	if typ.Schema != nil {
 		parts = append([]Identifier{*typ.Schema}, parts...)
 	}
-	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, CompositeCandidate: true}
+	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, CompositeCandidate: !quotedJSONArrayAggregateName(typ.Name)}
 }
 
 func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variadic bool, order []OrderKey) Expr {
@@ -40,7 +42,7 @@ func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variad
 	if typ.Schema != nil {
 		parts = append([]Identifier{*typ.Schema}, parts...)
 	}
-	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: true}
+	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: !quotedJSONArrayAggregateName(typ.Name)}
 }
 
 // Only the unquoted release JSON_OBJECT legacy production rewrites its name.
@@ -56,4 +58,12 @@ func selectedScalarCall(l sqlLexer, callee lexeme, call FunctionExpr) (FunctionE
 		call.Name.Parts = []Identifier{{Text: "pg_catalog", Pos: callee.pos}, {Text: "json_object", Pos: callee.pos}}
 	}
 	return call, true
+}
+
+// Known aggregate case variants retain missing-signature diagnostics rather than
+// the generic scalar-function capability boundary. They still use ordinary
+// exact-name resolution and eligible one-argument composite-field fallback.
+func quotedJSONArrayAggregateName(name string) bool {
+	return strings.EqualFold(name,"json_agg") || strings.EqualFold(name,"jsonb_agg") ||
+		strings.EqualFold(name,"json_agg_strict") || strings.EqualFold(name,"jsonb_agg_strict")
 }

@@ -216,12 +216,13 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	if nested != nil {
 		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
-	// SUM and bitwise providers resolve children, FILTER and signatures before
-	// the INSERT VALUES restriction. Other aggregates keep their clause handling.
+	// Selected SUM, bitwise and JSON providers resolve children, FILTER and
+	// signatures before INSERT VALUES rejection; other aggregates stay unchanged.
 	if clause == "INSERT VALUES" {
 		switch call.operation {
 		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum,
-			aggregateBitAnd, aggregateBitOr, aggregateBitXor:
+			aggregateBitAnd, aggregateBitOr, aggregateBitXor,
+			aggregateJSON,aggregateJSONStrict,aggregateJSONArray,aggregateJSONArrayAbsent:
 			clause = "VALUES"
 		}
 	}

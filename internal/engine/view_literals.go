@@ -60,6 +60,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if !ok || coercion.mode == sqltype.Explicit {
 			break
 		}
+		if aggregate,ok:=raw.(parser.AggregateExpr);ok && aggregate.JSON!=nil && aggregate.JSON.Returning!=nil && coercion.mode==sqltype.Assignment {
+			break // RETURNING owns this assignment conversion in the raw syntax.
+		}
 		bound = coercion.child
 	}
 	child := func(raw parser.Expr, bound BoundExpr) error {
@@ -176,6 +179,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, n.args)
 		}
 	case parser.AggregateExpr:
+		if r.JSON!=nil && r.JSON.Returning!=nil {
+			if b.viewCastUsages==nil {b.viewCastUsages=make(map[viewLiteralPath]sqltype.Usage)}
+			b.viewCastUsages[path]=bound.ResultUsage()
+			if conversion,ok:=bound.(coercionExpression);ok {bound=conversion.child}
+		}
 		if n, ok := bound.(*windowExpression); ok && r.Window != nil {
 			if n.call < 0 || n.call >= len(b.windowCalls) {
 				return fmt.Errorf("stuntgres: invalid stored window occurrence")
@@ -210,6 +218,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if call, ok := b.aggregateCallAt(n); ok {
 				for i, arg := range r.Args {
 					expression := call.argument
+					if conversion,ok:=expression.(coercionExpression);ok && conversion.plan.IsJSONFormattedInput() {
+						expression=conversion.child
+					}
 					if i == 1 {
 						expression = call.separator
 					}

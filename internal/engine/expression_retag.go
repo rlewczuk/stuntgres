@@ -821,7 +821,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 			if n.mode == sqltype.Implicit && n.child.ResultUsage().Type.BaseType().ID() == sqltype.Char && info.usage.Type.ID() == sqltype.Text {
 				n.plan, err = sqltype.PlanExtremaCharText(n.child.ResultUsage(), info.usage)
 			} else {
-				n.plan, err = sqltype.PlanCoercion(n.child.ResultUsage(), info.usage, n.mode)
+				n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.usage, n.mode)
 			}
 		}
 		n.expressionInfo = info

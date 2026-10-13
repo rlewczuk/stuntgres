@@ -167,7 +167,7 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   operators, new element providers or general §9.19 array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
-- Selected JSON processing is limited to `json_typeof`, `jsonb_typeof`,
+- Selected scalar/set JSON processing includes `json_typeof`, `jsonb_typeof`,
   `json_array_length`, `jsonb_array_length`, `json_object_keys` and
   `jsonb_object_keys`, each taking its matching JSON family. Kinds/keys return
   TEXT; immediate array lengths return INT4. SQL NULL is strict (NULL scalars,
@@ -176,8 +176,16 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   Wrong-root length/keys use PostgreSQL English 22023 diagnostics with absent
   runtime Position. Key sets reuse target zip/padding and lateral FROM stages;
   scalar stored consumers and query key views retain symbolic calls on replay.
-  Adjacent operators/functions/constructors, generic JSON equality and SQL/JSON
-  execution remain excluded.
+  JSON array aggregates `json_agg`, `jsonb_agg`, their `_strict` variants and
+  `json_arrayagg` use ordinary grouping/FILTER/local ordering. SQL NULL is included
+  by ordinary variants and omitted by strict/default ABSENT ON NULL; JSON null is
+  retained. All-NULL strict input produces `[]`, but zero admitted rows produce
+  SQL NULL. SQL/JSON array aggregation admits input FORMAT JSON, NULL/ABSENT ON
+  NULL and applicable RETURNING JSON/JSONB, UTF8 BYTEA, existing string carriers
+  and unconstrained domains with assignment typmods. Domain constraints/defaults/
+  NOT NULL and aggregate-window execution retain their existing boundaries.
+  Adjacent operators/functions, generic JSON equality, SQL/JSON object aggregation
+  and path/query execution remain excluded.
 - Selected §9.19 functions `array_position`, `array_positions`, `array_remove`,
   `array_replace` and operators `@>`, `<@`, `&&` consume existing array codecs
   and leaf equality providers. Functions are NULL-aware; membership is strict

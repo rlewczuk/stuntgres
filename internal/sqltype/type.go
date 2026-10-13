@@ -1056,6 +1056,8 @@ const (
 	networkConversion
 	networkTextConversion
 	xid8Conversion
+	jsonFormattedInput
+	jsonReturningOutput
 )
 
 type CoercionPlan struct {
@@ -1064,6 +1066,7 @@ type CoercionPlan struct {
 	context                      CoercionContext
 	logicalSource, logicalTarget *Descriptor
 	element                      *CoercionPlan
+	jsonEncoding string
 }
 
 func (p CoercionPlan) Equal(other CoercionPlan) bool {
@@ -1492,6 +1495,23 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 	switch p.method {
 	case xid8Conversion:
 		return XIDValue(p.target.Type, uint32(v.integer))
+	case jsonFormattedInput:
+		text:=v.text
+		var err error
+		if p.source.Type.id==Bytea {
+			encoding:=p.jsonEncoding
+			if encoding=="" {encoding="UTF8"}
+			text,err=ConvertBinaryEncoding(ctx,text,encoding,"UTF8")
+		} else {
+			text,err=p.source.Type.OutputWithEnvironment(ctx,v,output)
+		}
+		if err!=nil{return Value{},err}
+		return p.target.Type.InputWithEnvironment(ctx,text,p.target.Typmod,input)
+	case jsonReturningOutput:
+		text,err:=p.source.Type.OutputWithEnvironment(ctx,v,output)
+		if err!=nil{return Value{},err}
+		if p.target.Type.id==Bytea {return Binary(p.target.Type,text)}
+		return p.target.Type.InputWithEnvironment(ctx,text,p.target.Typmod,input)
 	case networkConversion:
 		v.typ = p.target.Type
 		if v.typ.id == Cidr {

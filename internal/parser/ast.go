@@ -1738,6 +1738,21 @@ type FunctionExpr struct {
 	Filter   Expr
 }
 
+// JSONFormat retains explicit SQL/JSON clauses and their diagnostic positions.
+type JSONFormat struct {
+	Pos Position
+	Encoding string
+	EncodingPos Position
+}
+
+type JSONArrayAggregateOptions struct {
+	Input *JSONFormat
+	Absent bool
+	NullPos Position
+	Returning *TypeName
+	Output *JSONFormat
+}
+
 // AggregateExpr retains ordinary aggregate arguments and call-local modifiers.
 type AggregateExpr struct {
 	Name      string
@@ -1750,6 +1765,7 @@ type AggregateExpr struct {
 	Window    *WindowSpec
 	FilterPos Position
 	Pos       Position
+	JSON      *JSONArrayAggregateOptions
 }
 
 func (AggregateExpr) expression()                {}
