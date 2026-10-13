@@ -12815,7 +12815,11 @@ sqldefault:
 	case 706:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.indexKey = IndexKey{Expression: FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}}, Args: sqlDollar[2].call.Args, ArgNames: sqlDollar[2].call.ArgNames, Variadic: sqlDollar[2].call.Variadic, ResolutionOnly: sqlDollar[1].tok.resolutionOnly, Pos: sqlDollar[1].tok.pos}, Pos: sqlDollar[1].tok.pos}
+			call, ok := selectedScalarCall(sqllex, sqlDollar[1].tok, sqlDollar[2].call)
+			if !ok {
+				return 1
+			}
+			sqlVAL.indexKey = IndexKey{Expression: call, Pos: sqlDollar[1].tok.pos}
 		}
 	case 707:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
@@ -15877,7 +15881,11 @@ sqldefault:
 	case 1228:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.expr = FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}}, Args: sqlDollar[2].call.Args, ArgNames: sqlDollar[2].call.ArgNames, Variadic: sqlDollar[2].call.Variadic, ResolutionOnly: sqlDollar[1].tok.resolutionOnly, Pos: sqlDollar[1].tok.pos}
+			call, ok := selectedScalarCall(sqllex, sqlDollar[1].tok, sqlDollar[2].call)
+			if !ok {
+				return 1
+			}
+			sqlVAL.expr = call
 		}
 	case 1229:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -17535,9 +17543,11 @@ sqldefault:
 	case 1540:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.call = sqlDollar[2].call
-			sqlVAL.call.Name = ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}}
-			sqlVAL.call.Pos = sqlDollar[1].tok.pos
+			call, ok := selectedScalarCall(sqllex, sqlDollar[1].tok, sqlDollar[2].call)
+			if !ok {
+				return 1
+			}
+			sqlVAL.call = call
 		}
 	case 1541:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]

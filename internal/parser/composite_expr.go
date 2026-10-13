@@ -42,3 +42,18 @@ func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variad
 	}
 	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: true}
 }
+
+// Only the unquoted release JSON_OBJECT legacy production rewrites its name.
+// Quoted and schema-qualified calls retain ordinary resolution identities.
+func selectedScalarCall(l sqlLexer, callee lexeme, call FunctionExpr) (FunctionExpr, bool) {
+	call.Name = ObjectName{Parts: []Identifier{{Text: callee.text, Pos: callee.pos}}}
+	call.Pos, call.ResolutionOnly = callee.pos, callee.resolutionOnly
+	if callee.keyword != nil && callee.text == "json_object" {
+		if len(call.Args) == 0 || call.Variadic {
+			l.(*lexer).failAt("0A000", "functions are unsupported", callee.pos.Offset)
+			return FunctionExpr{}, false
+		}
+		call.Name.Parts = []Identifier{{Text: "pg_catalog", Pos: callee.pos}, {Text: "json_object", Pos: callee.pos}}
+	}
+	return call, true
+}

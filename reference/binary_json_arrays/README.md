@@ -6,6 +6,42 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSON text-array object construction
+
+The `TestReferenceJSONObject` families cover exactly the one- and two-text-array
+`json_object` overloads. Expectations are explicit JSON text (including order,
+duplicates, escaping and separator spaces), complete diagnostics, inferred held
+parameters, computed metadata, used-column privileges and symbolic stored
+consumers. Qualified explicit final `VARIADIC` text[] syntax, including inferred
+held parameters, selects the same one- or two-argument overload; it does not
+imply a variadic catalog signature.
+Stored deparse assertions preserve quoted `"json_object"` names, shifted array bounds
+and exact default/generated/CHECK/view/index formatting. Default/generated
+definitions are identified by independently expected `pg_attrdef.adnum` values,
+ordered by column number; relation discovery uses `pg_class` OID joins.
+Public view deparse uses the quoted unqualified name, while symbolic Dump SQL
+retains `pg_catalog.json_object` qualification for replay. Native control phases
+use actual Dump/Reset/Restore and replay emitted SQL on PostgreSQL; they do not
+invent a PostgreSQL control API.
+
+Select these bounded sets in both modes, each under an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONObject(Values|Diagnostics|Typing)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONObject(Values|Diagnostics|Typing)$'
+make check RUN='^TestReferenceJSONObject(Parameters|Metadata|ACL)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONObject(Parameters|Metadata|ACL)$'
+make check RUN='^TestReferenceJSONObject(Consumers|Deparse|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONObject(Consumers|Deparse|Controls|FeatureSmoke)$'
+```
+
+Feature smoke uses `RUN='^TestReferenceJSONObjectFeatureSmoke$'` in both modes.
+It expects flat/2-D/parallel construction, JSON metadata, same-held-statement
+NULL/error/recovery frames, generated/default/view consumers, late-write atomicity
+and native replacement with emitted-SQL replay. SQL/JSON constructor syntax,
+JSONB constructors, JSON comparison and generic builtin catalog enumeration are
+not capabilities asserted by this family.
+
 ### Array aggregation
 
 Array aggregation uses `RUN='^TestReferenceArrayAgg'` with both

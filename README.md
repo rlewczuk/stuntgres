@@ -981,10 +981,23 @@ the existing typed seams, including generic JSON arrays and domains. JSON has
 no ordinary comparison/grouping/index-key provider, but supports INCLUDE payloads.
 Missing default classes report42704 even during atomic ALTER TYPE reconstruction.
 Unicode-escape physical EOF reports an invalid token, distinct from present nonhex
-digits. JSON operators/functions and SQL/JSON constructor `json(...)` are excluded.
+digits. JSON operators, other JSON functions and SQL/JSON constructors remain excluded.
 See [JSON types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONFeatureSmoke$'`.
+
+Change note: `json_object(text[])` and `json_object(text[], text[])` construct
+ordered JSON objects from alternating flat pairs, two-column arrays, or parallel
+one-dimensional key/value arrays. Bounds are ignored, duplicate keys remain in
+order, values are JSON strings (or JSON null for NULL elements), and whole-array
+SQL NULL is strict. Malformed shapes/counts and NULL keys use PostgreSQL diagnostics.
+Qualified explicit final `VARIADIC` array syntax selects these same signatures;
+it does not add a variadic overload. Stored consumers and native Dump/Restore
+retain symbolic calls. JSON remains noncomparable; SQL/JSON and JSONB constructors
+and generic builtin catalog enumeration are unchanged.
+See [JSON construction](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
+Feature smoke: `make check RUN='^TestReferenceJSONObjectFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONObjectFeatureSmoke$'`.
 
 Change note: JSONB storage normalizes whitespace and key order, keeps the last
 decoded duplicate key, and preserves exact finite decimals and their display

@@ -831,6 +831,18 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
+	// JSON_OBJECT remains a column-name keyword outside actual call syntax.
+	// Quoted names retain exact spelling for ordinary signature resolution.
+	if strings.EqualFold(token.lexeme.text, "json_object") {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = SELECTED_FUNC
+		}
+	}
+	if token.code == SELECTED_FUNC && strings.EqualFold(token.lexeme.text, "json_object") {
+		token.code = CHECK_FUNC
+	}
 	if token.code == IDENT && enumFunctionName(token.lexeme.text) {
 		token.code = SELECTED_FUNC
 	}
@@ -1445,7 +1457,7 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
+	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object":
 		return true
 	}
 	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name)

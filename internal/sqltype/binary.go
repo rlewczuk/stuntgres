@@ -20,6 +20,11 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	p := BinaryPlan{name: name, result: result, arity: len(args)}
 	ids, arity, id := [4]ID{Bytea, Bytea}, 2, Bytea
 	switch name {
+	case "json_object":
+		ids, arity, id = [4]ID{1009, 1009}, len(args), JSON
+		if arity < 1 || arity > 2 {
+			return p, fmt.Errorf("invalid JSON object arity")
+		}
 	case "length", "octet_length", "bit_length":
 		arity, id = 1, Int4
 	case "crc32", "crc32c":
@@ -127,6 +132,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	}
 	a := values[0]
 	switch p.name {
+	case "json_object":
+		return p.jsonObject(ctx, values)
 	case "bit_count":
 		var count int64
 		for i := range len(a.text) {

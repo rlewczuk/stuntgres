@@ -110,6 +110,17 @@ JSONB storage does not imply GIN, containment, extraction or SQL/JSON providers.
 JSONPath retains an immutable typed representation; typed input alone does not
 provide a general path evaluator.
 
+The legacy `json_object(text[])` and `json_object(text[], text[])` functions
+produce JSON text directly. One array contains alternating flat key/value pairs
+or two-column rows; parallel arrays must both be one-dimensional with equal
+lengths (two empty arrays are valid). Lower bounds do not affect pairing. Key
+order and duplicates are preserved, nonnull values are always JSON strings,
+NULL values become JSON null, and NULL keys are errors. A NULL whole argument
+produces SQL NULL after argument evaluation. Qualified explicit final `VARIADIC`
+array syntax uses the same two nonvariadic signatures, not argument expansion.
+SQL/JSON object syntax, JSONB constructors and builtin catalog enumeration remain
+outside this feature.
+
 Range and multirange datums own canonical endpoints/members and subtype
 descriptors from their generation. Native exports string with no Length or
 DecimalSize, despite numeric subtypes. Nil/typed-nil bytes are NULL; nonnil empty

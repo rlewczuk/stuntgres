@@ -1261,7 +1261,7 @@ index_atom: name {$$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.
  | '(' scalar_projection ')' {$$=IndexKey{Expression:$2,Pos:$1.pos}}
  | function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
  | conditional_call {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
- | check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,ArgNames:$2.ArgNames,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
+ | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=IndexKey{Expression:call,Pos:$1.pos}}
  | name '.' check_function_head function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos},Pos:$1.pos}}
  | string_function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
  | name '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
@@ -1761,7 +1761,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
- | check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,ArgNames:$2.ArgNames,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos} }
+ | check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | transaction_time_call { $$=$1 }
  | EXTRACT '(' extract_field FROM scalar ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"extract",Pos:$1.pos}}},Args:[]Expr{LiteralExpr{Value:Value{Kind:StringValue,Text:$3.text,Pos:$3.pos}},$5},Syntax:SQLFunctionSyntax,Pos:$1.pos} }
  | OVERLAY '(' scalar PLACING scalar FROM scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7}) }
@@ -2055,7 +2055,7 @@ from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} }
  | from_base AS from_alias '(' using_columns type ')' {if _,ok:=$1.(*FunctionTable);!ok {sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1};sqllex.(*lexer).failAt("42601","a column definition list is only allowed for functions returning \"record\"",$5[0].Pos.Offset);return 1} ;
-function_table_call: check_function_head function_args ')' {$$=$2;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
  | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos} ;
 function_table_calls: function_table_call {$$=[]FunctionExpr{$1}}
