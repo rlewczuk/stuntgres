@@ -95,8 +95,10 @@ reindexing are unavailable; partition key/constraint combinations remain bounded
 Recursive inheritance update/delete/locking and graph-shape alterations remain
 excluded. Copying a temporary-sequence default into a permanent table is unavailable.
 
-Materialized views do not provide native indexes or concurrent refresh. Explicit
-transaction refresh and refresh as Restore input remain excluded. Trigger, pending
+Materialized views support logical indexes and autocommit concurrent refresh.
+Explicit transaction refresh and refresh as Restore input remain excluded.
+Physical temporary heaps, SPI diff SQL/Context, WAL and crash durability remain
+server mechanisms, not native logical publication contracts. Trigger, pending
 trigger, foreign-table/FDW and procedural-language execution are unavailable.
 Truncation does not provide identity restart.
 

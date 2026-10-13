@@ -41,6 +41,9 @@ type relationStorage struct {
 	// Metadata only, accessed under Engine.mu. Rows/end vectors are never
 	// changed when this first committed TRUNCATE stamps its predecessor.
 	truncateLineage *truncateLineage
+	// Successful concurrent MV publication stamps both incarnations atomically.
+	// It does not share TRUNCATE's current-root/birth-filter semantics.
+	materializedLineage *materializedLineage
 }
 
 const (
@@ -555,6 +558,7 @@ type CatalogStage struct {
 	initialTx               TxRef
 	materializedReplacement *materializedReplacement
 	querySources            []Descriptor
+	materializedSourceView  *visibilityData
 	likeSources             []Descriptor // CREATE-only exact descriptor captures, not dependencies.
 }
 
@@ -1020,7 +1024,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			return ChangeSet{}, err
 		}
 		for _, source := range s.querySources {
-			if current.descriptors[source.Address()] != source {
+			if !materializedSourceCurrent(s.materializedSourceView, source, current, currentStorage[source.Address()]) {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1226,7 +1230,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				sourceRoots[a] = candidate.root
 			}
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, sourceRoots, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure)
+		var runtimeOwners map[ObjectAddress]authorization.PrincipalRef
+		if r := s.materializedReplacement; r != nil && r.concurrent {
+			runtimeOwners = map[ObjectAddress]authorization.PrincipalRef{r.original.address: r.original.owner}
+		}
+		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, sourceRoots, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure, runtimeOwners)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
@@ -1410,6 +1418,14 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				if replacement := s.materializedReplacement; replacement != nil {
 					for i := range replacement.storage.versions {
 						replacement.storage.versions[i].born = frontier
+					}
+					if replacement.concurrent {
+						lineage := replacement.predecessor.materializedLineage
+						if lineage == nil {
+							lineage = &materializedLineage{marker: 1}
+						}
+						replacement.predecessor.materializedLineage = lineage
+						replacement.storage.materializedLineage = lineage
 					}
 				}
 				e.commitSeq = frontier

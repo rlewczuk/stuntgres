@@ -101,12 +101,19 @@ reject with25001 before GID lookup; genuine singleton completion is unchanged.
 Initial retained PREPARE TRANSACTION warns25P01 and detaches the empty segment,
 while its suffix runs independently. Singleton idle PREPARE still creates no entry.
 
-Nonconcurrent materialized refresh retains its full private replacement, including
-DATA/NO DATA population, across source writes, private CREATE, repeated refresh and
-pending role/MAINTAIN grants. BEGIN promotes already-refreshed roots without
-publication; late errors discard them. Supported source indexes remain atomic with
-source rows. This does not enable MV indexes, concurrent refresh, explicit-block
-refresh or REFRESH as native Restore input.
+Materialized refresh retains its full private replacement, including DATA/NO DATA
+population for plain refresh and the effective matched-row diff for concurrent
+refresh, across source writes, private CREATE, repeated refresh and pending
+role/MAINTAIN grants. Multiple MV and index roots publish together at message end;
+runtime uniqueness disclosure uses each concurrent target's MV owner. BEGIN
+promotes already-refreshed roots without publication; late errors or cancellation
+discard them. Uninterrupted concurrent replacements bridge committed reader
+snapshots only at successful outer publication; private CREATE and an intervening
+plain rewrite never manufacture that provenance. A producer reading another MV
+captures one coherent physical-source snapshot before source waits and retains
+its old rows across compatible concurrent source publication. Exact target,
+index, provider and defining-authority fences remain strict. Genuine explicit-
+block refresh and REFRESH as native Restore input remain excluded.
 
 `Exec` closes all eager row results and reports the final successful command's
 count: SELECT reports its row count, and command-only utilities report zero.

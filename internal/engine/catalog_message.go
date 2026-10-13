@@ -140,7 +140,26 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		// authority, not to the outer transaction's predecessor fences.
 		domainBases = nil
 	}
-	for _, sources := range [][]Descriptor{s.querySources, s.likeSources, domainBases} {
+	for _, source := range s.querySources {
+		if !materializedSourceCurrent(s.materializedSourceView, source, current, e.stageStorageLocked(s, source.Address())) {
+			return CatalogConflict{}
+		}
+		if snapshot := s.materializedSourceView; snapshot != nil {
+			if relation, ok := source.(*relationDescriptor); ok && relation.relationKind == materializedViewRelation {
+				fence := materializedSourceFence{ref: ObjectRef{owner: e.owner, Epoch: snapshot.catalog.Epoch(), Address: relation.address}, relation: relation, storage: snapshot.generationAt(relation.address)}
+				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.address] == nil {
+					c.materializedSources = append(c.materializedSources, fence)
+					continue
+				}
+			}
+		}
+		if observed := s.base.state.descriptors[source.Address()]; observed != nil {
+			if err := observe(source.Address(), observed); err != nil {
+				return err
+			}
+		}
+	}
+	for _, sources := range [][]Descriptor{s.likeSources, domainBases} {
 		for _, d := range sources {
 			observed := s.base.state.descriptors[d.Address()]
 			if observed != nil {
@@ -173,6 +192,14 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 	}
 	for parent := range s.indexSets {
+		for address, descriptor := range current.descriptors {
+			index, ok := descriptor.(*relationDescriptor)
+			if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent {
+				if err := observe(address, index); err != nil {
+					return err
+				}
+			}
+		}
 		f := catalogIndexFence{parent: parent, indexes: map[ObjectAddress]bool{}}
 		for a, d := range e.state.descriptors {
 			r, ok := d.(*relationDescriptor)

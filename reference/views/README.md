@@ -106,6 +106,54 @@ materialized as `./.materialized-refresh-smoke/main.go`, run with
 `go run ./.materialized-refresh-smoke` (external900-second deadline), then removed.
 Neither selected tests nor oracle-only discovery replace this executable proof.
 
+Concurrent refresh uses the shared `TestReferenceMaterializedRefreshConcurrent`
+families (Lifecycle, Prepared, Metadata, Eligibility, Diagnostics, Duplicates,
+Atomicity, Readers, Snapshots, Queue, Cancellation, Controls, Transactions and
+FeatureSmoke), plus the affected Boundaries/FeatureSmoke callers:
+
+```sh
+make check RUN='^TestReferenceMaterializedRefreshConcurrent|^TestReferenceMaterializedRefresh(Boundaries|FeatureSmoke)|^TestReferenceMaterializedAlterIndexRefreshAtomicity'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshConcurrent|^TestReferenceMaterializedRefresh(Boundaries|FeatureSmoke)|^TestReferenceMaterializedAlterIndexRefreshAtomicity'
+make check RUN='^TestMaterializedRefreshConcurrent'
+make check RACE=1 RUN='^TestMaterializedRefreshConcurrent|^TestReferenceMaterializedRefreshConcurrent(Readers|Snapshots|Queue|Cancellation|Retained|SourceMaterialized)'
+make check RUN='^TestReferenceMaterializedRefreshConcurrentFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshConcurrentFeatureSmoke$'
+```
+
+Each invocation has an external900-second deadline. Independent assertions cover
+direct/held prepared affected0, exact bags/raw cells/metadata, current eligibility
+at Execute, populated/options precedence, same-lifetime catalog identities and
+genuine native stale-row/index Dump/Reset/Restore/fresh-driver replay.
+NULL/image cases distinguish the raw producer bag from the effective diff:
+old image matches survive once and suppress all matching new occurrences;
+unmatched new occurrences retain multiplicity. All eligible index keys supply
+non-NULL SQL equality quals; INCLUDE payloads do not. Numeric scale/signed-zero
+images remain distinct. Complete non-NULL duplicates fail21000 before runtime
+key conflicts23505, including owner-disclosed Detail under MAINTAIN-only callers.
+The local runtime diagnostic helper validates PostgreSQL's exact generated SPI
+INSERT Context shape before normalizing only that physical, non-engine field;
+InternalQuery/InternalPosition and every logical field remain exact. Queued plain
+target-lock timeout independently asserts Position17 on both backends.
+Reader/queue/cancellation scenarios observe actual baseAS or targetEXCLUSIVE
+waits: PG uses exact OID/PID/mode/blocker; native uses bounded real worker frames.
+Readers pass EXCLUSIVE and queued EXCLUSIVE, not queued AX. RR holds old roots
+across two peer publications, including a snapshot established before first MV
+demand. Private units pin deterministic admission/publish/capture interleavings,
+immutable buffers/frontier/end roots, narrow lineage and negative authority/
+ordinary-incarnation fences. Workers always cancel/release/join on failure.
+SourceMaterialized independently pins an outer refresh's old active source
+snapshot while another base-source lock is awaited and its inner MV concurrently
+publishes new rows; the next fresh outer refresh sees those new rows. All physical
+sources share one capture/frontier. Source-only retained fences accept only exact
+defining authority and uninterrupted concurrent lineage; target/index/provider
+original fences are never relaxed. The sessions package's Retained and
+RetainedCancellation families exercise the existing eager multi-command owner.
+Standalone feature source is supplied through the OMP session and temporarily
+materialized at `./.materialized-refresh-concurrent-smoke/main.go`; the root runs
+`go run ./.materialized-refresh-concurrent-smoke` (external900-second deadline),
+records checked observations, then removes the materialized source.
+
+
 ### Materialized alteration and attachments — change note
 
 The untagged shared `TestReferenceMaterializedAlter` definitions specify

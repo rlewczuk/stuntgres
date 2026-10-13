@@ -133,7 +133,8 @@ func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogCh
 		if current.sequence == nil || source.storage != nil || current.sequencePlanStamp != source.relation.sequencePlanStamp {
 			return nil, ErrCatalogReplaced
 		}
-	} else if e.privateStorageLocked(changes, source.ref.Address) != source.storage {
+	} else if storage := e.privateStorageLocked(changes, source.ref.Address); storage != source.storage &&
+		!sameMaterializedLineage(source.relation, current, source.storage, storage) {
 		return nil, ErrCatalogReplaced
 	}
 	return current, nil

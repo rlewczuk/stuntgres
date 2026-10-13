@@ -630,8 +630,11 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		if err != nil {
 			return err
 		}
-		if refreshSources {
+		if refreshSources && (current.relationKind != materializedViewRelation || s.view == nil) {
 			s.querySources[i].relation = current
+			if current.relationKind == materializedViewRelation {
+				s.querySources[i].storage = e.privateStorageLocked(s.owner.catalog, source.ref.Address)
+			}
 		}
 	}
 	if s.lockedRef.owner == nil {

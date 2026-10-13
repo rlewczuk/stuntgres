@@ -9,30 +9,31 @@ import (
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals          map[ObjectAddress]Descriptor
-	descriptors        map[ObjectAddress]Descriptor
-	names              map[NameKey]ObjectAddress
-	defaultACLs        map[defaultACLKey]*defaultACLRecord
-	defaultOriginals   map[defaultACLKey]*defaultACLRecord
-	defaultReads       map[defaultACLKey]*defaultACLRecord
-	generators         map[ObjectAddress]*sequenceGenerator
-	storage            map[ObjectAddress]catalogStorageChange
-	uniqueRoots        map[ObjectAddress]*logicalIndexRoot
-	dependencies       []catalogDependencyObservation
-	extensionAuthority []extensionAuthorityObservation
-	cachedBase         *catalogState
-	cached             CatalogRead
-	enumCreated        map[ObjectAddress]bool // CREATE at top transaction level only.
-	enumUnsafe         map[int64]bool         // Globally nonreused member identities.
-	rolesBase          *roleCatalog
-	roles              *roleCatalog
-	retiredRoles       map[authorization.PrincipalRef]struct{}
-	indexRebuilds      map[ObjectAddress]*relationDescriptor
-	indexFences        []catalogIndexFence
-	namespaceFences    []catalogNamespaceFence
-	readFences         []partitionReadFence
-	truncateFences     []truncateGraphFence
-	domainChanged      bool
+	originals           map[ObjectAddress]Descriptor
+	descriptors         map[ObjectAddress]Descriptor
+	names               map[NameKey]ObjectAddress
+	defaultACLs         map[defaultACLKey]*defaultACLRecord
+	defaultOriginals    map[defaultACLKey]*defaultACLRecord
+	defaultReads        map[defaultACLKey]*defaultACLRecord
+	generators          map[ObjectAddress]*sequenceGenerator
+	storage             map[ObjectAddress]catalogStorageChange
+	uniqueRoots         map[ObjectAddress]*logicalIndexRoot
+	dependencies        []catalogDependencyObservation
+	extensionAuthority  []extensionAuthorityObservation
+	cachedBase          *catalogState
+	cached              CatalogRead
+	enumCreated         map[ObjectAddress]bool // CREATE at top transaction level only.
+	enumUnsafe          map[int64]bool         // Globally nonreused member identities.
+	rolesBase           *roleCatalog
+	roles               *roleCatalog
+	retiredRoles        map[authorization.PrincipalRef]struct{}
+	indexRebuilds       map[ObjectAddress]*relationDescriptor
+	indexFences         []catalogIndexFence
+	namespaceFences     []catalogNamespaceFence
+	readFences          []partitionReadFence
+	truncateFences      []truncateGraphFence
+	materializedSources []materializedSourceFence
+	domainChanged       bool
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -78,6 +79,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		}
 	}
 	n.dependencies = append(n.dependencies, c.dependencies...)
+	n.materializedSources = append(n.materializedSources, c.materializedSources...)
 	n.rolesBase, n.roles = c.rolesBase, c.roles
 	if len(c.retiredRoles) != 0 {
 		n.retiredRoles = make(map[authorization.PrincipalRef]struct{}, len(c.retiredRoles))
@@ -274,6 +276,11 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	for a, shape := range c.storage {
 		store := e.storage[a]
 		if store != shape.original || store != nil && (store.generation != shape.generation || len(store.versions) != len(shape.root) || store.ends != shape.ends || !sameVersionRoot(store.versions, shape.root)) {
+			return CatalogConflict{}
+		}
+	}
+	for _, fence := range c.materializedSources {
+		if !e.materializedSourceFenceCurrent(fence) {
 			return CatalogConflict{}
 		}
 	}

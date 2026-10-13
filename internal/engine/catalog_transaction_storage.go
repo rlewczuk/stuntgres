@@ -20,6 +20,10 @@ type catalogStorageChange struct {
 	truncated   bool
 	frontier    CommitSeq
 	fills       map[int32]sqltype.Value
+	// Latest replacement's diagnostic mode is distinct from uninterrupted
+	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
+	materializedConcurrent bool
+	materializedContinuous bool
 }
 
 type catalogDependencyObservation struct {

@@ -52,6 +52,6 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		}
 		retainedRoots[a] = root
 	}
-	roots, err := e.prepareIndexCatalog(ctx, retained, next, storage, retainedRoots, nil, nil, sqltype.OutputEnvironment{}, nil)
+	roots, err := e.prepareIndexCatalog(ctx, retained, next, storage, retainedRoots, nil, nil, sqltype.OutputEnvironment{}, nil, nil)
 	return roots, rowID, versionID, err
 }

@@ -75,6 +75,15 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	for i := range captures {
 		capture := &captures[i]
 		index, parent := capture.index, capture.parent
+		building := true
+		indexAuth := auth
+		if r := stage.materializedReplacement; r != nil && r.concurrent && r.original.address == parent.address {
+			building = false
+			indexAuth.state.CurrentUser = parent.owner
+			if _, err := indexAuth.roles.Descriptor(parent.owner); err != nil {
+				return err
+			}
+		}
 		baseline, err := buildIndexRoot(scope.op.Context(), parent, index.sqlIndex, &capture.store)
 		if err != nil {
 			return err
@@ -94,12 +103,12 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				if full == nil {
 					full = baseline
 				}
-				if err = validateExclusionRoot(scope.op.Context(), parent, index, full, schema, scope.output, &auth, true); err != nil {
+				if err = validateExclusionRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
 					return err
 				}
 			}
 		} else {
-			full, err := mergeIndexRoot(scope.op.Context(), parent, index, baseline.entries, &publication, true, index.sqlIndex.isExclusion(), true, schema, scope.output, &auth)
+			full, err := mergeIndexRoot(scope.op.Context(), parent, index, baseline.entries, &publication, true, index.sqlIndex.isExclusion(), building, schema, scope.output, &indexAuth)
 			if err != nil {
 				return err
 			}
@@ -107,7 +116,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				if full == nil {
 					full = baseline
 				}
-				if err = validateExclusionRoot(scope.op.Context(), parent, index, full, schema, scope.output, &auth, true); err != nil {
+				if err = validateExclusionRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
 					return err
 				}
 			}

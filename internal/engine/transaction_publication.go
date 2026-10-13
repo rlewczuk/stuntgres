@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/authorization"
 )
 
 // Prepare immutable replacement heads/end roots outside final locks. Appends
@@ -101,6 +102,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		indexPredecessors := e.indexRoots
 		var nextSequences map[ObjectAddress]*sequenceGenerator
 		var nextStorage map[ObjectAddress]*relationStorage
+		var materializedTokens map[ObjectAddress]*materializedLineage
 		if c != nil {
 			if c.cachedBase != current {
 				e.mu.Unlock()
@@ -111,6 +113,18 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				return err
 			}
 			if materialize {
+				for address, shape := range c.storage {
+					if shape.materializedContinuous && shape.original != nil {
+						if materializedTokens == nil {
+							materializedTokens = make(map[ObjectAddress]*materializedLineage)
+						}
+						token := shape.original.materializedLineage
+						if token == nil {
+							token = &materializedLineage{marker: 1}
+						}
+						materializedTokens[address] = token
+					}
+				}
 				nextSequences = make(map[ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
 				for a, g := range e.sequences {
 					nextSequences[a] = g
@@ -227,7 +241,18 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			if c != nil {
 				rebuildIntents = c.indexRebuilds
 			}
-			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure)
+			var runtimeOwners map[ObjectAddress]authorization.PrincipalRef
+			if c != nil {
+				for address, shape := range c.storage {
+					if shape.materializedConcurrent {
+						if runtimeOwners == nil {
+							runtimeOwners = make(map[ObjectAddress]authorization.PrincipalRef)
+						}
+						runtimeOwners[address] = shape.relation.owner
+					}
+				}
+			}
+			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners)
 			if indexErr != nil {
 				return indexErr
 			}
@@ -342,9 +367,13 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			p.store.generation++
 		}
 		if c != nil {
-			for _, shape := range c.storage {
+			for address, shape := range c.storage {
 				if shape.truncated && shape.original != nil {
 					shape.original.truncateLineage = shape.replacement.truncateLineage
+				}
+				if token := materializedTokens[address]; token != nil {
+					shape.original.materializedLineage = token
+					shape.replacement.materializedLineage = token
 				}
 				if shape.rewritten && shape.relation.relationKind == materializedViewRelation {
 					for i := range shape.replacement.versions {

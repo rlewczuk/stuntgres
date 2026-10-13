@@ -230,14 +230,51 @@ role/MAINTAIN and MV-owner population, promotion before BEGIN, late rollback,
 held-conflict cancellation and detached output across actual native control epochs.
 Controls uses the unwrapped native pool sharing the notice connector's engine,
 never the wrapped recording pool. PostgreSQL independently observes real waits
-and57014; native uses its held-conflict bounded caller deadline. Index obligations
-are supported source indexes, not new CREATE INDEX ON materialized-view support.
-Concurrent, genuine explicit-block and Restore refresh exclusions remain intact.
+and57014; native uses its held-conflict bounded caller deadline. Source and MV
+logical indexes publish atomically with their respective rows. Concurrent
+retained refresh is also supported; genuine explicit-block and Restore refresh
+exclusions remain intact.
 Supplemental TestDriverBatchMaterializedReplacementRoots and
 TestDriverBatchMaterializedPublicationGuards inspect first committed versus
 immediate private predecessor, generation/end/root/index/role/TxRef/epoch/cancel
 fences and row births at true end. TestDriverBatchMaterializedPromotionSavepoint
 pins the retained replacement across genuine promotion, failure and mark recovery.
+The shared `TestReferenceMaterializedRefreshConcurrentRetained` and
+`TestReferenceMaterializedRefreshConcurrentRetainedCancellation` definitions
+independently cover multiple targets plus RR old-root retention, private CREATE
+and NULL-image matching, late suffix rollback, BEGIN promotion/rollback,
+MV-owner runtime23505 disclosure and real source-wait cancellation. Native
+Dump observations use the unwrapped pool belonging to the same fixture engine.
+
+`TestReferenceMaterializedRefreshConcurrentRetainedSourceMaterialized` adds a
+retained outer refresh waiting on an ordinary source while a peer concurrently
+publishes its inner MV. Two MV aliases and a changed ordinary source distinguish
+one active producer snapshot from per-source recapture: the first/private/final
+outer output stays old, and a fresh refresh reads both new sources. A late-error
+variant rolls back the retained marker write while preserving the peer's commit.
+`TestMaterializedRefreshConcurrentRetainedSourceCapture` exercises actual source
+and retained-stage capture, generated source-only fences, one physical frontier,
+and unchanged strict target/index/ordinary/provider predecessor observations.
+The actual-function `WorkBound` regression bounds real cancellation checkpoints
+and comparator work for large valid composite NULL-key groups and duplicate
+preflight. `DuplicateDiagnosticOrder` keeps the earliest producer diagnostic
+even when key sorting visits a later producer's duplicate group first.
+
+### Testing retained concurrent refresh
+
+```sh
+make check RUN='^TestReferenceMaterializedRefreshConcurrentRetained|^TestReferenceDriverBatchRefresh'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshConcurrentRetained|^TestReferenceDriverBatchRefresh'
+make check RUN='^TestMaterializedRefreshConcurrent|^TestDriverBatchMaterialized'
+make check RACE=1 RUN='^TestReferenceMaterializedRefreshConcurrentRetained|^TestMaterializedRefreshConcurrent'
+make check RUN='^TestMaterializedRefreshConcurrent(WorkBound|DuplicateDiagnosticOrder|RetainedSourceCapture)'
+make check RUN='^TestReferenceMaterializedRefreshConcurrentRetainedSourceMaterialized'
+make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshConcurrentRetainedSourceMaterialized'
+```
+
+Each selected invocation has an external900-second deadline. No public SQL
+definition is duplicated in native-only tests.
+
 The focused
 TestDriverBatchPolicyIdentityPublication inspects actual private CREATE→ALTER/
 rename OID retention, committed-root isolation, final installation and late

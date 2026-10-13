@@ -399,10 +399,19 @@ promotion or trusted write bypass. Volatile CHECKs genuinely run during staged d
 insertion and can reject history-dependent replay.
 
 Materialized views keep stored rows/population separately from immutable producer
-identity. Refresh builds candidate rows/index roots once and replaces them atomically;
-failed refresh keeps old storage. Queued metadata changes retain defining authority
-but capture a compatible intervening refresh's current storage at grant. Native
-explicit utility transaction limits differ from PostgreSQL transactional refresh.
+identity. Plain refresh replaces the producer bag; concurrent refresh retains
+each old row matching every eligible UNIQUE key and full row image once, suppresses
+matching new occurrences, and inserts every unmatched new occurrence. INCLUDE
+does not add key equality; NULL key operands never match, even under NULLS NOT
+DISTINCT. Identical non-NULL producer rows fail21000 before runtime23505 checks
+against the effective replacement bag. Rows, population and logical index roots
+publish atomically. Failure/cancellation keeps old storage; concurrent readers
+retain coherent statement/RR roots rather than being blocked by target EXCLUSIVE.
+Queued metadata changes retain defining authority but capture a compatible
+intervening refresh's current storage at grant. Native explicit utility transaction
+limits differ from PostgreSQL transactional refresh. PostgreSQL's generated
+physical SPI Context is not a native diagnostic; stable logical fields remain
+available, including owner-executed unique-key Detail.
 
 Materialized snapshots use genuine versioned line comments with marker
 `-- stuntgres-matview-v1 <base64>` and strict JSON fields `schema`, `name`,

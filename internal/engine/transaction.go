@@ -291,6 +291,7 @@ type StatementScope struct {
 	indexMaintenance               *indexMaintenanceGrant
 	materializedRefresh            bool
 	materializedSources            []Descriptor
+	materializedSourceView         *visibilityData
 	querySources                   []queryLeaf
 	queryLockAdmission             queryLockAdmission
 	queryLocks                     *queryLockContext
@@ -787,10 +788,7 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
-	if refresh, ok := stmt.(*parser.RefreshMaterializedView); ok {
-		if err := materializedRefreshCapability(refresh); err != nil {
-			return Result{}, err
-		}
+	if _, ok := stmt.(*parser.RefreshMaterializedView); ok {
 		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 			return Result{}, err
 		}

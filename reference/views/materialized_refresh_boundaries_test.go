@@ -101,41 +101,27 @@ func TestReferenceMaterializedRefreshBoundaries(t *testing.T) {
 			for _, prepared := range []bool{false, true} {
 				for _, target := range []string{"refresh_mv", "refresh_no", "refresh_missing"} {
 					q := "REFRESH MATERIALIZED VIEW CONCURRENTLY " + target
-					want := fixture.ControlsReferenceDiagnostic("0A000", "concurrent materialized view refresh is unsupported")
-					want.Position = "27"
-					if b.PG {
-						switch target {
-						case "refresh_mv":
-							want = fixture.ControlsReferenceDiagnostic("55000", `cannot refresh materialized view "public.refresh_mv" concurrently`)
-							want.Hint = "Create a unique index with no WHERE clause on one or more columns of the materialized view."
-						case "refresh_no":
-							want = fixture.ControlsReferenceDiagnostic("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
-						case "refresh_missing":
-							want = fixture.ControlsReferenceDiagnostic("42P01", `relation "refresh_missing" does not exist`)
-						}
+					var want fixture.Diagnostic
+					switch target {
+					case "refresh_mv":
+						want = fixture.ControlsReferenceDiagnostic("55000", `cannot refresh materialized view "public.refresh_mv" concurrently`)
+						want.Hint = "Create a unique index with no WHERE clause on one or more columns of the materialized view."
+					case "refresh_no":
+						want = fixture.ControlsReferenceDiagnostic("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
+					case "refresh_missing":
+						want = fixture.ControlsReferenceDiagnostic("42P01", `relation "refresh_missing" does not exist`)
 					}
 					s := fixture.ErrorDiagnostic(q, want)
 					s.Prepared, s.ErrorStage = prepared, "execute"
-					if prepared && !b.PG {
-						s.ErrorStage = "prepare"
-					}
 					run(s)
 				}
 				for _, target := range []string{"refresh_mv", "refresh_no"} {
-					want := fixture.ControlsReferenceDiagnostic("0A000", "concurrent materialized view refresh is unsupported")
-					want.Position = "27"
-					if b.PG {
-						if target == "refresh_no" {
-							want = fixture.ControlsReferenceDiagnostic("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
-						} else {
-							want = fixture.ControlsReferenceDiagnostic("42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
-						}
+					want := fixture.ControlsReferenceDiagnostic("42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
+					if target == "refresh_no" {
+						want = fixture.ControlsReferenceDiagnostic("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
 					}
 					s := fixture.ErrorDiagnostic("REFRESH MATERIALIZED VIEW CONCURRENTLY "+target+" WITH NO DATA", want)
 					s.Prepared, s.ErrorStage = prepared, "execute"
-					if prepared && !b.PG {
-						s.ErrorStage = "prepare"
-					}
 					run(s)
 				}
 			}

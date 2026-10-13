@@ -262,7 +262,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ObjectAddress]*relationDescriptor{index.address: index}
 			}
-			roots, err := e.prepareIndexPublication(context.Background(), e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil)
+			roots, err := e.prepareIndexPublication(context.Background(), e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}

@@ -308,7 +308,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.Truncate:
 		return StatementDescription{}, nil
 	case *parser.RefreshMaterializedView:
-		return StatementDescription{}, materializedRefreshCapability(s)
+		return StatementDescription{}, nil
 	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:

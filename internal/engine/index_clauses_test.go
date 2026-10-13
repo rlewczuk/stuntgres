@@ -356,7 +356,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	// This is a deliberately reduced but valid key-construction catalogue:
 	// namespace descriptors are needed for UNIQUE diagnostics, not nonunique
 	// ordering/provider/shape validation or replacement materialization.
-	roots, err := e.prepareIndexPublication(context.Background(), catalog, catalog, storage, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil)
+	roots, err := e.prepareIndexPublication(context.Background(), catalog, catalog, storage, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only replacement required unrelated namespace metadata or materialized roots", roots, err)
 	}
@@ -367,7 +367,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	broken.sqlIndex = &definition
 	invalid := &catalogState{descriptors: map[ObjectAddress]Descriptor{parent.address: parent, index.address: &broken}}
 	for _, materialize := range []bool{false, true} {
-		if _, err := e.prepareIndexPublication(context.Background(), catalog, invalid, storage, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil); err == nil {
+		if _, err := e.prepareIndexPublication(context.Background(), catalog, invalid, storage, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)
 		}
 	}

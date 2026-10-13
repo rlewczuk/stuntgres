@@ -29,6 +29,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	seen := make(map[ObjectRef]relationLockMode)
 	var refs []ObjectRef
 	var retainedViews []*relationDescriptor
+	hasMaterializedSource := false
 	var visit func(ObjectRef, relationLockMode) error
 	visit = func(ref ObjectRef, mode relationLockMode) error {
 		prior, visited := seen[ref]
@@ -42,6 +43,9 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		if s.materializedRefresh && !visited {
 			s.materializedSources = append(s.materializedSources, d)
+			if ref != s.lockedRef && d.relationKind == materializedViewRelation {
+				hasMaterializedSource = true
+			}
 		}
 		admitted := ref == s.lockedRef
 		admittedMode := relationLockMode(0)
@@ -94,6 +98,27 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		err = visit(leaf.ref, leaf.mark.mode)
 	}
+	if err == nil && s.materializedRefresh && hasMaterializedSource {
+		var leaves []queryLeaf
+		for ref := range seen {
+			if ref == s.lockedRef {
+				continue
+			}
+			relation := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			if relation.relationKind.stored() {
+				leaves = append(leaves, queryLeaf{ref: ref})
+			}
+		}
+		var physical []ObjectRef
+		physical, err = e.queryTableRefsLocked(catalog, leaves, nil, s.op.session.token)
+		if err == nil {
+			var view *VisibilityView
+			view, err = s.acquireDataViewsLocked(e, physical)
+			if err == nil {
+				s.materializedSourceView = view.data.Load()
+			}
+		}
+	}
 	e.mu.Unlock()
 	if err != nil {
 		return err
@@ -106,7 +131,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	catalog = e.privateCatalogLocked(s.owner.catalog)
 	if s.materializedRefresh {
 		for _, observed := range s.materializedSources {
-			if catalog.state.descriptors[observed.Address()] != observed {
+			if !materializedSourceCurrent(s.materializedSourceView, observed, catalog.state, e.privateStorageLocked(s.owner.catalog, observed.Address())) {
 				return ErrCatalogReplaced
 			}
 		}

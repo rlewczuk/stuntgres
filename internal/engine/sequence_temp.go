@@ -352,7 +352,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	roots := maps.Clone(e.indexRoots)
 	e.mu.Unlock()
-	prepared, err := e.prepareIndexCatalog(context.Background(), stage.base.state, next, stores, roots, parents, rebuild, sqltype.OutputEnvironment{}, nil)
+	prepared, err := e.prepareIndexCatalog(context.Background(), stage.base.state, next, stores, roots, parents, rebuild, sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil {
 		return nil, err
 	}

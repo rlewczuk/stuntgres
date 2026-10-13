@@ -110,8 +110,14 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			if _, ok := data.committed[ref.Address]; !ok {
 				return nil, errors.New("stuntgres: relation is outside statement data view")
 			}
-			if data.generationAt(ref.Address) != e.privateStorageLocked(s.owner.catalog, ref.Address) {
-				return nil, ErrCatalogReplaced
+			captured := data.generationAt(ref.Address)
+			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
+			if captured != current {
+				oldRelation, _ := data.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				liveRelation, _ := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+				if !sameMaterializedLineage(oldRelation, liveRelation, captured, current) {
+					return nil, ErrCatalogReplaced
+				}
 			}
 		}
 		for _, ref := range refs {
@@ -153,6 +159,10 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 					return nil, ErrCatalogReplaced
 				}
 				if root.storage == live {
+					versions, ends = root.versions, root.ends
+				} else if sameMaterializedLineage(root.relation, current, root.storage, live) {
+					// Concurrent MV publication retains the actual RR root and
+					// its end markers, not the new incarnation with a birth filter.
 					versions, ends = root.versions, root.ends
 				} else {
 					if !sameTruncateLineage(root.storage, live) {

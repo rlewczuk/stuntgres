@@ -158,7 +158,10 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 			if !ok || d.sqlIndex == nil || d.sqlIndex.parent != parent {
 				continue
 			}
-			if s.indexRebuilds[address] == nil {
+			// Replacement observes the existing complete index set; it does
+			// not request REINDEX or replace any index descriptor.
+			replacement := s.materializedReplacement
+			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.address != parent || s.base.state.descriptors[address] != d) {
 				return CatalogConflict{}
 			}
 			actual++

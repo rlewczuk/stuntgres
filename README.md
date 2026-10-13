@@ -278,6 +278,11 @@ utility definitions, roles/ACLs and DML publish together or roll back together.
 its own metadata, and any later execution error. Advancing result sets never
 executes SQL. Parameterized direct calls and prepared definitions still require
 one command (`42601` for a syntactically valid multi-command definition).
+Concurrent materialized refresh participates in this existing retained-message
+publication: multiple MV/index replacements publish together, BEGIN promotion
+keeps them private, and a late error or cancellation rolls them all back. A
+producer reading a concurrently refreshed source MV retains one coherent old
+statement snapshot across its source waits; fresh statements see the new rows.
 See [direct SQL messages](docs/DRIVER.md#direct-sql-messages--change-note)
 and [message transaction boundaries](docs/TRANSACTIONS.md#retained-direct-message-transactions).
 Feature smoke (900 seconds per invocation):
@@ -443,9 +448,9 @@ cursors retain captured values/metadata. Public DML fails42809. Native
 Dump/Restore preserves the exact last-refreshed stale rows/population through a
 Restore-only comment snapshot, never query recomputation or writable MVs.
 PostgreSQL replay restores definitions unpopulated; explicit refresh computes
-the replayed base. Native CONCURRENTLY and explicit utility transactions remain
-excluded. Logical MV index roots rebuild with refresh; heap/WAL/physical index
-swap, crash durability and pg_dump are server-only.
+the replayed base. Native explicit utility transactions remain excluded.
+Logical MV index roots rebuild with refresh; heap/WAL/physical index swap,
+crash durability and pg_dump are server-only.
 See [materialized views](https://www.postgresql.org/docs/18/sql-creatematerializedview.html).
 Feature smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`;
@@ -453,6 +458,37 @@ pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshFeatureSmoke$'`.
 The root also runs a temporary standalone public Go program; these selectors
 provide contract coverage, not a substitute executable proof.
+
+Change note: autocommit `REFRESH MATERIALIZED VIEW CONCURRENTLY` admits ordinary
+readers while producing data and serializes refreshes of the same object. The
+target must already be populated and have a valid UNIQUE index over simple
+columns, without a WHERE clause; INCLUDE and either NULL-distinct policy are
+eligible. Missing eligibility fails55000 with PostgreSQL's index hint,
+unpopulated targets fail0A000, and CONCURRENTLY plus NO DATA fails42601.
+Concurrent refresh matches all eligible index keys and complete row images:
+matched old rows survive once, matched new occurrences are suppressed, and
+unmatched new occurrences are inserted. Thus matching nullable payload
+duplicates can retain one old row; unmatched duplicates still obey uniqueness.
+Full non-NULL image duplicates fail21000; remaining key conflicts fail23505.
+Selected-key NULL groups bypass impossible old/new matches without collapsing
+producer multiplicity or weakening NULLS NOT DISTINCT uniqueness. Duplicate
+preflight retains the earliest producer-row diagnostic and stops once row zero
+is established.
+Rows, population and all logical index roots publish at one frontier; failures
+and cancellation preserve prior data. RC statements retain coherent captures,
+and RR readers retain their actual old rows across later concurrent publications.
+Refresh fences the complete existing index descriptor set without treating that
+observation as a REINDEX request; ordinary maintenance still requires its own
+explicit rebuild intents.
+Native Dump/Restore preserves the resulting stale rows and index eligibility.
+PostgreSQL's generated SPI diff SQL/Context and physical temporary heaps are
+server-only, not fabricated native diagnostics.
+Feature smoke (900 seconds per invocation):
+`make check RUN='^TestReferenceMaterializedRefreshConcurrentFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceMaterializedRefreshConcurrentFeatureSmoke$'`.
+The root also runs a temporary standalone public Go program; these selectors
+are contract coverage, not executable-proof substitutes.
 
 Change note: autocommit `ALTER MATERIALIZED VIEW` supports relation/column
 rename, OWNER TO, SET SCHEMA, and DEPENDS/NO DEPENDS ON EXTENSION for genuinely
@@ -1277,9 +1313,9 @@ other valid columns give only the key expression or included column name, and
 invalid columns give empty text. Text view arguments resolve relation names, not
 numeric OIDs. Ordinary views and existing simple, expression-key and UNIQUE
 backing indexes are covered, including ordinary indexes with INCLUDE payload.
-Materialized-view metadata ALTER and logical indexes are supported; concurrent
-refresh remains excluded. Partial index predicates are supported
-through the same current-name index introspection and control paths.
+Materialized-view metadata ALTER, logical indexes and concurrent refresh are
+supported. Partial index predicates use the same current-name index introspection
+and control paths.
 Feature smoke:
 `make check RUN='^TestReferenceDeparseRelations'`
 and `make check REFERENCE=1 RUN='^TestReferenceDeparseRelations'`.
@@ -2347,7 +2383,8 @@ explicit regclass-to-oid cast is needed.
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views have a
 [bounded supported surface](https://www.postgresql.org/docs/18/sql-creatematerializedview.html), without
-temporary materializations/sources or concurrent refresh.
+temporary materializations/sources. Concurrent refresh retains the documented
+population and eligible-index restrictions.
 See [visibility inquiries](https://www.postgresql.org/docs/18/functions-info.html).
 Feature smoke: `make check RUN='^TestReferenceCollationLegacyVisibility$'`.
 Index identity/path/control witnesses:

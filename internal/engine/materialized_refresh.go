@@ -3,19 +3,10 @@ package engine
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-func materializedRefreshCapability(s *parser.RefreshMaterializedView) error {
-	if s.Concurrent.Character != 0 {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "concurrent materialized view refresh is unsupported", Position: strconv.Itoa(s.Concurrent.Character)}
-	}
-	return nil
-}
 
 func materializedRefreshAccess(auth AuthorizationView, ref ObjectRef) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -54,7 +45,11 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		return err
 	}
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+	mode := accessExclusive
+	if stmt.Concurrent.Character != 0 {
+		mode = relationExclusive
+	}
+	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -81,6 +76,9 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err == nil {
 		err = materializedRefreshAccess(auth, ref)
 	}
+	if err == nil && stmt.Concurrent.Character != 0 {
+		err = materializedConcurrentAdmission(auth.catalog, current, stmt.NoData)
+	}
 	if err == nil {
 		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, e.authorizationStorageLocked(auth, ref.Address)
 	}
@@ -96,7 +94,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 }
 
 // A preceding refresh changes rows/population/revision, not defining authority.
-// Capture its new store only at AX grant; never retry name resolution.
+// Capture its new store only at target grant; never retry name resolution.
 func materializedRefreshCompatible(old, current *relationDescriptor) bool {
 	return current != nil && current.relationKind == materializedViewRelation &&
 		relationDefiningAuthorityCompatible(old, current)
@@ -130,9 +128,35 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
+	concurrent := stmt.Concurrent.Character != 0
+	var indices []*relationDescriptor
+	var previous relationStorage
+	var oldEntries []logicalIndexEntry
+	var ownRows []rowVersion
+	var ownDeletes *privateDeletionRoot
+	frontier := e.commitSeq
+	if concurrent {
+		indices = materializedEligibleIndexes(caller.catalog, d)
+		previous = *scope.lockedStorage
+		var root *logicalIndexRoot
+		if len(indices) != 0 {
+			root = e.indexRoots[indices[0].address]
+			if scope.owner.catalog != nil && scope.owner.catalog.uniqueRoots[indices[0].address] != nil {
+				root = scope.owner.catalog.uniqueRoots[indices[0].address]
+			}
+		}
+		if root == nil {
+			e.mu.Unlock()
+			return Result{}, fmt.Errorf("stuntgres: concurrent materialized index root is missing")
+		}
+		oldEntries = root.entries
+		ownRows, ownDeletes = scope.columnProjectionRoots(d.address)
+	}
 	stage := e.BeginCatalogStage(caller.catalog)
 	stage.authorizeLocked(caller, scope.op.session)
 	stage.querySources = scope.materializedSources
+	stage.materializedSourceView = scope.materializedSourceView
+	stage.indexOutput = scope.output
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value
 	if stmt.NoData {
@@ -144,9 +168,35 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 			return Result{}, err
 		}
 	}
+	if concurrent {
+		var err error
+		if len(ownRows) != 0 || ownDeletes != nil {
+			versions := make([]rowVersion, 0, len(previous.versions)+len(ownRows))
+			for _, row := range previous.versions {
+				if liveVersion(row, frontier, previous.ends, ownDeletes) {
+					versions = append(versions, row)
+				}
+			}
+			for _, row := range ownRows {
+				if liveVersion(row, frontier, nil, ownDeletes) {
+					versions = append(versions, row)
+				}
+			}
+			previous.versions, previous.ends = versions, nil
+			oldEntries, err = buildIndexEntries(scope.op.Context(), d, indices[0].sqlIndex, &previous)
+			if err != nil {
+				return Result{}, err
+			}
+		}
+		rows, err = materializedConcurrentRows(scope.op.Context(), caller.catalog, d, &previous, frontier, oldEntries, indices, rows, scope.output)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	if err := e.stageMaterializedRows(scope.op.Context(), stage, d, scope.lockedStorage, rows, !stmt.NoData, scope.txRef); err != nil {
 		return Result{}, err
 	}
+	stage.materializedReplacement.concurrent = concurrent
 	// Provider validation may replace the catalog. Exact stage fences, not this
 	// admission lease, decide whether this original target can still publish.
 	if scope.replacementRead {
@@ -202,6 +252,8 @@ type materializedReplacement struct {
 	length      int
 	descriptor  *relationDescriptor
 	ends        *deletionRoot
+	concurrent  bool
+	indexCount  int
 }
 
 func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *relationDescriptor, previous *relationStorage, rows [][]sqltype.Value, populated bool, tx TxRef) error {
@@ -240,6 +292,15 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 		return err
 	}
 	s.materializedReplacement = &materializedReplacement{original: d, descriptor: &next, predecessor: previous, storage: &relationStorage{versions: versions, generation: previous.generation + 1}, generation: previous.generation, length: len(previous.versions), ends: previous.ends}
+	for _, descriptor := range s.base.state.descriptors {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && index.sqlIndex.parent == d.address {
+			s.materializedReplacement.indexCount++
+		}
+	}
+	if s.indexSets == nil {
+		s.indexSets = make(map[ObjectAddress]int)
+	}
+	s.indexSets[d.address] = s.materializedReplacement.indexCount
 	s.initialTx = tx
 	return nil
 }
@@ -261,6 +322,9 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	old := r.original
 	if d != r.descriptor || d.address != old.address || d.namespace != old.namespace || d.name != old.name || d.owner != old.owner || d.rowType != old.rowType || d.view != old.view || d.relationKind != materializedViewRelation || d.revision != old.revision+1 || len(d.columns) != len(old.columns) || len(d.attributes) != len(old.attributes) || len(d.columns) != 0 && &d.columns[0] != &old.columns[0] || len(d.attributes) != 0 && &d.attributes[0] != &old.attributes[0] || !d.populated && len(r.storage.versions) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement definition")
+	}
+	if r.concurrent && !d.populated {
+		return fmt.Errorf("stuntgres: concurrent replacement is unpopulated")
 	}
 	for _, row := range r.storage.versions {
 		if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(d.columns) {
@@ -284,6 +348,23 @@ func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, sto
 		return CatalogConflict{}
 	}
 	if catalog.epoch != s.base.Epoch() || catalog.descriptors[r.original.address] != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
+		return CatalogConflict{}
+	}
+	// The effective diff depends on every eligible key; root publication also
+	// depends on ineligible indexes. Fence the exact original complete set,
+	// without turning a replacement into a REINDEX maintenance intent.
+	count := 0
+	for address, descriptor := range catalog.descriptors {
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != r.original.address {
+			continue
+		}
+		if s.base.state.descriptors[address] != descriptor {
+			return CatalogConflict{}
+		}
+		count++
+	}
+	if count != r.indexCount {
 		return CatalogConflict{}
 	}
 	return nil

@@ -9,23 +9,38 @@ import (
 	"time"
 )
 
-func TestMaterializedRefreshQueuedAuthority(t *testing.T) {
-	for _, phase := range []string{"owner", "columns", "attributes", "rowtype", "definition", "ref", "epoch"} {
+func TestMaterializedRefreshQueuedAuthority(t *testing.T) { materializedQueuedAuthority(t, false) }
+func TestMaterializedRefreshConcurrentQueuedAuthority(t *testing.T) {
+	materializedQueuedAuthority(t, true)
+}
+
+func materializedQueuedAuthority(t *testing.T, concurrent bool) {
+	for _, phase := range []string{"owner", "schema", "name", "columns", "attributes", "rowtype", "definition", "ref", "epoch"} {
 		t.Run(phase, func(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
+			if concurrent {
+				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
+			}
 			oldStorage := e.storage[d.address]
 			originalEpoch := e.state.epoch
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := ObjectRef{owner: e.owner, Epoch: originalEpoch, Address: d.address}
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+			mode := accessShare
+			if concurrent {
+				mode = relationExclusive
+			}
+			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			scope := refreshUnitScope(t, e, ctx)
 			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}
+			if concurrent {
+				stmt.Concurrent = parser.Position{Character: 27}
+			}
 			done := make(chan error, 1)
 			go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
 			joined := false
@@ -58,6 +73,10 @@ func TestMaterializedRefreshQueuedAuthority(t *testing.T) {
 			case "owner":
 				owner, _ := refreshUnitPrincipals(e)
 				next.owner = owner
+			case "schema":
+				next.namespace.ObjectID++
+			case "name":
+				next.name = "changed_name"
 			case "columns":
 				next.columns = append([]ColumnDescriptor(nil), d.columns...)
 				next.columns[0].Name = "changed_shape"

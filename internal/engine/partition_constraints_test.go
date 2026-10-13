@@ -211,7 +211,7 @@ func TestPartitionConstraintsVirtualPublication(t *testing.T) {
 			next.descriptors[a] = d
 		}
 	}
-	roots, err := f.e.prepareIndexPublication(context.Background(), &catalogState{descriptors: map[ObjectAddress]Descriptor{}}, &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil)
+	roots, err := f.e.prepareIndexPublication(context.Background(), &catalogState{descriptors: map[ObjectAddress]Descriptor{}}, &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil || roots[f.parent.address] != nil {
 		t.Fatal("virtual root required physical storage", roots, err)
 	}
@@ -240,7 +240,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := f.e.prepareIndexPublication(ctx, f.view.state, next.state, map[ObjectAddress]*relationStorage{f.leaf.address: {}}, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil); !errors.Is(err, context.Canceled) {
+	if _, err := f.e.prepareIndexPublication(ctx, f.view.state, next.state, map[ObjectAddress]*relationStorage{f.leaf.address: {}}, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled candidate accepted", err)
 	}
 	if f.child.sqlIndex.partitionParent != (ObjectAddress{}) || f.parent.sqlIndex.valid {

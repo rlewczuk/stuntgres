@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -279,11 +280,11 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, output sqltype.OutputEnvironment, auth *AuthorizationView) (map[ObjectAddress]*logicalIndexRoot, error) {
-	return e.prepareIndexPublication(ctx, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true, output, auth)
+func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ObjectAddress]authorization.PrincipalRef) (map[ObjectAddress]*logicalIndexRoot, error) {
+	return e.prepareIndexPublication(ctx, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners)
 }
 
-func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ObjectAddress]authorization.PrincipalRef) (map[ObjectAddress]*logicalIndexRoot, error) {
 	var result map[ObjectAddress]*logicalIndexRoot
 	catalog := CatalogRead{owner: e, state: next}
 	if auth == nil {
@@ -301,6 +302,16 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			continue
 		}
 		parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		owner, runtime := runtimeOwners[parent.address]
+		indexAuth := auth
+		if runtime && auth.engine != nil {
+			if _, err := auth.roles.Descriptor(owner); err != nil {
+				return nil, err
+			}
+			disclosure := *auth
+			disclosure.state.CurrentUser = owner
+			indexAuth = &disclosure
+		}
 		if parent.partition != nil {
 			if current.descriptors[a] != index {
 				if err := ctx.Err(); err != nil {
@@ -335,7 +346,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 		rebuild := root == nil || old == nil || intent || !sameIndexKeySemantics(old, index)
 		// Generic parent shape changes cannot heal invalid indexes. Supplied
 		// phase roots and ready-invalid maintenance still use the same core.
-		if old != nil && !index.sqlIndex.valid && rebuildIndexes[a] == nil {
+		if old != nil && !index.sqlIndex.valid && rebuildIndexes[a] == nil && !runtime {
 			if root == nil {
 				return nil, fmt.Errorf("stuntgres: ready index root is missing")
 			}
@@ -374,7 +385,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 			}
 			if index.sqlIndex.isExclusion() {
 				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
-				if err := validateExclusionRoot(ctx, parent, index, root, namespace.name, output, auth, rebuild); err != nil {
+				if err := validateExclusionRoot(ctx, parent, index, root, namespace.name, output, indexAuth, rebuild && !runtime); err != nil {
 					return nil, err
 				}
 			}
@@ -404,7 +415,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				if err != nil {
 					return nil, err
 				}
-				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.name, output, auth, true, ordering); err != nil {
+				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.name, output, indexAuth, !runtime, ordering); err != nil {
 					return nil, err
 				}
 			}
@@ -418,7 +429,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 				schema = next.descriptors[parent.namespace].(*namespaceDescriptor).name
 			}
 			reconstruct := (rebuildParents[parent.address] || old == nil) && index.sqlIndex.valid
-			merged, err := mergeIndexRoot(ctx, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, auth)
+			merged, err := mergeIndexRoot(ctx, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, indexAuth)
 			if err != nil {
 				return nil, err
 			}
