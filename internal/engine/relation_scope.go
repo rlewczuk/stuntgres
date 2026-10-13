@@ -10,6 +10,11 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
+	if merge, ok := stmt.(*parser.Merge); ok {
+		if err := validateMergeReachability(merge); err != nil {
+			return err
+		}
+	}
 	switch stmt.(type) {
 	case *parser.Truncate:
 		if !execute {

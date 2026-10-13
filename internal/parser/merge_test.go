@@ -1,6 +1,11 @@
 package parser
 
-import "testing"
+import (
+	"reflect"
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
 
 func TestMergeInsertSyntax(t *testing.T) {
 	queries := []string{
@@ -51,11 +56,53 @@ func TestMergeInsertSyntax(t *testing.T) {
 	}
 }
 
+func TestMergeNothingSyntax(t *testing.T) {
+	for _, tc := range []struct {
+		kind  string
+		match MergeMatch
+	}{
+		{"MATCHED", MergeMatched},
+		{"NOT MATCHED", MergeNotMatched},
+		{"NOT MATCHED BY TARGET", MergeNotMatched},
+		{"NOT MATCHED BY SOURCE", MergeNotMatchedBySource},
+	} {
+		for _, condition := range []string{"", " AND TRUE"} {
+			q := "/*é*/ MERGE INTO t USING s ON t.id=s.id WHEN " + tc.kind + condition + " THEN DO NOTHING"
+			statements, err := Parse(q)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(q, statements, err)
+			}
+			arm := statements[0].(*Merge).Arms[0]
+			if arm.Match != tc.match || arm.Action != MergeNothingAction || (arm.Condition != nil) != (condition != "") {
+				t.Fatal("no-op class/action/condition", arm)
+			}
+			when := utf8.RuneCountInString(q[:strings.Index(q, "WHEN")]) + 1
+			do := utf8.RuneCountInString(q[:strings.Index(q, "DO NOTHING")]) + 1
+			if arm.Pos.Character != when || arm.ActionPos.Character != do || len(arm.Values) != 0 || len(arm.Targets) != 0 || len(arm.Assignments) != 0 || arm.DefaultValues {
+				t.Fatal("no-op positions/payload", arm)
+			}
+		}
+	}
+}
+
+func TestMergeNothingQuerySources(t *testing.T) {
+	statements, err := Parse("MERGE INTO t USING s ON EXISTS(SELECT 1 FROM on_source) WHEN MATCHED AND EXISTS(SELECT 1 FROM conditions) THEN DO NOTHING")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	err = VisitQuerySources(statements[0], nil, func(table *TableReference, _ *Select) error {
+		names = append(names, table.Name.Parts[0].Text)
+		return nil
+	})
+	if err != nil || !reflect.DeepEqual(names, []string{"s", "on_source", "conditions"}) {
+		t.Fatal(names, err)
+	}
+}
+
 func TestMergeInsertRejectsFullInput(t *testing.T) {
 	for _, suffix := range []string{
-		"WHEN NOT MATCHED THEN DO NOTHING",
 		"WHEN NOT MATCHED BY TARGET THEN UPDATE SET id=1",
-		"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING",
 		"WHEN NOT MATCHED THEN INSERT INTO t VALUES(1)",
 		"WHEN NOT MATCHED THEN INSERT SELECT 1",
 		"WHEN NOT MATCHED THEN INSERT VALUES(1),(2)",

@@ -158,8 +158,13 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   lexical `merge_action()` output. Plain star is source-first; target defaults
   to NEW for INSERT/UPDATE and OLD for DELETE, with absent sides SQL NULL.
   Output is eagerly evaluated per accepted action and published atomically.
-  No-op actions, query/multiple-row insertion actions, partial insertion targets
-  and writable target views remain excluded. Triggers/rules/FDWs, target
+  All three match classes support DO NOTHING: first TRUE selects one action,
+  FALSE/NULL fall through, and unconditional same-class successors are unreachable.
+  Selected no-ops do not count, project output, evaluate mutation defaults or
+  acquire mutation row grants; typed empty metadata remains available. Specifying
+  a no-op requires SELECT on any live target column, plus all actual read demands.
+  Query/multiple-row insertion actions, partial insertion targets and writable
+  target views remain excluded. Triggers/rules/FDWs, target
   hierarchy writes, writable CTEs, procedural functions and COPY(MERGE) are not
   supplied by this feature. Positioned mutation of a view is unavailable.
 - Catalog sources are bounded projections, not complete `pg_type`,

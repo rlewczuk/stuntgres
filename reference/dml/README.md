@@ -6,6 +6,66 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### MERGE omission and ordering contracts
+
+The untagged `merge_nothing_*_test.go` definitions share direct/prepared SQL
+and independent pinned PostgreSQL18.0 outcomes. The fixed fixture selects no-op,
+UPDATE and DELETE for matched candidates, no-op/DELETE for target-only candidates
+and no-op/INSERT for source-only candidates. Native count is4; lib/pq count is0.
+Survivors are `(1,10),(2,21),(4,40),(7,70)`; only UPDATE2, DELETE3, DELETE5 and
+INSERT7 appear in the RETURNING bag. Every no-op leaves stored data unchanged.
+
+The first TRUE eligible WHEN is terminal, including DO NOTHING; FALSE/NULL fall
+through. Initial unmatched classification never widens just because no arm
+selects. Unconditional clauses reject later same-class clauses with exact42601
+before relation admission/binding. Namespace, Boolean, UTF8 diagnostic position,
+any-column SELECT and held revoke/regrant contracts remain independently checked.
+No-op presence needs SELECT on any live target column even with empty input or a
+FALSE condition. Specified mutation arms keep startup mutation privileges.
+
+Selected omission does not acquire a mutation row grant, assemble a payload,
+consume a sequence/default/identity/generated value, mark an accepted RowID or
+evaluate RETURNING, including ignored Exec output. Empty output retains names,
+types and transport metadata; one held TRUE/FALSE/NULL handle exercises fresh
+parameters. Fault-suppression source inputs use persisted zero denominators,
+not constant VALUES expressions that PostgreSQL can fold during planning.
+
+Public initial no-op finishes while the conflicting holder stays active.
+PostgreSQL RowWait proves the same genuine mutation execution restarts into no-op
+and, after lost ON, BY SOURCE omission still permits retained BY TARGET INSERT.
+Native public timeout/healthy recovery is not restart parity; the private
+RowRecheck/SourceAfter units observe actual pending row resources with frozen
+source values. Cancellation units join the pending worker and check owner/claim
+retirement and unchanged prefix. Controls use real native Dump/Reset/Restore,
+clone/canonical redump, retained rows/metadata and held reexecution; real mode
+also replays actual emitted SQL. These are not PostgreSQL physical control APIs.
+
+Run each public group below in native mode and again adding `REFERENCE=1`.
+Use an external900-second deadline for every invocation:
+
+```sh
+make check RUN='^TestReferenceMergeNothing(Mixed|Ordering|Suppression)$'
+make check RUN='^TestReferenceMergeNothing(Unreachable|Namespaces)$'
+make check RUN='^TestReferenceMergeNothing(Privileges|HeldACL)$'
+make check RUN='^TestReferenceMergeNothing(Prepared|Metadata|Atomicity)$'
+make check RUN='^TestReferenceMergeNothing(Cancellation|Concurrency)$'
+make check RUN='^TestReferenceMergeNothingControls$'
+make check RUN='^TestReferenceMergeNothingFeatureSmoke$'
+make check RUN='^TestReferenceMergeInsertBoundaries$'
+make check RUN='^TestMergeNothing(Syntax|QuerySources|Selection|Preflight|Publication)$'
+make check RUN='^TestMergeNothing(RowAdmission|RowRecheck|SourceAfter|Cancellation)$'
+make check RACE=1 RUN='^TestMergeNothing(RowAdmission|RowRecheck|SourceAfter|Cancellation)$'
+make check RUN='^TestMergeInsertRejectsFullInput$'
+```
+
+Whole-project Docker-free proof uses `make quickcheck`. Definitions and this
+description are not verification evidence. The standalone session smoke is
+an OMP handoff, not a permanent repository program: from the worktree run
+`timeout 900s go run "$SESSION_TMP/merge-nothing-smoke.go"`. It checks mixed
+count/rows/output, held transitions, typed empty output, exact late-failure and
+reachability diagnostics and actual controls; quiet success prints
+`MERGE DO NOTHING smoke: ok`.
+
 ### MERGE RETURNING contracts
 
 The untagged `merge_returning_*_test.go` definitions share direct/prepared SQL
@@ -82,8 +142,9 @@ values/identity continuation, clone/canonical redump, failed/cancelled restore,
 retained completed output and held reexecution. Enabled real mode also replays
 the actual emitted dump SQL on PostgreSQL, not an invented PG Restore API.
 Restore continues to reject MERGE. The migrated insertion/composite boundaries
-now assert real RETURNING rows and final stored bags, preserving DO NOTHING,
-partial insertion and unrelated composite exclusions. Source views remain
+now assert real RETURNING rows and final stored bags; DO NOTHING boundaries share
+positive omission assertions. Partial insertion and unrelated composite exclusions
+remain. Source views remain
 supported; writable target views, hierarchy writes, triggers/rules/FDWs,
 writable CTEs, procedural functions and COPY(MERGE) remain outside this feature.
 

@@ -520,14 +520,14 @@ and [selected proof](reference/dml/README.md#insert-returning-oracle-first-contr
 Change note: PostgreSQL18 `MERGE` supports ordered conditional
 `WHEN MATCHED THEN UPDATE SET` or `DELETE`,
 `WHEN NOT MATCHED BY SOURCE THEN UPDATE SET` or `DELETE`,
-and `WHEN NOT MATCHED [BY TARGET] THEN INSERT`. Target-only candidates include
-every unmatched target occurrence, even with an empty source; their conditions,
+and `WHEN NOT MATCHED [BY TARGET] THEN INSERT`. All three classes admit `DO NOTHING`.
+Target-only candidates include every unmatched target occurrence, even with an empty source; their conditions,
 assignment bounds and RHS see only the original target. Membership freezes before
 row waits. Latest-row restarts preserve the target-only class; a formerly matched
 pair can act on its surviving target then insert its retained source. Specifying
 both outer classes requires the existing FULL-join legality rules. Mixed actions
 share constraints and one atomic publication, including native Dump/Restore;
-all selected actions contribute to the native count.
+only accepted INSERT/UPDATE/DELETE mutations contribute to the native count.
 Both missing-side families retain MERGE-local constant/parameter ON carriers:
 nonzero integers and non-NULL TEXT match, while zero/NULL do not, including domains.
 This does not relax ordinary JOIN or WHEN Boolean typing.
@@ -545,13 +545,28 @@ while lib/pq reports zero for MERGE. Prepared output metadata is fixed even
 when no arm is selected. Source/default/generated/identity values, current
 predecessors, output-only SELECT demand and native Dump/Restore use the
 existing mutation authorities.
-BY SOURCE INSERT, DO NOTHING and writable target views remain excluded.
+Ordered WHEN clauses select the first TRUE condition in the eligible class;
+FALSE/NULL fall through. An unconditional clause makes later same-class clauses
+unreachable (42601), including interleaved and implicit/explicit BY TARGET clauses.
+Selected DO NOTHING is terminal but acquires no mutation row grant and evaluates
+no payload/default/identity/generated value or RETURNING expression. Its result
+retains typed empty metadata. Genuine mutation waits can restart into omission;
+a lost-ON BY SOURCE no-op still permits the retained BY TARGET source action.
+Every specified no-op requires SELECT on at least one live target column;
+actual references and specified mutation arms retain their startup privileges.
+Native controls preserve omitted rows and successful mutations. Public PostgreSQL
+row-wait proof and native private pending-resource proof distinguish causal
+restarts from the native public timeout/recovery witness.
+BY SOURCE INSERT and writable target views remain excluded.
 Triggers, rules, FDWs, target hierarchy writes, writable CTEs, procedural
 functions and COPY(MERGE) remain external or adjacent mechanisms.
 See [MERGE matching and actions](https://www.postgresql.org/docs/18/sql-merge.html).
 MERGE RETURNING feature smoke (900 seconds per invocation; both modes):
 `make check RUN='^TestReferenceMergeReturningFeatureSmoke$'`;
 `make check REFERENCE=1 RUN='^TestReferenceMergeReturningFeatureSmoke$'`.
+MERGE omission feature smoke (900 seconds per invocation; both modes):
+`make check RUN='^TestReferenceMergeNothingFeatureSmoke$'`;
+`make check REFERENCE=1 RUN='^TestReferenceMergeNothingFeatureSmoke$'`.
 Feature smoke (900 seconds per invocation; run each in both modes):
 `make check RUN='^TestReferenceMerge(Delete|SourceUpdate)FeatureSmoke$'`;
 pinned counterpart:

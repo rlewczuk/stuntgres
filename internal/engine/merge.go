@@ -14,6 +14,7 @@ type boundMerge struct {
 	arms          []boundMergeArm
 	hasInsert     bool
 	hasDelete     bool
+	hasNothing    bool
 	hasBySource   bool
 	hasByTarget   bool
 	targetWidth   int
@@ -47,6 +48,20 @@ func mergeRelationKind(relation *relationDescriptor) error {
 		err.Detail = "This operation is not supported for this relation kind."
 	}
 	return err
+}
+
+// Reachability is independent of catalog binding and precedes relation admission.
+func validateMergeReachability(s *parser.Merge) error {
+	var unconditional [3]bool
+	for _, arm := range s.Arms {
+		if unconditional[arm.Match] {
+			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
+		}
+		if arm.Condition == nil {
+			unconditional[arm.Match] = true
+		}
+	}
+	return nil
 }
 
 func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ObjectRef, s *parser.Merge) error {
@@ -127,14 +142,10 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		outputParameters = binder.updateInputParameters
 		defer func() { binder.updateInputParameters = nil }()
 	}
-	var unconditional [3]bool
 	hidden := binder.queryHidden
 	var sourceHidden []queryQualifier
 	for i, raw := range s.Arms {
 		binder.updateInputParameters = outputParameters
-		if unconditional[raw.Match] {
-			return sqlError("42601", "unreachable WHEN clause specified after unconditional WHEN clause")
-		}
 		binder.queryHidden = hidden
 		binder.queryNamespace = &source
 		switch raw.Match {
@@ -169,11 +180,11 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			if err != nil {
 				return err
 			}
-		} else {
-			unconditional[raw.Match] = true
 		}
 		arm.input = binding{ref: ref, relation: out.relation, storage: out.storage}
 		switch raw.Action {
+		case parser.MergeNothingAction:
+			merge.hasNothing = true
 		case parser.MergeDeleteAction:
 			merge.hasDelete = true
 		case parser.MergeUpdateAction:
@@ -277,7 +288,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 			}
 			continue
 		}
-		if arm.action == parser.MergeDeleteAction {
+		if arm.action == parser.MergeDeleteAction || arm.action == parser.MergeNothingAction {
 			continue
 		}
 		for j, expression := range arm.input.expressions[0] {

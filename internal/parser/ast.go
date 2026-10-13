@@ -907,6 +907,7 @@ const (
 	MergeInsertAction MergeAction = iota
 	MergeUpdateAction
 	MergeDeleteAction
+	MergeNothingAction
 )
 
 // MergeActionExpr is special SQL syntax, not an ordinary catalog function.

@@ -92,35 +92,21 @@ func TestReferenceMergeInsertBoundaries(t *testing.T) {
 		})
 	})
 	for _, tc := range []struct {
-		suffix, token, message string
-		rows                   [][]any
+		suffix, source string
 	}{
-		{"WHEN NOT MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}},
-		{"WHEN MATCHED THEN DO NOTHING", "DO", "MERGE DO NOTHING is unsupported", [][]any{{int64(1)}}},
-		{"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING", "SOURCE", "MERGE BY SOURCE actions are unsupported", [][]any{{int64(1)}}},
+		{"WHEN NOT MATCHED THEN DO NOTHING", "(VALUES(2)) s(id)"},
+		{"WHEN NOT MATCHED BY TARGET THEN DO NOTHING", "(VALUES(2)) s(id)"},
+		{"WHEN MATCHED THEN DO NOTHING", "(VALUES(1)) s(id)"},
+		{"WHEN NOT MATCHED BY SOURCE THEN DO NOTHING", "(VALUES(2)) s(id)"},
 	} {
 		t.Run(tc.suffix, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 				run := fixture.MergeRun(t, p, b, prepared)
 				run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
-				source := "(VALUES(1)) s(id)"
-				if strings.Contains(tc.suffix, "BY SOURCE") {
-					source = "(VALUES(2)) s(id)"
-				}
-				q := "MERGE INTO t USING " + source + " ON t.id=s.id " + tc.suffix
-				if b.PG {
-					run(fixture.Exec(q, 0))
-				} else {
-					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: tc.message, Position: fixture.Position(strings.LastIndex(q, tc.token) + 1)})
-					s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]
-					run(s)
-				}
-				want := tc.rows
-				if !b.PG {
-					want = [][]any{{int64(1)}}
-				}
-				run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, want))
+				q := "MERGE INTO t USING " + tc.source + " ON t.id=s.id " + tc.suffix
+				run(fixture.Exec(q, 0))
+				run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			})
 		})
 	}

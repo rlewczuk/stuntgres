@@ -278,6 +278,20 @@ old snapshot version and an own descendant with the same logical RowID, without
 advancing the snapshot; deletion retires the selected version and replacement base,
 not an unrelated old occurrence. Mixed actions reuse canonical replace/insert/delete
 staging. Native RowsAffected sums actual actions, whereas pinned lib/pq reports zero.
+Within the initial eligible MERGE class, the first TRUE WHEN selects one action;
+FALSE/NULL pass to later clauses. An unconditional arm makes later same-class
+arms unreachable, checked before target/source admission and expression binding.
+An initial selected DO NOTHING never follows a newer target or acquires its
+mutation row grant. A genuine attempted mutation may wait and restart into
+DO NOTHING; that omission does not undo the already acquired grant. After lost
+ON, a BY SOURCE no-op suppresses only the target action, not the retained
+BY TARGET source action. Omitted candidates allocate no replacement payload,
+claim no mutation key, consume no identity/default/generated value, mark no
+accepted target RowID and evaluate no RETURNING. Empty output keeps its analyzed
+schema. All specified no-op arms require any-column target SELECT even for
+FALSE conditions or empty input; actual reads and mutation arms keep their
+ordinary privilege demands. Late failure/cancellation still discards every
+private mutation/output prefix through the same Finish boundary.
 The exact correlated scalar array-bound case that caused pinned PostgreSQL server
 recovery is not a claimed parity result or SQLSTATE golden.
 

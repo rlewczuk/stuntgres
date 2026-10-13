@@ -585,7 +585,6 @@ package parser
 %type <mergeArm> merge_arm merge_insert
 %type <expr> merge_condition
 %type <tok> merge_target_class
-%type <tok> merge_excluded_action
 %type <stmt> role_membership
 %type <stmt> alter_default_privileges
 %type <defaultPrivileges> default_privileges_action
@@ -1596,16 +1595,15 @@ merge_arms: merge_arm { $$=[]MergeArm{$1} }
 merge_target_class: /* empty */ { $$=lexeme{} } | BY TARGET { $$=$2 } ;
 merge_condition: /* empty */ { $$=nil } | AND target_or { $$=$2 } ;
 merge_arm: WHEN NOT MATCHED merge_target_class merge_condition THEN merge_insert { $$=$7;$$.Condition=$5;$$.Pos=$1.pos }
- | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { sqllex.(*lexer).deferUnsupported($7,"MERGE DO NOTHING is unsupported");$$=MergeArm{} }
+ | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeNotMatched,Action:MergeNothingAction,Condition:$5,Pos:$1.pos,ActionPos:$7.pos} }
  | WHEN MATCHED merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeMatched,Action:MergeUpdateAction,Condition:$3,Assignments:$7,Pos:$1.pos,ActionPos:$5.pos} }
  | WHEN MATCHED merge_condition THEN UPDATE SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$7.pos.Offset);return 1 }
  | WHEN MATCHED merge_condition THEN DELETE { $$=MergeArm{Match:MergeMatched,Action:MergeDeleteAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
- | WHEN MATCHED merge_condition THEN DO NOTHING { sqllex.(*lexer).deferUnsupported($5,"MERGE DO NOTHING is unsupported");$$=MergeArm{} }
+ | WHEN MATCHED merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeMatched,Action:MergeNothingAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
  | WHEN NOT MATCHED BY SOURCE merge_condition THEN DELETE { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeDeleteAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} }
  | WHEN NOT MATCHED BY SOURCE merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeUpdateAction,Condition:$6,Assignments:$10,Pos:$1.pos,ActionPos:$8.pos} }
  | WHEN NOT MATCHED BY SOURCE merge_condition THEN UPDATE SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$10.pos.Offset);return 1 }
- | WHEN NOT MATCHED BY SOURCE merge_condition THEN merge_excluded_action { sqllex.(*lexer).deferUnsupported($5,"MERGE BY SOURCE actions are unsupported");$$=MergeArm{} } ;
-merge_excluded_action: DO NOTHING { $$=$1 } ;
+ | WHEN NOT MATCHED BY SOURCE merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeNothingAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} } ;
 merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Values:$7,ActionPos:$1.pos} }
  | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }

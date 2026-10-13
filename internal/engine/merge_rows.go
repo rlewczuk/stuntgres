@@ -225,7 +225,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		if err != nil {
 			return nil, err
 		}
-		if arm == nil {
+		if arm == nil || arm.action == parser.MergeNothingAction {
 			continue
 		}
 		sourceAfter := false
@@ -291,7 +291,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		// and then on its retained missing-target source. Initial BY SOURCE never
 		// enters MATCHED merely because a peer made ON true.
 		for {
-			if arm != nil {
+			if arm != nil && arm.action != parser.MergeNothingAction {
 				if err := e.appendMergeAction(scope, b, result, &evaluation, schema, unique, arm, old, candidate.deletion, accepted, &excluded); err != nil {
 					return nil, err
 				}
